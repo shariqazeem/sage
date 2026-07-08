@@ -1,556 +1,344 @@
-# Sage — Current State (single source of truth for "where are we")
+# Sage — Current State
 
-> This is the complete, current snapshot: what Sage is, how every piece works,
-> what's real vs. pending, the demo, and the bootcamp gate. The pass-by-pass
-> history lives in `docs/STATE.md`; this file is the clean "now."
-> Last updated during the post-Pass-11 build (repositioning + reasoning surface +
-> ERC-8004 identity panel).
+> The complete, current snapshot of the project as of **2026-07-09**: the idea,
+> how every piece works end-to-end, what is real on mainnet vs. testnet, and the
+> exact state of each integration. This file is the authoritative "now."
 
 ---
 
-## 1. What Sage is (repositioned)
+## 1. The idea
 
 **Sage is the control layer for AI agents that spend real money.** You give an AI
 worker an *allowance, not your keys*: a budget and a rule. It pays real people for
-real completed work, autonomously, from an on-chain **Policy Vault** it is
-physically incapable of exceeding.
+real completed work, autonomously, from an on-chain **Policy Vault it is
+physically incapable of exceeding.**
 
-- **One-liner (landing):** "Give an AI agent an allowance — not your keys."
-- **Positioning:** the allowance / payroll rail for the agent economy (Mercury/
-  Ramp for AI workers), not a "bounty tool." Bounty & reward payouts are simply
-  where the allowance gets spent first (the wedge), never the headline.
-- **The guarantee:** the agent proposes *who* and *how much*; the vault decides
-  *whether money can move*. Anything off-policy is blocked on-chain before funds
+- **One-liner:** *"Give an AI agent an allowance — not your keys."*
+- **The product:** an autonomous **Payout Deputy**. You fund a policy-capped vault
+  and define a task; people submit work; the Deputy's AI brain verifies each
+  submission against your criteria and releases USDC — or the vault blocks it.
+- **The guarantee:** the AI proposes *who* and *how much*; the **vault decides
+  whether money can move.** Anything off-policy is blocked on-chain *before* funds
   move — even if the AI is wrong or compromised.
+- **The wedge:** reward campaigns / bounties / quests (pay many small
+  contributors for verifiable work). The long game is the payroll rail for the
+  agent economy.
 
-**Product names:** Sage = the platform. Deputy / Payout Deputy = the AI worker.
-Policy Vault = the on-chain leash. (Final product name still open.)
+**Names:** Sage = the platform. Payout Deputy = the AI worker. Policy Vault = the
+on-chain leash.
+
+**Why it's defensible:** the brain is a *controlled, verifiable, un-jailbreakable*
+pipeline (see §3), not a general chat agent. That constraint is the product — it's
+what makes it safe to hand real money.
 
 ---
 
-## 2. Where we are — the bootcamp gate
+## 2. How it works (end-to-end)
 
-Building for the **OpenClaw Summer Builder Bootcamp 2026** (GOAT / Metis / ClawUp
-ecosystem) and the partner **Future Caribbean buildathon** (same project, applied
-to both). Judged on product quality + real user traction + **real economic
-activity**. Two required integrations gate Stage 2: **x402** + **ERC-8004**.
+```
+Poster                          Sage                              Chain
+──────                          ────                              ─────
+fund a PolicyVault  ─────────────────────────────────────────▶  vault: budget,
+                                                                 per-tx cap,
+                                                                 velocity, duration
+create a campaign  ──▶  title + criteria + reward + autonomy
+share /c/<slug>
 
-**Real timeline (from the onboarding guide):**
-| Date | Milestone |
+Worker
+──────
+submit work + evidence URL  ─▶  Deputy pipeline (after response):
+                                 1. fetch evidence (x402 RAIL 1, or direct)
+                                 2. LLM verifies vs criteria → decision receipt
+                                 3. autopilot gate (engine=llm, pay, conf≥thr)
+                                 4. pre-flight vault read
+                                 5. CAS pending→settling (no double-pay)
+                                 6. settle ───────────────────────────────▶  requestSpend:
+                                                                              6 on-chain checks
+                                                                              → Spent (USDC moves)
+                                                                              or SpendRejected (blocked)
+                                 7. journal + /proof/<tx> + Telegram announce
+```
+
+Every payout and every rejection is a real on-chain transaction with a public
+`/proof/<tx>` page. The agent's cumulative record is anchored to its ERC-8004
+identity and shown at `/agents/sage`.
+
+---
+
+## 3. The AI agent — the brain (in depth)
+
+The brain is `src/lib/deputy/brain.ts` (`verifySubmission`) + the pure core in
+`brain-core.ts`. It is **advisory**: it produces a decision; the vault enforces.
+
+### 3.1 What it produces — the decision receipt
+
+For one submission it returns a `DecisionBrief`:
+
+| Field | Meaning |
 |---|---|
-| **July 13** | Agents launched — x402 configured **and** ERC-8004 identity registered |
-| July 15 | Stage-1 Demo Day |
-| July 17 | Stage-1 ends — all deliverables due |
-| July 20–22 | Qualification review |
+| `engine` | `llm` (real model) or `heuristic` (honest fallback) |
+| `model` | the model id that decided |
+| `criteria[]` | each criterion: `met` + **verbatim `quote`** from the fetched evidence |
+| `fraudSignals[]` | `{signal, severity, reason}` — injection, mismatch, spam |
+| `recommendation` | `pay` / `review` / `hold` |
+| `confidence` | 0..1 |
+| `summary` | one-paragraph rationale |
+| `evidenceOk` | was the evidence actually fetched + hashed |
+| `contentSha256` | hash of the evidence read (tamper-evidence) |
+| `latencyMs`, `costUsd` | ~$0.0003 per decision |
+| `x402PaymentTx` | the real GOAT tx that paid for verification, or null |
 
-**Status right now:** the entire product is built and green on Metis Sepolia. The
-**x402 payment gate is LIVE and verified** — merchant `sage` approved, agent wallet
-funded (5 USDC + BTC gas on GOAT mainnet), two real end-to-end payments settled +
-facilitator-signed (see §13). The remaining gate item is (a) firing the ERC-8004
-identity registration once the agent wallet has gas. Neither blocks further
-product building.
+This receipt is rendered in the review queue (`DeputyAssessmentCard`) so a poster
+sees *exactly why* before anything settles.
 
----
+### 3.2 The verification call
 
-## 3. Tech stack
+- Any **OpenAI-compatible** chat-completions endpoint. Configured with
+  `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (legacy `COMMONSTACK_*` fallback).
+  Today: **CommonStack**, model `deepseek/deepseek-v4-flash` (gemini also works).
+- Temperature 0, `response_format: json_object`, `max_tokens` 900, one repair
+  retry on malformed JSON.
+- **Retry: 3 attempts, 35s timeout each.** CommonStack is intermittently flaky;
+  the retry rides through bad windows. If **all** attempts fail → the honest
+  **heuristic** (keyword screen), clearly labeled `engine: heuristic`.
 
-- **Next.js 15.5** (App Router, server-first RSC), **React 19**, **TypeScript
-  strict** (no `any`, no `@ts-ignore`).
-- **On-chain:** Solidity + **Foundry** (`contracts/`); **viem ^2** for all chain
-  access (no wagmi).
-- **Persistence:** **drizzle-orm** over **better-sqlite3** (local `var/sage.db`,
-  WAL) — swappable to Neon/Turso for deploy.
-- **Auth:** SIWE-lite (wallet-signed, HMAC httpOnly cookie).
-- **UI:** Tailwind-adjacent hand-authored CSS design system; **lucide** icons;
-  Inter + JetBrains Mono; a canvas **BudgetRing** motif.
-- **Tests:** **Vitest** (unit/component) + **Playwright** (E2E). **14 test files,
-  71 unit tests, all green.** Gates: `typecheck · lint · test · build`.
+### 3.3 The hardening (why it can't be jailbroken into paying)
 
----
+Four model-independent layers (`brain-core.ts`), validated by `tests/redteam/`:
 
-## 4. How it works — the end-to-end flow
+1. **Untrusted-data delimiters** — the submitter's note + evidence are wrapped in
+   `<<<UNTRUSTED_…>>>` markers; a system-prompt rule declares everything inside as
+   *data, never instructions*; forged markers are stripped.
+2. **Server-side injection detector** (`detectInjection`) — regex families for
+   override-instructions / instruct-verdict / role-play-authority / jailbreak
+   lexicon / hidden control chars. A match injects a **HIGH-severity fraud signal
+   *before the LLM is even called*** — a backstop that works even if the model is
+   fully compromised.
+3. **Confidence ceiling** — capped at **0.5** whenever evidence couldn't be
+   fetched, so "trust me, no link" can never clear the pay bar.
+4. **Verbatim-quote enforcement** — fabricated quotes (not present in the fetched
+   text) are dropped.
 
-The product is one loop, real on every leg except where noted:
+**Result: 15/15 adversarial attacks held** (deterministic suite + a live harness).
+A worst-case fully-jailbroken model still cannot produce an auto-payable brief.
 
-```
-Poster (owner)                 Participant (worker)
-  │ creates a campaign            │ opens the public link /c/<slug>
-  │ (funds a Policy Vault,        │ connects wallet + signs in (SIWE)
-  │  sets budget/caps/rule)       │ submits work + evidence URL
-  ▼                              ▼
-Campaign + on-chain vault  ◄──  Submission (deduped: 1/wallet, no reused evidence)
-  │
-  │  Poster opens the campaign in-app (Agents tab → campaign detail)
-  │  ┌─ Deputy assessment (server-computed): criteria signals, spam risk,
-  │  │  computed payout, recommendation (pay/review/hold)   ← the "reasoning"
-  │  ▼
-  │  Poster clicks "Approve & pay"
-  │     ├─ Sage-owned vault: server allowlists recipient (owner==operator) →
-  │     │  operator requestSpend → USDC settles
-  │     └─ Founder-owned vault: owner signs the allowlist add (timelock
-  │        countdown) → operator requestSpend → USDC settles
-  ▼
-Policy Vault runs 6 on-chain checks → SpendSettled (paid) or SpendRejected (blocked)
-  ▼
-Public proof page /proof/<tx>  +  ERC-8004 reputation  +  trustless work journal
-```
+### 3.4 The pipeline + the autopilot gate
 
-**The two-actor model (the whole safety thesis):**
-- **Owner** = the human (the poster). Owns the vault; signs governance: fund,
-  activate, allowlist a recipient (timelocked), lower a cap, revoke. Never held
-  by the AI.
-- **Operator** = the Deputy's autonomous key (server-side). The *only* address the
-  vault lets call `requestSpend`. It can pay within policy but can't change policy
-  or allowlist recipients.
-- That split is "give it a budget, not your keys." On the demo/Sage-owned vault
-  owner == operator (one key) so the server runs the whole cascade; on a
-  founder-created vault the owner is the founder's own wallet.
+`runDeputyOnSubmission` (`pipeline.ts`) runs **after the HTTP response flushes**
+(Next `after()`), so a slow/failing brain never delays or fails the submit. One
+`correlationId` threads decision → gate → preflight → cas → settle for greppable
+end-to-end traces.
+
+**Autopilot pays autonomously only if ALL hold:**
+`autonomy = autopilot` ∧ `status = pending` ∧ **`engine = llm`** ∧
+`recommendation = pay` ∧ `confidence ≥ threshold (0.85)` ∧ no high-severity fraud
+∧ (for GOAT mainnet, chainId 2345) **`DEPUTY_AUTOPILOT_MAINNET` armed**.
+
+The critical safety property: **the heuristic can NEVER auto-pay.** If the LLM
+fails, the Deputy holds for a human — an LLM outage can only make it *cautious*,
+never wrong with money.
 
 ---
 
-## 5. On-chain layer (Metis Sepolia · chain 59902)
+## 4. The Policy Vault (on-chain enforcement)
 
-### PolicyVault contract (`contracts/src/PolicyVault.sol`)
-Holds USDC and enforces every spend. `requestSpend(vendor, amount, intentHash)`
-**soft-rejects** (returns false + emits `SpendRejected` with a `failedCheckIndex`)
-rather than reverting, so the UI can always show *why*. Six checks, in order:
+Solidity + Foundry (`contracts/PolicyVault.sol`, `PolicyVaultFactory.sol`), read/
+written via viem behind one adapter (`src/lib/deputy/chain.ts`, `signer.ts`).
 
-| # | Check | Blocks when |
+### 4.1 The six checks
+
+Every `requestSpend` runs six checks in contract order; a failure emits
+`SpendRejected(failedCheckIndex 1..6)` and **moves no funds** (it does *not*
+revert — a graceful rejection, logged on-chain forever). Roughly: **1** vault
+active (not paused/expired/revoked), **3** vendor approved, **4** per-transaction
+cap, **5** remaining budget, plus velocity + validity. Pass all six → `Spent`,
+USDC transfers.
+
+> This is why a blocked/overspend tx reads "Success" on the explorer — the tx
+> executed; the `SpendRejected` event *is* the refusal. `/proof/<tx>` says so.
+
+### 4.2 State machine + a lesson learned
+
+`Created → Funded → Active → (Paused | Revoked)`. Expiry = `activationTime +
+duration` (immutable, **no renew** — allowances have a fixed lifetime by design).
+`fund()` uses `safeTransferFrom` (approve first); `activate()` requires
+`balance ≥ budgetCeiling` (so **fund amount must equal budget**). An **expired**
+vault blocks every spend at check 1; there is no reactivation — you deploy a fresh
+vault. (We hit this: the original demo vault expired, which is what actually
+blocked early payouts.)
+
+### 4.3 Per-chain
+
+Each campaign carries a `chainId`; a registry (`networks.ts`) maps
+**59902 = Metis Sepolia** (testnet) and **2345 = GOAT mainnet** (real money) to
+RPC, USDC, explorer, and gas strategy (GOAT uses EIP-1559→legacy fallback).
+Signing keys are per-chain.
+
+---
+
+## 5. User flow + surfaces
+
+| Surface | What it is |
+|---|---|
+| **`/`** | Cinematic scroll landing (5 acts), bound to real vault + payout data |
+| **`/app`** | The product: 4 tabs — **Agents / Wallet / Policies / Proof** |
+| **`/c/<slug>`** | Public campaign page — anyone connects a wallet + submits work |
+| **`/agents/sage`** | Public agent identity + grounded track record (ERC-8004 #79) |
+| **`/proof/<tx>`** | Per-payout proof: human fact → machine proof → safety context |
+| **`@sagedeputybot`** | Telegram bot: `/status <slug>`, `/agent`, `/start`; payout announces |
+
+### 5.1 Onboarding (technical)
+
+1. **Connect wallet** (MetaMask, injected).
+2. **Sign in — SIWE-lite**: client GETs a nonce → builds a message with the
+   **checksummed** address → wallet signs → server rebuilds byte-identical +
+   `verifyMessage` → HMAC session cookie (`SAGE_SESSION_SECRET`, required in prod).
+3. **Fund + activate a PolicyVault** (or use the shared demo vault). The create
+   flow verifies **on-chain** that Sage's operator can release from the vault.
+
+### 5.2 Create → submit → decide → pay
+
+- **Create a campaign** (`NewCampaignForm`): title, description, acceptance
+  criteria (one per line), reward (USDC), max recipients, and **Manual vs
+  Autopilot** (press-and-hold to arm; threshold ≥ 85%).
+- **Submit** on `/c/<slug>`: evidence URL is SSRF-validated; one submission per
+  wallet, one per evidence URL (DB-enforced).
+- **Review**: the poster sees the decision receipt per submission. **Manual** →
+  "Approve & pay". **Autopilot** → confident clean matches settle themselves.
+- Every outcome → journal event → `/proof/<tx>`.
+
+### 5.3 Design system
+
+Bloomberg-terminal aesthetic: **dense, monochrome, border-driven.** Deep ink
+`#0A0E14`, paper white `#F8F9FA`; verdict colors reserved for state (green/amber/
+red). **Inter** for UI, **JetBrains Mono** for data/addresses/numbers (tabular
+figures). Hard constraints: no gradients, no glassmorphism, no emoji, 2–4px
+radius, structure from 1px borders + spacing. A presentational motion layer
+(`motion.css`) adds spring/elevation, count-ups, a breathing budget ring, and a
+hold-to-create conic ring — all `prefers-reduced-motion` aware.
+
+---
+
+## 6. Integration state (each one, precisely)
+
+### x402 — **live on GOAT mainnet**
+- Real GOAT x402 handshake via `goatx402-sdk-server`. Merchant **`sage`** (DIRECT),
+  agent wallet `0x0deF…44D6`. Two real end-to-end payments settled + facilitator-
+  signed earlier. `isX402Live()` gates everything.
+- **RAIL 1** — the Deputy *pays 0.1 USDC to verify evidence* (`/api/verify/evidence`
+  behind a paywall). **RAIL 2** — an operator fee is *recorded* per payout and paid
+  by the sweep (never blocks a payout).
+- **Current caveat:** the agent wallet is **out of USDC on GOAT mainnet** (drained
+  by test verifications), so RAIL-1 payments currently fail and **fall back to an
+  honest unpaid direct fetch** — verification still works, the x402 chip shows
+  "pending". Top up the GOAT wallet to re-enable paid verification.
+
+### ERC-8004 — **live on GOAT mainnet**
+- Registered agent **#79**, chain **2345**, registry `0x8004A169…a432`, wallet
+  `0x0deF…44D6`. Listed on **8004scan.io/agents?chain=2345** (the submission
+  dashboard). Reputation (`deriveReputation`) is derived from **real journal rows**,
+  deduped by tx, and served at `GET /api/agent/card` (cached 60s).
+
+### GOAT Network (2345) + Metis Sepolia (59902)
+- Per-vault `chainId`. **Metis Sepolia = the working testnet demo chain.**
+  **GOAT mainnet = real-money chain** (vault deployed + funded; autopilot armed but
+  gated — see §7).
+
+### OpenClaw / ClawUp — **agent live**
+- **Sage Concierge** created on ClawUp (OpenClaw type, **GOAT & Metis Identity**
+  preset with ERC-8004 + x402 Merchant skills bundled, model
+  `routerbase/deepseek/deepseek-v4-flash` on managed credits, Telegram channel
+  **`@sageconciergebot`**, agent id `f77f98fc-…`).
+- Custom **`sage-deputy` skill** installed: it answers *"what has Sage paid?"* /
+  campaign-status questions by fetching Sage's real public API
+  (`/api/agent/card`, `/api/campaigns/<slug>/public`) — an honest window into the
+  real product, not a rebuild of it.
+- The **LLM credits** that power Sage's own brain (CommonStack) are the same
+  discounted-model usage the bootcamp provides.
+
+### LLM
+- CommonStack, `deepseek/deepseek-v4-flash` (or gemini). Provider-agnostic
+  (2-min swap to OpenRouter/OpenAI). ~$0.0003/decision. **Known issue:**
+  intermittent hangs → the 3× retry + 35s timeout mitigate; a backup provider is
+  the planned belt-and-suspenders for Demo Day.
+
+### Telegram
+- **`@sagedeputybot`** = Sage's own bot: `POST /api/telegram/webhook`
+  (secret-gated), `/status` `/agent` `/start`, plus per-campaign settle/blocked
+  announces. **`@sageconciergebot`** = the ClawUp concierge (separate bot).
+
+---
+
+## 7. Real on mainnet vs. testnet (the honest split)
+
+| Thing | Metis Sepolia (59902) | GOAT mainnet (2345) |
 |---|---|---|
-| 1 | state | vault paused / expired / revoked |
-| 2 | caller | caller ≠ the authorized operator |
-| 3 | vendor | recipient not on the approved allowlist |
-| 4 | amount | amount > per-transaction cap |
-| 5 | budget | would exceed remaining budget |
-| 6 | velocity | would exceed the 24h velocity cap |
+| ERC-8004 identity | — | ✅ **#79, live, on 8004scan** |
+| x402 merchant + payments | — | ✅ merchant `sage`, 2 real txs (wallet now needs USDC) |
+| Policy Vault deployed + funded | ✅ fresh vault `0x9910…8915`, 2 USDC, active | ✅ vault `0x987b…0850`, 2 USDC, active |
+| **Full autopilot loop** (submit → AI verify → auto-settle) | ✅ **PROVEN** — real 0.5 USDC payout, tx `0x757e45…`, `/proof` renders | 🟡 **armed, not yet exercised** (`DEPUTY_AUTOPILOT_MAINNET=true`, needs a submission + a go) |
+| Where the demo runs today | ✅ here | ⏳ next |
 
-**Mutability rules (the "you can only tighten" story, enforced by the contract):**
-- Budget ceiling, duration, payment token — **immutable**.
-- Per-tx cap, velocity cap — **lowerable only** (`lowerPerTransactionCap`,
-  `lowerDailyVelocityCap`); raising is impossible.
-- Vendor adds — **timelocked** (`queueAddVendor` → wait → `executeAddVendor`);
-  removals instant.
-- Revoke — **terminal** (owner or guardian).
-- Events: `SpendSettled`, `SpendRejected`, `VendorAddQueued`, `VendorAdded`,
-  `PerTransactionCapLowered`, `DailyVelocityCapLowered`, `Revoked`, `Funded`, …
-
-**Factory (`PolicyVaultFactory.sol`):** `createVault(operator, guardian, token,
-budget, perTxCap, velocityCap, duration, initialVendors[], vendorTimelock)` via
-CREATE2; `msg.sender` = owner. 35 Foundry tests pass.
-
-### Deployed addresses (Metis Sepolia · chain 59902)
-| What | Address |
-|---|---|
-| Policy Vault (demo, live) | `0x52A7Ae4e7812472C2F6D4A7eAf76EDD4475E6279` |
-| Factory | `0x9b885D79c03A43D638195b72818CbCC2d496D9A2` |
-| MockUSDC (public mint = free test USDC) | `0xF176f521290A937d81cc5878dfc19908f4D681A1` |
-| Kill-demo vault (disposable, for "try to break it") | `0xEF5425AE80a6E3a198d63dA855EE3783D53EA7B8` |
-| Operator (settling key) | `0xb77e6f5466cf52524e8465859277f192Be0bCfe4` |
-
-RPC `https://sepolia.metisdevops.link`, explorer
-`https://sepolia-explorer.metisdevops.link`. Metis needs **legacy gas**
-(`gasPrice`, no EIP-1559) — every write path forces it. Dual-network config
-(`DEPUTY_NETWORK`) has Metis Andromeda present-but-unused for a later flip.
-
-### Server chain access
-- `src/lib/deputy/chain.ts` (server-only) — viem public client, `getVaultState`,
-  `getVaultPayoutHistory` (reads `SpendSettled`/`SpendRejected` logs = the proof
-  trail), `getPayoutProof(tx)`, vendor + owner/operator + cap getters.
-- `src/lib/deputy/signer.ts` (server-only) — loads the operator key from
-  `contracts/.env`; `submitRequestSpend` (the real payout), `submitRevoke`,
-  `ensureVendorApproved` (server-side allowlist add when we own the vault).
-- `src/lib/deputy/reasons.ts` — `failedCheckReason(index)` maps 1..6 → human text.
+**Plain english:** the *hard integrations* (identity + x402) are real on GOAT
+mainnet. The *full autonomous loop* — AI verifies work and pays real USDC on its
+own — is **proven end-to-end on Metis Sepolia** (real money moved, provable
+on-chain). Flipping that same loop to real GOAT-mainnet money is armed and gated;
+it runs the moment we point the dogfood at 2345 and submit — deliberately held
+until final testing is done (the no-simulation rule is absolute).
 
 ---
 
-## 6. The campaign layer (persistence + lifecycle)
+## 8. Deployment + infra
 
-### Data model (`src/lib/db/schema.ts`, migrations `0000`–`0002`)
-- **campaigns** — id (slug), title, descriptionMd, criteria (json), conditionType,
-  rewardAmount (USDC 6dp base units), maxRecipients, vaultAddress, posterWallet,
-  ownerIsSage, status, createdAt.
-- **submissions** — id, campaignId, wallet, evidenceUrl, note, dedupeKey, status
-  (`pending`→`approved`→`paid`|`rejected`|`blocked`), rejectReason, payoutTx,
-  decidedAt, createdAt. **Unique indexes:** one submission per (campaign, wallet)
-  and no reused evidence URL — dedupe is a DB guarantee.
-- **events** — the append-only work journal: kind (campaign_created,
-  submission_received, submission_approved/rejected, vendor_queued,
-  vendor_allowlisted, settled, blocked, revoked), detail, txHash, **logIndex +
-  vaultAddress** (for chain-reconciled rows), amount, failedCheckIndex, createdAt.
-  Unique index `(txHash, logIndex)` for idempotency.
-- **vault_cursors** — per-vault last-reconciled block (for the trustless journal).
-
-`src/lib/db/index.ts` is a **lazy proxy** (opens the DB on first query, never at
-build) + runs migrations at init. `campaigns.ts` is the server-only repo (CRUD,
-dedupe-aware `createSubmission`, event recording, cursor helpers, and
-`ensureDemoCampaign()` — see §12).
-
-### Data-access & pure logic (`src/lib/campaigns/`)
-- `keys.ts` — `dedupeKey`, `submissionIntentHash(campaign, submission)` (the
-  deterministic on-chain link), `nowSeconds`.
-- `validate.ts` — SSRF-hardened evidence-URL validation (https-only,
-  private/link-local/metadata host blocklist), reward/criteria/title checks.
-- `status.ts` — the submission state machine.
-- `settle.ts` / `settle-flow.ts` — the settle cascade (`ensureVendorApproved` →
-  `submitRequestSpend`; persists paid + journals settled/blocked; triggers the
-  reconciler).
-- `reconcile.ts` + `reconcile-range.ts` — the **trustless journal reconciler**
-  (§8).
-- `journal.ts` — event → display derivation.
-- `labels.ts` — `settlementLabel` + `buildIntentHashMap` (intent-hash → campaign/
-  wallet, for the Wallet-tab history labels).
-- `overview.ts` — `getDeputyOverview(wallet)`: the founder's real campaigns +
-  counts + settled payouts + intent labels + approvedRecipients + journal.
-- `assess.ts` — the Deputy's reasoning (§9).
-
-### API routes (`src/app/api/`)
-- **Auth:** `/api/auth/{nonce,verify,session}` — SIWE-lite handshake.
-- **Campaigns:** `POST /api/campaigns` (create, on-chain check our operator can
-  pay the chosen vault); `GET /api/campaigns/[id]` (poster-gated: campaign +
-  submissions **+ Deputy assessment per pending row** + live vault; also runs the
-  reconciler cheaply); `GET /api/campaigns/[id]/me` (caller's own submission);
-  `POST …/submit` (participant, rate-limited, SSRF-validated, dedupe-enforced);
-  `POST …/submissions/[sid]/decide` (approve → settle cascade | reject);
-  `POST …/submissions/[sid]/settle` (re-fire settle after a founder allowlists).
-- **Deputy:** `GET /api/deputy/overview` (session-gated overview refresh).
-- **Vault demos:** `POST /api/spend` ("try to break it" real approved/blocked
-  spends), `POST /api/kill` (revokes the disposable kill vault, never the live
-  one). Rate limiting in `src/lib/rate-limit.ts`.
+- **Production VM** — Oracle ARM (Ubuntu 24.04). App under **pm2 `sage`** on
+  `:3000`, started via **`start-sage.sh`** (sources `.env` on every boot/restart —
+  the fix for a Next-doesn't-load-env gotcha). **nginx** vhost + **Let's Encrypt**
+  cert → public at **https://sage.80.225.209.190.sslip.io** (sslip.io wildcard DNS;
+  a branded domain is a one-line swap later). SQLite persists on real disk. Shares
+  the box with an unrelated app (kyvern) — never disturbed.
+- **GitHub** — **public** repo `github.com/shariqazeem/sage`, secret-scanned
+  (no `.env`/keys published; ABIs checked in so it builds on clone).
+- **Local** — the dev repo (`localhost:3000`) is where iteration + wallet testing
+  happen.
 
 ---
 
-## 7. Auth — SIWE-lite (`src/lib/auth/`)
-A wallet signs a nonce-bound message (`message.ts`, shared client+server so the
-bytes match); verified with viem `verifyMessage`; the session is a **stateless
-HMAC-signed httpOnly cookie** (7-day TTL, 10-min nonce). Client hook
-`use-siwe.ts` wraps `use-wallet.ts` (connect → nonce → sign → verify). Every
-security decision is server-side.
+## 9. Tech stack + quality gates
+
+- **Next.js 15.5** (App Router, server-first RSC) · React 19 · **TypeScript strict**
+  (no `any`, no `@ts-ignore`).
+- **Solidity + Foundry** (PolicyVault) · **viem ^2** (all chain access).
+- **drizzle-orm + better-sqlite3** (journal, submissions, decisions, campaigns).
+- **Vitest** (240 passing unit/component tests incl. the red-team + failure
+  drills) · **Playwright** e2e.
+- Gates that must stay green: `lint · typecheck · test · build`.
 
 ---
 
-## 8. Trustless journal + reconciler (§ the honesty spine)
-**Rule (final): journal entries derive ONLY from chain reads or server-side
-actions — never client-authored.**
+## 10. Bootcamp deliverables (Stage 1)
 
-- App-side events (campaign_created, submission_received/approved/rejected,
-  settled, blocked) are recorded server-side at the moment they happen.
-- **Owner-signed vendor adds are on-chain events**, so they're journaled from the
-  chain, not the client: `reconcileVendorEvents(vault)` reads `VendorAddQueued` /
-  `VendorAdded` logs since the vault's cursor and folds new ones in, **idempotent
-  by (txHash, logIndex)**. Range-capped at 50k blocks/call (`reconcileRange`,
-  pure + tested) so a cold vault reconciles incrementally. Cursor lives in
-  `vault_cursors`. Runs after any settle + cheaply on campaign-detail load.
-
----
-
-## 9. The Deputy's reasoning + autonomy (the demo's 2nd hero) — full runbook: `docs/AGENT.md`
-Each submission is verified by a real **CommonStack LLM brain**
-(`deputy/brain.ts`, default `deepseek/deepseek-v4-flash`) producing a verifiable
-`decisions` receipt (engine / model / criteria / fraud signals / recommendation /
-confidence, verbatim-quote enforced). No key → a transparent **heuristic**
-(`campaigns/assess.ts`) runs instead, labeled "LLM pending". **THE LLM PROPOSES,
-THE VAULT DISPOSES.**
-
-**Autonomy pipeline** (`deputy/pipeline.ts`): decision → gate (`autopilotGate`) →
-preflight (courtesy vault read) → CAS `pending→settling` → settle via the vault.
-Autopilot pays ONLY when autonomy=autopilot, status=pending, engine=llm,
-recommendation=pay, no high-severity fraud, and confidence ≥ threshold — so the
-keyless heuristic can **never** auto-pay (it holds). The Deputy never signs
-governance (holds for the owner's allowlist signature) and never retry-loops a
-failed spend (resets to pending). An **unreadable vault holds** → the sweep
-retries once the RPC recovers.
-
-**Hardening (this pass):** boot **env validation** (`lib/env.ts`, zod — malformed
-values hard-fail with one startup line of live/pending); a **correlated agent
-log** (`deputy/agent-log.ts`) — one JSON line per pipeline step under a run
-`correlationId`, also embedded in the journal event `detail` as JSON (no schema
-change); **failure drills** as tests (LLM timeout → heuristic + hold; RPC-fail
-preflight → held; double-trigger → exactly one settle via CAS; expired sweep lock
-→ recovers). Triggers: submit-time `after()` + the singleton-locked sweep
-(`/api/deputy/sweep`; Vercel cron */5 + `deputy:watch`).
-
----
-
-## 10. The app — one surface, four tabs (`/app`)
-The premium app shell **is** the product. `sage-app.tsx` runs onboarding
-(welcome → connect → fund → create → HOLD-TO-CREATE real founder-signed vault →
-boot → app) and, for a returning founder, restores their vault from localStorage
-and lands straight in the shell. `app-shell.tsx` renders four tabs:
-
-- **Agents = campaign command center.** Payout Deputy hero (live BudgetRing) +
-  the founder's real campaign list (title, status, reward, paid-of-max, "N to
-  review" badge). Tapping a campaign opens **campaign detail in-shell**
-  (`campaign-detail.tsx`): public-link copy chip + live vault numbers + the
-  **ported review queue** (`review-panel.tsx`) — pending/approved/paid/rejected/
-  blocked, the **Deputy assessment**, the **owner-signed allowlist → amber
-  timelock countdown → settle** motion, and **settle-all**. "+ New campaign"
-  opens **campaign create in-shell** (`campaign-create.tsx` → `new-campaign-form
-  .tsx`). Not signed in → an in-shell SIWE gate.
-- **Wallet.** Dark balance hero + a **Campaigns** section (committed vs settled
-  per campaign, progress bar) + **settled-payout history** labeled `<campaign> —
-  payout to 0x…` → each `/proof/<tx>` (real DB join; on the demo vault the
-  on-chain log is labeled via `submissionIntentHash`).
-- **Policies.** Six mutability-chipped cards from the founder's live vault; the
-  one real mutation wired: **lower a cap** (`cap-control.tsx` + `lower-cap.ts`) —
-  inline lower-only editor → weighty confirm ("cannot be raised back") → owner
-  signs → re-reads from chain. Read-only lock on the demo vault. "Approved
-  recipients" shows the founder's real count (no demo-vendor leak).
-- **Proof.** The **ERC-8004 agent-identity card** (§11) + the on-chain vault/token/
-  network/status rows + the **"Try to break it"** panel (real on-chain approved/
-  blocked spends + real revoke on the disposable vault).
-
-**Design vocabulary is unified** to `.sage-*` / `.sb-*` (in `src/app/app/app.css`);
-`campaigns.css` was deleted. The only remaining `.hire`-classed bits are the Proof
-tab's `hproof` rows + the `break-it` panel (pre-existing, non-campaign).
-
-Old standalone poster routes (`/campaigns`, `/campaigns/new`,
-`/campaigns/[id]/review`) now **redirect to `/app`** (guarded by `purge.test.ts`).
-
----
-
-## 11. Public pages (what strangers & judges hit)
-- **`/c/[slug]`** — the shareable campaign page, re-skinned to the app's design
-  (`.sb-shell` + `.sage-agent-card`): title + task + criteria, a real **BudgetRing
-  reading the campaign's reward pool live**, a **settled-payout feed** (each →
-  `/proof/<tx>`), the same input/button system, and a "Be the first — payouts are
-  real and on-chain" empty state. Wallet-optional; connect + sign + submit.
-- **`/proof/[tx]`** — a single payout's public, verifiable receipt; reads one real
-  tx + the real campaign title (matched by payout tx). Stands alone when shared
-  cold.
-- **`/`** — the repositioned landing (allowance / control-layer framing, live
-  vault hero + real payout feed). `/hire` → `/`; `/sage` is the old placeholder.
-
----
-
-## 12. The one seeded row — Sage's real dogfood campaign
-`ensureDemoCampaign()` seeds (idempotent, id `demo`, renames in place) **"Break
-Sage's onboarding — get paid"**: create your own Deputy vault via `/app`
-onboarding, submit your vault/campaign link + a friction note; $10 USDC per
-accepted tester from the Sage-owned vault. It starts with **zero submissions**
-(no fabricated data). `/c/demo` is the cohort-Telegram link. No other fixtures
-exist — everything else is a real on-chain event or a real user-created row.
-
----
-
-## 13. Integrations — x402 + ERC-8004 + GOAT (status + config)
-
-> Every integration's live/pending status is validated + printed at boot by
-> `src/lib/env.ts` (zod — missing is fine, malformed hard-fails). Example line:
-> `[sage] boot · env OK · network=metis-sepolia(59902) · LLM=live(deepseek/deepseek-v4-flash) · x402=live(merchant:sage) · ERC-8004=pending · Telegram=off · db=var/sage.db`
-
-### ERC-8004 (identity gate) — **prepared, waiting on gas**
-- Registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` on **GOAT Mainnet chain
-  2345** (RPC `https://rpc.goat.network`). Method `register(string name)`; recover
-  agentId from the ERC-721 Transfer event; verify `getAgentWallet(agentId)`. Gate
-  = appear on `https://8004scan.io/agents?chain=2345`.
-- **`scripts/register-erc8004.mjs`** — viem, GOAT chain, reads
-  `GOAT_AGENT_PRIVATE_KEY`, refuses to send at 0 balance, registers, recovers +
-  verifies the agentId, and **writes `ERC8004_AGENT_ID/_ADDRESS/_NAME` to `.env`**
-  on success (legacy-gas retry built in). Run: `node scripts/register-erc8004.mjs
-  Sage`.
-- **`src/lib/erc8004/identity.ts`** + the **Proof-tab identity card** — render the
-  "Pending" state now; flip to "Registered" (name, id, address, 8004scan link)
-  automatically once the script writes `.env` + the app restarts.
-- **Grounded reputation (live in BOTH pending + registered states):**
-  `reputation-core.ts` (pure `deriveReputation` + `toReceipts`, unit-tested incl.
-  the empty state) + server `reputation.ts` derive the Deputy's work record from
-  real rows ONLY — settled USDC + payout/blocked counts from the journal
-  (chain-reconciled amounts), distinct recipients from paid submissions, decision
-  stats (count / avg confidence / engine mix) from `decisions`. Zeros render
-  honestly; nothing is self-asserted.
-  - **Public page `/agents/sage`** (RSC, shareable cold, own premium-calm scoped
-    CSS `.sag` matching `/proof`): identity card (pending + registered), stats in
-    mono/number language, recent receipts (each → `/proof/<tx>`), recent decision
-    summaries. Dynamic OG/canonical metadata for GEO; `/proof/[tx]` now carries
-    rich per-tx metadata too (one shared chain read via React `cache`).
-  - **Canonical agent URI = `GET /api/agent/card`** → `{ name, description, url,
-    wallet, agentId?, chainId: 2345, registry, registered, stats }`, cached 60s
-    (noted atop `register-erc8004.mjs` + `src/lib/site.ts`). `wallet` = the
-    ERC-8004 address once registered, else the derived GOAT agent wallet.
-  - **Proof tab** shows live headline stats (settled total / payouts / blocks) +
-    a "View public track record →" link to `/agents/sage`.
-  - New DB reads in `db/campaigns.ts`: `listEventsByKinds`,
-    `listPaidRecipientWallets`, `listAllDecisions`, `listRecentDecisions`.
-- **Dedicated agent wallet:** `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` (key in
-  `contracts/.env` as `GOAT_AGENT_PRIVATE_KEY`, gitignored). This is the agent
-  identity + x402 DIRECT-receive wallet. Fund it with a few $ of BTC gas on GOAT.
-
-### x402 (payments/monetization gate) — **LIVE + VERIFIED on GOAT mainnet**
-- `goatx402-sdk-server` installed; facilitator **`https://x402-api.goat.network`**
-  (the documented `api.x402.goat.network` does NOT resolve — this is the real
-  base); min 0.1 USDC; GOAT mainnet chain 2345; USDC
-  `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`; agent (payer) key
-  `GOAT_AGENT_PRIVATE_KEY`.
-- **Live-verified 2026-07-05.** Merchant `sage` (`receiveType DIRECT`); agent/payer
-  `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` funded with 5 USDC + ~0.00001 BTC
-  gas. Three real end-to-end payments settled + facilitator-signed (all `INVOICED`
-  + signed proof): `0x46087c70…fc1225`, `0x0887cd49…5bafe1` (self-custody tests),
-  and — after switching the receiving address to a **separate** MetaMask
-  `0xDF70…890e3` — `0xcd2a46c2…14e4`, a **real outflow**: 0.1 USDC left the agent
-  (5→4.9) and landed in the merchant wallet (0→0.1). Switching the receiver is
-  pure portal config; my code reads `payTo` from the order, never hardcodes it.
-- **State-machine finding (caught by the live test):** a **DIRECT** merchant
-  settles a confirmed transfer to **`INVOICED`** (tx recorded, `confirmed_at`
-  stamped, signed proof issued) — that is terminal SUCCESS, *not* an intermediate
-  step. `PAYMENT_CONFIRMED` is the DELEGATE-custody terminal. The SDK's own
-  `waitForConfirmation` (and our first cut) only treated `PAYMENT_CONFIRMED` as
-  terminal and **hung until timeout** against DIRECT. Fixed via
-  `settleStatus(status)` in `payer-core.ts` (INVOICED|PAYMENT_CONFIRMED → paid;
-  FAILED|EXPIRED|CANCELLED → failed; else pending), used by the payer's terminal
-  check + the middleware's `confirmed` gate; `payer.ts` replaces the SDK wait with
-  an INVOICED-aware `getOrderStatus` poll. Observed live: `CHECKOUT_VERIFIED`
-  (pre-pay) → `INVOICED` (settled).
-- **Both rails implemented against the real protocol** (SDK = merchant HMAC
-  client: `POST /api/v1/orders` → 402 → poll status → `/proof`; payer transfers
-  USDC to the order's `payTo` on GOAT). `isX402Live()` (the 3 merchant creds
-  present) gates EVERYTHING; when false the paywall bypasses and the honest
-  "pending merchant approval" chips remain — nothing is ever simulated.
-  - **RAIL 1** (Deputy pays for verification): `POST /api/verify/evidence` behind
-    `withX402Paywall`; `src/lib/x402/payer.ts` does call→402→pay→poll→retry; the
-    decision stores `x402PaymentTx`; the brief chip shows "Verification paid · 0.1
-    USDC · <tx>" (live) vs "x402 pending merchant approval".
-  - **RAIL 2** (operator fee): `chargeOperatorFee(settleTx)` records a pending fee
-    per settled payout (never blocks/fails a payout); the sweep's `payPendingFees`
-    pays 0.1 USDC agent→merchant over the rail; Wallet shows an "Operator fees"
-    line, Proof shows the rail status + total fees paid.
-- Files: `src/lib/x402/{facilitator,goat-pay,goat-client,payer-core,payer,middleware,verify-evidence,fees}.ts`.
-- **Receiver = separate MetaMask `0xDF70…890e3` (real outflow, chosen for the demo).**
-  Each 0.1 USDC actually leaves the agent → merchant (5 USDC = 50 payments; top up
-  the agent for more). Self-custody (payer==payTo) is the alternative — real +
-  proven but net-zero; both honest, no code change to switch (portal only).
-- **Fee balance / Topup** (`x402-merchant.goat.network` → PAYMENTS → Topup) = GOAT's
-  PREPAID facilitator-fee pool, deducted **per order at `createOrder`**. A DIRECT
-  merchant pays it from this pool, not the payment. Docs say $0 blocks createOrder
-  (`insufficient fee balance`), but our 0.1-USDC orders create fine at $0.00 (fee
-  ≈$0 at this size / small grace) — top up a few $ for demo safety. If ever blocked,
-  the app degrades honestly (RAIL 1→unpaid fetch, RAIL 2→pending fee; never fakes).
-- **Activation (done):** `GOATX402_API_KEY / _API_SECRET / _MERCHANT_ID /
-  _API_URL` set in `.env`; agent wallet funded with USDC + BTC gas on GOAT.
-
-### GOAT Network deposit facts
-Native gas = **BTC**. Bridge = `bridge.goat.network` (Bitcoin L1 → BTC, **min
-0.0002 BTC**, Receive tab + custom EVM address). **No CEX (Binance) direct-to-
-GOAT** — withdraw BTC on the Bitcoin network then bridge. **BTCB from BNB does not
-pay gas.** USDC isn't on the direct bridge (comes from the bootcamp stables form
-or a GOAT DEX).
-
----
-
-## 14. What's real vs. pending (honest)
-**Real, on-chain, verified:** vault deploy + all reads/writes; founder-signed vault
-creation; the campaign loop (create → submit → review → approve → allowlist →
-settle → proof); real USDC settlements on Metis; the trustless journal reconciler;
-SIWE auth; DB persistence + dedupe indexes; the landing's live vault hero/feed; the
-**real LLM brain** (CommonStack, verifiable receipts) with an honest heuristic
-fallback; the **autonomy pipeline** (gate → preflight → CAS → settle) + the
-singleton-locked sweep; **x402 payment rails LIVE + verified on GOAT mainnet**
-(both rails, facilitator-signed proofs); the **grounded ERC-8004 reputation**
-surfaces (`/agents/sage`, `/api/agent/card`, Proof tab); **boot env validation +
-correlated agent log + failure drills**; the **GOAT mainnet payout rail** — a real
-policy vault (`0x987b…0850`, 2 USDC budget=fund, active) deployed + funded + running
-ALONGSIDE the Metis Sepolia testnet flows, resolved per-vault by `chainId`
-(`src/lib/deputy/networks.ts`, EIP-1559 gas); cap lowering; the whole app + public
-surfaces.
-
-**Registered + both gates closed:** ERC-8004 identity **#79** on GOAT mainnet
-(agent `0x0deF…44D6`), and the GOAT mainnet payout rail (factory `0x09c9…20FC`,
-vault `0x987b…0850`). Both July-13 hard gates are closed. Mainnet autopilot is now
-**ARMED** (`DEPUTY_AUTOPILOT_MAINNET=true`) after the red-team pass (docs/AGENT.md
-§8): the dogfood runs `autonomy=autopilot` on `deepseek/deepseek-v4-flash`
-(threshold 0.85), auto-paying confident, clean, matching submissions. No attack
-could force a pay — 15/15 held live (deepseek, 4 runs) plus a deterministic
-hardening guarantee (injection detector → high fraud, 0.5 confidence ceiling on
-unfetchable evidence, verbatim quotes, untrusted-data delimiters). The testnet
-playground + testnet campaigns are unaffected; the vault caps enforce regardless.
-
-**Honest limitations:** the connect→sign→submit, Approve-&-pay, and cap-lowering
-signatures need a real injected wallet (+ testnet gas) — render/route/DB verified
-here, the on-chain leg runs when a real user acts.
-
----
-
-## 15. The demo (how to run it, and the two heroes)
-Run `npm run dev`, open `/` (repositioned landing, live vault) → **Hire your first
-Deputy** → `/app`. Onboarding: connect a wallet on Metis Sepolia (tMETIS gas), set
-budget/caps, **HOLD TO CREATE** (real founder-signed: mint test USDC → createVault
-→ approve → fund → activate). You land in the four-tab app on your own vault.
-
-**Hero 1 — the gauntlet (Proof tab → Try to break it):** approved spend settles
-real USDC; over-cap spend is **blocked on-chain** (`SpendRejected`, exact check);
-revoke kills a disposable vault for good. "No funds moved. Enforced on-chain."
-
-**Hero 2 — the Deputy reasons (Agents → campaign detail):** open a campaign with a
-pending submission; the **Deputy assessment** shows it matched the criteria, scored
-spam, computed the exact payout, and recommends paying — *then* you approve and the
-settle cascade runs to a public `/proof/<tx>`. Worker, not escrow-with-a-watcher.
-
-Public artifacts to share cold: **`/c/demo`** (the dogfood campaign) and any
-**`/proof/<tx>`**.
-
----
-
-## 16. Stage-1 deliverables (mention + status)
 | Deliverable | Status |
 |---|---|
-| Agents launched (x402 + ERC-8004 identity) | prepared; ERC-8004 fires on gas, x402 on creds |
-| Public GitHub repo | to push |
-| Project website / product landing page | ✅ live (`/`, repositioned) |
-| Seed User Definition | to draft (next) |
-| Growth Metrics Proposal | to draft (next) |
+| x402 configured | ✅ live (GOAT mainnet) |
+| Agent Identity registered (ERC-8004) | ✅ #79 on 8004scan chain 2345 |
+| Funding requests submitted | ✅ done (gas + stables received) |
+| Product Landing Page | ✅ cinematic landing |
+| Project Website | 🟡 live at sslip.io (branded domain later) |
+| Public GitHub repo | ✅ github.com/shariqazeem/sage |
+| Seed User Definition | ✅ `docs/SEED_USERS.md` |
+| Growth Metrics Proposal | ✅ `docs/GROWTH_METRICS.md` |
+| ClawUp agent | ✅ Sage Concierge + `sage-deputy` skill |
 
 ---
 
-## 17. Project layout (key files)
-```
-contracts/            PolicyVault.sol, PolicyVaultFactory.sol, interfaces/ (Foundry, 35 tests)
-scripts/register-erc8004.mjs        one-shot ERC-8004 registration on GOAT
-drizzle/0000–0002.sql               migrations (campaigns, submissions, events, vault_cursors)
-src/app/
-  page.tsx / components/landing/     repositioned landing (live vault)
-  app/{layout,page}.tsx + app.css    the four-tab app shell (unified .sage-*/.sb-* design system)
-  (campaigns)/c/[slug]/page.tsx      public campaign page (re-skinned)
-  (campaigns)/campaigns*/            → redirect to /app (folded in-shell)
-  proof/[tx]/page.tsx                public per-payout proof
-  api/…                              auth · campaigns · deputy/overview · spend · kill
-src/lib/
-  deputy/{chain,signer,reasons}.ts   on-chain reads + operator writes (Metis)
-  db/{schema,index,campaigns,keys}   drizzle persistence + repo
-  campaigns/{overview,settle,settle-flow,reconcile,reconcile-range,journal,labels,assess,validate,status}.ts
-  wallet/{create-vault,vendor-add,lower-cap,cap,allowlist-state,read-vault,use-wallet,abis,config}.ts
-  auth/{message,session,use-siwe}.ts SIWE-lite
-  erc8004/identity.ts                agent identity model (GOAT / 8004scan)
-  x402/facilitator.ts                honest x402 seam (activates on creds)
-  rate-limit.ts, format.ts, purge.test.ts
-src/components/
-  app/{app-shell,sage-app,budget-ring,traveling-ring,connect-wallet,deputy-detail,
-       campaign-list,campaign-detail,campaign-create,cap-control}.tsx
-  campaigns/{review-panel,submit-panel,new-campaign-form,deputy-assessment}.tsx
-```
+## 11. Known gaps + what's next
 
----
-
-## 18. Wallets, config & how to run
-**Env** (`.env` gitignored) — `NEXT_PUBLIC_VAULT/FACTORY/USDC/KILL_VAULT/OPERATOR_
-ADDRESS`, `METIS_SEPOLIA_RPC`, `DEPUTY_NETWORK`; on register: `ERC8004_AGENT_ID/
-_ADDRESS/_NAME`; for x402: `GOATX402_API_KEY/_SECRET/_MERCHANT_ID`. Operator +
-agent keys live in `contracts/.env` (`OPERATOR_PRIVATE_KEY`, `GOAT_AGENT_PRIVATE_
-KEY`), gitignored. (Stale unused `COMMONSTACK_*`/`EXA_API_KEY`/`AGENT_MODEL` from
-the deleted lead-gen agent can be removed.)
-
-```bash
-cd contracts && forge build      # required: app imports ABIs from contracts/out (gitignored)
-npm run dev                      # http://localhost:3000
-npm run typecheck && npm run lint && npm run test && npm run build   # gates (all green)
-node scripts/register-erc8004.mjs Sage    # ERC-8004 identity (once the agent wallet has GOAT gas)
-```
-
----
-
-## 19. What's next (unblocked, no gas/creds needed)
-1. **Stage-1 deliverable docs** — Seed User Definition + Growth Metrics Proposal.
-2. **LLM upgrade to `assess.ts`** — semantic criteria-matching (needs an LLM key);
-   makes "it reasons" fully true for Demo Day.
-3. **Align `CLAUDE.md`** — it still carries the pre-pivot "token investigator"
-   spec; `docs/perfect_idea.md` + this file are the real product.
-4. **On gas/creds:** run the ERC-8004 registration; wire the live x402 rail.
-5. **Public deploy** (Vercel + hosted DB) so `/c/demo` is shareable externally.
+1. **Demo reliability** — wire a backup LLM provider so a CommonStack hang can't
+   kill a live payout on Demo Day (July 15). *(Highest leverage.)*
+2. **Go mainnet-real** — point the dogfood at GOAT 2345 and run a real autonomous
+   payout end-to-end, after final testing.
+3. **Top up the GOAT wallet** with USDC so x402 RAIL-1 paid verification re-enables.
+4. **Seed users** — onboard 10–20 cohort teams running real campaigns (traction is
+   what Stage 2 grades). See `docs/SEED_USERS.md`.
+5. **Branded domain** for the project website.
+6. **Product name** — still open (candidates tracked separately).
