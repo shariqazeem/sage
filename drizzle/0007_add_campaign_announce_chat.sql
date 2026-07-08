@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `announce_chat_id` text;

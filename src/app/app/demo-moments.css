@@ -1,0 +1,985 @@
+/* Sage — the five demo hero-moments (presentational only).
+   Every animation here is triggered by real async state in the components; this
+   file only defines how those state changes look. Reuses the motion-pass tokens
+   (--spring-*, --elev-*, --dur-*) and the design palette (indigo #4f46e5, green
+   #15803d, red #dc2626, amber). Reduced-motion is handled globally in motion.css. */
+
+/* ── MOMENT 1 · settle cascade (review-panel) ───────────────────────────── */
+.sage-rail {
+  display: flex;
+  flex-direction: column;
+  margin: 12px 0 4px;
+}
+.sage-rail-node {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 5px 0;
+}
+/* connector line between dots — greens as the flow completes */
+.sage-rail-node:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 23px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--line-2, #e4e2dc);
+  transition: background 0.4s ease;
+}
+.sage-rail-node.done:not(:last-child)::before {
+  background: var(--pos, #15803d);
+}
+.sage-rail-dot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-2, #e4e2dc);
+  background: #fff;
+  color: transparent;
+  margin-top: 1px;
+  transition:
+    border-color 0.35s var(--spring-snappy, ease),
+    background 0.35s var(--spring-snappy, ease),
+    color 0.35s ease,
+    transform 0.35s var(--spring-bounce, ease);
+}
+.sage-rail-dot.active {
+  border-color: var(--accent, #4f46e5);
+  color: var(--accent, #4f46e5);
+}
+.sage-rail-dot.done {
+  border-color: var(--pos, #15803d);
+  background: var(--pos, #15803d);
+  color: #fff;
+  transform: scale(1.06);
+}
+.sage-rail-dot.blocked {
+  border-color: var(--dan, #dc2626);
+  background: var(--dan, #dc2626);
+  color: #fff;
+}
+.sage-rail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sage-rail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink, #1a1d21);
+  line-height: 1.4;
+}
+.sage-rail-node.pending .sage-rail-label {
+  color: var(--ter, #8a8d92);
+}
+.sage-rail-sub {
+  font-size: 12px;
+  color: var(--sec, #5b5f66);
+}
+.sage-rail-sub.dan {
+  color: var(--dan, #dc2626);
+}
+.sage-rail-amount {
+  color: var(--pos, #15803d);
+  font-weight: 700;
+}
+.sage-rail-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.sage-rail-prooflink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pos, #15803d);
+  text-decoration: none;
+}
+.sage-rail-prooflink:hover {
+  text-decoration: underline;
+}
+
+/* campaign-detail header: stats + live ring side by side */
+.sage-camp-detail-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.sage-camp-detail-main {
+  flex: 1;
+  min-width: 0;
+}
+.sage-camp-detail-ring {
+  flex: none;
+}
+@media (max-width: 620px) {
+  .sage-camp-detail-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sage-camp-detail-ring {
+    align-self: center;
+  }
+}
+
+/* ── MOMENT 3 · timelock radial (review-panel) ──────────────────────────── */
+.sage-timelock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 2px;
+}
+.sage-timelock-ring {
+  --frac: 1;
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.sage-timelock-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(
+    from -90deg,
+    var(--warn, #b45309) calc(var(--frac) * 1turn),
+    #ece9e2 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  transition: background 0.4s ease;
+}
+.sage-timelock.ready .sage-timelock-ring::before {
+  background: conic-gradient(var(--pos, #15803d) 1turn, #ece9e2 0);
+}
+.sage-timelock-sec {
+  position: relative;
+  z-index: 1;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--warn, #b45309);
+}
+.sage-timelock.ready .sage-timelock-sec {
+  color: var(--pos, #15803d);
+}
+.sage-timelock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sage-timelock-info .mono {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* the matured "Finish payout" button springs in */
+.sage-spring-in {
+  animation: sage-spring-in 0.42s var(--spring-bounce, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+}
+@keyframes sage-spring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── MOMENT 2 · the block (break-it) ────────────────────────────────────── */
+.sage-block-card,
+.sage-revoke-card {
+  position: relative;
+}
+.sage-block-card.blocked {
+  background: var(--dan-bg, #fdeeee);
+}
+.sage-block-border {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+}
+.sage-block-border rect {
+  fill: none;
+  stroke: var(--dan, #dc2626);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: sage-draw-border 0.4s ease forwards;
+}
+@keyframes sage-draw-border {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.sage-block-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 10px 0 2px;
+}
+.sage-block-balance .k {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ter, #8a8d92);
+}
+.sage-block-balance .v {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink, #1a1d21);
+}
+.sage-block-balance .v.shake {
+  animation: sage-shake 0.2s ease;
+}
+@keyframes sage-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+.sage-block-steady {
+  font-size: 11px;
+  color: var(--pos, #15803d);
+  letter-spacing: 0.01em;
+}
+.sage-block-seal {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1.5px solid var(--dan, #dc2626);
+  border-radius: 6px;
+  background: #fff;
+  transform-origin: left center;
+  animation: sage-stamp-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sage-block-seal-ico {
+  flex: none;
+  color: var(--dan, #dc2626);
+  margin-top: 1px;
+}
+.sage-block-seal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sage-block-seal-head {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--dan, #dc2626);
+}
+.sage-block-seal-text {
+  font-size: 12.5px;
+  color: var(--sec, #5b5f66);
+  line-height: 1.4;
+}
+.sage-block-seal-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dan, #dc2626);
+  text-decoration: none;
+  margin-top: 2px;
+}
+@keyframes sage-stamp-in {
+  from {
+    opacity: 0;
+    transform: rotate(-7deg) scale(1.28);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-2.5deg) scale(1);
+  }
+}
+
+/* ── MOMENT 4 · revoke (break-it) ───────────────────────────────────────── */
+.sage-revoke-visual {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+.sage-revoke-vault {
+  transition:
+    filter 0.8s ease,
+    opacity 0.8s ease;
+}
+.sage-revoke-card.revoked .sage-revoke-vault {
+  filter: grayscale(1);
+  opacity: 0.82;
+}
+.sage-revoke-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  padding: 5px 12px;
+  border: 2px solid var(--dan, #dc2626);
+  border-radius: 4px;
+  color: var(--dan, #dc2626);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.86);
+  white-space: nowrap;
+  animation: sage-stamp-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sage-revoke-done {
+  font-size: 12.5px;
+  color: var(--sec, #5b5f66);
+  margin-top: 4px;
+}
+.sage-revoke-done a {
+  color: var(--dan, #dc2626);
+  text-decoration: none;
+}
+.sage-revoke-hold {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* the terminal confirm sheet — slides up on overlay elevation */
+.sage-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(26, 29, 33, 0.42);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  animation: sage-fade-in 0.2s ease both;
+}
+@media (min-width: 600px) {
+  .sage-sheet-overlay {
+    align-items: center;
+  }
+}
+.sage-sheet {
+  width: min(420px, 100%);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #ecebe6);
+  border-radius: 14px;
+  padding: 26px 24px;
+  text-align: center;
+  box-shadow: var(--elev-overlay, 0 28px 64px -14px rgba(26, 29, 33, 0.25));
+  animation: sage-sheet-up 0.44s var(--spring-snappy, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+.sage-sheet-ico {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--dan-bg, #fdeeee);
+  color: var(--dan, #dc2626);
+  margin-bottom: 12px;
+}
+.sage-sheet-h {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink, #1a1d21);
+}
+.sage-sheet-p {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--sec, #5b5f66);
+  margin: 10px auto 20px;
+  max-width: 320px;
+}
+.sage-sheet-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dan, #dc2626);
+  padding: 12px 0;
+}
+.sage-sheet-err {
+  font-size: 12.5px;
+  color: var(--dan, #dc2626);
+  margin-top: 10px;
+}
+.sage-sheet-cancel {
+  display: block;
+  margin: 14px auto 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ter, #8a8d92);
+  cursor: pointer;
+}
+.sage-sheet-cancel:hover {
+  color: var(--ink, #1a1d21);
+}
+@keyframes sage-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sage-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── MOMENT 5 · onboarding boot (sage-app) ──────────────────────────────── */
+.sage-boot-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 14px auto 0;
+  max-width: 320px;
+  text-align: left;
+}
+.sage-boot-step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 13.5px;
+  transition: opacity 0.4s ease;
+}
+.sage-boot-step.pending {
+  opacity: 0.42;
+}
+.sage-boot-step-ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--mut, #9a9da2);
+}
+.sage-boot-step.active .sage-boot-step-ico {
+  color: var(--accent, #4f46e5);
+}
+.sage-boot-step.done .sage-boot-step-ico {
+  color: var(--pos, #15803d);
+}
+.sage-boot-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.sage-boot-step-label {
+  font-weight: 600;
+  color: var(--ink, #1a1d21);
+}
+.sage-boot-step.pending .sage-boot-step-label {
+  color: var(--sec, #5b5f66);
+}
+.sage-boot-step-tx {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--accent, #4f46e5);
+  text-decoration: none;
+}
+.sage-boot-step-tx.muted {
+  color: var(--mut, #9a9da2);
+}
+.sage-boot-step-tx:hover {
+  text-decoration: underline;
+}
+
+/* ── LLM VERIFICATION BRAIN · assessment card extensions ────────────────── */
+/* engine badge — ALWAYS visible (no hidden fallbacks). indigo for the real
+   brain, muted for the honest heuristic/pending state. */
+.sage-assess-engine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.sage-assess-engine .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+}
+.sage-assess-engine.llm {
+  background: #ecebfd;
+  border: 1px solid #d5d3f7;
+  color: var(--accent, #4f46e5);
+}
+.sage-assess-engine.llm .dot {
+  background: var(--accent, #4f46e5);
+}
+.sage-assess-engine.heuristic {
+  background: #f4f2ec;
+  border: 1px solid #e6e2d8;
+  color: var(--warn, #b45309);
+}
+.sage-assess-engine.heuristic .dot {
+  background: var(--warn, #b45309);
+}
+/* criterion + its verbatim quoted evidence */
+.sage-assess-line-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sage-assess-quote {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--accent, #4f46e5);
+  background: #eeedfc;
+  border-left: 2px solid #c9c5f3;
+  border-radius: 0 4px 4px 0;
+  padding: 3px 7px;
+  margin-top: 1px;
+}
+.sage-assess-quote svg {
+  flex: none;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+/* fraud chips — amber (med) / red (high), muted (low) */
+.sage-assess-fraud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+.sage-assess-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.sage-assess-chip svg {
+  flex: none;
+}
+.sage-assess-chip.low {
+  background: #f1f0ec;
+  border-color: #e4e2dc;
+  color: var(--ter, #8a8d92);
+}
+.sage-assess-chip.med {
+  background: #fdf6ec;
+  border-color: #f0e0c4;
+  color: var(--warn, #b45309);
+}
+.sage-assess-chip.high {
+  background: var(--dan-bg, #fdeeee);
+  border-color: var(--dan-line, #f3cccc);
+  color: var(--dan, #dc2626);
+}
+/* thin confidence bar */
+.sage-assess-conf {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 11px 0 2px;
+}
+.sage-assess-conf-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #e4e3f5;
+  overflow: hidden;
+}
+.sage-assess-conf-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent, #4f46e5);
+  transition: width 0.5s var(--spring-gentle, ease);
+}
+.sage-assess-conf-k {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ter, #8a8d92);
+}
+.sage-assess-summary {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--sec, #5b5f66);
+  margin: 9px 0 0;
+}
+.sage-assess-cfg {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mut, #9a9da2);
+  border: 1px solid var(--line-2, #e4e2dc);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* ── AUTONOMY · the standing-mandate card ("confirm policy once") ────────── */
+.sage-auto {
+  margin: 16px 0;
+  border: 1px solid var(--line-2, #e4e2dc);
+  border-radius: 12px;
+  background: var(--surface-3, #faf9f6);
+  padding: 14px 15px;
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease;
+}
+.sage-auto.on {
+  border-color: #d5d3f7;
+  background: #f7f8ff;
+}
+.sage-auto-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sage-auto-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ter, #8a8d92);
+}
+.sage-auto-title svg {
+  color: var(--accent, #4f46e5);
+}
+.sage-auto-state {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eceae3;
+  color: var(--sec, #5b5f66);
+}
+.sage-auto-state.on {
+  background: #ecebfd;
+  color: var(--accent, #4f46e5);
+}
+.sage-auto-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 560px) {
+  .sage-auto-opts {
+    grid-template-columns: 1fr;
+  }
+}
+.sage-auto-opt {
+  text-align: left;
+  border: 1px solid var(--line-2, #e4e2dc);
+  background: #fff;
+  border-radius: 9px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.sage-auto-opt:hover:not(:disabled) {
+  border-color: #c9c5f3;
+}
+.sage-auto-opt:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.sage-auto-opt.on {
+  border-color: var(--accent, #4f46e5);
+  box-shadow: 0 0 0 1px var(--accent, #4f46e5) inset;
+}
+.sage-auto-opt-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink, #1a1d21);
+}
+.sage-auto-opt-top svg {
+  color: var(--accent, #4f46e5);
+  flex: none;
+}
+.sage-auto-opt-top .tick {
+  margin-left: auto;
+}
+.sage-auto-opt-p {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--sec, #5b5f66);
+}
+.sage-auto-thresh {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e6e5f5;
+}
+.sage-auto-thresh-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--sec, #5b5f66);
+}
+.sage-auto-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sage-auto-stepper button {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2, #e4e2dc);
+  background: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink, #1a1d21);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.sage-auto-stepper button:hover:not(:disabled) {
+  border-color: var(--accent, #4f46e5);
+  color: var(--accent, #4f46e5);
+}
+.sage-auto-stepper .mono {
+  min-width: 62px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent, #4f46e5);
+}
+.sage-auto-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ter, #8a8d92);
+  margin: 10px 0 0;
+}
+.sage-auto-confirm {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sage-auto-hold {
+  padding: 12px 22px;
+  font-size: 13.5px;
+}
+.sage-auto-cancel {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ter, #8a8d92);
+  cursor: pointer;
+}
+.sage-auto-cancel:hover {
+  color: var(--ink, #1a1d21);
+}
+
+/* ── autopay outcome chips in the review queue ──────────────────────────── */
+.sage-autopay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+}
+.sage-autopay svg {
+  flex: none;
+}
+.sage-autopay.held {
+  background: #fdf6ec;
+  border: 1px solid #f0e0c4;
+  color: var(--warn, #b45309);
+}
+.sage-autopay.paid {
+  background: var(--pos-bg, #eef6f0);
+  border: 1px solid var(--pos-line, #cfe6d6);
+  color: var(--pos, #15803d);
+}
+.sage-autopay.paid a {
+  color: var(--pos, #15803d);
+  text-decoration: underline;
+}
+.sage-badge.indigo {
+  background: #ecebfd;
+  color: var(--accent, #4f46e5);
+}
+
+/* ── x402 RAILS · verification chip + fees + Proof status ───────────────── */
+.sage-x402-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  width: fit-content;
+}
+.sage-x402-chip svg {
+  flex: none;
+}
+.sage-x402-chip.paid {
+  background: #ecebfd;
+  border: 1px solid #d5d3f7;
+  color: var(--accent, #4f46e5);
+}
+.sage-x402-chip.paid .mono {
+  text-decoration: underline;
+}
+.sage-x402-chip.pending {
+  background: #f4f2ec;
+  border: 1px solid #e6e2d8;
+  color: var(--ter, #8a8d92);
+}
+
+/* Wallet — the quiet operator-fees line */
+.sage-x402-fees {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 4px;
+  padding: 9px 12px;
+  border: 1px solid var(--line, #ecebe6);
+  border-radius: 8px;
+  background: var(--surface-3, #faf9f6);
+  font-size: 12px;
+}
+.sage-x402-fees .k {
+  color: var(--ter, #8a8d92);
+  letter-spacing: 0.02em;
+}
+.sage-x402-fees .v {
+  color: var(--ink, #1a1d21);
+  font-weight: 600;
+}
+
+/* Proof — the rail status block */
+.sage-x402-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid var(--line-2, #e4e2dc);
+  border-radius: 10px;
+  background: var(--surface-3, #faf9f6);
+  margin-bottom: 22px;
+}
+.sage-x402-status.live {
+  border-color: #d5d3f7;
+  background: #f7f8ff;
+}
+.sage-x402-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-top: 5px;
+  background: var(--mut, #9a9da2);
+}
+.sage-x402-status.live .sage-x402-status-dot {
+  background: var(--accent, #4f46e5);
+}
+.sage-x402-status-head {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink, #1a1d21);
+}
+.sage-x402-status-sub {
+  font-size: 11px;
+  color: var(--sec, #5b5f66);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+/* the shell fades in from onboarding — one continuous surface, no hard cut */
+.sage-shell-enter {
+  animation: sage-shell-enter 0.5s var(--spring-gentle, cubic-bezier(0.25, 0.46, 0.45, 0.94)) both;
+}
+@keyframes sage-shell-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.994);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

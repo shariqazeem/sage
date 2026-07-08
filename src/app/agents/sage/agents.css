@@ -1,0 +1,146 @@
+/* Sage public agent page — /agents/sage. The Deputy's ERC-8004 identity and its
+   grounded, on-chain track record. Judge-facing + shareable; same premium-calm
+   paper aesthetic as /proof so a visitor moving between them feels one product.
+   Scoped .sag. */
+
+.sag {
+  --paper: #fbfbf9;
+  --ink: #1a1d21;
+  --ink2: #3a3e44;
+  --sec: #6b6f76;
+  --ter: #8a8d92;
+  --mut: #9a9da2;
+  --line: #ecebe6;
+  --line-2: #f1f0ec;
+  --line-3: #f4f3ef;
+  --surface-3: #faf9f6;
+  --accent: #4f46e5;
+  --accent-bg: #eef0fe;
+  --accent-line: #dcdcfb;
+  --pos: #15803d;
+  --pos-bg: #eef6f0;
+  --pos-line: #cfe6d6;
+  --dan: #dc2626;
+  --dan-bg: #fdeeee;
+  --dan-line: #f3cccc;
+  --warn: #b45309;
+
+  min-height: 100vh;
+  width: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 22px 72px;
+}
+body:has(.sag) { background: #fbfbf9; }
+.sag ::selection { background: #e0ddfb; }
+.sag .mono { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+@keyframes sag-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sag-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.sag-reveal { animation: sag-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+.sag-col { width: 100%; max-width: 620px; }
+
+/* top bar */
+.sag-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 34px; }
+.sag-brand { display: flex; align-items: center; gap: 10px; }
+.sag-mark { width: 27px; height: 27px; border-radius: 8px; background: var(--ink); display: grid; place-items: center; }
+.sag-mark-ring { width: 10px; height: 10px; border-radius: 50%; border: 2.3px solid var(--paper); }
+.sag-wordmark { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.sag-kicker { font-family: var(--font-mono), monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--mut); text-transform: uppercase; }
+
+/* identity card */
+.sag-id {
+  width: 100%; max-width: 620px; background: #fff; border: 1px solid var(--line);
+  border-radius: 18px; padding: 22px; box-shadow: 0 1px 1px rgba(26, 29, 33, 0.03), 0 16px 44px -32px rgba(26, 29, 33, 0.22);
+}
+.sag-id-top { display: flex; align-items: center; gap: 14px; }
+.sag-id-ico { flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--ink); color: var(--paper); display: grid; place-items: center; }
+.sag-id-main { min-width: 0; flex: 1; }
+.sag-id-name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+.sag-id-sub { font-size: 12.5px; color: var(--ter); margin-top: 2px; }
+.sag-id-status {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: var(--surface-3); border: 1px solid var(--line); color: var(--sec);
+}
+.sag-id-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mut); }
+.sag-id-status.reg { background: var(--pos-bg); border-color: var(--pos-line); color: var(--pos); }
+.sag-id-status.reg .dot { background: var(--pos); animation: sag-dot 2s ease-in-out infinite; }
+
+.sag-id-meta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+.sag-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px; border-radius: 10px;
+  background: var(--surface-3); border: 1px solid var(--line-2); font-size: 12px; color: var(--ink2); text-decoration: none;
+}
+.sag-chip .k { color: var(--mut); font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+.sag-chip.link { color: var(--accent); font-weight: 600; }
+.sag-chip.link:hover { border-color: var(--accent-line); background: var(--accent-bg); }
+.sag-id-note { margin-top: 16px; font-size: 12.5px; line-height: 1.55; color: var(--ter); }
+.sag-id-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* stat grid */
+.sag-stats { width: 100%; max-width: 620px; margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.sag-stat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px; }
+.sag-stat.hero { grid-column: span 3; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sag-stat-v { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.sag-stat.hero .sag-stat-v { font-size: 40px; letter-spacing: -0.035em; }
+.sag-stat-v.pos { color: var(--pos); }
+.sag-stat-v.dan { color: var(--dan); }
+.sag-stat-k { margin-top: 8px; font-size: 11px; color: var(--ter); letter-spacing: 0.02em; }
+.sag-stat.hero .sag-stat-k { margin-top: 0; font-size: 13px; color: var(--sec); max-width: 46%; text-align: right; }
+.sag-stat-sub { font-size: 10.5px; color: var(--mut); margin-top: 3px; }
+
+.sag-empty { grid-column: span 3; padding: 6px 2px 0; font-size: 12.5px; color: var(--ter); text-align: center; }
+
+/* cards */
+.sag-card { width: 100%; max-width: 620px; margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: 16px; }
+.sag-card-head { padding: 16px 18px; border-bottom: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; }
+.sag-card-title { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.sag-card-note { font-size: 12px; color: var(--mut); }
+.sag-card-empty { padding: 22px 18px; font-size: 13px; color: var(--ter); text-align: center; }
+
+/* receipt rows */
+.sag-rec { display: flex; align-items: center; gap: 12px; padding: 13px 18px; text-decoration: none; color: inherit; }
+.sag-rec + .sag-rec { border-top: 1px solid var(--line-3); }
+.sag-rec:hover { background: var(--surface-3); }
+.sag-rec-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; }
+.sag-rec-ico.pos { background: var(--pos-bg); color: var(--pos); }
+.sag-rec-ico.dan { background: var(--dan-bg); color: var(--dan); }
+.sag-rec-main { flex: 1; min-width: 0; }
+.sag-rec-amt { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; }
+.sag-rec-sub { font-size: 11.5px; color: var(--ter); margin-top: 1px; }
+.sag-rec-r { flex: none; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent); }
+.sag-rec-tx { font-family: var(--font-mono), monospace; font-size: 11.5px; color: var(--mut); }
+
+/* decision rows */
+.sag-dec { display: flex; align-items: center; gap: 12px; padding: 13px 18px; }
+.sag-dec + .sag-dec { border-top: 1px solid var(--line-3); }
+.sag-dec-main { flex: 1; min-width: 0; }
+.sag-dec-title { font-size: 13.5px; font-weight: 600; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sag-dec-sub { font-size: 11.5px; color: var(--ter); margin-top: 2px; }
+.sag-dec-badge { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.sag-dec-badge.pay { background: var(--pos-bg); color: var(--pos); border: 1px solid var(--pos-line); }
+.sag-dec-badge.review { background: #fbf3e5; color: var(--warn); border: 1px solid #f0e0c4; }
+.sag-dec-badge.hold { background: var(--dan-bg); color: var(--dan); border: 1px solid var(--dan-line); }
+.sag-dec-conf { flex: none; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; color: var(--sec); min-width: 42px; text-align: right; }
+
+/* footer */
+.sag-foot { width: 100%; max-width: 620px; margin-top: 30px; text-align: center; }
+.sag-foot-in { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ter); }
+.sag-foot-in a { color: var(--ink); font-weight: 600; text-decoration: none; }
+
+@media (max-width: 560px) {
+  .sag-stats { grid-template-columns: repeat(2, 1fr); }
+  .sag-stat.hero { grid-column: span 2; }
+  .sag-empty { grid-column: span 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sag-reveal { animation: none; }
+  .sag-id-status.reg .dot { animation: none; }
+}

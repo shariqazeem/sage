@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `chain_id` integer DEFAULT 59902 NOT NULL;

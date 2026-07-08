@@ -1,0 +1,218 @@
+/* Sage — motion & depth system (presentational only).
+   iOS/macOS-tier spring motion + layered elevation. Colors are unchanged.
+   Everything collapses to instant under prefers-reduced-motion (bottom of file). */
+
+/* Smooth, JS-driven custom-property transitions (the hold-to-create ring).
+   inherits:true so the button's --hold reaches its ::before ring. */
+@property --hold {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+:root {
+  /* spring easings + durations */
+  --spring-snappy: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-snappy: 350ms;
+  --dur-gentle: 500ms;
+  --dur-bounce: 450ms;
+
+  /* elevation — layered soft shadows (rest / raised / overlay) */
+  --elev-rest: 0 1px 2px rgba(26, 29, 33, 0.04), 0 6px 16px -8px rgba(26, 29, 33, 0.07);
+  --elev-raised: 0 2px 4px rgba(26, 29, 33, 0.05), 0 14px 30px -10px rgba(26, 29, 33, 0.12);
+  --elev-overlay: 0 4px 10px rgba(26, 29, 33, 0.07), 0 28px 64px -14px rgba(26, 29, 33, 0.2);
+}
+
+/* ── interactive lift: buttons press + lift, tabs press, chips ──────────── */
+.sage-app .sage-btn,
+.sage-app .sage-approve,
+.sage-app .sage-new,
+.sage-app .sb-topbtn,
+.sage-app .sage-foot-link,
+.sage-app .sage-cap-lower,
+.sage-app .sage-copy,
+.sage-app .hbtn,
+.sage-app .sb-tab {
+  transition:
+    transform var(--dur-snappy) var(--spring-snappy),
+    box-shadow var(--dur-snappy) var(--spring-snappy),
+    filter 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.sage-app .sage-btn:hover:not(:disabled),
+.sage-app .sage-approve:hover,
+.sage-app .sage-new:hover,
+.sage-app .sb-topbtn:hover,
+.sage-app .sage-foot-link:hover {
+  transform: translateY(-1px);
+}
+.sage-app .sage-btn:active:not(:disabled),
+.sage-app .sage-approve:active,
+.sage-app .sage-new:active,
+.sage-app .sage-cap-lower:active,
+.sage-app .sage-copy:active,
+.sage-app .hbtn:active {
+  transform: scale(0.98);
+}
+.sage-app .sb-tab:active {
+  transform: scale(0.96);
+}
+
+/* ── tappable cards raise on hover, press on active ────────────────────── */
+.sage-app .sage-camp,
+.sage-app .sb-agent-tap {
+  transition:
+    transform var(--dur-snappy) var(--spring-snappy),
+    box-shadow var(--dur-snappy) var(--spring-snappy),
+    border-color 0.15s ease;
+  box-shadow: var(--elev-rest);
+}
+.sage-app .sage-camp:hover,
+.sage-app .sb-agent-tap:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-raised);
+}
+.sage-app .sage-camp:active,
+.sage-app .sb-agent-tap:active {
+  transform: scale(0.99);
+}
+
+/* ── surface depth: big cards rest; confirm sheets overlay ─────────────── */
+.sage-app .sage-agent-card,
+.sage-app .sage-pol,
+.sage-app .sb-card,
+.sage-app .sage-subs,
+.sage-app .sage-txlist {
+  box-shadow: var(--elev-rest);
+}
+.sage-app .sage-cap-confirm,
+.sage-app .sage-assess {
+  box-shadow: var(--elev-overlay);
+}
+
+/* ── tab cross-fade + directional 12px slide (iOS segmented control) ───── */
+.sage-tabview {
+  animation: sage-tab-in var(--dur-snappy) var(--spring-snappy) both;
+}
+.sage-tabview.from-left {
+  animation-name: sage-tab-in-left;
+}
+@keyframes sage-tab-in {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sage-tab-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── entrance stagger: cards rise + fade, 40ms apart, capped at 8 ──────── */
+.sage-stagger > * {
+  opacity: 0;
+  animation: sage-rise var(--dur-gentle) var(--spring-gentle) both;
+}
+.sage-stagger > *:nth-child(1) { animation-delay: 20ms; }
+.sage-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.sage-stagger > *:nth-child(3) { animation-delay: 100ms; }
+.sage-stagger > *:nth-child(4) { animation-delay: 140ms; }
+.sage-stagger > *:nth-child(5) { animation-delay: 180ms; }
+.sage-stagger > *:nth-child(6) { animation-delay: 220ms; }
+.sage-stagger > *:nth-child(7) { animation-delay: 260ms; }
+.sage-stagger > *:nth-child(n + 8) { animation-delay: 300ms; }
+@keyframes sage-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── budget ring breathe: the canvas gently inhales, ~0.75% over 4s ─────── */
+.sage-ring-canvas {
+  animation: sage-ring-breathe 4s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+@keyframes sage-ring-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.0075); }
+}
+
+/* ── hold-to-create: a white conic ring sweeps the button's inner edge ──── */
+.sage-onb-hold {
+  position: relative;
+  --hold: 0;
+}
+.sage-onb-hold::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 13px; /* button radius (16px) minus the 3px inset */
+  background: conic-gradient(
+    from -90deg,
+    rgba(255, 255, 255, 0.92) calc(var(--hold) * 1turn),
+    rgba(255, 255, 255, 0.16) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  opacity: calc(0.5 + var(--hold) * 0.5);
+  pointer-events: none;
+}
+/* on release-too-early, the fill rubber-bands back to 0 */
+.sage-onb-hold.releasing {
+  transition: --hold var(--dur-bounce) var(--spring-bounce);
+}
+
+/* ── thin custom scrollbars + no page-feel overscroll ─────────────────── */
+body:has(.sage-app) {
+  overscroll-behavior: none;
+}
+.sage-app {
+  overscroll-behavior: contain;
+}
+.sage-app ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.sage-app ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sage-app ::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+.sage-app :hover::-webkit-scrollbar-thumb {
+  background: rgba(26, 29, 33, 0.16);
+}
+
+/* ── respect reduced motion globally ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
