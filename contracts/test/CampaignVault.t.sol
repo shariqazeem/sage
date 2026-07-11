@@ -238,6 +238,17 @@ contract CampaignVaultTest is Test {
         );
     }
 
+    /// @notice The frozen app-side ID-hash scheme (mission-plan.ts) reproduced
+    ///         byte-for-byte in Solidity — pinned to the same golden vectors.
+    function test_IdHashScheme_MatchesOffchain() public pure {
+        bytes32 cid =
+            keccak256(abi.encode(keccak256("SAGE_CAMPAIGN_ID_V1"), keccak256(bytes("camp-1"))));
+        assertEq(cid, 0x2214d687479ba38dd081589ed88c2b4d4002930a76b458befa1c5c6ca5781611);
+        bytes32 mid =
+            keccak256(abi.encode(keccak256("SAGE_MISSION_ID_V1"), cid, keccak256(bytes("m1"))));
+        assertEq(mid, 0x7877e17ef3832695b9c1c693ad39475610a2a8919cd0493b2e87919ac7059d56);
+    }
+
     function test_Config_MissionPlanDigestDeterministic() public {
         CampaignVault a = _mkVault(owner, operator, guardian);
         CampaignVault b = _mkVault(alice, operator, address(0));

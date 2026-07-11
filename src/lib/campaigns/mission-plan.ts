@@ -9,10 +9,40 @@
  * mission inputs; this module validates + encodes them.
  */
 
-import { type Hex, keccak256, stringToHex } from "viem";
+import { type Hex, encodeAbiParameters, keccak256, stringToHex } from "viem";
 import { missionPlanDigest, type MissionSpec } from "@/lib/deputy/campaign-commitment";
 
 export const MAX_MISSIONS = 32;
+
+/**
+ * FROZEN v1 identity-hash scheme. Do NOT change these constructions without a new
+ * version tag — a deployed CampaignVault stores these bytes32 immutably.
+ *
+ *   campaignIdHash = keccak256(abi.encode(
+ *       keccak256("SAGE_CAMPAIGN_ID_V1"),
+ *       keccak256(utf8Nfc(publicCampaignId))
+ *   ))
+ *   missionIdHash  = keccak256(abi.encode(
+ *       keccak256("SAGE_MISSION_ID_V1"),
+ *       campaignIdHash,                       // scopes the mission to its campaign
+ *       keccak256(utf8Nfc(publicMissionId))
+ *   ))
+ *
+ * Reproduced byte-for-byte in Solidity (contracts/test/CampaignVault.t.sol golden
+ * vectors) and pinned in mission-plan.test.ts. Input rules: IDs are Unicode
+ * NFC-normalized, must be non-empty, and are NOT lowercased (case is significant).
+ */
+export const SAGE_CAMPAIGN_ID_V1 = "SAGE_CAMPAIGN_ID_V1" as const;
+export const SAGE_MISSION_ID_V1 = "SAGE_MISSION_ID_V1" as const;
+const CAMPAIGN_DOMAIN = keccak256(stringToHex(SAGE_CAMPAIGN_ID_V1));
+const MISSION_DOMAIN = keccak256(stringToHex(SAGE_MISSION_ID_V1));
+
+/** Normalize a public ID: Unicode NFC, non-empty (never lowercased). */
+export function normalizePublicId(id: string): string {
+  const n = id.normalize("NFC");
+  if (n.length === 0) throw new Error("public id must be non-empty");
+  return n;
+}
 
 export interface MissionInput {
   /** stable public mission key (unique within the campaign). */
@@ -21,14 +51,28 @@ export interface MissionInput {
   maxCompletions: bigint;
 }
 
-/** Deterministic on-chain campaign identity (nonzero bytes32). */
-export function campaignIdHash(campaignKey: string): Hex {
-  return keccak256(stringToHex(`sage.campaign:${campaignKey}`));
+/** Deterministic on-chain campaign identity (nonzero bytes32). Frozen v1 scheme. */
+export function campaignIdHash(publicCampaignId: string): Hex {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "bytes32" }],
+      [CAMPAIGN_DOMAIN, keccak256(stringToHex(normalizePublicId(publicCampaignId)))],
+    ),
+  );
 }
 
-/** Deterministic on-chain mission id (bytes32) for a (campaign, mission) pair. */
-export function missionIdHash(campaignKey: string, missionKey: string): Hex {
-  return keccak256(stringToHex(`sage.mission:${campaignKey}:${missionKey}`));
+/** Deterministic on-chain mission id (bytes32), scoped to its campaign. Frozen v1. */
+export function missionIdHash(publicCampaignId: string, publicMissionId: string): Hex {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }],
+      [
+        MISSION_DOMAIN,
+        campaignIdHash(publicCampaignId),
+        keccak256(stringToHex(normalizePublicId(publicMissionId))),
+      ],
+    ),
+  );
 }
 
 export type MissionPlanError =

@@ -4,6 +4,7 @@ import {
   computeCampaignPlan,
   missionIdHash,
   missionPlanBudget,
+  normalizePublicId,
   validateMissionPlan,
   type MissionInput,
 } from "./mission-plan";
@@ -41,7 +42,7 @@ describe("validateMissionPlan — mirrors the on-chain constructor rules", () =>
 });
 
 describe("budget + plan derivation", () => {
-  it("budget is Σ (reward × maxCompletions)", () => {
+  it("budget is the sum of reward * maxCompletions", () => {
     expect(missionPlanBudget(plan())).toBe(BigInt(500_000 * 4 + 1_000_000 * 2)); // 4_000_000
   });
   it("computeCampaignPlan is deterministic + nonzero identity", () => {
@@ -57,5 +58,30 @@ describe("budget + plan derivation", () => {
     expect(campaignIdHash("a")).not.toBe(campaignIdHash("b"));
     expect(missionIdHash("c", "m1")).not.toBe(missionIdHash("c", "m2"));
     expect(missionIdHash("c", "m1")).not.toBe(missionIdHash("d", "m1"));
+  });
+});
+
+describe("frozen ID-hash scheme — golden vectors (reproduced on-chain)", () => {
+  it("GOLDEN campaignIdHash('camp-1') + missionIdHash('camp-1','m1')", () => {
+    // Cross-checked in contracts/test/CampaignVault.t.sol::test_IdHashScheme_MatchesOffchain.
+    expect(campaignIdHash("camp-1")).toMatchInlineSnapshot(`"0x2214d687479ba38dd081589ed88c2b4d4002930a76b458befa1c5c6ca5781611"`);
+    expect(missionIdHash("camp-1", "m1")).toMatchInlineSnapshot(`"0x7877e17ef3832695b9c1c693ad39475610a2a8919cd0493b2e87919ac7059d56"`);
+  });
+  it("rejects empty ids", () => {
+    expect(() => campaignIdHash("")).toThrow();
+    expect(() => missionIdHash("camp-1", "")).toThrow();
+    expect(() => normalizePublicId("")).toThrow();
+  });
+  it("keeps case significant (NOT lowercased)", () => {
+    expect(campaignIdHash("Camp-1")).not.toBe(campaignIdHash("camp-1"));
+  });
+  it("NFC-normalizes input (decomposed and composed hash equally)", () => {
+    const decomposed = "café"; // "cafe" + combining acute (NFD form)
+    const composed = decomposed.normalize("NFC"); // single "e-acute" codepoint
+    expect(decomposed).not.toBe(composed); // different byte sequences
+    expect(campaignIdHash(decomposed)).toBe(campaignIdHash(composed)); // same hash
+  });
+  it("mission identity is scoped to its campaign", () => {
+    expect(missionIdHash("a", "m")).not.toBe(missionIdHash("b", "m"));
   });
 });
