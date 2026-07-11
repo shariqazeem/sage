@@ -2,13 +2,17 @@ import "server-only";
 
 import { getAddress } from "viem";
 import { getVaultState } from "@/lib/deputy/chain";
-import { recordEvent, updateSubmission } from "@/lib/db/campaigns";
+import { recordEventOnce, updateSubmission } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { chargeOperatorFee } from "@/lib/x402/fees";
 import { announceCampaignBlocked, announceCampaignSettled } from "@/lib/telegram/bot";
-import { settleWithRecovery, type SettleOutcome } from "./settle";
+import {
+  settleWithRecovery,
+  type SettleOutcome,
+  type VaultStrategyDeps,
+} from "./settle";
 import { reconcileVendorEvents } from "./reconcile";
 
 export interface SettleFlowResult {
@@ -25,20 +29,21 @@ export interface SettleFlowResult {
 export async function settleApprovedSubmission(
   campaign: Campaign,
   submission: Submission,
+  deps: VaultStrategyDeps = {},
 ): Promise<SettleFlowResult> {
-  const outcome = await settleWithRecovery(campaign, submission);
+  const outcome = await settleWithRecovery(campaign, submission, deps);
 
   // Vendor adds (Sage-owned AND founder-owned) are journaled from the chain by
   // the reconciler — never from here — so the journal is trustless.
   await reconcileVendorEvents(campaign.vaultAddress, campaign.chainId).catch(() => null);
 
   if (outcome.settled && outcome.txHash) {
-    updateSubmission(submission.id, {
-      status: "paid",
-      payoutTx: outcome.txHash,
-      decidedAt: nowSeconds(),
-    });
-    recordEvent({
+    // Order matters for crash-safe exactly-once: journal + fee (both idempotent by
+    // the payout tx) are made durable FIRST, and the submission is marked `paid`
+    // LAST. A crash before `paid` re-enters this path on the next run and re-applies
+    // every effect as a no-op; nothing double-counts (the settled journal dedupes by
+    // (kind, txHash); the fee dedupes by settleTx).
+    recordEventOnce({
       campaignId: campaign.id,
       submissionId: submission.id,
       kind: "settled",
@@ -56,8 +61,16 @@ export async function settleApprovedSubmission(
     // Public per-campaign announce (opt-in via announceChatId). Outbound only,
     // never throws, journals nothing — fire-and-forget so it can't delay settle.
     void announceCampaignSettled(campaign, outcome);
+    // LAST: mark paid only after the durable effects above are recorded.
+    updateSubmission(submission.id, {
+      status: "paid",
+      payoutTx: outcome.txHash,
+      decidedAt: nowSeconds(),
+    });
   } else if (!outcome.needsOwnerAdd) {
-    recordEvent({
+    // Idempotent by (kind, txHash) when a rejection tx exists, so a re-fire of a
+    // recorded rejection never double-journals it.
+    recordEventOnce({
       campaignId: campaign.id,
       submissionId: submission.id,
       kind: "blocked",

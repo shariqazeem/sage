@@ -11,6 +11,7 @@ import {
   getSubmission,
   listPaidSubmissionsForDedup,
   recordEvent,
+  recordEventOnce,
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { findDuplicate } from "./dedup";
@@ -21,6 +22,13 @@ import {
   supportsIntentReplayProtection,
 } from "@/lib/deputy/vault-capability";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import {
+  evaluateCampaignAgreement,
+  type VaultStrategyDeps,
+} from "@/lib/campaigns/vault-strategy";
+import { realCampaignVaultAdapter } from "@/lib/deputy/campaign-vault";
+import { getMissionByHash, listMissions } from "@/lib/db/campaigns";
+import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
 import { notifyTelegram } from "./notify";
@@ -110,6 +118,84 @@ async function preflight(
   return { ok: true, reason: "" };
 }
 
+/**
+ * V2 (CampaignVault) pre-flight. The SAFETY-critical step is the DB↔chain agreement:
+ * before any signing, the deployed vault must enforce EXACTLY the mission plan the
+ * DB claims (owner, operator, campaign id, plan digest, budget, token, lifecycle,
+ * replay protection, and each mission's reward + cap). Any mismatch HOLDS — the
+ * mismatched fields are surfaced, never silently reconciled. The remaining checks
+ * (lifecycle, budget, mission completions, recipient-already-paid) are a courtesy;
+ * the vault soft-rejects them regardless. NB: NO recipient allowlisting — V2 pays a
+ * previously-unknown tester bounded to the approved mission.
+ */
+async function preflightV2(
+  campaign: Campaign,
+  submission: Submission,
+  deps: VaultStrategyDeps,
+): Promise<{ ok: boolean; reason: string }> {
+  if (!submission.missionIdHash) {
+    return { ok: false, reason: "submission has no mission — held for review" };
+  }
+  const mission = getMissionByHash(campaign.id, submission.missionIdHash);
+  if (!mission) {
+    return { ok: false, reason: "mission not found for this submission — held for review" };
+  }
+  const adapter = deps.campaignAdapter ?? realCampaignVaultAdapter;
+  const operatorFor = deps.operatorAddress ?? operatorAddress;
+  const vault = getAddress(campaign.vaultAddress);
+  const allMissions = listMissions(campaign.id);
+  const missionIds = allMissions.map((m) => m.missionIdHash as `0x${string}`);
+
+  let snapshot;
+  try {
+    snapshot = await adapter.readSnapshot(vault, campaign.chainId, missionIds);
+  } catch {
+    return { ok: false, reason: "vault state temporarily unreadable — held for review" };
+  }
+
+  // THE gate: the vault must enforce exactly the DB's plan.
+  const agreement = evaluateCampaignAgreement(campaign, allMissions, snapshot, operatorFor);
+  if (!agreement.ok) {
+    return {
+      ok: false,
+      reason: `vault configuration disagrees with the campaign plan (${agreement.mismatches
+        .map((m) => m.field)
+        .join(", ")}) — held`,
+    };
+  }
+
+  // Courtesy readiness (the vault soft-rejects these anyway).
+  let readiness;
+  try {
+    readiness = await adapter.readMissionReadiness(
+      vault,
+      campaign.chainId,
+      mission.missionIdHash as `0x${string}`,
+      getAddress(submission.wallet),
+    );
+  } catch {
+    return { ok: false, reason: "vault state temporarily unreadable — held for review" };
+  }
+  if (readiness.state !== "active") return { ok: false, reason: "the vault is not active" };
+  if (readiness.recipientCompleted) {
+    return { ok: false, reason: "this recipient has already been paid for this mission" };
+  }
+  if (readiness.missionRemaining <= 0) {
+    return { ok: false, reason: "this mission has no remaining completions" };
+  }
+  if (readiness.budgetRemainingBase < mission.rewardAmount) {
+    return { ok: false, reason: "not enough remaining budget" };
+  }
+  // Velocity: the exact mission reward must fit inside the vault's REMAINING 24h
+  // velocity (cap − rolling spend), using the contract's own numbers. Insufficient
+  // velocity HOLDS before signing (the vault would soft-reject check 10 anyway).
+  const velocityRemaining = readiness.velocityCapBase - readiness.rollingSpendBase;
+  if (velocityRemaining < mission.rewardAmount) {
+    return { ok: false, reason: "amount exceeds the remaining 24h velocity cap" };
+  }
+  return { ok: true, reason: "" };
+}
+
 function journalHeld(
   campaign: Campaign,
   submission: Submission,
@@ -129,6 +215,7 @@ function journalHeld(
 
 export async function runDeputyOnSubmission(
   submissionId: string,
+  deps: VaultStrategyDeps = {},
 ): Promise<PipelineResult> {
   const cid = newCorrelationId();
 
@@ -203,8 +290,13 @@ export async function runDeputyOnSubmission(
     return { action: "skipped", reason, correlationId: cid };
   }
 
-  // c. pre-flight courtesy policy read
-  const pf = await preflight(campaign, submission);
+  // c. pre-flight — for V2 the DB↔chain agreement is enforced here BEFORE any
+  // signing; for V1 the existing courtesy policy read. Strategy is chosen from the
+  // campaign's persisted vault kind, never probed.
+  const pf =
+    campaign.vaultKind === "campaign_v2"
+      ? await preflightV2(campaign, submission, deps)
+      : await preflight(campaign, submission);
   agentLog(cid, "preflight", { ok: pf.ok, reason: pf.reason });
   if (!pf.ok) {
     journalHeld(campaign, submission, pf.reason, cid);
@@ -223,10 +315,12 @@ export async function runDeputyOnSubmission(
   // founder vault where the recipient isn't approved this returns needsOwnerAdd
   // (it never signs the add). Any failure → hold; never retry-loop.
   try {
-    const { outcome } = await settleApprovedSubmission(campaign, submission);
+    const { outcome } = await settleApprovedSubmission(campaign, submission, deps);
     if (outcome.settled && outcome.txHash) {
       const conf = Math.round(brief.confidence * 100);
-      recordEvent({
+      // Idempotent by (kind, txHash): a re-fire that reconciles the same settled
+      // payout never writes a second autopay_settled row.
+      recordEventOnce({
         campaignId: campaign.id,
         submissionId,
         kind: "autopay_settled",

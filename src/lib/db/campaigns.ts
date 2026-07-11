@@ -9,6 +9,7 @@ import {
   events,
   fees,
   locks,
+  missions,
   submissions,
   vaultCursors,
   type Campaign,
@@ -16,9 +17,11 @@ import {
   type Decision,
   type EventKind,
   type Fee,
+  type Mission,
   type NewCampaign,
   type NewCampaignEvent,
   type NewDecision,
+  type NewMission,
   type NewSubmission,
   type Submission,
 } from "./schema";
@@ -115,6 +118,24 @@ export function updateCampaignAnnounce(id: string, announceChatId: string | null
   db.update(campaigns).set({ announceChatId }).where(eq(campaigns.id, id)).run();
 }
 
+/**
+ * Bind a campaign to its deployed CampaignVault V2 plan: the vault kind, the on-chain
+ * campaign identity hash, the immutable mission-plan digest, and the commitment
+ * version. Set once at onboarding (after the vault is deployed + its plan hashed);
+ * these are the values the DB↔chain agreement check compares against the vault.
+ */
+export function updateCampaignV2Plan(
+  id: string,
+  patch: {
+    vaultKind: Campaign["vaultKind"];
+    campaignIdHash: string;
+    missionPlanDigest: string;
+    commitmentVersion: number;
+  },
+): void {
+  db.update(campaigns).set(patch).where(eq(campaigns.id, id)).run();
+}
+
 /* ────────────────────────────────────────────────────── submissions ───── */
 
 export function listSubmissions(campaignId: string): Submission[] {
@@ -173,6 +194,8 @@ export function createSubmission(input: {
   wallet: string;
   evidenceUrl?: string | null;
   note?: string | null;
+  /** V2: the mission (bytes32 hex) this submission targets, else null (legacy). */
+  missionIdHash?: string | null;
 }): SubmitResult {
   const id = nanoid(12);
   const row: NewSubmission = {
@@ -181,6 +204,7 @@ export function createSubmission(input: {
     wallet: input.wallet,
     evidenceUrl: input.evidenceUrl ?? null,
     note: input.note ?? null,
+    missionIdHash: input.missionIdHash ?? null,
     dedupeKey: dedupeKey(input.campaignId, input.wallet),
     status: "pending",
     createdAt: nowSeconds(),
@@ -423,6 +447,57 @@ export function listPaidSubmissionsForDedup(
     .all();
 }
 
+/* ─────────────────────────────────────────── missions (campaign_v2) ────── */
+
+/**
+ * Create one mission row for a campaign_v2 campaign. `missionIdHash`, `rewardAmount`
+ * and `maxCompletions` must already mirror the immutable on-chain mission (computed
+ * via mission-plan.ts). Legacy (policy_v1) campaigns never have missions.
+ */
+export function createMission(
+  input: Omit<NewMission, "id" | "createdAt" | "updatedAt">,
+): Mission {
+  const id = nanoid(12);
+  const now = nowSeconds();
+  db.insert(missions)
+    .values({ ...input, id, createdAt: now, updatedAt: now })
+    .run();
+  return getMissionById(id) as Mission;
+}
+
+export function getMissionById(id: string): Mission | null {
+  return db.select().from(missions).where(eq(missions.id, id)).get() ?? null;
+}
+
+/**
+ * Resolve the mission a submission targets — scoped to its campaign by BOTH the
+ * campaignId and the bytes32 missionIdHash. Returns null when the campaign has no
+ * such mission, so a submission can never be settled against a mission the founder
+ * never approved (the reward is only ever the agreed on-chain mission's).
+ */
+export function getMissionByHash(
+  campaignId: string,
+  missionIdHash: string,
+): Mission | null {
+  return (
+    db
+      .select()
+      .from(missions)
+      .where(and(eq(missions.campaignId, campaignId), eq(missions.missionIdHash, missionIdHash)))
+      .get() ?? null
+  );
+}
+
+/** Every mission of a campaign, in display order — the full approved plan. */
+export function listMissions(campaignId: string): Mission[] {
+  return db
+    .select()
+    .from(missions)
+    .where(eq(missions.campaignId, campaignId))
+    .orderBy(missions.displayOrder)
+    .all();
+}
+
 /* ──────────────────────────────────────────── operator fees (x402) ────── */
 
 /**
@@ -516,6 +591,29 @@ export function recordEvent(
   };
   db.insert(events).values(row).run();
   return db.select().from(events).where(eq(events.id, id)).get() as CampaignEvent;
+}
+
+/**
+ * Record an app event that is DURABLY idempotent by (kind, txHash) — the economic
+ * settlement journal (settled / autopay_settled). A payout tx settles at most once
+ * on-chain, so its journal row is keyed by its tx hash: a recovery that re-applies
+ * downstream effects re-runs this, but the second call is a no-op. Returns `inserted`
+ * so the caller can gate anything that must happen exactly once. (Chain-reconciled
+ * vendor events carry a real log index and use their own dedupe, never this.)
+ */
+export function recordEventOnce(
+  input: Omit<NewCampaignEvent, "id" | "createdAt"> & { createdAt?: number },
+): { event: CampaignEvent; inserted: boolean } {
+  if (input.txHash) {
+    const existing = db
+      .select()
+      .from(events)
+      .where(and(eq(events.kind, input.kind), eq(events.txHash, input.txHash)))
+      .limit(1)
+      .get();
+    if (existing) return { event: existing, inserted: false };
+  }
+  return { event: recordEvent(input), inserted: true };
 }
 
 /** A campaign's events, newest first. */

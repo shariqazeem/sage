@@ -15,8 +15,11 @@ vi.mock("@/lib/db/campaigns", () => ({
   getDecisionBySubmission: vi.fn(),
   casSubmissionStatus: vi.fn(),
   recordEvent: vi.fn(),
+  recordEventOnce: vi.fn(() => ({ inserted: true })),
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
+  getMissionByHash: vi.fn(),
+  listMissions: vi.fn(() => []),
 }));
 vi.mock("@/lib/deputy/chain", () => ({
   getVaultState: vi.fn(),

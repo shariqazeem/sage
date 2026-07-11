@@ -9,6 +9,7 @@ import { nowSeconds } from "./keys";
 import {
   settlementAttempts,
   type SettlementAttempt,
+  type VaultKind,
 } from "./schema";
 
 /**
@@ -32,7 +33,7 @@ import {
 export interface PrepareAttemptInput {
   /** The vault's replay-protected intent hash — the unique key. */
   payoutIntentHash: string;
-  /** The v1 decision digest this intent was derived from, or null for a legacy intent. */
+  /** The decision digest this intent was derived from, or null for a legacy intent. */
   decisionDigest: string | null;
   submissionId: string;
   campaignId: string;
@@ -40,6 +41,12 @@ export interface PrepareAttemptInput {
   vaultAddress: string;
   recipient: string;
   amountBase: number;
+  /** Commitment version this attempt settles under (1 = V1 policy, 2 = V2 campaign). Default 1. */
+  commitmentVersion?: number;
+  /** V2: the mission (bytes32 hex) this payout targets, else null. */
+  missionIdHash?: string | null;
+  /** The vault kind this attempt settles against. Default policy_v1. */
+  vaultKind?: VaultKind;
 }
 
 export function getAttempt(payoutIntentHash: string): SettlementAttempt | null {
@@ -85,6 +92,9 @@ export function prepareAttempt(
       id,
       payoutIntentHash: input.payoutIntentHash,
       decisionDigest: input.decisionDigest,
+      commitmentVersion: input.commitmentVersion ?? 1,
+      missionIdHash: input.missionIdHash ?? null,
+      vaultKind: input.vaultKind ?? "policy_v1",
       submissionId: input.submissionId,
       campaignId: input.campaignId,
       chainId: input.chainId,
@@ -108,6 +118,31 @@ export function prepareAttempt(
     );
   }
   return { attempt, created: attempt.id === id };
+}
+
+/**
+ * Persist the broadcast IDENTITY (sender, reserved nonce, calldata hash) the instant
+ * we are about to submit a tx — BEFORE the RPC can accept it. This is the durable
+ * fact "a transaction may now be in flight for this intent." A crash after this and
+ * before {@link markBroadcast} leaves an AMBIGUOUS `broadcasting` attempt that
+ * recovery reconciles from the chain — it NEVER blind-resends, because a used nonce
+ * proves a tx was accepted. Only V2 uses this; V1 attempts never enter this state.
+ */
+export function markBroadcasting(
+  payoutIntentHash: string,
+  meta: { senderAddress: string; nonce: number | null; calldataHash: string },
+): void {
+  db.update(settlementAttempts)
+    .set({
+      status: "broadcasting",
+      senderAddress: meta.senderAddress,
+      broadcastNonce: meta.nonce,
+      calldataHash: meta.calldataHash,
+      broadcastAt: nowSeconds(),
+      updatedAt: nowSeconds(),
+    })
+    .where(eq(settlementAttempts.payoutIntentHash, payoutIntentHash))
+    .run();
 }
 
 /**
@@ -162,7 +197,8 @@ export function markFailed(payoutIntentHash: string, error: string): void {
  * next move WITHOUT ever blind-resending a tx that may already have settled.
  */
 export type ResumeAction =
-  | { kind: "broadcast" } // never sent — safe to send a fresh tx
+  | { kind: "broadcast" } // never signed/sent — safe to send a fresh tx
+  | { kind: "reconcile_broadcast" } // a tx MAY be in flight — reconcile by chain, NEVER blind-resend
   | { kind: "await"; txHash: Hash } // sent, outcome unknown — read this tx's receipt
   | { kind: "verify"; txHash: Hash | null } // anomalous/errored — check isIntentUsed BEFORE any resend
   | { kind: "settled"; txHash: Hash | null } // already paid — never resend
@@ -179,6 +215,13 @@ export function planResume(attempt: SettlementAttempt | null): ResumeAction {
       return attempt.txHash
         ? { kind: "await", txHash: attempt.txHash as Hash }
         : { kind: "broadcast" };
+    case "broadcasting":
+      // The AMBIGUOUS window: sender+nonce were persisted before submission, so a
+      // tx may be in flight. If a hash slipped through, read it; otherwise reconcile
+      // from the chain — NEVER blind-resend on isIntentUsed==false alone.
+      return attempt.txHash
+        ? { kind: "await", txHash: attempt.txHash as Hash }
+        : { kind: "reconcile_broadcast" };
     case "broadcast":
       // Broadcast with no txHash is anomalous — verify on-chain, don't re-send.
       return attempt.txHash

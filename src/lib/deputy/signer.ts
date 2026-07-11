@@ -6,6 +6,7 @@ import {
   createWalletClient,
   http,
   parseEventLogs,
+  type Abi,
   type Address,
   type Hash,
   type WalletClient,
@@ -112,22 +113,37 @@ async function bumpedGasPrice(chainId: number): Promise<bigint> {
   return ((await publicClient(chainId).getGasPrice()) * BigInt(12)) / BigInt(10);
 }
 
-async function sendVaultWrite(
+/**
+ * Sign + broadcast a vault write with the operator key, using the chain's gas
+ * strategy. `abi` defaults to the PolicyVault ABI (V1 paths are unchanged); the
+ * CampaignVault V2 adapter passes the V2 ABI so `requestPayout` goes out through
+ * the exact same operator + gas machinery. Exported so there is ONE signing path.
+ */
+export async function sendVaultWrite(
   chainId: number,
-  req: { address: Address; functionName: string; args: readonly unknown[] },
+  req: {
+    address: Address;
+    functionName: string;
+    args: readonly unknown[];
+    abi?: Abi;
+    /** pin the tx to an exact nonce (V2 reserves it before broadcast). Omit = auto. */
+    nonce?: number;
+  },
 ): Promise<Hash> {
   const cfg = chainConfig(chainId);
   const wallet = operatorWalletClient(chainId);
   const account = operatorAccount(chainId);
   const chain = viemChainFor(chainId);
+  const abi = req.abi ?? policyVaultAbi;
   const write = (gasPrice?: bigint) =>
     wallet.writeContract({
       address: req.address,
-      abi: policyVaultAbi,
+      abi,
       functionName: req.functionName,
       args: req.args,
       account,
       chain,
+      ...(req.nonce != null ? { nonce: req.nonce } : {}),
       ...(gasPrice != null ? { gasPrice } : {}),
     });
 

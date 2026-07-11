@@ -89,6 +89,14 @@ export const campaigns = sqliteTable("campaigns", {
   campaignIdHash: text("campaign_id_hash"),
   /** V2: the immutable on-chain mission-plan digest (bytes32 hex), else null. */
   missionPlanDigest: text("mission_plan_digest"),
+  /**
+   * V2: the settlement token (ERC-20 address) the founder deployed the vault with,
+   * recorded INDEPENDENTLY at campaign creation from the chain's configured token —
+   * NEVER read back from the vault. The DB↔chain agreement compares this against the
+   * vault's on-chain token so a vault created with the wrong token fails closed. Null
+   * on V1 rows (V1 uses the vault's own policy token, unchanged).
+   */
+  settlementToken: text("settlement_token"),
   /** which DecisionCommitment version this campaign settles under (1 = V1, 2 = V2). */
   commitmentVersion: integer("commitment_version").notNull().default(1),
   createdAt: integer("created_at").notNull(),
@@ -265,11 +273,12 @@ export const fees = sqliteTable(
 
 /** The lifecycle of one durable settlement attempt. */
 export type SettlementStatus =
-  | "prepared" // row written, nothing broadcast yet
-  | "broadcast" // requestSpend tx sent; txHash persisted, receipt not yet read
-  | "settled" // SpendSettled decoded — money moved
-  | "rejected" // SpendRejected decoded — a policy check (1..7) blocked it
-  | "failed"; // an unexpected error (RPC/revert) — safe to resume, never blind-resend
+  | "prepared" // row written, nothing signed or sent yet — safe to broadcast fresh
+  | "broadcasting" // sender+nonce+calldata persisted; a tx MAY be in flight — AMBIGUOUS, never blind-resend
+  | "broadcast" // the tx hash is durably known; read that tx, never re-send
+  | "settled" // Settled event decoded — money moved
+  | "rejected" // Rejected event decoded — a policy check blocked it
+  | "failed"; // an unexpected error (RPC/revert) — resume via on-chain reconciliation, never blind-resend
 
 /**
  * A crash-recoverable ledger of on-chain payout attempts. Exactly ONE row per
@@ -309,6 +318,20 @@ export const settlementAttempts = sqliteTable(
     status: text("status").$type<SettlementStatus>().notNull().default("prepared"),
     /** the requestSpend tx — persisted the instant it is broadcast, before the receipt. */
     txHash: text("tx_hash"),
+    /**
+     * BROADCAST IDENTITY (V2) — persisted the instant we enter `broadcasting`, BEFORE
+     * the tx is submitted, so a crash while the RPC may have accepted a tx is durable.
+     * On recovery of an ambiguous broadcast we never blind-resend: we reconcile by the
+     * intent's on-chain events, and only re-broadcast when the reserved `nonce` is
+     * provably unused (no tx was accepted). Null on V1 attempts + pre-existing rows.
+     */
+    senderAddress: text("sender_address"),
+    /** the operator nonce reserved for this broadcast (used-nonce ⟺ a tx was accepted). */
+    broadcastNonce: integer("broadcast_nonce"),
+    /** keccak256 of the exact requestPayout calldata (diagnostic + tamper check). */
+    calldataHash: text("calldata_hash"),
+    /** unix seconds the broadcast was attempted (staleness / operator triage). */
+    broadcastAt: integer("broadcast_at"),
     /** SpendRejected.failedCheckIndex (1..7) when status = 'rejected'. */
     failedCheckIndex: integer("failed_check_index"),
     /** the last error string when status = 'failed' (diagnostics only). */

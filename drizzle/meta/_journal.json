@@ -85,6 +85,13 @@
       "when": 1783756732707,
       "tag": "0011_campaign_vault_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1783763129592,
+      "tag": "0012_adversarial_broadcast_and_token",
+      "breakpoints": true
     }
   ]
 }
