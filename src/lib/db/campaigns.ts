@@ -26,7 +26,8 @@ import {
   type Submission,
 } from "./schema";
 import type { DecisionBriefContent } from "../deputy/brain-core";
-import { dedupeKey, nowSeconds } from "./keys";
+import { missionSpecDigest, type MissionSpecInput } from "../campaigns/mission-spec";
+import { dedupeKey, missionDedupeKey, nowSeconds } from "./keys";
 
 /* ─────────────────────────────────────────────────────── campaigns ────── */
 
@@ -186,7 +187,10 @@ export function getDecisionByPayoutTx(txHash: string): Decision | null {
 
 export type SubmitResult =
   | { ok: true; submission: Submission }
-  | { ok: false; error: "duplicate_wallet" | "duplicate_evidence" | "unknown" };
+  | {
+      ok: false;
+      error: "duplicate_wallet" | "duplicate_mission" | "duplicate_evidence" | "unknown";
+    };
 
 /** Insert a submission; the DB unique indexes enforce dedupe (surfaced politely). */
 export function createSubmission(input: {
@@ -196,6 +200,8 @@ export function createSubmission(input: {
   note?: string | null;
   /** V2: the mission (bytes32 hex) this submission targets, else null (legacy). */
   missionIdHash?: string | null;
+  /** V2: the MissionSpecV1 digest captured for this submission (integrity anchor). */
+  missionSpecDigest?: string | null;
 }): SubmitResult {
   const id = nanoid(12);
   const row: NewSubmission = {
@@ -205,7 +211,12 @@ export function createSubmission(input: {
     evidenceUrl: input.evidenceUrl ?? null,
     note: input.note ?? null,
     missionIdHash: input.missionIdHash ?? null,
-    dedupeKey: dedupeKey(input.campaignId, input.wallet),
+    missionSpecDigest: input.missionSpecDigest ?? null,
+    // Per-MISSION uniqueness for V2 (one wallet, one payout per mission), per-campaign
+    // for V1 — one column, one unique index, keys that never collide across kinds.
+    dedupeKey: input.missionIdHash
+      ? missionDedupeKey(input.missionIdHash, input.wallet)
+      : dedupeKey(input.campaignId, input.wallet),
     status: "pending",
     createdAt: nowSeconds(),
   };
@@ -213,9 +224,15 @@ export function createSubmission(input: {
     db.insert(submissions).values(row).run();
     return { ok: true, submission: getSubmission(id) as Submission };
   } catch (err) {
+    // SQLite reports a unique-index violation by COLUMN ("...failed: submissions.dedupe_key"),
+    // not by index name — match the columns (and keep the index names as a fallback).
     const msg = String(err instanceof Error ? err.message : err);
-    if (msg.includes("sub_dedupe_unq")) return { ok: false, error: "duplicate_wallet" };
-    if (msg.includes("sub_evidence_unq")) return { ok: false, error: "duplicate_evidence" };
+    if (msg.includes("dedupe_key") || msg.includes("sub_dedupe_unq")) {
+      return { ok: false, error: input.missionIdHash ? "duplicate_mission" : "duplicate_wallet" };
+    }
+    if (msg.includes("evidence_url") || msg.includes("sub_evidence_unq")) {
+      return { ok: false, error: "duplicate_evidence" };
+    }
     return { ok: false, error: "unknown" };
   }
 }
@@ -496,6 +513,122 @@ export function listMissions(campaignId: string): Mission[] {
     .where(eq(missions.campaignId, campaignId))
     .orderBy(missions.displayOrder)
     .all();
+}
+
+/** Resolve a mission by its stable public key within a campaign. */
+export function getMissionByKey(campaignId: string, missionKey: string): Mission | null {
+  return (
+    db
+      .select()
+      .from(missions)
+      .where(and(eq(missions.campaignId, campaignId), eq(missions.missionKey, missionKey)))
+      .get() ?? null
+  );
+}
+
+/** Build the MissionSpecV1 input from a mission row + its campaign identity hash. */
+export function missionSpecInput(
+  mission: Mission,
+  campaignIdHash: string,
+): MissionSpecInput {
+  return {
+    campaignIdHash: campaignIdHash as `0x${string}`,
+    missionIdHash: mission.missionIdHash as `0x${string}`,
+    title: mission.title,
+    objective: mission.objective,
+    instructions: mission.instructions,
+    targetSurface: mission.targetSurface,
+    criteria: mission.criteria,
+    evidenceRequirements: mission.evidenceList,
+    rewardBase: BigInt(mission.rewardAmount),
+    maxCompletions: BigInt(mission.maxCompletions),
+  };
+}
+
+/** Recompute the canonical MissionSpecV1 digest for a mission row (pure). */
+export function recomputeMissionSpecDigest(mission: Mission, campaignIdHash: string): string {
+  return missionSpecDigest(missionSpecInput(mission, campaignIdHash));
+}
+
+/**
+ * Edit a DRAFT mission's fields. Only permitted while status = 'draft' (before the
+ * plan is locked to a vault); once locked, economics + prose are immutable and a
+ * material change must become a NEW mission revision. Returns false if not editable.
+ */
+export function updateMissionDraft(
+  id: string,
+  patch: Partial<
+    Pick<
+      Mission,
+      | "title"
+      | "objective"
+      | "instructions"
+      | "targetSurface"
+      | "criteria"
+      | "evidenceList"
+      | "rewardAmount"
+      | "maxCompletions"
+      | "displayOrder"
+    >
+  >,
+): boolean {
+  const row = getMissionById(id);
+  if (!row || row.status !== "draft") return false;
+  db.update(missions)
+    .set({ ...patch, updatedAt: nowSeconds() })
+    .where(and(eq(missions.id, id), eq(missions.status, "draft")))
+    .run();
+  return true;
+}
+
+/** Reorder a mission (presentation only) — allowed in any non-closed lifecycle. */
+export function updateMissionOrder(id: string, displayOrder: number): void {
+  db.update(missions)
+    .set({ displayOrder, updatedAt: nowSeconds() })
+    .where(eq(missions.id, id))
+    .run();
+}
+
+/**
+ * Lock a campaign's mission plan: for every DRAFT mission, compute + freeze its
+ * MissionSpecV1 digest, stamp `lockedAt`, and move it to 'active'. After this the
+ * economics (reward, cap, id hashes) are immutable — the setup flow only locks once
+ * the DB↔chain agreement has passed. Idempotent (already-active missions are skipped).
+ */
+export function lockMissionPlan(campaignId: string, campaignIdHash: string): number {
+  const now = nowSeconds();
+  let locked = 0;
+  for (const m of listMissions(campaignId)) {
+    if (m.status !== "draft") continue;
+    db.update(missions)
+      .set({
+        status: "active",
+        lockedAt: now,
+        specDigest: recomputeMissionSpecDigest(m, campaignIdHash),
+        updatedAt: now,
+      })
+      .where(and(eq(missions.id, m.id), eq(missions.status, "draft")))
+      .run();
+    locked += 1;
+  }
+  return locked;
+}
+
+/** Close a mission (terminal). */
+export function closeMission(id: string): void {
+  db.update(missions)
+    .set({ status: "closed", closedAt: nowSeconds(), updatedAt: nowSeconds() })
+    .where(eq(missions.id, id))
+    .run();
+}
+
+/** Paid completions so far for a mission — read from real paid submissions. */
+export function countPaidForMission(missionIdHash: string): number {
+  return db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(and(eq(submissions.missionIdHash, missionIdHash), eq(submissions.status, "paid")))
+    .all().length;
 }
 
 /* ──────────────────────────────────────────── operator fees (x402) ────── */

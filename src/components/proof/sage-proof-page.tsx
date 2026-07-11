@@ -114,6 +114,37 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
         </div>
       </div>
 
+      {/* V2 mission — what the founder pre-approved vs what Sage evaluated */}
+      {proof.v2 && (
+        <div className="spp-card spp-reveal" style={{ animationDelay: "0.2s" }}>
+          <div className="spp-card-head">
+            <span className="spp-card-title">
+              <FileText size={16} /> Mission
+            </span>
+            {proof.v2.mission?.paidCompletions != null && proof.v2.mission.maxCompletions != null && (
+              <span className="spp-rec review">
+                {proof.v2.mission.paidCompletions} of {proof.v2.mission.maxCompletions}
+              </span>
+            )}
+          </div>
+          {proof.v2.mission && (
+            <div className="spp-rows">
+              <Row k="Mission">{proof.v2.mission.title ?? "—"}</Row>
+              {proof.v2.mission.objective && <Row k="Objective">{proof.v2.mission.objective}</Row>}
+              <Row k="Exact reward">{usd(proof.human.amountUsd)}</Row>
+            </div>
+          )}
+          <p className="spp-note">
+            This tester did not need to be pre-approved. The founder pre-approved the
+            mission identifier, exact reward, completion count, total budget, and Sage&rsquo;s
+            operator authority. The on-chain vault enforces those mission economics and
+            replay protection; it does not judge the quality of the work. The mission
+            specification shown here is the immutable application record Sage evaluated —
+            the vault does not store its wording.
+          </p>
+        </div>
+      )}
+
       {/* SECTION 2 · the Sage decision receipt */}
       <div className="spp-card big spp-reveal" style={{ animationDelay: "0.24s" }}>
         <div className="spp-card-head">

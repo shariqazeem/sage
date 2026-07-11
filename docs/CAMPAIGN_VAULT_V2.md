@@ -207,3 +207,97 @@ there is **no cross-campaign budget contention**, and a compromised operator's
 maximum loss is bounded to the *one* campaign's remaining budget, not a shared
 pool. The immutable per-vault mission plan makes the founder's authorized mandate
 unambiguous and independently checkable.
+
+---
+
+## 02D — Mission domain, protected setup, and V2 proof
+
+This layer turns the V2 settlement core into an operable, inspectable product. It
+does **not** include the AI Mission Brain, public founder onboarding, or any live
+deployment.
+
+### Mission lifecycle
+
+`draft` → `active` (locked) → `paused` → `closed`.
+
+- A mission is created as a **draft** (fully editable via `updateMissionDraft`).
+- `lockMissionPlan(campaignId, campaignIdHash)` freezes each draft: it computes and
+  stores the `MissionSpecV1` digest, stamps `lockedAt`, and moves it to `active`.
+  After that, **economics (reward, cap, id hashes) and prose are immutable** —
+  `updateMissionDraft` refuses a locked mission. A material change must become a
+  **new mission revision** (a new `missionKey`/`missionIdHash`, with `revisionOf`
+  pointing at the prior public id). Historical submissions keep the exact mission
+  (and `missionSpecDigest`) they were judged against.
+- `displayOrder` is presentation-only and may change at any time; it never affects a
+  commitment or the spec digest.
+
+### What is on-chain vs application-recorded
+
+- **On-chain (CampaignVault enforces):** `missionIdHash`, exact reward, completion
+  cap, total budget, 24h velocity, lifecycle, per-recipient uniqueness, replay
+  protection. The vault does **not** store or judge human-language mission prose.
+- **Application-recorded (`MissionSpecV1`):** title, objective, instructions, target
+  surface, ordered criteria, ordered evidence requirements. Its digest
+  (`missionSpecDigest`, golden `0x2b7c5f36…`) is an app-level integrity record — it
+  proves the prose Sage evaluated was not silently changed. It is **not** something
+  "the chain verified."
+
+### Submission uniqueness
+
+One wallet may be paid **at most once per mission** (not per campaign). Enforced
+durably by the DB unique index on `dedupe_key`: V2 submissions use a mission-scoped
+key (`missionDedupeKey`), V1 use the campaign-scoped key — one index, keys that never
+collide, so V1 semantics are unchanged. Wallet identity is case-insensitive.
+
+### Protected founder/developer setup (`POST /api/campaigns/v2/setup`)
+
+- `{ preview: true }` → **pure** preview (all hashes + budgets). No auth, no writes.
+- Otherwise → verify the **deployed** vault with the SAME `evaluateCampaignAgreement`
+  the pipeline uses, then persist the campaign + locked missions **atomically** (a DB
+  transaction — a failure leaves no active campaign and no partial mission rows).
+- **Authorization fails closed:** in production only the SIWE-authenticated founder
+  (session wallet == owner) may attach; dev/staging is permitted for the controlled
+  exercise. An unprotected query param/button is never authorization.
+- The setup mutation **never** accepts a private key, and **never** deploys or funds.
+- The **expected settlement token** comes only from the founder's input (persisted as
+  `campaigns.settlementToken`) — never read back from the vault being validated.
+
+### V2 proof verification algorithm (`buildProofV2`, never trusts a stored boolean)
+
+For a V2 tx the composer decodes the on-chain `PayoutSettled`/`PayoutRejected` event,
+reads the vault snapshot, and **recomputes** the DecisionCommitmentV2, payout intent,
+`campaignIdHash`, `missionIdHash`, and `missionSpecDigest` from the stored record. It
+is `verified` only when **every** applicable check agrees: receipt chain == campaign
+chain; log address == campaign vault; factory provenance; attempt `vaultKind`/
+`commitmentVersion`; stored == recomputed == on-chain `campaignIdHash`; stored ==
+recomputed == emitted `missionIdHash`; stored == on-chain `missionPlanDigest`;
+independent token; emitted recipient == submission wallet; recomputed == emitted ==
+stored decision digest; attempt == recomputed == emitted intent; DB == on-chain ==
+emitted reward (settlements only); `missionSpecDigest` recomputes and matches the
+submission's captured digest. Any mismatch → `commitment_mismatch`; a missing/
+uncommitted record → `incomplete_local_record`. **A rejection is never a payment**
+(amount 0, `verified` false, V2 mission reason shown); a replay rejection never
+overrides a canonical settlement (see 02C.1 `resolveCanonicalOutcome`).
+
+### Dedicated-operator requirement (deployment invariant)
+
+The broadcast-recovery nonce proof (02C.1) is sound **only** because Sage's operator
+key is dedicated: no other actor sends transactions from it. This must hold for any
+vault Sage settles from.
+
+### Checklist before a controlled Metis Sepolia V2 exercise
+
+1. `forge build` produced `contracts/out/CampaignVault*.json` (checked-in ABIs).
+2. A CampaignVault + factory are deployed on 59902; `METIS_CAMPAIGN_FACTORY_ADDRESS`
+   (or `CAMPAIGN_VAULT_FACTORY_ADDRESS`) is set (else provenance fails closed → HOLD).
+3. Operator key configured (`OPERATOR_PRIVATE_KEY`), funded, and **dedicated**.
+4. Vault activated with balance ≥ budget; mission plan matches the DB plan exactly.
+5. Attach via `POST /api/campaigns/v2/setup` (founder-authenticated) — it persists
+   only if the agreement passes; verify the returned `campaignIdHash`/`missionPlanDigest`.
+6. Reuse the exercise MockUSDC as `expectedToken`.
+7. Submit real work from a second wallet → Deputy decides → autopilot (or manual)
+   settles → grab the settle tx → `GET /api/proof/<tx>` shows `verified: true`,
+   `vaultKind: "campaign_v2"`, and the full recomputed `v2` block.
+
+Planned tx sequence (user-run, not in this pass): deploy factory+vault → fund →
+activate → attach (DB only) → tester submits → `requestPayout` settles → proof.

@@ -9,6 +9,16 @@ export function dedupeKey(campaignId: string, wallet: string): string {
 }
 
 /**
+ * One submission per (MISSION, wallet) — the V2 tester rule. Distinct from the V1
+ * campaign-scoped key (a different derivation prefix) so both share the ONE
+ * `dedupe_key` unique index without ever colliding: a wallet may submit to different
+ * missions, but at most once per mission. Case-insensitive on the wallet.
+ */
+export function missionDedupeKey(missionIdHash: string, wallet: string): string {
+  return keccak256(toBytes(`mission:${missionIdHash.toLowerCase()}:${wallet.toLowerCase()}`));
+}
+
+/**
  * The deterministic intent hash for a submission's payout — mirrors
  * bountyIntentHash so the settle cascade is idempotent and a settled event can
  * be matched back to its submission.

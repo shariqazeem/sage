@@ -246,3 +246,15 @@ body:has(.spp) { background: #fbfbf9; }
 @media (prefers-reduced-motion: reduce) {
   .spp-reveal, .spp-medallion { animation: none !important; }
 }
+
+/* V2 mission note — the honest chain-vs-Sage distinction (premium, muted). */
+.spp-note {
+  margin: 4px 20px 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--sec);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .spp-note { margin: 4px 16px 14px; }
+}

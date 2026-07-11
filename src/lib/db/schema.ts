@@ -21,8 +21,15 @@ export interface OnchainCheck {
 /** Which vault contract backs a campaign. Legacy rows = policy_v1; V2 = campaign_v2. */
 export type VaultKind = "policy_v1" | "campaign_v2";
 
-/** A mission's lifecycle within a campaign_v2 campaign. */
-export type MissionStatus = "active" | "paused" | "closed";
+/**
+ * A mission's lifecycle within a campaign_v2 campaign.
+ *   draft   — editable, not yet bound to a deployed/activated vault (cannot pay).
+ *   active  — locked + live; economic fields (reward, cap, id hashes) are immutable.
+ *   paused  — temporarily not accepting/paying, economics still frozen.
+ *   closed  — terminal.
+ * `lockedAt` records when the economics froze (set on the draft→active transition).
+ */
+export type MissionStatus = "draft" | "active" | "paused" | "closed";
 
 /**
  * A reward campaign — a poster funds a vault and defines a task; participants
@@ -119,7 +126,14 @@ export const submissions = sqliteTable(
     note: text("note"),
     /** V2: the mission (bytes32 hex) this submission targets, else null (legacy). */
     missionIdHash: text("mission_id_hash"),
-    /** keccak256(campaign_id + ':' + lowercased wallet) — one entry per wallet. */
+    /** V2: the MissionSpecV1 digest this submission was captured against (integrity anchor). */
+    missionSpecDigest: text("mission_spec_digest"),
+    /**
+     * Uniqueness key: for a V2 mission submission this is mission-scoped
+     * (keccak(missionIdHash + ':' + lowercased wallet)) so one wallet pays at most once
+     * PER MISSION; for a V1 submission it is campaign-scoped. One column, one unique
+     * index — V1 and V2 keys never collide, so V1 semantics are unchanged.
+     */
     dedupeKey: text("dedupe_key").notNull(),
     /** 'pending' | 'approved' | 'rejected' | 'paid' | 'blocked'. */
     status: text("status").notNull().default("pending"),
@@ -238,6 +252,8 @@ export const decisions = sqliteTable(
     commitmentVersion: integer("commitment_version").notNull().default(1),
     /** V2: the mission (bytes32 hex) this decision authorized, else null. */
     missionIdHash: text("mission_id_hash"),
+    /** V2: the MissionSpecV1 digest this decision judged against (integrity anchor). */
+    missionSpecDigest: text("mission_spec_digest"),
     /** V2 recovery: the vault kind this decision settles under, else null (legacy = policy_v1). */
     vaultKind: text("vault_kind").$type<VaultKind>(),
     createdAt: integer("created_at").notNull(),
@@ -362,15 +378,32 @@ export const missions = sqliteTable(
     missionIdHash: text("mission_id_hash").notNull(),
     title: text("title").notNull(),
     descriptionMd: text("description_md").notNull().default(""),
+    /** MissionSpecV1: a concise tester-facing objective. */
+    objective: text("objective").notNull().default(""),
+    /** MissionSpecV1: step-by-step instructions the tester follows. */
+    instructions: text("instructions").notNull().default(""),
+    /** MissionSpecV1: the target surface or URL the mission is performed against. */
+    targetSurface: text("target_surface").notNull().default(""),
+    /** ordered acceptance criteria. */
     criteria: text("criteria", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
-    /** free-text evidence requirements the tester must satisfy, or null. */
+    /** legacy single free-text evidence requirement (V1-era), or null. */
     evidenceRequirements: text("evidence_requirements"),
+    /** MissionSpecV1: ordered evidence requirements. */
+    evidenceList: text("evidence_list", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     /** exact reward in token base units (6dp) — mirrors the on-chain mission. */
     rewardAmount: integer("reward_amount").notNull(),
     /** max paid completions — mirrors the on-chain mission cap. */
     maxCompletions: integer("max_completions").notNull(),
     status: text("status").$type<MissionStatus>().notNull().default("active"),
     displayOrder: integer("display_order").notNull().default(0),
+    /** the canonical MissionSpecV1 digest — the app-level integrity record of the prose. */
+    specDigest: text("spec_digest"),
+    /** the public mission id this mission is a revision of (a material edit → new mission). */
+    revisionOf: text("revision_of"),
+    /** unix seconds the mission plan was locked (economic fields become immutable). */
+    lockedAt: integer("locked_at"),
+    /** unix seconds the mission was closed, or null. */
+    closedAt: integer("closed_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },

@@ -39,6 +39,9 @@ export async function GET(
 
   const committed =
     proof.state === "committed_settlement" || proof.state === "committed_rejection";
+  // Defense in depth: a V2 record only counts as verified when its recomputed
+  // integrity ALSO passes — a mismatch can never read as a verified success.
+  const verified = committed && (proof.v2 ? proof.v2.integrity.verified : true);
 
   return NextResponse.json(
     {
@@ -46,8 +49,12 @@ export async function GET(
       schemaVersion: proof.version,
       proofState: proof.state,
       /** true ONLY when the on-chain payout is verified against its AI decision. */
-      verified: committed,
+      verified,
       legacy: proof.legacy,
+      // ── V2 (CampaignVault) additive fields — null on a V1 proof ───────────
+      vaultKind: proof.vaultKind,
+      commitmentVersion: proof.commitmentVersion,
+      v2: proof.v2,
       commitmentMatches: proof.commitment ? proof.commitment.matches : null,
       commitment: proof.commitment,
       human: proof.human,
