@@ -18,6 +18,12 @@ export interface OnchainCheck {
   minCount: number;
 }
 
+/** Which vault contract backs a campaign. Legacy rows = policy_v1; V2 = campaign_v2. */
+export type VaultKind = "policy_v1" | "campaign_v2";
+
+/** A mission's lifecycle within a campaign_v2 campaign. */
+export type MissionStatus = "active" | "paused" | "closed";
+
 /**
  * A reward campaign — a poster funds a vault and defines a task; participants
  * submit; approved submissions settle real USDC from the campaign's vault. This
@@ -77,6 +83,14 @@ export const campaigns = sqliteTable("campaigns", {
    * unlikely.
    */
   sandbox: integer("sandbox", { mode: "boolean" }).notNull().default(false),
+  /** which vault contract backs this campaign — legacy rows default to policy_v1. */
+  vaultKind: text("vault_kind").$type<VaultKind>().notNull().default("policy_v1"),
+  /** V2: the on-chain campaign identity hash (bytes32 hex), else null. */
+  campaignIdHash: text("campaign_id_hash"),
+  /** V2: the immutable on-chain mission-plan digest (bytes32 hex), else null. */
+  missionPlanDigest: text("mission_plan_digest"),
+  /** which DecisionCommitment version this campaign settles under (1 = V1, 2 = V2). */
+  commitmentVersion: integer("commitment_version").notNull().default(1),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -95,6 +109,8 @@ export const submissions = sqliteTable(
     wallet: text("wallet").notNull(),
     evidenceUrl: text("evidence_url"),
     note: text("note"),
+    /** V2: the mission (bytes32 hex) this submission targets, else null (legacy). */
+    missionIdHash: text("mission_id_hash"),
     /** keccak256(campaign_id + ':' + lowercased wallet) — one entry per wallet. */
     dedupeKey: text("dedupe_key").notNull(),
     /** 'pending' | 'approved' | 'rejected' | 'paid' | 'blocked'. */
@@ -210,6 +226,12 @@ export const decisions = sqliteTable(
     x402Status: text("x402_status"),
     /** sanitized failure reason code when status = live_fallback, else null. */
     x402Reason: text("x402_reason"),
+    /** which DecisionCommitment version produced this decision (1 = V1, 2 = V2). */
+    commitmentVersion: integer("commitment_version").notNull().default(1),
+    /** V2: the mission (bytes32 hex) this decision authorized, else null. */
+    missionIdHash: text("mission_id_hash"),
+    /** V2 recovery: the vault kind this decision settles under, else null (legacy = policy_v1). */
+    vaultKind: text("vault_kind").$type<VaultKind>(),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [uniqueIndex("decisions_submission_unq").on(t.submissionId)],
@@ -265,8 +287,14 @@ export const settlementAttempts = sqliteTable(
     id: text("id").primaryKey(),
     /** The vault's replay-protected intent hash — the natural key (one attempt per intent). */
     payoutIntentHash: text("payout_intent_hash").notNull(),
-    /** The v1 decision digest this intent was derived from, or null for a legacy intent. */
+    /** The decision digest this intent was derived from, or null for a legacy intent. */
     decisionDigest: text("decision_digest"),
+    /** which DecisionCommitment version this attempt settles under (1 = V1, 2 = V2). */
+    commitmentVersion: integer("commitment_version").notNull().default(1),
+    /** V2: the mission (bytes32 hex) this payout targets, else null. */
+    missionIdHash: text("mission_id_hash"),
+    /** the vault kind this attempt settles against (policy_v1 | campaign_v2). */
+    vaultKind: text("vault_kind").$type<VaultKind>().notNull().default("policy_v1"),
     submissionId: text("submission_id")
       .notNull()
       .references(() => submissions.id),
@@ -291,6 +319,45 @@ export const settlementAttempts = sqliteTable(
   (t) => [uniqueIndex("settlement_attempts_intent_unq").on(t.payoutIntentHash)],
 );
 
+/**
+ * A mission within a campaign_v2 campaign — the founder-approved unit of paid work.
+ * Its `missionIdHash` is the exact bytes32 the CampaignVault stores; `rewardAmount`
+ * and `maxCompletions` mirror the immutable on-chain mission. The mission-generation
+ * AI populates these in a later pass; for now the domain model + validated creation
+ * exist so V2 can be exercised. Legacy (policy_v1) campaigns have no missions.
+ */
+export const missions = sqliteTable(
+  "missions",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    /** stable public mission id (human-facing, stable across edits). */
+    missionKey: text("mission_key").notNull(),
+    /** the bytes32 (hex) mission id the CampaignVault enforces. */
+    missionIdHash: text("mission_id_hash").notNull(),
+    title: text("title").notNull(),
+    descriptionMd: text("description_md").notNull().default(""),
+    criteria: text("criteria", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    /** free-text evidence requirements the tester must satisfy, or null. */
+    evidenceRequirements: text("evidence_requirements"),
+    /** exact reward in token base units (6dp) — mirrors the on-chain mission. */
+    rewardAmount: integer("reward_amount").notNull(),
+    /** max paid completions — mirrors the on-chain mission cap. */
+    maxCompletions: integer("max_completions").notNull(),
+    status: text("status").$type<MissionStatus>().notNull().default("active"),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("missions_campaign_key_unq").on(t.campaignId, t.missionKey),
+    uniqueIndex("missions_campaign_hash_unq").on(t.campaignId, t.missionIdHash),
+    index("missions_campaign_idx").on(t.campaignId, t.displayOrder),
+  ],
+);
+
 export type Campaign = typeof campaigns.$inferSelect;
 export type NewCampaign = typeof campaigns.$inferInsert;
 export type Submission = typeof submissions.$inferSelect;
@@ -305,6 +372,8 @@ export type Fee = typeof fees.$inferSelect;
 export type NewFee = typeof fees.$inferInsert;
 export type SettlementAttempt = typeof settlementAttempts.$inferSelect;
 export type NewSettlementAttempt = typeof settlementAttempts.$inferInsert;
+export type Mission = typeof missions.$inferSelect;
+export type NewMission = typeof missions.$inferInsert;
 
 /**
  * A named advisory lock with an expiry — the singleton guard for the Deputy

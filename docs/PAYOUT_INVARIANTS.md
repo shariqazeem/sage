@@ -241,6 +241,36 @@ These are DIFFERENT claims and the UI keeps them apart:
   say they are combined and are split per chain; a mainnet figure never silently
   includes testnet.
 
+## CampaignVault V2 (built, NOT deployed — see `docs/CAMPAIGN_VAULT_V2.md`)
+
+V1 (this document) is the live path. **CampaignVault V2** adds a second vault kind
+for autonomous paid product-testing campaigns, where the founder pre-approves a
+finite **mission plan** (each mission: exact reward + max completions) and Sage can
+then pay a **previously-unknown tester wallet** for accepted work **without the
+founder allowlisting each recipient**. Same defense-in-depth spirit, different
+recipient model:
+
+- **owner ≠ operator is enforced at creation** (the V1 allowance can be
+  Sage-owned; a V2 campaign never is).
+- the operator supplies **no amount** — `requestPayout(missionId, recipient,
+  decisionDigest, intentHash)` derives the exact mission reward on-chain.
+- **budgetCeiling = Σ (reward × maxCompletions)**, computed from the immutable
+  plan; the plan (missions/rewards/caps) can never change.
+- **ten** soft-reject checks (state, caller, mission, recipient, digests,
+  recipient-already-completed, no-remaining-completions, replay, budget, velocity)
+  — one recipient is paid at most once per mission; one intent settles once.
+- **DecisionCommitmentV2** (`campaign-commitment.ts`) binds the payout intent to
+  the CampaignVault, campaignIdHash, `missionIdHash`, the exact on-chain reward,
+  and the decision digest. Its `missionPlanDigest` reproduces the vault's exactly
+  (cross-checked on-chain by `test/CampaignVault.t.sol`).
+- **Honesty:** V2 bounds financial authority; it does **not** prove work quality.
+  A compromised operator's max loss is the *remaining* campaign budget, spent only
+  as valid mission payouts. Never claim V2 proves correctness.
+
+Proven by `contracts/test/CampaignVault*.t.sol` (deterministic + fuzz-invariants)
+and `campaign-commitment.test.ts` + `mission-plan.test.ts`. Migration `0011` adds
+the V2 columns + `missions` table additively; legacy rows default to `policy_v1`.
+
 ## Quality gates for this path
 
 Any change to the payout path must keep all of these green:

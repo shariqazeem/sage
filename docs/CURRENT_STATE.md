@@ -225,6 +225,29 @@ decision-commitment proofs. The x402 verification status is an explicit typed mo
 (`paid | live_fallback | not_configured | not_required | legacy_unknown`), so a null
 payment tx is never mislabelled as "pending". See `docs/PAYOUT_INVARIANTS.md`.
 
+### 4.6 CampaignVault V2 — the paid-testing protocol (BUILT, not deployed)
+
+A second vault kind for autonomous paid product-testing campaigns. A founder
+pre-approves a finite **mission plan** (each mission: exact reward + max
+completions, fully-backed budget = Σ reward×maxCompletions, velocity, expiry) and
+appoints Sage as operator once. Sage may then pay a **previously-unknown tester
+wallet** for accepted work **without allowlisting each recipient** — bounded to
+the approved missions, exact rewards, completion caps, budget, velocity, and
+lifecycle. `owner ≠ operator` is enforced at creation; the operator supplies no
+amount (the vault derives the mission reward); ten on-chain checks; one recipient
+paid at most once per mission; replay-safe. **DecisionCommitmentV2** binds the
+payout to its mission + exact reward + decision, and its `missionPlanDigest`
+matches the vault's exactly (cross-checked on-chain).
+
+Built + verified this pass: `CampaignVault.sol` / `CampaignVaultFactory.sol` /
+`ICampaignVault.sol` (84 Foundry tests incl. fuzz-invariants), `campaign-commitment.ts`
++ `mission-plan.ts` (pure, golden, on-chain-cross-checked), migration `0011`
+(additive; `missions` table + V2 columns; legacy rows = `policy_v1`). **Not
+deployed; not yet in the live settle path** — the app-integration layer (vault-kind
+adapter, V2 pipeline branch, V2 proof states, mission dev surface) is the next
+pass. Honesty: V2 bounds financial authority, not work quality. See
+`docs/CAMPAIGN_VAULT_V2.md`.
+
 ### 4.2 State machine + a lesson learned
 
 `Created → Funded → Active → (Paused | Revoked)`. Expiry = `activationTime +
