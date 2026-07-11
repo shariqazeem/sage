@@ -7,7 +7,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { DecisionBriefContent } from "../deputy/brain-core";
+import type { StoredBrief } from "../deputy/brain-core";
 
 /** The on-chain condition a campaign can auto-verify (condition_type = 'onchain'). */
 export interface OnchainCheck {
@@ -69,6 +69,14 @@ export const campaigns = sqliteTable("campaigns", {
    * session-gated is ever posted to it.
    */
   announceChatId: text("announce_chat_id"),
+  /**
+   * A sandbox campaign exists ONLY to run the public "try to jailbreak the Deputy"
+   * pipeline. It can NEVER settle: `settleSubmission` throws for it, the autonomy
+   * pipeline early-returns before any spend, and its decisions are excluded from
+   * the reputation + /agents stats. Payment is structurally unreachable, not just
+   * unlikely.
+   */
+  sandbox: integer("sandbox", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -188,8 +196,8 @@ export const decisions = sqliteTable(
     engine: text("engine").notNull(),
     /** the model id when engine = 'llm', else null. */
     model: text("model"),
-    /** the judgment: criteria / fraud signals / recommendation / summary. */
-    brief: text("brief", { mode: "json" }).$type<DecisionBriefContent>().notNull(),
+    /** the judgment (criteria / fraud / recommendation / reasonCode / summary) + the deciding provider. */
+    brief: text("brief", { mode: "json" }).$type<StoredBrief>().notNull(),
     /** sha256 of the fetched evidence bytes (provenance), or null. */
     contentSha256: text("content_sha256"),
     evidenceOk: integer("evidence_ok", { mode: "boolean" }).notNull().default(false),

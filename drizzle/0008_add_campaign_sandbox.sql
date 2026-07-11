@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `sandbox` integer DEFAULT false NOT NULL;

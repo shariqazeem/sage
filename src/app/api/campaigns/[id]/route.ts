@@ -15,9 +15,41 @@ import { assessSubmission } from "@/lib/campaigns/assess";
 import { heuristicBrief } from "@/lib/deputy/brain-core";
 import { briefFromRow, ensureDecision } from "@/lib/deputy/decisions";
 import { validateAutonomy, validateThreshold } from "@/lib/campaigns/validate";
+import { briefFingerprint, payloadVersion } from "@/lib/campaigns/live-poll";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type AutopayState = { state: "settled" | "held"; reason: string | null; at: number };
+
+/**
+ * Latest autonomous outcome per submission (events are newest-first, so the first
+ * one we see for a submission is the latest). A cheap DB read — no chain calls —
+ * so the light polling path can call it every tick.
+ */
+function buildAutopayMap(campaignId: string): Map<string, AutopayState> {
+  const map = new Map<string, AutopayState>();
+  for (const e of listCampaignEvents(campaignId)) {
+    if (!e.submissionId) continue;
+    if (e.kind !== "autopay_settled" && e.kind !== "autopay_held") continue;
+    if (map.has(e.submissionId)) continue;
+    // detail is a {"t","cid"} envelope — decode to the human text before parsing,
+    // or the raw JSON leaks into the UI.
+    const text = decodeDetail(e.detail).text ?? "";
+    const parts = text.split(" · ");
+    map.set(e.submissionId, {
+      state: e.kind === "autopay_settled" ? "settled" : "held",
+      reason:
+        e.kind === "autopay_held"
+          ? parts.length > 1
+            ? parts.slice(1).join(" · ")
+            : text
+          : null,
+      at: e.createdAt,
+    });
+  }
+  return map;
+}
 
 /**
  * Poster-gated read for the in-app campaign detail surface: the campaign, its
@@ -25,10 +57,11 @@ export const dynamic = "force-dynamic";
  * queue live inside the app shell (client) while all the truth stays server-side.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
+  const light = new URL(req.url).searchParams.get("light") === "1";
 
   const wallet = await getSessionAddress();
   if (!wallet) {
@@ -46,6 +79,42 @@ export async function GET(
     );
   }
 
+  // LIGHT PATH — what the live poll hits every ~2.5s. Submissions' status + stored
+  // briefs + autopay outcomes ONLY: no reconciler, no on-chain vault read, no
+  // decision compute. Pure DB reads, so a tick is cheap. `version` lets the client
+  // skip re-rendering an unchanged payload (no re-render storms).
+  if (light) {
+    const autopayBySub = buildAutopayMap(id);
+    const submissions = listSubmissions(id).map((s) => {
+      const stored = getDecisionBySubmission(s.id);
+      return {
+        id: s.id,
+        wallet: s.wallet,
+        evidenceUrl: s.evidenceUrl,
+        note: s.note,
+        status: s.status,
+        payoutTx: s.payoutTx,
+        rejectReason: s.rejectReason,
+        createdAt: s.createdAt,
+        // the real stored brief or null — never a placeholder, so the receipt
+        // "materializes" only once the genuine decision has landed.
+        brief: stored ? briefFromRow(stored) : null,
+        autopay: autopayBySub.get(s.id) ?? null,
+      };
+    });
+    const version = payloadVersion(
+      submissions.map((s) => ({
+        id: s.id,
+        status: s.status,
+        hasBrief: !!s.brief,
+        briefFingerprint: briefFingerprint(s.brief),
+        autopayState: s.autopay?.state ?? null,
+        payoutTx: s.payoutTx,
+      })),
+    );
+    return NextResponse.json({ light: true, submissions, version });
+  }
+
   // Cheaply fold any new on-chain vendor events into the journal (range-capped).
   await reconcileVendorEvents(campaign.vaultAddress).catch(() => null);
 
@@ -54,31 +123,8 @@ export async function GET(
   // with no stored decision, show an instant heuristic placeholder now and
   // compute the real (LLM) decision after the response flushes — the badge stays
   // honest ("LLM pending") until the upgrade lands on the next view.
-  // Latest autopay outcome per submission (events are newest-first, so the first
-  // one we see for a submission is the latest) — drives the queue's Deputy chips.
-  const autopayBySub = new Map<
-    string,
-    { state: "settled" | "held"; reason: string | null; at: number }
-  >();
-  for (const e of listCampaignEvents(id)) {
-    if (!e.submissionId) continue;
-    if (e.kind !== "autopay_settled" && e.kind !== "autopay_held") continue;
-    if (autopayBySub.has(e.submissionId)) continue;
-    // detail is a {"t","cid"} envelope — decode to the human text before parsing,
-    // or the raw JSON leaks into the UI.
-    const text = decodeDetail(e.detail).text ?? "";
-    const parts = text.split(" · ");
-    autopayBySub.set(e.submissionId, {
-      state: e.kind === "autopay_settled" ? "settled" : "held",
-      reason:
-        e.kind === "autopay_held"
-          ? parts.length > 1
-            ? parts.slice(1).join(" · ")
-            : text
-          : null,
-      at: e.createdAt,
-    });
-  }
+  // Latest autopay outcome per submission — drives the queue's Deputy chips.
+  const autopayBySub = buildAutopayMap(id);
 
   const toCompute: string[] = [];
   const submissions = listSubmissions(id).map((s) => {

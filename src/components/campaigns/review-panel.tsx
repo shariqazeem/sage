@@ -21,6 +21,11 @@ import {
 } from "@/lib/wallet/vendor-add";
 import { formatCountdown } from "@/lib/wallet/allowlist-state";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
+import {
+  shouldKeepPolling,
+  briefFingerprint,
+  type PollSub,
+} from "@/lib/campaigns/live-poll";
 import { CopyButton } from "@/components/hire/copy-button";
 import { StatusBadge } from "./submit-panel";
 import { DeputyAssessmentCard } from "./deputy-assessment";
@@ -41,6 +46,16 @@ export interface ReviewSubmission {
   autopay?: { state: "settled" | "held"; reason: string | null; at: number } | null;
 }
 
+/** Project a submission to the minimal shape the pure poll logic reasons about. */
+const toPoll = (s: ReviewSubmission): PollSub => ({
+  id: s.id,
+  status: s.status,
+  hasBrief: !!s.brief,
+  briefFingerprint: briefFingerprint(s.brief),
+  autopayState: s.autopay?.state ?? null,
+  payoutTx: s.payoutTx,
+});
+
 /** Per-submission flow phase — the honest, guided motion from approve to paid. */
 type Phase =
   | "idle"
@@ -59,6 +74,8 @@ interface Flow {
   readyAt?: number;
   proofUrl?: string;
   reason?: string;
+  /** true when this "paid" state arrived via the autonomous Deputy — plays the cascade entrance. */
+  cascade?: boolean;
 }
 
 interface DecideResponse {
@@ -97,6 +114,8 @@ export function ReviewPanel({
   initial,
   remaining,
   rewardUsd = null,
+  autonomy = "manual",
+  threshold = 0.85,
   onRemaining,
 }: {
   campaignId: string;
@@ -105,6 +124,10 @@ export function ReviewPanel({
   remaining: number | null;
   /** per-payout reward in whole USDC — the amount that CountUps on settle. */
   rewardUsd?: number | null;
+  /** the campaign's mandate — autopilot campaigns keep polling for the Deputy's own settles. */
+  autonomy?: "manual" | "autopilot";
+  /** the autopilot confidence threshold — drives the receipt's notch. */
+  threshold?: number;
   /** lifts the new vault remaining to the parent so its ring can pulse. */
   onRemaining?: (remaining: number) => void;
 }) {
@@ -114,12 +137,24 @@ export function ReviewPanel({
   const [flows, setFlows] = useState<Record<string, Flow>>({});
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [batchBusy, setBatchBusy] = useState(false);
+  // Live feed: ids whose receipt should play the "materialize" animation once,
+  // because a real/upgraded brief just arrived via polling.
+  const [materializeIds, setMaterializeIds] = useState<Set<string>>(() => new Set());
 
   const vault = getAddress(vaultAddress);
   const setFlow = useCallback(
     (id: string, f: Flow) => setFlows((p) => ({ ...p, [id]: f })),
     [],
   );
+
+  // latest-value refs so the poll loop reads current state without re-subscribing
+  const subsRef = useRef(subs);
+  subsRef.current = subs;
+  const flowsRef = useRef(flows);
+  flowsRef.current = flows;
+  const leftRef = useRef(left);
+  leftRef.current = left;
+  const lastVersion = useRef<string | null>(null);
 
   // Tick once a second while any recipient is inside its timelock, so the
   // countdown is live (and offer "Finish payout" the instant it matures).
@@ -132,6 +167,139 @@ export function ReviewPanel({
 
   const patch = (id: string, next: Partial<ReviewSubmission>) =>
     setSubs((p) => p.map((s) => (s.id === id ? { ...s, ...next } : s)));
+
+  /**
+   * LIVE FEED — merge a light poll snapshot into the queue. Never clobbers a row
+   * the poster is actively driving; only absorbs server truth for idle rows. Fires
+   * the receipt "materialize" when a real/upgraded brief lands, and drives the
+   * SettleRail cascade + ring drain when the autonomous Deputy settles a row.
+   */
+  const applyPoll = useCallback(
+    (incoming: ReviewSubmission[]) => {
+      const cur = subsRef.current;
+      const curFlows = flowsRef.current;
+      const known = new Set(cur.map((s) => s.id));
+      const mat = new Set<string>();
+      const settled: { id: string; tx: string }[] = [];
+
+      const absorb = (existing: ReviewSubmission, inc: ReviewSubmission) => {
+        const phase = curFlows[existing.id]?.phase;
+        const manualOwned =
+          phase === "deciding" ||
+          phase === "allowlisting" ||
+          phase === "waiting" ||
+          phase === "settling" ||
+          phase === "paid" ||
+          phase === "blocked";
+        if (
+          inc.status === "pending" &&
+          inc.brief &&
+          briefFingerprint(inc.brief) !== briefFingerprint(existing.brief)
+        ) {
+          mat.add(existing.id);
+        }
+        if (
+          inc.status === "paid" &&
+          inc.payoutTx &&
+          inc.autopay?.state === "settled" &&
+          existing.status !== "paid" &&
+          phase !== "paid"
+        ) {
+          settled.push({ id: existing.id, tx: inc.payoutTx });
+        }
+        // the poster's click owns this row while a manual flow runs; only fill a
+        // missing brief, never move its status out from under the flow.
+        if (manualOwned) {
+          return existing.brief ? existing : { ...existing, brief: inc.brief ?? null };
+        }
+        return {
+          ...existing,
+          status: inc.status,
+          payoutTx: inc.payoutTx ?? existing.payoutTx,
+          rejectReason: inc.rejectReason ?? existing.rejectReason,
+          brief: inc.brief ?? existing.brief,
+          autopay: inc.autopay ?? existing.autopay,
+        };
+      };
+
+      const incById = new Map(incoming.map((i) => [i.id, i]));
+      const merged = cur.map((s) => {
+        const inc = incById.get(s.id);
+        return inc ? absorb(s, inc) : s;
+      });
+      // submissions that appeared while the poster was watching
+      for (const inc of incoming) {
+        if (known.has(inc.id)) continue;
+        merged.push(inc);
+        if (inc.status === "pending" && inc.brief) mat.add(inc.id);
+        if (inc.status === "paid" && inc.payoutTx && inc.autopay?.state === "settled")
+          settled.push({ id: inc.id, tx: inc.payoutTx });
+      }
+
+      setSubs(merged);
+      if (mat.size) setMaterializeIds((p) => new Set([...p, ...mat]));
+      // the autonomous payout plays the SAME cascade as a manual approval
+      for (const { id, tx } of settled) {
+        setFlow(id, { phase: "paid", proofUrl: `/proof/${tx}`, cascade: true });
+      }
+      if (settled.length && rewardUsd != null) {
+        const next = Math.max(0, (leftRef.current ?? 0) - settled.length * rewardUsd);
+        setLeft(next);
+        onRemaining?.(next);
+      }
+    },
+    [rewardUsd, onRemaining, setFlow],
+  );
+
+  // Poll the LIGHT endpoint while the Deputy still has async work to show. Cheap
+  // (no reconciler / no vault read), version-gated (unchanged payload = no-op),
+  // paused when the tab is hidden, and cleared on unmount.
+  const pollActive = shouldKeepPolling(subs.map(toPoll), autonomy);
+  useEffect(() => {
+    if (!pollActive) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}?light=1`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          version?: string;
+          submissions?: ReviewSubmission[];
+        };
+        if (!json.submissions) return;
+        if (json.version && json.version === lastVersion.current) return; // no-op
+        lastVersion.current = json.version ?? null;
+        applyPoll(json.submissions);
+      } catch {
+        /* transient — the next tick retries */
+      }
+    };
+    const start = () => {
+      if (!timer) timer = setInterval(() => void tick(), 2500);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVis = () => {
+      if (document.hidden) stop();
+      else {
+        void tick(); // catch up immediately on return, then resume
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pollActive, campaignId, applyPoll]);
 
   const callDecide = async (id: string, decision: "approve" | "reject") => {
     const res = await fetch(`/api/campaigns/${campaignId}/submissions/${id}/decide`, {
@@ -359,6 +527,8 @@ export function ReviewPanel({
               flow={flows[s.id] ?? { phase: "idle" }}
               now={now}
               rewardUsd={rewardUsd}
+              threshold={threshold}
+              materialize={materializeIds.has(s.id)}
               onApprove={() => void approve(s)}
               onReject={() => void reject(s)}
               onFinish={() => void finishWaiting(s)}
@@ -403,11 +573,14 @@ function SettleRail({
   reason,
   proofUrl,
   rewardUsd,
+  cascade = false,
 }: {
   phase: Phase;
   reason?: string;
   proofUrl?: string;
   rewardUsd: number | null;
+  /** an autonomous settle arriving via poll — play the cascade entrance. */
+  cascade?: boolean;
 }) {
   let verify: RailNode = "pending";
   let checks: RailNode = "pending";
@@ -441,7 +614,7 @@ function SettleRail({
       ? `${window.location.origin}${proofUrl}`
       : proofUrl;
   return (
-    <div className="sage-rail">
+    <div className={`sage-rail${cascade ? " sage-cascade-in" : ""}`}>
       <div className={`sage-rail-node ${verify}`}>
         <RailDot state={verify} />
         <span className="sage-rail-label">Deputy verified</span>
@@ -567,6 +740,8 @@ function Row({
   flow,
   now,
   rewardUsd,
+  threshold,
+  materialize,
   onApprove,
   onReject,
   onFinish,
@@ -576,6 +751,9 @@ function Row({
   flow: Flow;
   now: number;
   rewardUsd: number | null;
+  threshold: number;
+  /** play the receipt "materialize" once — set when the brief just arrived. */
+  materialize: boolean;
   onApprove: () => void;
   onReject: () => void;
   onFinish: () => void;
@@ -635,7 +813,12 @@ function Row({
 
         {/* the Deputy's verification receipt, before you confirm */}
         {pending && s.brief && (
-          <DeputyAssessmentCard brief={s.brief} rewardUsd={rewardUsd} />
+          <DeputyAssessmentCard
+            brief={s.brief}
+            rewardUsd={rewardUsd}
+            threshold={threshold}
+            materialize={materialize}
+          />
         )}
 
         {/* the settle cascade — bound to the real flow phase (moment 1) */}
@@ -650,6 +833,7 @@ function Row({
             reason={flow.reason}
             proofUrl={flow.proofUrl}
             rewardUsd={rewardUsd}
+            cascade={flow.cascade}
           />
         )}
         {/* owner-signing / timelock context beneath the rail */}

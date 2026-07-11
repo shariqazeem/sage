@@ -218,5 +218,5 @@ export interface BlockedAnnounce {
 
 export function announceBlockedText(a: BlockedAnnounce): string {
   const check = a.failedCheckIndex != null ? ` · check ${a.failedCheckIndex}` : "";
-  return [`<b>${escapeHtml(a.title)}</b>`, `Blocked by vault${check} · ${a.url}`].join("\n");
+  return [`<b>${escapeHtml(a.title)}</b>`, `Blocked by the wallet${check} · ${a.url}`].join("\n");
 }

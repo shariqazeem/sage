@@ -1,7 +1,7 @@
 /* Sage — the five demo hero-moments (presentational only).
    Every animation here is triggered by real async state in the components; this
    file only defines how those state changes look. Reuses the motion-pass tokens
-   (--spring-*, --elev-*, --dur-*) and the design palette (indigo #4f46e5, green
+   (--spring-*, --elev-*, --dur-*) and the design palette (indigo #1a1d21, green
    #15803d, red #dc2626, amber). Reduced-motion is handled globally in motion.css. */
 
 /* ── MOMENT 1 · settle cascade (review-panel) ───────────────────────────── */
@@ -49,8 +49,8 @@
     transform 0.35s var(--spring-bounce, ease);
 }
 .sage-rail-dot.active {
-  border-color: var(--accent, #4f46e5);
-  color: var(--accent, #4f46e5);
+  border-color: var(--accent, #1a1d21);
+  color: var(--accent, #1a1d21);
 }
 .sage-rail-dot.done {
   border-color: var(--pos, #15803d);
@@ -502,7 +502,7 @@
   color: var(--mut, #9a9da2);
 }
 .sage-boot-step.active .sage-boot-step-ico {
-  color: var(--accent, #4f46e5);
+  color: var(--accent, #1a1d21);
 }
 .sage-boot-step.done .sage-boot-step-ico {
   color: var(--pos, #15803d);
@@ -523,7 +523,7 @@
 .sage-boot-step-tx {
   margin-left: auto;
   font-size: 11.5px;
-  color: var(--accent, #4f46e5);
+  color: var(--accent, #1a1d21);
   text-decoration: none;
 }
 .sage-boot-step-tx.muted {
@@ -554,12 +554,12 @@
   border-radius: 999px;
 }
 .sage-assess-engine.llm {
-  background: #ecebfd;
-  border: 1px solid #d5d3f7;
-  color: var(--accent, #4f46e5);
+  background: #f2f1ee;
+  border: 1px solid #e4e2dc;
+  color: var(--accent, #1a1d21);
 }
 .sage-assess-engine.llm .dot {
-  background: var(--accent, #4f46e5);
+  background: var(--accent, #1a1d21);
 }
 .sage-assess-engine.heuristic {
   background: #f4f2ec;
@@ -582,9 +582,9 @@
   gap: 4px;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--accent, #4f46e5);
-  background: #eeedfc;
-  border-left: 2px solid #c9c5f3;
+  color: var(--accent, #1a1d21);
+  background: #f2f1ee;
+  border-left: 2px solid #e4e2dc;
   border-radius: 0 4px 4px 0;
   padding: 3px 7px;
   margin-top: 1px;
@@ -640,20 +640,136 @@
   flex: 1;
   height: 4px;
   border-radius: 999px;
-  background: #e4e3f5;
-  overflow: hidden;
+  background: #f2f1ee;
+  position: relative; /* anchor the threshold notch */
+  overflow: visible; /* let the notch poke above/below the bar */
 }
 .sage-assess-conf-bar span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--accent, #4f46e5);
+  background: var(--accent, #1a1d21);
   transition: width 0.5s var(--spring-gentle, ease);
 }
 .sage-assess-conf-k {
   flex: none;
   font-size: 10.5px;
   color: var(--ter, #8a8d92);
+}
+
+/* ── forensic receipt: threshold notch, microcopy, attack strip, provenance ─
+   Shared by every surface that renders a receipt (/app, /c, /agents), so these
+   live here beside THE BLOCK vocabulary the ATTACK strip reuses. ───────────── */
+.sage-assess-notch {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--ter, #8a8d92);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.sage-assess-thresh {
+  margin: 4px 0 2px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--ter, #8a8d92);
+}
+.sage-assess-thresh.pass {
+  color: var(--pos, #15803d);
+}
+.sage-assess-thresh.hold {
+  color: var(--warn, #b45309);
+}
+
+/* ATTACK strip — reuses THE BLOCK's red vocabulary; injection class only */
+.sage-attack-strip {
+  margin: 0 0 11px;
+  padding: 9px 11px;
+  border: 1.5px solid var(--dan, #dc2626);
+  border-radius: 6px;
+  background: var(--dan-bg, #fdeeee);
+  color: var(--dan, #dc2626);
+  font-size: 11.5px;
+  line-height: 1.45;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.sage-attack-strip svg {
+  flex: none;
+  margin-top: 1px;
+}
+.sage-attack-strip b {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* provenance microline — 10px mono; the tamper-evidence trail rendered plainly */
+.sage-assess-prov {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #f2f1ee;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ter, #8a8d92);
+  word-break: break-all;
+}
+.sage-assess-prov .sep {
+  opacity: 0.45;
+  margin: 0 5px;
+}
+
+/* ── agent P&L panel (shared: /agents + the app Proof tab) ─────────────────── */
+.sage-pnl {
+  display: flex;
+  flex-direction: column;
+}
+.sage-pnl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line, #e6e4de);
+  font-size: 12.5px;
+}
+.sage-pnl-row:first-child {
+  border-top: none;
+}
+.sage-pnl-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--sec, #55585d);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.sage-pnl-k svg {
+  flex: none;
+  color: var(--ter, #8a8d92);
+}
+.sage-pnl-k.earned svg {
+  color: var(--pos, #15803d);
+}
+.sage-pnl-v {
+  font-weight: 700;
+  color: var(--ink, #1a1d21);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.sage-pnl-v.earned {
+  color: var(--pos, #15803d);
+}
+.sage-pnl-note {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--mut, #a8a29a);
+  margin-left: 6px;
 }
 .sage-assess-summary {
   font-size: 12.5px;
@@ -683,8 +799,8 @@
     background 0.3s ease;
 }
 .sage-auto.on {
-  border-color: #d5d3f7;
-  background: #f7f8ff;
+  border-color: #e4e2dc;
+  background: #faf9f6;
 }
 .sage-auto-head {
   display: flex;
@@ -703,7 +819,7 @@
   color: var(--ter, #8a8d92);
 }
 .sage-auto-title svg {
-  color: var(--accent, #4f46e5);
+  color: var(--accent, #1a1d21);
 }
 .sage-auto-state {
   font-family: var(--font-mono), monospace;
@@ -715,8 +831,8 @@
   color: var(--sec, #5b5f66);
 }
 .sage-auto-state.on {
-  background: #ecebfd;
-  color: var(--accent, #4f46e5);
+  background: #f2f1ee;
+  color: var(--accent, #1a1d21);
 }
 .sage-auto-opts {
   display: grid;
@@ -744,15 +860,15 @@
     box-shadow 0.2s ease;
 }
 .sage-auto-opt:hover:not(:disabled) {
-  border-color: #c9c5f3;
+  border-color: #e4e2dc;
 }
 .sage-auto-opt:disabled {
   opacity: 0.6;
   cursor: default;
 }
 .sage-auto-opt.on {
-  border-color: var(--accent, #4f46e5);
-  box-shadow: 0 0 0 1px var(--accent, #4f46e5) inset;
+  border-color: var(--accent, #1a1d21);
+  box-shadow: 0 0 0 1px var(--accent, #1a1d21) inset;
 }
 .sage-auto-opt-top {
   display: flex;
@@ -763,7 +879,7 @@
   color: var(--ink, #1a1d21);
 }
 .sage-auto-opt-top svg {
-  color: var(--accent, #4f46e5);
+  color: var(--accent, #1a1d21);
   flex: none;
 }
 .sage-auto-opt-top .tick {
@@ -777,7 +893,7 @@
 .sage-auto-thresh {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #e6e5f5;
+  border-top: 1px solid #f2f1ee;
 }
 .sage-auto-thresh-row {
   display: flex;
@@ -807,15 +923,15 @@
   place-items: center;
 }
 .sage-auto-stepper button:hover:not(:disabled) {
-  border-color: var(--accent, #4f46e5);
-  color: var(--accent, #4f46e5);
+  border-color: var(--accent, #1a1d21);
+  color: var(--accent, #1a1d21);
 }
 .sage-auto-stepper .mono {
   min-width: 62px;
   text-align: center;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent, #4f46e5);
+  color: var(--accent, #1a1d21);
 }
 .sage-auto-note {
   font-size: 11px;
@@ -875,8 +991,8 @@
   text-decoration: underline;
 }
 .sage-badge.indigo {
-  background: #ecebfd;
-  color: var(--accent, #4f46e5);
+  background: #f2f1ee;
+  color: var(--accent, #1a1d21);
 }
 
 /* ── x402 RAILS · verification chip + fees + Proof status ───────────────── */
@@ -896,9 +1012,9 @@
   flex: none;
 }
 .sage-x402-chip.paid {
-  background: #ecebfd;
-  border: 1px solid #d5d3f7;
-  color: var(--accent, #4f46e5);
+  background: #f2f1ee;
+  border: 1px solid #e4e2dc;
+  color: var(--accent, #1a1d21);
 }
 .sage-x402-chip.paid .mono {
   text-decoration: underline;
@@ -943,8 +1059,8 @@
   margin-bottom: 22px;
 }
 .sage-x402-status.live {
-  border-color: #d5d3f7;
-  background: #f7f8ff;
+  border-color: #e4e2dc;
+  background: #faf9f6;
 }
 .sage-x402-status-dot {
   flex: none;
@@ -955,7 +1071,7 @@
   background: var(--mut, #9a9da2);
 }
 .sage-x402-status.live .sage-x402-status-dot {
-  background: var(--accent, #4f46e5);
+  background: var(--accent, #1a1d21);
 }
 .sage-x402-status-head {
   font-size: 13.5px;

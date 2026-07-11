@@ -27,12 +27,14 @@ move — even if the AI is wrong or compromised.
 
 ## Live
 
+
 | | |
 |---|---|
-| **App** | https://sage.80.225.209.190.sslip.io |
-| **Agent identity** | [`/agents/sage`](https://sage.80.225.209.190.sslip.io/agents/sage) · ERC-8004 **#79** on [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) |
+| **App** | https://sagepays.xyz |
+| **Founding testers** | [`/c/founding-testers`](https://sagepays.xyz/c/founding-testers) — test Sage, get paid real USDC on GOAT mainnet |
+| **Agent identity** | [`/agents/sage`](https://sagepays.xyz/agents/sage) · ERC-8004 **#79** on [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) |
 | **Telegram** | [@sagedeputybot](https://t.me/sagedeputybot) — `/agent`, `/status <slug>` |
-| **A real autonomous payout** | [proof page](https://sage.80.225.209.190.sslip.io/proof/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) · [explorer](https://sepolia-explorer.metisdevops.link/tx/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) |
+| **A real autonomous payout** | [proof page](https://sagepays.xyz/proof/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) · [explorer](https://sepolia-explorer.metisdevops.link/tx/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) |
 
 ## Bootcamp integrations
 
@@ -40,6 +42,20 @@ move — even if the AI is wrong or compromised.
 - **ERC-8004** — on-chain agent identity + reputation (**#79**, chain 2345).
 - **GOAT Network (2345)** + **Metis Sepolia (59902)** — the payout chains, per-vault.
 - **GOAT-compatible adapter** — all chain access behind one interface (`src/lib/deputy`).
+
+## Real on mainnet vs. testnet (the honest split)
+
+| | Metis Sepolia — testnet | GOAT mainnet |
+|---|---|---|
+| ERC-8004 identity | — | ✅ **#79**, live on 8004scan |
+| x402 merchant + payments | — | ✅ merchant `sage`, real txs |
+| Policy Vault (deployed + funded) | ✅ | ✅ |
+| Full autopilot loop (verify → auto-pay) | ✅ **proven**, real payout | ✅ armed |
+
+Testnet is the sandbox, not a demo: destructive testing (the kill switch, the
+break-it gauntlet) runs on Sepolia **by design**; real money moves on GOAT mainnet.
+Nothing in Sage is simulated — every payout, block, decision, and fee is a real row
+or a real transaction.
 
 ## How it works
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
-import { ensureDemoCampaign } from "@/lib/db/campaigns";
+import { ensureFlagshipCampaign } from "@/lib/db/campaigns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * when not a signed-in poster (the UI shows a designed empty state).
  */
 export async function GET() {
-  ensureDemoCampaign();
+  ensureFlagshipCampaign();
   const wallet = await getSessionAddress();
   return NextResponse.json(getDeputyOverview(wallet));
 }

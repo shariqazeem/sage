@@ -62,9 +62,11 @@ describe("gateFromBrief — reads the brief's fraud signals", () => {
   const clean: DecisionBrief = {
     engine: "llm",
     model: "deepseek/deepseek-v4-flash",
+    provider: "test",
     criteria: [],
     fraudSignals: [],
     recommendation: "pay",
+    reasonCode: "all_criteria_met",
     confidence: 0.95,
     summary: "",
     evidenceOk: true,
@@ -140,9 +142,11 @@ describe("mainnet safety gate — chainId 2345 requires DEPUTY_AUTOPILOT_MAINNET
   const clean: DecisionBrief = {
     engine: "llm",
     model: "deepseek/deepseek-v4-flash",
+    provider: "test",
     criteria: [],
     fraudSignals: [],
     recommendation: "pay",
+    reasonCode: "all_criteria_met",
     confidence: 0.95,
     summary: "",
     evidenceOk: true,

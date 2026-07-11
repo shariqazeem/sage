@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, lt, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, lte, ne, notInArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
 import {
@@ -39,6 +39,50 @@ export function createCampaign(
 
 export function getCampaign(id: string): Campaign | null {
   return db.select().from(campaigns).where(eq(campaigns.id, id)).get() ?? null;
+}
+
+/** The fixed id of the public "try to jailbreak the Deputy" sandbox campaign. */
+export const SANDBOX_CAMPAIGN_ID = "redteam-sandbox";
+const SANDBOX_VAULT = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Seed the ONE sandbox campaign that backs the public red-team box. It can NEVER
+ * settle (settleSubmission throws for it + the autonomy pipeline early-returns),
+ * never solicits real submissions (status "paused"), and is excluded from
+ * reputation. Idempotent — the fixed id means a second call is a no-op.
+ */
+export function ensureSandboxCampaign(): Campaign {
+  const existing = getCampaign(SANDBOX_CAMPAIGN_ID);
+  if (existing) return existing;
+  try {
+    db.insert(campaigns)
+      .values({
+        id: SANDBOX_CAMPAIGN_ID,
+        title: "Try to jailbreak the Deputy",
+        descriptionMd:
+          "A public sandbox. Your text runs through Sage's real verification pipeline — the same frozen brain that guards real payouts. Nothing here can move money.",
+        criteria: [
+          "Reported a genuine bug in Sage's /app onboarding",
+          "Included a resolvable link to your write-up",
+        ],
+        conditionType: "approval",
+        rewardAmount: 500_000, // 0.5 USDC — never paid; the vault is unreachable here
+        maxRecipients: 0,
+        vaultAddress: SANDBOX_VAULT,
+        chainId: 59902,
+        posterWallet: SANDBOX_VAULT,
+        ownerIsSage: true,
+        status: "paused", // never accepts /c submissions; the box is the surface
+        autonomy: "manual",
+        autopilotThreshold: 0.85,
+        sandbox: true,
+        createdAt: nowSeconds(),
+      })
+      .run();
+  } catch {
+    /* lost a seed race — the existing row stands */
+  }
+  return getCampaign(SANDBOX_CAMPAIGN_ID) as Campaign;
 }
 
 export function listCampaigns(): Campaign[] {
@@ -107,6 +151,16 @@ export function getCampaignByPayoutTx(txHash: string): Campaign | null {
     .where(eq(submissions.payoutTx, txHash.toLowerCase()))
     .get();
   return sub ? getCampaign(sub.campaignId) : null;
+}
+
+/** The stored decision behind a payout tx (submission matched by payoutTx), or null. */
+export function getDecisionByPayoutTx(txHash: string): Decision | null {
+  const sub = db
+    .select()
+    .from(submissions)
+    .where(eq(submissions.payoutTx, txHash.toLowerCase()))
+    .get();
+  return sub ? getDecisionBySubmission(sub.id) : null;
 }
 
 export type SubmitResult =
@@ -252,7 +306,18 @@ export function insertDecision(
 
 /** Every stored decision receipt — the reputation's decision-stats input. */
 export function listAllDecisions(): Decision[] {
-  return db.select().from(decisions).all();
+  // Exclude sandbox campaigns (the public jailbreak box) so red-team attempts can
+  // never inflate the Deputy's reputation stats.
+  return db
+    .select()
+    .from(decisions)
+    .where(
+      notInArray(
+        decisions.campaignId,
+        db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.sandbox, true)),
+      ),
+    )
+    .all();
 }
 
 /** A recent decision joined to its campaign title (non-sensitive summary only). */
@@ -278,8 +343,83 @@ export function listRecentDecisions(limit = 10): RecentDecisionRow[] {
     })
     .from(decisions)
     .innerJoin(campaigns, eq(decisions.campaignId, campaigns.id))
+    .where(eq(campaigns.sandbox, false)) // never surface sandbox (jailbreak) reviews
     .orderBy(desc(decisions.createdAt))
     .limit(limit)
+    .all();
+}
+
+/** The featured receipt for the landing "Watch it think" act. */
+export interface StarReceipt {
+  decision: Decision;
+  rewardBase: number;
+  payoutTx: string;
+  threshold: number;
+}
+
+/**
+ * The best REAL settled decision to feature on the landing. Prefers an LLM "pay"
+ * receipt, then any LLM receipt, then whichever real settled receipt exists; null
+ * if none. Never fabricated — it upgrades itself the moment a mainnet LLM decision
+ * settles. Sandbox (jailbreak) campaigns are excluded so a red-team attempt can
+ * never headline.
+ */
+export function getStarReceipt(): StarReceipt | null {
+  const rows = db
+    .select({
+      decision: decisions,
+      rewardBase: campaigns.rewardAmount,
+      threshold: campaigns.autopilotThreshold,
+      payoutTx: submissions.payoutTx,
+    })
+    .from(decisions)
+    .innerJoin(submissions, eq(decisions.submissionId, submissions.id))
+    .innerJoin(campaigns, eq(decisions.campaignId, campaigns.id))
+    .where(
+      // A recorded payout tx == a real on-chain settlement (status is "paid").
+      and(isNotNull(submissions.payoutTx), eq(campaigns.sandbox, false)),
+    )
+    .orderBy(desc(decisions.createdAt))
+    .all();
+
+  if (rows.length === 0) return null;
+  const chosen =
+    rows.find(
+      (r) => r.decision.engine === "llm" && r.decision.brief.recommendation === "pay",
+    ) ??
+    rows.find((r) => r.decision.engine === "llm") ??
+    rows[0];
+  return {
+    decision: chosen.decision,
+    rewardBase: chosen.rewardBase,
+    payoutTx: chosen.payoutTx as string,
+    threshold: chosen.threshold,
+  };
+}
+
+/**
+ * Already-paid (or settling) entries on a campaign + their evidence hash, for the
+ * Sybil dedup pre-check. Excludes the submission being evaluated. (The pipeline
+ * bails on sandbox campaigns long before this is ever called.)
+ */
+export function listPaidSubmissionsForDedup(
+  campaignId: string,
+  excludeSubmissionId: string,
+): { note: string | null; contentSha256: string | null }[] {
+  return db
+    .select({
+      note: submissions.note,
+      contentSha256: decisions.contentSha256,
+    })
+    .from(submissions)
+    .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        inArray(submissions.status, ["paid", "settling"]),
+        ne(submissions.id, excludeSubmissionId),
+      ),
+    )
     .all();
 }
 
@@ -318,6 +458,16 @@ export function recordPendingFee(input: {
 
 export function listPendingFees(): Fee[] {
   return db.select().from(fees).where(eq(fees.status, "pending")).all();
+}
+
+/** Total operator fees actually collected (status 'settled'), in USDC base units. */
+export function sumSettledFeesBase(): number {
+  return db
+    .select({ amountBase: fees.amountBase })
+    .from(fees)
+    .where(eq(fees.status, "settled"))
+    .all()
+    .reduce((s, r) => s + r.amountBase, 0);
 }
 
 export function getFeeBySettleTx(settleTx: string): Fee | null {
@@ -375,6 +525,22 @@ export function listCampaignEvents(campaignId: string): CampaignEvent[] {
     .from(events)
     .where(eq(events.campaignId, campaignId))
     .orderBy(desc(events.createdAt))
+    .all();
+}
+
+/** Recent journal events across all NON-sandbox campaigns, newest first — the ticker. */
+export function listRecentEvents(limit = 24): CampaignEvent[] {
+  return db
+    .select()
+    .from(events)
+    .where(
+      notInArray(
+        events.campaignId,
+        db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.sandbox, true)),
+      ),
+    )
+    .orderBy(desc(events.createdAt))
+    .limit(limit)
     .all();
 }
 
@@ -490,26 +656,23 @@ export function listPosterEvents(wallet: string, limit = 50): CampaignEvent[] {
  * cohort chat. Idempotent, and renames the old seed in place (same row + slug,
  * submissions preserved) so existing databases upgrade on next load.
  */
-const DOGFOOD_TESTNET = {
-  title: "Break Sage's onboarding — get paid",
+const TESTER_CRITERIA = [
+  "Named a specific part of Sage you actually tried (the jailbreak box, the app, or a proof page)",
+  "One concrete, specific detail — what you did and what happened, not generic praise",
+] as const;
+
+const FLAGSHIP_TESTNET = {
+  title: "Break the Deputy — founding testers (testnet)",
   descriptionMd:
-    "Create your own Deputy vault on Metis Sepolia through the /app onboarding — grab tMETIS from the faucet, test USDC is minted in-flow. Then submit a link to your vault on the explorer (or your created-campaign link) plus a note on anything that confused or broke. Test USDC to testers, from a capped on-chain vault.",
-  criteria: [
-    "Completed the /app onboarding — vault created and funded",
-    "Evidence link resolves (your vault on the explorer, or your campaign)",
-    "A genuine note on friction or what broke",
-  ],
+    "Try to jailbreak the Deputy in the box on its agent page — or just click through the app — then tell us the one specific thing you found: what you tried and what happened. Genuine, specific reports are paid test USDC on Metis Sepolia (the mainnet flow is identical, with real USDC); vague or spammy ones get held. Paste a screenshot link if you have one — optional.",
+  criteria: TESTER_CRITERIA,
 } as const;
 
-const DOGFOOD_MAINNET = {
-  title: "Break Sage's onboarding — paid in real USDC",
+const FLAGSHIP_MAINNET = {
+  title: "Break the Deputy — paid in real USDC",
   descriptionMd:
-    "Real USDC on GOAT mainnet, paid to your real wallet from a policy-capped on-chain vault. Try the /app onboarding (a Metis Sepolia testnet playground — no real funds there), then submit a link to what you built plus an honest note on anything that confused or broke. Accepted testers are paid real USDC on GOAT, released by the Deputy inside its enforced on-chain caps.",
-  criteria: [
-    "Tried the /app onboarding testnet playground and created a vault",
-    "Evidence link resolves (your vault or campaign on an explorer)",
-    "A genuine note on friction or what broke",
-  ],
+    "Try to jailbreak the Deputy in the box on its agent page — or just click through the app — then tell us the one specific thing you found: what you tried and what happened. Genuine, specific reports get paid real USDC on GOAT mainnet, released by the autonomous Deputy from a policy-capped on-chain vault; vague or spammy ones get held. Paste a screenshot link if you have one — optional. The agent verifies your report and the vault enforces every limit on-chain.",
+  criteria: TESTER_CRITERIA,
 } as const;
 
 /** Reward per accepted tester, in USDC base units (6dp). Mainnet reads env. */
@@ -527,7 +690,10 @@ function dogfoodRewardBase(mainnet: boolean): number {
  * playground" regardless — only THIS campaign moves real money. Idempotent, and
  * it upgrades the row in place when the network config changes.
  */
-export function ensureDemoCampaign(): void {
+/** The flagship campaign's production slug — used in /c/<slug> and the redirect. */
+export const FLAGSHIP_CAMPAIGN_ID = "founding-testers";
+
+export function ensureFlagshipCampaign(): void {
   const goatVault = process.env.GOAT_VAULT_ADDRESS?.trim();
   const sepoliaVault = process.env.NEXT_PUBLIC_VAULT_ADDRESS?.trim();
   const mainnet = !!goatVault;
@@ -535,50 +701,61 @@ export function ensureDemoCampaign(): void {
   if (!vault) return;
 
   const chainId = mainnet ? 2345 : 59902;
-  const spec = mainnet ? DOGFOOD_MAINNET : DOGFOOD_TESTNET;
+  const spec = mainnet ? FLAGSHIP_MAINNET : FLAGSHIP_TESTNET;
   const reward = dogfoodRewardBase(mainnet);
-  // Seats the vault can truly fund, so nothing overpromises. Mainnet: the 2-USDC
-  // vault at 0.5/tester funds 4 (override with GOAT_DOGFOOD_SEATS if the vault
-  // is resized). Testnet: the generous playground default.
+  // Seats the vault can truly fund, so nothing overpromises (override with
+  // GOAT_DOGFOOD_SEATS if the vault is resized).
   const seats = mainnet ? Number(process.env.GOAT_DOGFOOD_SEATS ?? "4") : 25;
-  // The mainnet dogfood runs on AUTOPILOT (the red-teamed brain auto-pays
-  // confident, clean matches). The DEPUTY_AUTOPILOT_MAINNET flag still gates
-  // whether autopilot moves real money, so this is safe to set declaratively.
+  // Mainnet runs on AUTOPILOT (the red-teamed brain auto-pays confident, clean
+  // matches). DEPUTY_AUTOPILOT_MAINNET still gates real-money autopilot.
   const autonomy: "manual" | "autopilot" = mainnet ? "autopilot" : "manual";
-  // Public announce chat for the dogfood, if the operator wired one (outbound only).
   const announceChatId = process.env.TELEGRAM_ANNOUNCE_CHAT_ID?.trim() || null;
   const poster =
     (mainnet
       ? process.env.ERC8004_AGENT_ADDRESS
       : process.env.NEXT_PUBLIC_OPERATOR_ADDRESS) ?? vault;
 
-  const existing = getCampaign("demo");
+  // Retire the legacy `demo` row (production naming): close it so it stops
+  // soliciting. The /c/demo → /c/founding-testers redirect keeps shared links
+  // alive, and its history still counts in /agents aggregates (reputation reads
+  // every journal row, not just the current campaign).
+  const legacy = getCampaign("demo");
+  if (legacy && legacy.status !== "completed") {
+    db.update(campaigns).set({ status: "completed" }).where(eq(campaigns.id, "demo")).run();
+  }
+
+  const fields = {
+    title: spec.title,
+    descriptionMd: spec.descriptionMd,
+    criteria: [...spec.criteria],
+    chainId,
+    vaultAddress: vault,
+    rewardAmount: reward,
+    maxRecipients: seats,
+    autonomy,
+    autopilotThreshold: 0.85,
+    posterWallet: poster,
+    ownerIsSage: true,
+    announceChatId,
+  };
+
+  const existing = getCampaign(FLAGSHIP_CAMPAIGN_ID);
   if (existing) {
     const drift =
       existing.title !== spec.title ||
+      existing.descriptionMd !== spec.descriptionMd ||
+      JSON.stringify(existing.criteria) !== JSON.stringify(spec.criteria) ||
       existing.chainId !== chainId ||
       existing.vaultAddress.toLowerCase() !== vault.toLowerCase() ||
       existing.rewardAmount !== reward ||
       existing.maxRecipients !== seats ||
       existing.autonomy !== autonomy ||
-      existing.announceChatId !== announceChatId;
+      existing.announceChatId !== announceChatId ||
+      existing.status !== "live";
     if (drift) {
       db.update(campaigns)
-        .set({
-          title: spec.title,
-          descriptionMd: spec.descriptionMd,
-          criteria: [...spec.criteria],
-          chainId,
-          vaultAddress: vault,
-          rewardAmount: reward,
-          maxRecipients: seats,
-          autonomy,
-          autopilotThreshold: 0.85,
-          posterWallet: poster,
-          ownerIsSage: true,
-          announceChatId,
-        })
-        .where(eq(campaigns.id, "demo"))
+        .set({ ...fields, status: "live" })
+        .where(eq(campaigns.id, FLAGSHIP_CAMPAIGN_ID))
         .run();
     }
     return;
@@ -586,23 +763,12 @@ export function ensureDemoCampaign(): void {
 
   db.insert(campaigns)
     .values({
-      id: "demo",
-      title: spec.title,
-      descriptionMd: spec.descriptionMd,
-      criteria: [...spec.criteria],
+      id: FLAGSHIP_CAMPAIGN_ID,
       conditionType: "approval",
       onchainCheck: null,
-      rewardAmount: reward,
-      maxRecipients: seats,
-      vaultAddress: vault,
-      chainId,
-      autonomy,
-      autopilotThreshold: 0.85,
-      posterWallet: poster,
-      ownerIsSage: true,
       status: "live",
-      announceChatId,
       createdAt: nowSeconds(),
+      ...fields,
     })
     .run();
 }

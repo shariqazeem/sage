@@ -57,6 +57,13 @@
       "when": 1783309374392,
       "tag": "0007_add_campaign_announce_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783549315492,
+      "tag": "0008_add_campaign_sandbox",
+      "breakpoints": true
     }
   ]
 }

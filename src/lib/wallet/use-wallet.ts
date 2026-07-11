@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createWalletClient,
   custom,
@@ -47,6 +47,10 @@ export function useWallet(): WalletApi {
   const [chainId, setChainId] = useState<number | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [available, setAvailable] = useState(false);
+  // Synchronous guard: `connecting` is async React state, so a fast double-click
+  // can fire eth_requestAccounts twice (the double-MetaMask-prompt bug from the
+  // control fixture) before it flips. This ref blocks the re-entrant call.
+  const connectingRef = useRef(false);
 
   useEffect(() => {
     const p = getProvider();
@@ -77,11 +81,13 @@ export function useWallet(): WalletApi {
   }, []);
 
   const connect = useCallback(async () => {
+    if (connectingRef.current) return; // ignore a re-entrant click while connecting
     const p = getProvider();
     if (!p) {
       window.open("https://metamask.io/download/", "_blank", "noopener");
       return;
     }
+    connectingRef.current = true;
     setConnecting(true);
     try {
       const accs = await p.request({ method: "eth_requestAccounts" });
@@ -89,6 +95,7 @@ export function useWallet(): WalletApi {
       const id = await p.request({ method: "eth_chainId" });
       setChainId(parseInt(id as string, 16));
     } finally {
+      connectingRef.current = false;
       setConnecting(false);
     }
   }, []);

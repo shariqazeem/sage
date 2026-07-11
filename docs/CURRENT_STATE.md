@@ -78,11 +78,13 @@ For one submission it returns a `DecisionBrief`:
 |---|---|
 | `engine` | `llm` (real model) or `heuristic` (honest fallback) |
 | `model` | the model id that decided |
-| `criteria[]` | each criterion: `met` + **verbatim `quote`** from the fetched evidence |
+| `provider` | which provider host decided — records a fail-over to the fallback |
+| `criteria[]` | each criterion: `met` + **verbatim `quote`** (the single most probative span) from the fetched evidence |
 | `fraudSignals[]` | `{signal, severity, reason}` — injection, mismatch, spam |
 | `recommendation` | `pay` / `review` / `hold` |
-| `confidence` | 0..1 |
-| `summary` | one-paragraph rationale |
+| `reasonCode` | machine-gradable dominant reason (`all_criteria_met` … `prompt_injection`) — seeds T+30 grading |
+| `confidence` | 0..1, calibrated (0.85 = the autonomous-payment bar) |
+| `summary` | forensic 3-part rationale: verdict + strongest evidence; strongest counter-evidence; what to check first |
 | `evidenceOk` | was the evidence actually fetched + hashed |
 | `contentSha256` | hash of the evidence read (tamper-evidence) |
 | `latencyMs`, `costUsd` | ~$0.0003 per decision |
@@ -95,12 +97,16 @@ sees *exactly why* before anything settles.
 
 - Any **OpenAI-compatible** chat-completions endpoint. Configured with
   `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (legacy `COMMONSTACK_*` fallback).
-  Today: **CommonStack**, model `deepseek/deepseek-v4-flash` (gemini also works).
-- Temperature 0, `response_format: json_object`, `max_tokens` 900, one repair
+  Today: **CommonStack**, primary model `google/gemini-3.1-flash-lite-preview`
+  (`deepseek/deepseek-v4-flash` is the red-teamed fallback model).
+- Temperature 0, `response_format: json_object`, `max_tokens` 1200, one repair
   retry on malformed JSON.
-- **Retry: 3 attempts, 35s timeout each.** CommonStack is intermittently flaky;
-  the retry rides through bad windows. If **all** attempts fail → the honest
-  **heuristic** (keyword screen), clearly labeled `engine: heuristic`.
+- **Provider chain: primary → fallback → heuristic.** The primary is retried **3
+  attempts, 35s each** (CommonStack is intermittently flaky; the retry rides bad
+  windows). On exhaustion, a **fallback provider** (`LLM_FALLBACK_*`, a *different*
+  provider — demo-day insurance) is tried **once**; a fallback success is still
+  `engine: llm` and can auto-pay. Only if **both** fail → the honest **heuristic**
+  (keyword screen), labeled `engine: heuristic`, which can never auto-pay.
 
 ### 3.3 The hardening (why it can't be jailbroken into paying)
 
@@ -133,6 +139,13 @@ end-to-end traces.
 `autonomy = autopilot` ∧ `status = pending` ∧ **`engine = llm`** ∧
 `recommendation = pay` ∧ `confidence ≥ threshold (0.85)` ∧ no high-severity fraud
 ∧ (for GOAT mainnet, chainId 2345) **`DEPUTY_AUTOPILOT_MAINNET` armed**.
+
+**Anti-Sybil pre-check (`dedup.ts`).** Right after the gate, before any spend, a
+pure `findDuplicate` compares the submission against every entry **already paid**
+on the campaign — same evidence bytes (`contentSha256`) or the same report text
+from a different wallet → **held, not auto-paid.** The vault already caps total
+loss (budget + per-payout + velocity); this stops one person farming the seats
+across many wallets. Exact-match first cut; the frozen brain is untouched.
 
 The critical safety property: **the heuristic can NEVER auto-pay.** If the LLM
 fails, the Deputy holds for a human — an LLM outage can only make it *cautious*,
@@ -180,42 +193,55 @@ Signing keys are per-chain.
 
 | Surface | What it is |
 |---|---|
-| **`/`** | Cinematic scroll landing (5 acts), bound to real vault + payout data |
+| **`/`** | Cinematic 5-act landing; **Act 3 = the Deputy's real decision receipt** (agent-forward), bound to real vault + payout data |
 | **`/app`** | The product: 4 tabs — **Agents / Wallet / Policies / Proof** |
 | **`/c/<slug>`** | Public campaign page — anyone connects a wallet + submits work |
 | **`/agents/sage`** | Public agent identity + grounded track record (ERC-8004 #79) |
 | **`/proof/<tx>`** | Per-payout proof: human fact → machine proof → safety context |
 | **`@sagedeputybot`** | Telegram bot: `/status <slug>`, `/agent`, `/start`; payout announces |
 
-### 5.1 Onboarding (technical)
+### 5.1 Onboarding — tap by tap
 
-1. **Connect wallet** (MetaMask, injected).
-2. **Sign in — SIWE-lite**: client GETs a nonce → builds a message with the
-   **checksummed** address → wallet signs → server rebuilds byte-identical +
-   `verifyMessage` → HMAC session cookie (`SAGE_SESSION_SECRET`, required in prod).
-3. **Fund + activate a PolicyVault** (or use the shared demo vault). The create
-   flow verifies **on-chain** that Sage's operator can release from the vault.
+1. **Land on `/app`** → boot animation → **Connect wallet** (MetaMask/injected; a
+   re-entrancy guard prevents the double-prompt).
+2. **Sign in — SIWE-lite**: client GETs a nonce → message with the **checksummed**
+   address → wallet signs → server rebuilds byte-identical + `verifyMessage` →
+   HMAC session cookie (`SAGE_SESSION_SECRET`, required in prod).
+3. **Meet the Deputy** → **set the limits** (budget · per-payout · daily) with
+   +/− levers → **press-and-hold to create & fund** the wallet: the client mints
+   test USDC (testnet only), deploys the PolicyVault, funds + activates it — every
+   step signed by you, each tx hash shown. *(Today this path is Metis Sepolia; the
+   GOAT-mainnet self-serve path is T6, next.)*
 
-### 5.2 Create → submit → decide → pay
+### 5.2 Create → submit → decide → pay (the tap flow)
 
-- **Create a campaign** (`NewCampaignForm`): title, description, acceptance
-  criteria (one per line), reward (USDC), max recipients, and **Manual vs
-  Autopilot** (press-and-hold to arm; threshold ≥ 85%).
-- **Submit** on `/c/<slug>`: evidence URL is SSRF-validated; one submission per
-  wallet, one per evidence URL (DB-enforced).
-- **Review**: the poster sees the decision receipt per submission. **Manual** →
-  "Approve & pay". **Autopilot** → confident clean matches settle themselves.
-- Every outcome → journal event → `/proof/<tx>`.
+- **Create a campaign** (in `/app`): title, description, acceptance criteria (one
+  per line), reward (USDC), max recipients, **Manual vs Autopilot** (press-and-hold
+  to arm; threshold ≥ 85%). Share the `/c/<slug>` link.
+- **A worker submits** on `/c/<slug>`: an evidence link (SSRF-validated) + a note;
+  one entry per wallet, one per evidence URL (DB-enforced). Their panel plays a
+  live 3-beat: **verifying… → Verified NN% → Paid · proof**.
+- **The Deputy verifies** (§3): fetches the evidence, quotes it, scores each
+  criterion, emits a **decision receipt**. Autopilot auto-settles a confident,
+  clean, **non-duplicate** match; otherwise it **holds** for the poster.
+- **The poster reviews** in `/app`: the receipt materializes in; **Manual** →
+  "Approve & pay"; on a founder-owned vault, approving co-signs the recipient
+  allowlist (the Deputy never signs governance on a vault it doesn't own).
+- Every outcome → journal event → a public **`/proof/<tx>`** page + a live ticker.
 
-### 5.3 Design system
+### 5.3 Design system — premium monochrome (light)
 
-Bloomberg-terminal aesthetic: **dense, monochrome, border-driven.** Deep ink
-`#0A0E14`, paper white `#F8F9FA`; verdict colors reserved for state (green/amber/
-red). **Inter** for UI, **JetBrains Mono** for data/addresses/numbers (tabular
-figures). Hard constraints: no gradients, no glassmorphism, no emoji, 2–4px
-radius, structure from 1px borders + spacing. A presentational motion layer
-(`motion.css`) adds spring/elevation, count-ups, a breathing budget ring, and a
-hold-to-create conic ring — all `prefers-reduced-motion` aware.
+The interface is **editorial monochrome on warm white**, not a dark terminal:
+paper `#fbfbf9`, ink `#1a1d21`, and **one rule — colour is reserved for money
+state**: green `#15803d` = settled, red `#dc2626` = blocked. Every button, link,
+and accent is **ink**, so the two hero moments (a payout, a block) are the only
+colour on the page. **Inter** for UI, **JetBrains Mono** for data/addresses/hashes
+(tabular). No gradients, no purple; soft cards + hairline borders; a presentational
+`motion.css` layer (spring/elevation, count-ups, a breathing budget ring, receipt
+"materialize", hold-to-create conic ring) — all `prefers-reduced-motion` aware.
+The landing's **Act 3 is the star**: a real stored `DecisionBrief` from a settled
+payout, printed in on scroll (criteria + verbatim quotes + the 85% notch) — the
+agent reasoning, above the fold.
 
 ---
 
@@ -251,8 +277,9 @@ hold-to-create conic ring — all `prefers-reduced-motion` aware.
   **`@sageconciergebot`**, agent id `f77f98fc-…`).
 - Custom **`sage-deputy` skill** installed: it answers *"what has Sage paid?"* /
   campaign-status questions by fetching Sage's real public API
-  (`/api/agent/card`, `/api/campaigns/<slug>/public`) — an honest window into the
-  real product, not a rebuild of it.
+  (`/api/agent/card`, `/api/campaigns/<slug>/public`, and per-payout
+  **`/api/proof/<tx>.json`** — the machine-readable receipt: chain proof + the
+  decision brief) — an honest window into the real product, not a rebuild of it.
 - The **LLM credits** that power Sage's own brain (CommonStack) are the same
   discounted-model usage the bootcamp provides.
 
@@ -276,15 +303,16 @@ hold-to-create conic ring — all `prefers-reduced-motion` aware.
 | ERC-8004 identity | — | ✅ **#79, live, on 8004scan** |
 | x402 merchant + payments | — | ✅ merchant `sage`, 2 real txs (wallet now needs USDC) |
 | Policy Vault deployed + funded | ✅ fresh vault `0x9910…8915`, 2 USDC, active | ✅ vault `0x987b…0850`, 2 USDC, active |
-| **Full autopilot loop** (submit → AI verify → auto-settle) | ✅ **PROVEN** — real 0.5 USDC payout, tx `0x757e45…`, `/proof` renders | 🟡 **armed, not yet exercised** (`DEPUTY_AUTOPILOT_MAINNET=true`, needs a submission + a go) |
-| Where the demo runs today | ✅ here | ⏳ next |
+| **Full autopilot loop** (submit → AI verify → auto-settle) | ✅ **PROVEN** — real 0.5 USDC payout, tx `0x757e45…`, `/proof` renders | ✅ **PROVEN** — real 0.5 USDC settle → `0xDF70…90e3`, tx `0x56abc3f9…49cbe0`, block 13,713,095, gemini verified @95%, `/proof` renders |
+| Where the demo runs today | ✅ here | ✅ **live — the flagship `founding-testers`** |
 
-**Plain english:** the *hard integrations* (identity + x402) are real on GOAT
-mainnet. The *full autonomous loop* — AI verifies work and pays real USDC on its
-own — is **proven end-to-end on Metis Sepolia** (real money moved, provable
-on-chain). Flipping that same loop to real GOAT-mainnet money is armed and gated;
-it runs the moment we point the dogfood at 2345 and submit — deliberately held
-until final testing is done (the no-simulation rule is absolute).
+**Plain english:** everything real, on GOAT mainnet. The *hard integrations*
+(identity + x402) were already live; the *full autonomous loop* — AI verifies
+work and pays real USDC on its own — is now **PROVEN end-to-end on GOAT mainnet**:
+on 2026-07-10 a real submission to `founding-testers` was gemini-verified at 95%,
+cleared all six on-chain checks, and auto-settled 0.5 USDC to `0xDF70…90e3`
+(tx `0x56abc3f9…49cbe0`, block 13,713,095). The same loop is also proven on Metis
+Sepolia. Nothing is simulated — every payout is a real on-chain transaction.
 
 ---
 
@@ -293,7 +321,7 @@ until final testing is done (the no-simulation rule is absolute).
 - **Production VM** — Oracle ARM (Ubuntu 24.04). App under **pm2 `sage`** on
   `:3000`, started via **`start-sage.sh`** (sources `.env` on every boot/restart —
   the fix for a Next-doesn't-load-env gotcha). **nginx** vhost + **Let's Encrypt**
-  cert → public at **https://sage.80.225.209.190.sslip.io** (sslip.io wildcard DNS;
+  cert → public at **https://sagepays.xyz** (branded domain, A record → the VM;
   a branded domain is a one-line swap later). SQLite persists on real disk. Shares
   the box with an unrelated app (kyvern) — never disturbed.
 - **GitHub** — **public** repo `github.com/shariqazeem/sage`, secret-scanned
@@ -323,7 +351,7 @@ until final testing is done (the no-simulation rule is absolute).
 | Agent Identity registered (ERC-8004) | ✅ #79 on 8004scan chain 2345 |
 | Funding requests submitted | ✅ done (gas + stables received) |
 | Product Landing Page | ✅ cinematic landing |
-| Project Website | 🟡 live at sslip.io (branded domain later) |
+| Project Website | ✅ live at **sagepays.xyz** (branded domain) |
 | Public GitHub repo | ✅ github.com/shariqazeem/sage |
 | Seed User Definition | ✅ `docs/SEED_USERS.md` |
 | Growth Metrics Proposal | ✅ `docs/GROWTH_METRICS.md` |
@@ -333,12 +361,22 @@ until final testing is done (the no-simulation rule is absolute).
 
 ## 11. Known gaps + what's next
 
-1. **Demo reliability** — wire a backup LLM provider so a CommonStack hang can't
-   kill a live payout on Demo Day (July 15). *(Highest leverage.)*
-2. **Go mainnet-real** — point the dogfood at GOAT 2345 and run a real autonomous
-   payout end-to-end, after final testing.
-3. **Top up the GOAT wallet** with USDC so x402 RAIL-1 paid verification re-enables.
-4. **Seed users** — onboard 10–20 cohort teams running real campaigns (traction is
-   what Stage 2 grades). See `docs/SEED_USERS.md`.
-5. **Branded domain** for the project website.
+**Done since the last update:** ✅ real GOAT-mainnet autonomous settle (§7, tx
+`0x56abc3f9…`) · ✅ premium monochrome redesign + agent-forward Act 3 · ✅
+anti-Sybil dedup · ✅ branded domain `sagepays.xyz`.
+
+1. **T6 — self-serve mainnet vaults** *(next big build)*: let any user connect,
+   fund their own PolicyVault on GOAT, and post a bounty. The server is already
+   chain-parametrized; the work is the **client create-flow** (network toggle,
+   `createDeputyVault(chainId)`, skip the test-USDC mint on mainnet, thread chainId
+   through campaign-create). On a user's own vault the model is **"AI verifies, you
+   approve each payout with one signature"** (self-custody).
+2. **Demo reliability** — wire a backup LLM provider so a CommonStack hang can't
+   kill a live payout on Demo Day (July 15).
+3. **Top up the GOAT wallet** with USDC so x402 RAIL-1 *paid* verification
+   re-enables (the in-loop charge currently falls back to an honest unpaid fetch).
+4. **Seed users** — onboard cohort teams running real campaigns (Stage-2 traction).
+   See `docs/SEED_USERS.md`; the flagship task is now **"Break the Deputy."**
+5. **Semantic dedup + creator gates** — near-duplicate detection + optional
+   per-campaign personhood/stake knobs (the dedup's next layer).
 6. **Product name** — still open (candidates tracked separately).

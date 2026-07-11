@@ -24,6 +24,7 @@ import type { VaultStateView, PayoutReceipt } from "@/lib/deputy/chain";
 import type { DeputyOverview } from "@/lib/campaigns/overview";
 import type { AgentIdentity } from "@/lib/erc8004/identity";
 import type { AgentReputation } from "@/lib/erc8004/reputation-core";
+import type { PnLView } from "@/components/agents/pnl-panel";
 
 interface Props {
   vault: VaultStateView | null;
@@ -31,6 +32,7 @@ interface Props {
   overview: DeputyOverview;
   identity: AgentIdentity;
   reputation: AgentReputation;
+  pnl: PnLView;
   history: PayoutReceipt[];
   network: { name: string; chainId: number; explorer: string };
   vaultAddress: string | null;
@@ -42,7 +44,7 @@ interface Props {
 const BOOT_STEPS: { key: CreateStep; label: string }[] = [
   { key: "mint", label: "Mint test USDC" },
   { key: "create", label: "Deploy Policy Vault" },
-  { key: "fund", label: "Fund the vault" },
+  { key: "fund", label: "Fund the wallet" },
   { key: "activate", label: "Activate the Deputy" },
 ];
 // Where each createStep sits in the linear order (approve folds under "create").
@@ -150,6 +152,9 @@ export function SageApp(props: Props) {
   const [phase, setPhase] = useState<"onboarding" | "booting" | "app">(
     "onboarding",
   );
+  // set only on a FRESH create (not on a returning-founder restore), so we land
+  // them in a pre-filled first campaign instead of the empty Agents tab.
+  const [justOnboarded, setJustOnboarded] = useState(false);
   const [step, setStep] = useState(0);
   const [locked, setLocked] = useState(false);
   const [createStep, setCreateStep] = useState<CreateStep | null>(null);
@@ -302,11 +307,12 @@ export function SageApp(props: Props) {
       } catch {}
       const live = await readVaultState(vault as Address);
       if (live) setFounderVault(live);
+      setJustOnboarded(true);
       ringRef.current.mode = "sealed";
       setPhase("booting");
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message.slice(0, 160) : "Vault creation failed.",
+        err instanceof Error ? err.message.slice(0, 160) : "Wallet creation failed.",
       );
       setLocked(false);
       setCreateStep(null);
@@ -324,6 +330,7 @@ export function SageApp(props: Props) {
         ownVault={founderVault !== null}
         vaultAddress={founderVault ? founderVault.address : props.vaultAddress}
         history={founderVault ? [] : props.history}
+        startInCreate={justOnboarded}
       />
     );
   }
@@ -364,11 +371,11 @@ export function SageApp(props: Props) {
                 <div className="sage-onb-eyebrow">Sage</div>
                 <h1 className="sage-onb-h1">
                   Your Deputy verifies the work, reasons about it, and pays real
-                  people in USDC. It spends only inside a policy you set once.
+                  people in USDC. It spends only inside an allowance you set once.
                 </h1>
                 <p className="sage-onb-sub">
                   Hire an autonomous worker that pays for real completed work on its
-                  own — and physically can&apos;t move a dollar off the policy, even
+                  own — and physically can&apos;t move a dollar past your limits, even
                   if it&apos;s wrong.
                 </p>
                 {!wallet.address ? (
@@ -400,7 +407,7 @@ export function SageApp(props: Props) {
                       Sepolia
                     </span>
                   ) : (
-                    <span>Connect to own your vault · Metis Sepolia</span>
+                    <span>Connect to own your wallet · Metis Sepolia</span>
                   )}
                 </div>
                 <div className="sage-onb-fine">
@@ -411,10 +418,10 @@ export function SageApp(props: Props) {
 
             {step === 1 && (
               <div className="sage-onb-center">
-                <div className="sage-onb-eyebrow tight">Your vault</div>
+                <div className="sage-onb-eyebrow tight">Your wallet</div>
                 <h2 className="sage-onb-h2">
-                  A vault holds real USDC — your Deputy spends only from it, only
-                  inside your rules.
+                  A wallet holds real USDC — your Deputy spends only from it, only
+                  inside the limits you set. On-chain, it&apos;s the Policy Vault.
                 </h2>
                 <div
                   data-slot="fund"
@@ -456,7 +463,7 @@ export function SageApp(props: Props) {
                   <p className="sage-onb-card-p">
                     Runs your reward campaigns end to end — it watches for submitted
                     work, waits for your approval, then pays the tester or contributor
-                    in USDC. It decides <em>who</em> and <em>when</em>. The vault
+                    in USDC. It decides <em>who</em> and <em>when</em>. The wallet
                     decides <em>how much</em> is even possible.
                   </p>
                   <div className="sage-onb-card-foot">
@@ -467,12 +474,12 @@ export function SageApp(props: Props) {
                     <span className="div" />
                     <div>
                       <div className="k">Funds from</div>
-                      <div className="v mono">{usd(budget)} vault</div>
+                      <div className="v mono">{usd(budget)} wallet</div>
                     </div>
                   </div>
                 </div>
                 <button className="sage-onb-cta" onClick={next} style={{ marginTop: 28 }}>
-                  Set its policy <ArrowRight size={16} strokeWidth={2.4} />
+                  Set its limits <ArrowRight size={16} strokeWidth={2.4} />
                 </button>
               </div>
             )}
@@ -500,7 +507,7 @@ export function SageApp(props: Props) {
                       </span>
                       <div className="sage-onb-lever-main">
                         <div className="l">Budget ceiling</div>
-                        <div className="h">total cap · you fund this</div>
+                        <div className="h">total budget · you fund this</div>
                       </div>
                       <div className="sage-onb-step">
                         <button
@@ -524,13 +531,13 @@ export function SageApp(props: Props) {
                         <Banknote size={17} />
                       </span>
                       <div className="sage-onb-lever-main">
-                        <div className="l">Per-payout cap</div>
+                        <div className="l">Per-payout limit</div>
                         <div className="h">max per single reward</div>
                       </div>
                       <div className="sage-onb-step">
                         <button
                           onClick={() => setPerPayout((v) => Math.max(5, v - 5))}
-                          aria-label="lower per-payout cap"
+                          aria-label="lower per-payout limit"
                         >
                           −
                         </button>
@@ -539,7 +546,7 @@ export function SageApp(props: Props) {
                           onClick={() =>
                             setPerPayout((v) => Math.min(budget, v + 5))
                           }
-                          aria-label="raise per-payout cap"
+                          aria-label="raise per-payout limit"
                         >
                           +
                         </button>
@@ -551,13 +558,13 @@ export function SageApp(props: Props) {
                         <Gauge size={17} />
                       </span>
                       <div className="sage-onb-lever-main">
-                        <div className="l">24h velocity</div>
+                        <div className="l">Daily limit</div>
                         <div className="h">max spend per rolling day</div>
                       </div>
                       <div className="sage-onb-step">
                         <button
                           onClick={() => setVelocity((v) => Math.max(25, v - 25))}
-                          aria-label="lower velocity"
+                          aria-label="lower daily limit"
                         >
                           −
                         </button>
@@ -566,7 +573,7 @@ export function SageApp(props: Props) {
                           onClick={() =>
                             setVelocity((v) => Math.min(budget, v + 25))
                           }
-                          aria-label="raise velocity"
+                          aria-label="raise daily limit"
                         >
                           +
                         </button>
@@ -603,7 +610,7 @@ export function SageApp(props: Props) {
                 </div>
                 <div data-slot="confirm" className="sage-onb-slot" style={{ width: 280, height: 280, margin: "22px 0 6px" }} />
                 <div className="sage-onb-sealrow">
-                  {["Budget", "Per-payout", "Velocity", "Allowlist"].map((l) => (
+                  {["Budget", "Per-payout", "Daily limit", "Recipients"].map((l) => (
                     <span className={`sage-onb-sealpill${locked ? " on" : ""}`} key={l}>
                       <Lock size={11} /> {l}
                     </span>
@@ -637,11 +644,11 @@ export function SageApp(props: Props) {
                 ) : (
                   <>
                     <h2 className="sage-onb-h2 sm" style={{ marginTop: 20 }}>
-                      Hold to create &amp; fund your vault.
+                      Hold to create &amp; fund your wallet.
                     </h2>
                     <p className="sage-onb-sub sm">
-                      This mints test USDC, deploys your vault, funds it, and activates
-                      it — every step signed by you.
+                      This mints test USDC, deploys your wallet (the Policy Vault),
+                      funds it, and activates it — every step signed by you.
                     </p>
                     <button
                       ref={holdBtnRef}

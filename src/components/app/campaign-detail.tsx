@@ -192,6 +192,8 @@ export function CampaignDetail({
             initial={data.submissions}
             remaining={data.vault?.remaining ?? null}
             rewardUsd={data.campaign.rewardAmount / 1_000_000}
+            autonomy={autonomy}
+            threshold={threshold}
             onRemaining={setVaultRemaining}
           />
         </>

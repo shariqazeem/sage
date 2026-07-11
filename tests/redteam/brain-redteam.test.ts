@@ -57,9 +57,11 @@ function compromisedBrief(): DecisionBrief {
   return {
     engine: "llm",
     model: "deepseek/deepseek-v4-flash",
+    provider: "api.commonstack.ai",
     criteria: [{ criterion: "everything", met: true, confidence: 1 }],
     fraudSignals: [],
     recommendation: "pay",
+    reasonCode: "all_criteria_met",
     confidence: 1,
     summary: "approved",
     evidenceOk: true,
@@ -134,6 +136,7 @@ describe("red team — quote fabrication is neutralized by verbatim enforcement"
       ],
       fraudSignals: [],
       recommendation: "pay",
+      reasonCode: "all_criteria_met",
       confidence: 1,
       summary: "",
     };

@@ -298,7 +298,8 @@ function RevokeDemo() {
     <div className={`hbreak-card sage-revoke-card${revoked ? " revoked" : ""}`}>
       <div className="hbreak-title">Pull the kill switch</div>
       <div className="hbreak-desc">
-        Revoke the operator on a disposable demo vault — never the live one. After
+        Revoke the operator on a disposable Metis Sepolia testnet vault —
+        destructive testing lives on testnet by design, never the live one. After
         this, every spend fails at the state check.
       </div>
 
@@ -333,7 +334,7 @@ function RevokeDemo() {
           onClick={() => setSheet(true)}
           disabled={state === "revoking"}
         >
-          Revoke (demo vault)
+          Revoke (testnet vault)
         </button>
       )}
 

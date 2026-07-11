@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
+  Clock,
   ExternalLink,
   Loader2,
   ShieldCheck,
@@ -10,26 +11,90 @@ import {
 } from "lucide-react";
 import { short } from "@/lib/format";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { workerShouldPoll } from "@/lib/campaigns/live-poll";
+import type { DecisionBrief } from "@/lib/deputy/brain-core";
+import { DeputyAssessmentCard } from "./deputy-assessment";
 
 interface MySubmission {
   id: string;
   status: string;
   payoutTx: string | null;
   evidenceUrl: string | null;
+  /** the worker's OWN decision brief (own-scope) — null until the Deputy decides. */
+  brief: DecisionBrief | null;
+  autopay: { state: "settled" | "held"; reason: string | null } | null;
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+
+/**
+ * The three-beat live status, bound to the worker's real /me state — verifying →
+ * verified → paid, with honest held/rejected/blocked branches. No invented
+ * progress: every beat maps to a concrete server state.
+ */
+function workerBeat(m: MySubmission): { icon: ReactNode; text: string; color: string } {
+  if (m.status === "paid")
+    return {
+      icon: <CheckCircle2 size={15} color="var(--pos)" />,
+      text: "Paid · reward released to your wallet",
+      color: "var(--pos)",
+    };
+  if (m.status === "rejected")
+    return {
+      icon: <XCircle size={15} color="var(--dan)" />,
+      text: "Not accepted this time",
+      color: "var(--dan)",
+    };
+  if (m.status === "blocked")
+    return {
+      icon: <XCircle size={15} color="var(--dan)" />,
+      text: "The wallet blocked this payout — no funds moved",
+      color: "var(--dan)",
+    };
+  const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
+  const held = m.autopay?.state === "held" || (!!m.brief && m.brief.recommendation !== "pay");
+  if (held) {
+    const why = highFraud
+      ? "a fraud signal was flagged"
+      : m.brief?.recommendation === "hold"
+        ? "criteria not fully met"
+        : "needs a human look";
+    return {
+      icon: <Clock size={15} color="var(--warn)" />,
+      text: `Held for human review — ${why}`,
+      color: "var(--warn)",
+    };
+  }
+  if (m.brief)
+    return {
+      icon: <ShieldCheck size={15} color="var(--accent)" />,
+      text: `Verified · ${Math.round(clamp01(m.brief.confidence) * 100)}% confidence`,
+      color: "var(--accent)",
+    };
+  return {
+    icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />,
+    text: "Deputy is verifying your evidence…",
+    color: "var(--sec)",
+  };
 }
 
 /**
  * The participant's side of a campaign: connect + sign in, submit an entry, and
- * see its real status. A paid entry links to its on-chain proof — the same
- * verifiable receipt the poster released. Uses the unified .sage-* vocabulary so
- * a stranger meets the same product as the app.
+ * then WATCH the Deputy verify and pay it live (polling /me — no reload). A paid
+ * entry links to its on-chain proof, and the worker sees their own decision
+ * receipt — the same verifiable reasoning the poster sees, which teaches the next
+ * submitter what good evidence looks like.
  */
 export function SubmitPanel({
   campaignId,
   live,
+  rewardUsd = null,
+  threshold = 0.85,
 }: {
   campaignId: string;
   live: boolean;
+  rewardUsd?: number | null;
+  threshold?: number;
 }) {
   const siwe = useSiwe();
   const [evidence, setEvidence] = useState("");
@@ -37,6 +102,9 @@ export function SubmitPanel({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mine, setMine] = useState<MySubmission | null>(null);
+  // fire the receipt "materialize" once, the moment the brief first lands.
+  const [materialized, setMaterialized] = useState(false);
+  const hadBrief = useRef(false);
 
   const loadMine = useCallback(async () => {
     if (!siwe.authed) {
@@ -46,15 +114,53 @@ export function SubmitPanel({
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/me`, { cache: "no-store" });
       const json = (await res.json()) as { submission: MySubmission | null };
-      setMine(json.submission);
+      const next = json.submission;
+      if (next?.brief && !hadBrief.current) setMaterialized(true);
+      hadBrief.current = !!next?.brief;
+      setMine(next);
     } catch {
-      setMine(null);
+      /* keep the last snapshot; the next poll retries */
     }
   }, [campaignId, siwe.authed]);
 
   useEffect(() => {
     void loadMine();
   }, [loadMine]);
+
+  // Poll /me while the entry isn't terminal, so the worker watches it get read,
+  // judged, and paid in real time. Paused when the tab is hidden; stops on a
+  // terminal state; interval cleared on unmount.
+  const pollActive = !!mine && workerShouldPoll(mine.status);
+  useEffect(() => {
+    if (!pollActive) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void loadMine();
+    };
+    const start = () => {
+      if (!timer) timer = setInterval(tick, 2500);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVis = () => {
+      if (document.hidden) stop();
+      else {
+        tick();
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pollActive, loadMine]);
 
   const submit = useCallback(async () => {
     setError(null);
@@ -107,35 +213,41 @@ export function SubmitPanel({
     );
   }
 
-  /* ── already submitted → show live status ───────────────────────────── */
+  /* ── already submitted → watch the Deputy work, live ────────────────── */
   if (mine) {
-    const paid = mine.status === "paid";
-    const rejected = mine.status === "rejected";
+    const beat = workerBeat(mine);
     return (
       <div className="sage-subs">
         <div className="sage-sub">
           <div className="sage-sub-main">
-            <div className="sage-sub-wallet">
-              {paid ? (
-                <CheckCircle2 size={15} color="var(--pos)" />
-              ) : rejected ? (
-                <XCircle size={15} color="var(--dan)" />
-              ) : (
-                <Loader2 size={15} className="sage-spin2" color="var(--accent)" />
-              )}
-              Your entry
+            <div className="sage-sub-wallet">Your entry</div>
+            {/* the three-beat mono status line, bound to real /me state */}
+            <div
+              className="mono"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                fontSize: 13,
+                color: beat.color,
+              }}
+            >
+              {beat.icon}
+              {beat.text}
             </div>
-            <div className="sage-sub-note">
-              {paid
-                ? "Paid on-chain. The reward has been released to your wallet."
-                : rejected
-                  ? "Not accepted this time."
-                  : "Submitted. Waiting on the poster's review."}
-            </div>
-            {paid && mine.payoutTx && (
+            {mine.status === "paid" && mine.payoutTx && (
               <a className="sage-sub-link" href={`/proof/${mine.payoutTx}`}>
                 <ExternalLink size={13} /> View payout proof
               </a>
+            )}
+            {/* the worker's OWN decision receipt — same reasoning the poster sees */}
+            {mine.brief && (
+              <DeputyAssessmentCard
+                brief={mine.brief}
+                rewardUsd={rewardUsd}
+                threshold={threshold}
+                materialize={materialized}
+              />
             )}
           </div>
           <div className="sage-sub-side">

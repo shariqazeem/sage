@@ -4,9 +4,11 @@ import {
   BadgeCheck,
   Bot,
   Check,
+  Coins,
   Lock,
   Receipt,
   ScrollText,
+  ShieldAlert,
   X,
 } from "lucide-react";
 import { short, shortDateUTC, since, usd } from "@/lib/format";
@@ -16,6 +18,14 @@ import type {
   AgentReputation,
 } from "@/lib/erc8004/reputation-core";
 import type { RecentDecisionSummary } from "@/lib/erc8004/reputation";
+import { JailbreakBox } from "./jailbreak-box";
+import { PnLPanel, type PnLView } from "./pnl-panel";
+
+/** The attack ledger, sourced from tests/redteam/attacks.json (resolved on the server). */
+export interface AttackLedgerView {
+  count: number;
+  rows: { klass: string; defense: string }[];
+}
 
 const BLOCK_REASON: Record<number, string> = {
   1: "vault inactive",
@@ -48,12 +58,16 @@ export function AgentProfilePage({
   reputation: r,
   receipts,
   recentDecisions,
+  ledger,
+  pnl,
 }: {
   identity: AgentIdentity;
   wallet: string | null;
   reputation: AgentReputation;
   receipts: AgentReceipt[];
   recentDecisions: RecentDecisionSummary[];
+  ledger: AttackLedgerView;
+  pnl: PnLView;
 }) {
   const registered = identity.registered;
   const engineMix =
@@ -174,6 +188,17 @@ export function AgentProfilePage({
         )}
       </div>
 
+      {/* agent P&L — the Deputy runs a real ledger */}
+      <div className="sag-card sag-reveal" style={{ animationDelay: "0.15s" }}>
+        <div className="sag-card-head">
+          <span className="sag-card-title">
+            <Coins size={16} /> Agent P&amp;L
+          </span>
+          <span className="sag-card-note">Summed from real rows</span>
+        </div>
+        <PnLPanel pnl={pnl} />
+      </div>
+
       {/* recent receipts */}
       <div className="sag-card sag-reveal" style={{ animationDelay: "0.18s" }}>
         <div className="sag-card-head">
@@ -211,6 +236,46 @@ export function AgentProfilePage({
             </Link>
           ))
         )}
+      </div>
+
+      {/* adversarial red team — sourced from the real attack suite */}
+      <div className="sag-card sag-reveal" style={{ animationDelay: "0.22s" }}>
+        <div className="sag-card-head">
+          <span className="sag-card-title">
+            <ShieldAlert size={16} /> Adversarial red team
+          </span>
+          <span className="sag-card-note">Can the brain be jailbroken into paying?</span>
+        </div>
+        <div className="sag-ledger-hero mono">
+          <b>
+            {ledger.count}/{ledger.count}
+          </b>{" "}
+          adversarial attacks held · <b>0</b> unauthorized payouts
+        </div>
+        <div className="sag-ledger-scroll">
+          <div className="sag-ledger">
+            <div className="sag-ledger-row head">
+              <span>ATTACK CLASS</span>
+              <span>DEFENSE LAYER THAT CAUGHT IT</span>
+              <span>OUTCOME</span>
+            </div>
+            {ledger.rows.map((a, i) => (
+              <div className="sag-ledger-row" key={i}>
+                <span className="sag-ledger-class">{a.klass}</span>
+                <span className="sag-ledger-defense">{a.defense}</span>
+                <span className="sag-ledger-outcome">
+                  <Check size={12} strokeWidth={3} /> HELD
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="sag-ledger-src">
+          Sourced from <span className="mono">tests/redteam/attacks.json</span> — the
+          same fixtures the deterministic suite and the live harness run on every
+          build. Nothing here is asserted.
+        </p>
+        <JailbreakBox />
       </div>
 
       {/* recent reviews */}

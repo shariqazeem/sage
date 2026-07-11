@@ -5,6 +5,7 @@ import {
   listEventsByKinds,
   listPaidRecipientWallets,
   listRecentDecisions,
+  sumSettledFeesBase,
 } from "@/lib/db/campaigns";
 import { agentAddress, hasAgentKey } from "@/lib/x402/goat-pay";
 import type { BriefRecommendation } from "@/lib/deputy/brain-core";
@@ -97,6 +98,34 @@ export function getAgentProfile(
     }),
     receipts: toReceipts(events, receiptLimit),
     recentDecisions: getRecentDecisions(decisionLimit),
+  };
+}
+
+/**
+ * The Deputy's on-chain P&L, summed from real rows (sandbox excluded via
+ * listAllDecisions). Every number is honest; zeros render as zeros.
+ *   EARNED — operator fees actually collected (RAIL 2, status 'settled').
+ *   SPENT  — x402 paid verifications (RAIL 1, 0.1 USDC each) + LLM decision cost.
+ */
+export interface AgentPnL {
+  earnedFeesUsd: number;
+  verificationCount: number;
+  verificationSpentUsd: number;
+  llmDecisions: number;
+  llmSpentUsd: number;
+}
+
+export function getAgentPnL(): AgentPnL {
+  const decisions = listAllDecisions();
+  const verificationCount = decisions.filter((d) => !!d.x402PaymentTx).length;
+  const llmDecisions = decisions.filter((d) => d.costUsd != null).length;
+  const llmSpentUsd = decisions.reduce((s, d) => s + (d.costUsd ?? 0), 0);
+  return {
+    earnedFeesUsd: sumSettledFeesBase() / 1_000_000,
+    verificationCount,
+    verificationSpentUsd: verificationCount * 0.1,
+    llmDecisions,
+    llmSpentUsd,
   };
 }
 

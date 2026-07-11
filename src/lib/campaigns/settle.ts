@@ -42,6 +42,15 @@ export async function settleSubmission(args: {
   submission: Submission;
 }): Promise<SettleOutcome> {
   const { campaign, submission } = args;
+  // HARD SANDBOX GUARD: a sandbox campaign (the public "try to jailbreak the
+  // Deputy" box) can NEVER settle. This THROWS rather than returns, so any code
+  // path that reaches a spend for a sandbox campaign fails loudly — payment is
+  // structurally unreachable, not merely gated.
+  if (campaign.sandbox) {
+    throw new Error(
+      `refusing to settle sandbox campaign ${campaign.id} — payment is structurally disabled`,
+    );
+  }
   const vault = getAddress(campaign.vaultAddress);
   const recipient = getAddress(submission.wallet);
   const amount = BigInt(campaign.rewardAmount);

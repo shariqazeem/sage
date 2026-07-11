@@ -1,48 +1,119 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Check, X } from "lucide-react";
+import type { DecisionBrief } from "@/lib/deputy/brain-core";
 import { CHECK_NAMES, CHECK_REASONS } from "@/lib/deputy/reasons";
 import { usd } from "@/lib/format";
+import { DeputyAssessmentCard } from "@/components/campaigns/deputy-assessment";
 import { useInView } from "./use-in-view";
 
+/** The real settled receipt featured as the star, or null → the check rail. */
+export interface LandingReceipt {
+  brief: DecisionBrief;
+  rewardUsd: number;
+  txHash: string;
+  threshold: number;
+}
+
 /**
- * ACT 3 — THE VAULT WORKS. The six on-chain policy checks as a vertical rail.
- * Each row flips from neutral to verified-green with a tick as it scrolls into
- * view — except the per-payout-cap row (check 4), staged as a real on-chain
- * block: it flips red with the exact contract reason. Names + reasons come from
- * src/lib/deputy/reasons.ts so the copy can never drift from the contract order.
+ * First-touch human labels for the six checks (rail fallback only). The technical
+ * CHECK_NAMES render in mono beneath.
  */
-export function Act3Vault({ perTxCap }: { perTxCap: number }) {
+const CHECK_HUMAN: Record<number, string> = {
+  1: "The wallet is active",
+  2: "Only the Deputy can spend",
+  3: "Recipient is approved",
+  4: "Per-payout spending limit",
+  5: "Allowance remaining",
+  6: "Daily spending limit",
+};
+
+/**
+ * ACT 3 — WATCH IT THINK. The Deputy's real reasoning is the star: a stored
+ * DecisionBrief from a real settled payout, printed in on scroll (criteria +
+ * verbatim quotes + confidence vs the autopay bar), then the settle line to its
+ * real /proof/<tx>. Enforcement shrinks to two quiet lines — the reason to trust,
+ * kept but no longer leading. Real data only; with no receipt yet it degrades to
+ * the on-chain check rail (also real), and upgrades the moment a decision settles.
+ */
+export function Act3Vault({
+  receipt,
+  perTxCap,
+}: {
+  receipt: LandingReceipt | null;
+  perTxCap: number;
+}) {
+  return receipt ? <Act3Think receipt={receipt} /> : <Act3Rail perTxCap={perTxCap} />;
+}
+
+/* ── the star: the Deputy's real receipt ────────────────────────────────── */
+function Act3Think({ receipt }: { receipt: LandingReceipt }) {
+  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.15 });
+  const { brief, rewardUsd, txHash, threshold } = receipt;
+
+  return (
+    <section className="clx-act clx-act3" aria-label="Watch the Deputy reason">
+      <div className="clx-act3-in clx-think-in">
+        <div className="clx-act3-head">
+          <div className="clx-eyebrow clx-mono">Watch it think</div>
+          <h2 className="clx-h2">It reads the work, reasons, and decides.</h2>
+          <p className="clx-act3-sub">
+            Every submission gets a receipt — the Deputy fetches the evidence,
+            quotes it, checks each criterion, and scores its confidence against
+            the bar that lets it pay on its own. This is a real one.
+          </p>
+        </div>
+
+        <div ref={ref} className="clx-think-card">
+          <DeputyAssessmentCard
+            brief={brief}
+            rewardUsd={rewardUsd}
+            threshold={threshold}
+            materialize={inView}
+          />
+        </div>
+
+        <div className="clx-think-foot">
+          <Link href={`/proof/${txHash}`} className="clx-think-settle">
+            <span className="clx-think-amt clx-mono">{usd(rewardUsd)} paid</span>
+            <span className="clx-think-proof clx-mono">
+              proof <ArrowUpRight size={12} strokeWidth={2.2} />
+            </span>
+          </Link>
+          <p className="clx-think-guard clx-mono">
+            Then six on-chain checks it cannot change. It cleared them —{" "}
+            {usd(rewardUsd)} moved.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── fallback: the on-chain check rail (real, honest, no-receipt state) ──── */
+function Act3Rail({ perTxCap }: { perTxCap: number }) {
   const indices = [1, 2, 3, 4, 5, 6];
   return (
-    <section className="clx-act clx-act3" aria-label="The vault enforces">
+    <section className="clx-act clx-act3" aria-label="How the wallet works">
       <div className="clx-act3-in">
         <div className="clx-act3-head">
-          <div className="clx-eyebrow clx-mono">Enforced on-chain</div>
+          <div className="clx-eyebrow clx-mono">How the wallet works</div>
           <h2 className="clx-h2">
             Six checks. Every payout. Before a dollar can move.
           </h2>
           <p className="clx-act3-sub">
-            The vault runs the same six checks the contract enforces, in order. Pass
-            all six and USDC settles. Fail one — even if the agent is wrong or
-            compromised — and the payout is blocked before it moves.
-          </p>
-          <p className="clx-act3-sub clx-why">
-            <b>Why on-chain?</b> A database flag that says “budget exceeded” can be
-            flipped by whoever runs the database. The vault physically cannot move
-            funds off-policy — even if Sage itself is compromised. Enforcement you
-            have to trust isn’t enforcement.
+            Every payout runs through an on-chain wallet with hard spending
+            limits — we call it the Policy Vault. It checks the same six limits
+            the contract enforces, in order. Pass all six and USDC settles; fail
+            one — even if the agent is wrong — and the payout is blocked before it
+            moves.
           </p>
         </div>
 
         <ol className="clx-rail">
           {indices.map((i) => (
-            <CheckRow
-              key={i}
-              index={i}
-              blocked={i === 4}
-              perTxCap={perTxCap}
-            />
+            <CheckRow key={i} index={i} blocked={i === 4} perTxCap={perTxCap} />
           ))}
         </ol>
       </div>
@@ -68,14 +139,14 @@ function CheckRow({
         {String(index).padStart(2, "0")}
       </span>
       <span className="clx-check-body">
-        <span className="clx-check-name">{CHECK_NAMES[index]}</span>
-        <span className="clx-check-detail">
-          {blocked ? CHECK_REASONS[index] : "checked and clear"}
+        <span className="clx-check-name">{CHECK_HUMAN[index]}</span>
+        <span className={`clx-check-detail${blocked ? "" : " clx-mono"}`}>
+          {blocked ? CHECK_REASONS[index] : CHECK_NAMES[index]}
         </span>
       </span>
       {blocked && (
         <span className="clx-check-chip clx-mono">
-          cap {usd(perTxCap)}
+          limit {usd(perTxCap)}
         </span>
       )}
       <span className="clx-check-mark" aria-hidden>

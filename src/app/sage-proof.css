@@ -12,7 +12,7 @@
   --line-2: #f1f0ec;
   --line-3: #f4f3ef;
   --surface-3: #faf9f6;
-  --accent: #4f46e5;
+  --accent: #1a1d21;
   --pos: #15803d;
   --pos-bg: #eef6f0;
   --pos-line: #cfe6d6;
@@ -33,7 +33,7 @@
   padding: 28px 22px 64px;
 }
 body:has(.spp) { background: #fbfbf9; }
-.spp ::selection { background: #e0ddfb; }
+.spp ::selection { background: #e7e6e1; }
 .spp .mono { font-family: var(--font-mono), ui-monospace, monospace; }
 
 @keyframes spp-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -60,8 +60,9 @@ body:has(.spp) { background: #fbfbf9; }
 .spp-medallion.pos { background: var(--pos-bg); border: 1px solid var(--pos-line); color: var(--pos); }
 .spp-medallion.dan { background: var(--dan-bg); border: 1px solid var(--dan-line); color: var(--dan); }
 .spp-status {
-  display: inline-flex; align-items: center; gap: 8px; padding: 6px 13px; border-radius: 999px; margin-bottom: 22px;
-  font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em;
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 4px; margin-bottom: 22px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
 }
 .spp-status .dot { width: 6px; height: 6px; border-radius: 50%; }
 .spp-status.pos { background: var(--pos-bg); border: 1px solid var(--pos-line); color: var(--pos); }
@@ -95,7 +96,7 @@ body:has(.spp) { background: #fbfbf9; }
 .spp-verify {
   margin: 0 20px 20px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 13px;
   border-radius: 13px; background: var(--accent); color: var(--paper); font-size: 14.5px; font-weight: 600;
-  text-decoration: none; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  text-decoration: none; box-shadow: 0 4px 14px rgba(20, 22, 26, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 /* safety context */
@@ -122,6 +123,7 @@ body:has(.spp) { background: #fbfbf9; }
 /* share preview */
 .spp-share { width: 100%; max-width: 600px; margin-top: 34px; }
 .spp-share-label { font-family: var(--font-mono), monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; color: #b3b5b9; text-transform: uppercase; margin-bottom: 10px; text-align: center; }
+.spp-share-img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 12px 34px -22px rgba(26, 29, 33, 0.3); }
 .spp-share-card { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 12px 34px -22px rgba(26, 29, 33, 0.3); }
 .spp-share-dark { background: var(--ink); padding: 26px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .spp-share-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; font-size: 11px; font-weight: 700; }

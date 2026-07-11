@@ -1,6 +1,10 @@
 import "../hire/hire.css";
 import "../app/app.css";
 import "../app/motion.css";
+// The Deputy receipt (rendered here for a worker's own submission) is styled in
+// demo-moments.css — import it so the confidence bar, quotes, engine badge, and
+// the new attack strip render on /c, not just inside the app shell.
+import "../app/demo-moments.css";
 
 /**
  * Shared shell for the public campaign page. It uses the app's own design

@@ -1,14 +1,20 @@
 import "./agents.css";
+// the jailbreak box renders a real Deputy receipt — pull in its shared styles.
+import "../../app/app.css";
+import "../../app/demo-moments.css";
 import type { Metadata } from "next";
 import { getAgentIdentity } from "@/lib/erc8004/identity";
 import {
   agentWallet,
+  getAgentPnL,
   getAgentProfile,
   getAgentReputation,
 } from "@/lib/erc8004/reputation";
 import { AgentProfilePage } from "@/components/agents/agent-profile-page";
 import { agentPageUrl, siteUrl } from "@/lib/site";
 import { usd } from "@/lib/format";
+import { attackLedger, DEFENSE_LABEL } from "@/lib/redteam/catalog";
+import { ensureSandboxCampaign } from "@/lib/db/campaigns";
 
 // Reputation reads the live DB on each request — the page IS the track record.
 export const dynamic = "force-dynamic";
@@ -45,6 +51,8 @@ export function generateMetadata(): Metadata {
 export default function AgentPage() {
   const identity = getAgentIdentity();
   const { reputation, receipts, recentDecisions } = getAgentProfile();
+  ensureSandboxCampaign(); // the "try to jailbreak" box runs against this sandbox
+  const led = attackLedger();
 
   return (
     <AgentProfilePage
@@ -53,6 +61,11 @@ export default function AgentPage() {
       reputation={reputation}
       receipts={receipts}
       recentDecisions={recentDecisions}
+      ledger={{
+        count: led.attackCount,
+        rows: led.rows.map((a) => ({ klass: a.klass, defense: DEFENSE_LABEL[a.defense] })),
+      }}
+      pnl={getAgentPnL()}
     />
   );
 }

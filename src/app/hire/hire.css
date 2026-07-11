@@ -11,9 +11,9 @@
   --ter: #8b9098;
   --line: #ececea;
   --line-2: #e2e2de;
-  --accent: #4f46e5;
-  --accent-soft: #eef0fe;
-  --accent-ink: #3f37c9;
+  --accent: #1a1d21;
+  --accent-soft: #f0efea;
+  --accent-ink: #000000;
   --pos: #15803d;
   --pos-soft: #effaf2;
   --dan: #dc2626;
@@ -164,7 +164,7 @@ body:has(.hire) {
 .hbtn-primary {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.25), 0 8px 22px rgba(79, 70, 229, 0.22);
+  box-shadow: 0 1px 2px rgba(20, 22, 26, 0.25), 0 8px 22px rgba(20, 22, 26, 0.22);
 }
 .hbtn-primary:hover {
   transform: translateY(-1px);
@@ -432,7 +432,7 @@ body:has(.hire) {
 .hentry.halt .hentry-ico { background: var(--dan-soft); border-color: #f6dada; color: var(--dan); }
 .hentry.search .hentry-ico,
 .hentry.qualify .hentry-ico,
-.hentry.plan .hentry-ico { background: var(--accent-soft); border-color: #e0e2fb; color: var(--accent); }
+.hentry.plan .hentry-ico { background: var(--accent-soft); border-color: #e4e2dc; color: var(--accent); }
 .hentry-main { flex: 1; min-width: 0; }
 .hentry-text { font-size: 13.5px; line-height: 1.4; }
 .hentry-meta {
@@ -483,7 +483,7 @@ body:has(.hire) {
 .hlead-score.mid {
   background: var(--accent-soft);
   color: var(--accent);
-  border-color: #e0e2fb;
+  border-color: #e4e2dc;
 }
 .hlead-name { font-weight: 600; font-size: 14.5px; }
 .hlead-src { font-size: 11.5px; color: var(--ter); }
@@ -742,7 +742,7 @@ body:has(.hire) {
 }
 .xt-step.ok .xt-ico { background: var(--pos-soft); border-color: #d6efdd; color: var(--pos); }
 .xt-step.blocked .xt-ico { background: var(--dan-soft); border-color: #f6dada; color: var(--dan); }
-.xt-step.pending .xt-ico { background: var(--accent-soft); border-color: #e0e2fb; color: var(--accent); }
+.xt-step.pending .xt-ico { background: var(--accent-soft); border-color: #e4e2dc; color: var(--accent); }
 .xt-main { flex: 1; min-width: 0; }
 .xt-label { font-size: 13.5px; font-weight: 500; }
 .xt-step.blocked .xt-label { color: #7f1d1d; }

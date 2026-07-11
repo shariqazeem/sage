@@ -75,7 +75,7 @@ export function Act1Hero({
         <div className="clx-hero-copy">
           <div className="clx-pill">
             <span className="clx-dot" />
-            <span className="clx-mono">The allowance layer for AI agents</span>
+            <span className="clx-mono">An AI agent with its own wallet</span>
           </div>
 
           <h1 className="clx-h1">
@@ -91,7 +91,7 @@ export function Act1Hero({
           </h1>
 
           <div className="clx-hero-balance">
-            <span className="clx-bal-k clx-mono">Live vault balance</span>
+            <span className="clx-bal-k clx-mono">Live wallet balance</span>
             <span className="clx-bal-v">
               <CountUpLanding value={remaining} format={usd} duration={1600} />
             </span>
@@ -106,7 +106,7 @@ export function Act1Hero({
               <ArrowRight size={16} strokeWidth={2.4} />
             </Link>
             <span className="clx-trust clx-mono">
-              <Lock size={13} strokeWidth={2} /> Keys never leave the vault
+              <Lock size={13} strokeWidth={2} /> It never touches your keys
             </span>
           </div>
         </div>
@@ -116,7 +116,7 @@ export function Act1Hero({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src="/hero-vault.png"
-              alt="The Policy Vault — an on-chain allowance an AI agent cannot exceed"
+              alt="An on-chain wallet with hard spending limits — the Policy Vault"
               className="clx-hero-img"
               width={560}
               height={560}

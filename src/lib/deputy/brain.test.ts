@@ -71,10 +71,151 @@ describe("verifySubmission — LLM failure drills", () => {
 
   it("with no LLM key, returns the heuristic WITHOUT any network call", async () => {
     vi.stubEnv("COMMONSTACK_API_KEY", "");
+    vi.stubEnv("LLM_API_KEY", "");
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     const brief = await verifySubmission(input);
     expect(brief.engine).toBe("heuristic");
+    expect(brief.provider).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * PROVIDER CHAIN — primary → fallback → heuristic. Demo-day insurance: when the
+ * primary provider is exhausted, a DIFFERENT provider still returns a verified
+ * LLM brief (engine "llm", so it can auto-pay); only when BOTH fail does the
+ * Deputy drop to the heuristic (which can never auto-pay). Provider host + model
+ * are recorded on the brief so a receipt can show which provider decided.
+ */
+describe("verifySubmission — provider chain (primary → fallback → heuristic)", () => {
+  interface FetchResult {
+    ok: boolean;
+    status: number;
+    json: () => Promise<unknown>;
+  }
+  const okBrief = (): FetchResult => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              criteria: [
+                {
+                  criterion: "did the thing",
+                  met: true,
+                  confidence: 0.95,
+                  quote: "the thing was done and merged",
+                },
+              ],
+              fraudSignals: [],
+              recommendation: "pay",
+              reasonCode: "all_criteria_met",
+              confidence: 0.95,
+              summary: "verified",
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 120, completion_tokens: 60 },
+    }),
+  });
+  const fail500: FetchResult = { ok: false, status: 500, json: async () => ({}) };
+
+  const primaryEnv = () => {
+    vi.stubEnv("COMMONSTACK_API_KEY", "");
+    vi.stubEnv("COMMONSTACK_BASE_URL", "");
+    vi.stubEnv("DEPUTY_MODEL", "");
+    vi.stubEnv("LLM_API_KEY", "pk");
+    vi.stubEnv("LLM_BASE_URL", "https://primary.test/v1");
+    vi.stubEnv("LLM_MODEL", "primary/model");
+  };
+  const withFallback = () => {
+    vi.stubEnv("LLM_FALLBACK_API_KEY", "fk");
+    vi.stubEnv("LLM_FALLBACK_BASE_URL", "https://fallback.test/v1");
+    vi.stubEnv("LLM_FALLBACK_MODEL", "fallback/model");
+  };
+  const noFallback = () => {
+    vi.stubEnv("LLM_FALLBACK_API_KEY", "");
+    vi.stubEnv("LLM_FALLBACK_BASE_URL", "");
+    vi.stubEnv("LLM_FALLBACK_MODEL", "");
+  };
+
+  it("primary success → engine llm with primary provider + model recorded", async () => {
+    primaryEnv();
+    noFallback();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url));
+      return okBrief();
+    });
+    const brief = await verifySubmission(input);
+    expect(brief.engine).toBe("llm");
+    expect(brief.model).toBe("primary/model");
+    expect(brief.provider).toBe("primary.test");
+    expect(brief.reasonCode).toBe("all_criteria_met");
+    expect(brief.recommendation).toBe("pay");
+    expect(calls.every((u) => u.includes("primary.test"))).toBe(true);
+  });
+
+  it("primary fails every attempt → fallback decides (engine llm, fallback model + provider)", async () => {
+    primaryEnv();
+    withFallback();
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url));
+      return String(url).includes("primary.test") ? fail500 : okBrief();
+    });
+    const pending = verifySubmission(input);
+    await vi.runAllTimersAsync();
+    const brief = await pending;
+
+    expect(brief.engine).toBe("llm"); // a fallback success can still auto-pay
+    expect(brief.model).toBe("fallback/model");
+    expect(brief.provider).toBe("fallback.test");
+    expect(brief.recommendation).toBe("pay");
+    // primary was retried LLM_ATTEMPTS times; the fallback was tried exactly once
+    expect(calls.filter((u) => u.includes("primary.test")).length).toBe(3);
+    expect(calls.filter((u) => u.includes("fallback.test")).length).toBe(1);
+  });
+
+  it("primary AND fallback both fail → heuristic, which the gate holds", async () => {
+    primaryEnv();
+    withFallback();
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", async () => fail500);
+    const pending = verifySubmission(input);
+    await vi.runAllTimersAsync();
+    const brief = await pending;
+
+    expect(brief.engine).toBe("heuristic"); // both providers down → honest degrade
+    expect(brief.provider).toBeNull();
+    const gate = gateFromBrief(
+      brief,
+      { autonomy: "autopilot", autopilotThreshold: 0.85 },
+      "pending",
+    );
+    expect(gate.pay).toBe(false); // the heuristic can never auto-pay
+  });
+
+  it("no fallback configured + primary fails → heuristic (never throws)", async () => {
+    primaryEnv();
+    noFallback();
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url));
+      return fail500;
+    });
+    const pending = verifySubmission(input);
+    await vi.runAllTimersAsync();
+    const brief = await pending;
+
+    expect(brief.engine).toBe("heuristic");
+    expect(brief.provider).toBeNull();
+    expect(calls.every((u) => u.includes("primary.test"))).toBe(true); // never hit a fallback
   });
 });

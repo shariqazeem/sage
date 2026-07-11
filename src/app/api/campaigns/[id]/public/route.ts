@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCampaign, listCampaignEvents } from "@/lib/db/campaigns";
+import { getCampaign, listCampaignEvents, listSubmissions } from "@/lib/db/campaigns";
 import { summarizeSettled } from "@/lib/telegram/format";
 import { chainLabel } from "@/lib/deputy/networks";
 import { siteUrl } from "@/lib/site";
@@ -29,6 +29,24 @@ export async function GET(
 
   const { paidCount, settledBase } = summarizeSettled(listCampaignEvents(c.id));
 
+  // The live spectator feed: recent settled payouts (paid recipients + their txs
+  // are already public on-chain) newest-first, and an AGGREGATE count of entries
+  // being verified right now. Individual pending wallets/briefs stay private
+  // (own-scope via /me) — a spectator sees the payouts, not other people's work.
+  const subs = listSubmissions(c.id);
+  const feed = subs
+    .filter((s) => s.status === "paid")
+    .sort((a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt))
+    .flatMap((s) =>
+      s.payoutTx
+        ? [{ wallet: s.wallet, payoutTx: s.payoutTx, at: s.decidedAt ?? s.createdAt }]
+        : [],
+    )
+    .slice(0, 12);
+  const verifying = subs.filter(
+    (s) => s.status === "pending" || s.status === "settling",
+  ).length;
+
   return NextResponse.json(
     {
       id: c.id,
@@ -40,11 +58,14 @@ export async function GET(
       maxRecipients: c.maxRecipients,
       paid: paidCount,
       settledUsd: settledBase / 1_000_000,
+      verifying,
+      feed,
       url: `${siteUrl()}/c/${c.id}`,
     },
     {
+      // short cache so the 5s spectator poll stays fresh, still CDN-cacheable.
       headers: {
-        "Cache-Control": "public, max-age=30, s-maxage=30, stale-while-revalidate=60",
+        "Cache-Control": "public, max-age=5, s-maxage=5, stale-while-revalidate=30",
       },
     },
   );

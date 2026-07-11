@@ -163,12 +163,12 @@ describe("announceBlockedText", () => {
   it("names the failed vault check when present", () => {
     expect(
       announceBlockedText({ title: "Compose demo", failedCheckIndex: 3, url: "u" }),
-    ).toContain("Blocked by vault · check 3 · u");
+    ).toContain("Blocked by the wallet · check 3 · u");
   });
 
   it("omits the check clause when the block never reached the chain", () => {
     const t = announceBlockedText({ title: "Compose demo", url: "u" });
-    expect(t).toContain("Blocked by vault · u");
+    expect(t).toContain("Blocked by the wallet · u");
     expect(t).not.toContain("check");
   });
 });

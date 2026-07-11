@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAddress } from "viem";
-import { ArrowUpRight, Check, ShieldCheck } from "lucide-react";
-import { short, usd } from "@/lib/format";
+import { Check, ShieldCheck } from "lucide-react";
+import { usd } from "@/lib/format";
 import {
-  ensureDemoCampaign,
+  ensureFlagshipCampaign,
   getCampaign,
   listSubmissions,
 } from "@/lib/db/campaigns";
@@ -12,6 +12,7 @@ import { getVaultState } from "@/lib/deputy/chain";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
+import { PublicFeed } from "@/components/campaigns/public-feed";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function CampaignPublicPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  ensureDemoCampaign();
+  ensureFlagshipCampaign();
   const campaign = getCampaign(slug);
   if (!campaign) notFound();
 
@@ -69,7 +70,7 @@ export default async function CampaignPublicPage({
 
       <div className="sage-agent-card" style={{ marginBottom: 16 }}>
         <div className="sage-eyebrow">
-          <ShieldCheck size={13} /> Paid from a capped on-chain vault
+          <ShieldCheck size={13} /> Paid from an on-chain wallet with hard spending limits
         </div>
         <h1
           style={{
@@ -134,43 +135,36 @@ export default async function CampaignPublicPage({
         )}
       </div>
 
-      <div className="sb-sec-label">Settled payouts</div>
-      {paidSubs.length > 0 ? (
-        <div className="sage-subs" style={{ marginBottom: 20 }}>
-          {paidSubs.slice(0, 8).map((s) => (
-            <div className="sage-sub" key={s.id}>
-              <div className="sage-sub-main">
-                <div className="sage-sub-wallet">
-                  <Check size={14} color="var(--pos)" />
-                  <span className="mono">{short(s.wallet)}</span>
-                </div>
-                <a className="sage-sub-link" href={`/proof/${s.payoutTx}`}>
-                  <ArrowUpRight size={13} /> View on-chain proof
-                </a>
-              </div>
-              <div className="sage-sub-side">
-                <span className="mono" style={{ fontWeight: 700, color: "var(--pos)" }}>
-                  {usd(rewardUsd)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="sage-subs" style={{ marginBottom: 20 }}>
-          <div className="sage-empty">
-            Be the first — payouts are real and on-chain.
-          </div>
-        </div>
-      )}
+      <PublicFeed
+        campaignId={campaign.id}
+        rewardUsd={rewardUsd}
+        initial={{
+          paid,
+          verifying: subs.filter(
+            (s) => s.status === "pending" || s.status === "settling",
+          ).length,
+          feed: paidSubs
+            .flatMap((s) =>
+              s.payoutTx
+                ? [{ wallet: s.wallet, payoutTx: s.payoutTx, at: s.decidedAt ?? s.createdAt }]
+                : [],
+            )
+            .slice(0, 12),
+        }}
+      />
 
       <div className="sb-sec-label">Submit your entry</div>
-      <SubmitPanel campaignId={campaign.id} live={live} />
+      <SubmitPanel
+        campaignId={campaign.id}
+        live={live}
+        rewardUsd={rewardUsd}
+        threshold={campaign.autopilotThreshold}
+      />
 
       <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
-        Rewards are released by Sage&apos;s operator within an on-chain policy
-        vault. Every payout is a verifiable transaction you can inspect on the
-        block explorer.
+        Rewards are paid by Sage&apos;s Deputy from an on-chain wallet with hard
+        spending limits (the Policy Vault). Every payout is a verifiable
+        transaction you can inspect on the block explorer.
       </footer>
     </main>
   );

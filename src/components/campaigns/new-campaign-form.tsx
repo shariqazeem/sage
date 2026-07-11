@@ -27,17 +27,25 @@ interface Created {
 export function NewCampaignForm({
   vaultAddress,
   onCreated,
+  template,
 }: {
   vaultAddress?: string;
   /** In-shell: open the new campaign's detail surface instead of routing away. */
   onCreated?: (id: string) => void;
+  /** Optional starting values — used to land a fresh founder in a ready-to-run draft. */
+  template?: {
+    title?: string;
+    description?: string;
+    criteria?: string;
+    rewardUsd?: string;
+  };
 }) {
   const siwe = useSiwe();
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [criteria, setCriteria] = useState("");
-  const [rewardUsd, setRewardUsd] = useState("10");
+  const [title, setTitle] = useState(template?.title ?? "");
+  const [description, setDescription] = useState(template?.description ?? "");
+  const [criteria, setCriteria] = useState(template?.criteria ?? "");
+  const [rewardUsd, setRewardUsd] = useState(template?.rewardUsd ?? "10");
   const [maxRecipients, setMaxRecipients] = useState("25");
   const [autonomy, setAutonomy] = useState<"manual" | "autopilot">("manual");
   const [threshold, setThreshold] = useState(0.85);
@@ -234,7 +242,7 @@ export function NewCampaignForm({
         <span className="sage-hint">
           {siwe.authed
             ? `Poster: ${short(siwe.address ?? "")}`
-            : "Rewards are paid from your on-chain vault."}
+            : "Rewards are paid from your on-chain wallet."}
         </span>
       </div>
 

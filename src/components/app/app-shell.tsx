@@ -40,6 +40,8 @@ import { CountUp } from "@/components/app/count-up";
 import { BreakIt } from "@/components/hire/break-it";
 import { CopyButton } from "@/components/hire/copy-button";
 import { ConnectWallet } from "@/components/app/connect-wallet";
+import { PnLPanel, type PnLView } from "@/components/agents/pnl-panel";
+import { Ticker } from "@/components/app/ticker";
 
 type Tab = "agents" | "wallet" | "policies" | "proof";
 
@@ -56,6 +58,7 @@ interface Props {
   overview: DeputyOverview;
   identity: AgentIdentity;
   reputation: AgentReputation;
+  pnl: PnLView;
   history: PayoutReceipt[];
   network: { name: string; chainId: number; explorer: string };
   vaultAddress: string | null;
@@ -63,7 +66,19 @@ interface Props {
   x402: X402Status;
   /** true when the displayed vault is the founder's own (not the demo vault). */
   ownVault?: boolean;
+  /** land a just-onboarded founder straight in a pre-filled first campaign. */
+  startInCreate?: boolean;
 }
+
+/** The ready-to-run draft a fresh founder lands in after onboarding — no empty tab. */
+const ONBOARDING_TEMPLATE = {
+  title: "Test my app — 0.5 USDC",
+  description:
+    "Try my app and tell me what broke. Paid in USDC on approval — the Deputy verifies each entry against the criteria below before anything settles.",
+  criteria:
+    "Tried the app and completed the core flow\nLeft a genuine note on friction or a bug you hit\nEvidence link resolves (a screenshot, recording, or short write-up)",
+  rewardUsd: "0.5",
+};
 
 const TABS: { key: Tab; label: string; Icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", Icon: Bot },
@@ -82,15 +97,17 @@ export function AppShell({
   usdcAddress,
   identity,
   reputation,
+  pnl,
   x402,
   ownVault = false,
+  startInCreate = false,
 }: Props) {
   const siwe = useSiwe();
   const [tab, setTab] = useState<Tab>("agents");
   const [detailOpen, setDetailOpen] = useState(false);
   const [campaignView, setCampaignView] = useState<
-    { mode: "detail"; id: string } | { mode: "create" } | null
-  >(null);
+    { mode: "detail"; id: string } | { mode: "create"; template?: boolean } | null
+  >(startInCreate ? { mode: "create", template: true } : null);
   const [live, setLive] = useState<DeputyOverview>(overview);
   // Direction the next tab-view enters from (iOS segmented-control feel).
   const [enterDir, setEnterDir] = useState<"left" | "right">("right");
@@ -140,6 +157,7 @@ export function AppShell({
   return (
     <>
       <div className="sb-shell sage-shell-enter">
+        <Ticker />
         <header className="sb-top">
           <div className="sb-brand">
             <span className="sb-mark">S</span> Sage
@@ -162,7 +180,11 @@ export function AppShell({
           campaignView.mode === "detail" ? (
             <CampaignDetail campaignId={campaignView.id} onBack={closeCampaign} />
           ) : (
-            <CampaignCreate onBack={closeCampaign} onCreated={onCampaignCreated} />
+            <CampaignCreate
+              onBack={closeCampaign}
+              onCreated={onCampaignCreated}
+              template={campaignView.template ? ONBOARDING_TEMPLATE : undefined}
+            />
           )
         ) : detailOpen && vault ? (
           <DeputyDetail
@@ -289,11 +311,11 @@ export function AppShell({
                 {vault ? (
                   <>
                     <div className="sage-wallet-hero">
-                      <div className="k">Total in vault</div>
+                      <div className="k">Total in wallet</div>
                       <div className="v mono">
                         <CountUp value={remaining} format={usd} />
                       </div>
-                      <div className="sub mono">USDC · Payout Deputy vault</div>
+                      <div className="sub mono">USDC · your Deputy&apos;s wallet</div>
                       <div className="sage-wallet-meter">
                         <span
                           style={{
@@ -479,7 +501,7 @@ export function AppShell({
                     </a>
                   </>
                 ) : (
-                  <div className="sb-card sb-empty">No vault funded yet.</div>
+                  <div className="sb-card sb-empty">No wallet funded yet.</div>
                 )}
               </section>
             )}
@@ -782,6 +804,22 @@ export function AppShell({
                   >
                     View public track record <ArrowUpRight size={14} />
                   </a>
+                </div>
+
+                {/* the Deputy's P&L — earned fees vs its own input costs, real rows */}
+                <div className="sage-agent-card" style={{ marginBottom: 22 }}>
+                  <div className="sage-agent-top" style={{ marginBottom: 12 }}>
+                    <div className="sage-dep-id">
+                      <span className="sage-dep-icon">
+                        <Coins size={20} />
+                      </span>
+                      <div>
+                        <div className="sage-dep-name">Agent P&amp;L</div>
+                        <div className="sage-dep-sub">Summed from real rows</div>
+                      </div>
+                    </div>
+                  </div>
+                  <PnLPanel pnl={pnl} />
                 </div>
 
                 <div className="hproof" style={{ marginBottom: 22 }}>

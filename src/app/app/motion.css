@@ -205,6 +205,72 @@ body:has(.sage-app) {
   background: rgba(26, 29, 33, 0.16);
 }
 
+/* ── receipt "materialize": a real decision brief just arrived. The 1px border
+   draws itself — top+bottom (scaleX) then the sides (scaleY), ~300ms — and then
+   the rows print in 40ms apart, a terminal printing a report. Global so it works
+   in the app AND on /c. Fires only when the class is added on real data arrival;
+   collapses to instant under reduced motion (rule below). ────────────────── */
+.sage-materialize {
+  position: relative;
+}
+.sage-materialize::before,
+.sage-materialize::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+}
+.sage-materialize::before {
+  border-top: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: sage-draw-x 520ms var(--spring-snappy) both;
+}
+.sage-materialize::after {
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  transform: scaleY(0);
+  transform-origin: center top;
+  animation: sage-draw-y 460ms var(--spring-snappy) 150ms both;
+}
+@keyframes sage-draw-x {
+  0% { transform: scaleX(0); opacity: 1; }
+  55% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes sage-draw-y {
+  0% { transform: scaleY(0); opacity: 1; }
+  55% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+.sage-materialize > * {
+  opacity: 0;
+  animation: sage-rise 320ms var(--spring-gentle) both;
+}
+.sage-materialize > *:nth-child(1) { animation-delay: 300ms; }
+.sage-materialize > *:nth-child(2) { animation-delay: 340ms; }
+.sage-materialize > *:nth-child(3) { animation-delay: 380ms; }
+.sage-materialize > *:nth-child(4) { animation-delay: 420ms; }
+.sage-materialize > *:nth-child(5) { animation-delay: 460ms; }
+.sage-materialize > *:nth-child(6) { animation-delay: 500ms; }
+.sage-materialize > *:nth-child(7) { animation-delay: 540ms; }
+.sage-materialize > *:nth-child(n + 8) { animation-delay: 580ms; }
+
+/* ── settle cascade entrance: when a payout lands (manual approval OR the
+   autonomous Deputy), the rail's nodes fill in sequence — the same cascade for
+   both paths. Presentational only; each node's done/blocked state stays bound to
+   real flow state in the TSX. ─────────────────────────────────────────────── */
+.sage-cascade-in > * {
+  opacity: 0;
+  animation: sage-rise 300ms var(--spring-gentle) both;
+}
+.sage-cascade-in > *:nth-child(1) { animation-delay: 40ms; }
+.sage-cascade-in > *:nth-child(2) { animation-delay: 180ms; }
+.sage-cascade-in > *:nth-child(3) { animation-delay: 320ms; }
+
 /* ── respect reduced motion globally ──────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { VaultStateView, PayoutReceipt } from "@/lib/deputy/chain";
 import { Act1Hero } from "./act1-hero";
 import { Act2Problem } from "./act2-problem";
-import { Act3Vault } from "./act3-vault";
+import { Act3Vault, type LandingReceipt } from "./act3-vault";
 import { Act4Proof } from "./act4-proof";
 import { Act5Close } from "./act5-close";
 
@@ -11,6 +11,8 @@ interface Props {
   history: PayoutReceipt[];
   network: { name: string };
   hasHero: boolean;
+  /** The real settled receipt featured in Act 3, or null → the check rail. */
+  receipt: LandingReceipt | null;
   /** Server-stamped clock so relative times match across SSR + hydration. */
   now: number;
 }
@@ -23,7 +25,7 @@ interface Props {
  * the hero balance, the checks' cap, the receipt feed, and the closing stats are
  * all real.
  */
-export function CinematicLanding({ vault, history, network, hasHero, now }: Props) {
+export function CinematicLanding({ vault, history, network, hasHero, receipt, now }: Props) {
   const budget = vault?.budget ?? 500;
   const remaining = vault?.remaining ?? budget;
   const perTxCap = vault?.perTxCap ?? 25;
@@ -43,7 +45,7 @@ export function CinematicLanding({ vault, history, network, hasHero, now }: Prop
             <span className="clx-wordmark">Sage</span>
           </Link>
           <nav className="clx-topnav">
-            <a href="#how">The vault</a>
+            <a href="#how">The wallet</a>
             <a href="#proof">Proof</a>
             <Link href="/app" className="clx-cta clx-cta-sm">
               Hire your first Deputy
@@ -63,7 +65,7 @@ export function CinematicLanding({ vault, history, network, hasHero, now }: Prop
         <Act2Problem />
 
         <span id="how" className="clx-anchor" aria-hidden />
-        <Act3Vault perTxCap={perTxCap} />
+        <Act3Vault receipt={receipt} perTxCap={perTxCap} />
 
         <span id="proof" className="clx-anchor" aria-hidden />
         <Act4Proof feed={history} now={now} networkName={network.name} />
@@ -85,11 +87,11 @@ export function CinematicLanding({ vault, history, network, hasHero, now }: Prop
               Sage
             </span>
             <span className="clx-mono clx-foot-tag">
-              Policy-enforced autonomous payouts · {network.name}
+              An AI agent you can trust with a wallet · {network.name}
             </span>
           </div>
           <nav className="clx-footnav">
-            <a href="#how">The vault</a>
+            <a href="#how">The wallet</a>
             <a href="#proof">Proof</a>
             <Link href="/app">Hire your first Deputy</Link>
           </nav>

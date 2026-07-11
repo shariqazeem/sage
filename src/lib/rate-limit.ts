@@ -70,6 +70,10 @@ interface LimiterStore {
   create: RateLimiter;
   auth: RateLimiter;
   telegram: RateLimiter;
+  /** public "try to jailbreak the Deputy" attempts, per IP. */
+  redteam: RateLimiter;
+  /** ONE global daily budget for jailbreak attempts (each runs the real paid pipeline). */
+  redteamDaily: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -81,6 +85,12 @@ function limiters(): LimiterStore {
       create: new RateLimiter(5, 60_000), // 5 campaign creates / min / ip
       auth: new RateLimiter(20, 60_000), // 20 nonce+verify / min / ip
       telegram: new RateLimiter(20, 60_000), // 20 bot commands / min / chat
+      redteam: new RateLimiter(6, 60_000), // 6 jailbreak attempts / min / ip
+      // one global daily cap so the public box can't become a free LLM proxy.
+      redteamDaily: new RateLimiter(
+        Math.max(1, Number(process.env.REDTEAM_DAILY_CAP) || 200),
+        86_400_000,
+      ),
     };
   }
   return g.__sageLimiters;

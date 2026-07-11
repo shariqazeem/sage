@@ -69,6 +69,12 @@ const schema = z.object({
   COMMONSTACK_API_KEY: nonempty.optional(),
   COMMONSTACK_BASE_URL: httpUrl.optional(),
   DEPUTY_MODEL: nonempty.optional(),
+  // LLM fallback provider — a DIFFERENT OpenAI-compatible provider (e.g. OpenRouter)
+  // the brain fails over to when the primary is exhausted, so a primary outage
+  // can't silently degrade autopilot to the heuristic. All three arm the fallback.
+  LLM_FALLBACK_BASE_URL: httpUrl.optional(),
+  LLM_FALLBACK_API_KEY: nonempty.optional(),
+  LLM_FALLBACK_MODEL: nonempty.optional(),
 
   // autonomy flags
   DEPUTY_AUTOPILOT_MAINNET: nonempty.optional(),
@@ -126,6 +132,10 @@ export function getEnv(): SageEnv {
 export function llmLive(e: SageEnv = getEnv()): boolean {
   return !!(e.LLM_API_KEY || e.COMMONSTACK_API_KEY);
 }
+/** Whether a fallback LLM provider is fully configured (needs all three vars). */
+export function llmFallbackLive(e: SageEnv = getEnv()): boolean {
+  return !!(e.LLM_FALLBACK_API_KEY && e.LLM_FALLBACK_BASE_URL && e.LLM_FALLBACK_MODEL);
+}
 /** Whether the x402 rail is fully credentialed (all three merchant creds). */
 export function x402Live(e: SageEnv = getEnv()): boolean {
   return !!(e.GOATX402_API_KEY && e.GOATX402_API_SECRET && e.GOATX402_MERCHANT_ID);
@@ -152,6 +162,8 @@ export interface EnvSummary {
   network: string;
   chainId: number;
   llm: { live: boolean; model: string | null };
+  /** the fallback provider in the chain (primary → fallback → heuristic). */
+  fallback: { live: boolean; model: string | null };
   x402: { live: boolean; merchant: string | null };
   erc8004: { live: boolean; agentId: string | null };
   telegram: { live: boolean };
@@ -170,6 +182,7 @@ export function envSummary(): EnvSummary {
   const e = getEnv();
   const network = e.DEPUTY_NETWORK ?? "metis-sepolia";
   const llm = llmLive(e);
+  const fb = llmFallbackLive(e);
   const x402 = x402Live(e);
   const erc = erc8004Live(e);
   return {
@@ -179,6 +192,7 @@ export function envSummary(): EnvSummary {
       live: llm,
       model: llm ? (e.LLM_MODEL ?? e.DEPUTY_MODEL ?? "deepseek/deepseek-v4-flash") : null,
     },
+    fallback: { live: fb, model: fb ? (e.LLM_FALLBACK_MODEL ?? null) : null },
     x402: { live: x402, merchant: x402 ? (e.GOATX402_MERCHANT_ID ?? null) : null },
     erc8004: { live: erc, agentId: e.ERC8004_AGENT_ID ?? null },
     telegram: { live: telegramLive(e) },
@@ -196,9 +210,14 @@ export function logBootSummary(): void {
   const s = envSummary(); // throws here on a malformed value — the hard-fail path
   const flag = (name: string, live: boolean, detail?: string | null) =>
     `${name}=${live ? "live" : "pending"}${live && detail ? `(${detail})` : ""}`;
+  const brainChain = [
+    s.llm.live ? `LLM:live(${s.llm.model})` : "LLM:pending",
+    s.fallback.live ? `fallback:live(${s.fallback.model})` : "fallback:none",
+    "heuristic",
+  ].join(" → ");
   console.log(
     `[sage] boot · env OK · network=${s.network}(${s.chainId}) · ` +
-      `${flag("LLM", s.llm.live, s.llm.model)} · ` +
+      `brain=[${brainChain}] · ` +
       `${flag("x402", s.x402.live, s.x402.merchant ? `merchant:${s.x402.merchant}` : null)} · ` +
       `${flag("ERC-8004", s.erc8004.live, s.erc8004.agentId ? `#${s.erc8004.agentId}` : null)} · ` +
       `Telegram=${s.telegram.live ? "on" : "off"} · ` +

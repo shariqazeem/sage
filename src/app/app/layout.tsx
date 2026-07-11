@@ -7,7 +7,7 @@ import "./demo-moments.css";
 export const metadata: Metadata = {
   title: "Sage — your AI workers",
   description:
-    "Hire AI workers that can spend safely. The agent proposes; the vault enforces.",
+    "Hire an AI agent you can trust with a wallet. It gets people paid — inside spending limits it can't break.",
 };
 
 export default function AppLayout({

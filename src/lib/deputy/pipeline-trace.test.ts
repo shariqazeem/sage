@@ -16,6 +16,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   casSubmissionStatus: vi.fn(),
   recordEvent: vi.fn(),
   updateSubmission: vi.fn(),
+  listPaidSubmissionsForDedup: vi.fn(() => []),
 }));
 vi.mock("@/lib/deputy/chain", () => ({
   getVaultState: vi.fn(),
@@ -56,9 +57,11 @@ const submission = {
 const payBrief: DecisionBrief = {
   engine: "llm",
   model: "deepseek/deepseek-v4-flash",
+  provider: "test",
   criteria: [],
   fraudSignals: [],
   recommendation: "pay",
+  reasonCode: "all_criteria_met",
   confidence: 0.95,
   summary: "",
   evidenceOk: true,

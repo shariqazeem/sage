@@ -15,8 +15,8 @@
   --line-2: #e4e2dc;
   --surface-2: #f6f5f1;
   --surface-3: #faf9f6;
-  --accent: #4f46e5;
-  --accent-2: #6a62ec;
+  --accent: #1a1d21;
+  --accent-2: #33373d;
   --pos: #15803d;
   --pos-bg: #eef6f0;
   --pos-line: #cfe6d6;
@@ -43,7 +43,7 @@
   font-family: var(--font-mono), ui-monospace, monospace;
 }
 .clx ::selection {
-  background: #e0ddfb;
+  background: #e7e6e1;
 }
 /* keep the page paper-light even though the root body theme is dark */
 body:has(.clx) {
@@ -156,12 +156,12 @@ html:has(.clx) {
     transform 0.2s ease,
     filter 0.2s ease,
     box-shadow 0.2s ease;
-  box-shadow: 0 8px 22px -10px rgba(79, 70, 229, 0.6);
+  box-shadow: 0 8px 22px -10px rgba(20, 22, 26, 0.6);
 }
 .clx-cta:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
-  box-shadow: 0 12px 28px -10px rgba(79, 70, 229, 0.66);
+  box-shadow: 0 12px 28px -10px rgba(20, 22, 26, 0.66);
 }
 .clx-cta:active {
   transform: scale(0.98);
@@ -689,6 +689,70 @@ html:has(.clx) {
 }
 .state-blocked .clx-check-status {
   color: var(--dan);
+}
+
+/* ── ACT 3 · watch it think (the real receipt is the star) ──────────────── */
+.clx-think-in {
+  max-width: 620px;
+}
+.clx-think-card {
+  margin-top: 6px;
+  max-width: 520px;
+  padding: 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 20px 48px -26px rgba(26, 29, 33, 0.3);
+}
+.clx-think-card .sage-assess-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.clx-think-foot {
+  margin-top: 18px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.clx-think-settle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--pos-line);
+  background: var(--pos-bg);
+  border-radius: 8px;
+  text-decoration: none;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.clx-think-settle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -16px rgba(21, 128, 61, 0.45);
+}
+.clx-think-amt {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--pos);
+}
+.clx-think-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--pos);
+}
+.clx-think-guard {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ter);
 }
 
 /* ── ACT 4 · proof, live (receipts) ─────────────────────────────────────── */

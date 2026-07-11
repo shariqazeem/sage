@@ -9,9 +9,11 @@ import {
   getCampaign,
   getDecisionBySubmission,
   getSubmission,
+  listPaidSubmissionsForDedup,
   recordEvent,
   updateSubmission,
 } from "@/lib/db/campaigns";
+import { findDuplicate } from "./dedup";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
@@ -119,6 +121,16 @@ export async function runDeputyOnSubmission(
   if (!submission) return { action: "skipped", reason: "no submission", correlationId: cid };
   const campaign = getCampaign(submission.campaignId);
   if (!campaign) return { action: "skipped", reason: "no campaign", correlationId: cid };
+  // HARD SANDBOX: the public jailbreak box can never move money — bail before any
+  // decision/gate/CAS/settle path. settleSubmission also throws as a structural
+  // backstop, so payment is unreachable even if this guard were ever removed.
+  if (campaign.sandbox) {
+    return {
+      action: "skipped",
+      reason: "sandbox — payment structurally disabled",
+      correlationId: cid,
+    };
+  }
   agentLog(cid, "start", {
     submissionId,
     campaignId: campaign.id,
@@ -155,6 +167,24 @@ export async function runDeputyOnSubmission(
       return { action: "held", reason: gate.reason, correlationId: cid };
     }
     return { action: "skipped", reason: gate.reason, correlationId: cid };
+  }
+
+  // c'. Sybil dedup — never auto-pay a copy of an entry already paid on this
+  // campaign (same evidence bytes or the same report text from a different
+  // wallet). The vault already caps total loss; this stops one person farming
+  // multiple seats. Pre-check only — the frozen brain is untouched.
+  const dup = findDuplicate(
+    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null },
+    listPaidSubmissionsForDedup(campaign.id, submissionId),
+  );
+  if (dup) {
+    const reason = `possible duplicate — ${dup.reason}`;
+    agentLog(cid, "dedup", { duplicate: true, reason: dup.reason });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
   }
 
   // c. pre-flight courtesy policy read

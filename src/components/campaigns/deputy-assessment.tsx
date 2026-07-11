@@ -7,6 +7,7 @@ import {
   Clock,
   Minus,
   Quote,
+  ShieldAlert,
   Sparkles,
 } from "lucide-react";
 import { short, usd } from "@/lib/format";
@@ -14,17 +15,33 @@ import type { DecisionBrief } from "@/lib/deputy/brain-core";
 
 const GOAT_EXPLORER = "https://explorer.goat.network";
 
-const REC: Record<
+/** The machine-state verdict word + its tone. */
+const VERDICT: Record<
   DecisionBrief["recommendation"],
-  { label: string; tone: "pos" | "amber" | "dan" }
+  { word: string; tone: "pos" | "amber" | "dan" }
 > = {
-  pay: { label: "Recommends paying", tone: "pos" },
-  review: { label: "Needs a closer look", tone: "amber" },
-  hold: { label: "Recommends holding", tone: "dan" },
+  pay: { word: "PAY", tone: "pos" },
+  review: { word: "REVIEW", tone: "amber" },
+  hold: { word: "HOLD", tone: "dan" },
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
 const trunc = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** The high-severity injection signal, if the server-side detector fired. */
+function injectionSignal(brief: DecisionBrief) {
+  return brief.fraudSignals.find(
+    (f) => f.severity === "high" && /injection/i.test(f.signal),
+  );
+}
+/** The pattern families the detector named, parsed from its reason ("(a, b)"). */
+function patternFamilies(reason: string): string | null {
+  return reason.match(/\(([^)]+)\)/)?.[1] ?? null;
+}
+/** sha256 as first8…last8 for the provenance line. */
+function shaShort(sha: string | null): string {
+  return sha && sha.length > 18 ? `${sha.slice(0, 8)}…${sha.slice(-8)}` : "no evidence";
+}
 
 /**
  * The Deputy's verification receipt for one submission — the reasoning the
@@ -37,21 +54,46 @@ const trunc = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 export function DeputyAssessmentCard({
   brief,
   rewardUsd,
+  threshold = 0.85,
+  materialize = false,
 }: {
   brief: DecisionBrief;
   rewardUsd?: number | null;
+  /** the campaign's autopilot threshold — draws the notch on the confidence bar. */
+  threshold?: number;
+  /** when the brief just ARRIVED via polling, play the "print in" animation once. */
+  materialize?: boolean;
 }) {
-  const rec = REC[brief.recommendation];
+  const v = VERDICT[brief.recommendation];
   const conf = Math.round(clamp01(brief.confidence) * 100);
+  const thr = Math.round(clamp01(threshold) * 100);
   const met = brief.criteria.filter((c) => c.met).length;
+  const clears = conf >= thr;
+
+  // ATTACK: only the server-side injection detector's HIGH signal gets the strip.
+  const attack = injectionSignal(brief);
+  const families = attack ? patternFamilies(attack.reason) : null;
+  const chips = attack
+    ? brief.fraudSignals.filter((f) => f !== attack)
+    : brief.fraudSignals;
 
   return (
-    <div className="sage-assess">
+    <div className={`sage-assess${materialize ? " sage-materialize" : ""}`}>
+      {attack && (
+        <div className="sage-attack-strip">
+          <ShieldAlert size={14} />
+          <span>
+            <b>Attack detected</b> — instruction-like content in submitter data
+            {families ? ` (${families})` : ""}. Treated as data, not instructions. Held.
+          </span>
+        </div>
+      )}
+
       <div className="sage-assess-head">
         <span className="sage-assess-title">
           <Sparkles size={13} /> Deputy assessment
         </span>
-        <span className={`sage-assess-rec ${rec.tone}`}>{rec.label}</span>
+        <span className={`sage-assess-rec ${v.tone}`}>{v.word}</span>
       </div>
 
       <span className={`sage-assess-engine ${brief.engine}`}>
@@ -79,9 +121,9 @@ export function DeputyAssessmentCard({
         </div>
       )}
 
-      {brief.fraudSignals.length > 0 && (
+      {chips.length > 0 && (
         <div className="sage-assess-fraud">
-          {brief.fraudSignals.map((f, i) => (
+          {chips.map((f, i) => (
             <span
               key={i}
               className={`sage-assess-chip ${f.severity}`}
@@ -96,8 +138,18 @@ export function DeputyAssessmentCard({
       <div className="sage-assess-conf">
         <div className="sage-assess-conf-bar">
           <span style={{ width: `${conf}%` }} />
+          <i
+            className="sage-assess-notch"
+            style={{ left: `${thr}%` }}
+            aria-hidden
+          />
         </div>
-        <span className="sage-assess-conf-k mono">{conf}% confidence</span>
+        <span className="sage-assess-conf-k mono">{conf}%</span>
+      </div>
+      <div className={`sage-assess-thresh mono ${clears ? "pass" : "hold"}`}>
+        {clears
+          ? `${conf}% ≥ ${thr}% autopay bar`
+          : `${conf}% < ${thr}% — held for human review`}
       </div>
 
       {brief.summary && <p className="sage-assess-summary">{brief.summary}</p>}
@@ -140,6 +192,26 @@ export function DeputyAssessmentCard({
             cost <b>${brief.costUsd.toFixed(4)}</b>
           </span>
         )}
+      </div>
+
+      {/* provenance microline — model · latency · cost · reasonCode · evidence hash */}
+      <div className="sage-assess-prov mono">
+        {brief.engine === "llm" ? (brief.model ?? "llm") : "heuristic v1"}
+        {brief.latencyMs != null && (
+          <>
+            <span className="sep">·</span>
+            {brief.latencyMs}ms
+          </>
+        )}
+        {brief.costUsd != null && (
+          <>
+            <span className="sep">·</span>${brief.costUsd.toFixed(4)}
+          </>
+        )}
+        <span className="sep">·</span>
+        {brief.reasonCode}
+        <span className="sep">·</span>
+        {brief.contentSha256 ? `sha256 ${shaShort(brief.contentSha256)}` : "no evidence"}
       </div>
     </div>
   );

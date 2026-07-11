@@ -7,8 +7,8 @@ import {
 import { getSessionAddress } from "@/lib/auth/session";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { getAgentIdentity } from "@/lib/erc8004/identity";
-import { getAgentReputation } from "@/lib/erc8004/reputation";
-import { ensureDemoCampaign, feeTotals } from "@/lib/db/campaigns";
+import { getAgentPnL, getAgentReputation } from "@/lib/erc8004/reputation";
+import { ensureFlagshipCampaign, feeTotals } from "@/lib/db/campaigns";
 import { isX402Live } from "@/lib/x402/facilitator";
 import { USDC_DECIMALS } from "@/lib/x402/facilitator";
 import { SageApp } from "@/components/app/sage-app";
@@ -16,7 +16,7 @@ import { SageApp } from "@/components/app/sage-app";
 export const dynamic = "force-dynamic";
 
 export default async function AppPage() {
-  ensureDemoCampaign();
+  ensureFlagshipCampaign();
   const net = activeNetwork();
   const wallet = await getSessionAddress();
 
@@ -54,6 +54,7 @@ export default async function AppPage() {
       overview={overview}
       identity={identity}
       reputation={reputation}
+      pnl={getAgentPnL()}
       history={history}
       network={{
         name: net.name,

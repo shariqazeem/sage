@@ -27,6 +27,7 @@ export function AutopilotCard({
 }) {
   const [pendingEnable, setPendingEnable] = useState(false);
   const isAuto = autonomy === "autopilot";
+  const thrPct = Math.round(Math.max(0, Math.min(1, threshold)) * 100);
 
   return (
     <div className={`sage-auto${isAuto ? " on" : ""}`}>
@@ -101,6 +102,16 @@ export function AutopilotCard({
                 +
               </button>
             </div>
+          </div>
+          {/* the autopay bar, visualized — reuses the receipt's notch so the
+              threshold reads the same everywhere the Deputy is judged. */}
+          <div
+            className="sage-assess-conf-bar"
+            style={{ margin: "12px 0 2px" }}
+            aria-hidden
+          >
+            <span style={{ width: `${thrPct}%`, opacity: 0.35 }} />
+            <i className="sage-assess-notch" style={{ left: `${thrPct}%` }} />
           </div>
           <p className="sage-auto-note">
             Only Sage&apos;s AI brain can auto-pay. Without an AI key — or when it

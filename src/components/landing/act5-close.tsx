@@ -23,11 +23,11 @@ export function Act5Close({
     <section className="clx-act clx-act5" aria-label="Hire your first Deputy">
       <div className="clx-act5-in">
         <h2 className="clx-close-h">
-          Give an AI agent an allowance&nbsp;— not your keys.
+          An AI agent you can trust with a wallet.
         </h2>
         <p className="clx-close-p">
-          Hire an autonomous worker that pays real people for real work — and
-          physically cannot spend a dollar you didn&apos;t approve.
+          It pays real people for real work, inside the spending limits you
+          set — and every payout is a receipt anyone can check.
         </p>
 
         <div className="clx-close-actions">
@@ -55,7 +55,7 @@ export function Act5Close({
             <span className="clx-close-stat-v">
               <CountUpLanding value={blocksCount} />
             </span>
-            <span className="clx-close-stat-k clx-mono">Blocked outside policy</span>
+            <span className="clx-close-stat-k clx-mono">Blocked by the wallet</span>
           </div>
         </div>
       </div>

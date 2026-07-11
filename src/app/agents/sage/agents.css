@@ -14,9 +14,9 @@
   --line-2: #f1f0ec;
   --line-3: #f4f3ef;
   --surface-3: #faf9f6;
-  --accent: #4f46e5;
-  --accent-bg: #eef0fe;
-  --accent-line: #dcdcfb;
+  --accent: #1a1d21;
+  --accent-bg: #f0efea;
+  --accent-line: #e4e2dc;
   --pos: #15803d;
   --pos-bg: #eef6f0;
   --pos-line: #cfe6d6;
@@ -38,7 +38,7 @@
   padding: 28px 22px 72px;
 }
 body:has(.sag) { background: #fbfbf9; }
-.sag ::selection { background: #e0ddfb; }
+.sag ::selection { background: #e7e6e1; }
 .sag .mono { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
 @keyframes sag-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -143,4 +143,159 @@ body:has(.sag) { background: #fbfbf9; }
 @media (prefers-reduced-motion: reduce) {
   .sag-reveal { animation: none; }
   .sag-id-status.reg .dot { animation: none; }
+}
+
+/* ── adversarial red-team ledger + "try to jailbreak" box ─────────────────── */
+.sag-ledger-hero {
+  margin: 14px 0 12px;
+  font-size: 13px;
+  color: var(--ter, #8a8d92);
+  letter-spacing: 0.01em;
+}
+.sag-ledger-hero b {
+  color: var(--pos, #15803d); /* the defense held — a pass */
+  font-weight: 700;
+}
+.sag-ledger-scroll { overflow-x: auto; }
+.sag-ledger {
+  min-width: 460px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  border: 1px solid var(--line, #e6e4de);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sag-ledger-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1.7fr 0.7fr;
+  gap: 12px;
+  padding: 7px 12px;
+  align-items: center;
+  border-top: 1px solid var(--line, #e6e4de);
+}
+.sag-ledger-row:first-child { border-top: none; }
+.sag-ledger-row.head {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--mut, #a8a29a);
+  text-transform: uppercase;
+  background: var(--surface-3, #faf9f6);
+}
+.sag-ledger-class { color: var(--ink, #1a1d21); }
+.sag-ledger-defense { color: var(--sec, #55585d); }
+.sag-ledger-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pos, #15803d); /* HELD = the defense passed */
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.sag-ledger-src {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--mut, #a8a29a);
+  line-height: 1.5;
+}
+.sag-ledger-src .mono {
+  font-family: var(--font-mono), monospace;
+  color: var(--ter, #8a8d92);
+}
+
+.sag-jb {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #e6e4de);
+}
+.sag-jb-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent, #1a1d21);
+  margin-bottom: 6px;
+}
+.sag-jb-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.sag-jb-copy {
+  margin: 8px 0 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--sec, #55585d);
+}
+.sag-jb-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: var(--font-mono), monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2, #ded9d0);
+  border-radius: 4px;
+  background: var(--paper, #fdfcf9);
+  color: var(--ink, #1a1d21);
+}
+.sag-jb-input:focus {
+  outline: none;
+  border-color: var(--accent, #1a1d21);
+}
+.sag-jb-input:disabled { opacity: 0.6; }
+.sag-jb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.sag-jb-samples { display: flex; gap: 8px; flex-wrap: wrap; }
+.sag-jb-sample {
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2, #ded9d0);
+  background: var(--surface-3, #faf9f6);
+  color: var(--sec, #55585d);
+  cursor: pointer;
+}
+.sag-jb-sample:hover:not(:disabled) {
+  border-color: var(--accent, #1a1d21);
+  color: var(--accent, #1a1d21);
+}
+.sag-jb-actions { display: flex; align-items: center; gap: 10px; }
+.sag-jb-count { font-size: 11px; color: var(--mut, #a8a29a); }
+.sag-jb-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 15px;
+  border-radius: 4px;
+  border: none;
+  background: var(--accent, #1a1d21);
+  color: #fff;
+  cursor: pointer;
+}
+.sag-jb-run:disabled { opacity: 0.5; cursor: not-allowed; }
+.sag-jb-msg {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--ter, #8a8d92);
+}
+.sag-jb-msg.dan { color: var(--dan, #dc2626); }
+.sag-jb-result { margin-top: 14px; }
+@media (max-width: 560px) {
+  .sag-jb-row { flex-direction: column; align-items: stretch; }
+  .sag-jb-actions { justify-content: space-between; }
 }

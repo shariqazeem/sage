@@ -37,9 +37,9 @@ export function Act4Proof({
             Every payout is public. Every block is public.
           </h2>
           <p className="clx-act4-sub">
-            Allowed or blocked, every decision the vault makes is a checkable
+            Allowed or blocked, every decision the wallet makes is a checkable
             on-chain record. Nothing settles you can&apos;t trace; nothing moves the
-            policy didn&apos;t permit.
+            limits didn&apos;t permit.
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export function Act4Proof({
               <Check size={16} strokeWidth={3} />
             </span>
             <div>
-              <div className="clx-receipt-title">Vault live — watching for work</div>
+              <div className="clx-receipt-title">Wallet live — watching for work</div>
               <div className="clx-receipt-sub">
                 When the Deputy pays, every receipt lands here — public and
                 checkable. No rows are shown until a real payout settles.

@@ -244,41 +244,17 @@ export function SageProofPage({
         </div>
       </div>
 
-      {/* share preview */}
+      {/* share preview — the REAL rendered OG card (exactly what a link unfurls to) */}
       <div className="spp-share spp-reveal" style={{ animationDelay: "0.42s" }}>
         <div className="spp-share-label">Preview when shared</div>
-        <div className="spp-share-card">
-          <div className="spp-share-dark">
-            <div>
-              <span
-                className="spp-share-pill"
-                style={{
-                  background: settled
-                    ? "rgba(21,128,61,.2)"
-                    : "rgba(220,38,38,.2)",
-                  color: settled ? "#4ade80" : "#f87171",
-                }}
-              >
-                <span
-                  className="dot"
-                  style={{ background: settled ? "#4ade80" : "#f87171" }}
-                />
-                {settled ? "Settled" : "Blocked"}
-              </span>
-              <div className="spp-share-amt mono">{usd(proof.amount)}</div>
-              <div className="spp-share-sub">
-                Verified on-chain · {proof.network}
-              </div>
-            </div>
-            <div className="spp-share-badge">
-              <div />
-            </div>
-          </div>
-          <div className="spp-share-light">
-            <span className="spp-share-url">sage · /proof/{short(proof.txHash)}</span>
-            <span className="spp-share-brand">Sage</span>
-          </div>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className="spp-share-img"
+          src={`/proof/${proof.txHash}/opengraph-image`}
+          alt="Shareable payout proof card"
+          width={1200}
+          height={630}
+        />
       </div>
 
       {/* footer */}

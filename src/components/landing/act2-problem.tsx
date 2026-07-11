@@ -52,10 +52,10 @@ export function Act2Problem() {
           <span className="clx-once-ico">
             <Check size={22} strokeWidth={2.4} />
           </span>
-          <h2 className="clx-once-h">Confirm the policy once.</h2>
+          <h2 className="clx-once-h">Set the limits once.</h2>
           <p className="clx-once-p">
-            One approval sets the budget, the recipients, and the rule. After that
-            the Deputy works inside it — no more prompts, no more keys.
+            One setup fixes the budget, the recipients, and the limits. After that
+            the Deputy works inside its wallet — no more prompts, no more keys.
           </p>
         </div>
       </div>
