@@ -1,9 +1,9 @@
 import { ImageResponse } from "next/og";
-import { getPayoutProof } from "@/lib/deputy/chain";
+import { composeProof, isFoundProof } from "@/lib/deputy/proof";
 import { getCampaignByPayoutTx } from "@/lib/db/campaigns";
 import { siteUrl } from "@/lib/site";
 
-// Reads the real tx (DB + chain), so it runs on the Node runtime.
+// Reads the real tx (DB + chain) via the canonical composer, so it runs on Node.
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -14,29 +14,34 @@ const PAPER = "#F8F9FA";
 const MUTED = "#9BA1A6";
 const SETTLED = "#10B981";
 const BLOCKED = "#EF4444";
+const WARN = "#F59E0B";
 
 const shortTx = (s: string) => (s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s);
 const domain = () => siteUrl().replace(/^https?:\/\//, "");
 
 /**
- * The real share card for /proof/<tx> — ink background, big amount, a
- * SETTLED/BLOCKED chip in the verdict color, the short tx, the branded domain,
- * and "Verify on-chain · Sage". Bound to the real on-chain proof; a generic Sage
- * card renders if the tx can't be read (never a broken image).
+ * The real share card for /proof/<tx> — from THE canonical proof composer, so the
+ * OG image can never disagree with the page. Ink background, big amount, a
+ * verdict chip (SETTLED / BLOCKED / FLAGGED), the short tx and branded domain.
+ * A generic Sage card renders if the tx can't be read (never a broken image).
  */
 export default async function OG({ params }: { params: Promise<{ tx: string }> }) {
   const { tx } = await params;
   const chainId = getCampaignByPayoutTx(tx)?.chainId;
-  const proof = await getPayoutProof(tx, chainId).catch(() => null);
+  const composed = await composeProof(tx, chainId).catch(() => null);
+  const proof = composed && isFoundProof(composed) ? composed : null;
 
+  const mismatch = proof?.state === "commitment_mismatch";
   const settled = proof?.settled ?? false;
-  const accent = !proof ? PAPER : settled ? SETTLED : BLOCKED;
-  const label = proof ? (settled ? "SETTLED" : "BLOCKED") : "SAGE";
-  const amount = proof ? `$${proof.amount.toFixed(2)}` : "Give an agent an allowance";
+  const accent = !proof ? PAPER : mismatch ? WARN : settled ? SETTLED : BLOCKED;
+  const label = proof ? (mismatch ? "FLAGGED" : settled ? "SETTLED" : "BLOCKED") : "SAGE";
+  const amount = proof ? `$${proof.human.amountUsd.toFixed(2)}` : "Give an agent an allowance";
   const sub = proof
-    ? settled
-      ? `paid on ${proof.network}, inside an on-chain policy`
-      : `refused on ${proof.network} — no funds moved`
+    ? mismatch
+      ? `on-chain payment · decision commitment mismatch`
+      : settled
+        ? `paid on ${proof.human.network}${proof.legacy ? " · legacy" : ", inside an on-chain policy"}`
+        : `refused on ${proof.human.network} — no funds moved`
     : "not your keys.";
 
   return new ImageResponse(
@@ -102,7 +107,7 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 27, color: MUTED }}>
           <span style={{ color: PAPER }}>Verify on-chain · Sage</span>
-          <span>{proof ? shortTx(proof.txHash) : domain()}</span>
+          <span>{proof ? shortTx(proof.chain.txHash) : domain()}</span>
         </div>
       </div>
     ),

@@ -15,7 +15,7 @@ vi.mock("@/lib/deputy/signer", () => ({
   submitRequestSpend: vi.fn(),
 }));
 
-import { settleSubmission } from "@/lib/campaigns/settle";
+import { settleSubmission, settleWithRecovery } from "@/lib/campaigns/settle";
 import { ensureVendorApproved, submitRequestSpend } from "@/lib/deputy/signer";
 import {
   createCampaign,
@@ -51,9 +51,22 @@ const storedBrief = (): StoredBrief => ({
 describe("hard sandbox isolation — payment is structurally unreachable", () => {
   it("settleSubmission THROWS for a sandbox campaign, before any chain call", async () => {
     await expect(
-      settleSubmission({ campaign: sandboxCampaign, submission }),
+      settleSubmission({
+        campaign: sandboxCampaign,
+        submission,
+        intentHash: `0x${"1".repeat(64)}`,
+      }),
     ).rejects.toThrow(/sandbox/i);
     // the guard fires first — the signer is never touched
+    expect(ensureVendorApproved).not.toHaveBeenCalled();
+    expect(submitRequestSpend).not.toHaveBeenCalled();
+  });
+
+  it("settleWithRecovery THROWS for a sandbox campaign, before any DB or chain call", async () => {
+    // the durable entry point guards first too — no attempt row is ever written.
+    await expect(
+      settleWithRecovery(sandboxCampaign, submission),
+    ).rejects.toThrow(/sandbox/i);
     expect(ensureVendorApproved).not.toHaveBeenCalled();
     expect(submitRequestSpend).not.toHaveBeenCalled();
   });

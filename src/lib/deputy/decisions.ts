@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/campaigns";
 import type { Decision } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
+import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
 import type { DecisionBrief } from "./brain-core";
 
@@ -29,6 +30,9 @@ export function briefFromRow(row: Decision): DecisionBrief {
     latencyMs: row.latencyMs,
     costUsd: row.costUsd,
     x402PaymentTx: row.x402PaymentTx,
+    // x402_status/x402_reason were added later; historical rows derive honestly.
+    x402Status: deriveStoredX402Status(row.x402Status, row.x402PaymentTx),
+    x402Reason: (row.x402Reason as DecisionBrief["x402Reason"]) ?? null,
   };
 }
 
@@ -67,6 +71,8 @@ export async function ensureDecision(
         ok: false,
         failReason: "no evidence link",
         x402PaymentTx: null as string | null,
+        x402Status: "not_required" as const,
+        x402Reason: null,
       };
 
   const brief = await verifySubmission({
@@ -101,6 +107,8 @@ export async function ensureDecision(
     latencyMs: brief.latencyMs,
     costUsd: brief.costUsd,
     x402PaymentTx: evidence.x402PaymentTx,
+    x402Status: evidence.x402Status,
+    x402Reason: evidence.x402Reason,
   });
 
   if (inserted) {

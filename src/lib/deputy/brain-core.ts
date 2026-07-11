@@ -95,6 +95,13 @@ export interface DecisionBrief extends DecisionBriefContent {
   costUsd: number | null;
   /** RAIL 1: the real GOAT x402 tx that paid for this verification, or null. */
   x402PaymentTx: string | null;
+  /**
+   * RAIL 1 status. Set on the PERSISTED reconstruction (briefFromRow) that every
+   * public surface uses; optional on transient in-memory briefs (pre-persistence,
+   * red-team) where no verification payment was recorded.
+   */
+  x402Status?: import("@/lib/x402/x402-status").X402Status;
+  x402Reason?: import("@/lib/x402/x402-status").X402Reason | null;
 }
 
 /** What we persist in `decisions.brief` (json): the judgment + the deciding provider. */

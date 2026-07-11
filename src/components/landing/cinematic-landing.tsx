@@ -26,10 +26,15 @@ interface Props {
  * all real.
  */
 export function CinematicLanding({ vault, history, network, hasHero, receipt, now }: Props) {
-  const budget = vault?.budget ?? 500;
-  const remaining = vault?.remaining ?? budget;
-  const perTxCap = vault?.perTxCap ?? 25;
+  // Honest vault state: NO fabricated fallbacks. When the live read fails, the
+  // hero says "temporarily unavailable" — it never invents a $500 allowance.
+  const budget = vault?.budget ?? null;
+  const remaining = vault?.remaining ?? null;
+  const perTxCap = vault?.perTxCap ?? null;
 
+  // Act 4 (the receipt feed) and Act 5 (the totals) read the SAME on-chain payout
+  // history, so they can never contradict each other. (The agent profile at
+  // /agents/sage carries the canonical COMBINED, cross-chain track record.)
   const settled = history.filter((h) => h.settled);
   const blocked = history.filter((h) => !h.settled);
   const totalReleased = settled.reduce((s, h) => s + h.amount, 0);

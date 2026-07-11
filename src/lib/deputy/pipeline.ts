@@ -15,6 +15,11 @@ import {
 } from "@/lib/db/campaigns";
 import { findDuplicate } from "./dedup";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
+import {
+  replayHoldReason,
+  requiresReplayProtection,
+  supportsIntentReplayProtection,
+} from "@/lib/deputy/vault-capability";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
@@ -78,6 +83,17 @@ async function preflight(
   if (state.remaining < amount) return { ok: false, reason: "not enough remaining budget" };
   if (state.perTxCap < amount) return { ok: false, reason: "amount exceeds the per-payout cap" };
   if (state.velocityCap < amount) return { ok: false, reason: "amount exceeds the 24h velocity cap" };
+
+  // REAL-MONEY REPLAY SAFETY: on a mainnet chain, the Deputy auto-pays only from a
+  // vault that enforces on-chain intent replay protection (check 7 / isIntentUsed).
+  // A CONFIRMED legacy vault holds with an explicit reason; an UNREADABLE
+  // capability also holds (an RPC failure is not proof the vault is safe). Manual
+  // approval remains available. Testnet vaults are exempt (test USDC).
+  if (requiresReplayProtection(campaign.chainId)) {
+    const support = await supportsIntentReplayProtection(vault, campaign.chainId);
+    const hold = replayHoldReason(support);
+    if (hold) return { ok: false, reason: hold };
+  }
 
   // A founder vault where the recipient isn't allowlisted needs the OWNER's
   // signature — the Deputy never signs governance. Hold for it.

@@ -173,6 +173,13 @@ export async function submitRequestSpend(args: {
   amount: bigint;
   intentHash: Hash;
   chainId?: number;
+  /**
+   * Fired with the tx hash the INSTANT it is broadcast, BEFORE the receipt is
+   * awaited — the crash-critical hook. The durable settle path persists the hash
+   * here so a crash during the wait is recoverable (resume by reading this tx,
+   * never by re-sending). Awaited so the persist completes before we block.
+   */
+  onBroadcast?: (txHash: Hash) => void | Promise<void>;
 }): Promise<RequestSpendResult> {
   const chainId = args.chainId ?? DEFAULT_CHAIN_ID;
   const txHash = await sendVaultWrite(chainId, {
@@ -180,7 +187,21 @@ export async function submitRequestSpend(args: {
     functionName: "requestSpend",
     args: [args.vendor, args.amount, args.intentHash],
   });
+  if (args.onBroadcast) await args.onBroadcast(txHash);
+  return awaitSpendOutcome(txHash, chainId);
+}
 
+/**
+ * Await a broadcast `requestSpend` tx and DECODE the vault's own event — the
+ * single source of truth. Reused for both the fresh broadcast (above) and the
+ * crash-recovery resume (reading a tx whose outcome was never persisted). The
+ * contract soft-rejects (never reverts) on a policy failure, so success + a
+ * `SpendRejected` log is the expected "rejected" path.
+ */
+export async function awaitSpendOutcome(
+  txHash: Hash,
+  chainId: number = DEFAULT_CHAIN_ID,
+): Promise<RequestSpendResult> {
   const receipt = await publicClient(chainId).waitForTransactionReceipt({ hash: txHash });
   const explorerUrl = explorerTxUrl(chainId, txHash);
 

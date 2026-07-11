@@ -415,6 +415,46 @@ export async function getVendorAddTimelock(
   return Number(v);
 }
 
+/**
+ * Replay guard (check 7): has this exact committed intent already settled on the
+ * vault? A used intent can never move funds again. The crash-recovery path reads
+ * this before ever re-broadcasting a payout whose outcome it lost.
+ */
+export async function isIntentUsed(
+  vault: Address,
+  intentHash: Hash,
+  chainId?: number,
+): Promise<boolean> {
+  return (await publicClient(chainId).readContract({
+    address: getAddress(vault),
+    abi: policyVaultAbi,
+    functionName: "isIntentUsed",
+    args: [intentHash],
+  })) as boolean;
+}
+
+/**
+ * Find the tx that settled a given committed intent, via the indexed `intentHash`
+ * topic on SpendSettled. Returns null if the intent has not settled. Recovery uses
+ * this when `isIntentUsed` says an intent settled but the broadcast tx hash was
+ * lost (a crash between sending the tx and persisting its hash).
+ */
+export async function findSettleTxByIntent(
+  vault: Address,
+  intentHash: Hash,
+  chainId?: number,
+): Promise<Hash | null> {
+  const logs = await publicClient(chainId).getContractEvents({
+    address: getAddress(vault),
+    abi: policyVaultAbi,
+    eventName: "SpendSettled",
+    args: { intentHash },
+    fromBlock: "earliest",
+    toBlock: "latest",
+  });
+  return logs[0]?.transactionHash ?? null;
+}
+
 /* ─────────────────────────────────────────── payout history (events) ───── */
 
 /** One on-chain payout decision, settled or blocked, read from the vault log. */
@@ -532,9 +572,13 @@ export interface PayoutProof {
   blockNumber: number;
   failedCheckIndex: number | null;
   vault: Address;
+  /** the address that called requestSpend (the tx sender) — the Deputy's operator. */
+  operator: Address;
   perTxCap: number;
   budget: number;
   remaining: number;
+  /** the 24h velocity cap (whole USDC), from live vault policy. */
+  velocityCap: number;
   /** the chain this payout is on — drives the network chip + explorer links. */
   chainId: number;
   network: string;
@@ -586,9 +630,11 @@ export async function getPayoutProof(
       blockNumber: Number(receipt.blockNumber),
       failedCheckIndex: settled ? null : Number(args.failedCheckIndex ?? 0),
       vault: vaultAddr,
+      operator: getAddress(receipt.from),
       perTxCap: state.perTxCap,
       budget: state.budget,
       remaining: state.remaining,
+      velocityCap: state.velocityCap,
       chainId: cfg.chainId,
       network: cfg.name,
       explorerUrl: chainExplorerTxUrl(cfg.chainId, txHash),

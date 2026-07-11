@@ -211,7 +211,7 @@ export function announceSettledText(a: SettledAnnounce): string {
 
 export interface BlockedAnnounce {
   title: string;
-  /** the vault's SpendRejected check (1..6), when the block reached the chain. */
+  /** the vault's SpendRejected check (1..7), when the block reached the chain. */
   failedCheckIndex?: number | null;
   url: string;
 }

@@ -15,6 +15,8 @@ vi.mock("@/lib/deputy/signer", () => ({
 import { settleSubmission } from "./settle";
 import { ensureVendorApproved, submitRequestSpend } from "@/lib/deputy/signer";
 
+const INTENT = `0x${"1".repeat(64)}` as `0x${string}`;
+
 const submission = {
   id: "s1",
   wallet: `0x${"a".repeat(40)}`,
@@ -47,7 +49,11 @@ beforeEach(() => {
 
 describe("settleSubmission — passes the campaign's chainId to the signer", () => {
   it("settles a GOAT (2345) campaign on chain 2345", async () => {
-    const out = await settleSubmission({ campaign: campaignOn(2345), submission });
+    const out = await settleSubmission({
+      campaign: campaignOn(2345),
+      submission,
+      intentHash: INTENT,
+    });
     expect(out.settled).toBe(true);
     expect(ensureVendorApproved).toHaveBeenCalledWith(
       expect.any(String),
@@ -60,7 +66,11 @@ describe("settleSubmission — passes the campaign's chainId to the signer", () 
   });
 
   it("settles a Metis Sepolia (59902) campaign on chain 59902", async () => {
-    await settleSubmission({ campaign: campaignOn(59902), submission });
+    await settleSubmission({
+      campaign: campaignOn(59902),
+      submission,
+      intentHash: INTENT,
+    });
     expect(ensureVendorApproved).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(String),

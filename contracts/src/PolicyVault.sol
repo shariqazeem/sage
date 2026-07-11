@@ -46,6 +46,9 @@ contract PolicyVault is IPolicyVault, ReentrancyGuard {
 
     mapping(address vendor => bool approved) private _approvedVendors;
     mapping(address vendor => uint256 readyAt) private _pendingVendorReadyAt;
+    // G7 replay protection: a committed payout intent settles at most once. Set
+    // only on the successful settlement path; never cleared, never owner-mutable.
+    mapping(bytes32 intentHash => bool used) private _usedIntents;
 
     /* ------------------------------------------------------------ modifiers */
 
@@ -145,8 +148,18 @@ contract PolicyVault is IPolicyVault, ReentrancyGuard {
         if (windowSpend + amount > _dailyVelocityCap) {
             return _reject(vendor, amount, intentHash, 6);
         }
+        // 7. replay (G7) — this exact committed intent already settled. Checked
+        //    AFTER checks 1-6 so a policy-rejected intent is never consumed and
+        //    stays retryable once its condition is resolved; and BEFORE effects so
+        //    a used intent can never move funds again.
+        if (_usedIntents[intentHash]) {
+            return _reject(vendor, amount, intentHash, 7);
+        }
 
-        // effects (before interaction) — keeps invariants under reentrancy
+        // effects (before interaction) — keeps invariants under reentrancy.
+        // Consume the intent FIRST (checks-effects-interactions): the replay
+        // backstop is set before the external ERC-20 transfer.
+        _usedIntents[intentHash] = true;
         _totalSpent += amount;
         unchecked {
             ++_spendCount;
@@ -338,6 +351,11 @@ contract PolicyVault is IPolicyVault, ReentrancyGuard {
     /// @inheritdoc IPolicyVault
     function getOperator() external view override returns (address) {
         return i_operator;
+    }
+
+    /// @inheritdoc IPolicyVault
+    function isIntentUsed(bytes32 intentHash) external view override returns (bool) {
+        return _usedIntents[intentHash];
     }
 
     /// @inheritdoc IPolicyVault

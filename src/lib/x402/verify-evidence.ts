@@ -3,6 +3,7 @@ import "server-only";
 import { fetchEvidence } from "@/lib/deputy/evidence";
 import { isX402Live, VERIFICATION_FEE_USD } from "./facilitator";
 import { payAndCall } from "./payer";
+import { classifyX402Failure, type X402Reason, type X402Status } from "./x402-status";
 
 /** The base URL for the server calling its own paywalled evidence endpoint. */
 function internalBaseUrl(): string {
@@ -17,6 +18,10 @@ export interface VerifiedEvidence {
   failReason?: string;
   /** the real GOAT x402 tx that paid for this verification, or null. */
   x402PaymentTx: string | null;
+  /** the truthful RAIL-1 status of this verification's payment. */
+  x402Status: X402Status;
+  /** a sanitized reason code when the live payment fell back, else null. */
+  x402Reason: X402Reason | null;
 }
 
 /**
@@ -35,6 +40,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       ok: ev.ok,
       failReason: ev.failReason,
       x402PaymentTx: null,
+      x402Status: "not_configured",
+      x402Reason: null,
     };
   }
   try {
@@ -54,6 +61,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       ok: result.ok,
       failReason: result.failReason ?? undefined,
       x402PaymentTx: paymentTx,
+      x402Status: "paid",
+      x402Reason: null,
     };
   } catch (err) {
     // Non-blocking by design — log a one-line reason, never the full viem stack.
@@ -68,6 +77,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       ok: ev.ok,
       failReason: ev.failReason,
       x402PaymentTx: null,
+      x402Status: "live_fallback",
+      x402Reason: classifyX402Failure(msg),
     };
   }
 }

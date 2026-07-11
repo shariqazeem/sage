@@ -42,7 +42,7 @@ export function Act3Vault({
   perTxCap,
 }: {
   receipt: LandingReceipt | null;
-  perTxCap: number;
+  perTxCap: number | null;
 }) {
   return receipt ? <Act3Think receipt={receipt} /> : <Act3Rail perTxCap={perTxCap} />;
 }
@@ -92,7 +92,7 @@ function Act3Think({ receipt }: { receipt: LandingReceipt }) {
 }
 
 /* ── fallback: the on-chain check rail (real, honest, no-receipt state) ──── */
-function Act3Rail({ perTxCap }: { perTxCap: number }) {
+function Act3Rail({ perTxCap }: { perTxCap: number | null }) {
   const indices = [1, 2, 3, 4, 5, 6];
   return (
     <section className="clx-act clx-act3" aria-label="How the wallet works">
@@ -128,7 +128,7 @@ function CheckRow({
 }: {
   index: number;
   blocked: boolean;
-  perTxCap: number;
+  perTxCap: number | null;
 }) {
   const { ref, inView } = useInView<HTMLLIElement>({ threshold: 0.5 });
   const state = inView ? (blocked ? "blocked" : "verified") : "idle";
@@ -144,7 +144,7 @@ function CheckRow({
           {blocked ? CHECK_REASONS[index] : CHECK_NAMES[index]}
         </span>
       </span>
-      {blocked && (
+      {blocked && perTxCap != null && (
         <span className="clx-check-chip clx-mono">
           limit {usd(perTxCap)}
         </span>

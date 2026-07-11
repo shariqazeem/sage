@@ -32,11 +32,12 @@ export function Act1Hero({
   networkName,
   hasHero,
 }: {
-  remaining: number;
-  budget: number;
+  remaining: number | null;
+  budget: number | null;
   networkName: string;
   hasHero: boolean;
 }) {
+  const vaultReadable = remaining != null && budget != null;
   const mediaRef = useRef<HTMLDivElement>(null);
 
   // parallax: the hero media lags the page at 0.9x. Passive + rAF-throttled;
@@ -92,12 +93,25 @@ export function Act1Hero({
 
           <div className="clx-hero-balance">
             <span className="clx-bal-k clx-mono">Live wallet balance</span>
-            <span className="clx-bal-v">
-              <CountUpLanding value={remaining} format={usd} duration={1600} />
-            </span>
-            <span className="clx-bal-sub clx-mono">
-              of {usd(budget)} allowance · {networkName}
-            </span>
+            {vaultReadable ? (
+              <>
+                <span className="clx-bal-v">
+                  <CountUpLanding value={remaining} format={usd} duration={1600} />
+                </span>
+                <span className="clx-bal-sub clx-mono">
+                  of {usd(budget)} allowance · {networkName}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="clx-bal-v" style={{ fontSize: "0.62em" }}>
+                  Temporarily unavailable
+                </span>
+                <span className="clx-bal-sub clx-mono">
+                  live vault read failed · {networkName}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="clx-hero-actions">

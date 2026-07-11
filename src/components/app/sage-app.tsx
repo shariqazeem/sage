@@ -411,7 +411,7 @@ export function SageApp(props: Props) {
                   )}
                 </div>
                 <div className="sage-onb-fine">
-                  Takes about a minute · You confirm only once
+                  Takes about a minute · Configure the mandate once
                 </div>
               </div>
             )}

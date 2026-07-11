@@ -1,7 +1,7 @@
 /**
  * SpendRejected.failedCheckIndex → human reason. Mirrors the contract's check
- * order exactly (1=state, 2=caller, 3=vendor, 4=amount, 5=budget, 6=velocity).
- * Pure and shared by every path that surfaces a soft-reject (payout, settle).
+ * order exactly (1=state, 2=caller, 3=vendor, 4=amount, 5=budget, 6=velocity,
+ * 7=replay). Pure and shared by every path that surfaces a soft-reject.
  */
 export const CHECK_REASONS: Record<number, string> = {
   1: "the vault is paused, expired, or revoked",
@@ -10,6 +10,7 @@ export const CHECK_REASONS: Record<number, string> = {
   4: "the amount exceeds the per-payout cap",
   5: "the payout would exceed the remaining budget",
   6: "the payout would exceed the 24h velocity cap",
+  7: "this committed payout intent has already settled",
 };
 
 /**
@@ -25,6 +26,7 @@ export const CHECK_NAMES: Record<number, string> = {
   4: "Per-payout cap",
   5: "Remaining budget",
   6: "24h velocity cap",
+  7: "Replay guard",
 };
 
 export function failedCheckReason(index: number | null | undefined): string {

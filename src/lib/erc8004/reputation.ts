@@ -2,16 +2,19 @@ import "server-only";
 
 import {
   listAllDecisions,
+  listCampaigns,
   listEventsByKinds,
   listPaidRecipientWallets,
   listRecentDecisions,
   sumSettledFeesBase,
 } from "@/lib/db/campaigns";
+import { chainConfig } from "@/lib/deputy/networks";
 import { agentAddress, hasAgentKey } from "@/lib/x402/goat-pay";
 import type { BriefRecommendation } from "@/lib/deputy/brain-core";
 import type { EventKind } from "@/lib/db/schema";
 import { getAgentIdentity, type AgentIdentity } from "./identity";
 import {
+  aggregateByChain,
   deriveReputation,
   toReceipts,
   type AgentReceipt,
@@ -29,16 +32,52 @@ import {
 /** Event kinds that constitute the payout record (settled money moved or was blocked). */
 const PAYOUT_KINDS: EventKind[] = ["settled", "autopay_settled", "blocked"];
 
-/** Read the payout journal and adapt it to the deriver's lean event shape. */
+/** Read the payout journal and adapt it to the deriver's lean event shape.
+ *  Each event is tagged with its campaign's chainId so the dedup key is
+ *  chainId+tx and a per-chain split is possible (testnet ≠ mainnet). */
 function readRepEvents(): RepEvent[] {
+  const chainById = new Map(listCampaigns().map((c) => [c.id, c.chainId]));
   return listEventsByKinds(PAYOUT_KINDS).map((e) => ({
     kind: e.kind,
     amount: e.amount,
     txHash: e.txHash,
     campaignId: e.campaignId,
+    chainId: chainById.get(e.campaignId) ?? null,
     createdAt: e.createdAt,
     failedCheckIndex: e.failedCheckIndex,
   }));
+}
+
+/** One chain's slice of the settled record — never mixes testnet with mainnet. */
+export interface ChainRecord {
+  chainId: number;
+  network: string;
+  isMainnet: boolean;
+  settledUsd: number;
+  payouts: number;
+  blocks: number;
+}
+
+/**
+ * The agent's record split BY CHAIN — so a combined total can be shown as
+ * explicitly combined, and a GOAT-mainnet figure never silently includes Metis
+ * Sepolia test USDC. Deduped by chainId+tx. Rows with an unknown chain are
+ * dropped from the split (they still count in the combined total).
+ */
+export function getAgentChainSplit(): ChainRecord[] {
+  return [...aggregateByChain(readRepEvents()).entries()]
+    .map(([chainId, v]) => {
+      const cfg = chainConfig(chainId);
+      return {
+        chainId,
+        network: cfg.name,
+        isMainnet: cfg.isMainnet,
+        settledUsd: v.settledBase / 1_000_000,
+        payouts: v.payouts,
+        blocks: v.blocks,
+      };
+    })
+    .sort((a, b) => Number(b.isMainnet) - Number(a.isMainnet) || b.settledUsd - a.settledUsd);
 }
 
 function readDecisionStats(): { engine: string; confidence: number }[] {
@@ -83,6 +122,8 @@ export interface AgentProfile {
   reputation: AgentReputation;
   receipts: AgentReceipt[];
   recentDecisions: RecentDecisionSummary[];
+  /** the record split by chain — so the combined total is shown as combined. */
+  chainSplit: ChainRecord[];
 }
 
 export function getAgentProfile(
@@ -98,6 +139,7 @@ export function getAgentProfile(
     }),
     receipts: toReceipts(events, receiptLimit),
     recentDecisions: getRecentDecisions(decisionLimit),
+    chainSplit: getAgentChainSplit(),
   };
 }
 

@@ -36,7 +36,7 @@ export function chargeOperatorFee(
         campaignId: meta.campaignId,
         submissionId: meta.submissionId ?? null,
         kind: "fee_pending",
-        detail: `operator fee 0.1 USDC — ${isX402Live() ? "queued" : "pending merchant approval"}`,
+        detail: `operator fee 0.1 USDC — ${isX402Live() ? "queued" : "x402 rail not configured"}`,
       });
     }
   } catch (err) {

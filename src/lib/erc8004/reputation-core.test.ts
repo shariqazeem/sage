@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventKind } from "@/lib/db/schema";
 import {
+  aggregateByChain,
   deriveReputation,
   toReceipts,
   type RepDecision,
@@ -13,6 +14,7 @@ function ev(kind: EventKind, over: Partial<RepEvent> = {}): RepEvent {
     amount: over.amount ?? null,
     txHash: over.txHash ?? null,
     campaignId: over.campaignId ?? "c1",
+    chainId: over.chainId ?? null,
     createdAt: over.createdAt ?? 1000,
     failedCheckIndex: over.failedCheckIndex ?? null,
   };
@@ -129,5 +131,47 @@ describe("toReceipts — verifiable, tx-linkable, newest first", () => {
   it("caps at the requested limit", () => {
     expect(toReceipts(events, 1)).toHaveLength(1);
     expect(toReceipts(events, 1)[0].txHash).toBe("0x2");
+  });
+
+  it("dedupes one payout that emitted settled + autopay_settled (same tx) into ONE receipt", () => {
+    const dup: RepEvent[] = [
+      ev("settled", { amount: 500_000, txHash: "0xpay", createdAt: 100 }),
+      ev("autopay_settled", { amount: 500_000, txHash: "0xpay", createdAt: 101 }),
+    ];
+    const r = toReceipts(dup);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ settled: true, txHash: "0xpay" });
+  });
+
+  it("keys receipts by chainId+tx — the same tx on two chains is two receipts", () => {
+    const cross: RepEvent[] = [
+      ev("settled", { amount: 500_000, txHash: "0xsame", chainId: 59902, createdAt: 100 }),
+      ev("settled", { amount: 500_000, txHash: "0xsame", chainId: 2345, createdAt: 101 }),
+    ];
+    expect(toReceipts(cross)).toHaveLength(2);
+  });
+});
+
+describe("aggregateByChain — never silently mixes testnet with mainnet", () => {
+  it("splits settled/blocked per chain, mainnet total excludes testnet", () => {
+    const events: RepEvent[] = [
+      ev("settled", { amount: 500_000, txHash: "0xg1", chainId: 2345, createdAt: 100 }), // GOAT mainnet
+      ev("autopay_settled", { amount: 500_000, txHash: "0xg1", chainId: 2345, createdAt: 101 }), // dup of 0xg1
+      ev("settled", { amount: 3_000_000, txHash: "0xm1", chainId: 59902, createdAt: 90 }), // Metis testnet
+      ev("blocked", { amount: 0, txHash: "0xm2", chainId: 59902, createdAt: 80, failedCheckIndex: 4 }),
+    ];
+    const split = aggregateByChain(events);
+    expect(split.get(2345)).toEqual({ settledBase: 500_000, payouts: 1, blocks: 0 }); // dup counted once
+    expect(split.get(59902)).toEqual({ settledBase: 3_000_000, payouts: 1, blocks: 1 });
+    // the mainnet figure does not include the 3 USDC testnet payout
+    expect(split.get(2345)!.settledBase).toBe(500_000);
+  });
+
+  it("excludes rows with an unknown chain or no tx from the split", () => {
+    const events: RepEvent[] = [
+      ev("settled", { amount: 1_000_000, txHash: "0xa", chainId: null, createdAt: 10 }), // unknown chain
+      ev("settled", { amount: 1_000_000, txHash: null, chainId: 2345, createdAt: 20 }), // no tx
+    ];
+    expect(aggregateByChain(events).size).toBe(0);
   });
 });

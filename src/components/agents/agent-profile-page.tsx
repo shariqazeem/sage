@@ -17,7 +17,7 @@ import type {
   AgentReceipt,
   AgentReputation,
 } from "@/lib/erc8004/reputation-core";
-import type { RecentDecisionSummary } from "@/lib/erc8004/reputation";
+import type { RecentDecisionSummary, ChainRecord } from "@/lib/erc8004/reputation";
 import { JailbreakBox } from "./jailbreak-box";
 import { PnLPanel, type PnLView } from "./pnl-panel";
 
@@ -56,6 +56,7 @@ export function AgentProfilePage({
   identity,
   wallet,
   reputation: r,
+  chainSplit,
   receipts,
   recentDecisions,
   ledger,
@@ -64,12 +65,14 @@ export function AgentProfilePage({
   identity: AgentIdentity;
   wallet: string | null;
   reputation: AgentReputation;
+  chainSplit: ChainRecord[];
   receipts: AgentReceipt[];
   recentDecisions: RecentDecisionSummary[];
   ledger: AttackLedgerView;
   pnl: PnLView;
 }) {
   const registered = identity.registered;
+  const multiChain = chainSplit.length > 1;
   const engineMix =
     r.decisionCount > 0
       ? `${r.engineMix.llm} LLM · ${r.engineMix.heuristic} heuristic`
@@ -145,17 +148,18 @@ export function AgentProfilePage({
           {registered ? (
             <>
               This Deputy verifies submitted work, reasons about it, and pays real
-              people in USDC — or gets blocked trying. Its ERC-8004 identity{" "}
-              <b className="mono">#{identity.agentId}</b> on {identity.network} is why
-              you can trust the record below: every row is a real settled payout or
-              block, nothing self-asserted.
+              people in USDC — or gets blocked trying. Linked to ERC-8004 identity{" "}
+              <b className="mono">#{identity.agentId}</b> on {identity.network}; the
+              performance shown here is derived from Sage&apos;s verifiable
+              transaction journal — every row is a real settled payout or block you
+              can check on-chain, not a score stored in a registry.
             </>
           ) : (
             <>
               The identity registers on {identity.network} (chain {identity.chainId})
-              once its signing wallet has gas. Its reputation is already accruing
-              from real on-chain payouts — it anchors to the identity the moment it
-              mints.
+              once its signing wallet has gas. The performance shown here is already
+              derived from Sage&apos;s verifiable on-chain transaction journal; it
+              links to the ERC-8004 identity the moment it mints.
             </>
           )}
         </p>
@@ -170,7 +174,23 @@ export function AgentProfilePage({
               <div className="sag-stat-sub">Active since {dateOf(r.firstActivityAt)}</div>
             )}
           </div>
-          <div className="sag-stat-k">Total USDC settled on-chain to real recipients</div>
+          <div className="sag-stat-k">
+            Total USDC settled on-chain to real recipients
+            {multiChain ? " · combined across networks" : ""}
+          </div>
+          {chainSplit.length > 0 && (
+            <div className="sag-chainsplit">
+              {chainSplit.map((c) => (
+                <span key={c.chainId} className="sag-chainrow mono">
+                  <span className={`sag-chaintag ${c.isMainnet ? "main" : "test"}`}>
+                    {c.isMainnet ? "mainnet" : "testnet"}
+                  </span>
+                  {c.network} · ${c.settledUsd.toFixed(2)} · {c.payouts} paid
+                  {c.blocks > 0 ? ` · ${c.blocks} blocked` : ""}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <Stat value={r.payoutCount} label="Payouts released" />

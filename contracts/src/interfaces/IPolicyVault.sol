@@ -57,22 +57,26 @@ interface IPolicyVault {
     event DailyVelocityCapLowered(uint256 newCap);
 
     /// @notice Emitted when a spend passes every policy check and settles.
+    /// @dev `intentHash` is indexed so a settlement can be located on-chain by
+    ///      its committed payout intent (crash-recovery reconciliation).
     event SpendSettled(
         address indexed vendor,
         uint256 amount,
-        bytes32 intentHash,
+        bytes32 indexed intentHash,
         uint256 timestamp,
         uint256 totalSpentAfter,
         uint256 budgetRemaining
     );
 
     /// @notice Emitted when a spend is rejected. `failedCheckIndex`:
-    ///         1=state, 2=caller, 3=vendor, 4=amount, 5=budget, 6=velocity.
+    ///         1=state, 2=caller, 3=vendor, 4=amount, 5=budget, 6=velocity,
+    ///         7=replay (this committed intent already settled).
     ///         Lets the frontend reconstruct the Gate replay.
+    /// @dev `intentHash` is indexed (see SpendSettled).
     event SpendRejected(
         address indexed vendor,
         uint256 amount,
-        bytes32 intentHash,
+        bytes32 indexed intentHash,
         uint256 timestamp,
         uint8 failedCheckIndex,
         uint256 totalSpentSoFar,
@@ -120,4 +124,8 @@ interface IPolicyVault {
     function getExpiryTime() external view returns (uint256);
     function isExpired() external view returns (bool);
     function getRollingDailySpend() external view returns (uint256);
+
+    /// @notice True once the exact committed intent hash has settled. Replay
+    ///         protection (check 7): a used intent can never settle again.
+    function isIntentUsed(bytes32 intentHash) external view returns (bool);
 }

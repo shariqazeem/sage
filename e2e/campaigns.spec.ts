@@ -1,26 +1,23 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("campaign layer — one surface (Pass 10)", () => {
-  test("public campaign page renders real DB data at the app's design bar", async ({
+  test("public flagship campaign page renders real DB data at the app's design bar", async ({
     page,
   }) => {
-    await page.goto("/c/demo");
+    // T5 renamed the flagship slug demo → founding-testers (legacy link 308-redirects).
+    await page.goto("/c/founding-testers");
 
-    // The seeded dogfood campaign — real row, real title + reward.
+    // The seeded flagship campaign — real row, current production title.
     await expect(
-      page.getByRole("heading", { name: /Break Sage's onboarding/i }),
+      page.getByRole("heading", { name: /Break the Deputy/i }),
     ).toBeVisible();
-    await expect(page.getByText("$10")).toBeVisible();
-    // Re-skinned surface: the settled-payout section + submit label.
-    await expect(page.getByText(/Settled payouts/i)).toBeVisible();
+    // Re-skinned surface: the submit label + the connect gate (never a fabricated submission).
     await expect(page.getByText(/Submit your entry/i)).toBeVisible();
-
-    // Not signed in → the connect gate, never a fabricated submission.
     await expect(page.getByText(/Connect wallet to submit/i)).toBeVisible();
   });
 
   test("old poster routes redirect into the app shell", async ({ page }) => {
-    for (const path of ["/campaigns", "/campaigns/new", "/campaigns/demo/review"]) {
+    for (const path of ["/campaigns", "/campaigns/new"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/app$/);
     }

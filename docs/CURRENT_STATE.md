@@ -158,17 +158,72 @@ never wrong with money.
 Solidity + Foundry (`contracts/PolicyVault.sol`, `PolicyVaultFactory.sol`), read/
 written via viem behind one adapter (`src/lib/deputy/chain.ts`, `signer.ts`).
 
-### 4.1 The six checks
+### 4.1 The seven checks
 
-Every `requestSpend` runs six checks in contract order; a failure emits
-`SpendRejected(failedCheckIndex 1..6)` and **moves no funds** (it does *not*
-revert — a graceful rejection, logged on-chain forever). Roughly: **1** vault
-active (not paused/expired/revoked), **3** vendor approved, **4** per-transaction
-cap, **5** remaining budget, plus velocity + validity. Pass all six → `Spent`,
-USDC transfers.
+Every `requestSpend` runs its checks in contract order; a failure emits
+`SpendRejected(failedCheckIndex 1..7)` and **moves no funds** (it does *not*
+revert — a graceful rejection, logged on-chain forever). **1** vault active (not
+paused/expired/revoked), **2** authorized caller, **3** vendor approved, **4**
+per-transaction cap, **5** remaining budget, **6** 24h velocity cap, and **7 the
+replay guard** — this exact committed intent has not already settled. Checks 1–6
+are the configurable *policy mandate* (the six spending limits a legitimate
+payment passes); check 7 is an anti-double-pay safety invariant. Pass all seven →
+`SpendSettled`, USDC transfers.
 
 > This is why a blocked/overspend tx reads "Success" on the explorer — the tx
 > executed; the `SpendRejected` event *is* the refusal. `/proof/<tx>` says so.
+
+### 4.4 Real-money settlement safety (see `docs/PAYOUT_INVARIANTS.md`)
+
+The payout path is defended in depth so every settlement is **at-most-once**,
+**bound to the AI decision that authorized it**, and **always recorded** — even
+across a crash:
+
+- **Replay guard (on-chain).** Check 7 consumes an intent hash before the ERC-20
+  transfer (Checks-Effects-Interactions); a used intent can never move funds
+  again, and there is no setter to clear it. `SpendSettled`/`SpendRejected` carry
+  an **indexed** `intentHash` so any settlement is locatable on-chain.
+- **Decision commitment (off-chain).** `payout-commitment.ts` hashes the exact
+  decision (recommendation, confidence, the criteria + verbatim quotes, fraud
+  signals, model/provider, recipient, amount) into a `decisionDigest` via
+  canonical ABI encoding, and the on-chain intent is derived from it. Change any
+  committed field and the intent changes — a payout cannot be re-pointed at a
+  different recipient/amount or a weaker judgment.
+- **Durable attempt ledger (crash recovery).** `settlement_attempts` holds one row
+  per intent; the tx hash is persisted the instant it is broadcast, and
+  `settleWithRecovery` resumes from the persisted attempt (read the tx / verify
+  `isIntentUsed`) instead of ever blind-resending.
+
+Verified by `forge test` (replay invariants) plus `payout-commitment.test.ts`,
+`settlement-attempts.test.ts`, and `settle-recovery.test.ts`.
+
+> **Deployment note.** Replay protection + `isIntentUsed` exist only on vaults
+> deployed from the *updated* `PolicyVault`. Vaults deployed before that upgrade
+> (any pre-existing live GOAT/Metis vaults) lack check 7. The app now **enforces**
+> this: on a mainnet chain the autopilot preflight probes
+> `supportsIntentReplayProtection` and **HOLDS** for manual approval on a confirmed
+> legacy vault (or an unreadable one) — it will not auto-pay real money from a vault
+> that can't guarantee an intent settles at most once on-chain. The app-side ledger
+> (Layer 3) still prevents re-pay for the common cases; the on-chain backstop
+> (Layer 1) arrives when a vault is redeployed from the upgraded contract. New
+> vaults get it automatically. This distinction — *application-ledger recovery* vs.
+> *contract replay protection* — is kept explicit in the public copy.
+
+### 4.5 The public proof (composer)
+
+Every proof surface (the `/proof/[tx]` page, `GET /api/proof/[tx]`, the OG image,
+the agent profile) reads ONE canonical composer, `composeProof(tx)`
+(`src/lib/deputy/proof.ts`). It joins the chain receipt + decoded event, the
+durable settlement attempt, the campaign, the submission, the stored decision, the
+DecisionCommitmentV1 recomputation, and the vault capability, and returns an
+explicit proof **state** (committed / legacy / mismatch / incomplete / not-found).
+A committed proof recomputes the decision digest and compares three intent sources
+(recomputed, stored, on-chain); *"Decision committed on-chain"* shows only when all
+three agree, and a mismatch renders an integrity warning that can never read as
+verified. Legacy payouts are honestly labelled as payment proofs, not
+decision-commitment proofs. The x402 verification status is an explicit typed model
+(`paid | live_fallback | not_configured | not_required | legacy_unknown`), so a null
+payment tx is never mislabelled as "pending". See `docs/PAYOUT_INVARIANTS.md`.
 
 ### 4.2 State machine + a lesson learned
 

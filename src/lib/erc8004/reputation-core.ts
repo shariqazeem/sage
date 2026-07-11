@@ -25,10 +25,25 @@ export interface RepEvent {
   amount: number | null;
   txHash: string | null;
   campaignId: string;
+  /** the chain this payout settled on — part of a receipt's on-chain identity. */
+  chainId?: number | null;
   /** unix seconds. */
   createdAt: number;
-  /** SpendRejected.failedCheckIndex (1..6) for blocked, else null. */
+  /** SpendRejected.failedCheckIndex (1..7) for blocked, else null. */
   failedCheckIndex?: number | null;
+}
+
+/**
+ * A payout's on-chain identity: `chainId:txHash`. One real settlement can emit
+ * several journal rows (settle-flow's `settled` PLUS the pipeline's
+ * `autopay_settled`, or a chain reconciliation) — they share this key, so it
+ * dedupes a single payout to a single count and a single receipt. A tx hash is
+ * already globally unique (EIP-155 binds the chainId into the signature), so
+ * txHash alone is a sound fallback when the chain is unknown.
+ */
+function receiptKey(e: { chainId?: number | null; txHash: string | null }): string {
+  const tx = e.txHash ?? "";
+  return e.chainId != null ? `${e.chainId}:${tx}` : tx;
 }
 
 /** The lean decision shape the deriver needs. */
@@ -104,8 +119,8 @@ export function deriveReputation(input: ReputationInput): AgentReputation {
   const campaigns = new Set<string>();
   // One on-chain payout/block can emit several journal rows (settle-flow's
   // `settled` PLUS the pipeline's `autopay_settled` for an autopilot payout, or
-  // chain reconciliation). Dedupe by tx so a single on-chain event is counted —
-  // and valued — exactly once; the record must never inflate itself.
+  // chain reconciliation). Dedupe by chainId+tx so a single on-chain event is
+  // counted — and valued — exactly once; the record must never inflate itself.
   const seenSettleTx = new Set<string>();
   const seenBlockTx = new Set<string>();
 
@@ -116,15 +131,17 @@ export function deriveReputation(input: ReputationInput): AgentReputation {
 
     if (isSettled) {
       if (e.txHash) {
-        if (seenSettleTx.has(e.txHash)) continue;
-        seenSettleTx.add(e.txHash);
+        const key = receiptKey(e);
+        if (seenSettleTx.has(key)) continue;
+        seenSettleTx.add(key);
       }
       payoutCount += 1;
       settledTotalBase += e.amount ?? 0;
     } else {
       if (e.txHash) {
-        if (seenBlockTx.has(e.txHash)) continue;
-        seenBlockTx.add(e.txHash);
+        const key = receiptKey(e);
+        if (seenBlockTx.has(key)) continue;
+        seenBlockTx.add(key);
       }
       blockedCount += 1;
     }
@@ -171,6 +188,46 @@ export function deriveReputation(input: ReputationInput): AgentReputation {
   };
 }
 
+/** One chain's aggregated slice, deduped by tx within that chain. */
+export interface ChainAgg {
+  settledBase: number;
+  payouts: number;
+  blocks: number;
+}
+
+/**
+ * Aggregate the record BY chain — so a combined total can be shown as combined
+ * and a mainnet figure never silently includes testnet. Events with an unknown
+ * chain or no tx are excluded from the split (they still count in the combined
+ * total via {@link deriveReputation}). Deduped by tx within each chain. Pure.
+ */
+export function aggregateByChain(events: RepEvent[]): Map<number, ChainAgg> {
+  const acc = new Map<number, ChainAgg & { seen: Set<string> }>();
+  for (const e of events) {
+    if (e.chainId == null || !e.txHash) continue;
+    const settled = SETTLED_KINDS.has(e.kind);
+    const blocked = e.kind === "blocked";
+    if (!settled && !blocked) continue;
+    const slot =
+      acc.get(e.chainId) ?? { settledBase: 0, payouts: 0, blocks: 0, seen: new Set<string>() };
+    if (!slot.seen.has(e.txHash)) {
+      slot.seen.add(e.txHash);
+      if (settled) {
+        slot.payouts += 1;
+        slot.settledBase += e.amount ?? 0;
+      } else {
+        slot.blocks += 1;
+      }
+    }
+    acc.set(e.chainId, slot);
+  }
+  const out = new Map<number, ChainAgg>();
+  for (const [chainId, v] of acc) {
+    out.set(chainId, { settledBase: v.settledBase, payouts: v.payouts, blocks: v.blocks });
+  }
+  return out;
+}
+
 /** A public receipt for the agent page — a real settled/blocked tx, proof-linkable. */
 export interface AgentReceipt {
   settled: boolean;
@@ -186,11 +243,21 @@ export interface AgentReceipt {
 /**
  * Map real events to public receipts — only those carrying a tx hash (so every
  * receipt links to a verifiable `/proof/<tx>`), newest first, capped at `limit`.
+ * Deduped by chainId+tx so a payout that emitted both `settled` and
+ * `autopay_settled` is ONE receipt, not two — the public list never shows the
+ * same on-chain payment twice.
  */
 export function toReceipts(events: RepEvent[], limit = 10): AgentReceipt[] {
+  const seen = new Set<string>();
   return events
     .filter((e) => e.txHash && (SETTLED_KINDS.has(e.kind) || e.kind === "blocked"))
     .sort((a, b) => b.createdAt - a.createdAt)
+    .filter((e) => {
+      const key = receiptKey(e);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .slice(0, limit)
     .map((e) => ({
       settled: SETTLED_KINDS.has(e.kind),

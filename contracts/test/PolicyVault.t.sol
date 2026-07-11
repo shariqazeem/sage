@@ -67,13 +67,21 @@ contract PolicyVaultTest is Test {
         _fundActivate(v);
     }
 
+    uint256 private _intentNonce;
+
+    /// @dev A fresh committed intent per spend — distinct payments need distinct
+    ///      intents now that replay protection (check 7) consumes each one.
+    function _nextIntent() internal returns (bytes32) {
+        return keccak256(abi.encode(INTENT, _intentNonce++));
+    }
+
     function _spendOn(PolicyVault v, address caller, address vendor, uint256 amount)
         internal
         returns (bool ok, uint8 idx)
     {
         vm.recordLogs();
         vm.prank(caller);
-        ok = v.requestSpend(vendor, amount, INTENT);
+        ok = v.requestSpend(vendor, amount, _nextIntent());
         idx = _failedIdx(vm.getRecordedLogs());
     }
 
@@ -85,8 +93,10 @@ contract PolicyVaultTest is Test {
         bytes32 rej = keccak256("SpendRejected(address,uint256,bytes32,uint256,uint8,uint256,uint256)");
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].topics[0] == rej) {
-                (,,, uint8 fi,,) =
-                    abi.decode(logs[i].data, (uint256, bytes32, uint256, uint8, uint256, uint256));
+                // intentHash is now an indexed topic (topics[2]), so the data is
+                // (amount, timestamp, failedCheckIndex, totalSpentSoFar, budgetRemaining).
+                (,, uint8 fi,,) =
+                    abi.decode(logs[i].data, (uint256, uint256, uint8, uint256, uint256));
                 idx = fi;
             }
         }
@@ -414,5 +424,122 @@ contract PolicyVaultTest is Test {
         vm.prank(owner);
         vault.withdrawRemaining();
         assertEq(usdc.balanceOf(owner), BUDGET - 10e6);
+    }
+
+    /* ============================================ replay protection (G7) */
+
+    bytes32 internal constant RINTENT = keccak256("replay-intent");
+
+    /// requestSpend as the operator with an EXPLICIT intent (bypasses the fresh
+    /// `_nextIntent()` helper so a replay can reuse the same committed intent).
+    function _spendIntent(address vendor, uint256 amount, bytes32 intent)
+        internal
+        returns (bool ok)
+    {
+        vm.prank(operator);
+        ok = vault.requestSpend(vendor, amount, intent);
+    }
+
+    // 1. one intent settles exactly once.
+    function test_Replay_IntentSettlesExactlyOnce() public {
+        _fundActivate(vault);
+        assertFalse(vault.isIntentUsed(RINTENT));
+        assertTrue(_spendIntent(vendorA, 10e6, RINTENT));
+        assertTrue(vault.isIntentUsed(RINTENT));
+        (uint256 spent,, uint256 cnt) = vault.getSpendStats();
+        assertEq(spent, 10e6);
+        assertEq(cnt, 1);
+    }
+
+    // 2 + 3. a replay moves zero additional tokens and rejects with index 7.
+    function test_Replay_MovesZeroAndRejectsIndex7() public {
+        _fundActivate(vault);
+        assertTrue(_spendIntent(vendorA, 10e6, RINTENT));
+        uint256 vendorBal = usdc.balanceOf(vendorA);
+        uint256 vaultBal = usdc.balanceOf(address(vault));
+
+        vm.recordLogs();
+        vm.prank(operator);
+        bool ok = vault.requestSpend(vendorA, 10e6, RINTENT);
+        assertFalse(ok);
+        assertEq(_failedIdx(vm.getRecordedLogs()), 7);
+
+        assertEq(usdc.balanceOf(vendorA), vendorBal);
+        assertEq(usdc.balanceOf(address(vault)), vaultBal);
+        (uint256 spent,, uint256 cnt) = vault.getSpendStats();
+        assertEq(spent, 10e6);
+        assertEq(cnt, 1);
+    }
+
+    // 4 + 5. a policy-rejected intent is NOT consumed, and the SAME intent can
+    //        later settle once its legitimate condition is fixed.
+    function test_Replay_RejectedIntentNotConsumedThenSettles() public {
+        _fundActivate(vault);
+        // vendorB unapproved → check 3 rejects; intent must stay un-consumed.
+        vm.recordLogs();
+        vm.prank(operator);
+        assertFalse(vault.requestSpend(vendorB, 10e6, RINTENT));
+        assertEq(_failedIdx(vm.getRecordedLogs()), 3);
+        assertFalse(vault.isIntentUsed(RINTENT));
+
+        // Owner approves vendorB (0 timelock), then the SAME intent settles.
+        vm.startPrank(owner);
+        vault.queueAddVendor(vendorB);
+        vault.executeAddVendor(vendorB);
+        vm.stopPrank();
+        assertTrue(_spendIntent(vendorB, 10e6, RINTENT));
+        assertTrue(vault.isIntentUsed(RINTENT));
+        assertEq(usdc.balanceOf(vendorB), 10e6);
+    }
+
+    // 6. two distinct intents can pay the same recipient when caps permit.
+    function test_Replay_TwoDistinctIntentsSameRecipient() public {
+        _fundActivate(vault);
+        assertTrue(_spendIntent(vendorA, 10e6, keccak256("i1")));
+        assertTrue(_spendIntent(vendorA, 10e6, keccak256("i2")));
+        assertEq(usdc.balanceOf(vendorA), 20e6);
+        (uint256 spent,, uint256 cnt) = vault.getSpendStats();
+        assertEq(spent, 20e6);
+        assertEq(cnt, 2);
+    }
+
+    // 7. replay protection remains valid across pause/unpause.
+    function test_Replay_AcrossPauseUnpause() public {
+        _fundActivate(vault);
+        assertTrue(_spendIntent(vendorA, 10e6, RINTENT));
+        uint256 vendorBal = usdc.balanceOf(vendorA);
+
+        vm.prank(owner);
+        vault.pause();
+        assertFalse(_spendIntent(vendorA, 10e6, RINTENT)); // paused → no funds
+        vm.prank(owner);
+        vault.unpause();
+
+        vm.recordLogs();
+        vm.prank(operator);
+        assertFalse(vault.requestSpend(vendorA, 10e6, RINTENT));
+        assertEq(_failedIdx(vm.getRecordedLogs()), 7);
+        assertEq(usdc.balanceOf(vendorA), vendorBal); // zero additional moved
+    }
+
+    // 8. consumed intent state cannot be changed by owner or operator — there is
+    //    no setter; no governance lever clears a used intent.
+    function test_Replay_ConsumedStateImmutable() public {
+        _fundActivate(vault);
+        assertTrue(_spendIntent(vendorA, 10e6, RINTENT));
+        assertTrue(vault.isIntentUsed(RINTENT));
+
+        vm.startPrank(owner);
+        vault.pause();
+        vault.unpause();
+        vault.lowerPerTransactionCap(PERTX - 1);
+        vault.lowerDailyVelocityCap(VELO - 1);
+        vault.setGuardian(stranger);
+        vm.stopPrank();
+        assertTrue(vault.isIntentUsed(RINTENT));
+
+        // operator re-requesting cannot un-consume it either.
+        _spendIntent(vendorA, 10e6, RINTENT);
+        assertTrue(vault.isIntentUsed(RINTENT));
     }
 }

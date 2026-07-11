@@ -7,85 +7,37 @@ import {
   Bot,
   ArrowUpRight,
   BadgeCheck,
+  AlertTriangle,
+  FileText,
+  Cpu,
 } from "lucide-react";
 import { usd, short } from "@/lib/format";
 import { NetworkChip } from "@/components/app/network-chip";
-import type { PayoutProof } from "@/lib/deputy/chain";
-
-const REASONS: Record<number, string> = {
-  1: "the vault was paused, expired, or revoked",
-  2: "the caller was not the authorized operator",
-  3: "the recipient was not on the approved allowlist",
-  4: "it exceeded the per-payout cap",
-  5: "it would exceed the remaining budget",
-  6: "it would exceed the 24h velocity cap",
-};
+import { x402StatusLabel } from "@/lib/x402/x402-status";
+import type { FoundProof } from "@/lib/deputy/proof";
 
 /**
- * The public per-payout proof page. Three layers reveal in sequence — the human
- * fact, the machine proof, the safety context — all derived from ONE real tx so
- * a stranger can verify it on-chain without trusting us. Server-rendered; the
- * reveal is pure CSS.
+ * The public per-payout proof — a premium, four-section financial receipt built
+ * from ONE canonical composer (@/lib/deputy/proof). It tells the whole truth:
+ *   1. Human result — what happened, in five seconds.
+ *   2. Sage decision receipt — how the AI judged it (when decision-committed).
+ *   3. Machine / on-chain proof — the chain event + the commitment verification.
+ *   4. Safety context — the mandate the payout stayed inside.
+ * Legacy payments and integrity mismatches are shown honestly; a mismatch is
+ * NEVER labelled verified. Server-rendered; the reveal is pure CSS.
  */
-export function SageProofPage({
-  proof,
-  reward,
-  explorerBase,
-}: {
-  proof: PayoutProof;
-  reward: string;
-  explorerBase: string;
-}) {
+export function SageProofPage({ proof }: { proof: FoundProof }) {
   const settled = proof.settled;
-  const tone = settled ? "pos" : "dan";
-  const dateStr = proof.timestamp
-    ? new Date(proof.timestamp * 1000).toUTCString()
-    : "";
-  const reason = proof.failedCheckIndex
-    ? (REASONS[proof.failedCheckIndex] ?? "a policy check")
-    : "";
+  const isMismatch = proof.state === "commitment_mismatch";
+  const isIncomplete = proof.state === "incomplete_local_record";
+  const committed =
+    proof.state === "committed_settlement" || proof.state === "committed_rejection";
 
-  const checks = settled
-    ? [
-        {
-          pass: true,
-          label: "Under the per-payout cap",
-          value: `${usd(proof.amount)} ≤ ${usd(proof.perTxCap)}`,
-        },
-        {
-          pass: true,
-          label: "Within the remaining budget",
-          value: `${usd(proof.amount)} of ${usd(proof.budget)}`,
-        },
-        { pass: true, label: "Recipient was on the allowlist", value: "approved" },
-        {
-          pass: true,
-          label: "Released by the authorized Deputy",
-          value: "operator",
-        },
-      ]
-    : [
-        {
-          pass: proof.failedCheckIndex !== 4,
-          label: "Under the per-payout cap",
-          value: `${usd(proof.amount)} vs ${usd(proof.perTxCap)}`,
-        },
-        {
-          pass: proof.failedCheckIndex !== 1,
-          label: "Vault active",
-          value: proof.failedCheckIndex === 1 ? "not active" : "active",
-        },
-        {
-          pass: proof.failedCheckIndex !== 3,
-          label: "Recipient on the allowlist",
-          value: proof.failedCheckIndex === 3 ? "not approved" : "approved",
-        },
-        {
-          pass: proof.failedCheckIndex !== 5,
-          label: "Within the remaining budget",
-          value: `${usd(proof.remaining)} left`,
-        },
-      ];
+  const tone = isMismatch ? "dan" : settled ? "pos" : "dan";
+  const statusLabel = isMismatch ? "Integrity warning" : settled ? "Settled" : "Blocked";
+  const dateStr = proof.chain.timestamp
+    ? new Date(proof.chain.timestamp * 1000).toUTCString()
+    : "";
 
   return (
     <div className="spp">
@@ -96,18 +48,48 @@ export function SageProofPage({
           </span>
           <span className="spp-wordmark">Sage</span>
         </div>
-        <span
-          style={{ display: "inline-flex", alignItems: "center", gap: 10 }}
-        >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
           <span className="spp-kicker">Public payout proof</span>
-          <NetworkChip chainId={proof.chainId} size="xs" />
+          <NetworkChip chainId={proof.chain.chainId} size="xs" />
         </span>
       </div>
 
-      {/* layer 1 · the human fact */}
+      {/* honesty banner for anything that is not a clean, committed payment */}
+      {isMismatch && (
+        <div className="spp-col spp-banner dan spp-reveal">
+          <AlertTriangle size={16} />
+          <span>
+            <b>Integrity warning.</b> The stored decision does not reproduce this
+            payout&apos;s on-chain commitment. The payment is real, but it is{" "}
+            <b>not</b> a verified decision-commitment.
+          </span>
+        </div>
+      )}
+      {isIncomplete && (
+        <div className="spp-col spp-banner warn spp-reveal">
+          <AlertTriangle size={16} />
+          <span>
+            <b>Local record incomplete.</b> The on-chain payment is real, but Sage
+            cannot fully reproduce its decision commitment from local data.
+          </span>
+        </div>
+      )}
+      {proof.legacy && (
+        <div className="spp-col spp-banner warn spp-reveal">
+          <FileText size={16} />
+          <span>
+            <b>Legacy payout</b> — this transaction predates decision commitment
+            v1. It is a valid payment proof, not a decision-commitment proof.
+          </span>
+        </div>
+      )}
+
+      {/* SECTION 1 · the human result */}
       <div className="spp-col spp-fact-wrap">
         <div className={`spp-medallion ${tone}`}>
-          {settled ? (
+          {isMismatch ? (
+            <AlertTriangle size={38} strokeWidth={2.2} />
+          ) : settled ? (
             <Check size={40} strokeWidth={2.4} />
           ) : (
             <X size={40} strokeWidth={2.4} />
@@ -116,111 +98,178 @@ export function SageProofPage({
         <div className="spp-reveal" style={{ animationDelay: "0.16s" }}>
           <span className={`spp-status ${tone}`}>
             <span className="dot" />
-            {settled ? "Settled" : "Blocked"}
+            {statusLabel}
           </span>
-          <div className="spp-amount mono">{usd(proof.amount)}</div>
-          <div className="spp-fact">
-            {settled ? `${usd(proof.amount)} paid to ` : `${usd(proof.amount)} attempt to `}
-            <span className="mono">{short(proof.recipient)}</span>
-          </div>
-          <div className="spp-reward">for {reward}</div>
-          {!settled && (
+          <div className="spp-amount mono">{usd(proof.human.amountUsd)}</div>
+          <div className="spp-fact">{proof.human.outcome}</div>
+          {proof.human.campaignTitle && (
+            <div className="spp-reward">for {proof.human.campaignTitle.toLowerCase()}</div>
+          )}
+          {!settled && !isMismatch && proof.human.failedCheckReason && (
             <div className="spp-blocked-note">
-              <Lock size={15} /> Refused on-chain — {reason}. No funds moved.
+              <Lock size={15} /> Refused on-chain — {proof.human.failedCheckReason}. No
+              funds moved.
             </div>
           )}
         </div>
       </div>
 
-      {/* layer 2 · machine proof */}
-      <div className="spp-card big spp-reveal" style={{ animationDelay: "0.26s" }}>
+      {/* SECTION 2 · the Sage decision receipt */}
+      <div className="spp-card big spp-reveal" style={{ animationDelay: "0.24s" }}>
         <div className="spp-card-head">
           <span className="spp-card-title">
-            <BadgeCheck size={16} /> Machine proof
+            <Bot size={16} /> Sage decision receipt
+          </span>
+          {proof.decision && (
+            <span className={`spp-rec ${proof.decision.recommendation}`}>
+              {proof.decision.recommendation.toUpperCase()}
+            </span>
+          )}
+        </div>
+
+        {proof.decision ? (
+          <DecisionReceipt decision={proof.decision} threshold={proof.threshold} />
+        ) : (
+          <div className="spp-unavail">
+            <span className="spp-unavail-ico">
+              <FileText size={17} />
+            </span>
+            <div>
+              <div className="spp-unavail-t">No decision receipt</div>
+              <div className="spp-unavail-s">{proof.decisionUnavailableReason}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 3 · the machine / on-chain proof */}
+      <div className="spp-card spp-reveal" style={{ animationDelay: "0.3s" }}>
+        <div className="spp-card-head">
+          <span className="spp-card-title">
+            <Cpu size={16} /> On-chain proof
           </span>
           <span className="spp-card-note">You don&apos;t have to trust us.</span>
         </div>
         <div className="spp-rows">
-          <div className="spp-row">
-            <span className="k">Transaction</span>
-            <a
-              className="v"
-              href={proof.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {short(proof.txHash)} <ArrowUpRight size={12} />
+          <Row k="Network">
+            {proof.chain.network} · {proof.chain.chainId}
+          </Row>
+          <Row k="Transaction">
+            <a className="lnk" href={proof.chain.explorerUrl} target="_blank" rel="noopener noreferrer">
+              {short(proof.chain.txHash)} <ArrowUpRight size={12} />
             </a>
-          </div>
-          <div className="spp-row">
-            <span className="k">Network</span>
-            <span className="v">{proof.network}</span>
-          </div>
-          <div className="spp-row">
-            <span className="k">Block</span>
-            <span className="v">{proof.blockNumber.toLocaleString("en-US")}</span>
-          </div>
-          <div className="spp-row">
-            <span className="k">{settled ? "Settled" : "Recorded"}</span>
-            <span className="v">{dateStr}</span>
-          </div>
-          <div className="spp-row">
-            <span className="k">Token</span>
-            <span className="v">USDC</span>
-          </div>
+          </Row>
+          <Row k="Block">{proof.chain.blockNumber.toLocaleString("en-US")}</Row>
+          <Row k={settled ? "Settled" : "Recorded"}>{dateStr}</Row>
+          <Row k="Event">{proof.chain.eventType}</Row>
+          {!settled && proof.human.failedCheckIndex != null && (
+            <Row k="Failed check">
+              #{proof.human.failedCheckIndex} · {proof.human.failedCheckReason}
+            </Row>
+          )}
+          <Row k="Policy Vault">{short(proof.chain.vault)}</Row>
+          <Row k="Operator">{short(proof.chain.operator)}</Row>
+          {proof.chain.attemptStatus && (
+            <Row k="Attempt">{proof.chain.attemptStatus}</Row>
+          )}
         </div>
+
+        {/* commitment verification — the three intent sources */}
+        <div className={`spp-commit ${committed ? "ok" : isMismatch ? "bad" : "warn"}`}>
+          <div className="spp-commit-head">
+            {committed ? (
+              <>
+                <BadgeCheck size={15} /> Decision committed on-chain
+              </>
+            ) : isMismatch ? (
+              <>
+                <AlertTriangle size={15} /> Commitment does not match
+              </>
+            ) : (
+              <>
+                <FileText size={15} /> No decision commitment
+              </>
+            )}
+          </div>
+          {proof.commitment ? (
+            <>
+              <HashLine label="On-chain intent" value={proof.commitment.onchainIntent} />
+              {proof.commitment.storedIntent && (
+                <HashLine
+                  label="Stored intent"
+                  value={proof.commitment.storedIntent}
+                  match={eqHash(proof.commitment.storedIntent, proof.commitment.onchainIntent)}
+                />
+              )}
+              {proof.commitment.recomputedIntent && (
+                <HashLine
+                  label="Recomputed intent"
+                  value={proof.commitment.recomputedIntent}
+                  match={eqHash(proof.commitment.recomputedIntent, proof.commitment.onchainIntent)}
+                />
+              )}
+              {proof.commitment.decisionDigest && (
+                <HashLine label="Decision digest" value={proof.commitment.decisionDigest} />
+              )}
+              {proof.commitment.mismatchReason && (
+                <div className="spp-commit-reason mono">{proof.commitment.mismatchReason}</div>
+              )}
+            </>
+          ) : (
+            <>
+              <HashLine label="On-chain intent" value={proof.chain.onchainIntent} />
+              <div className="spp-commit-note">
+                This payout predates decision commitment v1, so there is no digest to
+                recompute. The on-chain payment is still fully verifiable above.
+              </div>
+            </>
+          )}
+        </div>
+
         <a
           className="spp-verify"
-          href={proof.explorerUrl}
+          href={proof.chain.explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
         >
           <BadgeCheck size={16} /> Verify on-chain
         </a>
-        {!settled && (
-          <p className="spp-card-note" style={{ marginTop: 12, lineHeight: 1.5 }}>
+        {!settled && !isMismatch && (
+          <p className="spp-card-note" style={{ margin: "0 20px 20px", lineHeight: 1.5 }}>
             On the explorer this transaction reads <b>Success</b> — that is the vault
-            refusing <i>gracefully</i>: it emits a{" "}
-            <span className="mono">SpendRejected</span> event and moves no funds,
-            instead of reverting. The rejection itself is the on-chain proof.
+            refusing <i>gracefully</i>: it emits a <span className="mono">SpendRejected</span>{" "}
+            event and moves no funds, instead of reverting. The rejection is the proof.
           </p>
         )}
       </div>
 
-      {/* layer 3 · safety context */}
-      <div className="spp-card spp-reveal" style={{ animationDelay: "0.34s" }}>
-        <div
-          className="spp-card-head"
-          style={{ borderBottom: "none", paddingBottom: 4 }}
-        >
+      {/* SECTION 4 · safety context */}
+      <div className="spp-card spp-reveal" style={{ animationDelay: "0.36s" }}>
+        <div className="spp-card-head" style={{ borderBottom: "none", paddingBottom: 4 }}>
           <span className="spp-card-title">
-            <ShieldCheck size={16} /> {settled ? "And it was safe" : "The vault held"}
+            <ShieldCheck size={16} /> Safety context
+          </span>
+          <span
+            className={`spp-vaultcap ${proof.safety.replaySupport === "supported" ? "ok" : proof.safety.replaySupport === "legacy" ? "warn" : "mut"}`}
+          >
+            {proof.safety.replaySupport === "supported"
+              ? "Upgraded vault"
+              : proof.safety.replaySupport === "legacy"
+                ? "Legacy vault"
+                : "Vault status unread"}
           </span>
         </div>
         <div className="spp-safety-desc">
-          This payout {settled ? "stayed inside" : "was measured against"} the mandate
-          its Deputy was given.
+          Six spending rules constrain what the Deputy may do. A separate
+          consumed-intent guard prevents the same committed payout from settling
+          twice.
         </div>
-        <div className="spp-safety-desc spp-why">
-          <b>Why on-chain?</b> A database flag that says “budget exceeded” can be
-          flipped by whoever runs the database. The vault physically cannot move funds
-          off-policy — even if Sage itself is compromised. Enforcement you have to
-          trust isn’t enforcement.
-        </div>
-        <div className="spp-checks">
-          {checks.map((c, i) => (
-            <div className="spp-check" key={i}>
-              <span className={`spp-check-ico ${c.pass ? "pos" : "dan"}`}>
-                {c.pass ? (
-                  <Check size={14} strokeWidth={2.6} />
-                ) : (
-                  <X size={14} strokeWidth={2.6} />
-                )}
-              </span>
-              <span className="label">{c.label}</span>
-              <span className={`value ${c.pass ? "pos" : "dan"}`}>{c.value}</span>
-            </div>
-          ))}
+        <div className="spp-rows" style={{ paddingTop: 0 }}>
+          <Row k="Payout amount">{usd(proof.human.amountUsd)}</Row>
+          <Row k="Per-payout cap">{usd(proof.safety.perTxCap)}</Row>
+          <Row k="24h velocity cap">{usd(proof.safety.velocityCap)}</Row>
+          <Row k="Policy budget">{usd(proof.safety.budget)}</Row>
+          <Row k="Remaining (at read time)">{usd(proof.safety.remaining)}</Row>
         </div>
         <div className="spp-identity">
           <div className="spp-identity-l">
@@ -230,35 +279,28 @@ export function SageProofPage({
             <div>
               <div className="spp-identity-name">Released by the Payout Deputy</div>
               <div className="spp-identity-sub">
-                Policy Vault {short(proof.vault)} · ERC-8004 identity
+                Operator {short(proof.chain.operator)} · vault {short(proof.chain.vault)} ·
+                owner-controlled
               </div>
             </div>
           </div>
-          <a
-            href={`${explorerBase}/address/${proof.vault}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            vault <ArrowUpRight size={12} />
-          </a>
         </div>
       </div>
 
-      {/* share preview — the REAL rendered OG card (exactly what a link unfurls to) */}
-      <div className="spp-share spp-reveal" style={{ animationDelay: "0.42s" }}>
+      {/* share preview — the REAL rendered OG card */}
+      <div className="spp-share spp-reveal" style={{ animationDelay: "0.44s" }}>
         <div className="spp-share-label">Preview when shared</div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="spp-share-img"
-          src={`/proof/${proof.txHash}/opengraph-image`}
+          src={`/proof/${proof.chain.txHash}/opengraph-image`}
           alt="Shareable payout proof card"
           width={1200}
           height={630}
         />
       </div>
 
-      {/* footer */}
-      <div className="spp-footer spp-reveal" style={{ animationDelay: "0.5s" }}>
+      <div className="spp-footer spp-reveal" style={{ animationDelay: "0.52s" }}>
         <div className="spp-footer-in">
           <Lock size={14} />
           <span>
@@ -266,6 +308,129 @@ export function SageProofPage({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Row({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="spp-row">
+      <span className="k">{k}</span>
+      <span className="v">{children}</span>
+    </div>
+  );
+}
+
+function eqHash(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function HashLine({
+  label,
+  value,
+  match,
+}: {
+  label: string;
+  value: string;
+  match?: boolean;
+}) {
+  return (
+    <div className="spp-hashline">
+      <span className="spp-hashline-k">
+        {label}
+        {match === true && <Check className="ok" size={12} strokeWidth={3} />}
+        {match === false && <X className="bad" size={12} strokeWidth={3} />}
+      </span>
+      <span className="spp-hashline-v mono">{value}</span>
+    </div>
+  );
+}
+
+function DecisionReceipt({
+  decision,
+  threshold,
+}: {
+  decision: NonNullable<FoundProof["decision"]>;
+  threshold: number | null;
+}) {
+  const confPct = Math.round(decision.confidence * 100);
+  const barPct = threshold != null ? Math.round(threshold * 100) : null;
+  const highFraud = decision.fraudSignals.filter((f) => f.severity === "high");
+  return (
+    <div className="spp-dr">
+      {/* confidence vs the autopilot bar */}
+      <div className="spp-dr-conf">
+        <div className="spp-dr-conf-top">
+          <span className="spp-dr-conf-n mono">{confPct}%</span>
+          <span className="spp-dr-conf-l">
+            confidence{barPct != null ? ` · autopay bar ${barPct}%` : ""}
+          </span>
+        </div>
+        <div className="spp-confbar" style={{ ["--fill" as string]: `${confPct}%` }}>
+          <span className="spp-confbar-fill" />
+          {barPct != null && (
+            <span className="spp-confbar-notch" style={{ ["--notch" as string]: `${barPct}%` }} />
+          )}
+        </div>
+        <div className="spp-dr-reason mono">reason · {decision.reasonCode}</div>
+      </div>
+
+      {/* the summary */}
+      {decision.summary && <p className="spp-dr-summary">{decision.summary}</p>}
+
+      {/* criteria */}
+      <div className="spp-dr-crits">
+        {decision.criteria.map((c, i) => (
+          <div className="spp-dr-crit" key={i}>
+            <span className={`spp-dr-crit-ico ${c.met ? "pos" : "dan"}`}>
+              {c.met ? <Check size={13} strokeWidth={2.8} /> : <X size={13} strokeWidth={2.8} />}
+            </span>
+            <div className="spp-dr-crit-body">
+              <div className="spp-dr-crit-label">{c.criterion}</div>
+              {c.quote && <div className="spp-dr-quote mono">“{c.quote}”</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* fraud signals */}
+      {decision.fraudSignals.length > 0 && (
+        <div className="spp-dr-fraud">
+          <div className="spp-dr-sub">Fraud screen</div>
+          {decision.fraudSignals.map((f, i) => (
+            <div className="spp-dr-fraud-row" key={i}>
+              <span className={`spp-sev ${f.severity}`}>{f.severity}</span>
+              <span className="spp-dr-fraud-txt">
+                <b>{f.signal}</b> — {f.reason}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {highFraud.length === 0 && decision.fraudSignals.length === 0 && (
+        <div className="spp-dr-clean mono">no fraud signals raised</div>
+      )}
+
+      {/* provenance */}
+      <div className="spp-dr-prov mono">
+        {decision.engine === "llm" ? decision.model ?? "llm" : "heuristic"}
+        {decision.provider ? ` · ${decision.provider}` : ""}
+        {decision.latencyMs != null ? ` · ${decision.latencyMs}ms` : ""}
+        {decision.costUsd != null ? ` · $${decision.costUsd.toFixed(6)}` : ""}
+      </div>
+      {decision.contentSha256 && (
+        <div className="spp-dr-prov mono">evidence sha256 · {decision.contentSha256}</div>
+      )}
+      {decision.x402Status !== "not_required" && (
+        <div className="spp-dr-prov mono">
+          x402 verification · {x402StatusLabel(decision.x402Status)}
+          {decision.x402PaymentTx
+            ? ` · ${short(decision.x402PaymentTx)}`
+            : decision.x402Reason
+              ? ` · ${decision.x402Reason}`
+              : ""}
+        </div>
+      )}
     </div>
   );
 }

@@ -206,6 +206,10 @@ export const decisions = sqliteTable(
     costUsd: real("cost_usd"),
     /** RAIL 1: the real GOAT x402 tx that paid for this verification, or null. */
     x402PaymentTx: text("x402_payment_tx"),
+    /** RAIL 1 status: paid | live_fallback | not_configured | not_required | legacy_unknown (null on pre-model rows). */
+    x402Status: text("x402_status"),
+    /** sanitized failure reason code when status = live_fallback, else null. */
+    x402Reason: text("x402_reason"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [uniqueIndex("decisions_submission_unq").on(t.submissionId)],
@@ -237,6 +241,56 @@ export const fees = sqliteTable(
   (t) => [uniqueIndex("fees_settle_unq").on(t.settleTx)],
 );
 
+/** The lifecycle of one durable settlement attempt. */
+export type SettlementStatus =
+  | "prepared" // row written, nothing broadcast yet
+  | "broadcast" // requestSpend tx sent; txHash persisted, receipt not yet read
+  | "settled" // SpendSettled decoded — money moved
+  | "rejected" // SpendRejected decoded — a policy check (1..7) blocked it
+  | "failed"; // an unexpected error (RPC/revert) — safe to resume, never blind-resend
+
+/**
+ * A crash-recoverable ledger of on-chain payout attempts. Exactly ONE row per
+ * `payoutIntentHash` (unique) — the same key the vault consumes for replay
+ * protection (check 7). The row is written BEFORE the tx is broadcast and its
+ * `txHash` is persisted the instant the tx is sent, so a crash between broadcast
+ * and receipt is recoverable: on resume we read that tx's receipt (or the vault's
+ * `isIntentUsed`) instead of blind-resending. This table is the app-side twin of
+ * the on-chain replay guard: the chain guarantees an intent settles at most once,
+ * and this guarantees we always learn which way it went.
+ */
+export const settlementAttempts = sqliteTable(
+  "settlement_attempts",
+  {
+    id: text("id").primaryKey(),
+    /** The vault's replay-protected intent hash — the natural key (one attempt per intent). */
+    payoutIntentHash: text("payout_intent_hash").notNull(),
+    /** The v1 decision digest this intent was derived from, or null for a legacy intent. */
+    decisionDigest: text("decision_digest"),
+    submissionId: text("submission_id")
+      .notNull()
+      .references(() => submissions.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    chainId: integer("chain_id").notNull(),
+    vaultAddress: text("vault_address").notNull(),
+    recipient: text("recipient").notNull(),
+    /** payout amount in USDC base units (6dp). */
+    amountBase: integer("amount_base").notNull(),
+    status: text("status").$type<SettlementStatus>().notNull().default("prepared"),
+    /** the requestSpend tx — persisted the instant it is broadcast, before the receipt. */
+    txHash: text("tx_hash"),
+    /** SpendRejected.failedCheckIndex (1..7) when status = 'rejected'. */
+    failedCheckIndex: integer("failed_check_index"),
+    /** the last error string when status = 'failed' (diagnostics only). */
+    lastError: text("last_error"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("settlement_attempts_intent_unq").on(t.payoutIntentHash)],
+);
+
 export type Campaign = typeof campaigns.$inferSelect;
 export type NewCampaign = typeof campaigns.$inferInsert;
 export type Submission = typeof submissions.$inferSelect;
@@ -249,6 +303,8 @@ export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
 export type Fee = typeof fees.$inferSelect;
 export type NewFee = typeof fees.$inferInsert;
+export type SettlementAttempt = typeof settlementAttempts.$inferSelect;
+export type NewSettlementAttempt = typeof settlementAttempts.$inferInsert;
 
 /**
  * A named advisory lock with an expiry — the singleton guard for the Deputy

@@ -57,6 +57,17 @@ break-it gauntlet) runs on Sepolia **by design**; real money moves on GOAT mainn
 Nothing in Sage is simulated — every payout, block, decision, and fee is a real row
 or a real transaction.
 
+**Two kinds of replay safety, kept distinct.** The upgraded `PolicyVault` consumes
+each committed intent on-chain (check 7), so a settled intent can never move funds
+again — **contract-level** replay protection. Separately, the app keeps a durable
+settlement ledger and resumes crashed settles instead of blind-resending —
+**application-level** recovery. These are not the same guarantee: a vault deployed
+before the upgrade has the app-level ledger but **not** the on-chain guard, so it is
+a *legacy* vault. The Deputy's mainnet autopilot **refuses to auto-pay from a legacy
+(or unreadable) vault** and holds for manual approval; a freshly deployed vault gets
+the on-chain guard automatically. Combined track-record totals are shown as combined
+and split per chain — a mainnet figure never silently includes testnet USDC.
+
 ## How it works
 
 1. **Fund a PolicyVault** — budget, per-tx cap, daily velocity cap, duration.

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPayoutProof } from "@/lib/deputy/chain";
-import { getCampaignByPayoutTx, getDecisionByPayoutTx } from "@/lib/db/campaigns";
-import { briefFromRow } from "@/lib/deputy/decisions";
+import { composeProof, isFoundProof } from "@/lib/deputy/proof";
+import { getCampaignByPayoutTx } from "@/lib/db/campaigns";
 import { siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -9,10 +8,17 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/proof/<tx>  (also accepts /api/proof/<tx>.json) — the machine-readable
- * receipt for one payout: the on-chain proof (authoritative, read live) plus the
- * Deputy's decision brief when one is stored. Same shape philosophy as
- * /api/agent/card — everything here is real, nothing self-asserted, so another
- * agent (or the ClawUp sage-deputy skill) can verify Sage's work programmatically.
+ * receipt for one payout, from THE canonical proof composer (same truth the HTML
+ * page, OG image, and agent profile read). Every field is real: the on-chain
+ * proof read live, the Deputy's sanitized decision brief when stored, and the
+ * DecisionCommitmentV1 verification (recomputed vs stored vs on-chain intent).
+ *
+ * Schema v1. The pre-v1 top-level fields (tx, chainId, network, settled,
+ * amountUsd, recipient, vault, blockNumber, failedCheckIndex, explorerTxUrl,
+ * proofUrl, brief) are PRESERVED for the ClawUp sage-deputy skill; the versioned
+ * proof state + commitment verification are added alongside. A mismatch or
+ * incomplete state is NEVER returned as a verified success — `verified` and
+ * `commitmentMatches` say so explicitly.
  */
 export async function GET(
   _req: Request,
@@ -22,48 +28,52 @@ export async function GET(
   const tx = raw.replace(/\.json$/i, "");
 
   const chainId = getCampaignByPayoutTx(tx)?.chainId;
-  const proof = await getPayoutProof(tx, chainId).catch(() => null);
-  if (!proof) {
+  const proof = await composeProof(tx, chainId);
+
+  if (!isFoundProof(proof)) {
     return NextResponse.json(
-      { error: "Not a recognized Sage payout." },
+      { schemaVersion: proof.version, proofState: "not_found", error: "Not a recognized Sage payout." },
       { status: 404 },
     );
   }
 
-  const decision = getDecisionByPayoutTx(tx);
-  const b = decision ? briefFromRow(decision) : null;
+  const committed =
+    proof.state === "committed_settlement" || proof.state === "committed_rejection";
 
   return NextResponse.json(
     {
-      tx: proof.txHash,
-      chainId: proof.chainId,
-      network: proof.network,
+      // ── versioned proof state (new) ──────────────────────────────────────
+      schemaVersion: proof.version,
+      proofState: proof.state,
+      /** true ONLY when the on-chain payout is verified against its AI decision. */
+      verified: committed,
+      legacy: proof.legacy,
+      commitmentMatches: proof.commitment ? proof.commitment.matches : null,
+      commitment: proof.commitment,
+      human: proof.human,
+      chain: proof.chain,
+      vaultCapability: proof.safety.replaySupport,
+      policy: {
+        budget: proof.safety.budget,
+        perTxCap: proof.safety.perTxCap,
+        velocityCap: proof.safety.velocityCap,
+        remaining: proof.safety.remaining,
+        isMainnet: proof.safety.isMainnet,
+      },
+
+      // ── pre-v1 fields, PRESERVED for ClawUp compatibility ────────────────
+      tx: proof.chain.txHash,
+      chainId: proof.chain.chainId,
+      network: proof.chain.network,
       settled: proof.settled,
-      amountUsd: proof.amount,
-      recipient: proof.recipient,
-      vault: proof.vault,
-      blockNumber: proof.blockNumber,
-      failedCheckIndex: proof.failedCheckIndex,
-      explorerTxUrl: proof.explorerUrl, // already the full …/tx/<hash> URL
-      proofUrl: `${siteUrl()}/proof/${proof.txHash}`,
-      brief: b
-        ? {
-            engine: b.engine,
-            model: b.model,
-            provider: b.provider,
-            recommendation: b.recommendation,
-            reasonCode: b.reasonCode,
-            confidence: b.confidence,
-            summary: b.summary,
-            criteria: b.criteria,
-            fraudSignals: b.fraudSignals,
-            evidenceOk: b.evidenceOk,
-            contentSha256: b.contentSha256,
-            latencyMs: b.latencyMs,
-            costUsd: b.costUsd,
-            x402PaymentTx: b.x402PaymentTx,
-          }
-        : null,
+      amountUsd: proof.human.amountUsd,
+      recipient: proof.human.recipient,
+      vault: proof.chain.vault,
+      blockNumber: proof.chain.blockNumber,
+      failedCheckIndex: proof.human.failedCheckIndex,
+      explorerTxUrl: proof.chain.explorerUrl, // already the full …/tx/<hash> URL
+      proofUrl: `${siteUrl()}/proof/${proof.chain.txHash}`,
+      brief: proof.decision,
     },
     { headers: { "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300" } },
   );

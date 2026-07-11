@@ -299,3 +299,10 @@ body:has(.sag) { background: #fbfbf9; }
   .sag-jb-row { flex-direction: column; align-items: stretch; }
   .sag-jb-actions { justify-content: space-between; }
 }
+
+/* ── per-chain breakdown of the settled record (never silently mixes chains) ── */
+.sag-chainsplit { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-3); }
+.sag-chainrow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--sec); }
+.sag-chaintag { flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+.sag-chaintag.main { background: var(--pos-bg); color: var(--pos); border: 1px solid var(--pos-line); }
+.sag-chaintag.test { background: var(--line-2); color: var(--ter); }

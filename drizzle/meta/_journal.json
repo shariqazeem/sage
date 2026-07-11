@@ -64,6 +64,20 @@
       "when": 1783549315492,
       "tag": "0008_add_campaign_sandbox",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783741364762,
+      "tag": "0009_add_settlement_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1783748874320,
+      "tag": "0010_add_decision_x402_status",
+      "breakpoints": true
     }
   ]
 }

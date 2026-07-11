@@ -98,6 +98,16 @@ triggers can't double-settle; an unreadable vault **holds** rather than firing a
 settle it couldn't pre-check (the item stays pending, so the next sweep retries
 once the RPC recovers — self-healing).
 
+**Legacy-vault hold (mainnet, new).** On a mainnet chain the preflight also probes
+`supportsIntentReplayProtection(vault)`. If the vault predates the on-chain replay
+guard (check 7 / `isIntentUsed`) it is a **legacy** vault, and the Deputy HOLDS:
+_"Legacy vault — replay-protected autonomy requires an upgraded vault."_ An
+**unreadable** capability holds too (an RPC failure is never taken as proof the
+vault is safe). Testnet is exempt. So: to arm real-money autopilot, the vault must
+be deployed from the upgraded `PolicyVault` — `DEPUTY_AUTOPILOT_MAINNET=true` alone
+is no longer sufficient if the selected vault is legacy. Manual approval still
+works; the UI warns that the vault predates on-chain intent replay protection.
+
 ---
 
 ## 3. Every environment variable

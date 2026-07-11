@@ -8,7 +8,7 @@ import { short } from "@/lib/format";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { chargeOperatorFee } from "@/lib/x402/fees";
 import { announceCampaignBlocked, announceCampaignSettled } from "@/lib/telegram/bot";
-import { settleSubmission, type SettleOutcome } from "./settle";
+import { settleWithRecovery, type SettleOutcome } from "./settle";
 import { reconcileVendorEvents } from "./reconcile";
 
 export interface SettleFlowResult {
@@ -26,7 +26,7 @@ export async function settleApprovedSubmission(
   campaign: Campaign,
   submission: Submission,
 ): Promise<SettleFlowResult> {
-  const outcome = await settleSubmission({ campaign, submission });
+  const outcome = await settleWithRecovery(campaign, submission);
 
   // Vendor adds (Sage-owned AND founder-owned) are journaled from the chain by
   // the reconciler — never from here — so the journal is trustless.

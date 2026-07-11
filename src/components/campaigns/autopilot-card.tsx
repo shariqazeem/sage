@@ -73,8 +73,9 @@ export function AutopilotCard({
             {isAuto && <Check className="tick" size={14} />}
           </span>
           <span className="sage-auto-opt-p">
-            You confirm the mandate once. The Deputy pays verified work on its own.
-            Every spend still passes six on-chain checks it cannot change.
+            Configure the mandate once. The Deputy pays verified work on its own.
+            Every spend still passes the vault&apos;s on-chain checks it cannot
+            change — and can never pay for the same work twice.
           </span>
         </button>
       </div>

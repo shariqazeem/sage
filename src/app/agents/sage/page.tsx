@@ -50,7 +50,7 @@ export function generateMetadata(): Metadata {
 
 export default function AgentPage() {
   const identity = getAgentIdentity();
-  const { reputation, receipts, recentDecisions } = getAgentProfile();
+  const { reputation, receipts, recentDecisions, chainSplit } = getAgentProfile();
   ensureSandboxCampaign(); // the "try to jailbreak" box runs against this sandbox
   const led = attackLedger();
 
@@ -59,6 +59,7 @@ export default function AgentPage() {
       identity={identity}
       wallet={agentWallet(identity)}
       reputation={reputation}
+      chainSplit={chainSplit}
       receipts={receipts}
       recentDecisions={recentDecisions}
       ledger={{
