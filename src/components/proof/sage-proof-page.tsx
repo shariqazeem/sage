@@ -134,6 +134,18 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               <Row k="Exact reward">{usd(proof.human.amountUsd)}</Row>
             </div>
           )}
+          {/* the two digests, labelled for exactly what each is — an app-level record vs an
+              on-chain economic commitment. Never implies the contract judged the work. */}
+          <div className="spp-commit warn" style={{ marginTop: 4 }}>
+            <HashLine
+              label="MissionSpec digest · application-level record"
+              value={proof.v2.missionSpecDigest.recomputed ?? proof.v2.missionSpecDigest.stored ?? "—"}
+            />
+            <HashLine
+              label="Mission plan digest · on-chain economic commitment"
+              value={proof.v2.missionPlanDigest.onchain ?? proof.v2.missionPlanDigest.stored ?? "—"}
+            />
+          </div>
           <p className="spp-note">
             This tester did not need to be pre-approved. The founder pre-approved the
             mission identifier, exact reward, completion count, total budget, and Sage&rsquo;s

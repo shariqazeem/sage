@@ -28,6 +28,11 @@ import {
 } from "@/lib/campaigns/vault-strategy";
 import { realCampaignVaultAdapter } from "@/lib/deputy/campaign-vault";
 import { getMissionByHash, listMissions } from "@/lib/db/campaigns";
+import {
+  identityMismatchSummary,
+  missionToIdentity,
+  verifyPublicIdentity,
+} from "@/lib/campaigns/public-identity";
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
@@ -151,6 +156,30 @@ async function preflightV2(
     snapshot = await adapter.readSnapshot(vault, campaign.chainId, missionIds);
   } catch {
     return { ok: false, reason: "vault state temporarily unreadable — held for review" };
+  }
+
+  // PUBLIC-IDENTITY INVARIANT (pre-broadcast): re-derive campaignIdHash / missionIdHash /
+  // MissionSpecV1 digest / missionPlanDigest from the PUBLIC ids and compare against the
+  // stored AND on-chain values. This never trusts a stored hash merely because it matches
+  // the chain; a public id that disagrees with the committed identity HOLDS before any CAS
+  // or signing. (The decision path also holds pre-LLM; this is the defense-in-depth gate a
+  // pre-existing decision can't bypass.)
+  const identity = verifyPublicIdentity({
+    publicCampaignId: campaign.id,
+    storedCampaignIdHash: campaign.campaignIdHash,
+    storedMissionPlanDigest: campaign.missionPlanDigest,
+    missions: allMissions.map(missionToIdentity),
+    submission: {
+      missionIdHash: submission.missionIdHash,
+      missionSpecDigest: submission.missionSpecDigest,
+    },
+    onchain: { campaignIdHash: snapshot.campaignIdHash, missionPlanDigest: snapshot.missionPlanDigest },
+  });
+  if (!identity.ok) {
+    return {
+      ok: false,
+      reason: `public identity mismatch (${identityMismatchSummary(identity)}) — held`,
+    };
   }
 
   // THE gate: the vault must enforce exactly the DB's plan.

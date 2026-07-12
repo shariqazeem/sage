@@ -392,3 +392,26 @@ idempotency both hold).
    commits to — a seeding correction, not a data change: the payout, decision, and
    evidence are real and untouched. In production the public id **is** the campaign id
    by construction, so this cannot recur.
+
+## 02E.2 — the public-identity gap is closed (pre-payment invariant)
+
+Deviation #2 above exposed a real fail-closed gap: settlement trusted a stored
+`campaignIdHash` that merely matched the chain, without recomputing it from the public
+campaign id. The proof caught it *after* payment; settlement must catch it *before*.
+One canonical validator — `verifyPublicIdentity` (`src/lib/campaigns/public-identity.ts`,
+pure, using the frozen `campaignIdHash` / `missionIdHash` / `missionSpecDigest` /
+`computeCampaignPlan`) — now recomputes `campaignIdHash`, every `missionIdHash`, every
+MissionSpecV1 digest, and the `missionPlanDigest` from the **public** records and
+compares them against the stored, submitted, and on-chain values. It runs in three
+places: **setup attachment** (an inconsistent public id is never persisted), the
+**decision path** (a mismatch HOLDS before the LLM is invoked), and the **settlement
+pre-flight** (a mismatch HOLDS before any CAS, durable attempt, or signing). It never
+trusts a stored hash because it matches the chain, and never silently repairs an id.
+Stable reasons: `public_campaign_id_hash_mismatch`, `public_mission_id_hash_mismatch`,
+`mission_spec_digest_mismatch`, `submission_mission_identity_mismatch`,
+`mission_plan_recomputation_mismatch`. A regression reproduces the exact live defect
+and asserts zero LLM call, zero CAS, zero attempt, zero broadcast, zero paid side
+effect. **A campaign can no longer pay while `campaignIdHash(publicId)` ≠ its
+stored/on-chain identity.** The proof page now also labels the MissionSpecV1 digest as
+an *application-level record* and the mission-plan digest as the *on-chain economic
+commitment*, so the two are never conflated.

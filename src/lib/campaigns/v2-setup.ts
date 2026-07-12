@@ -14,6 +14,7 @@ import {
   type MissionInput,
 } from "./mission-plan";
 import { missionSpecDigest, validateMissionSpec } from "./mission-spec";
+import { verifyPublicIdentity } from "./public-identity";
 import { evaluateCampaignAgreement } from "./vault-strategy";
 import { operatorAddress as realOperatorAddress } from "@/lib/deputy/signer";
 import {
@@ -236,7 +237,7 @@ export interface V2SetupDeps {
 
 export type V2SetupResult =
   | { ok: true; campaignId: string; campaignIdHash: string; missionPlanDigest: string }
-  | { ok: false; stage: "validation" | "agreement" | "persist"; errors: string[] };
+  | { ok: false; stage: "validation" | "identity" | "agreement" | "persist"; errors: string[] };
 
 /** A synthetic (unpersisted) Campaign for the agreement check — never written as-is. */
 function syntheticCampaign(input: V2SetupInput, preview: V2SetupPreview): Campaign {
@@ -298,6 +299,34 @@ export async function attachV2Campaign(
   );
   if (!agreement.ok) {
     return { ok: false, stage: "agreement", errors: agreement.mismatches.map((m) => m.field) };
+  }
+
+  // PUBLIC-IDENTITY INVARIANT (same validator the pipeline uses): the persisted identity
+  // must recompute from the PUBLIC campaign + mission ids and equal the on-chain identity.
+  // Setup builds every hash from `publicCampaignId`, so this passes by construction — but
+  // running it here means one validator guards attachment and settlement identically, and
+  // an inconsistent public id can never be persisted.
+  const identity = verifyPublicIdentity({
+    publicCampaignId: preview.publicCampaignId,
+    storedCampaignIdHash: preview.campaignIdHash,
+    storedMissionPlanDigest: preview.missionPlanDigest,
+    missions: input.missions.map((m, i) => ({
+      missionKey: m.missionKey,
+      missionIdHash: preview.missions[i].missionIdHash,
+      specDigest: preview.missions[i].specDigest,
+      title: m.title,
+      objective: m.objective,
+      instructions: m.instructions,
+      targetSurface: m.targetSurface,
+      criteria: m.criteria,
+      evidenceList: m.evidenceRequirements,
+      rewardBase: m.rewardBase,
+      maxCompletions: m.maxCompletions,
+    })),
+    onchain: { campaignIdHash: snapshot.campaignIdHash, missionPlanDigest: snapshot.missionPlanDigest },
+  });
+  if (!identity.ok) {
+    return { ok: false, stage: "identity", errors: identity.mismatches.map((m) => m.reason) };
   }
 
   // Atomic persist: campaign + all missions (locked/active) or nothing.

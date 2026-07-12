@@ -9,9 +9,15 @@ import {
   getMissionByHash,
   getSubmission,
   insertDecision,
+  listMissions,
   recomputeMissionSpecDigest,
   recordEvent,
 } from "@/lib/db/campaigns";
+import {
+  identityMismatchSummary,
+  missionToIdentity,
+  verifyPublicIdentity,
+} from "@/lib/campaigns/public-identity";
 import type { Decision, Submission } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
@@ -49,21 +55,24 @@ function holdForMissingMission(
   campaignId: string,
   missionIdHash: string,
   cid?: string,
+  /** the specific reason (e.g. an identity mismatch); defaults to a missing-mission hold. */
+  holdDetail?: string,
 ): DecisionBrief {
+  const detailText =
+    holdDetail ?? "no locked mission specification to judge this submission against";
   const brief: StoredBrief = {
     criteria: [],
     fraudSignals: [
       {
-        signal: "mission context unavailable",
+        signal: holdDetail ? "public identity unverified" : "mission context unavailable",
         severity: "high",
-        reason: "no locked mission specification to judge this submission against",
+        reason: detailText,
       },
     ],
     recommendation: "hold",
     reasonCode: "no_evidence",
     confidence: 0,
-    summary:
-      "Held: this campaign_v2 submission has no resolvable locked mission to judge against. A human must review the mission configuration.",
+    summary: `Held: this campaign_v2 submission could not be bound to a verified mission (${detailText}). A human must review the mission configuration.`,
     provider: null,
   };
   const { row, inserted } = insertDecision({
@@ -88,7 +97,10 @@ function holdForMissingMission(
       campaignId,
       submissionId: submission.id,
       kind: "decision_recorded",
-      detail: encodeDetail(`Heuristic · hold · ${short(submission.wallet)} · missing mission`, { cid }),
+      detail: encodeDetail(
+        `Heuristic · hold · ${short(submission.wallet)} · ${holdDetail ? "identity mismatch" : "missing mission"}`,
+        { cid },
+      ),
     });
   }
   return row ? briefFromRow(row) : { ...brief, engine: "heuristic", model: null, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
@@ -145,6 +157,30 @@ export async function ensureDecision(
       snapshotDrifted
     ) {
       return holdForMissingMission(submission, campaign.id, submission.missionIdHash!, opts?.cid);
+    }
+    // PUBLIC-IDENTITY INVARIANT (pre-LLM): recompute campaignIdHash / missionIdHash /
+    // MissionSpecV1 digest / missionPlanDigest from the PUBLIC campaign + mission ids and
+    // compare against every stored value. A persisted hash that merely matches the chain
+    // is NOT trusted. Any mismatch HOLDS here — before the model is ever invoked — so a
+    // campaign whose public id disagrees with its committed identity can never be paid.
+    const identity = verifyPublicIdentity({
+      publicCampaignId: campaign.id,
+      storedCampaignIdHash: campaign.campaignIdHash,
+      storedMissionPlanDigest: campaign.missionPlanDigest,
+      missions: listMissions(campaign.id).map(missionToIdentity),
+      submission: {
+        missionIdHash: submission.missionIdHash,
+        missionSpecDigest: submission.missionSpecDigest,
+      },
+    });
+    if (!identity.ok) {
+      return holdForMissingMission(
+        submission,
+        campaign.id,
+        submission.missionIdHash!,
+        opts?.cid,
+        `public identity mismatch: ${identityMismatchSummary(identity)}`,
+      );
     }
   }
 

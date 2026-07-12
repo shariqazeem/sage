@@ -23,7 +23,7 @@ import {
   lockMissionPlan,
   updateCampaignV2Plan,
 } from "@/lib/db/campaigns";
-import { campaignIdHash, missionIdHash } from "@/lib/campaigns/mission-plan";
+import { campaignIdHash, computeCampaignPlan, missionIdHash } from "@/lib/campaigns/mission-plan";
 import type { DecisionBrief } from "./brain-core";
 
 const payBrief: DecisionBrief = {
@@ -77,11 +77,16 @@ function seedV2(opts?: {
     criteria: [], // V2 campaign has NO campaign-level criteria
   });
   const cid = campaignIdHash(c.id);
+  // the REAL plan digest recomputed from the public id (so the public-identity invariant
+  // is satisfied for the consistent seed; the exercise defect is covered by its own test).
+  const planDigest = computeCampaignPlan(c.id, [
+    { missionKey: "verify", rewardBase: BigInt(100_000), maxCompletions: BigInt(1) },
+  ]).missionPlanDigest;
   if (opts?.identity !== false) {
     updateCampaignV2Plan(c.id, {
       vaultKind: "campaign_v2",
       campaignIdHash: cid,
-      missionPlanDigest: `0x${"9".repeat(64)}`,
+      missionPlanDigest: planDigest,
       commitmentVersion: 2,
     });
   }

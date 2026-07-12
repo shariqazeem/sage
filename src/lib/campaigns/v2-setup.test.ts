@@ -136,6 +136,16 @@ describe("attachV2Campaign — agreement-gated ATOMIC persist", () => {
     expect(getCampaign(input.publicCampaignId)).toBeNull();
   });
 
+  it("refuses a vault whose on-chain identity does not match the public campaign id (persists nothing)", async () => {
+    const input = setupInput();
+    // the deployed vault commits a DIFFERENT campaignIdHash than campaignIdHash(publicId).
+    const broken = snapshotFor(input, { campaignIdHash: `0x${"a".repeat(64)}` });
+    const r = await attachV2Campaign(input, { adapter: fakeAdapter(broken), operatorAddress: OP });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(["agreement", "identity"]).toContain(r.stage); // refused before persist
+    expect(getCampaign(input.publicCampaignId)).toBeNull(); // NO inconsistent campaign is ever stored
+  });
+
   it("an invalid spec is rejected at validation, before any chain read or write", async () => {
     const input = setupInput();
     input.missions[0].criteria = []; // no criteria
