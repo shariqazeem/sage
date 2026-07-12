@@ -301,3 +301,32 @@ vault Sage settles from.
 
 Planned tx sequence (user-run, not in this pass): deploy factory+vault → fund →
 activate → attach (DB only) → tester submits → `requestPayout` settles → proof.
+
+---
+
+## 02E exercise ledger + corrections (Metis Sepolia 59902)
+
+**Vault 1 — `0x839e4C084FeCA37bdCd6ccaA0fD480c8d3fEBF1E`** proved the CONTRACT-level
+safety layer live: unknown-recipient payment, exact contract-derived reward,
+mission-scoped uniqueness, completion caps, velocity, replay, owner/operator
+separation. **Correction:** those positive payments were **direct operator
+`requestPayout` calls, not Sage DecisionCommitmentV2 settlements** — so the canonical
+proof composer correctly returned **`not_found`** for them (Sage never committed a
+decision). This is honest behaviour, not a gap.
+
+**Truthful naming.** `MissionSpecV1` and its digest are an **application-level**
+record of the human prose Sage evaluated. They are **not stored on-chain**. What the
+CampaignVault commits on-chain is the **`missionPlanDigest`** — a commitment over
+mission **IDs, rewards, and completion caps** (not the prose). Any statement that the
+MissionSpec digest is "on-chain" is inaccurate.
+
+**Preview discipline.** During the first exercise the mission prose (and therefore the
+MissionSpecV1 digests) differed slightly from the pre-confirmation preview. **No
+on-chain economics changed** (funds were safe), but exact-preview discipline was not
+followed. Going forward: once a plan is confirmed, no mission prose, target URL,
+criteria, evidence requirements, or spec digest may change without a renewed preview
+and fresh confirmation.
+
+The 02E.1 AI-proof exercise uses a **second, minimal vault** (mission M1/M2 on vault 1
+are already full, so their fixtures cannot complete the AI path) to prove the full
+AI-decision → DecisionCommitmentV2 → payout → verified proof path end-to-end.
