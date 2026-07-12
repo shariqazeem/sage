@@ -166,11 +166,14 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
       const d = claimed.data.deployment as DeploymentView;
       localStorage.setItem(storeKey, d.id);
       setDep(d);
+      // Fetch the full deployment (with the plan-bound calls) so a resume into an in-flight
+      // deployment can render its preview + continue where it left off.
+      await load(d.id);
     } finally {
       setBusy(false);
       setNote(null);
     }
-  }, [siwe, wallet, post, jobId, storeKey]);
+  }, [siwe, wallet, post, jobId, storeKey, load]);
 
   /* ── preview: apply limits, read the chain, reach preflight_ready ───────── */
   const submitPreview = useCallback(async () => {
@@ -196,6 +199,14 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
       setNote(null);
     }
   }, [dep, dailyCapUsd, durationDays, post, wallet]);
+
+  // Resume-safety: if we reload straight into the execute phase (a deployment already
+  // mid-flight), fetch the preview from the frozen settings so the panel + continue button
+  // render — the founder can pick up exactly where they left off.
+  useEffect(() => {
+    if (dep && dep.next.phase === "execute" && !preview && calls.length > 0 && !busy) void submitPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dep?.next.phase, calls.length]);
 
   /* ── execute: sequential wallet path (never resends a confirmed step) ───── */
   const runExecution = useCallback(
@@ -251,7 +262,13 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
             setDep(cur);
           }
           // confirm (server verifies the receipt + chain state; never trusts the client).
-          const conf = await post(`/api/deployments/${cur.id}/steps/${step}/confirm`);
+          // A `retryable` failure means the tx is still settling on-chain — poll, don't fail.
+          let conf = await post(`/api/deployments/${cur.id}/steps/${step}/confirm`);
+          for (let tries = 0; !conf.data.ok && conf.data.retryable && tries < 40; tries++) {
+            setNote(`${STEP_LABELS[step]} — confirming on-chain…`);
+            await new Promise((r) => setTimeout(r, 3000));
+            conf = await post(`/api/deployments/${cur.id}/steps/${step}/confirm`);
+          }
           if (!conf.data.ok) {
             setError(String(conf.data.error ?? "The step could not be verified."));
             if (conf.data.deployment) setDep(conf.data.deployment as DeploymentView);

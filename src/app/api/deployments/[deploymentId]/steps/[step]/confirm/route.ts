@@ -36,12 +36,18 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ deploymen
     else if (s === "fund") verdict = await verifyFund(deployment, loaded.plan, settings, verifier);
     else verdict = await verifyActivate(deployment, loaded.plan, settings, verifier);
   } catch (err) {
-    verdict = { ok: false, reason: err instanceof Error ? err.message.slice(0, 120) : "verify_failed" };
+    // TRANSIENT — an RPC error or a receipt still settling. Retryable; NEVER routes to
+    // recovery (the tx may still be mining). The client polls this step again.
+    const fresh = getDeployment(deploymentId)!;
+    return NextResponse.json(
+      { ok: false, retryable: true, error: `The ${s} step is still settling — retrying.`, reason: err instanceof Error ? err.message.slice(0, 80) : "settling", deployment: deploymentView(fresh, tokenDecimals) },
+      { status: 409 },
+    );
   }
 
   if (!verdict.ok) {
-    // A receipt that does not verify never advances. If a vault already exists, this is a
-    // recovery situation (never a redeploy); otherwise the create simply hasn't confirmed.
+    // A DEFINITIVE on-chain mismatch/revert (the tx mined but the result disagrees with the
+    // plan). If a vault already exists, this is a recovery situation (never a redeploy).
     if (deployment.deployedVault || s !== "create") {
       markRecoveryRequired(deploymentId, `${s}_verify_failed:${verdict.reason}`);
     }

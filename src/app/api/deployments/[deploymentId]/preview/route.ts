@@ -40,25 +40,27 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     /* limits optional — fall back to defaults */
   }
 
-  // Founder-chosen limits (validated in buildSettings). Owner is fixed to the founder.
-  const limits: FounderLimits = {
-    owner: getAddress(deployment.founderWallet),
-    guardian: body.guardian ? getAddress(body.guardian) : getAddress(deployment.founderWallet),
-    dailyVelocityCapBase: body.dailyCapBase ? BigInt(body.dailyCapBase) : defaultDailyCap(loaded.plan),
-    durationSeconds: body.durationSeconds ? BigInt(body.durationSeconds) : DEFAULT_DURATION_SECONDS,
-  };
-  const settingsRes = buildSettings(loaded.plan, limits, LAUNCH_CHAIN_ID);
-  if (!settingsRes.ok) {
-    return NextResponse.json({ ok: false, error: "These limits aren't valid.", details: settingsRes.errors }, { status: 400 });
-  }
+  // Limits are changeable ONLY before deployment begins. Once executing (deployed/…), a
+  // preview is a RESUME view over the frozen stored settings — posted limits are ignored.
+  const changeable = deployment.state === "claimed" || deployment.state === "preflight_ready";
+  let effectiveSettings = access.ctx.settings;
 
-  const bundle = buildDeployBundle(loaded.plan, settingsRes.settings);
-  const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
-
-  // Re-bind only while limits are still changeable (claimed / preflight_ready, no create tx).
-  if (deployment.state === "claimed" || deployment.state === "preflight_ready") {
+  if (changeable) {
+    const limits: FounderLimits = {
+      owner: getAddress(deployment.founderWallet),
+      guardian: body.guardian ? getAddress(body.guardian) : getAddress(deployment.founderWallet),
+      dailyVelocityCapBase: body.dailyCapBase ? BigInt(body.dailyCapBase) : defaultDailyCap(loaded.plan),
+      durationSeconds: body.durationSeconds ? BigInt(body.durationSeconds) : DEFAULT_DURATION_SECONDS,
+    };
+    const settingsRes = buildSettings(loaded.plan, limits, LAUNCH_CHAIN_ID);
+    if (!settingsRes.ok) {
+      return NextResponse.json({ ok: false, error: "These limits aren't valid.", details: settingsRes.errors }, { status: 400 });
+    }
+    effectiveSettings = settingsRes.settings;
+    const bundle = buildDeployBundle(loaded.plan, effectiveSettings);
+    const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
     const rebind = rebindDeployment(deployment.id, {
-      settings: serializeSettings(settingsRes.settings),
+      settings: serializeSettings(effectiveSettings),
       predictedVault: bundle.predictedVault,
       calldataDigest: bundle.calldataDigest,
       totalBudgetBase: budget,
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
 
   let preview;
   try {
-    preview = await readDeploymentPreview(loaded.plan, settingsRes.settings);
+    preview = await readDeploymentPreview(loaded.plan, effectiveSettings);
   } catch {
     return NextResponse.json({ ok: false, error: "Could not read the chain for a preview. Please try again." }, { status: 502 });
   }

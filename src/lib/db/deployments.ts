@@ -155,6 +155,8 @@ export function recordClaim(
   if (dep.founderWallet.toLowerCase() !== claim.founderWallet.toLowerCase()) {
     return { ok: false, reason: "claim wallet does not match this deployment's founder" };
   }
+  // Idempotent: a deployment already claimed or further along (a resume) needs no re-claim.
+  if (dep.state !== "prepared") return { ok: true, deployment: dep };
   return advance(id, "claimed", { claimNonce: claim.nonce, claimSignature: claim.signature });
 }
 

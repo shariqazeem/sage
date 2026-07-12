@@ -215,6 +215,18 @@ export async function verifyCreate(
   return { ok: true, deployedVault: created.emittedVault };
 }
 
+/**
+ * Wait for a step's broadcast tx to mine + succeed before reading the resulting chain
+ * state. Without this, a confirm can read stale state (e.g. allowance still 0) because the
+ * tx is still in the mempool — the exact real-chain failure the fake E2E chain masked.
+ * A thrown error here is TRANSIENT (still settling), surfaced distinctly from a revert.
+ */
+async function awaitStepReceipt(txHash: string | null, chainId: number, verifier: ChainVerifier): Promise<{ mined: true; ok: boolean } | { mined: false }> {
+  if (!txHash) return { mined: true, ok: true }; // nothing broadcast yet — nothing to wait on
+  const ok = await verifier.receiptSucceeded(txHash as Hex, chainId);
+  return { mined: true, ok };
+}
+
 /** Verify the exact-budget approval: the vault's allowance from the owner covers the budget. */
 export async function verifyApprove(
   deployment: Deployment,
@@ -222,14 +234,11 @@ export async function verifyApprove(
   settings: DeploymentSettings,
   verifier: ChainVerifier,
 ): Promise<StepVerdict> {
+  const r = await awaitStepReceipt(deployment.approveTx, settings.chainId, verifier);
+  if (r.mined && !r.ok) return { ok: false, reason: "approve_reverted" };
   const vault = getAddress((deployment.deployedVault ?? deployment.predictedVault) as string);
   const budget = deriveDeploymentInputs(plan).totalBudgetBase;
-  let allowance: bigint;
-  try {
-    allowance = await verifier.readAllowance(settings.token, getAddress(settings.owner), vault, settings.chainId);
-  } catch {
-    return { ok: false, reason: "allowance_unreadable" };
-  }
+  const allowance = await verifier.readAllowance(settings.token, getAddress(settings.owner), vault, settings.chainId);
   if (allowance < budget) return { ok: false, reason: "allowance_below_budget" };
   return { ok: true };
 }
@@ -241,14 +250,11 @@ export async function verifyFund(
   settings: DeploymentSettings,
   verifier: ChainVerifier,
 ): Promise<StepVerdict> {
+  const r = await awaitStepReceipt(deployment.fundTx, settings.chainId, verifier);
+  if (r.mined && !r.ok) return { ok: false, reason: "fund_reverted" };
   const vault = getAddress((deployment.deployedVault ?? deployment.predictedVault) as string);
   const budget = deriveDeploymentInputs(plan).totalBudgetBase;
-  let balance: bigint;
-  try {
-    balance = await verifier.readBalance(settings.token, vault, settings.chainId);
-  } catch {
-    return { ok: false, reason: "balance_unreadable" };
-  }
+  const balance = await verifier.readBalance(settings.token, vault, settings.chainId);
   if (balance < budget) return { ok: false, reason: "vault_balance_below_budget" };
   return { ok: true };
 }
@@ -260,13 +266,10 @@ export async function verifyActivate(
   settings: DeploymentSettings,
   verifier: ChainVerifier,
 ): Promise<StepVerdict> {
+  const r = await awaitStepReceipt(deployment.activateTx, settings.chainId, verifier);
+  if (r.mined && !r.ok) return { ok: false, reason: "activate_reverted" };
   const vault = getAddress((deployment.deployedVault ?? deployment.predictedVault) as string);
-  let snap: ChainCampaignSnapshot;
-  try {
-    snap = await verifier.readSnapshot(vault, settings.chainId, deriveDeploymentInputs(plan).missionIds);
-  } catch {
-    return { ok: false, reason: "vault_unreadable" };
-  }
+  const snap = await verifier.readSnapshot(vault, settings.chainId, deriveDeploymentInputs(plan).missionIds);
   if (snap.state !== "active") return { ok: false, reason: `vault_not_active:${snap.state}` };
   return { ok: true };
 }
