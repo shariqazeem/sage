@@ -510,3 +510,48 @@ export const inspectionJobs = sqliteTable(
 
 export type InspectionJob = typeof inspectionJobs.$inferSelect;
 export type NewInspectionJob = typeof inspectionJobs.$inferInsert;
+
+/**
+ * A durable, immutable-once-approved plan revision. The generated plan is revision 1;
+ * every founder edit / rebalance / regeneration creates a NEW revision (prior ones stay
+ * readable). Exactly one revision may be the active APPROVED one. The full canonical
+ * MissionPlanV1 snapshot lives in `planJson` (it already carries campaignIdHash,
+ * missionIdHashes, specDigests, missionPlanDigest, and exact economics), so approval is
+ * a transactional flag on an immutable snapshot — never a client boolean.
+ */
+export const planRevisions = sqliteTable(
+  "plan_revisions",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id").notNull().references(() => inspectionJobs.id),
+    revisionNumber: integer("revision_number").notNull(),
+    parentRevisionId: text("parent_revision_id"),
+    authorWallet: text("author_wallet").notNull(),
+    /** why this revision exists: "generated" | "edit" | "rebalance" | "regenerate". */
+    reason: text("reason").notNull().default("generated"),
+    productMapDigest: text("product_map_digest"),
+    /** the complete canonical MissionPlanV1 snapshot (bigints as strings), JSON. */
+    planJson: text("plan_json", { mode: "json" }).$type<unknown>().notNull(),
+    budgetBase: integer("budget_base").notNull(),
+    validationOk: integer("validation_ok", { mode: "boolean" }).notNull().default(true),
+    campaignIdHash: text("campaign_id_hash").notNull(),
+    missionPlanDigest: text("mission_plan_digest").notNull(),
+    model: text("model"),
+    provider: text("provider"),
+    /** unix seconds this revision was approved (immutable thereafter), or null. */
+    approvedAt: integer("approved_at"),
+    approverWallet: text("approver_wallet"),
+    /** the immutable approval record (canonical hashes + provenance), JSON, when approved. */
+    approvalRecord: text("approval_record", { mode: "json" }).$type<unknown>(),
+    /** unix seconds this revision was superseded by a newer one, or null. */
+    supersededAt: integer("superseded_at"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("plan_revisions_job_num_unq").on(t.jobId, t.revisionNumber),
+    index("plan_revisions_job_idx").on(t.jobId, t.revisionNumber),
+  ],
+);
+
+export type PlanRevision = typeof planRevisions.$inferSelect;
+export type NewPlanRevision = typeof planRevisions.$inferInsert;

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
 
@@ -120,4 +120,23 @@ export function updateInspectionJob(id: string, status: InspectionStatus | null,
 /** Mark a prior job for the same idempotency scope superseded (a fresh regeneration). */
 export function supersedeJob(id: string): void {
   db.update(inspectionJobs).set({ status: "superseded", updatedAt: nowSeconds() }).where(and(eq(inspectionJobs.id, id))).run();
+}
+
+/**
+ * Reset a TERMINAL (failed/needs_input) job back to queued for a retry, atomically and
+ * ONLY from a terminal state — so a duplicate retry click while a run is already in
+ * flight is a no-op. Returns true only when THIS call performed the reset (the caller
+ * then schedules the run); false means another run already owns it.
+ */
+export function resetInspectionForRetry(id: string): boolean {
+  const now = nowSeconds();
+  const res = db
+    .update(inspectionJobs)
+    .set({ status: "queued", failureReason: null, updatedAt: now })
+    .where(and(eq(inspectionJobs.id, id), inArray(inspectionJobs.status, ["failed", "needs_input"])))
+    .run();
+  if ((res.changes ?? 0) === 0) return false;
+  const cur = getInspectionJob(id);
+  if (cur) db.update(inspectionJobs).set({ retryCount: cur.retryCount + 1 }).where(eq(inspectionJobs.id, id)).run();
+  return true;
 }

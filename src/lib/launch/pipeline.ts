@@ -88,7 +88,9 @@ export async function inspectAndPlan(
   const brain = await runMissionBrain(map, input, scope);
   stamp("reviewing");
   if (!brain.ok) {
-    const stage: LaunchStage = brain.reason === "llm_not_configured" || brain.reason === "architect_failed" ? "failed" : "needs_input";
+    // a provider/parse/config failure is a RETRYABLE failure; only exhausting the
+    // deterministic gate after a corrective round is a needs_input (thin evidence).
+    const stage: LaunchStage = brain.reason === "no_missions_passed_validation" ? "needs_input" : "failed";
     return out(stage, brain.reason, { map, brain, questions: brain.needsInputQuestions });
   }
 

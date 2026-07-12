@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./launch.css";
-import { LaunchWorkspace } from "@/components/launch/launch-workspace";
+import { LaunchForm } from "@/components/launch/launch-form";
 
 export const metadata: Metadata = {
   title: "Launch with Sage — turn your product into a paid testing plan",
@@ -33,7 +33,7 @@ export default function LaunchPage() {
           </p>
         </div>
 
-        <LaunchWorkspace />
+        <LaunchForm />
       </div>
     </div>
   );

@@ -122,3 +122,16 @@
 
 .lx-ready-banner { display: flex; align-items: center; gap: 10px; background: #eefaf3; border: 1px solid #bfe6d0; color: var(--lx-pos); border-radius: 11px; padding: 13px 16px; font-weight: 560; font-size: 15px; margin-bottom: 4px; }
 .lx-question { background: #fffaf0; border: 1px solid #f2e2bd; border-radius: 10px; padding: 12px 14px; font-size: 14px; color: #6b4c17; line-height: 1.5; margin: 8px 0; }
+
+/* inline editing */
+.lx-edit-link { appearance: none; background: none; border: none; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 540; color: var(--lx-accent); padding: 0; }
+.lx-edit-link:hover { text-decoration: underline; }
+.lx-edit-link:focus-visible { outline: 2px solid var(--lx-accent); outline-offset: 2px; border-radius: 3px; }
+.lx-mission-editing { border-color: var(--lx-accent); box-shadow: 0 0 0 3px var(--lx-accent-soft); }
+.lx-editline { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.lx-editline .lx-input { flex: 1; }
+.lx-x { appearance: none; border: 1px solid var(--lx-line-strong); background: var(--lx-bg); border-radius: 8px; width: 34px; height: 40px; flex: none; cursor: pointer; font-size: 18px; color: var(--lx-muted); line-height: 1; }
+.lx-x:hover { border-color: var(--lx-accent); color: var(--lx-accent); }
+.lx-tech { margin-top: 12px; border-top: 1px solid var(--lx-line); }
+.lx-tech .lx-map-v.mono, .lx-map-v.mono { font-family: var(--font-mono, ui-monospace); font-size: 12.5px; }
+.mono { font-family: var(--font-mono, ui-monospace); }

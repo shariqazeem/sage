@@ -64,6 +64,45 @@ function extractJson(content: string): string {
   return first >= 0 && last > first ? body.slice(first, last + 1) : body.trim();
 }
 
+/**
+ * Bounded structural repair of syntactically-malformed JSON — trailing commas and an
+ * UNTERMINATED tail (a truncated completion): close any open strings/arrays/objects.
+ * It only rebalances delimiters; it never invents content. Returns the parsed value or
+ * null. This is the "repair" rung of the Mission Brain recovery ladder.
+ */
+function repairJson(raw: string): unknown {
+  const cleaned = raw.replace(/,(\s*[}\]])/g, "$1"); // drop trailing commas
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    /* try to close a truncated tail */
+  }
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (const ch of cleaned) {
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  let patched = cleaned;
+  if (inStr) patched += '"';
+  patched = patched.replace(/,\s*$/, "");
+  while (stack.length) patched += stack.pop();
+  try {
+    return JSON.parse(patched.replace(/,(\s*[}\]])/g, "$1"));
+  } catch {
+    return null;
+  }
+}
+
 interface ChatResponse {
   choices?: { message?: { content?: string } }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -106,10 +145,13 @@ export async function llmCompleteJson(opts: {
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("llm_empty");
     let json: unknown;
+    const extracted = extractJson(content);
     try {
-      json = JSON.parse(extractJson(content));
+      json = JSON.parse(extracted);
     } catch {
-      throw new Error("llm_unparseable");
+      // recovery rung: bounded structural repair before giving up.
+      json = repairJson(extracted);
+      if (json === null) throw new Error("llm_unparseable");
     }
     return {
       json,

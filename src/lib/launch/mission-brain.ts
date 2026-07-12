@@ -151,29 +151,49 @@ function compactMapForLlm(map: ProductMapV1): string {
   });
 }
 
-async function architect(map: ProductMapV1, founder: FounderLaunchInput): Promise<{ candidates: CandidateMission[]; model: string; provider: string; latencyMs: number } | null> {
+const jitter = (attempt: number) => new Promise((res) => setTimeout(res, attempt === 0 ? 0 : 250 * attempt + Math.floor(Math.random() * 200)));
+
+/** Classify an architect failure for durable observability. */
+function classifyBrainError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (/unparseable/.test(m)) return "invalid_json";
+  if (/empty/.test(m)) return "truncated_output";
+  if (/status_(408|429|5\d\d)/.test(m)) return "provider_transient";
+  if (/status_/.test(m)) return "provider_error";
+  if (/abort|timeout/i.test(m)) return "provider_timeout";
+  if (/not_configured/.test(m)) return "llm_not_configured";
+  return "provider_error";
+}
+
+type ArchitectResult =
+  | { ok: true; candidates: CandidateMission[]; model: string; provider: string; latencyMs: number }
+  | { ok: false; error: string };
+
+async function architect(map: ProductMapV1, founder: FounderLaunchInput, correction?: string): Promise<ArchitectResult> {
   const mapJson = compactMapForLlm(map);
-  // The architect is the differentiator; the configured model is occasionally flaky
-  // (returns empty/unparseable JSON). Retry a few times with slight temperature
-  // variation before degrading honestly to a "failed" state.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Recovery ladder: retry transient/parse failures with jitter + temperature variation.
+  // A `correction` (the deterministic validation errors from a prior round) steers the
+  // model to fix specific problems rather than blindly regenerate. Never canned output.
+  let lastError = "architect_failed";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await jitter(attempt);
     try {
-      const r = await llmCompleteJson({
-        system: ARCHITECT_SYSTEM,
-        user: buildArchitectUser(mapJson, { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" }),
-        maxTokens: 4000,
-        temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.4,
-      });
+      const base = buildArchitectUser(mapJson, { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" });
+      const user = correction
+        ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
+        : base;
+      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45 });
       const arr = (r.json as { missions?: unknown[] })?.missions;
-      if (!Array.isArray(arr)) continue;
+      if (!Array.isArray(arr) || arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
-      if (candidates.length === 0) continue;
-      return { candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
-    } catch {
-      /* retry once */
+      if (candidates.length === 0) { lastError = "schema_mismatch"; continue; }
+      return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
+    } catch (e) {
+      lastError = classifyBrainError(e);
+      if (lastError === "llm_not_configured") break;
     }
   }
-  return null;
+  return { ok: false, error: lastError };
 }
 
 async function critic(candidates: CandidateMission[], map: ProductMapV1): Promise<MissionCritique[]> {
@@ -211,6 +231,19 @@ async function critic(candidates: CandidateMission[], map: ProductMapV1): Promis
  * Run the full brain. Requires a configured LLM (honest fail otherwise). Applies the
  * critic's verdicts, then the deterministic gate; `accepted` is the founder-visible set.
  */
+/** Apply the critic verdicts to candidates (revise → corrected, reject/needs_input → drop). */
+function applyCritic(candidates: CandidateMission[], critiques: MissionCritique[], needsInput: string[]): CandidateMission[] {
+  const byKey = new Map(critiques.map((c) => [c.missionKey, c]));
+  const survivors: CandidateMission[] = [];
+  for (const cand of candidates) {
+    const v = byKey.get(cand.missionKey);
+    if (!v || v.decision === "accept" || v.decision === "merge") survivors.push(cand);
+    else if (v.decision === "revise" && v.revised) survivors.push({ ...v.revised, missionKey: cand.missionKey });
+    else if (v.decision === "needs_input" && v.question && !needsInput.includes(v.question)) needsInput.push(v.question);
+  }
+  return survivors;
+}
+
 export async function runMissionBrain(
   map: ProductMapV1,
   founder: FounderLaunchInput,
@@ -219,37 +252,36 @@ export async function runMissionBrain(
   if (!llmConfigured()) return EMPTY("llm_not_configured");
   if (map.pagesInspected === 0) return EMPTY("no_inspected_pages");
 
-  const arch = await architect(map, founder);
-  if (!arch) return EMPTY("architect_failed");
-
-  const critiques = await critic(arch.candidates, map);
-  const byKey = new Map(critiques.map((c) => [c.missionKey, c]));
   const needsInputQuestions: string[] = [];
+  const run = async (arch: Extract<ArchitectResult, { ok: true }>) => {
+    const critiques = await critic(arch.candidates, map);
+    const survivors = dedupeKeys(applyCritic(arch.candidates, critiques, needsInputQuestions));
+    const reports = validatePlanMissions(survivors, scope);
+    return { critiques, survivors, reports, accepted: survivors.filter((_m, i) => reports[i].ok) };
+  };
 
-  // apply the critic: revise → corrected, reject/needs_input → drop, else keep.
-  const survivors: CandidateMission[] = [];
-  for (const cand of arch.candidates) {
-    const verdict = byKey.get(cand.missionKey);
-    if (!verdict || verdict.decision === "accept" || verdict.decision === "merge") survivors.push(cand);
-    else if (verdict.decision === "revise" && verdict.revised) survivors.push({ ...verdict.revised, missionKey: cand.missionKey });
-    else if (verdict.decision === "needs_input" && verdict.question) needsInputQuestions.push(verdict.question);
-    // reject → dropped
+  let arch = await architect(map, founder);
+  if (!arch.ok) return { ...EMPTY(arch.error), needsInputQuestions };
+  let r = await run(arch);
+
+  // CORRECTIVE ROUND: if the deterministic gate rejected everything, feed the exact
+  // validation issues back to the architect ONCE. This is a real model correction —
+  // never canned missions, never a weakened gate.
+  if (r.accepted.length === 0) {
+    const issues = r.reports.flatMap((rep) => rep.issues.map((x) => `${rep.missionKey}: ${x.code} — ${x.detail}`)).slice(0, 10).join("; ");
+    const arch2 = await architect(map, founder, issues || "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
+    if (arch2.ok) { arch = arch2; r = await run(arch2); }
   }
-
-  // deterministic gate — the final authority. Only issue-free missions are accepted.
-  const deduped = dedupeKeys(survivors);
-  const reports = validatePlanMissions(deduped, scope);
-  const accepted = deduped.filter((_m, i) => reports[i].ok);
 
   for (const q of map.openQuestions) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
 
   return {
-    ok: accepted.length > 0,
-    reason: accepted.length > 0 ? null : "no_missions_passed_validation",
+    ok: r.accepted.length > 0,
+    reason: r.accepted.length > 0 ? null : "no_missions_passed_validation",
     candidates: arch.candidates,
-    critiques,
-    accepted,
-    reports,
+    critiques: r.critiques,
+    accepted: r.accepted,
+    reports: r.reports,
     needsInputQuestions,
     model: arch.model,
     provider: arch.provider,
