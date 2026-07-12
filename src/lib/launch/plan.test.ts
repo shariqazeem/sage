@@ -23,7 +23,7 @@ function mission(key: string, over: Partial<CandidateMission> = {}): CandidateMi
     instructions: `Open the ${key} surface, follow the primary path, and record the outcome`,
     targetSurface: `https://app.acme.example/${key}`,
     criteria: [`The ${key} flow completes`, `No error is shown on the happy path`],
-    evidenceRequirements: [`A screen recording of the ${key} flow`, `The final URL reached`],
+    evidenceRequirements: [`The verbatim heading or button text seen during the ${key} flow`, `The final URL reached`],
     whyItMatters: `The ${key} surface is on the primary conversion journey`,
     sources: [{ kind: "page", ref: `https://app.acme.example/${key}`, observation: "observed" }],
     priority: "high",

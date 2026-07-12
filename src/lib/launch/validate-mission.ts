@@ -11,6 +11,7 @@
 
 import { detectInjection } from "@/lib/deputy/brain-core";
 import { validateMissionSpec } from "@/lib/campaigns/mission-spec";
+import { detectUnsupportedEvidence } from "./evidence-capabilities";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
@@ -169,6 +170,21 @@ export function validateMission(m: CandidateMission, scope: ValidationScope): Mi
   const trivialEvidence = m.evidenceRequirements.every((e) => norm(e).length < 8);
   if (m.evidenceRequirements.length > 0 && trivialEvidence)
     add("evidence_cannot_prove_criteria", "evidenceRequirements", "evidence requirements are too vague to verify the criteria");
+
+  // 9. evidence must be a type Sage can actually verify (public URL + quoted/observed text).
+  // A screenshot/image/video/file/private-auth requirement can never be verified or paid, so
+  // the mission is rejected and regenerated before the founder ever sees it.
+  const unsupported = detectUnsupportedEvidence({
+    evidenceRequirements: m.evidenceRequirements,
+    criteria: m.criteria,
+    instructions: m.instructions,
+  });
+  if (unsupported)
+    add(
+      "unsupported_evidence_type",
+      unsupported.field,
+      `requires ${unsupported.category} ("${unsupported.match}") — Sage can only verify a public URL + quoted/observed text`,
+    );
 
   return { ok: issues.length === 0, missionKey: m.missionKey, issues };
 }

@@ -27,7 +27,7 @@ function m(key: string, path: string): CandidateMission {
     instructions: `Open the ${key} surface, follow the primary path, and record what happens`,
     targetSurface: `https://${HOST}/${path}`,
     criteria: [`The ${key} flow completes on the happy path`, `No blocking error appears`],
-    evidenceRequirements: [`A screen recording of the ${key} flow`, `The final URL reached`],
+    evidenceRequirements: [`The verbatim heading or button text seen during the ${key} flow`, `The final URL reached`],
     whyItMatters: `${key} is on the primary conversion journey`,
     sources: [{ kind: "page", ref: `https://${HOST}/${path}`, observation: "observed" }],
     priority: "high", riskCategory: "critical_journey", effortMinutes: 20, conditions: [],

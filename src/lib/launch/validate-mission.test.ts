@@ -32,8 +32,8 @@ function good(over: Partial<CandidateMission> = {}): CandidateMission {
       "The dashboard is not reachable before email verification",
     ],
     evidenceRequirements: [
-      "A screen recording of the full signup attempt",
       "The exact URL shown after submitting the signup form",
+      "The verbatim text of the message shown when the dashboard was blocked before verification",
     ],
     whyItMatters:
       "The pricing page promises a secure onboarding; an unverified account reaching the dashboard would break that claim.",
@@ -135,5 +135,24 @@ describe("validatePlanMissions — cross-mission rules", () => {
     expect(all).toContain("duplicate_mission_key");
     expect(all).toContain("duplicate_objective");
     expect(reports.every((r) => !r.ok)).toBe(true);
+  });
+});
+
+describe("evidence-capability gate — unsupported_evidence_type (05.1)", () => {
+  it("rejects a mission requiring a screenshot", () => {
+    expect(codes(good({ evidenceRequirements: ["A screenshot of the dashboard", "The exact URL shown"] }))).toContain("unsupported_evidence_type");
+  });
+  it("rejects image / video / file / private-auth evidence", () => {
+    expect(codes(good({ evidenceRequirements: ["Upload a photo of the result"] }))).toContain("unsupported_evidence_type");
+    expect(codes(good({ evidenceRequirements: ["A screen recording of the flow"] }))).toContain("unsupported_evidence_type");
+    expect(codes(good({ evidenceRequirements: ["Attach the exported report.pdf"] }))).toContain("unsupported_evidence_type");
+    expect(codes(good({ evidenceRequirements: ["A screenshot from your logged-in dashboard"] }))).toContain("unsupported_evidence_type");
+  });
+  it("catches a screenshot demanded in a criterion (not just evidence)", () => {
+    expect(codes(good({ criteria: ["The result matches the claim", "Must attach a screenshot as proof"] }))).toContain("unsupported_evidence_type");
+  });
+  it("accepts a mission verifiable from a public URL + quoted text (no such issue)", () => {
+    expect(codes(good())).not.toContain("unsupported_evidence_type");
+    expect(codes(good({ evidenceRequirements: ["The public URL you tested", "The verbatim heading text shown on that page"] }))).not.toContain("unsupported_evidence_type");
   });
 });

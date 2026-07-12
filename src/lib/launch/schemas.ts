@@ -232,6 +232,7 @@ export type MissionValidationCode =
   | "hallucinated_route"
   | "instructions_criteria_inconsistent"
   | "evidence_cannot_prove_criteria"
+  | "unsupported_evidence_type"
   | "prompt_injection_content";
 
 export interface MissionValidationIssue {
