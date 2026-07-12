@@ -444,3 +444,69 @@ export const locks = sqliteTable("locks", {
 });
 
 export type Lock = typeof locks.$inferSelect;
+
+export type InspectionStatus =
+  | "queued"
+  | "fetching"
+  | "mapping"
+  | "analyzing"
+  | "generating_missions"
+  | "reviewing"
+  | "ready"
+  | "needs_input"
+  | "failed"
+  | "superseded";
+
+/**
+ * A durable founder-launch inspection job — Sage inspects a real product and generates
+ * a product-specific mission plan. The status reflects REAL persisted work (updated as
+ * the pipeline enters each stage), never a timer. Provenance is stored so an inspection
+ * is reproducible; provider secrets + raw credentials are NEVER stored. `idempotencyKey`
+ * makes a repeated create a no-op instead of a duplicate job/model run.
+ */
+export const inspectionJobs = sqliteTable(
+  "inspection_jobs",
+  {
+    id: text("id").primaryKey(),
+    /** the founder/session identity that owns this job. */
+    founderWallet: text("founder_wallet").notNull(),
+    /** de-dupes repeated create requests (founder + normalized url + budget hash). */
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").$type<InspectionStatus>().notNull().default("queued"),
+    /** the public campaign id frozen for this plan (the DB id + slug on approval). */
+    publicCampaignId: text("public_campaign_id").notNull(),
+    /** normalized product URL. */
+    productUrl: text("product_url").notNull(),
+    repoUrl: text("repo_url"),
+    goal: text("goal").notNull().default(""),
+    targetUsers: text("target_users").notNull().default(""),
+    totalBudgetBase: integer("total_budget_base").notNull(),
+    tokenDecimals: integer("token_decimals").notNull().default(6),
+    pagesInspected: integer("pages_inspected").notNull().default(0),
+    repoFilesInspected: integer("repo_files_inspected").notNull().default(0),
+    /** the canonical ProductMapV1 digest (hex), when mapped. */
+    productMapDigest: text("product_map_digest"),
+    model: text("model"),
+    provider: text("provider"),
+    promptVersion: text("prompt_version"),
+    /** the current plan revision (each material edit bumps it). */
+    revision: integer("revision").notNull().default(0),
+    /** the whole LaunchResult (map + brain + allocation + plan), JSON. bigints→strings. */
+    result: text("result", { mode: "json" }).$type<unknown>(),
+    /** a sanitized failure reason (never a stack or secret). */
+    failureReason: text("failure_reason"),
+    retryCount: integer("retry_count").notNull().default(0),
+    /** sha256 of the founder input + the produced plan (integrity/observability). */
+    inputDigest: text("input_digest"),
+    outputDigest: text("output_digest"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("inspection_jobs_idem_unq").on(t.idempotencyKey),
+    index("inspection_jobs_owner_idx").on(t.founderWallet, t.createdAt),
+  ],
+);
+
+export type InspectionJob = typeof inspectionJobs.$inferSelect;
+export type NewInspectionJob = typeof inspectionJobs.$inferInsert;
