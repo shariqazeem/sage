@@ -555,3 +555,62 @@ export const planRevisions = sqliteTable(
 
 export type PlanRevision = typeof planRevisions.$inferSelect;
 export type NewPlanRevision = typeof planRevisions.$inferInsert;
+
+/**
+ * A durable founder-vault deployment. Turns an APPROVED plan revision into a real, funded,
+ * founder-owned CampaignVaultV2 through the product. It is the refresh-safe state of the
+ * whole deploy flow: the `state` enum (see deployment-machine.ts) is the single source of
+ * progress; the per-step tx hashes are WRITE-ONCE (a step with a hash is polled, never
+ * re-broadcast); and once a vault exists on-chain a stall routes to `recovery_required`,
+ * never a second deploy. The founder's wallet signs every tx — the server stores hashes +
+ * the founder's EIP-712 claim signature, never a private key. Exactly one non-terminal
+ * deployment may exist per (jobId, revisionId).
+ */
+export const deployments = sqliteTable(
+  "deployments",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id").notNull().references(() => inspectionJobs.id),
+    /** the approved plan revision this deploys (immutable economic binding). */
+    revisionId: text("revision_id").notNull().references(() => planRevisions.id),
+    revisionNumber: integer("revision_number").notNull(),
+    /** the claimed founder wallet (vault owner / msg.sender). */
+    founderWallet: text("founder_wallet").notNull(),
+    /** testnet only this pass — hard-asserted 59902. */
+    chainId: integer("chain_id").notNull(),
+    /** the durable state machine position. */
+    state: text("state").notNull().default("prepared"),
+    /** the frozen deploy parameters (addresses + limits), JSON. */
+    settings: text("settings", { mode: "json" }).$type<unknown>().notNull(),
+    /** the canonical identity this deployment is bound to (fail-closed at resume). */
+    campaignIdHash: text("campaign_id_hash").notNull(),
+    missionPlanDigest: text("mission_plan_digest").notNull(),
+    calldataDigest: text("calldata_digest").notNull(),
+    totalBudgetBase: integer("total_budget_base").notNull(),
+    /** the CREATE2-predicted vault address (before deploy). */
+    predictedVault: text("predicted_vault").notNull(),
+    /** the ACTUAL vault address emitted by the create receipt (must equal predicted). */
+    deployedVault: text("deployed_vault"),
+    /** the founder's single-use EIP-712 claim nonce + signature (proof of ownership). */
+    claimNonce: text("claim_nonce"),
+    claimSignature: text("claim_signature"),
+    /** write-once tx hashes — presence = "already broadcast, poll don't resend". */
+    createTx: text("create_tx"),
+    approveTx: text("approve_tx"),
+    fundTx: text("fund_tx"),
+    activateTx: text("activate_tx"),
+    /** the campaign row id once the verified vault is atomically attached (=> live). */
+    attachedCampaignId: text("attached_campaign_id"),
+    /** a sanitized failure/recovery reason (never a stack or secret). */
+    failureReason: text("failure_reason"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    index("deployments_job_idx").on(t.jobId, t.createdAt),
+    index("deployments_revision_idx").on(t.revisionId),
+  ],
+);
+
+export type Deployment = typeof deployments.$inferSelect;
+export type NewDeployment = typeof deployments.$inferInsert;
