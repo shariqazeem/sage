@@ -62,6 +62,20 @@ function slug(s: string): string {
   return norm(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "mission";
 }
 
+/** Extract the missions array from the model's JSON, tolerating common shape variations. */
+function extractMissionArray(json: unknown): unknown[] {
+  if (Array.isArray(json)) return json;
+  const o = (json ?? {}) as Record<string, unknown>;
+  for (const k of ["missions", "Missions", "testingMissions", "plan", "data", "result"]) {
+    const v = o[k];
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === "object" && Array.isArray((v as Record<string, unknown>).missions)) return (v as { missions: unknown[] }).missions;
+  }
+  // a single mission object returned bare (has a title + objective) → wrap it.
+  if (typeof o.title === "string" && typeof o.objective === "string") return [o];
+  return [];
+}
+
 /** Coerce a raw model object into a well-typed CandidateMission (or null if unusable). */
 function coerceMission(raw: unknown, i: number): CandidateMission | null {
   const o = (raw ?? {}) as Record<string, unknown>;
@@ -175,16 +189,18 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
   // A `correction` (the deterministic validation errors from a prior round) steers the
   // model to fix specific problems rather than blindly regenerate. Never canned output.
   let lastError = "architect_failed";
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     await jitter(attempt);
     try {
       const base = buildArchitectUser(mapJson, { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" });
-      const user = correction
+      // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).
+      const shapeNudge = attempt >= 1 ? `\n\nRespond with EXACTLY this shape and nothing else: {"missions":[ {...}, {...} ]}. The top-level key MUST be "missions" and its value MUST be a JSON array.` : "";
+      const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
-        : base;
+        : base) + shapeNudge;
       const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45 });
-      const arr = (r.json as { missions?: unknown[] })?.missions;
-      if (!Array.isArray(arr) || arr.length === 0) { lastError = "schema_mismatch"; continue; }
+      const arr = extractMissionArray(r.json);
+      if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
       if (candidates.length === 0) { lastError = "schema_mismatch"; continue; }
       return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
