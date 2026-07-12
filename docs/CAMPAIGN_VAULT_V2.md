@@ -330,3 +330,65 @@ and fresh confirmation.
 The 02E.1 AI-proof exercise uses a **second, minimal vault** (mission M1/M2 on vault 1
 are already full, so their fixtures cannot complete the AI path) to prove the full
 AI-decision → DecisionCommitmentV2 → payout → verified proof path end-to-end.
+
+---
+
+## 02E.1 AI-proof exercise — COMPLETE (Metis Sepolia 59902)
+
+The full canonical path is proven live and end-to-end: **public HTTPS evidence → real
+Sage SSRF-guarded fetch → mission-aware LLM decision → DecisionCommitmentV2 →
+PayoutIntentV2 → durable settlement attempt → CampaignVaultV2 payout → application
+replay recovery → verified V2 proof (API + UI).**
+
+**Vault 2 — `0x73Ce425A84B1c2e4F19c7cB9f5d745EE529e4972`** (fresh, via the existing
+factory `0x2249b773…`). One mission `public-https-evidence-verification`, reward
+`100000` (0.1 mUSDC), cap 1, velocity 100000, 7-day window. Frozen identity, all held
+exactly through the exercise:
+
+| field | value |
+| --- | --- |
+| campaignIdHash | `0x4a5024d5af6dfe32e1ae40fb73978a8e1c793ef157109316ed2db31d868d10e7` |
+| missionIdHash | `0x9af3313cb0b13822c9caaab12045888fbf36fcfa80ef85ddb76bb5b3c000c6f3` |
+| MissionSpecV1 digest (app-level) | `0x20cc206239baf11097d21683a2602d1ba56e4dc9ca36356e05f32d0cbf20e8ad` |
+| missionPlanDigest (on-chain) | `0x48f6d45295be7b0b4b85ab99846e5dec29408a7c101eeb63865abeef31d803d2` |
+
+**Evidence fixture** (a temporary, valueless, additive static file on the live Sage
+nginx surface; backed up + fully removable — no app code, DB, or restart touched):
+`https://sage.80.225.209.190.sslip.io/ai-proof-fixture.txt`, 237 bytes, SHA-256
+`35d2b4c27dafedc6f8fd7932de6ab3cc010a8d2d4bbde15fee01fdce5a516ab6`, phrase
+`SAGE_V2_AI_PIPELINE_OK`. The evidence SSRF guard accepted it unchanged (https, public
+host, no credentials, no redirect) — never weakened.
+
+**On-chain transactions (all owner-signed except the payout):**
+
+| tx | hash |
+| --- | --- |
+| deploy vault (create2) | `0x76b06c0c35d8a145bba9d58f7e810fb35b54219c75025527ee025b9ba0cfb3e8` |
+| approve | `0x8075cf0f50ec54f4e1e01ffdacc29495caf4f635f279d93fcaf385a628dff980` |
+| fund | `0x0885572f9b5ba1458b79d2095c3a1f7fa251824aa0d9b54f4da16a6fe17356b9` |
+| activate | `0x2ad7feb0a331b0665240720073598c5a7e42de8e51bda59a8d5c2a053fd5686c` |
+| **payout (operator, real pipeline)** | **`0x912b48cefdddad6c4c25701482ea0f1210051df271d9e349c379f0d0981e4024`** |
+
+The payout is **AI-bound**: the decision was a real LLM verdict (engine `llm`,
+`google/gemini-3.1-flash-lite-preview` via api.commonstack.ai, `pay` @ 0.98,
+reasonCode `all_criteria_met`, evidence SHA `35d2b4c…`). Its DecisionCommitmentV2
+recomputes to the on-chain intent `0xe1ee09ada0b863e0075cbe3285d9d23ba6fa86d4a1edc848cfa45841c08f8318`
+(decisionDigest `0x6d6e97928f20bdac3ab1180b6b288ae47269930fc1bbc172e7fbf219282aa982`).
+`GET /api/proof/<tx>` returns `proofState: "committed_settlement"`, `verified: true`,
+`commitmentMatches: true`, and the full recomputed `v2` block with
+`integrity.verified: true`; the `/proof/<tx>` page renders it. Re-running the pipeline
+returns **skipped ("already handled")** — no second payout (on-chain replay + app
+idempotency both hold).
+
+**Two honest deviations from the six-tx preview (economics unchanged):**
+
+1. The planned **mint** was a no-op: the dedicated owner already held test mUSDC from
+   prior exercises, so only 5 transactions actually broadcast (deploy/approve/fund/
+   activate/payout). The vault was still funded to exactly the `100000` budget.
+2. The exercise first seeded the campaign under a random DB id; the **trustless proof
+   composer correctly reported `commitment_mismatch`** because it recomputes
+   `campaignIdHash` from the campaign's public id string. The campaign's DB id was set
+   to the canonical public id (`sage-metis-v2-ai-proof-1`) the on-chain identity
+   commits to — a seeding correction, not a data change: the payout, decision, and
+   evidence are real and untouched. In production the public id **is** the campaign id
+   by construction, so this cannot recur.
