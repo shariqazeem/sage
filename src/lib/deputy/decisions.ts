@@ -6,8 +6,10 @@ import {
   deleteDecision,
   getCampaign,
   getDecisionBySubmission,
+  getMissionByHash,
   getSubmission,
   insertDecision,
+  recomputeMissionSpecDigest,
   recordEvent,
 } from "@/lib/db/campaigns";
 import type { Decision } from "@/lib/db/schema";
@@ -61,6 +63,16 @@ export async function ensureDecision(
   const campaign = getCampaign(submission.campaignId);
   if (!campaign) return null;
 
+  // For a V2 mission submission the UNIT of work is the mission — the Deputy must
+  // judge against the MISSION's acceptance criteria + title, not the (empty)
+  // campaign criteria. Falls back to the campaign for V1.
+  const mission =
+    campaign.vaultKind === "campaign_v2" && submission.missionIdHash
+      ? getMissionByHash(campaign.id, submission.missionIdHash)
+      : null;
+  const judgeTitle = mission ? `${mission.title} — ${mission.objective}` : campaign.title;
+  const judgeCriteria = mission ? mission.criteria : campaign.criteria;
+
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
   const evidence = submission.evidenceUrl
@@ -76,8 +88,8 @@ export async function ensureDecision(
       };
 
   const brief = await verifySubmission({
-    campaignTitle: campaign.title,
-    criteria: campaign.criteria,
+    campaignTitle: judgeTitle,
+    criteria: judgeCriteria,
     conditionType: campaign.conditionType,
     note: submission.note,
     wallet: submission.wallet,
@@ -109,6 +121,15 @@ export async function ensureDecision(
     x402PaymentTx: evidence.x402PaymentTx,
     x402Status: evidence.x402Status,
     x402Reason: evidence.x402Reason,
+    // V2 decision provenance — which mission + spec the Deputy judged against.
+    ...(mission && campaign.campaignIdHash
+      ? {
+          commitmentVersion: 2,
+          missionIdHash: mission.missionIdHash,
+          vaultKind: "campaign_v2" as const,
+          missionSpecDigest: recomputeMissionSpecDigest(mission, campaign.campaignIdHash),
+        }
+      : {}),
   });
 
   if (inserted) {
