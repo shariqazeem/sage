@@ -12,11 +12,11 @@ import {
   recomputeMissionSpecDigest,
   recordEvent,
 } from "@/lib/db/campaigns";
-import type { Decision } from "@/lib/db/schema";
+import type { Decision, Submission } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
-import type { DecisionBrief } from "./brain-core";
+import type { DecisionBrief, StoredBrief } from "./brain-core";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
 export function briefFromRow(row: Decision): DecisionBrief {
@@ -36,6 +36,62 @@ export function briefFromRow(row: Decision): DecisionBrief {
     x402Status: deriveStoredX402Status(row.x402Status, row.x402PaymentTx),
     x402Reason: (row.x402Reason as DecisionBrief["x402Reason"]) ?? null,
   };
+}
+
+/**
+ * Fail-closed HOLD for a V2 submission whose locked mission context is missing (no
+ * mission row, still a draft, or the campaign has no on-chain identity). A heuristic
+ * hold NEVER auto-pays — the Deputy refuses to judge against nothing rather than
+ * risk paying on empty criteria. Records the V2 provenance it does know.
+ */
+function holdForMissingMission(
+  submission: Submission,
+  campaignId: string,
+  missionIdHash: string,
+  cid?: string,
+): DecisionBrief {
+  const brief: StoredBrief = {
+    criteria: [],
+    fraudSignals: [
+      {
+        signal: "mission context unavailable",
+        severity: "high",
+        reason: "no locked mission specification to judge this submission against",
+      },
+    ],
+    recommendation: "hold",
+    reasonCode: "no_evidence",
+    confidence: 0,
+    summary:
+      "Held: this campaign_v2 submission has no resolvable locked mission to judge against. A human must review the mission configuration.",
+    provider: null,
+  };
+  const { row, inserted } = insertDecision({
+    submissionId: submission.id,
+    campaignId,
+    engine: "heuristic",
+    model: null,
+    brief,
+    contentSha256: null,
+    evidenceOk: false,
+    latencyMs: null,
+    costUsd: null,
+    x402PaymentTx: null,
+    x402Status: "not_required",
+    x402Reason: null,
+    commitmentVersion: 2,
+    missionIdHash,
+    vaultKind: "campaign_v2",
+  });
+  if (inserted) {
+    recordEvent({
+      campaignId,
+      submissionId: submission.id,
+      kind: "decision_recorded",
+      detail: encodeDetail(`Heuristic · hold · ${short(submission.wallet)} · missing mission`, { cid }),
+    });
+  }
+  return row ? briefFromRow(row) : { ...brief, engine: "heuristic", model: null, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
 }
 
 /**
@@ -63,15 +119,29 @@ export async function ensureDecision(
   const campaign = getCampaign(submission.campaignId);
   if (!campaign) return null;
 
-  // For a V2 mission submission the UNIT of work is the mission — the Deputy must
-  // judge against the MISSION's acceptance criteria + title, not the (empty)
-  // campaign criteria. Falls back to the campaign for V1.
-  const mission =
-    campaign.vaultKind === "campaign_v2" && submission.missionIdHash
-      ? getMissionByHash(campaign.id, submission.missionIdHash)
-      : null;
+  // For a V2 mission submission the UNIT of work is the MISSION — the Deputy must
+  // judge against the locked mission's full context, never the (empty) campaign
+  // criteria. Falls back to the campaign for V1.
+  const isV2 = campaign.vaultKind === "campaign_v2" && !!submission.missionIdHash;
+  const mission = isV2 ? getMissionByHash(campaign.id, submission.missionIdHash!) : null;
+
+  // FAIL CLOSED: a V2 submission without a resolvable locked mission (or a campaign
+  // missing its on-chain identity) must NOT be judged against nothing — HOLD instead.
+  if (isV2 && (!mission || mission.status === "draft" || !campaign.campaignIdHash)) {
+    return holdForMissingMission(submission, campaign.id, submission.missionIdHash!, opts?.cid);
+  }
+
   const judgeTitle = mission ? `${mission.title} — ${mission.objective}` : campaign.title;
-  const judgeCriteria = mission ? mission.criteria : campaign.criteria;
+  // The model judges the MISSION's ordered criteria PLUS its required-evidence and
+  // instructions as trusted, founder-authored acceptance context. Reward is NEVER
+  // included — it is settlement policy, not a measure of evidence quality.
+  const judgeCriteria = mission
+    ? [
+        `Task: ${mission.instructions}`,
+        ...mission.criteria,
+        ...mission.evidenceList.map((e) => `Required evidence: ${e}`),
+      ]
+    : campaign.criteria;
 
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
