@@ -125,19 +125,38 @@ export async function ensureDecision(
   const isV2 = campaign.vaultKind === "campaign_v2" && !!submission.missionIdHash;
   const mission = isV2 ? getMissionByHash(campaign.id, submission.missionIdHash!) : null;
 
-  // FAIL CLOSED: a V2 submission without a resolvable locked mission (or a campaign
-  // missing its on-chain identity) must NOT be judged against nothing — HOLD instead.
-  if (isV2 && (!mission || mission.status === "draft" || !campaign.campaignIdHash)) {
-    return holdForMissingMission(submission, campaign.id, submission.missionIdHash!, opts?.cid);
+  // FAIL CLOSED: a V2 submission must be judged against its exact LOCKED mission
+  // snapshot. HOLD (never judge against nothing) when the mission is unresolvable,
+  // still a draft, missing its immutable fields (target surface), the campaign lacks
+  // its on-chain identity, or the snapshot has DRIFTED from what the submission
+  // captured (submission.missionSpecDigest != the current mission's recomputed digest).
+  if (isV2) {
+    const snapshotDrifted =
+      !!mission &&
+      !!campaign.campaignIdHash &&
+      !!submission.missionSpecDigest &&
+      submission.missionSpecDigest.toLowerCase() !==
+        recomputeMissionSpecDigest(mission, campaign.campaignIdHash).toLowerCase();
+    if (
+      !mission ||
+      mission.status === "draft" ||
+      !campaign.campaignIdHash ||
+      !mission.targetSurface ||
+      snapshotDrifted
+    ) {
+      return holdForMissingMission(submission, campaign.id, submission.missionIdHash!, opts?.cid);
+    }
   }
 
   const judgeTitle = mission ? `${mission.title} — ${mission.objective}` : campaign.title;
-  // The model judges the MISSION's ordered criteria PLUS its required-evidence and
-  // instructions as trusted, founder-authored acceptance context. Reward is NEVER
-  // included — it is settlement policy, not a measure of evidence quality.
+  // The model judges the MISSION's ordered criteria PLUS its instructions, target
+  // surface, and required-evidence as TRUSTED, founder-authored acceptance context —
+  // all from the immutable locked mission snapshot, never from the untrusted note.
+  // Reward is NEVER included — it is settlement policy, not a measure of evidence quality.
   const judgeCriteria = mission
     ? [
         `Task: ${mission.instructions}`,
+        `Target surface: ${mission.targetSurface}`,
         ...mission.criteria,
         ...mission.evidenceList.map((e) => `Required evidence: ${e}`),
       ]
