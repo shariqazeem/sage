@@ -1248,3 +1248,28 @@
   color: var(--sec);
   font-weight: 500;
 }
+
+/* ── V2 tester mission board (PROMPT 05) — testnet-truthful, calm ──────────── */
+.v2-econ { margin-top: 18px; }
+.v2-econ-row { display: flex; gap: 24px; flex-wrap: wrap; }
+.v2-econ-fig { display: flex; flex-direction: column; gap: 2px; }
+.v2-econ-fig .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sec); }
+.v2-econ-fig .v { font-size: 19px; font-weight: 640; }
+.v2-econ-bar { height: 6px; border-radius: 3px; background: var(--line, #ece7de); margin: 14px 0 10px; overflow: hidden; }
+.v2-econ-bar span { display: block; height: 100%; background: var(--pos, #0f7a4f); border-radius: 3px; transition: width 0.5s ease; }
+.v2-econ-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--sec); }
+.v2-testnote { font-size: 12.5px; color: var(--sec); margin: 10px 0 0; line-height: 1.4; }
+
+.v2-board { display: grid; gap: 14px; }
+.v2-mission { border: 1px solid var(--line, #ece7de); border-radius: 12px; padding: 18px; background: var(--surface, #fff); }
+.v2-mission-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.v2-mission-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.v2-mission-reward { font-size: 15px; font-weight: 640; color: var(--pos, #0f7a4f); white-space: nowrap; }
+.v2-mission-obj { font-size: 14px; color: var(--sec); line-height: 1.5; margin: 8px 0 12px; }
+.v2-mission-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.v2-chip { font-size: 12px; color: var(--sec); border: 1px solid var(--line, #ece7de); border-radius: 6px; padding: 3px 9px; }
+.v2-chip.link { color: var(--accent, #c2410c); text-decoration: none; overflow-wrap: anywhere; }
+.v2-full { font-size: 13.5px; color: var(--sec); padding: 8px 0; }
+.v2-status { margin-top: 6px; display: grid; gap: 10px; }
+.v2-form { margin-top: 6px; }
+.v2-evreq { margin: 0 0 12px; padding-left: 18px; font-size: 13px; color: var(--sec); line-height: 1.5; }

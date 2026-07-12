@@ -22,6 +22,29 @@ export const usd = (n: number): string => {
 /** Shorten an address for display: 0x1234…ABCD. */
 export const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+// Testnet-aware token truth. A testnet payout is a REAL on-chain transaction but the token
+// (mUSDC) has NO value — so it must never be rendered as dollars or described as valuable.
+import { chainConfig } from "@/lib/deputy/networks";
+
+export const isTestnetChain = (chainId: number): boolean => !chainConfig(chainId).isMainnet;
+export const tokenSymbol = (chainId: number): string => (isTestnetChain(chainId) ? "mUSDC" : "USDC");
+export const networkLabel = (chainId: number): string =>
+  `${chainConfig(chainId).chipLabel}${isTestnetChain(chainId) ? " · Testnet" : ""}`;
+
+/**
+ * Reward amount, network-truthful. Mainnet USDC renders as money ("$3.75"); a testnet
+ * payout renders as the valueless test token ("3.75 test mUSDC") — never as dollars.
+ * `base` is token base units (6dp).
+ */
+export const reward = (base: number, chainId: number): string => {
+  const v = Math.round((base / 1e6) * 100) / 100;
+  const n = v.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return isTestnetChain(chainId) ? `${n} test mUSDC` : `$${n}`;
+};
+
 /** Capitalize the first letter. */
 export const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 

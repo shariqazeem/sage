@@ -9,6 +9,11 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
+import { db } from "@/lib/db";
+import { campaigns, missions as missionsTable } from "@/lib/db/schema";
+import { nowSeconds } from "@/lib/db/keys";
+import { campaignIdHash as cidHash, missionIdHash as midHash } from "@/lib/campaigns/mission-plan";
+import { missionSpecDigest } from "@/lib/campaigns/mission-spec";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, approveRevision } from "@/lib/db/plan-revisions";
 import { compilePlan } from "./plan";
@@ -18,6 +23,59 @@ import type { BudgetAllocation, CandidateMission } from "./schemas";
 
 export function e2eEnabled(): boolean {
   return process.env.SAGE_E2E === "1";
+}
+
+/**
+ * Seed a LIVE V2 tester campaign (campaign row + one active mission) so the injected-
+ * tester E2E can drive the real board + signed-evidence submit. `autonomy` is manual and
+ * no operator key is configured under E2E, so the pipeline preflight-holds — the test
+ * NEVER broadcasts a real payout. Returns the ids + hashes the client needs to sign.
+ */
+export function seedV2TesterCampaign(): {
+  campaignId: string;
+  campaignIdHash: string;
+  missionKey: string;
+  missionIdHash: string;
+  missionSpecDigest: string;
+} {
+  const now = nowSeconds();
+  const id = `e2e-tester-${randomBytes(4).toString("hex")}`;
+  const cid = cidHash(id);
+  const missionKey = "verify-the-thing";
+  const mid = midHash(id, missionKey);
+  const rewardBase = BigInt(1_000_000);
+  const maxCompletions = BigInt(1);
+  const spec = missionSpecDigest({
+    campaignIdHash: cid,
+    missionIdHash: mid,
+    title: "Verify the landing page loads",
+    objective: "Confirm the landing page is reachable and describes the product.",
+    instructions: "Open the product, confirm it loads, and capture the URL + a quote.",
+    targetSurface: "https://demo.example/app",
+    criteria: ["The page loads", "The product is described"],
+    evidenceRequirements: ["A public URL", "A verbatim quote"],
+    rewardBase,
+    maxCompletions,
+  });
+
+  db.insert(campaigns).values({
+    id, title: "E2E tester campaign", descriptionMd: "https://demo.example/app",
+    rewardAmount: Number(rewardBase), vaultAddress: `0x${"e".repeat(40)}`, chainId: 59902,
+    posterWallet: `0x${"b".repeat(40)}`, ownerIsSage: false, status: "live", autonomy: "manual",
+    vaultKind: "campaign_v2", campaignIdHash: cid, missionPlanDigest: `0x${"d".repeat(64)}`,
+    settlementToken: "0xF176f521290A937d81cc5878dfc19908f4D681A1", commitmentVersion: 2, createdAt: now,
+  }).run();
+  db.insert(missionsTable).values({
+    id: `${id}:${missionKey}`, campaignId: id, missionKey, missionIdHash: mid,
+    title: "Verify the landing page loads", objective: "Confirm the landing page is reachable and describes the product.",
+    instructions: "Open the product, confirm it loads, and capture the URL + a quote.",
+    targetSurface: "https://demo.example/app", criteria: ["The page loads", "The product is described"],
+    evidenceList: ["A public URL", "A verbatim quote"], rewardAmount: Number(rewardBase),
+    maxCompletions: Number(maxCompletions), status: "active", displayOrder: 0, specDigest: spec,
+    lockedAt: now, createdAt: now, updatedAt: now,
+  }).run();
+
+  return { campaignId: id, campaignIdHash: cid, missionKey, missionIdHash: mid, missionSpecDigest: spec };
 }
 
 function mission(key: string, weight: number): CandidateMission {

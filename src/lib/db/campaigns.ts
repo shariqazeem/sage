@@ -152,6 +152,13 @@ export function getSubmission(id: string): Submission | null {
   return db.select().from(submissions).where(eq(submissions.id, id)).get() ?? null;
 }
 
+/** A wallet's submission to a SPECIFIC V2 mission (keyed by the mission-scoped dedupe key). */
+export function getWalletMissionSubmission(missionIdHash: string, wallet: string): Submission | null {
+  return (
+    db.select().from(submissions).where(eq(submissions.dedupeKey, missionDedupeKey(missionIdHash, wallet))).get() ?? null
+  );
+}
+
 export function getWalletSubmission(
   campaignId: string,
   wallet: string,

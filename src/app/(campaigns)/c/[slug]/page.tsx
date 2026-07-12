@@ -2,16 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAddress } from "viem";
 import { Check, ShieldCheck } from "lucide-react";
-import { usd } from "@/lib/format";
+import { usd, reward as fmtReward, networkLabel } from "@/lib/format";
 import {
   ensureFlagshipCampaign,
   getCampaign,
   listSubmissions,
 } from "@/lib/db/campaigns";
 import { getVaultState } from "@/lib/deputy/chain";
+import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
+import { V2Board } from "@/components/campaigns/v2-board";
 import { PublicFeed } from "@/components/campaigns/public-feed";
 
 export const runtime = "nodejs";
@@ -32,6 +34,71 @@ export default async function CampaignPublicPage({
   ensureFlagshipCampaign();
   const campaign = getCampaign(slug);
   if (!campaign) notFound();
+
+  // ── V2 mission-board campaign — real per-mission economics, testnet-truthful ──
+  if (campaign.vaultKind === "campaign_v2") {
+    const e = v2Economics(campaign);
+    const live = campaign.status === "live";
+    const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;
+    return (
+      <main className="sb-shell">
+        <header className="sb-top">
+          <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
+            <span className="sb-mark">S</span> Sage
+          </Link>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <NetworkChip chainId={e.chainId} size="xs" />
+            <span className="sb-net"><span className="dot" /> Reward campaign</span>
+          </span>
+        </header>
+
+        <div className="sage-agent-card" style={{ marginBottom: 16 }}>
+          <div className="sage-eyebrow"><ShieldCheck size={13} /> Paid from a founder-owned vault with hard on-chain limits</div>
+          <h1 style={{ fontSize: 27, fontWeight: 700, letterSpacing: "-0.025em", margin: "0 0 8px" }}>{campaign.title}</h1>
+          {campaign.descriptionMd && (
+            <p style={{ fontSize: 15, color: "var(--sec)", lineHeight: 1.55, margin: 0 }}>{campaign.descriptionMd}</p>
+          )}
+
+          <div className="v2-econ">
+            <div className="v2-econ-row">
+              <div className="v2-econ-fig"><span className="k">Funded</span><span className="v mono">{fmtReward(e.totalFundedBase, e.chainId)}</span></div>
+              <div className="v2-econ-fig"><span className="k">Paid</span><span className="v mono">{fmtReward(e.paidBase, e.chainId)}</span></div>
+              <div className="v2-econ-fig"><span className="k">Remaining</span><span className="v mono">{fmtReward(e.remainingBase, e.chainId)}</span></div>
+            </div>
+            <div className="v2-econ-bar"><span style={{ width: `${pct}%` }} /></div>
+            <div className="v2-econ-meta">
+              <span>{networkLabel(e.chainId)}</span>
+              <span>·</span>
+              <span>{e.missionCount} mission{e.missionCount === 1 ? "" : "s"}</span>
+              <span>·</span>
+              <span>{e.paidCompletions}/{e.totalCompletions} paid</span>
+              <span>·</span>
+              <span>{live ? "Live" : "Closed"}</span>
+            </div>
+            {e.isTestnet && (
+              <p className="v2-testnote">Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="sb-sec-label">Missions</div>
+        <V2Board
+          campaignId={campaign.id}
+          campaignIdHash={campaign.campaignIdHash ?? `0x${"0".repeat(64)}`}
+          chainId={e.chainId}
+          live={live}
+          missions={e.missions}
+        />
+
+        <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
+          You own the campaign vault; Sage is the bounded operator. It reviews each submission
+          and pays eligible work within your on-chain limits — it can never exceed the budget,
+          the per-mission reward, or the completion caps. Every payout is a verifiable
+          transaction you can inspect on the block explorer.
+        </footer>
+      </main>
+    );
+  }
 
   const rewardUsd = campaign.rewardAmount / 1_000_000;
   const subs = listSubmissions(campaign.id);

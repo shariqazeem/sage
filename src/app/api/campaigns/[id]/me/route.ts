@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import {
   getCampaign,
   getDecisionBySubmission,
   getWalletSubmission,
+  getWalletMissionSubmission,
   listCampaignEvents,
 } from "@/lib/db/campaigns";
 import { briefFromRow } from "@/lib/deputy/decisions";
@@ -42,7 +43,7 @@ function ownAutopay(
  * or brief is ever exposed here.
  */
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
@@ -51,7 +52,10 @@ export async function GET(
   if (!getCampaign(id)) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  const sub = getWalletSubmission(id, wallet);
+  // V2: a wallet's submission is scoped to a mission (?mission=<missionIdHash>). Without it,
+  // the campaign-level (V1) submission is returned — backward compatible.
+  const mission = req.nextUrl.searchParams.get("mission");
+  const sub = mission ? getWalletMissionSubmission(mission, wallet) : getWalletSubmission(id, wallet);
   if (!sub) return NextResponse.json({ authed: true, submission: null });
 
   const stored = getDecisionBySubmission(sub.id);
