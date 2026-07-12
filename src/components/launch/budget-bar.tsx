@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { usd, shortHash, type JobView, type PlanView } from "./types";
+import { usd, type JobView, type PlanView } from "./types";
+import { DeployFlow } from "./deploy/deploy-flow";
 
 /**
  * The budget summary + durable approval. Budget arithmetic is exact (the server owns the
@@ -26,7 +27,6 @@ export function BudgetBar({
   const [budgetUsd, setBudgetUsd] = useState((Number(plan.totalBudgetBase) / 1e6).toString());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showTech, setShowTech] = useState(false);
 
   const total = Number(plan.totalBudgetBase);
   const allocated = plan.missions.reduce((s, m) => s + Number(m.rewardBase) * Number(m.maxCompletions), 0);
@@ -102,23 +102,7 @@ export function BudgetBar({
       {!locked ? (
         <button className="lx-btn" onClick={approve} disabled={busy || remaining !== 0}>{busy ? "Approving…" : "Approve mission plan"}</button>
       ) : (
-        <>
-          <div className="lx-next">
-            <button className="lx-btn" disabled>Create and fund the campaign vault</button>
-            <span className="lx-badge-next">next step</span>
-          </div>
-          <button className="lx-edit-link" style={{ marginTop: 14 }} onClick={() => setShowTech((s) => !s)}>{showTech ? "Hide" : "Show"} technical details</button>
-          {showTech && (
-            <div className="lx-tech">
-              <div className="lx-map-row"><span className="lx-map-k">Public campaign id</span><span className="lx-map-v mono">{plan.publicCampaignId}</span></div>
-              <div className="lx-map-row"><span className="lx-map-k">campaignIdHash</span><span className="lx-map-v mono">{plan.campaignIdHash}</span></div>
-              <div className="lx-map-row"><span className="lx-map-k">missionPlanDigest</span><span className="lx-map-v mono">{plan.missionPlanDigest}</span></div>
-              {plan.missions.map((m) => (
-                <div className="lx-map-row" key={m.missionKey}><span className="lx-map-k">{m.missionKey}</span><span className="lx-map-v mono">spec {shortHash(m.specDigest)}</span></div>
-              ))}
-            </div>
-          )}
-        </>
+        <DeployFlow jobId={jobId} plan={plan} />
       )}
       {error && <div className="lx-err" role="alert" style={{ marginTop: 10 }}>{error}</div>}
     </section>

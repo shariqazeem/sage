@@ -140,3 +140,25 @@ export function resetInspectionForRetry(id: string): boolean {
   if (cur) db.update(inspectionJobs).set({ retryCount: cur.retryCount + 1 }).where(eq(inspectionJobs.id, id)).run();
   return true;
 }
+
+/**
+ * Transfer an anonymous inspection's ownership to a founder wallet (the plan-claim). Only
+ * succeeds when the job is currently owned by "anonymous" OR already by this exact wallet
+ * (idempotent resume). If it belongs to a DIFFERENT wallet, it is refused — an anonymous
+ * browser can never claim a plan another wallet already owns. Atomic (CAS on the current
+ * owner), so two concurrent claims cannot both win.
+ */
+export function claimInspectionJob(id: string, wallet: string): { ok: boolean; reason?: string } {
+  const w = wallet.toLowerCase();
+  const cur = getInspectionJob(id);
+  if (!cur) return { ok: false, reason: "no_such_job" };
+  if (cur.founderWallet === w) return { ok: true }; // already owned by this wallet
+  if (cur.founderWallet !== "anonymous") return { ok: false, reason: "already_claimed_by_another_wallet" };
+  const res = db
+    .update(inspectionJobs)
+    .set({ founderWallet: w, updatedAt: nowSeconds() })
+    .where(and(eq(inspectionJobs.id, id), eq(inspectionJobs.founderWallet, "anonymous")))
+    .run();
+  if ((res.changes ?? 0) === 0) return { ok: false, reason: "claim_race_lost" };
+  return { ok: true };
+}

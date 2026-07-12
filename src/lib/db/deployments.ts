@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { db } from "./index";
@@ -160,6 +160,42 @@ export function recordClaim(
 
 export function markPreflightReady(id: string): { ok: boolean; reason?: string; deployment?: Deployment } {
   return advance(id, "preflight_ready");
+}
+
+export interface RebindInput {
+  settings: unknown;
+  predictedVault: string;
+  calldataDigest: string;
+  totalBudgetBase: bigint;
+}
+
+/**
+ * Re-bind a deployment to new founder-chosen limits (recomputed predicted vault + calldata
+ * digest). Permitted ONLY before any create tx exists — while the row is `claimed` or
+ * `preflight_ready` and no vault is on-chain. Once a create tx is recorded the economic
+ * binding is frozen (changing it would strand a real deploy). Atomic CAS on the state.
+ */
+export function rebindDeployment(id: string, input: RebindInput): { ok: boolean; reason?: string; deployment?: Deployment } {
+  const dep = getDeployment(id);
+  if (!dep) return { ok: false, reason: "no such deployment" };
+  if (dep.state !== "claimed" && dep.state !== "preflight_ready") {
+    return { ok: false, reason: "limits are locked once deployment has begun" };
+  }
+  if (dep.createTx) return { ok: false, reason: "cannot change limits after the vault create tx" };
+  const now = nowSeconds();
+  const res = db
+    .update(deployments)
+    .set({
+      settings: input.settings,
+      predictedVault: input.predictedVault,
+      calldataDigest: input.calldataDigest,
+      totalBudgetBase: Number(input.totalBudgetBase),
+      updatedAt: now,
+    })
+    .where(and(eq(deployments.id, id), inArray(deployments.state, ["claimed", "preflight_ready"]), isNull(deployments.createTx)))
+    .run();
+  if (res.changes === 0) return { ok: false, reason: "state changed concurrently — reload" };
+  return { ok: true, deployment: getDeployment(id) as Deployment };
 }
 
 /**

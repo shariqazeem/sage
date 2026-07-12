@@ -25,15 +25,26 @@ export async function readDeploymentPreview(
   settings: DeploymentSettings,
 ): Promise<DeploymentPreview> {
   const bundle = buildDeployBundle(plan, settings);
-  const client = publicClient(settings.chainId);
   const owner = getAddress(settings.owner);
   const token = getAddress(settings.token);
 
-  const [balance, code, allowance] = await Promise.all([
-    client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) as Promise<bigint>,
-    client.getCode({ address: bundle.predictedVault }),
-    client.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, bundle.predictedVault] }) as Promise<bigint>,
-  ]);
+  let balance: bigint;
+  let code: string | undefined;
+  let allowance: bigint;
+  if (process.env.SAGE_E2E === "1") {
+    // Deterministic reads for the browser E2E (no chain): a funded wallet, no existing
+    // vault, no prior allowance — so the preview shows a clean, deployable state.
+    balance = bundle.inputs.totalBudgetBase * BigInt(10);
+    code = "0x";
+    allowance = BigInt(0);
+  } else {
+    const client = publicClient(settings.chainId);
+    [balance, code, allowance] = await Promise.all([
+      client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) as Promise<bigint>,
+      client.getCode({ address: bundle.predictedVault }),
+      client.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, bundle.predictedVault] }) as Promise<bigint>,
+    ]);
+  }
 
   return assemblePreview(
     bundle,
