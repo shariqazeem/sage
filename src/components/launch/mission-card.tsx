@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usd, type JobView, type MissionView } from "./types";
+import { reward, type JobView, type MissionView } from "./types";
 
 /**
  * One mission — progressive disclosure in view mode, a focused inline editor in edit
@@ -91,7 +91,7 @@ export function MissionCard({
       <div className="lx-mission-top">
         <h3 className="lx-mission-title">{mission.title}</h3>
         <div className="lx-reward">
-          <div className="lx-reward-n">{usd(mission.rewardBase)}</div>
+          <div className="lx-reward-n">{reward(mission.rewardBase)}</div>
           <div className="lx-reward-s">× {mission.maxCompletions} · ~{mission.effortMinutes}m</div>
         </div>
       </div>
@@ -99,7 +99,7 @@ export function MissionCard({
       <div className="lx-tags">
         <span className="lx-tag">{mission.priority}</span>
         <span className="lx-tag">{mission.riskCategory.replace(/_/g, " ")}</span>
-        <span className="lx-tag">max {usd(Number(mission.rewardBase) * Number(mission.maxCompletions))}</span>
+        <span className="lx-tag">max {reward(Number(mission.rewardBase) * Number(mission.maxCompletions))}</span>
       </div>
       <details className="lx-detail">
         <summary>See the exact task, evidence, and sources</summary>

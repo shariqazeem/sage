@@ -59,7 +59,7 @@ export function LaunchForm() {
             value={form.targetUsers} onChange={(e) => setForm({ ...form, targetUsers: e.target.value })} />
         </div>
         <div className="lx-field">
-          <label className="lx-label" htmlFor="budget">Testing budget (USDC)</label>
+          <label className="lx-label" htmlFor="budget">Testing budget (test mUSDC)</label>
           <input id="budget" className="lx-input" type="number" min="0.5" step="0.5" required
             value={form.budgetUsd} onChange={(e) => setForm({ ...form, budgetUsd: e.target.value })} />
           <div className="lx-hint">Sage allocates this exactly across the missions it designs.</div>

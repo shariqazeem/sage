@@ -9,7 +9,7 @@ import { Act5Close } from "./act5-close";
 interface Props {
   vault: VaultStateView | null;
   history: PayoutReceipt[];
-  network: { name: string };
+  network: { name: string; chainId: number };
   hasHero: boolean;
   /** The real settled receipt featured in Act 3, or null → the check rail. */
   receipt: LandingReceipt | null;
@@ -50,10 +50,10 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
             <span className="clx-wordmark">Sage</span>
           </Link>
           <nav className="clx-topnav">
-            <a href="#how">The wallet</a>
+            <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
-            <Link href="/app" className="clx-cta clx-cta-sm">
-              Hire your first Deputy
+            <Link href="/launch" className="clx-cta clx-cta-sm">
+              Launch a campaign
             </Link>
           </nav>
         </div>
@@ -64,6 +64,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
           remaining={remaining}
           budget={budget}
           networkName={network.name}
+          chainId={network.chainId}
           hasHero={hasHero}
         />
 
@@ -96,9 +97,10 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
             </span>
           </div>
           <nav className="clx-footnav">
-            <a href="#how">The wallet</a>
+            <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
-            <Link href="/app">Hire your first Deputy</Link>
+            <Link href="/launch">Launch a campaign</Link>
+            <Link href="/agents/sage">Agent record</Link>
           </nav>
         </div>
       </footer>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usd, type JobView, type PlanView } from "./types";
+import { reward, type JobView, type PlanView } from "./types";
 import { DeployFlow } from "./deploy/deploy-flow";
 
 /**
@@ -71,9 +71,9 @@ export function BudgetBar({
 
       <div className="lx-kicker" style={{ margin: "8px 0 14px" }}>Budget</div>
       <div className="lx-sum">
-        <div><div className="lx-sum-k">Total budget</div><div className="lx-sum-v">{usd(total)}</div></div>
-        <div><div className="lx-sum-k">Allocated</div><div className="lx-sum-v">{usd(allocated)}</div></div>
-        <div><div className="lx-sum-k">Unallocated</div><div className="lx-sum-v" style={{ color: remaining === 0 ? "var(--lx-pos)" : "var(--lx-warn)" }}>{usd(remaining)}</div></div>
+        <div><div className="lx-sum-k">Total budget</div><div className="lx-sum-v">{reward(total)}</div></div>
+        <div><div className="lx-sum-k">Allocated</div><div className="lx-sum-v">{reward(allocated)}</div></div>
+        <div><div className="lx-sum-k">Unallocated</div><div className="lx-sum-v" style={{ color: remaining === 0 ? "var(--lx-pos)" : "var(--lx-warn)" }}>{reward(remaining)}</div></div>
         <div><div className="lx-sum-k">Missions · completions</div><div className="lx-sum-v">{plan.missions.length} · {completions}</div></div>
       </div>
 
@@ -81,7 +81,7 @@ export function BudgetBar({
         editingBudget ? (
           <div className="lx-next" style={{ marginTop: 14, alignItems: "flex-end" }}>
             <div className="lx-field" style={{ margin: 0, maxWidth: 180 }}>
-              <label className="lx-label">New total (USDC)</label>
+              <label className="lx-label">New total (test mUSDC)</label>
               <input className="lx-input" type="number" min="0.5" step="0.5" value={budgetUsd} onChange={(e) => setBudgetUsd(e.target.value)} />
             </div>
             <button className="lx-btn" onClick={rebalance} disabled={busy}>{busy ? "Rebalancing…" : "Rebalance exactly"}</button>

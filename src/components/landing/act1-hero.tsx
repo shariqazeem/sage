@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
-import { usd } from "@/lib/format";
+import { usd, money, isTestnetChain } from "@/lib/format";
 import { CountUpLanding } from "./count-up-landing";
 
 const HEADLINE = [
@@ -30,14 +30,22 @@ export function Act1Hero({
   remaining,
   budget,
   networkName,
+  chainId,
   hasHero,
 }: {
   remaining: number | null;
   budget: number | null;
   networkName: string;
+  chainId: number;
   hasHero: boolean;
 }) {
   const vaultReadable = remaining != null && budget != null;
+  // The live vault is on Metis Sepolia (testnet): its token has no monetary value, so the
+  // big balance renders as a plain number and the unit lives in the sublabel — never "$".
+  const testnet = isTestnetChain(chainId);
+  const bigFmt = testnet
+    ? (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : usd;
   const mediaRef = useRef<HTMLDivElement>(null);
 
   // parallax: the hero media lags the page at 0.9x. Passive + rAF-throttled;
@@ -96,10 +104,10 @@ export function Act1Hero({
             {vaultReadable ? (
               <>
                 <span className="clx-bal-v">
-                  <CountUpLanding value={remaining} format={usd} duration={1600} />
+                  <CountUpLanding value={remaining} format={bigFmt} duration={1600} />
                 </span>
                 <span className="clx-bal-sub clx-mono">
-                  of {usd(budget)} allowance · {networkName}
+                  of {money(budget, chainId)} allowance · {networkName}
                 </span>
               </>
             ) : (
@@ -115,12 +123,17 @@ export function Act1Hero({
           </div>
 
           <div className="clx-hero-actions">
-            <Link href="/app" className="clx-cta">
-              Hire your first Deputy{" "}
+            <Link href="/launch" className="clx-cta">
+              Launch a testing campaign{" "}
               <ArrowRight size={16} strokeWidth={2.4} />
             </Link>
+            <Link href="/c/founding-testers" className="clx-trust clx-mono clx-hero-alt">
+              Explore live missions <ArrowRight size={13} strokeWidth={2} />
+            </Link>
+          </div>
+          <div className="clx-hero-actions-sub">
             <span className="clx-trust clx-mono">
-              <Lock size={13} strokeWidth={2} /> It never touches your keys
+              <Lock size={13} strokeWidth={2} /> Founder-funded · Sage never touches your keys
             </span>
           </div>
         </div>

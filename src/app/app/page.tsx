@@ -11,11 +11,26 @@ import { getAgentPnL, getAgentReputation } from "@/lib/erc8004/reputation";
 import { ensureFlagshipCampaign, feeTotals } from "@/lib/db/campaigns";
 import { isX402Live } from "@/lib/x402/facilitator";
 import { USDC_DECIMALS } from "@/lib/x402/facilitator";
+import { redirect } from "next/navigation";
 import { SageApp } from "@/components/app/sage-app";
 
 export const dynamic = "force-dynamic";
 
-export default async function AppPage() {
+/**
+ * `/app` is the legacy V1 policy-vault "Deputy" console. The canonical founder
+ * journey is now `/launch` (Sage inspects a product → designs paid missions →
+ * founder funds a CampaignVaultV2). Ordinary visitors are sent to `/launch`;
+ * the V1 console is preserved for existing records behind `?legacy=1` so no
+ * historical vault becomes unreachable.
+ */
+export default async function AppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ legacy?: string }>;
+}) {
+  const sp = await searchParams;
+  if (sp.legacy !== "1") redirect("/launch");
+
   ensureFlagshipCampaign();
   const net = activeNetwork();
   const wallet = await getSessionAddress();

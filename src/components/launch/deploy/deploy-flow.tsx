@@ -6,7 +6,7 @@ import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { metisSepolia } from "@/lib/wallet/config";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
-import type { PlanView } from "../types";
+import { reward, launchToken, type PlanView } from "../types";
 
 /**
  * The founder deployment journey. Everything money-affecting is verified server-side; this
@@ -439,9 +439,9 @@ function LimitsPanel(props: {
   return (
     <div className="lxd-panel">
       <div className="lxd-grid">
-        <Field label="Total budget (fixed)"><span className="mono">${(Number(plan.totalBudgetBase) / 1e6).toFixed(2)} USDC</span></Field>
+        <Field label="Total budget (fixed)"><span className="mono">{reward(plan.totalBudgetBase)}</span></Field>
         <div className="lx-field" style={{ margin: 0 }}>
-          <label className="lx-label">Daily payout limit (USDC)</label>
+          <label className="lx-label">Daily payout limit ({launchToken()})</label>
           <input className="lx-input" type="number" min="0.5" step="0.5" value={dailyCapUsd} onChange={(e) => setDailyCapUsd(e.target.value)} />
         </div>
         <div className="lx-field" style={{ margin: 0 }}>
@@ -470,23 +470,23 @@ function PreviewPanel({ preview, dep, busy, batchSupported, onStart }: { preview
       {preview ? (
         <>
           <div className="lxd-grid">
-            <Field label="Total budget"><span className="mono">${preview.totalBudgetHuman} USDC</span></Field>
+            <Field label="Total budget"><span className="mono">{preview.totalBudgetHuman} {launchToken()}</span></Field>
             <Field label="Your balance">
               <span className="mono" style={{ color: preview.sufficientBalance ? "var(--lx-pos)" : "var(--lx-warn)" }}>
-                ${preview.founderBalanceHuman} USDC
+                {preview.founderBalanceHuman} {launchToken()}
               </span>
             </Field>
             <Field label="Missions · completions">
               <span>{preview.missions.length} · {preview.missions.reduce((s, m) => s + Number(m.maxCompletions), 0)}</span>
             </Field>
             <Field label="Predicted vault"><span className="mono">{short(preview.predictedVault)}</span></Field>
-            <Field label="Token approval"><span>Exactly ${preview.totalBudgetHuman} (never unlimited)</span></Field>
+            <Field label="Token approval"><span>Exactly {preview.totalBudgetHuman} {launchToken()} (never unlimited)</span></Field>
             <Field label="Wallet confirmations"><span>Up to 4 one-time setup signatures</span></Field>
           </div>
 
           {!preview.sufficientBalance && (
             <div className="lx-note">
-              Your wallet is short ${preview.shortfallHuman} USDC to fund this campaign. Top up (or use the testnet
+              Your wallet is short {preview.shortfallHuman} {launchToken()} to fund this campaign. Top up (or use the testnet
               faucet) and reload before continuing.
             </div>
           )}
@@ -564,7 +564,7 @@ function LiveSuccess({ dep, plan }: { dep: DeploymentView; plan: PlanView }) {
       <div className="lx-h1" style={{ fontSize: 24 }}>Your campaign is live.</div>
       <div className="lxd-grid" style={{ marginTop: 12 }}>
         <Field label="Active missions"><span>{plan.missions.length} · {completions} completions</span></Field>
-        <Field label="Funded"><span className="mono">${dep.totalBudgetHuman} USDC</span></Field>
+        <Field label="Funded"><span className="mono">{dep.totalBudgetHuman} {launchToken()}</span></Field>
         <Field label="Owner (you)"><span className="mono">{short(dep.founder)}</span></Field>
         <Field label="Sage operator"><span>Bounded payout role</span></Field>
         <Field label="Vault">

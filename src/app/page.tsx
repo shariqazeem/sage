@@ -42,7 +42,7 @@ export default async function HomePage() {
     <CinematicLanding
       vault={vault}
       history={history}
-      network={{ name: net.name }}
+      network={{ name: net.name, chainId: net.chainId }}
       hasHero={hasHero}
       receipt={receipt}
       now={Date.now()}

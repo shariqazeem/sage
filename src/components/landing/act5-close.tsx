@@ -31,8 +31,8 @@ export function Act5Close({
         </p>
 
         <div className="clx-close-actions">
-          <Link href="/app" className="clx-cta clx-cta-invert">
-            Hire your first Deputy <ArrowRight size={16} strokeWidth={2.4} />
+          <Link href="/launch" className="clx-cta clx-cta-invert">
+            Launch a testing campaign <ArrowRight size={16} strokeWidth={2.4} />
           </Link>
         </div>
 

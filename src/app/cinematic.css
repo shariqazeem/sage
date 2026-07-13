@@ -333,6 +333,17 @@ html:has(.clx) {
 .clx-trust svg {
   color: var(--ter);
 }
+/* secondary hero link ("Explore live missions") — a subdued text link beside the CTA */
+.clx-hero-alt {
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.clx-hero-alt:hover {
+  opacity: 0.62;
+}
+.clx-hero-actions-sub {
+  margin-top: 12px;
+}
 
 /* hero media + parallax + placeholder */
 .clx-hero-media {
