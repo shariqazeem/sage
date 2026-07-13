@@ -308,6 +308,15 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
 
   return (
     <div className="lxd" aria-label="Create and fund campaign">
+      {phase !== "live" && (
+        <div className="lxd-lead">
+          <h3 className="lxd-lead-h">Fund your campaign</h3>
+          <p className="lxd-lead-p">
+            You own the vault — Sage only holds a bounded operator role. It can pay verified mission
+            work inside your limits, and can <b>never</b> withdraw your funds.
+          </p>
+        </div>
+      )}
       <Stepper phase={phase} dep={dep} />
 
       {note && (
