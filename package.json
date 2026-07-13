@@ -16,10 +16,12 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "fetch-to-node": "^2.1.0",
     "goatx402-sdk-server": "^0.1.1",
     "lucide-react": "^1.21.0",
     "nanoid": "^5.1.16",

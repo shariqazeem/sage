@@ -11,36 +11,14 @@ import {
 } from "@/lib/agent-api/operations";
 
 /**
- * Sage's Model Context Protocol server — the SAME five verified agent operations exposed over
- * MCP so a ClawUp agent can bind Sage as a custom tool. Transport-agnostic: it takes a parsed
- * JSON-RPC message + a context and returns a JSON-RPC response (or null for notifications), so
- * the protocol logic unit-tests without HTTP. It is READ + inspection-start ONLY — no tool can
- * sign, settle, move funds, or accept a key (the operations themselves enforce that).
+ * Sage's MCP tool registry + dispatch — the SAME five verified agent operations, exposed so the
+ * `/mcp` route can wire them into the official `@modelcontextprotocol/sdk` server. Transport-
+ * agnostic (the SDK owns the JSON-RPC/Streamable-HTTP framing now); this module only defines the
+ * tools and routes a call to its operation. READ + inspection-start ONLY — no tool can sign,
+ * settle, move funds, or accept a key (the operations enforce that).
  */
 
-/** Default protocol version advertised when the client doesn't request one. */
-export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "sage", version: "1.0.0" } as const;
-
-export interface JsonRpcRequest {
-  jsonrpc?: string;
-  id?: string | number | null;
-  method?: string;
-  params?: Record<string, unknown>;
-}
-export interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-export interface McpContext {
-  /** True once the presented API key matched. tools/list + tools/call require it. */
-  authed: boolean;
-  /** Schedule background work after the response — the transport wires this to `after()`. */
-  scheduleAfter: (fn: () => void | Promise<void>) => void;
-}
 
 export interface McpToolDef {
   name: string;
@@ -115,22 +93,36 @@ export const MCP_TOOLS: McpToolDef[] = [
   },
 ];
 
+export interface McpContext {
+  /** Schedule background work after the response — the route wires this to `after()`. */
+  scheduleAfter: (fn: () => void | Promise<void>) => void;
+}
+
+export interface ToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  isError: boolean;
+}
+
 function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
 /** Wrap an operation result as an MCP tool result (text content + isError). */
-function toolResult<T>(r: OpResult<T>): { content: Array<{ type: "text"; text: string }>; isError: boolean } {
+function toolResult<T>(r: OpResult<T>): ToolResult {
   const payload = r.ok ? r : { ok: false, error: r.error };
   return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], isError: !r.ok };
 }
 
-/** Dispatch a tool call to its operation. Returns null for an unknown tool name. */
-async function callTool(
+/**
+ * Dispatch an MCP tool call to its operation. Returns null for an unknown tool name (the route
+ * turns that into an SDK protocol error). `start_inspection` schedules the background run via
+ * the context, so this stays free of request-context coupling.
+ */
+export async function callSageTool(
   name: string,
   args: Record<string, unknown>,
   ctx: McpContext,
-): Promise<ReturnType<typeof toolResult> | null> {
+): Promise<ToolResult | null> {
   switch (name) {
     case "sage_start_inspection": {
       const r = opStartInspection(
@@ -159,57 +151,5 @@ async function callTool(
       return toolResult(await opGetProof(asString(args.txHash)));
     default:
       return null;
-  }
-}
-
-/**
- * Handle one JSON-RPC message. Returns a response object, or null for a notification (which
- * gets no reply). `initialize` and `ping` need no auth (so a probe can handshake); `tools/list`
- * and `tools/call` require `ctx.authed`.
- */
-export async function handleMcpMessage(
-  msg: JsonRpcRequest,
-  ctx: McpContext,
-): Promise<JsonRpcResponse | null> {
-  const id = msg.id ?? null;
-  const isNotification = msg.id === undefined;
-  const ok = (result: unknown): JsonRpcResponse => ({ jsonrpc: "2.0", id, result });
-  const err = (code: number, message: string): JsonRpcResponse => ({
-    jsonrpc: "2.0",
-    id,
-    error: { code, message },
-  });
-
-  switch (msg.method) {
-    case "initialize": {
-      const requested = msg.params?.protocolVersion;
-      const protocolVersion = typeof requested === "string" ? requested : MCP_PROTOCOL_VERSION;
-      return ok({
-        protocolVersion,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: MCP_SERVER_INFO,
-      });
-    }
-    case "ping":
-      return ok({});
-    case "notifications/initialized":
-    case "notifications/cancelled":
-    case "notifications/roots/list_changed":
-      return null; // notifications get no response
-    case "tools/list":
-      // Tool schemas aren't sensitive; leaving discovery open lets ClawUp's endpoint probe
-      // succeed whether or not it presents the key. Actually invoking a tool still needs auth.
-      return ok({ tools: MCP_TOOLS });
-    case "tools/call": {
-      if (!ctx.authed) return err(-32001, "Unauthorized: missing or invalid API key.");
-      const name = asString(msg.params?.name);
-      const args = (msg.params?.arguments as Record<string, unknown> | undefined) ?? {};
-      const result = await callTool(name, args, ctx);
-      if (result === null) return err(-32602, `Unknown tool: ${name || "(none)"}`);
-      return ok(result);
-    }
-    default:
-      if (isNotification) return null;
-      return err(-32601, `Method not found: ${msg.method ?? "(none)"}`);
   }
 }
