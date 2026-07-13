@@ -45,20 +45,28 @@ describe("fixtures purged (real-only)", () => {
   });
 });
 
-describe("poster campaign routes redirect into /app (Pass 10 — one surface)", () => {
-  const posterPages = [
+describe("legacy campaign routes redirect to the canonical journey (07-B)", () => {
+  // Generic create/browse intents go to the new /launch flow; a specific V1 campaign
+  // review goes to the preserved legacy console (/app?legacy=1). None render a surface.
+  const canonicalPages = [
     "src/app/(campaigns)/campaigns/page.tsx",
     "src/app/(campaigns)/campaigns/new/page.tsx",
-    "src/app/(campaigns)/campaigns/[id]/review/page.tsx",
   ];
 
-  it("each old poster page only redirects — the surfaces moved into the shell", () => {
-    for (const rel of posterPages) {
+  it("generic poster routes redirect to /launch", () => {
+    for (const rel of canonicalPages) {
       const src = readFileSync(join(process.cwd(), rel), "utf8");
-      expect(src, rel).toContain('redirect("/app")');
-      // the review queue + create form now live in the app shell, not here
-      expect(src.includes("ReviewPanel"), rel).toBe(false);
+      expect(src, rel).toContain('redirect("/launch")');
       expect(src.includes("NewCampaignForm"), rel).toBe(false);
     }
+  });
+
+  it("the legacy V1 review route redirects to the preserved legacy console", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/app/(campaigns)/campaigns/[id]/review/page.tsx"),
+      "utf8",
+    );
+    expect(src).toContain('redirect("/app?legacy=1")');
+    expect(src.includes("ReviewPanel")).toBe(false);
   });
 });

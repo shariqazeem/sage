@@ -16,15 +16,19 @@ test.describe("campaign layer — one surface (Pass 10)", () => {
     await expect(page.getByText(/Connect wallet to submit/i)).toBeVisible();
   });
 
-  test("old poster routes redirect into the app shell", async ({ page }) => {
+  test("legacy campaign routes redirect to the canonical /launch journey (07-B)", async ({ page }) => {
     for (const path of ["/campaigns", "/campaigns/new"]) {
       await page.goto(path);
-      await expect(page).toHaveURL(/\/app$/);
+      await expect(page).toHaveURL(/\/launch$/);
     }
   });
 
-  test("/app renders (onboarding-first shell)", async ({ page }) => {
+  test("/app redirects ordinary visitors to /launch; legacy console preserved at ?legacy=1 (07-B)", async ({ page }) => {
     await page.goto("/app");
+    await expect(page).toHaveURL(/\/launch$/);
+    // the V1 policy-vault console is still reachable for existing records
+    await page.goto("/app?legacy=1");
+    await expect(page).toHaveURL(/\/app\?legacy=1$/);
     await expect(page.locator("body")).toContainText(/Sage/i);
   });
 

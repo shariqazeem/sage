@@ -41,7 +41,9 @@ test.describe("founder deployment — approved plan → live campaign", () => {
 
     await expect(page.getByText("Your campaign is live.")).toBeVisible({ timeout: 40_000 });
     await expect(page.getByText(/Sage cannot withdraw these funds/i)).toBeVisible();
-    await expect(page.getByRole("link", { name: /View tester mission board/i })).toBeVisible();
+    // 07-C: LiveSuccess routes to the founder console, with the public board as secondary.
+    await expect(page.getByRole("link", { name: /Open campaign console/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /View public tester board/i })).toBeVisible();
 
     // Refresh: the live state must persist (durable), not restart.
     await page.reload();
