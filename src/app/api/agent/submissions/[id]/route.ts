@@ -1,18 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authenticateAgent } from "@/lib/agent-api/auth";
-import { getSubmission, getDecisionBySubmission } from "@/lib/db/campaigns";
-import { briefFromRow } from "@/lib/deputy/decisions";
-import { submissionState } from "@/lib/agent-api/views";
-import { siteUrl } from "@/lib/site";
+import { opGetSubmission } from "@/lib/agent-api/operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/agent/submissions/[id] — one tester submission's status for the ClawUp agent:
- * reviewing / verified / held / paid, the Deputy's confidence + reason code, and a proof
- * link once paid. Read-only; no evidence content, no founder-private data.
+ * GET /api/agent/submissions/[id] — one tester submission's status. Same operation the MCP
+ * `sage_get_submission` tool runs: reviewing / verified / held / paid, the Deputy's confidence
+ * + reason code, and a proof link once paid. Read-only; no evidence content.
  */
 export async function GET(
   req: NextRequest,
@@ -22,22 +19,8 @@ export async function GET(
   if (!auth.ok) return auth.res;
 
   const { id } = await ctx.params;
-  const sub = getSubmission(id);
-  if (!sub) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
-
-  const decision = getDecisionBySubmission(id);
-  const brief = decision ? briefFromRow(decision) : null;
-  const state = submissionState(sub, brief);
-  const base = siteUrl();
-
-  return NextResponse.json({
-    ok: true,
-    submissionId: id,
-    campaignId: sub.campaignId,
-    state,
-    confidence: brief?.confidence ?? null,
-    reason: brief?.reasonCode ?? null,
-    payoutTx: state === "paid" ? sub.payoutTx : null,
-    proofUrl: state === "paid" && sub.payoutTx ? `${base}/proof/${sub.payoutTx}` : null,
-  });
+  const r = opGetSubmission(id);
+  return r.ok
+    ? NextResponse.json(r)
+    : NextResponse.json({ ok: false, error: r.error }, { status: r.status });
 }

@@ -1,24 +1,19 @@
 import { NextResponse, type NextRequest, after } from "next/server";
 
 import { authenticateAgent, agentError } from "@/lib/agent-api/auth";
-import { startInspection } from "@/lib/launch/start";
+import { opStartInspection } from "@/lib/agent-api/operations";
 import { runInspectionJob } from "@/lib/launch/job";
-import { siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/agent/inspections — the ClawUp agent starts a REAL product inspection on a
- * founder's behalf. Same SSRF-guarded, idempotent pipeline as the web `POST /api/launch`;
- * it PREPARES a plan and NEVER deploys, funds, signs, or settles. `clientRef` (e.g. the
- * founder's chat id) namespaces idempotency so repeat calls return the same inspection.
- * The founder later approves + funds in the web app at `approvalUrl` — only their wallet can.
+ * founder's behalf. Same SSRF-guarded, idempotent operation the MCP `sage_start_inspection`
+ * tool runs; it PREPARES a plan and NEVER deploys, funds, signs, or settles. `clientRef`
+ * (e.g. the founder's chat id) namespaces idempotency. The founder later approves + funds at
+ * `approvalUrl` — only their own wallet can.
  */
-function slugRef(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "shared";
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = authenticateAgent(req);
   if (!auth.ok) return auth.res;
@@ -30,31 +25,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return agentError("Invalid JSON body.", 400);
   }
 
-  const clientRef =
-    typeof body.clientRef === "string" && body.clientRef.trim() ? slugRef(body.clientRef) : "shared";
-
-  const result = startInspection({
-    productUrl: body.productUrl,
-    repoUrl: body.repoUrl,
-    goal: body.goal,
-    targetUsers: body.targetUsers,
-    budgetUsd: body.budgetUsd,
-    founder: `clawup:${clientRef}`,
-  });
-  if (!result.ok) return agentError(result.error, 400);
-
-  if (result.created) after(() => runInspectionJob(result.job.id));
-
-  const base = siteUrl();
-  return NextResponse.json(
+  const result = opStartInspection(
     {
-      ok: true,
-      inspectionId: result.job.id,
-      created: result.created,
-      statusUrl: `${base}/api/agent/inspections/${result.job.id}`,
-      approvalUrl: `${base}/launch/${result.job.id}`,
-      note: "Poll statusUrl until stage is 'ready'. Then give the founder approvalUrl — only their own wallet can approve, edit, and fund the campaign in the Sage web app.",
+      productUrl: body.productUrl,
+      repoUrl: body.repoUrl,
+      goal: body.goal,
+      targetUsers: body.targetUsers,
+      budgetUsd: body.budgetUsd,
     },
-    { status: result.created ? 201 : 200 },
+    body.clientRef,
   );
+  if (!result.ok) return agentError(result.error, result.status);
+
+  if (result.created) after(() => runInspectionJob(result.inspectionId));
+  return NextResponse.json(result, { status: result.created ? 201 : 200 });
 }

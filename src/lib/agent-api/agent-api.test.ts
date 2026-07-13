@@ -35,9 +35,19 @@ function walk(dir: string): string[] {
   return out;
 }
 
-describe("agent API cannot sign, settle, or move funds (structural)", () => {
-  const dir = join(process.cwd(), "src/app/api/agent");
-  const files = walk(dir);
+describe("agent + MCP surfaces cannot sign, settle, or move funds (structural)", () => {
+  // Every externally-reachable Sage-agent surface: the REST routes, the MCP endpoint + server,
+  // and the shared operations they both call. Test files are excluded — they name the forbidden
+  // primitives on purpose (as regex literals below).
+  const roots = [
+    "src/app/api/agent",
+    "src/app/mcp",
+    "src/lib/agent-api",
+    "src/lib/mcp",
+  ].map((r) => join(process.cwd(), r));
+  const files = roots
+    .flatMap((r) => walk(r))
+    .filter((f) => !/\.test\.tsx?$/.test(f));
   // The agent surface is READ + inspection-start only. It must never touch a signer, a vault
   // write, the payout function, or a private key. This locks that in at the import level.
   const FORBIDDEN: [RegExp, string][] = [

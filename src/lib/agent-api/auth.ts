@@ -57,3 +57,37 @@ export function authenticateAgent(req: Request): AgentAuthOk | AgentAuthErr {
 export function agentError(error: string, status: number): NextResponse {
   return NextResponse.json({ ok: false, error }, { status });
 }
+
+/**
+ * Extract a presented API key from the common header conventions a caller might use:
+ * `Authorization: Bearer <k>`, a raw token in `Authorization`, or `X-API-Key: <k>`. The MCP
+ * transport needs this because ClawUp injects the bound key and we don't want to assume one
+ * exact header shape. Returns "" when none is present.
+ */
+export function presentedAgentKey(headers: Headers): string {
+  const auth = (headers.get("authorization") ?? "").trim();
+  const bearer = /^Bearer\s+(.+)$/i.exec(auth);
+  if (bearer?.[1]) return bearer[1].trim();
+  if (auth && !/\s/.test(auth)) return auth; // a raw token placed directly in Authorization
+  const x = headers.get("x-api-key");
+  if (x?.trim()) return x.trim();
+  return "";
+}
+
+/**
+ * Fail-closed key check for the MCP transport. `configured` is false when
+ * `SAGE_AGENT_API_KEY` is unset (surface not enabled → caller should 404, never open);
+ * `authed` is true only on a constant-time match. Same key + same compare as the REST surface.
+ */
+export function matchAgentKey(headers: Headers): { configured: boolean; authed: boolean } {
+  const key = getEnv().SAGE_AGENT_API_KEY;
+  if (!key) return { configured: false, authed: false };
+  const provided = presentedAgentKey(headers);
+  return { configured: true, authed: !!provided && safeEqual(provided, key) };
+}
+
+/** Non-reversible per-key bucket for rate-limiting the MCP transport, matching the REST surface. */
+export function agentKeyBucket(): string {
+  const key = getEnv().SAGE_AGENT_API_KEY ?? "";
+  return createHash("sha256").update(key).digest("hex").slice(0, 16);
+}

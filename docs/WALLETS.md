@@ -18,8 +18,13 @@ Never merge them.
 
 ## Balances (GOAT mainnet, as traced 2026‑07‑13)
 
-- `0x0deF` — **0 USDC**, ~0.0000092 BTC (gas). ← **fund the x402 payer by sending USDC here**
-- GOAT vault `0x987b93bf3b5E245211eB7Cb164C03cdfCC9c0850` — **1.5 USDC** (the live `founding-testers` campaign budget; owner+operator = `0x0deF`, recoverable via `withdrawRemaining`).
+- `0x0deF` — **3.5 USDC**, ~0.0000062 BTC (gas). **Funded 2026‑07‑13** from the founder wallet
+  `0xDF70…90e3` (3.5 USDC in) to arm the x402 payer. The payer is ready; x402 rail is live on the VM
+  (`realPayments: 1`, merchant `sage`).
+- GOAT vault `0x987b93bf3b5E245211eB7Cb164C03cdfCC9c0850` — **1.5 USDC** (the live `founding-testers`
+  campaign budget; owner+operator = `0x0deF`). NOTE: `withdrawRemaining` **reverts while the vault is
+  active and not expired** — it requires `Revoked` or expiry (see `CampaignVault.sol:298`). Not a
+  quick recovery path; treat this 1.5 USDC as committed live campaign budget, not spendable float.
 
 ## Contracts
 

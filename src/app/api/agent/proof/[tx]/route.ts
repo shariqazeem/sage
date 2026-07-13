@@ -1,16 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authenticateAgent } from "@/lib/agent-api/auth";
-import { composeProof, isFoundProof } from "@/lib/deputy/proof";
-import { siteUrl } from "@/lib/site";
+import { opGetProof } from "@/lib/agent-api/operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/agent/proof/[tx] — the canonical verified-proof summary for a payout tx, for the
- * ClawUp agent to report + link. Wraps the SAME proof composer the public page + JSON use;
- * `verified` is recomputed on-chain, never a stored flag. Read-only.
+ * GET /api/agent/proof/[tx] — the canonical verified-proof summary for a payout tx. Same
+ * operation the MCP `sage_get_proof` tool runs; `verified` is recomputed on-chain, never a
+ * stored flag. Read-only.
  */
 export async function GET(
   req: NextRequest,
@@ -20,24 +19,8 @@ export async function GET(
   if (!auth.ok) return auth.res;
 
   const { tx } = await ctx.params;
-  const txHash = tx.replace(/\.json$/i, "");
-  const proof = await composeProof(txHash);
-  if (!isFoundProof(proof)) {
-    return NextResponse.json({ ok: false, error: "Proof not found." }, { status: 404 });
-  }
-
-  const verified = proof.v2?.integrity.verified ?? proof.commitment?.matches ?? false;
-  return NextResponse.json({
-    ok: true,
-    txHash,
-    state: proof.state,
-    settled: proof.settled,
-    verified,
-    outcome: proof.human.outcome,
-    network: proof.human.network,
-    chainId: proof.chain.chainId,
-    recipient: proof.human.recipient,
-    explorerUrl: proof.chain.explorerUrl,
-    proofUrl: `${siteUrl()}/proof/${txHash}`,
-  });
+  const r = await opGetProof(tx);
+  return r.ok
+    ? NextResponse.json(r)
+    : NextResponse.json({ ok: false, error: r.error }, { status: r.status });
 }

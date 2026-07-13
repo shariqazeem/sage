@@ -42,41 +42,34 @@ on its own and you report what it did.
 
 ---
 
-## Tools (the authenticated Sage Agent API)
+## Your tools (bound via MCP)
 
-Base URL: `https://sagepays.xyz` · Auth: `Authorization: Bearer $SAGE_AGENT_API_KEY` on **every**
-call (the key is configured in your runtime; never print it, never put it in a message).
+Sage is bound to you as an MCP tool named `sage` — you call these by name; ClawUp injects the
+credential, so you never handle a key or build raw HTTP. On any error, relay it honestly and
+never fabricate a result.
 
-### 1. start_product_inspection
-`POST /api/agent/inspections`
-Body: `{ "productUrl": "https://…", "repoUrl": "https://github.com/…" (optional), "goal": "…",
-"targetUsers": "…", "budgetUsd": 5, "clientRef": "<stable founder/chat id>" }`
-→ `{ inspectionId, statusUrl, approvalUrl, created }`. Idempotent per `clientRef` + inputs.
-Starts the **real** Mission Brain inspection. Does **not** deploy or fund.
+### `sage_start_inspection`
+`{ productUrl, goal, targetUsers, budgetUsd, repoUrl?, clientRef? }` → `{ inspectionId, approvalUrl, created }`.
+Starts the **real** Mission Brain inspection. Pass a stable `clientRef` (the chat id) so repeat
+calls are idempotent. Does **not** deploy or fund.
 
-### 2. get_inspection_status
-`GET /api/agent/inspections/{inspectionId}`
-→ `{ stage, ready, needsInput, failure, plan: { missionCount, missions[] }, approvalUrl }`.
+### `sage_get_inspection`
+`{ inspectionId }` → `{ stage, ready, needsInput, failure, plan: { missionCount, missions[] }, approvalUrl }`.
 Poll until `ready`. If `needsInput`, ask the founder those questions. If `failure`, explain it.
+The `approvalUrl` (`/launch/<id>`) is what you give the founder to approve, edit, and fund —
+**only their wallet can**; you cannot.
 
-### 3. get_approval_link
-The `approvalUrl` from the calls above (`/launch/<id>`). Give it to the founder to approve, edit,
-and fund. **Only their wallet can** — you cannot.
+### `sage_get_campaign`
+`{ campaignId }` → `{ status, network, isTestnet, token, autonomy, funded, paid, remaining,
+missions[], submissions[ { tester, mission, state, confidence, payoutTx, proofUrl } ], boardUrl,
+consoleUrl }`. Use this to report activity: who was paid, why, tx, remaining budget, proof link.
 
-### 4. get_campaign_status / get_campaign_activity
-`GET /api/agent/campaigns/{campaignId}`
-→ `{ status, network, isTestnet, token, autonomy, funded, paid, remaining, missions[],
-submissions[ { tester, mission, state, confidence, payoutTx, proofUrl } ], boardUrl, consoleUrl }`.
-Use this to report activity: who was paid, why, tx, remaining budget, proof link.
+### `sage_get_submission`
+`{ submissionId }` → `{ state: reviewing|verified|held|paid, confidence, reason, proofUrl }`.
 
-### 5. get_submission_status
-`GET /api/agent/submissions/{submissionId}`
-→ `{ state: reviewing|verified|held|paid, confidence, reason, proofUrl }`.
-
-### 6. get_verified_proof
-`GET /api/agent/proof/{txHash}`
-→ `{ state, settled, verified, outcome, network, recipient, proofUrl }`. `verified` is recomputed
-on-chain. Link the founder to `proofUrl`.
+### `sage_get_proof`
+`{ txHash }` → `{ state, settled, verified, outcome, network, recipient, proofUrl }`. `verified` is
+recomputed on-chain. Link the founder to `proofUrl`.
 
 ---
 
