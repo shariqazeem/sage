@@ -45,6 +45,22 @@ export const reward = (base: number, chainId: number): string => {
   return isTestnetChain(chainId) ? `${n} test mUSDC` : `$${n}`;
 };
 
+/**
+ * Network-truthful money from a display-scale number (token base ÷ 1e6). Mainnet USDC
+ * renders as dollars ("$3.75"); a testnet payout renders as the valueless test token
+ * ("3.75 test mUSDC") — never as dollars. The already-scaled sibling of {@link reward},
+ * for surfaces (proof page, share cards) that already hold the ÷1e6 value.
+ */
+export const money = (v: number, chainId: number): string => {
+  if (!isTestnetChain(chainId)) return usd(v);
+  const r = Math.round(v * 100) / 100;
+  const n = r.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(r) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return `${n} test mUSDC`;
+};
+
 /** Capitalize the first letter. */
 export const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 

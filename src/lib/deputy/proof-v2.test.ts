@@ -11,6 +11,7 @@ import type { DecisionBrief } from "./brain-core";
 
 const VAULT = "0x1111111111111111111111111111111111111111";
 const RECIP = "0x3333333333333333333333333333333333333333";
+const OPERATOR = "0x7704E5BEe00Ef085dde85EEB0c49ae12d9F9BC35";
 const CID = `0x${"a".repeat(64)}`;
 const MID = `0x${"b".repeat(64)}`;
 const PLAN = `0x${"c".repeat(64)}`;
@@ -58,6 +59,7 @@ function matching(over: Partial<ProofV2Inputs> = {}): ProofV2Inputs {
     },
     chain: {
       token: TOKEN,
+      operator: OPERATOR,
       campaignIdHash: CID,
       missionPlanDigest: PLAN,
       factoryRecognizes: true,
@@ -121,6 +123,11 @@ describe("buildProofV2 — a fully-matching settlement verifies", () => {
     expect(p.v2?.integrity.verified).toBe(true);
     expect(p.v2?.integrity.reasons).toHaveLength(0);
     expect(p.human.amountUsd).toBe(0.5);
+    // the settling operator is surfaced from the vault's on-chain getOperator, never blank
+    expect(p.chain.operator).toBe(OPERATOR);
+    // a testnet payout is rendered as the valueless test token, never as dollars
+    expect(p.human.outcome).toContain("test mUSDC");
+    expect(p.human.outcome).not.toContain("$");
   });
 });
 

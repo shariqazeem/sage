@@ -7,7 +7,7 @@ import { composeProof, isFoundProof } from "@/lib/deputy/proof";
 import { getCampaignByPayoutTx } from "@/lib/db/campaigns";
 import { SageProofPage } from "@/components/proof/sage-proof-page";
 import { siteUrl } from "@/lib/site";
-import { short, usd } from "@/lib/format";
+import { short, money } from "@/lib/format";
 
 // Reads one real transaction on each request — the proof is the chain.
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export async function generateMetadata({
       twitter: { card: "summary", title, description },
     };
   }
-  const amount = usd(proof.human.amountUsd);
+  const amount = money(proof.human.amountUsd, proof.chain.chainId);
   const title = proof.settled
     ? `${amount} paid · Sage payout proof`
     : "Payout blocked · Sage proof";

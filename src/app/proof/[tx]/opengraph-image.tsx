@@ -35,7 +35,14 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
   const settled = proof?.settled ?? false;
   const accent = !proof ? PAPER : mismatch ? WARN : settled ? SETTLED : BLOCKED;
   const label = proof ? (mismatch ? "FLAGGED" : settled ? "SETTLED" : "BLOCKED") : "SAGE";
-  const amount = proof ? `$${proof.human.amountUsd.toFixed(2)}` : "Give an agent an allowance";
+  // Testnet payouts are real on-chain transactions but the token (mUSDC) is valueless —
+  // never render them as dollars.
+  const isTestnet = proof ? proof.safety.isMainnet === false : false;
+  const amount = proof
+    ? isTestnet
+      ? `${proof.human.amountUsd.toFixed(2)} mUSDC`
+      : `$${proof.human.amountUsd.toFixed(2)}`
+    : "Give an agent an allowance";
   const sub = proof
     ? mismatch
       ? `on-chain payment · decision commitment mismatch`
@@ -99,7 +106,7 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: proof ? 168 : 92, fontWeight: 800, letterSpacing: -5, lineHeight: 1 }}>
+          <div style={{ fontSize: proof ? (isTestnet ? 116 : 168) : 92, fontWeight: 800, letterSpacing: -5, lineHeight: 1 }}>
             {amount}
           </div>
           <div style={{ fontSize: 32, color: MUTED }}>{sub}</div>

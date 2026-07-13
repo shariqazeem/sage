@@ -27,7 +27,7 @@ import {
 } from "./campaign-vault";
 import { briefFromRow } from "./decisions";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
-import { usd, short } from "@/lib/format";
+import { money, short } from "@/lib/format";
 import type {
   Campaign,
   Decision,
@@ -361,7 +361,7 @@ function buildOutcome(
   p: PayoutProof,
   reason: string | null,
 ): string {
-  const amount = usd(p.amount);
+  const amount = money(p.amount, p.chainId);
   const who = short(p.recipient);
   switch (state) {
     case "committed_settlement":
@@ -400,6 +400,8 @@ export interface V2Event {
 /** The on-chain vault facts a V2 proof compares against (from readSnapshot + readiness). */
 export interface V2Chain {
   token: string;
+  /** the vault's authorized operator (getOperator) — the only address that can settle. */
+  operator: string;
   campaignIdHash: string;
   missionPlanDigest: string;
   factoryRecognizes: boolean;
@@ -529,8 +531,8 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
   const amountUsd = e.settled ? e.amountBase / 1_000_000 : 0; // a rejection paid nothing
   const outcome = e.settled
     ? state === "committed_settlement"
-      ? `${usd(amountUsd)} paid to ${short(e.recipient)} on ${i.network}.`
-      : `${usd(e.amountBase / 1_000_000)} moved on ${i.network}, but the stored decision does not reproduce the on-chain commitment — flagged for review.`
+      ? `${money(amountUsd, e.chainId)} paid to ${short(e.recipient)} on ${i.network}.`
+      : `${money(e.amountBase / 1_000_000, e.chainId)} moved on ${i.network}, but the stored decision does not reproduce the on-chain commitment — flagged for review.`
     : `A mission payout was refused on-chain — ${reason ?? "a policy check"}. No funds moved.`;
 
   const decision = i.brief ? toPublicBrief(i.brief) : null;
@@ -603,7 +605,7 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
       blockNumber: e.blockNumber ?? 0,
       timestamp: 0,
       vault: e.vault,
-      operator: "",
+      operator: c.operator,
       eventType: e.settled ? "SpendSettled" : "SpendRejected",
       onchainIntent: e.intentHash,
       attemptStatus: i.attempt?.status ?? null,
@@ -767,6 +769,7 @@ async function composeProofV2(
   const chainFacts = snapshot
     ? {
         token: snapshot.token,
+        operator: snapshot.operator,
         campaignIdHash: snapshot.campaignIdHash,
         missionPlanDigest: snapshot.missionPlanDigest,
         factoryRecognizes: snapshot.factoryRecognizes,

@@ -11,7 +11,7 @@ import {
   FileText,
   Cpu,
 } from "lucide-react";
-import { usd, short } from "@/lib/format";
+import { money, short } from "@/lib/format";
 import { NetworkChip } from "@/components/app/network-chip";
 import { x402StatusLabel } from "@/lib/x402/x402-status";
 import type { FoundProof } from "@/lib/deputy/proof";
@@ -100,7 +100,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
             <span className="dot" />
             {statusLabel}
           </span>
-          <div className="spp-amount mono">{usd(proof.human.amountUsd)}</div>
+          <div className="spp-amount mono">{money(proof.human.amountUsd, proof.chain.chainId)}</div>
           <div className="spp-fact">{proof.human.outcome}</div>
           {proof.human.campaignTitle && (
             <div className="spp-reward">for {proof.human.campaignTitle.toLowerCase()}</div>
@@ -131,7 +131,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
             <div className="spp-rows">
               <Row k="Mission">{proof.v2.mission.title ?? "—"}</Row>
               {proof.v2.mission.objective && <Row k="Objective">{proof.v2.mission.objective}</Row>}
-              <Row k="Exact reward">{usd(proof.human.amountUsd)}</Row>
+              <Row k="Exact reward">{money(proof.human.amountUsd, proof.chain.chainId)}</Row>
             </div>
           )}
           {/* the two digests, labelled for exactly what each is — an app-level record vs an
@@ -308,11 +308,11 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
           twice.
         </div>
         <div className="spp-rows" style={{ paddingTop: 0 }}>
-          <Row k="Payout amount">{usd(proof.human.amountUsd)}</Row>
-          <Row k="Per-payout cap">{usd(proof.safety.perTxCap)}</Row>
-          <Row k="24h velocity cap">{usd(proof.safety.velocityCap)}</Row>
-          <Row k="Policy budget">{usd(proof.safety.budget)}</Row>
-          <Row k="Remaining (at read time)">{usd(proof.safety.remaining)}</Row>
+          <Row k="Payout amount">{money(proof.human.amountUsd, proof.chain.chainId)}</Row>
+          <Row k="Per-payout cap">{money(proof.safety.perTxCap, proof.chain.chainId)}</Row>
+          <Row k="24h velocity cap">{money(proof.safety.velocityCap, proof.chain.chainId)}</Row>
+          <Row k="Policy budget">{money(proof.safety.budget, proof.chain.chainId)}</Row>
+          <Row k="Remaining (at read time)">{money(proof.safety.remaining, proof.chain.chainId)}</Row>
         </div>
         <div className="spp-identity">
           <div className="spp-identity-l">
