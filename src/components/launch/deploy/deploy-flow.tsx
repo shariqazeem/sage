@@ -574,9 +574,14 @@ function LiveSuccess({ dep, plan }: { dep: DeploymentView; plan: PlanView }) {
       </div>
       <div className="lxd-guarantee">Sage cannot withdraw these funds. It can only pay verified mission work within your limits.</div>
       {dep.attachedCampaignId && (
-        <a className="lx-btn" href={`/c/${dep.attachedCampaignId}`} style={{ marginTop: 14, display: "inline-block", textDecoration: "none" }}>
-          View tester mission board
-        </a>
+        <div style={{ marginTop: 14, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+          <a className="lx-btn" href={`/campaign/${dep.attachedCampaignId}`} style={{ display: "inline-block", textDecoration: "none" }}>
+            Open campaign console
+          </a>
+          <a href={`/c/${dep.attachedCampaignId}`} className="lxd-link" style={{ textDecoration: "none" }}>
+            View public tester board →
+          </a>
+        </div>
       )}
     </div>
   );
