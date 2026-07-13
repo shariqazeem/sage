@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { VaultStateView, PayoutReceipt } from "@/lib/deputy/chain";
+import type { EcosystemStatus } from "@/lib/ecosystem/status";
+import { EcosystemStrip } from "@/components/ecosystem/ecosystem-strip";
 import { Act1Hero } from "./act1-hero";
 import { Act2Problem } from "./act2-problem";
 import { Act3Vault, type LandingReceipt } from "./act3-vault";
@@ -15,6 +17,8 @@ interface Props {
   receipt: LandingReceipt | null;
   /** Server-stamped clock so relative times match across SSR + hydration. */
   now: number;
+  /** The honest ecosystem-status model — each claim shown only when really true. */
+  ecosystem: EcosystemStatus;
 }
 
 /**
@@ -25,7 +29,7 @@ interface Props {
  * the hero balance, the checks' cap, the receipt feed, and the closing stats are
  * all real.
  */
-export function CinematicLanding({ vault, history, network, hasHero, receipt, now }: Props) {
+export function CinematicLanding({ vault, history, network, hasHero, receipt, now, ecosystem }: Props) {
   // Honest vault state: NO fabricated fallbacks. When the live read fails, the
   // hero says "temporarily unavailable" — it never invents a $500 allowance.
   const budget = vault?.budget ?? null;
@@ -102,6 +106,9 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
             <Link href="/launch">Launch a campaign</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>
+        </div>
+        <div className="clx-footer-in" style={{ marginTop: 14, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+          <EcosystemStrip status={ecosystem} />
         </div>
       </footer>
     </div>

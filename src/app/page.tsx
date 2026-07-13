@@ -10,6 +10,7 @@ import {
 } from "@/lib/deputy/chain";
 import { getStarReceipt } from "@/lib/db/campaigns";
 import { briefFromRow } from "@/lib/deputy/decisions";
+import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
 
 // The landing binds to live vault state on each request — the hero balance, the
@@ -38,6 +39,9 @@ export default async function HomePage() {
       }
     : null;
 
+  // The honest ecosystem strip — each claim shown only when it is really true.
+  const ecosystem = await ecosystemStatus();
+
   return (
     <CinematicLanding
       vault={vault}
@@ -46,6 +50,7 @@ export default async function HomePage() {
       hasHero={hasHero}
       receipt={receipt}
       now={Date.now()}
+      ecosystem={ecosystem}
     />
   );
 }

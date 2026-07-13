@@ -3,6 +3,42 @@
 > Stage-1 deliverable. Who Sage is for, the pain it removes, and the first
 > 10–20 users we onboard in Stage 2.
 
+## Seed user (canonical)
+
+**Early-stage web-product founders who have shipped a public product but lack enough real
+users to quickly validate onboarding, positioning, and critical user journeys.** They have a
+live URL and a hypothesis about what a first-time visitor should do, but not enough real
+traffic to learn whether visitors actually get it. Sage turns their product + a budget into
+**paid, verified testing missions** and pays testers **autonomously** inside hard on-chain
+limits — so the founder gets real, evidence-backed answers without hand-judging submissions or
+holding a treasury key.
+
+## Stage 2 growth metrics
+
+- 10–20 seed founders interviewed
+- 10 founder accounts activated
+- 5 funded campaigns
+- 25 verified mission completions
+- Median time from product URL → approved plan **< 10 minutes**
+- Median time to first valid tester submission **< 24 hours**
+- **100%** exactly-once payout rate · **zero** policy-limit violations
+- ≥ 30% of founders launch a second campaign
+- Mission usefulness rating **≥ 4/5**
+- HOLD / rejection reasons tracked and published
+- GEO: public agent/profile/docs discoverability across ChatGPT, Claude, Gemini, Perplexity
+
+## Stage 1 deliverables
+
+- [x] Agent launched — x402 configured; ERC-8004 identity **#79** registered on GOAT mainnet
+- [x] Public app, project website, and product landing page (`sagepays.xyz`)
+- [x] GitHub repository (public)
+- [x] Seed user definition (this doc) + growth metrics proposal (above)
+- [x] Complete founder → tester autonomous loop proven on Metis Sepolia (real contracts + txs)
+
+The canonical, machine-readable ecosystem status (ClawUp / ERC-8004 / x402 / campaign network /
+mainnet-autopilot) is served at `GET /api/ecosystem` — every claim backed by real evidence, never
+env-presence alone.
+
 ## The core pain
 
 Anyone who **pays many small contributors for verifiable work** hits the same

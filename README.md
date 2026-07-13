@@ -115,6 +115,23 @@ docs/CURRENT_STATE.md   the authoritative "where we are"
 docs/AGENT.md           operator runbook
 ```
 
+## Seed user & Stage 2 growth
+
+**Seed user:** early-stage web-product founders who have shipped a public product but lack
+enough real users to quickly validate onboarding, positioning, and critical user journeys.
+Sage turns their product + a budget into paid, verified testing missions and pays testers
+autonomously inside hard on-chain limits.
+
+Stage-2 growth targets (interviews, activations, funded campaigns, verified completions,
+URL→plan and time-to-first-submission medians, exactly-once payout rate, zero policy
+violations, second-campaign rate, mission usefulness, GEO discoverability) and the Stage-1
+deliverables checklist live in [docs/SEED_USERS.md](docs/SEED_USERS.md).
+
+**Honest ecosystem status:** `GET /api/ecosystem` returns the one canonical model —
+ClawUp / ERC-8004 / x402 / campaign network / mainnet-autopilot — where every "verified /
+paid / live" is backed by real evidence (on-chain `ownerOf`, a settled x402 tx, the flagship
+campaign's actual network), **never** environment-variable presence alone.
+
 ## Built for
 
 The **OpenClaw Summer Builder Bootcamp 2026** (GOAT / Metis / ClawUp). Sage's

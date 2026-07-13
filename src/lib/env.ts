@@ -106,6 +106,9 @@ const schema = z.object({
   // bearer token the ClawUp agent presents to the authenticated Sage Agent API.
   // Unset → the agent API is "not configured" and every route fails closed (404).
   SAGE_AGENT_API_KEY: nonempty.optional(),
+  // set to "true" ONLY after the Sage skill is verified working inside the live ClawUp
+  // runtime — the ecosystem status never claims ClawUp "live" from key-presence alone.
+  CLAWUP_LIVE: nonempty.optional(),
 });
 
 export type SageEnv = z.infer<typeof schema>;
