@@ -74,6 +74,8 @@ interface LimiterStore {
   redteam: RateLimiter;
   /** ONE global daily budget for jailbreak attempts (each runs the real paid pipeline). */
   redteamDaily: RateLimiter;
+  /** authenticated Sage Agent API (ClawUp), per agent key. */
+  agent: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -91,6 +93,7 @@ function limiters(): LimiterStore {
         Math.max(1, Number(process.env.REDTEAM_DAILY_CAP) || 200),
         86_400_000,
       ),
+      agent: new RateLimiter(30, 60_000), // 30 Sage Agent API calls / min / agent key
     };
   }
   return g.__sageLimiters;

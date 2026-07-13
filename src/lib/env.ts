@@ -103,6 +103,9 @@ const schema = z.object({
   SAGE_SESSION_SECRET: nonempty.optional(),
   DEPUTY_CRON_SECRET: nonempty.optional(),
   CRON_SECRET: nonempty.optional(),
+  // bearer token the ClawUp agent presents to the authenticated Sage Agent API.
+  // Unset → the agent API is "not configured" and every route fails closed (404).
+  SAGE_AGENT_API_KEY: nonempty.optional(),
 });
 
 export type SageEnv = z.infer<typeof schema>;
