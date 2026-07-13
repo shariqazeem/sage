@@ -3,12 +3,9 @@ import "./app/motion.css";
 import "./app/demo-moments.css";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  activeNetwork,
-  getOperatorPayoutHistory,
-  getOperatorVaultState,
-} from "@/lib/deputy/chain";
+import { activeNetwork, getOperatorVaultState } from "@/lib/deputy/chain";
 import { getStarReceipt } from "@/lib/db/campaigns";
+import { getPublicReceipts } from "@/lib/erc8004/reputation";
 import { briefFromRow } from "@/lib/deputy/decisions";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
@@ -21,7 +18,10 @@ export default async function HomePage() {
   const net = activeNetwork();
   const vault = await getOperatorVaultState("launch-growth");
   const decimals = vault?.raw.decimals ?? 6;
-  const history = await getOperatorPayoutHistory("launch-growth", decimals);
+  // The payout feed + closing stats come from the SAME clean, deduped record the agent card uses
+  // (real journal, sandbox-excluded) — NOT the vault's raw on-chain log, which carried old test
+  // spends and rendered as phantom trillions. Honest small real numbers instead.
+  const history = getPublicReceipts();
   // The 3D hero render is dropped in later; render it the moment it exists,
   // otherwise the styled placeholder holds its slot (no broken image, no 404).
   const hasHero = existsSync(join(process.cwd(), "public", "hero-vault.png"));

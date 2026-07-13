@@ -7,8 +7,10 @@ import {
   listPaidRecipientWallets,
   listRecentDecisions,
   sumSettledFeesBase,
+  walletsByPayoutTx,
 } from "@/lib/db/campaigns";
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, explorerTxUrl, DEFAULT_CHAIN_ID } from "@/lib/deputy/networks";
+import type { PayoutReceipt } from "@/lib/deputy/chain";
 import { agentAddress, hasAgentKey } from "@/lib/x402/goat-pay";
 import type { BriefRecommendation } from "@/lib/deputy/brain-core";
 import type { EventKind } from "@/lib/db/schema";
@@ -46,6 +48,46 @@ function readRepEvents(): RepEvent[] {
     createdAt: e.createdAt,
     failedCheckIndex: e.failedCheckIndex,
   }));
+}
+
+const SETTLED: ReadonlySet<EventKind> = new Set<EventKind>(["settled", "autopay_settled"]);
+const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+const ZERO_HASH = `0x${"0".repeat(64)}`;
+
+/**
+ * The public payout feed for the landing — the SAME clean, deduped record the agent card uses
+ * (real journal events, sandbox-excluded, one receipt per chainId+tx), NOT a single vault's raw
+ * on-chain log (which can carry old, unrelated test spends). Each receipt is proof-linkable and
+ * carries a real recipient + amount. Newest first, capped at `limit`.
+ */
+export function getPublicReceipts(limit = 12): PayoutReceipt[] {
+  const walletByTx = walletsByPayoutTx();
+  const seen = new Set<string>();
+  const out: PayoutReceipt[] = [];
+  const events = readRepEvents()
+    .filter((e) => e.txHash && (SETTLED.has(e.kind) || e.kind === "blocked"))
+    .sort((a, b) => b.createdAt - a.createdAt);
+  for (const e of events) {
+    const tx = e.txHash as string;
+    const key = e.chainId != null ? `${e.chainId}:${tx}` : tx;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const settled = SETTLED.has(e.kind);
+    const chainId = e.chainId ?? DEFAULT_CHAIN_ID;
+    out.push({
+      txHash: tx as PayoutReceipt["txHash"],
+      settled,
+      recipient: (walletByTx.get(tx.toLowerCase()) ?? ZERO_ADDR) as PayoutReceipt["recipient"],
+      amount: (e.amount ?? 0) / 1e6,
+      timestamp: e.createdAt,
+      failedCheckIndex: settled ? null : (e.failedCheckIndex ?? 0),
+      intentHash: ZERO_HASH as PayoutReceipt["intentHash"],
+      chainId,
+      explorerUrl: explorerTxUrl(chainId, tx),
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /** One chain's slice of the settled record — never mixes testnet with mainnet. */

@@ -309,6 +309,19 @@ export function listPaidRecipientWallets(): string[] {
     .map((r) => r.wallet);
 }
 
+/** Map every settled payout tx (lowercased) to the tester wallet it paid — for the public
+ *  payout feed on the landing, so each receipt shows a real recipient. */
+export function walletsByPayoutTx(): Map<string, string> {
+  const rows = db
+    .select({ tx: submissions.payoutTx, wallet: submissions.wallet })
+    .from(submissions)
+    .where(eq(submissions.status, "paid"))
+    .all();
+  const m = new Map<string, string>();
+  for (const r of rows) if (r.tx) m.set(r.tx.toLowerCase(), r.wallet);
+  return m;
+}
+
 /* ─────────────────────────────────────────────── deputy decisions ───── */
 
 /** The Deputy's stored verification receipt for a submission, if one exists. */
