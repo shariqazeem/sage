@@ -55,7 +55,7 @@ export function Act2Problem() {
           <h2 className="clx-once-h">Set the limits once.</h2>
           <p className="clx-once-p">
             One setup fixes the budget, the recipients, and the limits. After that
-            the Deputy works inside its wallet — no more prompts, no more keys.
+            Sage works inside its wallet — no more prompts, no more keys.
           </p>
         </div>
       </div>

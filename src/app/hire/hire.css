@@ -3,25 +3,19 @@
    Scoped under .hire so it never touches other surfaces. */
 
 .hire {
-  --bg: #fbfbf9;
-  --surface: #ffffff;
-  --surface-2: #fafaf8;
-  --ink: #1a1d21;
-  --sec: #565c64;
-  --ter: #8b9098;
-  --line: #ececea;
-  --line-2: #e2e2de;
-  --accent: #1a1d21;
-  --accent-soft: #f0efea;
-  --accent-ink: #000000;
-  --pos: #15803d;
-  --pos-soft: #effaf2;
-  --dan: #dc2626;
-  --dan-soft: #fdf1f1;
-  --warn: #b45309;
-  --shadow-sm: 0 1px 2px rgba(20, 22, 26, 0.04);
-  --shadow: 0 1px 2px rgba(20, 22, 26, 0.05), 0 10px 30px rgba(20, 22, 26, 0.05);
-  --shadow-lg: 0 2px 4px rgba(20, 22, 26, 0.05), 0 18px 50px rgba(20, 22, 26, 0.08);
+  /* palette aliased to the shared tokens (src/styles/tokens.css). --bg/--surface/--ink/--accent/
+   * --accent-soft/--accent-ink/--warn/--shadow-sm inherit the tokens (accent = terracotta). */
+  --surface-2: var(--bg);
+  --sec: var(--ink-muted);
+  --ter: var(--ink-faint);
+  --line: var(--border);
+  --line-2: var(--border-strong);
+  --pos: var(--ok);
+  --pos-soft: var(--ok-soft);
+  --dan: var(--err);
+  --dan-soft: var(--err-soft);
+  --shadow: var(--shadow-md);
+  --shadow-lg: var(--shadow-md);
 
   min-height: 100vh;
   background: var(--bg);

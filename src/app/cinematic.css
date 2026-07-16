@@ -6,23 +6,23 @@
    final state under prefers-reduced-motion (bottom of file). */
 
 .clx {
-  --paper: #fbfbf9;
-  --ink: #1a1d21;
-  --sec: #5b5f66;
-  --ter: #8a8d92;
-  --mut: #9a9da2;
-  --line: #ecebe6;
-  --line-2: #e4e2dc;
-  --surface-2: #f6f5f1;
-  --surface-3: #faf9f6;
-  --accent: #1a1d21;
-  --accent-2: #33373d;
-  --pos: #15803d;
-  --pos-bg: #eef6f0;
-  --pos-line: #cfe6d6;
-  --dan: #dc2626;
-  --dan-bg: #fdeeee;
-  --dan-line: #f3cccc;
+  /* palette aliased to the shared tokens (src/styles/tokens.css). --ink and --accent are
+   * intentionally NOT redeclared → they inherit the tokens, so the accent is terracotta. */
+  --paper: var(--bg);
+  --sec: var(--ink-muted);
+  --ter: var(--ink-faint);
+  --mut: var(--ink-faint);
+  --line: var(--border);
+  --line-2: var(--border-strong);
+  --surface-2: var(--bg);
+  --surface-3: var(--bg);
+  --accent-2: var(--ink);
+  --pos: var(--ok);
+  --pos-bg: var(--ok-soft);
+  --pos-line: var(--ok-soft);
+  --dan: var(--err);
+  --dan-bg: var(--err-soft);
+  --dan-line: var(--err-soft);
 
   background: var(--paper);
   color: var(--ink);

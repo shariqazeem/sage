@@ -22,7 +22,7 @@ export interface LandingReceipt {
  */
 const CHECK_HUMAN: Record<number, string> = {
   1: "The wallet is active",
-  2: "Only the Deputy can spend",
+  2: "Only Sage can spend",
   3: "Recipient is approved",
   4: "Per-payout spending limit",
   5: "Allowance remaining",
@@ -47,19 +47,19 @@ export function Act3Vault({
   return receipt ? <Act3Think receipt={receipt} /> : <Act3Rail perTxCap={perTxCap} />;
 }
 
-/* ── the star: the Deputy's real receipt ────────────────────────────────── */
+/* ── the star: Sage's real receipt ────────────────────────────────── */
 function Act3Think({ receipt }: { receipt: LandingReceipt }) {
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.15 });
   const { brief, rewardUsd, txHash, threshold } = receipt;
 
   return (
-    <section className="clx-act clx-act3" aria-label="Watch the Deputy reason">
+    <section className="clx-act clx-act3" aria-label="Watch Sage reason">
       <div className="clx-act3-in clx-think-in">
         <div className="clx-act3-head">
           <div className="clx-eyebrow clx-mono">Watch it think</div>
           <h2 className="clx-h2">It reads the work, reasons, and decides.</h2>
           <p className="clx-act3-sub">
-            Every submission gets a receipt — the Deputy fetches the evidence,
+            Every submission gets a receipt — Sage fetches the evidence,
             quotes it, checks each criterion, and scores its confidence against
             the bar that lets it pay on its own. This is a real one.
           </p>

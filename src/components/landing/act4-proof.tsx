@@ -51,7 +51,7 @@ export function Act4Proof({
             <div>
               <div className="clx-receipt-title">Wallet live — watching for work</div>
               <div className="clx-receipt-sub">
-                When the Deputy pays, every receipt lands here — public and
+                When Sage pays, every receipt lands here — public and
                 checkable. No rows are shown until a real payout settles.
               </div>
             </div>

@@ -303,7 +303,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
           </span>
         </div>
         <div className="spp-safety-desc">
-          Six spending rules constrain what the Deputy may do. A separate
+          Six spending rules constrain what Sage may do. A separate
           consumed-intent guard prevents the same committed payout from settling
           twice.
         </div>
@@ -320,7 +320,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               <Bot size={17} />
             </span>
             <div>
-              <div className="spp-identity-name">Released by the Payout Deputy</div>
+              <div className="spp-identity-name">Released by Sage</div>
               <div className="spp-identity-sub">
                 Operator {short(proof.chain.operator)} · vault {short(proof.chain.vault)} ·
                 owner-controlled

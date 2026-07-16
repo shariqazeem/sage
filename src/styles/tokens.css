@@ -1,0 +1,60 @@
+/**
+ * tokens.css — the SINGLE design-token source of truth for every Sage surface.
+ * "Receipt minimalism": premium light, one terracotta accent, green/red reserved
+ * strictly for money-outcome semantics. Imported once in the root layout; every
+ * per-surface stylesheet aliases its local vars to these (no palette re-declaration).
+ *
+ * Fonts (--font-sans / --font-mono) are set on <html> by next/font in layout.tsx.
+ */
+
+:root {
+  /* ── surface + text ─────────────────────────────────────────────── */
+  --bg: #fbfbf9;            /* paper */
+  --surface: #ffffff;      /* raised card */
+  --ink: #1a1d21;          /* primary text */
+  --ink-muted: #565c64;    /* secondary text */
+  --ink-faint: #8b9098;    /* tertiary / captions */
+
+  /* ── brand accent (ALL interactive/brand elements) ──────────────── */
+  --accent: #c2410c;       /* terracotta */
+  --accent-soft: #fdf1ea;  /* subtle terracotta wash (hover/selected) */
+  --accent-ink: #ffffff;   /* text on an accent fill */
+
+  /* ── money-outcome semantics ONLY (never generic accents) ───────── */
+  --ok: #15803d;           /* paid / verified / success */
+  --ok-soft: #eef6f0;
+  --err: #dc2626;          /* rejected / failed / blocked */
+  --err-soft: #fdeeee;
+  --warn: #b45309;         /* caution (held-for-review, low balance) */
+  --warn-soft: #fbf1e6;
+
+  /* ── lines + elevation ──────────────────────────────────────────── */
+  --border: #e9e6df;
+  --border-strong: #d8d3c9;
+  --shadow-sm: 0 1px 2px rgba(26, 29, 33, 0.05);
+  --shadow-md: 0 6px 24px rgba(26, 29, 33, 0.08);
+
+  /* ── radii (6/10/16, + pill for status chips only) ──────────────── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* ── spacing scale ──────────────────────────────────────────────── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+}
+
+/* Kill the dark bleed: the page surface is always paper. (The legacy dark system in
+ * globals.css belongs to the dead /sage product — this wins the cascade so the light
+ * tokens are the floor for every route until that system is deleted.) */
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}

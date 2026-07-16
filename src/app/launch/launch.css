@@ -6,17 +6,18 @@
  */
 
 .lx {
-  --lx-bg: #fbfaf8;
-  --lx-surface: #ffffff;
-  --lx-ink: #17150f;
-  --lx-muted: #6b6459;
-  --lx-line: #ece7de;
-  --lx-line-strong: #ddd5c8;
-  --lx-accent: #c2410c; /* warm terracotta — one confident accent */
-  --lx-accent-soft: #fdf1ea;
-  --lx-pos: #0f7a4f;
-  --lx-warn: #b45309;
-  --lx-radius: 14px;
+  /* palette aliased to the shared tokens (src/styles/tokens.css) — one source of truth. */
+  --lx-bg: var(--bg);
+  --lx-surface: var(--surface);
+  --lx-ink: var(--ink);
+  --lx-muted: var(--ink-muted);
+  --lx-line: var(--border);
+  --lx-line-strong: var(--border-strong);
+  --lx-accent: var(--accent);
+  --lx-accent-soft: var(--accent-soft);
+  --lx-pos: var(--ok);
+  --lx-warn: var(--warn);
+  --lx-radius: var(--r-lg);
   min-height: 100vh;
   background: var(--lx-bg);
   color: var(--lx-ink);

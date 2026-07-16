@@ -20,7 +20,7 @@ export function Act5Close({
   blocksCount: number;
 }) {
   return (
-    <section className="clx-act clx-act5" aria-label="Hire your first Deputy">
+    <section className="clx-act clx-act5" aria-label="Get started with Sage">
       <div className="clx-act5-in">
         <h2 className="clx-close-h">
           An AI agent you can trust with a wallet.

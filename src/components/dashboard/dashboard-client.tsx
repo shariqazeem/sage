@@ -58,7 +58,7 @@ export function DashboardClient({
           <h1 style={{ fontSize: 26, margin: "10px 0 8px" }}>Connect to see your campaigns</h1>
           <p className="sage-hint" style={{ maxWidth: 440, margin: "0 auto 20px" }}>
             Sign in with the wallet you launched from. You&apos;ll see every campaign you own, what
-            the Deputy has paid, and can open each console.
+            Sage has paid, and can open each console.
           </p>
           <button
             className="sage-btn sage-btn-primary"
