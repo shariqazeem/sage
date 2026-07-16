@@ -3,7 +3,8 @@ import "./app/motion.css";
 import "./app/demo-moments.css";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { activeNetwork, getOperatorVaultState } from "@/lib/deputy/chain";
+import { getOperatorVaultState } from "@/lib/deputy/chain";
+import { chainConfig } from "@/lib/deputy/networks";
 import { getStarReceipt } from "@/lib/db/campaigns";
 import { getPublicReceipts } from "@/lib/erc8004/reputation";
 import { briefFromRow } from "@/lib/deputy/decisions";
@@ -15,13 +16,16 @@ import { CinematicLanding } from "@/components/landing/cinematic-landing";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const net = activeNetwork();
+  // The landing is the MAINNET showcase — GOAT Network, real USDC. Only real GOAT
+  // payouts appear, and the hero counts what the agent has actually settled to real
+  // people, so the "moment of truth" is never a testnet number.
+  const net = chainConfig(2345);
   const vault = await getOperatorVaultState("launch-growth");
   const decimals = vault?.raw.decimals ?? 6;
   // The payout feed + closing stats come from the SAME clean, deduped record the agent card uses
   // (real journal, sandbox-excluded) — NOT the vault's raw on-chain log, which carried old test
   // spends and rendered as phantom trillions. Honest small real numbers instead.
-  const history = getPublicReceipts();
+  const history = getPublicReceipts().filter((h) => h.chainId === 2345);
   // The 3D hero render is dropped in later; render it the moment it exists,
   // otherwise the styled placeholder holds its slot (no broken image, no 404).
   const hasHero = existsSync(join(process.cwd(), "public", "hero-vault.png"));

@@ -9,17 +9,19 @@ import "server-only";
  * render from. This module performs NO deployment, funding, or signing.
  */
 
-import { inspectProduct } from "./inspect";
+import { inspectProduct, rankPrimaryLinks } from "./inspect";
+import { fieldTestEnabled, runFieldTest } from "./field-test";
 import { inspectRepo } from "./github";
 import { buildProductMap, scopeFromObservations } from "./product-map";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
-import type { BudgetAllocation, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
+import type { BudgetAllocation, FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 
 export type LaunchStage =
   | "fetching"
+  | "field_test"
   | "mapping"
   | "analyzing"
   | "generating_missions"
@@ -51,6 +53,7 @@ export async function inspectAndPlan(
   publicCampaignId: string,
   onStage: (stage: LaunchStage) => void = () => {},
   now = 0,
+  opts: { inspectionId?: string } = {},
 ): Promise<LaunchResult> {
   const trail: { stage: LaunchStage; at: number }[] = [];
   const stamp = (stage: LaunchStage) => {
@@ -65,6 +68,27 @@ export async function inspectAndPlan(
   stamp("fetching");
   const inspection = await inspectProduct(input.productUrl, {}, now);
 
+  // 1b. FIELD TEST (flag-gated): actually browse the product in a real headless browser and
+  //     capture what a real visit reveals. FULLY failure-isolated — any error/timeout degrades
+  //     to an honest limitation and the pipeline proceeds exactly as an HTML-only run would. It
+  //     needs an inspectionId to name its screenshot artifacts (only the durable job supplies one).
+  let fieldTest: FieldTestSummary | null = null;
+  if (fieldTestEnabled() && opts.inspectionId && inspection.observations.length > 0) {
+    // A REAL stage — emitted only when the browser phase actually runs (no fake timers). Off-path
+    // this stamp never fires, so the stage sequence stays identical to today.
+    stamp("field_test");
+    try {
+      fieldTest = await runFieldTest({
+        inspectionId: opts.inspectionId,
+        startUrl: inspection.startUrl,
+        host: inspection.host,
+        candidateLinks: rankPrimaryLinks(inspection.observations, inspection.host, inspection.startUrl, 5),
+      });
+    } catch {
+      fieldTest = null;
+    }
+  }
+
   // 2. optional repository (honest degradation).
   let repo = { artifacts: [] as Awaited<ReturnType<typeof inspectRepo>>["artifacts"], reason: null as string | null };
   if (input.repoUrl) {
@@ -72,9 +96,9 @@ export async function inspectAndPlan(
     repo = await inspectRepo(input.repoUrl);
   }
 
-  // 3. deterministic product map.
+  // 3. deterministic product map (+ field-test evidence when present).
   stamp("mapping");
-  const map = buildProductMap(inspection.observations, repo.artifacts, input);
+  const map = buildProductMap(inspection.observations, repo.artifacts, input, fieldTest);
   // fold the inspector + repo limitations into the map's honest limitations.
   map.limitations = [...new Set([...map.limitations, ...inspection.limitations, ...(repo.reason ? [`Repository: ${repo.reason}`] : [])])];
 

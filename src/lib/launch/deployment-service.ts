@@ -24,8 +24,13 @@ import { buildDeployBundle, deriveDeploymentInputs, type DeployPlanBundle, type 
 import { chainConfig } from "@/lib/deputy/networks";
 import type { Deployment } from "@/lib/db/schema";
 
-/** Only Metis Sepolia may deploy this pass. Mainnet stays disabled unless explicitly armed. */
+/** The default launch chain when a founder's wallet doesn't pin a supported one. */
 export const LAUNCH_CHAIN_ID = 59902;
+
+/** Chains the self-serve launch wizard may deploy to. A chain is only truly enabled
+ *  when its V2 factory + operator + token are configured (see `isLaunchChain`), so
+ *  GOAT (2345) turns on exactly when its GOAT_* addresses are set — fails closed. */
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [59902, 2345];
 
 export interface LaunchChainConfig {
   chainId: number;
@@ -76,6 +81,15 @@ export function launchChainConfig(chainId: number = LAUNCH_CHAIN_ID): LaunchChai
   if (!token) missing.push("token");
   if (!operator) missing.push("operator");
   return { chainId, factory, token, operator, configured: missing.length === 0, missing };
+}
+
+/**
+ * Validate a founder-chosen chainId for the launch wizard: it must be allow-listed
+ * AND fully configured on the server. Client-supplied chainIds pass through here —
+ * never trusted directly — so an unconfigured or unknown chain fails closed.
+ */
+export function isLaunchChain(chainId: number): boolean {
+  return LAUNCH_ENABLED_CHAINS.includes(chainId) && launchChainConfig(chainId).configured;
 }
 
 export interface LoadedPlan {

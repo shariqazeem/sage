@@ -19,8 +19,12 @@ export const dynamic = "force-dynamic";
  * the campaign + missions. Success → `live`. Failure → `recovery_required` (retry only the
  * DB attach; NEVER redeploy or create a second vault). Idempotent if already attached.
  */
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ deploymentId: string }> }): Promise<NextResponse> {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ deploymentId: string }> }): Promise<NextResponse> {
   const { deploymentId } = await ctx.params;
+  // The founder's chosen payout mode from the wizard. Default autopilot — the agent that
+  // designed the missions also pays them. Validated to the two allowed values.
+  const body = (await req.json().catch(() => ({}))) as { autonomy?: unknown };
+  const autonomy: "manual" | "autopilot" = body.autonomy === "manual" ? "manual" : "autopilot";
   const session = await getSessionAddress();
   const access = loadDeploymentForSession(deploymentId, session);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
@@ -71,6 +75,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ deploymen
       factoryAddress: getAddress(settings.factory),
       vaultAddress: getAddress(deployment.deployedVault),
       missions,
+      autonomy,
     },
     deploymentAttachDeps(deployment, loaded.plan, settings),
   );

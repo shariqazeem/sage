@@ -47,9 +47,18 @@ const proofUrl = (txHash: string): string => `${appUrl()}/proof/${txHash}`;
  * unset) and it never throws: a failed send must never affect a payout or a
  * webhook response. Returns whether Telegram accepted the message.
  */
-export async function sendTelegram(chatId: string, text: string): Promise<boolean> {
+export async function sendTelegram(
+  chatId: string,
+  text: string,
+  opts?: { html?: boolean },
+): Promise<boolean> {
   const token = botToken();
   if (!token || !chatId) return false;
+
+  // Command replies + announces are hand-built HTML; the conversational agent's free-form text is
+  // sent PLAIN (html:false) so arbitrary model output can never trip Telegram's HTML parser (400).
+  const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true };
+  if (opts?.html !== false) body.parse_mode = "HTML";
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
@@ -58,12 +67,7 @@ export async function sendTelegram(chatId: string, text: string): Promise<boolea
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(body),
     });
     return res.ok;
   } catch (err) {

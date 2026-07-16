@@ -4,9 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { metisSepolia } from "@/lib/wallet/config";
+import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/networks";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
+
+/** Chains the launch wizard offers (mirrors the server allowlist; the server
+ *  re-validates that the chosen chain is actually configured). */
+const LAUNCH_CHAINS = [59902, 2345];
+function onLaunchChain(chainId: number | null): boolean {
+  return chainId != null && LAUNCH_CHAINS.includes(chainId);
+}
 
 /**
  * The founder deployment journey. Everything money-affecting is verified server-side; this
@@ -64,7 +71,7 @@ const STEP_LABELS: Record<Step, string> = {
 
 export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const wallet = useWallet();
-  const siwe = useSiwe();
+  const siwe = useSiwe(wallet);
   const storeKey = `sage.deploy.${jobId}`;
 
   const [dep, setDep] = useState<DeploymentView | null>(null);
@@ -80,6 +87,9 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const budgetBase = Number(plan.totalBudgetBase);
   const [dailyCapUsd, setDailyCapUsd] = useState((budgetBase / 1e6).toString());
   const [durationDays, setDurationDays] = useState("14");
+  // Payout mode. Default autopilot — the agent that designs the missions also pays them,
+  // inside the vault's on-chain limits. The founder can switch to manual review.
+  const [autonomy, setAutonomy] = useState<"manual" | "autopilot">("autopilot");
 
   const load = useCallback(
     async (id: string): Promise<DeploymentView | null> => {
@@ -132,13 +142,24 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           return;
         }
       }
-      const walletClient = wallet.getWalletClient();
+      // Read the live chain straight from the provider — React state can lag a
+      // just-made MetaMask switch, and the claim must bind the chain the wallet is
+      // ACTUALLY on (else the EIP-712 domain mismatches and MetaMask shows the wrong
+      // network for the signature).
+      let liveChainId = wallet.chainId ?? undefined;
+      try {
+        const prov = typeof window !== "undefined" ? window.ethereum : null;
+        if (prov) liveChainId = parseInt((await prov.request({ method: "eth_chainId" })) as string, 16);
+      } catch {
+        /* fall back to hook state */
+      }
+      const walletClient = wallet.getWalletClient(liveChainId);
       const account = wallet.address;
       if (!walletClient || !account) {
         setError("Connect your wallet to continue.");
         return;
       }
-      const ch = await post(`/api/launch/${jobId}/claim/challenge`);
+      const ch = await post(`/api/launch/${jobId}/claim/challenge`, { chainId: liveChainId });
       if (!ch.data.ok) {
         setError(String(ch.data.error ?? "Could not start the claim."));
         return;
@@ -222,7 +243,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
         let batchMarker: string | null = null;
         if (batchSupported && start.next.mode === "broadcast") {
           setNote("Confirm the campaign setup in your wallet…");
-          batchMarker = await sendBatch(wallet, calls).catch(() => null);
+          batchMarker = await sendBatch(wallet, calls, start.chainId).catch(() => null);
         }
         let cur: DeploymentView | null = start;
         while (cur && cur.next.phase === "execute" && cur.next.step) {
@@ -230,7 +251,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           setNote(`${STEP_LABELS[step]}…`);
           if (cur.next.mode === "broadcast") {
             const call = calls.find((c) => c.step === step);
-            const walletClient = wallet.getWalletClient();
+            const walletClient = wallet.getWalletClient(cur.chainId);
             if (!call || !walletClient || !wallet.address) {
               setError("Your wallet is not connected. Reconnect to continue — nothing was lost.");
               break;
@@ -243,7 +264,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
               } else {
                 txHash = await walletClient.sendTransaction({
                   account: getAddress(wallet.address),
-                  chain: metisSepolia,
+                  chain: viemChainFor(cur.chainId),
                   to: getAddress(call.to),
                   data: call.data as `0x${string}`,
                   value: BigInt(0),
@@ -293,7 +314,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const attach = useCallback(
     async (cur: DeploymentView) => {
       setNote("Verifying the campaign…");
-      const r = await post(`/api/deployments/${cur.id}/attach`);
+      const r = await post(`/api/deployments/${cur.id}/attach`, { autonomy });
       if (!r.data.ok) {
         setError(String(r.data.error ?? "Attachment did not complete. Your vault is safe."));
         if (r.data.deployment) setDep(r.data.deployment as DeploymentView);
@@ -301,7 +322,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
       }
       setDep(r.data.deployment as DeploymentView);
     },
-    [post],
+    [post, autonomy],
   );
 
   const phase: Phase = dep?.next.phase ?? "claim";
@@ -338,10 +359,13 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
         <LimitsPanel
           plan={plan}
           founder={dep.founder}
+          chainId={dep.chainId}
           dailyCapUsd={dailyCapUsd}
           setDailyCapUsd={setDailyCapUsd}
           durationDays={durationDays}
           setDurationDays={setDurationDays}
+          autonomy={autonomy}
+          setAutonomy={setAutonomy}
           busy={busy}
           onReview={submitPreview}
         />
@@ -420,14 +444,32 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
         <button className="lx-btn" disabled={busy || siwe.connecting} onClick={() => void siwe.connect()}>
           {siwe.connecting ? "Connecting…" : "Connect your wallet"}
         </button>
-      ) : !siwe.onMetis ? (
-        <button className="lx-btn" onClick={() => void siwe.switchToMetis()}>
-          Switch to Metis Sepolia
-        </button>
+      ) : !onLaunchChain(siwe.chainId) ? (
+        <div className="lxd-chain-pick">
+          <p className="lxd-own">Choose the network for this campaign.</p>
+          <button className="lx-btn" onClick={() => void siwe.switchToChain(2345)}>
+            GOAT Mainnet (real USDC)
+          </button>
+          <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(59902)}>
+            Metis Sepolia (testnet)
+          </button>
+        </div>
       ) : (
-        <button className="lx-btn" disabled={busy} onClick={onClaim}>
-          {busy ? "Securing…" : "Secure plan ownership"}
-        </button>
+        <div className="lxd-chain-pick">
+          <button className="lx-btn" disabled={busy} onClick={onClaim}>
+            {busy ? "Securing…" : `Secure plan ownership · ${chainConfig(siwe.chainId).chipLabel}`}
+          </button>
+          {siwe.chainId !== 2345 && (
+            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
+              Switch to GOAT Mainnet (real USDC)
+            </button>
+          )}
+          {siwe.chainId !== 59902 && (
+            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(59902)}>
+              Switch to Metis Sepolia (testnet)
+            </button>
+          )}
+        </div>
       )}
       {siwe.address && <div className="lxd-sub-addr mono">Connected: {short(siwe.address)}</div>}
     </div>
@@ -437,29 +479,58 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
 function LimitsPanel(props: {
   plan: PlanView;
   founder: string;
+  chainId: number;
   dailyCapUsd: string;
   setDailyCapUsd: (v: string) => void;
   durationDays: string;
   setDurationDays: (v: string) => void;
+  autonomy: "manual" | "autopilot";
+  setAutonomy: (v: "manual" | "autopilot") => void;
   busy: boolean;
   onReview: () => void;
 }) {
-  const { plan, founder, dailyCapUsd, setDailyCapUsd, durationDays, setDurationDays, busy, onReview } = props;
+  const { plan, founder, chainId, dailyCapUsd, setDailyCapUsd, durationDays, setDurationDays, autonomy, setAutonomy, busy, onReview } = props;
   return (
     <div className="lxd-panel">
       <div className="lxd-grid">
-        <Field label="Total budget (fixed)"><span className="mono">{reward(plan.totalBudgetBase)}</span></Field>
+        <Field label="Total budget (fixed)"><span className="mono">{reward(plan.totalBudgetBase, chainId)}</span></Field>
         <div className="lx-field" style={{ margin: 0 }}>
-          <label className="lx-label">Daily payout limit ({launchToken()})</label>
+          <label className="lx-label">Daily payout limit ({launchToken(chainId)})</label>
           <input className="lx-input" type="number" min="0.5" step="0.5" value={dailyCapUsd} onChange={(e) => setDailyCapUsd(e.target.value)} />
         </div>
         <div className="lx-field" style={{ margin: 0 }}>
           <label className="lx-label">Duration (days)</label>
           <input className="lx-input" type="number" min="1" max="90" step="1" value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
         </div>
-        <Field label="Network"><span>Metis Sepolia (testnet)</span></Field>
+        <Field label="Network"><span>{chainConfig(chainId).chipLabel}{chainConfig(chainId).isMainnet ? "" : " (testnet)"}</span></Field>
         <Field label="Owner (you)"><span className="mono">{short(founder)}</span></Field>
         <Field label="Guardian"><span className="mono">{short(founder)}</span></Field>
+      </div>
+      <div className="lxd-autonomy" style={{ marginTop: 16 }}>
+        <label className="lx-label">Payout mode</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <button
+            type="button"
+            onClick={() => setAutonomy("autopilot")}
+            className={`lx-btn${autonomy === "autopilot" ? "" : " ghost"}`}
+            style={{ flex: 1 }}
+          >
+            Autopilot
+          </button>
+          <button
+            type="button"
+            onClick={() => setAutonomy("manual")}
+            className={`lx-btn${autonomy === "manual" ? "" : " ghost"}`}
+            style={{ flex: 1 }}
+          >
+            Manual review
+          </button>
+        </div>
+        <p className="lx-approve-note" style={{ marginTop: 8 }}>
+          {autonomy === "autopilot"
+            ? "Sage designed these missions — and pays verified work on its own the moment its confidence clears 85%, inside the on-chain limits above. Nothing else can move funds."
+            : "Sage verifies and recommends each submission; you release every reward yourself. The vault still enforces every limit on-chain."}
+        </p>
       </div>
       <p className="lx-approve-note" style={{ marginTop: 14 }}>
         The vault enforces these limits on-chain. Sage operates within them and can never exceed the budget, the daily
@@ -479,23 +550,23 @@ function PreviewPanel({ preview, dep, busy, batchSupported, onStart }: { preview
       {preview ? (
         <>
           <div className="lxd-grid">
-            <Field label="Total budget"><span className="mono">{preview.totalBudgetHuman} {launchToken()}</span></Field>
+            <Field label="Total budget"><span className="mono">{preview.totalBudgetHuman} {launchToken(dep.chainId)}</span></Field>
             <Field label="Your balance">
               <span className="mono" style={{ color: preview.sufficientBalance ? "var(--lx-pos)" : "var(--lx-warn)" }}>
-                {preview.founderBalanceHuman} {launchToken()}
+                {preview.founderBalanceHuman} {launchToken(dep.chainId)}
               </span>
             </Field>
             <Field label="Missions · completions">
               <span>{preview.missions.length} · {preview.missions.reduce((s, m) => s + Number(m.maxCompletions), 0)}</span>
             </Field>
             <Field label="Predicted vault"><span className="mono">{short(preview.predictedVault)}</span></Field>
-            <Field label="Token approval"><span>Exactly {preview.totalBudgetHuman} {launchToken()} (never unlimited)</span></Field>
+            <Field label="Token approval"><span>Exactly {preview.totalBudgetHuman} {launchToken(dep.chainId)} (never unlimited)</span></Field>
             <Field label="Wallet confirmations"><span>Up to 4 one-time setup signatures</span></Field>
           </div>
 
           {!preview.sufficientBalance && (
             <div className="lx-note">
-              Your wallet is short {preview.shortfallHuman} {launchToken()} to fund this campaign. Top up (or use the testnet
+              Your wallet is short {preview.shortfallHuman} {launchToken(dep.chainId)} to fund this campaign. Top up (or use the testnet
               faucet) and reload before continuing.
             </div>
           )}
@@ -566,20 +637,20 @@ function RecoveryPanel({ dep, busy, onRetry }: { dep: DeploymentView; busy: bool
 
 function LiveSuccess({ dep, plan }: { dep: DeploymentView; plan: PlanView }) {
   const completions = plan.missions.reduce((s, m) => s + Number(m.maxCompletions), 0);
-  const explorer = `https://sepolia-explorer.metisdevops.link/address/${dep.deployedVault ?? dep.predictedVault}`;
+  const explorer = explorerAddressUrl(dep.chainId, dep.deployedVault ?? dep.predictedVault);
   return (
     <div className="lxd-panel lxd-live">
       <div className="lxd-live-badge" aria-hidden>✓</div>
       <div className="lx-h1" style={{ fontSize: 24 }}>Your campaign is live.</div>
       <div className="lxd-grid" style={{ marginTop: 12 }}>
         <Field label="Active missions"><span>{plan.missions.length} · {completions} completions</span></Field>
-        <Field label="Funded"><span className="mono">{dep.totalBudgetHuman} {launchToken()}</span></Field>
+        <Field label="Funded"><span className="mono">{dep.totalBudgetHuman} {launchToken(dep.chainId)}</span></Field>
         <Field label="Owner (you)"><span className="mono">{short(dep.founder)}</span></Field>
         <Field label="Sage operator"><span>Bounded payout role</span></Field>
         <Field label="Vault">
           <a className="lxd-link mono" href={explorer} target="_blank" rel="noopener noreferrer">{short(dep.deployedVault ?? dep.predictedVault)}</a>
         </Field>
-        <Field label="Network"><span>Metis Sepolia</span></Field>
+        <Field label="Network"><span>{chainConfig(dep.chainId).chipLabel}</span></Field>
       </div>
       <div className="lxd-guarantee">Sage cannot withdraw these funds. It can only pay verified mission work within your limits.</div>
       {dep.attachedCampaignId && (
@@ -589,6 +660,9 @@ function LiveSuccess({ dep, plan }: { dep: DeploymentView; plan: PlanView }) {
           </a>
           <a href={`/c/${dep.attachedCampaignId}`} className="lxd-link" style={{ textDecoration: "none" }}>
             View public tester board →
+          </a>
+          <a href="/dashboard" className="lxd-link" style={{ textDecoration: "none" }}>
+            All your campaigns →
           </a>
         </div>
       )}
@@ -633,8 +707,8 @@ async function probeBatch(wallet: ReturnType<typeof useWallet>): Promise<boolean
 }
 
 /** Send all setup calls as one EIP-5792 batch; returns the batch id (one confirmation). */
-async function sendBatch(wallet: ReturnType<typeof useWallet>, calls: StepCall[]): Promise<string> {
-  const client = wallet.getWalletClient();
+async function sendBatch(wallet: ReturnType<typeof useWallet>, calls: StepCall[], chainId: number): Promise<string> {
+  const client = wallet.getWalletClient(chainId);
   if (!client || !wallet.address) throw new Error("no wallet");
   const rpc = client.request as unknown as (a: { method: string; params: unknown[] }) => Promise<unknown>;
   const res = (await rpc({
@@ -643,7 +717,7 @@ async function sendBatch(wallet: ReturnType<typeof useWallet>, calls: StepCall[]
       {
         version: "2.0.0",
         from: getAddress(wallet.address),
-        chainId: `0x${metisSepolia.id.toString(16)}`,
+        chainId: `0x${chainId.toString(16)}`,
         atomicRequired: true,
         calls: calls.map((c) => ({ to: getAddress(c.to), data: c.data, value: "0x0" })),
       },

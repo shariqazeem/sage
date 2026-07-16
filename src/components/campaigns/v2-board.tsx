@@ -68,8 +68,11 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
 function MissionCard({ campaignId, campaignIdHash, chainId, mission, live }: {
   campaignId: string; campaignIdHash: string; chainId: number; mission: MissionView; live: boolean;
 }) {
-  const siwe = useSiwe();
   const wallet = useWallet();
+  // Share ONE wallet instance with SIWE — otherwise the connect/sign-in runs on siwe's
+  // internal useWallet while the evidence signature checks this one, which stays empty
+  // ("Reconnect your wallet to sign" on an actually-connected wallet).
+  const siwe = useSiwe(wallet);
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");

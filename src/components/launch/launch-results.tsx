@@ -16,21 +16,30 @@ import type { JobView, PlanView } from "./types";
 type Stage = JobView["status"];
 const STAGE_LABELS: { key: Stage; label: string }[] = [
   { key: "fetching", label: "Checking the product" },
+  { key: "field_test", label: "Using your product in a real browser" },
   { key: "analyzing", label: "Reviewing repository context" },
   { key: "mapping", label: "Mapping key pages and flows" },
   { key: "generating_missions", label: "Designing testing missions" },
   { key: "reviewing", label: "Checking mission quality and budget" },
 ];
 const RANK: Record<Stage, number> = {
-  queued: 0, fetching: 1, analyzing: 2, mapping: 3, generating_missions: 4, reviewing: 5,
+  queued: 0, fetching: 1, field_test: 1.5, analyzing: 2, mapping: 3, generating_missions: 4, reviewing: 5,
   ready: 6, needs_input: 6, failed: 6, superseded: 7,
 };
 const TERMINAL = new Set<Stage>(["ready", "needs_input", "failed", "superseded"]);
 
+interface FieldTestView {
+  ran: boolean;
+  pages: {
+    url: string; title: string; jsOnly: boolean;
+    consoleErrors: string[]; brokenRequests: { url: string; status: number }[]; screenshot: string | null;
+  }[];
+}
 interface MapView {
   productName: string; category: string; valueProp: string; founderTargetUsers: string;
   routes: { value: string }[]; primaryJourney: { value: string }[]; limitations: string[];
   openQuestions: string[]; pagesInspected: number; repoFilesInspected: number;
+  fieldTest?: FieldTestView | null;
 }
 
 export function LaunchResults({ initial }: { initial: JobView }) {
@@ -67,7 +76,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
         <div className="lx-card pad-lg">
           <div className="lx-kicker" style={{ marginBottom: 6 }}>Inspecting {hostOf(job.productUrl)}</div>
           <ul className="lx-stages">
-            {STAGE_LABELS.map((s) => {
+            {STAGE_LABELS.filter((s) => s.key !== "field_test" || job.fieldTestStage).map((s) => {
               const state = RANK[status] > RANK[s.key] ? "done" : RANK[status] === RANK[s.key] ? "active" : "";
               return <li key={s.key} className={`lx-stage ${state}`}><span className="lx-dot" />{s.label}</li>;
             })}
@@ -108,6 +117,8 @@ export function LaunchResults({ initial }: { initial: JobView }) {
 
       {map && status === "ready" && <section className="lx-card pad-lg" aria-label="Product map"><MapSummary map={map} full /></section>}
 
+      {status === "ready" && map?.fieldTest?.ran && <FieldTestStrip ft={map.fieldTest} />}
+
       {plan && plan.missions.length > 0 && (
         <section aria-label="Mission plan" style={{ marginTop: 22 }}>
           <div className="lx-kicker" style={{ margin: "0 0 6px" }}>Sage designed these missions from what it found</div>
@@ -136,6 +147,50 @@ function MapSummary({ map, full }: { map: MapView; full?: boolean }) {
       {map.limitations.length > 0 && <div className="lx-note"><b>What Sage could not see:</b> {map.limitations.join(" ")}</div>}
     </>
   );
+}
+
+function FieldTestStrip({ ft }: { ft: FieldTestView }) {
+  const shots = ft.pages.filter((p) => p.screenshot);
+  const consoleErrors = ft.pages.reduce((n, p) => n + p.consoleErrors.length, 0);
+  const broken = ft.pages.reduce((n, p) => n + p.brokenRequests.length, 0);
+  const jsOnly = ft.pages.filter((p) => p.jsOnly).length;
+  const errorSamples = ft.pages.flatMap((p) => p.consoleErrors).slice(0, 3);
+  const brokenSamples = ft.pages.flatMap((p) => p.brokenRequests).slice(0, 3);
+  return (
+    <section className="lx-card pad-lg lx-field" aria-label="Field test" style={{ marginTop: 16 }}>
+      <div className="lx-kicker" style={{ marginBottom: 8 }}>Sage used your product</div>
+      <p className="lx-sub" style={{ fontSize: 14, margin: "0 0 12px" }}>
+        Sage opened {ft.pages.length} page{ft.pages.length === 1 ? "" : "s"} in a real browser and captured what a visitor actually sees.
+      </p>
+      {shots.length > 0 && (
+        <div className="lx-shots">
+          {shots.map((p, i) => (
+            <a key={i} className="lx-shot" href={p.screenshot ?? undefined} target="_blank" rel="noopener noreferrer" title={p.title || p.url}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.screenshot ?? ""} alt={p.title || p.url} loading="lazy" />
+              <span className="lx-shot-cap">{p.title || pathOf(p.url)}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      <div className="lx-finds">
+        <span className={`lx-find ${consoleErrors ? "bad" : "ok"}`}>{consoleErrors} console error{consoleErrors === 1 ? "" : "s"}</span>
+        <span className={`lx-find ${broken ? "bad" : "ok"}`}>{broken} broken request{broken === 1 ? "" : "s"}</span>
+        <span className={`lx-find ${jsOnly ? "warn" : "ok"}`}>{jsOnly} JavaScript-only page{jsOnly === 1 ? "" : "s"}</span>
+      </div>
+      {(errorSamples.length > 0 || brokenSamples.length > 0) && (
+        <details className="lx-field-details">
+          <summary>What Sage saw</summary>
+          {errorSamples.map((e, i) => <div key={`e${i}`} className="lx-field-line">console: {e}</div>)}
+          {brokenSamples.map((b, i) => <div key={`b${i}`} className="lx-field-line">HTTP {b.status || "failed"}: {b.url}</div>)}
+        </details>
+      )}
+    </section>
+  );
+}
+
+function pathOf(u: string): string {
+  try { const x = new URL(u); return x.pathname === "/" ? x.host : x.pathname; } catch { return u; }
 }
 
 function RetryButton({ jobId, onDone, onScheduled }: { jobId: string; onDone: (j: JobView) => void; onScheduled: () => void }) {

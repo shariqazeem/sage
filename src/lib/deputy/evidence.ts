@@ -38,6 +38,9 @@ export function stripHtml(html: string): string {
       .replace(/<(script|style|noscript|template|svg|head)[\s\S]*?<\/\1>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<\/(p|div|li|h[1-6]|br|tr|section|article)>/gi, " ")
+      // Surface link targets as text BEFORE stripping tags — otherwise every href is lost and a
+      // criterion like "contains a functional link to a block explorer" can never be verified.
+      .replace(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi, " $1 ")
       .replace(/<[^>]+>/g, " ")
       .replace(/&nbsp;/gi, " ")
       .replace(/&amp;/gi, "&")

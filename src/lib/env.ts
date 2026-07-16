@@ -79,6 +79,10 @@ const schema = z.object({
   // autonomy flags
   DEPUTY_AUTOPILOT_MAINNET: nonempty.optional(),
   DEPUTY_DEBUG: nonempty.optional(),
+  // "1" arms the Playwright "Field Test": Sage actually browses the inspected product.
+  // Anything else (or unset) → HTML-only inspection, exactly as before. Needs chromium:
+  // `npx playwright install --with-deps chromium`.
+  FIELD_TEST_ENABLED: nonempty.optional(),
 
   // x402 merchant creds
   GOATX402_API_KEY: nonempty.optional(),

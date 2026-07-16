@@ -109,6 +109,43 @@ export interface MapFinding {
 
 export const PRODUCT_MAP_V1_DOMAIN = "sage.productmap.v1" as const;
 
+/* ────────────────────────────────────────────── field test (Playwright) ──────
+ * The optional "Field Test": Sage actually loads the product in a real headless
+ * browser (feature-flagged). These persisted result types live here (not in
+ * field-test.ts) so schemas has no runtime dependency on Playwright. A form is
+ * recorded READ-ONLY (attrs only) — the field test never fills or submits one. */
+
+export interface FieldTestForm {
+  method: string;
+  action: string;
+  fields: string[];
+}
+
+export interface FieldTestPage {
+  url: string;
+  title: string;
+  h1: string;
+  /** visible primary CTA/button texts (top 10). */
+  ctas: string[];
+  forms: FieldTestForm[];
+  consoleErrors: string[];
+  brokenRequests: { url: string; status: number }[];
+  /** the page renders substantially only via JavaScript (raw HTML text ≪ rendered text). */
+  jsOnly: boolean;
+  /** public path to the full-page screenshot, e.g. /field-tests/<inspectionId>/0.png. */
+  screenshot: string | null;
+}
+
+export interface FieldTestSummary {
+  /** true only when at least one page was actually browsed + captured. */
+  ran: boolean;
+  startUrl: string;
+  pages: FieldTestPage[];
+  /** an honest reason when the field test was skipped/degraded (null on success). */
+  limitation: string | null;
+  durationMs: number;
+}
+
 export interface ProductMapV1 {
   productName: string;
   category: string;
@@ -143,6 +180,12 @@ export interface ProductMapV1 {
   repoFilesInspected: number;
   /** the canonical digest over the normalized map. */
   digest: Hex;
+  /**
+   * Optional field-test evidence — present only when FIELD_TEST_ENABLED and the run
+   * succeeded. EXCLUDED from `digest` (attached after it is computed), so an off/failed
+   * field test leaves the map (and every downstream hash) byte-identical to today.
+   */
+  fieldTest?: FieldTestSummary | null;
 }
 
 /* ────────────────────────────────────────────── candidate mission ───────── */

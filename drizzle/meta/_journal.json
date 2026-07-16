@@ -120,6 +120,20 @@
       "when": 1783839021365,
       "tag": "0016_huge_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784113652244,
+      "tag": "0017_add_agent_wallets",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1784182727088,
+      "tag": "0018_add_concierge_chats",
+      "breakpoints": true
     }
   ]
 }

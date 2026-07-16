@@ -76,7 +76,9 @@ function isPrivateIp(addr: string, family: number): boolean {
   return h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80") || h.startsWith("::ffff:");
 }
 
-async function resolvesPublic(host: string): Promise<boolean> {
+/** DNS-resolution guard: the host must resolve to public addresses only. Exported so the
+ *  Field Test (field-test.ts) reuses the exact same public-host check on intercepted requests. */
+export async function resolvesPublic(host: string): Promise<boolean> {
   try {
     const rec = await lookup(host, { all: true });
     if (rec.length === 0) return false;
@@ -250,4 +252,41 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
   if (observations.length === 0) limitations.push("No page could be inspected (all candidates were blocked or unavailable).");
   else if (queue.length > 0) limitations.push(`${queue.length} additional same-origin page(s) were discovered but not inspected within the page budget.`);
   return { startUrl: entry.value, host, observations, limitations, blocked };
+}
+
+/**
+ * Rank the same-origin links the HTML inspection discovered by testing priority (the same
+ * HIGH/LOW/SOCIAL/DETAIL heuristic the crawler uses), returning the top primary candidates
+ * for the Field Test to actually browse. Excludes the entry URL, social, and duplicate
+ * detail pages. Reuses this module's ranking so both stages agree on what "primary" means.
+ */
+export function rankPrimaryLinks(
+  observations: ProductObservation[],
+  host: string,
+  entryUrl: string,
+  limit = 5,
+): string[] {
+  const seen = new Set<string>([entryUrl.replace(/#.*$/, "")]);
+  const candidates: string[] = [];
+  for (const o of observations) {
+    for (const raw of o.links) {
+      let abs: URL;
+      try {
+        abs = new URL(raw, o.url);
+      } catch {
+        continue;
+      }
+      if (abs.protocol !== "https:") continue;
+      if (abs.host.toLowerCase() !== host.toLowerCase()) continue;
+      if (SOCIAL.test(abs.toString())) continue;
+      const k = abs.toString().replace(/#.*$/, "");
+      if (seen.has(k)) continue;
+      // at most one near-duplicate detail page.
+      if (DETAIL.test(k) && candidates.some((c) => DETAIL.test(c))) continue;
+      seen.add(k);
+      candidates.push(k);
+    }
+  }
+  candidates.sort((a, b) => priority(a) - priority(b));
+  return candidates.slice(0, limit);
 }

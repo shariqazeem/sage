@@ -18,6 +18,7 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, type ValidationScope } from "./validate-mission";
+import { fieldTestForMap } from "./field-test";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
@@ -162,6 +163,9 @@ function compactMapForLlm(map: ProductMapV1): string {
     pagesInspected: map.pagesInspected,
     repoFilesInspected: map.repoFilesInspected,
     note: "targetSurface and every cited page source MUST be one of inspectedUrls.",
+    // Field-test observations (only present when Sage actually browsed the product). When
+    // absent, this spread contributes nothing and the JSON is byte-identical to before.
+    ...(map.fieldTest && map.fieldTest.pages.length > 0 ? { fieldTest: fieldTestForMap(map.fieldTest) } : {}),
   });
 }
 
@@ -192,7 +196,11 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
   for (let attempt = 0; attempt < 5; attempt++) {
     await jitter(attempt);
     try {
-      const base = buildArchitectUser(mapJson, { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" });
+      const base = buildArchitectUser(
+        mapJson,
+        { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" },
+        { hasFieldTest: !!(map.fieldTest && map.fieldTest.pages.length > 0) },
+      );
       // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).
       const shapeNudge = attempt >= 1 ? `\n\nRespond with EXACTLY this shape and nothing else: {"missions":[ {...}, {...} ]}. The top-level key MUST be "missions" and its value MUST be a JSON array.` : "";
       const user = (correction

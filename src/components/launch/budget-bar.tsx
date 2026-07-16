@@ -81,7 +81,7 @@ export function BudgetBar({
         editingBudget ? (
           <div className="lx-next" style={{ marginTop: 14, alignItems: "flex-end" }}>
             <div className="lx-field" style={{ margin: 0, maxWidth: 180 }}>
-              <label className="lx-label">New total (test mUSDC)</label>
+              <label className="lx-label">New total (USDC)</label>
               <input className="lx-input" type="number" min="0.5" step="0.5" value={budgetUsd} onChange={(e) => setBudgetUsd(e.target.value)} />
             </div>
             <button className="lx-btn" onClick={rebalance} disabled={busy}>{busy ? "Rebalancing…" : "Rebalance exactly"}</button>

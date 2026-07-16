@@ -166,6 +166,13 @@ html:has(.clx) {
 .clx-cta:active {
   transform: scale(0.98);
 }
+/* The CTA is an <a> inside .clx-topnav/.clx-footnav, whose `.clx-*nav a` rule
+   (higher specificity) was overriding the white text → grey-on-dark, unreadable.
+   Win the color back so the button label is properly white on its dark fill. */
+.clx-topnav a.clx-cta,
+.clx-footnav a.clx-cta {
+  color: #fff;
+}
 .clx-cta-sm {
   padding: 8px 14px;
   font-size: 13px;

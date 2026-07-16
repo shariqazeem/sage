@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
-import { usd, money, isTestnetChain } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { CountUpLanding } from "./count-up-landing";
 
 const HEADLINE = [
@@ -27,25 +27,16 @@ const HEADLINE = [
  * Falls back to a styled placeholder until /public/hero-vault.png exists.
  */
 export function Act1Hero({
-  remaining,
-  budget,
+  settledUsd,
+  payoutCount,
   networkName,
-  chainId,
   hasHero,
 }: {
-  remaining: number | null;
-  budget: number | null;
+  settledUsd: number;
+  payoutCount: number;
   networkName: string;
-  chainId: number;
   hasHero: boolean;
 }) {
-  const vaultReadable = remaining != null && budget != null;
-  // The live vault is on Metis Sepolia (testnet): its token has no monetary value, so the
-  // big balance renders as a plain number and the unit lives in the sublabel — never "$".
-  const testnet = isTestnetChain(chainId);
-  const bigFmt = testnet
-    ? (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : usd;
   const mediaRef = useRef<HTMLDivElement>(null);
 
   // parallax: the hero media lags the page at 0.9x. Passive + rAF-throttled;
@@ -100,26 +91,13 @@ export function Act1Hero({
           </h1>
 
           <div className="clx-hero-balance">
-            <span className="clx-bal-k clx-mono">Live wallet balance</span>
-            {vaultReadable ? (
-              <>
-                <span className="clx-bal-v">
-                  <CountUpLanding value={remaining} format={bigFmt} duration={1600} />
-                </span>
-                <span className="clx-bal-sub clx-mono">
-                  of {money(budget, chainId)} allowance · {networkName}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="clx-bal-v" style={{ fontSize: "0.62em" }}>
-                  Temporarily unavailable
-                </span>
-                <span className="clx-bal-sub clx-mono">
-                  live vault read failed · {networkName}
-                </span>
-              </>
-            )}
+            <span className="clx-bal-k clx-mono">Paid to real testers</span>
+            <span className="clx-bal-v">
+              <CountUpLanding value={settledUsd} format={usd} duration={1600} />
+            </span>
+            <span className="clx-bal-sub clx-mono">
+              real USDC on {networkName} · {payoutCount} verifiable payout{payoutCount === 1 ? "" : "s"}
+            </span>
           </div>
 
           <div className="clx-hero-actions">

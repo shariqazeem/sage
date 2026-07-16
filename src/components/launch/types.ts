@@ -33,13 +33,15 @@ export interface PlanView {
 
 export interface JobView {
   id: string;
-  status: "queued" | "fetching" | "analyzing" | "mapping" | "generating_missions" | "reviewing" | "ready" | "needs_input" | "failed" | "superseded";
+  status: "queued" | "fetching" | "field_test" | "analyzing" | "mapping" | "generating_missions" | "reviewing" | "ready" | "needs_input" | "failed" | "superseded";
   productUrl: string;
   goal: string;
   totalBudgetBase: string;
   tokenDecimals: number;
   pagesInspected: number;
   repoFilesInspected: number;
+  /** whether the Field Test browser stage applies to this run (server flag). */
+  fieldTestStage: boolean;
   model: string | null;
   provider: string | null;
   failureReason: string | null;

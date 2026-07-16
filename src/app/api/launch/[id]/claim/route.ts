@@ -10,6 +10,7 @@ import {
   DEFAULT_DURATION_SECONDS,
   serializeSettings,
   LAUNCH_CHAIN_ID,
+  isLaunchChain,
 } from "@/lib/launch/deployment-service";
 import { buildDeployBundle, deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { verifyClaimSignature, type PlanClaim } from "@/lib/launch/claim";
@@ -47,6 +48,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ ok: false, error: "Claim founder does not match your session wallet." }, { status: 403 });
   }
 
+  // The chain the founder signed for (bound into the claim at challenge time).
+  // Re-validate against the allowlist + server config — never trust a client-
+  // returned claim. A tampered chainId also fails the EIP-712 check below, since
+  // it is part of the signed domain.
+  const chainId = claim.chainId ?? LAUNCH_CHAIN_ID;
+  if (!isLaunchChain(chainId)) {
+    return NextResponse.json({ ok: false, error: "That network isn't available for launches yet." }, { status: 400 });
+  }
+
   // The plan must be unchanged since the challenge was issued.
   const loaded = loadApprovedPlan(id);
   if (!loaded) return NextResponse.json({ ok: false, error: "This inspection has no approved plan." }, { status: 409 });
@@ -63,7 +73,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   // Verify the EIP-712 signature binds THIS wallet to THIS plan.
   const now = Math.floor(Date.now() / 1000);
-  const verdict = await verifyClaimSignature(claim, signature as `0x${string}`, { expectedWallet: session, chainId: LAUNCH_CHAIN_ID, now });
+  const verdict = await verifyClaimSignature(claim, signature as `0x${string}`, { expectedWallet: session, chainId, now });
   if (!verdict.ok) return NextResponse.json({ ok: false, error: `Claim signature rejected (${verdict.reason}).` }, { status: 400 });
 
   // Transfer ownership: anonymous → this wallet (or a no-op if already owned by it).
@@ -75,7 +85,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const settingsRes = buildSettings(
     loaded.plan,
     { owner: getAddress(session), guardian: getAddress(session), dailyVelocityCapBase: defaultDailyCap(loaded.plan), durationSeconds: DEFAULT_DURATION_SECONDS },
-    LAUNCH_CHAIN_ID,
+    chainId,
   );
   if (!settingsRes.ok) {
     return NextResponse.json({ ok: false, error: `Launch chain is not fully configured (${settingsRes.errors.join(", ")}).` }, { status: 503 });
@@ -87,7 +97,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     revisionId: loaded.revisionId,
     revisionNumber: loaded.revisionNumber,
     founderWallet: session,
-    chainId: LAUNCH_CHAIN_ID,
+    chainId,
     settings: serializeSettings(settingsRes.settings),
     campaignIdHash: loaded.plan.campaignIdHash,
     missionPlanDigest: loaded.plan.missionPlanDigest,

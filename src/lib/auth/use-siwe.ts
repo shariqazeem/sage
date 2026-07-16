@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAddress } from "viem";
-import { useWallet } from "@/lib/wallet/use-wallet";
+import { useWallet, type WalletApi } from "@/lib/wallet/use-wallet";
 import { buildSiweMessage } from "./message";
 
 export interface SiweApi {
@@ -13,11 +13,14 @@ export interface SiweApi {
   /** True when the session matches the connected wallet. */
   authed: boolean;
   available: boolean;
+  chainId: number | null;
   onMetis: boolean;
+  onChain: (chainId: number) => boolean;
   connecting: boolean;
   signingIn: boolean;
   connect: () => Promise<void>;
   switchToMetis: () => Promise<void>;
+  switchToChain: (chainId: number) => Promise<void>;
   /** Run the SIWE-lite flow (connect → nonce → sign → verify). */
   signIn: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -29,8 +32,12 @@ export interface SiweApi {
  * routes. Pure UI glue — every security decision is made server-side; this just
  * gathers a signature.
  */
-export function useSiwe(): SiweApi {
-  const w = useWallet();
+export function useSiwe(injectedWallet?: WalletApi): SiweApi {
+  // Accept a shared wallet instance so a host (the deploy wizard) can unify SIWE +
+  // on-chain steps on ONE useWallet — otherwise the wizard's own useWallet and this
+  // one diverge (connected here, empty there → "connect wallet" on an active wallet).
+  const own = useWallet();
+  const w = injectedWallet ?? own;
   const [authedAddress, setAuthedAddress] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
 
@@ -50,7 +57,8 @@ export function useSiwe(): SiweApi {
 
   const signIn = useCallback(async (): Promise<boolean> => {
     if (!w.address) await w.connect();
-    if (w.address && !w.onMetis) await w.switchToMetis();
+    // SIWE (personal_sign) is chain-independent — don't force a network switch here.
+    // The launch wizard switches to the founder's chosen chain only for the on-chain steps.
     const wallet = w.getWalletClient();
     if (!w.address || !wallet) return false;
     // Checksum the address so the message we sign is byte-identical to the one
@@ -97,11 +105,14 @@ export function useSiwe(): SiweApi {
     authedAddress,
     authed,
     available: w.available,
+    chainId: w.chainId,
     onMetis: w.onMetis,
+    onChain: w.onChain,
     connecting: w.connecting,
     signingIn,
     connect: w.connect,
     switchToMetis: w.switchToMetis,
+    switchToChain: w.switchToChain,
     signIn,
     signOut,
   };

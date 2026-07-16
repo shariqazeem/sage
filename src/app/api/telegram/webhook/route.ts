@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
+import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,8 +46,34 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ ok: true });
   }
 
-  const reply = buildReply(parseCommand(msg.text));
-  if (reply) await sendTelegram(String(msg.chatId), reply);
+  const chatId = String(msg.chatId);
+  const cmd = parseCommand(msg.text);
+  console.log("[telegram] chat=%s kind=%s enabled=%s", chatId, cmd.kind, conciergeEnabled());
+
+  // Slash commands stay the fast, deterministic, grounded path. Free-form chat goes to the
+  // conversational agent (CommonStack + Sage's in-process tools) — run AFTER we 200 so Telegram
+  // never waits on the model; the agent sends its own reply, then any deferred inspection runs.
+  if (cmd.kind === "none" || cmd.kind === "unknown") {
+    if (conciergeEnabled()) {
+      after(async () => {
+        console.log("[telegram] concierge run chat=%s", chatId);
+        const jobs: Array<() => void | Promise<void>> = [];
+        const reply = await runConcierge(chatId, msg.text, (fn) => jobs.push(fn));
+        console.log("[telegram] concierge reply chat=%s jobs=%d len=%d", chatId, jobs.length, reply.length);
+        if (reply) await sendTelegram(chatId, reply, { html: false });
+        for (const job of jobs) {
+          try {
+            await job();
+          } catch (err) {
+            console.error("[telegram] deferred job failed:", err);
+          }
+        }
+      });
+    }
+  } else {
+    const reply = buildReply(cmd);
+    if (reply) await sendTelegram(chatId, reply);
+  }
   return NextResponse.json({ ok: true });
 }
 

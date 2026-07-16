@@ -317,7 +317,10 @@ function TopBar({ chainId }: { chainId: number }) {
       <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
         <span className="sb-mark">S</span> Sage
       </Link>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+        <Link href="/dashboard" className="cw-link" style={{ textDecoration: "none" }}>
+          Dashboard
+        </Link>
         <NetworkChip chainId={chainId} size="xs" />
         <span className="sb-net"><span className="dot" /> Founder console</span>
       </span>

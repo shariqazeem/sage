@@ -60,7 +60,7 @@ export function EcosystemStrip({ status }: { status: EcosystemStatus }) {
   const s = status;
   return (
     <div style={wrap}>
-      <Chip label="Built on Metis" />
+      {s.campaignExecution && <Chip label={`Live on ${s.campaignExecution.network}`} />}
       {s.erc8004.state !== "not_configured" && (
         <Chip
           label={`ERC-8004${s.erc8004.agentId ? ` #${s.erc8004.agentId}` : ""}`}

@@ -61,6 +61,11 @@ export interface V2SetupInput {
   factoryAddress: string;
   vaultAddress: string;
   missions: V2MissionSetupInput[];
+  /** The founder's chosen payout mode. Default autopilot — the agent that designed the
+   *  missions also pays them, inside the vault's on-chain limits. */
+  autonomy?: "manual" | "autopilot";
+  /** Confidence bar for autopilot settles (0..1). Default 0.85. */
+  autopilotThreshold?: number;
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -344,7 +349,11 @@ export async function attachV2Campaign(
           posterWallet: getAddress(input.founderAddress),
           ownerIsSage: false,
           status: "live",
-          autonomy: "manual",
+          autonomy: input.autonomy ?? "autopilot",
+          autopilotThreshold:
+            (input.autonomy ?? "autopilot") === "autopilot"
+              ? (input.autopilotThreshold ?? 0.85)
+              : undefined,
           vaultKind: "campaign_v2",
           campaignIdHash: preview.campaignIdHash as string,
           missionPlanDigest: preview.missionPlanDigest as string,

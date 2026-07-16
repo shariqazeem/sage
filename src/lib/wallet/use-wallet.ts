@@ -9,6 +9,7 @@ import {
   type WalletClient,
 } from "viem";
 import { metisSepolia } from "./config";
+import { viemChainFor } from "@/lib/deputy/networks";
 
 declare global {
   interface Window {
@@ -29,18 +30,24 @@ export interface WalletApi {
   available: boolean;
   /** connected AND on Metis Sepolia. */
   onMetis: boolean;
+  /** connected AND on the given chain. */
+  onChain: (chainId: number) => boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
   switchToMetis: () => Promise<void>;
-  /** a viem WalletClient bound to the connected account (null if not connected). */
-  getWalletClient: () => WalletClient | null;
+  /** switch the wallet to any Deputy-supported chain (Metis Sepolia, GOAT, …). */
+  switchToChain: (chainId: number) => Promise<void>;
+  /** a viem WalletClient bound to the connected account (null if not connected).
+   *  Pass a chainId to bind it to that chain; defaults to Metis Sepolia. */
+  getWalletClient: (chainId?: number) => WalletClient | null;
 }
 
 /**
  * Minimal, dependency-free wallet connection over the injected EIP-1193 provider
- * (MetaMask et al), scoped to Metis Sepolia. Restores an existing connection on
- * mount and tracks account / chain changes. Kept viem-native (no wagmi) so it
- * shares the same client stack as the rest of the app.
+ * (MetaMask et al). Restores an existing connection on mount and tracks account /
+ * chain changes. Chain-parametric: defaults to Metis Sepolia so every pre-existing
+ * caller is untouched, and `switchToChain` / `getWalletClient(chainId)` let the
+ * launch wizard deploy on GOAT mainnet too. Kept viem-native (no wagmi).
  */
 export function useWallet(): WalletApi {
   const [address, setAddress] = useState<Address | null>(null);
@@ -104,10 +111,11 @@ export function useWallet(): WalletApi {
     setAddress(null);
   }, []);
 
-  const switchToMetis = useCallback(async () => {
+  const switchToChain = useCallback(async (targetChainId: number) => {
     const p = getProvider();
     if (!p) return;
-    const hexId = `0x${metisSepolia.id.toString(16)}`;
+    const chain = viemChainFor(targetChainId);
+    const hexId = `0x${targetChainId.toString(16)}`;
     try {
       await p.request({
         method: "wallet_switchEthereumChain",
@@ -120,25 +128,35 @@ export function useWallet(): WalletApi {
         params: [
           {
             chainId: hexId,
-            chainName: metisSepolia.name,
-            nativeCurrency: metisSepolia.nativeCurrency,
-            rpcUrls: metisSepolia.rpcUrls.default.http,
-            blockExplorerUrls: [metisSepolia.blockExplorers.default.url],
+            chainName: chain.name,
+            nativeCurrency: chain.nativeCurrency,
+            rpcUrls: chain.rpcUrls.default.http,
+            blockExplorerUrls: chain.blockExplorers
+              ? [chain.blockExplorers.default.url]
+              : [],
           },
         ],
       });
     }
   }, []);
 
-  const getWalletClient = useCallback((): WalletClient | null => {
-    const p = getProvider();
-    if (!p || !address) return null;
-    return createWalletClient({
-      account: address,
-      chain: metisSepolia,
-      transport: custom(p),
-    });
-  }, [address]);
+  const switchToMetis = useCallback(
+    () => switchToChain(metisSepolia.id),
+    [switchToChain],
+  );
+
+  const getWalletClient = useCallback(
+    (targetChainId?: number): WalletClient | null => {
+      const p = getProvider();
+      if (!p || !address) return null;
+      return createWalletClient({
+        account: address,
+        chain: targetChainId ? viemChainFor(targetChainId) : metisSepolia,
+        transport: custom(p),
+      });
+    },
+    [address],
+  );
 
   return {
     address,
@@ -146,9 +164,11 @@ export function useWallet(): WalletApi {
     connecting,
     available,
     onMetis: chainId === metisSepolia.id,
+    onChain: (id: number) => chainId === id,
     connect,
     disconnect,
     switchToMetis,
+    switchToChain,
     getWalletClient,
   };
 }

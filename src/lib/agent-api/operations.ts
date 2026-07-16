@@ -98,16 +98,22 @@ export interface InspectionView {
   failure: string | null;
   plan: {
     missionCount: number;
+    /** the budget in whole USDC (human-readable) — always prefer this over the base-unit field. */
+    budgetUsd: number | null;
     totalBudgetBase: string | null;
     missions: Array<{
       title: string;
       objective: string;
+      /** the reward in whole USDC (human-readable). */
+      rewardUsd: number | null;
       rewardBase: string;
       maxCompletions: string;
     }>;
   } | null;
   approvalUrl: string;
   approvalNote: string | null;
+  /** field-test artifacts, present only when Sage actually browsed the product in a real browser. */
+  fieldTest: { pages: number; screenshots: number } | null;
 }
 
 /** Poll a durable inspection: honest stage, needs-input/failure, and when ready a concise plan. */
@@ -126,18 +132,30 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     }>;
     totalBudgetBase?: string;
   } | null;
+  const toUsd = (base: string | null | undefined): number | null =>
+    base != null && base !== "" ? Number(base) / 1_000_000 : null;
   const plan =
     ready && p && Array.isArray(p.missions)
       ? {
           missionCount: p.missions.length,
+          budgetUsd: toUsd(p.totalBudgetBase),
           totalBudgetBase: p.totalBudgetBase ?? null,
           missions: p.missions.map((m) => ({
             title: m.title,
             objective: m.objective,
+            rewardUsd: toUsd(m.rewardBase),
             rewardBase: m.rewardBase,
             maxCompletions: m.maxCompletions,
           })),
         }
+      : null;
+
+  // field-test artifacts ride in the persisted map (result.map.fieldTest); expose a compact count.
+  const ft = (job.result as { map?: { fieldTest?: { ran?: boolean; pages?: { screenshot?: string | null }[] } | null } } | null)?.map
+    ?.fieldTest ?? null;
+  const fieldTest =
+    ft && ft.ran && Array.isArray(ft.pages) && ft.pages.length > 0
+      ? { pages: ft.pages.length, screenshots: ft.pages.filter((p) => !!p.screenshot).length }
       : null;
 
   return {
@@ -154,6 +172,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     approvalNote: ready
       ? "Send the founder approvalUrl. Only their wallet can approve, edit, and fund the campaign — the agent cannot."
       : null,
+    fieldTest,
   };
 }
 

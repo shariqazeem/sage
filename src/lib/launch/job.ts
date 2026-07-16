@@ -3,7 +3,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
-import { inspectAndPlan, type LaunchResult } from "./pipeline";
+import { inspectAndPlan } from "./pipeline";
+import { fieldTestEnabled } from "./field-test";
 import type { ValidationScope } from "./validate-mission";
 import type { FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
@@ -32,9 +33,15 @@ export async function runInspectionJob(jobId: string): Promise<void> {
   };
 
   try {
-    const result = await inspectAndPlan(input, job.publicCampaignId, (stage) => {
-      updateInspectionJob(jobId, stage as InspectionStatus, {});
-    });
+    const result = await inspectAndPlan(
+      input,
+      job.publicCampaignId,
+      (stage) => {
+        updateInspectionJob(jobId, stage as InspectionStatus, {});
+      },
+      0,
+      { inspectionId: jobId },
+    );
 
     const serialized = serialize(result);
     const outputDigest = createHash("sha256").update(JSON.stringify(serialized)).digest("hex");
@@ -105,6 +112,8 @@ export interface JobView {
   tokenDecimals: number;
   pagesInspected: number;
   repoFilesInspected: number;
+  /** whether the Field Test browser stage applies to this run (FIELD_TEST_ENABLED). */
+  fieldTestStage: boolean;
   model: string | null;
   provider: string | null;
   failureReason: string | null;
@@ -132,6 +141,7 @@ export function jobToView(job: InspectionJob): JobView {
     tokenDecimals: job.tokenDecimals,
     pagesInspected: job.pagesInspected,
     repoFilesInspected: job.repoFilesInspected,
+    fieldTestStage: fieldTestEnabled(),
     model: job.model,
     provider: job.provider,
     failureReason: job.failureReason,

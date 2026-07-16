@@ -32,8 +32,6 @@ interface Props {
 export function CinematicLanding({ vault, history, network, hasHero, receipt, now, ecosystem }: Props) {
   // Honest vault state: NO fabricated fallbacks. When the live read fails, the
   // hero says "temporarily unavailable" — it never invents a $500 allowance.
-  const budget = vault?.budget ?? null;
-  const remaining = vault?.remaining ?? null;
   const perTxCap = vault?.perTxCap ?? null;
 
   // Act 4 (the receipt feed) and Act 5 (the totals) read the SAME on-chain payout
@@ -56,6 +54,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
           <nav className="clx-topnav">
             <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
+            <Link href="/dashboard">Dashboard</Link>
             <Link href="/launch" className="clx-cta clx-cta-sm">
               Launch a campaign
             </Link>
@@ -65,10 +64,9 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
 
       <main className="clx-main">
         <Act1Hero
-          remaining={remaining}
-          budget={budget}
+          settledUsd={totalReleased}
+          payoutCount={settled.length}
           networkName={network.name}
-          chainId={network.chainId}
           hasHero={hasHero}
         />
 
@@ -103,6 +101,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
           <nav className="clx-footnav">
             <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
+            <Link href="/dashboard">Dashboard</Link>
             <Link href="/launch">Launch a campaign</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>

@@ -103,6 +103,24 @@ npm run lint && npm run typecheck && npm run test && npm run build
 The `PolicyVault` ABIs are checked in, so the app builds without Foundry. To
 rebuild the contracts: `cd contracts && forge build`.
 
+## Field Test (optional) — Sage actually uses the product
+
+By default the inspector reads server-rendered HTML only. Set `FIELD_TEST_ENABLED=1`
+to also run a **Field Test**: Sage opens the product in a real headless Chromium
+(reusing the same SSRF/public-host guards), navigates the entry page + a few ranked
+same-origin pages, and captures screenshots, JS-rendered content, console errors, and
+broken requests — feeding them to the Mission Brain and surfacing a "Sage used your
+product" strip on the results page. It never fills or submits forms; interaction is
+same-origin GET navigation only, and any failure degrades gracefully to the HTML-only
+inspection (the inspection job never fails because of it).
+
+Install the browser once:
+
+```bash
+npx playwright install --with-deps chromium
+FIELD_TEST_ENABLED=1 npm run dev
+```
+
 ## Repo map
 
 ```

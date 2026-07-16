@@ -8,7 +8,6 @@ import {
   defaultDailyCap,
   DEFAULT_DURATION_SECONDS,
   serializeSettings,
-  LAUNCH_CHAIN_ID,
   type FounderLimits,
 } from "@/lib/launch/deployment-service";
 import { buildDeployBundle, deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       dailyVelocityCapBase: body.dailyCapBase ? BigInt(body.dailyCapBase) : defaultDailyCap(loaded.plan),
       durationSeconds: body.durationSeconds ? BigInt(body.durationSeconds) : DEFAULT_DURATION_SECONDS,
     };
-    const settingsRes = buildSettings(loaded.plan, limits, LAUNCH_CHAIN_ID);
+    const settingsRes = buildSettings(loaded.plan, limits, deployment.chainId);
     if (!settingsRes.ok) {
       return NextResponse.json({ ok: false, error: "These limits aren't valid.", details: settingsRes.errors }, { status: 400 });
     }

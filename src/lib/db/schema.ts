@@ -448,6 +448,7 @@ export type Lock = typeof locks.$inferSelect;
 export type InspectionStatus =
   | "queued"
   | "fetching"
+  | "field_test"
   | "mapping"
   | "analyzing"
   | "generating_missions"
@@ -614,3 +615,47 @@ export const deployments = sqliteTable(
 
 export type Deployment = typeof deployments.$inferSelect;
 export type NewDeployment = typeof deployments.$inferInsert;
+
+/**
+ * A founder's agent-wallet binding — the state that lets the Telegram agent spend for them. Their
+ * chat is linked (via SIWE) to a Privy server wallet the agent signs through, guarded by a standing
+ * mandate (a Privy policy). One row per founder chat. The Privy wallet is the on-chain "founder
+ * wallet": it owns + funds the campaigns it creates (msg.sender), exactly as the founder's browser
+ * wallet does on the web app; the founder's real, SIWE-proven address is the only reclaim
+ * destination the mandate allows.
+ */
+export const agentWallets = sqliteTable("agent_wallets", {
+  /** the Telegram chat id — the founder's session key. */
+  chatId: text("chat_id").primaryKey(),
+  /** the founder's real wallet, proven via SIWE — the sole reclaim destination. */
+  founderAddress: text("founder_address").notNull(),
+  /** the Privy server wallet the agent signs through (msg.sender / vault owner). */
+  privyWalletId: text("privy_wallet_id").notNull(),
+  privyWalletAddress: text("privy_wallet_address").notNull(),
+  /** the attached Privy policy id = the standing mandate. */
+  policyId: text("policy_id").notNull(),
+  /** max USDC (base units, 6dp) the agent may spend on a single campaign. */
+  perCampaignCapBase: integer("per_campaign_cap_base").notNull(),
+  chainId: integer("chain_id").notNull().default(2345),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type AgentWallet = typeof agentWallets.$inferSelect;
+export type NewAgentWallet = typeof agentWallets.$inferInsert;
+
+/**
+ * Durable per-chat memory for the Telegram concierge. The conversational agent used to keep history
+ * only in-process, so any restart (a deploy) wiped a founder's thread mid-conversation — after which
+ * a bare "launch" had no context and the model could wander (e.g. inspect a hallucinated URL).
+ * Persisting the short rolling history here makes the agent survive restarts.
+ */
+export const conciergeChats = sqliteTable("concierge_chats", {
+  /** the Telegram chat id. */
+  chatId: text("chat_id").primaryKey(),
+  /** the rolling ChatMessage[] history, JSON-encoded (already trimmed to the last N turns). */
+  messagesJson: text("messages_json").notNull().default("[]"),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type ConciergeChat = typeof conciergeChats.$inferSelect;

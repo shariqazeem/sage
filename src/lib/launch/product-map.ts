@@ -9,6 +9,7 @@
 
 import { norm, productMapDigest } from "./schemas";
 import type {
+  FieldTestSummary,
   FounderLaunchInput,
   MapFinding,
   ProductMapV1,
@@ -60,6 +61,7 @@ export function buildProductMap(
   observations: ProductObservation[],
   repoArtifacts: RepoArtifact[],
   founder: FounderLaunchInput,
+  fieldTest?: FieldTestSummary | null,
 ): ProductMapV1 {
   const landing = observations[0];
 
@@ -182,7 +184,12 @@ export function buildProductMap(
     pagesInspected: observations.length,
     repoFilesInspected: repoArtifacts.length,
   };
-  return { ...base, digest: productMapDigest(base) };
+  // The digest is computed over `base` ONLY — the field test is attached AFTER, so it never
+  // shifts the map digest (or any downstream plan hash). Off/failed field test → no key at all,
+  // leaving the serialized map byte-identical to today.
+  const map: ProductMapV1 = { ...base, digest: productMapDigest(base) };
+  if (fieldTest && fieldTest.ran && fieldTest.pages.length > 0) map.fieldTest = fieldTest;
+  return map;
 }
 
 /** The set of every URL/host/repo-path known from the map — the mission-validation scope. */

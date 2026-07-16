@@ -13,6 +13,7 @@ export interface CampaignCard {
   id: string;
   title: string;
   status: string;
+  chainId: number;
   rewardBase: number;
   maxRecipients: number;
   submissions: number;
@@ -122,6 +123,7 @@ export function getDeputyOverview(wallet: string | null): DeputyOverview {
       id: c.id,
       title: c.title,
       status: c.status,
+      chainId: c.chainId,
       rewardBase: c.rewardAmount,
       maxRecipients: c.maxRecipients,
       submissions: subs.length,

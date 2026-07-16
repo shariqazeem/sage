@@ -1,0 +1,22 @@
+{
+  "campaignId": "-Hw15ZY5BY",
+  "submissionId": "hVXRKbJaICVl",
+  "decisionId": "zvxv2nYrooSb",
+  "engine": "llm",
+  "model": "google/gemini-3.1-flash-lite-preview",
+  "provider": "api.commonstack.ai",
+  "recommendation": "pay",
+  "confidence": 1,
+  "reasonCode": "all_criteria_met",
+  "summary": "The submission is eligible as the fetched evidence contains the exact required phrase. There is no material counter-evidence to this finding. A human reviewer need only verify the connectivity to the source URL if they doubt the automated fetch.",
+  "evidenceSha256": "ff67a9d764d6a2367a187734e697f6a53217db9a21c101d410a113ca871a299d",
+  "decisionDigest": "0xa774105c15f6445374fa1357a5947333a445f106679919d5e0ef457408700a23",
+  "payoutIntentHash": "0x9d03692c5f14c982069717b8fce24b90aa18b9cdab54340f64d3b176aed7cd40",
+  "onchainIntentHash": "0x9d03692c5f14c982069717b8fce24b90aa18b9cdab54340f64d3b176aed7cd40",
+  "settleTx": "0x239364b7c3f5222f07a998f447efed48e15f927acfba7dfeb5218cf5b531d186",
+  "recipientBefore": "0",
+  "recipientAfter": "500000",
+  "vaultSpentBefore": "0",
+  "vaultSpentAfter": "500000",
+  "attemptStatus": "settled"
+}

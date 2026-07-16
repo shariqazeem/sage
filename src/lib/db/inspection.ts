@@ -17,7 +17,7 @@ import { inspectionJobs, type InspectionJob, type InspectionStatus, type NewInsp
 
 /** Legal forward transitions — a job never moves backwards except into a terminal state. */
 const ORDER: Record<InspectionStatus, number> = {
-  queued: 0, fetching: 1, analyzing: 2, mapping: 3, generating_missions: 4, reviewing: 5,
+  queued: 0, fetching: 1, field_test: 1.5, analyzing: 2, mapping: 3, generating_missions: 4, reviewing: 5,
   ready: 6, needs_input: 6, failed: 6, superseded: 7,
 };
 

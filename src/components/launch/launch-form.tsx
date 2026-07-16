@@ -156,7 +156,7 @@ export function LaunchForm() {
               onChange={(e) => set("budgetUsd", e.target.value)}
               aria-label="Testing budget"
             />
-            <span className="lxo-budget-unit">test mUSDC</span>
+            <span className="lxo-budget-unit">USDC</span>
           </div>
         )}
 

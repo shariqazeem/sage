@@ -64,3 +64,6 @@ next-env.d.ts
 /contracts/cache/
 /contracts/broadcast/
 /contracts/out/build-info/
+
+# Field Test screenshots — generated at runtime, never committed.
+/public/field-tests/

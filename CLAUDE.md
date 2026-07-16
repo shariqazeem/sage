@@ -1,252 +1,236 @@
 # Sage
 
-> Canonical product specification. This file is the single source of truth for
-> what Sage is, what it must not do, and the rules every contributor (human or
-> agent) follows. When code and this document disagree, this document wins —
-> update it deliberately, never casually.
+> Canonical spec for the **real shipping product**. This file replaces an older spec
+> that described a dead "token investigator" (SAFE/RISKY/SCAM verdicts, dark terminal
+> UI) that survives only as a disabled placeholder (`src/app/sage/page.tsx`,
+> `src/lib/verdicts.ts`) — ignore that product entirely.
+>
+> Verified against the code on 2026-07-16. **When code and this document disagree, the
+> code wins** — real discrepancies are listed under **Known drift** at the bottom. Update
+> this file deliberately, never casually.
 
 ---
 
-## 1. Product thesis
+## 1. Product
 
-Sage is an autonomous AI agent that **investigates crypto tokens launched within
-the last 72 hours and produces verifiable, gradable verdicts.**
+**Sage — "Hire an AI worker. Give it a budget, not your keys."**
 
-A user submits a freshly launched token. Sage performs an investigation backed by
-observable, on-chain and off-chain evidence, and returns exactly one verdict:
+A founder points Sage at a product URL with a budget. Sage inspects the product, designs
+paid testing missions, deploys an on-chain `CampaignVault`, and then **autonomously pays
+human testers USDC for verified evidence, inside hard on-chain limits it can never
+exceed.** Every payout cites the evidence and is published as a verifiable `/proof/<tx>`
+receipt anchored to an on-chain transaction.
 
-- **SAFE** — no disqualifying evidence found within the investigation window.
-- **RISKY** — material risk signals present; proceed only with caution.
-- **SCAM** — strong evidence of intent to defraud or rug holders.
+The value is **bounded autonomy over money**: the agent spends without a human in the
+loop, but the *vault* — not a prompt — enforces the limits. The AI proposes; the vault
+disposes.
 
-Two properties make Sage different from a "rug checker":
+**Chains.** GOAT Network (chainId **2345**, real USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`,
+native gas **BTC**) is the production mainnet the product ships on; the walletless path
+always uses it and the web deploy flow lists it first. Metis Sepolia (**59902**) is the
+testnet. (Note: the code constant `DEFAULT_CHAIN_ID` is 59902 — see Known drift.)
 
-1. **Verifiability.** Every verdict cites the concrete evidence and actions that
-   produced it. A third party can replay the reasoning and reach the same place.
-2. **Accountability.** Every verdict is graded later against what actually
-   happened on-chain (see §6). Sage builds a public, falsifiable track record
-   instead of unaccountable opinions.
+**Two front doors, one engine:**
+- **Web** (`sagepays.xyz`): connect a browser wallet, SIWE, guided launch → deploy → live.
+- **Walletless Telegram** (`@sagedeputybot`): the founder does everything from chat with
+  no wallet app — Sage mints a **Privy server wallet** bound to a **mandate policy** and
+  funds/launches campaigns from it. The full fund→launch loop is proven on GOAT mainnet.
 
-The product is intentionally narrow. Sage is not a portfolio tool, a price
-oracle, a trading bot, or a general chat assistant. It investigates new tokens
-and is judged on whether its verdicts hold up.
+**Naming rule: the single user-facing name is "Sage."** Never write "Deputy" in UI copy,
+headings, or messages. ("Deputy" survives only as internal code identifiers — the payout
+brain, `/api/deputy/*`, `DeputyAssessmentCard`; those are engineering names, not product
+copy. Copy still drifts — see Known drift.)
 
----
-
-## 2. Scope restrictions
-
-**Sage only investigates tokens launched within the last 72 hours.** This is a
-hard product boundary, not a default.
-
-- Eligibility is defined by the token's **first observable on-chain launch
-  event** — the earliest of first liquidity provision or first mint/transfer
-  that constitutes the launch — falling inside a **rolling 72-hour window**
-  measured from the moment of investigation.
-- A token whose launch event is older than 72 hours is **out of scope** and must
-  be rejected before any investigation work begins. Sage does not produce a
-  verdict for out-of-scope tokens.
-- The 72-hour rule exists because Sage's value is catching fraud in the window
-  where holders are most exposed and least informed. Widening the window dilutes
-  the thesis; do not widen it without changing this document first.
-- The eligibility check is a precondition of every investigation and must be
-  enforced server-side. It is never assumed, inferred from user claims, or
-  skipped for convenience.
+Sage is deliberately narrow: it is not a generic agent platform, a chatbot, or a bug
+bounty. It turns one product + one budget into paid, verified testing and is judged on
+whether the payouts hold up.
 
 ---
 
-## 3. Required integrations
+## 2. Architecture
 
-Sage is built on a fixed set of integrations. These are requirements, not
-suggestions. Adapters must not silently fall back to mocks in production paths.
+Three LLM "brains" + one on-chain settlement core. They are separate on purpose.
 
-| Integration                 | Role                                 | Notes                                                                                                                                                                                                                                       |
-| --------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **x402**                    | Payment / metering rail              | Investigations are paid actions, settled over the x402 HTTP payment protocol. Pricing and settlement flow through x402.                                                                                                                     |
-| **ERC-8004**                | On-chain agent identity & reputation | Sage's agent identity and its verdict track record are anchored to the ERC-8004 standard so reputation is portable and verifiable.                                                                                                          |
-| **LazAI**                   | Verifiable inference / data layer    | Investigation reasoning and data attestations are produced through LazAI so verdicts are backed by verifiable computation, not opaque calls.                                                                                                |
-| **Metis**                   | Default chain                        | Metis is the **default** network for investigations and on-chain anchoring. New tokens are investigated on Metis unless an explicitly supported alternative is selected.                                                                    |
-| **GOAT-compatible adapter** | Tooling abstraction                  | All blockchain tool access goes through a **GOAT-compatible adapter interface**. Chains, wallets, and on-chain actions are consumed through this abstraction so additional chains/tools can be added without rewriting investigation logic. |
+| Component | Role | Path |
+| --- | --- | --- |
+| **Mission Brain** | *Designs* missions from an inspected product: architect → critic → deterministic validate gate (model output is untrusted until it passes the gate). | `src/lib/launch/mission-brain.ts`, `mission-prompt.ts`, gate in `validate-mission.ts` |
+| **Payout brain** | *Judges* tester evidence and proposes pay/review/hold. **Never states an amount.** Pure core + network orchestrator. | `src/lib/deputy/brain-core.ts` (pure), `brain.ts` (network) |
+| **Telegram Concierge** | Conversational walletless front door — a hand-rolled OpenAI-compatible tool loop. **Deliberately does NOT import `brain-core`** (so it can never perturb the frozen judgment layer); shares only the LLM endpoint + key. | `src/lib/telegram/concierge.ts` |
+| **Vaults + settlement** | On-chain `CampaignVault` (V2) / `PolicyVault` (V1). The vault derives the exact reward, enforces caps + replay protection, and emits the settlement event that is the single source of truth. | `contracts/`; V2 `src/lib/deputy/campaign-vault.ts`, V1 `src/lib/deputy/signer.ts`; flow `src/lib/campaigns/settle-flow.ts` |
 
-Rules:
+**Autonomy is a stateless gate, not a running loop.** It fires from two triggers:
+1. **Synchronous** — a tester submits → `after()` runs the decision pipeline once.
+2. **Cron sweep** — `src/app/api/deputy/sweep/route.ts` (authenticated) re-evaluates
+   pending work, settles matured approvals, pays operator fees; a singleton lock makes
+   overlapping ticks no-ops. **Nothing in-repo schedules it** — an external **pm2 watcher**
+   (`npm run deputy:watch` → `scripts/deputy-watch.mjs`) POSTs the endpoint on a ~5-min
+   cadence. On a serverless host these deferred jobs would be killed.
 
-- **Metis is the default.** Any network selection logic defaults to Metis.
-- **Everything on-chain goes through the GOAT-compatible adapter.** No direct,
-  ad-hoc chain calls in feature code — they must be expressible as adapter tools.
-- Integrations are injected behind interfaces so they can be tested in isolation.
+Single decision path: `runDeputyOnSubmission` (`src/lib/deputy/pipeline.ts`) — decide →
+gate → dedup → preflight caps → CAS `pending→settling` → settle. It never throws for
+control flow; any failure resets to `pending` for the next sweep.
 
----
-
-## 4. Design system rules
-
-Sage's interface is a **Bloomberg-terminal aesthetic**: dense, monochrome,
-information-first, and built out of borders rather than decoration. The design
-tokens below are defined in `src/app/globals.css` and are the only source of
-these values — never hardcode hex values in components.
-
-### Color
-
-| Token       | Value     | Use                       |
-| ----------- | --------- | ------------------------- |
-| Deep ink    | `#0A0E14` | Primary background        |
-| Paper white | `#F8F9FA` | Primary foreground / text |
-| SAFE        | `#10B981` | SAFE verdict only         |
-| RISKY       | `#F59E0B` | RISKY verdict only        |
-| SCAM        | `#EF4444` | SCAM verdict only         |
-
-The verdict colors are reserved for verdicts and verdict-adjacent state
-(success/warning/error). Do not repurpose them as generic accents.
-
-### Typography
-
-- **Inter** — UI and body text (`--font-sans`).
-- **JetBrains Mono** — data, addresses, labels, numbers, terminal chrome
-  (`--font-mono`). Numeric data uses tabular figures for alignment.
-
-### Hard constraints
-
-- **No gradients.** Flat fills only.
-- **No glassmorphism.** No blur, no translucency-as-decoration.
-- **No emoji.** Use line icons (lucide) where an icon is needed.
-- **Border-driven UI.** Structure and separation come from `1px` borders and
-  spacing, not shadows or background contrast tricks.
-- **Corner radius is 2–4px only.** The radius scale is clamped to this band; do
-  not introduce pill shapes or large rounded cards.
-
-If a design choice cannot be expressed within these constraints, the constraint
-wins. Reach for density and clarity, not ornament.
+Inspection/mission trigger: `POST /api/launch` → `after(() => runInspectionJob(...))`.
 
 ---
 
-## 5. Investigation feed rules
+## 3. Frozen layers — do not modify without an explicit instruction
 
-While an investigation runs, Sage streams an **investigation feed** — a live log
-of what the agent is doing. The feed is the user's window into the agent's work
-and a core trust mechanism. It is governed by two non-negotiable rules:
+These are load-bearing safety code. Changing them can silently unbound money movement or
+break the red-team guarantees. Treat as read-only unless the task explicitly says to touch
+them.
 
-1. **Every feed event must correspond to a real, observable action.** A feed
-   event is emitted only when the agent actually performs the action it
-   describes (a query was made, a contract was read, a heuristic was evaluated, a
-   source was fetched). Each event should be traceable to the underlying call or
-   evidence.
-2. **Never fabricate progress events.** Do not emit decorative "thinking…",
-   fake step counters, simulated delays, or placeholder progress that does not
-   map to real work. No invented timings, no staged drama. If nothing is
-   happening, the feed says nothing is happening.
+- **`SYSTEM_PROMPT`, `detectInjection`, `hardenBrief`** in `src/lib/deputy/brain-core.ts`
+  (the judgment rubric, the 8-family injection detector, and the confidence-ceiling +
+  fraud-signal hardener that makes even a jailbroken model unable to auto-pay).
+- **`autopilotGate`** in `src/lib/deputy/autopilot.ts` (the AND-gate that decides `pay`).
+- **The mandate policy builder** — `buildMandatePolicy` / `createMandatePolicy` in
+  `src/lib/privy/mandate.ts` (the Privy allow-rules that bound every agent-wallet spend).
+- **Vault ABIs + the settlement flow** — `src/lib/deputy/campaign-vault.ts`,
+  `signer.ts`, `src/lib/campaigns/settle-flow.ts`, `src/lib/wallet/abis.ts`.
+- **Budget math** — `allocateBudget` in `src/lib/launch/budget.ts`: `Σ(rewardBase ×
+  maxCompletions) === totalBudgetBase` **exactly**, in 6-decimal base units. Never
+  introduce rounding that breaks the invariant.
 
-The feed exists to make the investigation auditable. A fabricated feed is worse
-than no feed because it manufactures false confidence. When in doubt, emit fewer,
-truer events.
-
----
-
-## 6. Reputation rules
-
-Sage is accountable for its verdicts. Reputation is earned by being graded
-against reality, not by self-assertion.
-
-### T+30 grading methodology
-
-- Every issued verdict is **re-evaluated 30 days after issuance** (T+30) against
-  what actually happened to the token on-chain during that window.
-- The grade compares the verdict to observable outcomes (e.g. liquidity pulled,
-  contract drained, honeypot behavior, ownership abuse, or — conversely — a
-  token that behaved normally). A SCAM call on a token that rugged is correct; a
-  SAFE call on a token that rugged is a miss.
-- Grades are aggregated into Sage's public track record and anchored to its
-  ERC-8004 identity (see §3). The track record is the reputation; nothing else
-  counts.
-- Grading is automated and deterministic where possible: the same inputs must
-  produce the same grade so the record is auditable.
-
-### Required verdict fields (for future grading)
-
-Every verdict Sage issues **must** capture the fields below at issuance time so
-it can be graded fairly at T+30. A verdict missing any required field is invalid.
-
-| Field                            | Why it's required for grading                                 |
-| -------------------------------- | ------------------------------------------------------------- |
-| `verdict`                        | The call being graded: `SAFE` / `RISKY` / `SCAM`.             |
-| `tokenAddress`                   | Subject of the verdict.                                       |
-| `chainId`                        | Network the token lives on (default Metis).                   |
-| `launchTimestamp`                | Proves the token was in scope (≤ 72h) at issuance.            |
-| `issuedAt`                       | T+0; the anchor from which T+30 is computed.                  |
-| `gradeDueAt`                     | `issuedAt + 30 days`; when grading runs.                      |
-| `evidence[]`                     | The observable evidence cited; lets graders replay reasoning. |
-| `confidence`                     | Sage's stated confidence; calibration is graded over time.    |
-| `modelVersion` / `rubricVersion` | Which Sage produced it, so regressions are attributable.      |
-
-These fields are the contract between "issuing a verdict now" and "grading it
-later." Do not issue a verdict that cannot be graded.
+The red-team suite (`tests/redteam/brain-redteam.test.ts`) guards the brain-core pieces —
+if you must touch them, that suite must stay green.
 
 ---
 
-## 7. Coding standards
+## 4. Invariants — never violate these
 
-- **Strict TypeScript.** `strict` mode stays on. No `any` as an escape hatch, no
-  silencing the type checker with `// @ts-ignore`. Model the domain with types;
-  prefer discriminated unions and exhaustive `switch` checks.
-- **Server-first architecture.** Default to React Server Components and
-  server-side execution. Reach for `"use client"` only where genuine
-  interactivity requires it, and keep client components small and at the leaves.
-  Secrets, integrations, eligibility checks, and investigation logic run on the
-  server, never the client.
-- **Reusable components.** Build composable, presentational primitives (e.g. the
-  async-state patterns in `src/components/states`, the verdict primitives) and
-  reuse them. No copy-pasted one-off UI. Design tokens come from the theme, not
-  inline values.
-- **Test coverage required for core logic.** Core logic — eligibility, the
-  verdict model, grading, adapters, and the state machines that drive UI — must
-  have unit tests (Vitest). User-facing flows are covered by Playwright E2E
-  tests. Don't ship core logic without tests.
+- **The LLM proposes, the vault disposes.** A model output is a recommendation; the vault
+  computes the amount, checks caps + replay protection, and can reject.
+- **No model ever computes a money amount.** Rewards come from the deterministic budget
+  compiler; the payout brain is forbidden from stating an amount; the concierge is told to
+  never do its own money math (it relays the tool's `overCap`/`needsFunding`/`needsGas`).
+- **Quotes must be verbatim.** Any quote in a decision brief must be an exact substring of
+  the fetched evidence; `enforceQuotes` drops the rest. Fabricating a quote is the worst
+  failure.
+- **Untrusted content stays inside `<<<UNTRUSTED_…>>>` markers.** Inspected pages, fetched
+  evidence, and submitter notes are wrapped; forged delimiters are stripped.
+- **Mainnet auto-pay is gated by `DEPUTY_AUTOPILOT_MAINNET`.** Off by default → GOAT
+  campaigns hold for manual approval. Testnet autopilot is unaffected.
+- **`engine === "llm"` is required for autopay** at confidence ≥ 0.85 (`AUTOPAY_THRESHOLD`).
+  With no LLM key the brain degrades to a transparent keyword heuristic that **can never
+  auto-pay.**
+- **The feed never fabricates progress.** Emit a stage event only for real work — no fake
+  timers, no simulated steps.
 
-### Quality gates
+---
 
-The project must always satisfy:
+## 5. Design system
+
+**One system: "receipt minimalism."** Calm, premium-light, print-like. This is the
+standard all UI converges to; new UI must follow it. (Current reality is fragmented — see
+Known drift. Tokens live in `src/styles/tokens.css`, **which must be created**.)
+
+- **Color.** Paper background `#fbfbf9`; ink text `#1a1d21`; **brand accent terracotta
+  `#c2410c` on ALL interactive/brand elements** (links, primary buttons, focus, the mark).
+  Green `#15803d` and red `#dc2626` are **reserved strictly for money-outcome semantics**
+  (paid/settled vs blocked/failed) — never as generic accents.
+- **Type.** Inter (`--font-sans`) for UI/body; JetBrains Mono (`--font-mono`) for data,
+  addresses, amounts, hashes. Both already wired via `next/font` in `layout.tsx`. Numeric
+  data uses **tabular numerals**.
+- **Radii.** `6` (inputs/small), `10` (cards/buttons), `16` (large surfaces). `999px`
+  pills **only** for status chips. No other radii.
+- **Elevation.** Two shadow tokens only (a subtle resting shadow + a raised one). Prefer
+  1px borders + spacing over shadow stacks.
+- **No emoji** in UI — use lucide line icons.
+
+The dark `:root` system in `src/app/globals.css` is **legacy** (it belongs to the dead
+product). Never extend it; migrate off it.
+
+---
+
+## 6. Environment
+
+`src/lib/env.ts` validates a subset at boot (**presence optional, shape not** — a missing
+secret means that integration is *pending* and the app degrades honestly; a *malformed*
+value hard-fails). Vars marked † are read directly via `process.env` and are **not** in
+`env.ts` (a bad value fails at use, not boot).
+
+| Var | Meaning | Missing → |
+| --- | --- | --- |
+| `LLM_API_KEY` / `COMMONSTACK_API_KEY` | Auth for the OpenAI-compatible LLM gateway | Brain degrades to keyword heuristic (never auto-pays) |
+| `LLM_BASE_URL` / `COMMONSTACK_BASE_URL` | Gateway URL | Defaults to `https://api.commonstack.ai/v1` |
+| `LLM_MODEL` / `DEPUTY_MODEL` | Mission + payout model | Defaults to `deepseek/deepseek-v4-flash` |
+| `CONCIERGE_MODEL` † | Telegram concierge model (prod: `anthropic/claude-haiku-4-5`) | Falls back to `LLM_MODEL`→`DEPUTY_MODEL`→default (behavior silently changes) |
+| `LLM_FALLBACK_API_KEY`/`_BASE_URL`/`_MODEL` | Secondary provider (all 3 arm failover) | No fallback — a primary outage drops to heuristic |
+| `DEPUTY_AUTOPILOT_MAINNET` | Arms real-money auto-pay on GOAT | Mainnet campaigns hold for manual approval |
+| `FIELD_TEST_ENABLED` | `"1"` arms the Playwright "Field Test" — Sage actually browses the inspected product in a real headless browser (screenshots, JS-rendered content, console errors) and feeds it to the Mission Brain | HTML-only inspection (default; behaves exactly as before). Needs chromium: `npx playwright install --with-deps chromium` |
+| `GOAT_AGENT_PRIVATE_KEY` | GOAT operator key (also holds ERC-8004 id + pays x402) | Cannot sign GOAT settlements |
+| `OPERATOR_PRIVATE_KEY` | Metis operator key | Cannot sign Metis settlements |
+| `GOAT_RPC_URL` | GOAT RPC | Defaults to `https://rpc.goat.network` |
+| `GOAT_CAMPAIGN_FACTORY_ADDRESS` † / `METIS_CAMPAIGN_FACTORY_ADDRESS` † | V2 vault factory per chain | Deploy cannot create vaults |
+| `GOAT_OPERATOR_ADDRESS` † / `NEXT_PUBLIC_OPERATOR_ADDRESS` | Operator baked into vault settings | Deploy validation fails |
+| `NEXT_PUBLIC_USDC_ADDRESS` | Metis USDC (GOAT USDC is hardcoded) | Metis campaigns have no settlement token |
+| `GOATX402_API_KEY`/`_API_SECRET`/`_MERCHANT_ID` (`_API_URL`) | x402 merchant creds (all 3 arm the rail) | Evidence verification + fees fall back to unpaid (honest bypass) |
+| `TELEGRAM_BOT_TOKEN` | Bot send auth | No outbound Telegram messages |
+| `TELEGRAM_WEBHOOK_SECRET` | Gates `POST /api/telegram/webhook` | Webhook returns 404 (bot off) |
+| `TELEGRAM_CHAT_ID` | Default notify chat | No dogfood notifications |
+| `PRIVY_APP_ID` † / `PRIVY_APP_SECRET` † | Server-wallet + policy API (Basic auth) | `privyConfigured` false → concierge uses the web-link handoff, no walletless. **The secret is the master credential for every agent wallet.** |
+| `DEPUTY_CRON_SECRET` | Shared secret for the pm2 watcher (`x-deputy-cron-secret`) | Local watcher can't run the sweep |
+| `CRON_SECRET` | Vercel Cron bearer for the sweep | Scheduled sweep unauthorized (with neither set, the endpoint is closed) |
+| `SAGE_SESSION_SECRET` | SIWE cookie session signing | Auth sessions degraded |
+| `SAGE_AGENT_API_KEY` | Bearer for the authenticated Agent API | Agent API fails closed (404) |
+| `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
+
+---
+
+## 7. Commands
 
 ```bash
-npm run lint        # ESLint (next/core-web-vitals + typescript, Prettier-aware)
-npm run typecheck   # tsc --noEmit, strict
-npm run test        # Vitest unit/component tests
-npm run test:e2e    # Playwright E2E
-npm run build       # Production build
+npm run dev          # next dev --turbopack
+npm run build        # production build
+npm run lint         # eslint
+npm run typecheck    # tsc --noEmit (strict)
+npm run test         # vitest run — unit/component + the red-team suite (tests/redteam/)
+npm run test:watch   # vitest watch
+npm run test:e2e     # playwright
+npm run format       # prettier --write .
+npm run deputy:watch # the local sweep watcher (drives autopilot; posts /api/deputy/sweep)
 ```
 
-`npm run format` / `npm run format:check` keep formatting consistent (Prettier).
+Scripts in `scripts/`: `redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
+the regex layer can't catch), `deputy-watch.mjs` (sweep watcher), `mcp-conformance.mjs`,
+`register-erc8004.mjs` (mints the ERC-8004 identity), `promote-demo.mjs`,
+`telegram-setup.sh`, `metis-safety/`. The optional Field Test (`FIELD_TEST_ENABLED=1`,
+`src/lib/launch/field-test.ts`) needs a browser engine installed once:
+`npx playwright install --with-deps chromium`.
+
+Quality gate before shipping core logic: `lint` + `typecheck` + `test` must pass. Strict
+TypeScript stays on; no `any` escape hatches, no `@ts-ignore`. Server-first (RSC by
+default; `"use client"` only at interactive leaves). Core logic (eligibility, budget math,
+mandate, gate, settlement, brain-core) requires Vitest coverage.
 
 ---
 
-## 8. Project layout
+## Known drift (this doc's brief vs. the code, 2026-07-16)
 
-```
-src/
-  app/                 # Next.js App Router (server-first)
-    layout.tsx         # Root layout, fonts (Inter + JetBrains Mono), metadata
-    page.tsx           # Homepage (wordmark, thesis, placeholders)
-    globals.css        # Design tokens + base layer (the design system)
-  components/
-    ui/                # shadcn/ui primitives
-    states/            # Reusable loading / empty / error / success patterns
-    verdict-badge.tsx  # Verdict primitive (SAFE / RISKY / SCAM)
-  lib/
-    utils.ts           # cn() and shared helpers
-    verdicts.ts        # Verdict taxonomy + metadata
-e2e/                   # Playwright tests
-```
+Where the writing brief for this file disagreed with the code, the code is recorded here:
 
----
-
-## 9. Current phase — Phase 0.1 (foundation only)
-
-This repository is at **Phase 0.1: foundation**. The following are intentionally
-**not built yet** and must not be added under this phase:
-
-- Business logic, the investigation engine, or the agent loop.
-- Supabase / databases / persistence.
-- Blockchain integrations, wallets, or live on-chain calls.
-- Payments (x402 settlement) or any real metering.
-- Real verdict issuance, the feed runtime, or grading jobs.
-
-Phase 0.1 delivers: the app shell, tooling (Next.js 15, TypeScript, Tailwind,
-shadcn/ui, Vitest, Playwright, ESLint, Prettier), the design system, reusable
-async-state UI patterns, and a placeholder homepage. The sections above are the
-specification those later phases build toward.
+1. **`DEFAULT_CHAIN_ID` is `59902` (Metis Sepolia), not GOAT 2345.** The code's fallback
+   for a chainless read/write, and `envSummary`'s default network, are Metis Sepolia. GOAT
+   2345 is "default" only as product positioning: the walletless path hardcodes 2345 and
+   the web deploy flow lists it first. `src/lib/deputy/networks.ts:43`.
+2. **`src/styles/tokens.css` does not exist, and there is no `src/styles/` dir.** §5 is a
+   *target*. Current reality: ~9 CSS files across ≥5 unshared systems — `globals.css`
+   (dark, legacy/dead), `cinematic.css` (landing), `launch/launch.css` (the only place
+   terracotta `#c2410c` currently lives), `hire/hire.css` + `app/app.css`, `sage-proof.css`,
+   `agents/sage/agents.css`, plus `app/motion.css` + `app/demo-moments.css`. Radii/shadows
+   are far more varied than §5 prescribes. Building tokens.css and consolidating is unbuilt
+   work.
+3. **`AUTOPAY_THRESHOLD` is a hardcoded constant** (`0.85`) in `brain-core.ts:529`, **not
+   an env var.** The brief listed it as env; it isn't configurable that way.
+4. **The "Sage, never Deputy" naming rule is aspirational for copy.** UI copy, headings,
+   and component names still use "Deputy"/"the Deputy" in many places; aligning them is
+   pending work.
+5. **`CONCIERGE_MODEL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `GOAT_CAMPAIGN_FACTORY_ADDRESS`,
+   `GOAT_OPERATOR_ADDRESS`, `METIS_CAMPAIGN_FACTORY_ADDRESS` are read directly via
+   `process.env`,** not validated in `env.ts` (marked † above) — a malformed value fails at
+   use, not at boot.
+6. **Older "required integrations" are not all real.** LazAI is absent (no client, label
+   only). There is no generic "GOAT-compatible adapter" abstraction — on-chain access is
+   direct viem; "GOAT" means the GOAT chain + the goatx402 x402 SDK. Multi-chain is the
+   hand-rolled `CHAINS` registry in `networks.ts`.

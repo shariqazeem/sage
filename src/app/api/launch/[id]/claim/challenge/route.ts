@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { loadApprovedPlan, LAUNCH_CHAIN_ID } from "@/lib/launch/deployment-service";
+import { loadApprovedPlan, LAUNCH_CHAIN_ID, isLaunchChain } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { buildClaimTypedData, CLAIM_SCHEMA_VERSION, CLAIM_TTL_SECONDS, type PlanClaim } from "@/lib/launch/claim";
 
@@ -19,10 +19,25 @@ export const dynamic = "force-dynamic";
  * just hands back a well-formed claim + typed data. Refused if the plan is already owned
  * by a different wallet.
  */
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const session = await getSessionAddress();
   if (!session) return NextResponse.json({ ok: false, error: "Connect and sign in to claim this plan." }, { status: 401 });
+
+  // The founder's chosen chain, from their connected wallet. Validated against the
+  // launch allowlist + server config (isLaunchChain) — never trusted directly.
+  // An absent/legacy body → the default testnet chain.
+  let chainId = LAUNCH_CHAIN_ID;
+  const body = (await req.json().catch(() => ({}))) as { chainId?: unknown };
+  if (typeof body.chainId === "number" && body.chainId !== LAUNCH_CHAIN_ID) {
+    if (!isLaunchChain(body.chainId)) {
+      return NextResponse.json(
+        { ok: false, error: "That network isn't available for launches yet." },
+        { status: 400 },
+      );
+    }
+    chainId = body.chainId;
+  }
 
   const job = getInspectionJob(id);
   if (!job) return NextResponse.json({ ok: false, error: "Inspection not found." }, { status: 404 });
@@ -43,7 +58,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     missionPlanDigest: loaded.plan.missionPlanDigest,
     totalBudgetBase: deriveDeploymentInputs(loaded.plan).totalBudgetBase.toString(),
     founder: session,
-    chainId: LAUNCH_CHAIN_ID,
+    chainId,
     nonce: `n_${randomBytes(16).toString("hex")}`,
     issuedAt: now,
     expiry: now + CLAIM_TTL_SECONDS,
