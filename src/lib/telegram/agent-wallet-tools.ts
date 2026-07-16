@@ -7,6 +7,7 @@ import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { getInspectionJob } from "@/lib/db/inspection";
+import { putPendingWithdrawal, consumePendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { getCurrentRevision, approveRevision } from "@/lib/db/plan-revisions";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
 import { deserializePlan } from "@/lib/launch/serde";
@@ -39,16 +40,10 @@ async function usdcBalanceBase(address: string): Promise<bigint> {
   }) as Promise<bigint>;
 }
 
-// A withdrawal the founder requested but hasn't yet confirmed. Kept server-side (not in the model's
-// hands) so the confirmed transfer is EXACTLY what was prepared — the agent can't alter the amount
-// or recipient at confirm time. In-memory + short-lived; a restart just means re-requesting.
-interface PendingWithdrawal {
-  toAddress: Address;
-  amountBase: bigint;
-  expiresAt: number;
-}
-const pendingWithdrawals = new Map<string, PendingWithdrawal>();
-const WITHDRAW_TTL_MS = 5 * 60 * 1000;
+// A withdrawal the founder requested but hasn't yet confirmed is kept server-side (not in the
+// model's hands) so the confirmed transfer is EXACTLY what was prepared — the agent can't alter the
+// amount or recipient. It is stored DURABLY (pending_withdrawals table) so a pm2 restart between
+// request and confirm no longer drops it; consume is atomic + one-shot (see db/pending-withdrawals).
 
 /** Auto-approve the current plan revision (the standing mandate IS the founder's pre-authorization). */
 function autoApprove(jobId: string, approver: string): boolean {
@@ -244,7 +239,7 @@ export async function callAgentWalletTool(
             message: `They asked to withdraw ${usd(amountBase)} but the wallet only holds ${usd(balance)} USDC.`,
           });
         }
-        pendingWithdrawals.set(chatId, { toAddress: target, amountBase, expiresAt: Date.now() + WITHDRAW_TTL_MS });
+        putPendingWithdrawal({ chatId, amountBase, toAddress: target });
         return ok({
           ok: true,
           needsConfirmation: true,
@@ -256,14 +251,14 @@ export async function callAgentWalletTool(
       case "sage_confirm_withdrawal": {
         const b = founderBinding(chatId);
         if (!b) return err("There's no agent wallet.");
-        const pending = pendingWithdrawals.get(chatId);
-        if (!pending || pending.expiresAt < Date.now()) {
-          pendingWithdrawals.delete(chatId);
+        // Atomic one-shot consume: returns the prepared withdrawal exactly once (never expired,
+        // never already consumed), so a retry — even after a restart — can't double-send.
+        const pending = consumePendingWithdrawal(chatId);
+        if (!pending) {
           return err("There's no pending withdrawal to confirm (it may have expired) — have the founder request it again first.");
         }
-        pendingWithdrawals.delete(chatId); // one-shot: consume before executing so a retry can't double-send
         try {
-          const res = await withdrawViaPrivy(b, pending.toAddress, pending.amountBase);
+          const res = await withdrawViaPrivy(b, getAddress(pending.toAddress), pending.amountBase);
           return ok({
             ok: true,
             amountUsdc: usd(pending.amountBase),

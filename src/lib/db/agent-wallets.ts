@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./index";
 import { nowSeconds } from "./keys";
 import { agentWallets, type AgentWallet } from "./schema";
@@ -13,6 +13,18 @@ import { agentWallets, type AgentWallet } from "./schema";
 
 export function getAgentWallet(chatId: string): AgentWallet | null {
   return db.select().from(agentWallets).where(eq(agentWallets.chatId, chatId)).get() ?? null;
+}
+
+/**
+ * Find the agent wallet by its on-chain address (case-insensitive) — used to resolve which
+ * Telegram chat launched a campaign (the vault owner IS this Privy wallet), so Sage can DM that
+ * founder when a payout settles or holds. Returns null for a campaign not launched from chat.
+ */
+export function getAgentWalletByAddress(address: string): AgentWallet | null {
+  const a = address.toLowerCase();
+  return (
+    db.select().from(agentWallets).where(sql`lower(${agentWallets.privyWalletAddress}) = ${a}`).get() ?? null
+  );
 }
 
 export interface SaveAgentWalletInput {

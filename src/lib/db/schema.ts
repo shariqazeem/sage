@@ -659,3 +659,23 @@ export const conciergeChats = sqliteTable("concierge_chats", {
 });
 
 export type ConciergeChat = typeof conciergeChats.$inferSelect;
+
+/**
+ * A prepared-but-unconfirmed withdrawal from a founder's agent wallet. `sage_request_withdrawal`
+ * stores the exact amount + recipient here (server-side, NOT in the model's hands); a matching
+ * `sage_confirm_withdrawal` consumes it EXACTLY ONCE and sends. Durable so a pm2 restart between
+ * request and confirm no longer drops it. One pending per chat — a fresh request replaces the old.
+ */
+export const pendingWithdrawals = sqliteTable("pending_withdrawals", {
+  chatId: text("chat_id").primaryKey(),
+  /** USDC base units (6dp), bigint as string. */
+  amountBase: text("amount_base").notNull(),
+  toAddress: text("to_address").notNull(),
+  /** unix seconds; a confirm after this is rejected as expired. */
+  expiresAt: integer("expires_at").notNull(),
+  /** one-shot guard: set true when confirmed so a retry can never double-send. */
+  consumed: integer("consumed", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+});
+
+export type PendingWithdrawalRow = typeof pendingWithdrawals.$inferSelect;

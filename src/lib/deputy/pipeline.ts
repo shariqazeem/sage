@@ -36,6 +36,7 @@ import {
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
+import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
 import { mainnetAutopilotEnabled } from "@/lib/env";
 import { agentLog, newCorrelationId } from "./agent-log";
@@ -296,6 +297,8 @@ export async function runDeputyOnSubmission(
     // a manual campaign (or an already-handled item) is just a silent skip.
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
       journalHeld(campaign, submission, gate.reason, cid);
+      // DM the founder who launched this campaign from Telegram (best-effort, never blocks).
+      void notifyFounderHeld(campaign, submission, gate.reason);
       return { action: "held", reason: gate.reason, correlationId: cid };
     }
     return { action: "skipped", reason: gate.reason, correlationId: cid };

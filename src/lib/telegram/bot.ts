@@ -7,6 +7,7 @@ import { getAgentIdentity } from "@/lib/erc8004/identity";
 import { getAgentReputation } from "@/lib/erc8004/reputation";
 import { agentPageUrl } from "@/lib/site";
 import { chainConfig } from "@/lib/deputy/networks";
+import { splitForTelegram } from "./chunk";
 import {
   agentSummaryText,
   announceBlockedText,
@@ -57,9 +58,22 @@ export async function sendTelegram(
 
   // Command replies + announces are hand-built HTML; the conversational agent's free-form text is
   // sent PLAIN (html:false) so arbitrary model output can never trip Telegram's HTML parser (400).
-  const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true };
-  if (opts?.html !== false) body.parse_mode = "HTML";
+  const html = opts?.html !== false;
+  // Telegram rejects any message over 4096 chars — split long text into ordered chunks (never
+  // mid-URL) and send them in sequence so the founder reads them in order.
+  const chunks = splitForTelegram(text).filter((c) => c.trim().length > 0);
+  if (chunks.length === 0) return false;
+  let allOk = true;
+  for (const chunk of chunks) {
+    allOk = (await sendOneMessage(token, chatId, chunk, html)) && allOk;
+  }
+  return allOk;
+}
 
+/** Send ONE already-bounded message. Never throws; returns whether Telegram accepted it. */
+async function sendOneMessage(token: string, chatId: string, text: string, html: boolean): Promise<boolean> {
+  const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true };
+  if (html) body.parse_mode = "HTML";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {

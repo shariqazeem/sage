@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
+import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
 
 export const runtime = "nodejs";
@@ -69,6 +70,17 @@ export async function POST(req: Request): Promise<Response> {
           }
         }
       });
+    }
+  } else if (cmd.kind === "status" && !cmd.slug) {
+    // Bare /status for a chat that owns an agent wallet → the deterministic wallet dashboard
+    // (address, live balance, cap, live campaigns, recent proofs). No wallet → fall back to today's
+    // usage hint. Sent PLAIN (contains a raw address + URLs) so nothing needs HTML escaping.
+    const dashboard = await buildWalletStatus(chatId);
+    if (dashboard) {
+      await sendTelegram(chatId, dashboard, { html: false });
+    } else {
+      const reply = buildReply(cmd);
+      if (reply) await sendTelegram(chatId, reply);
     }
   } else {
     const reply = buildReply(cmd);

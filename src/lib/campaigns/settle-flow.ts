@@ -8,6 +8,7 @@ import { short } from "@/lib/format";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { chargeOperatorFee } from "@/lib/x402/fees";
 import { announceCampaignBlocked, announceCampaignSettled } from "@/lib/telegram/bot";
+import { notifyFounderSettled } from "@/lib/telegram/founder-notify";
 import {
   settleWithRecovery,
   type SettleOutcome,
@@ -61,6 +62,8 @@ export async function settleApprovedSubmission(
     // Public per-campaign announce (opt-in via announceChatId). Outbound only,
     // never throws, journals nothing — fire-and-forget so it can't delay settle.
     void announceCampaignSettled(campaign, outcome);
+    // DM the founder who launched this campaign from Telegram (best-effort, one retry).
+    void notifyFounderSettled(campaign, submission, outcome);
     // LAST: mark paid only after the durable effects above are recorded.
     updateSubmission(submission.id, {
       status: "paid",
