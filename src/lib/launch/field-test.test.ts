@@ -213,8 +213,9 @@ const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
       expect(summary.pages.length).toBeGreaterThanOrEqual(1);
       const page = summary.pages[0];
       expect(page.title).toContain("Fixture");
-      expect(page.screenshot).toBe("/field-tests/itest/0.png");
-      expect(existsSync(join(publicDir, "field-tests", "itest", "0.png"))).toBe(true);
+      expect(page.screenshot).toBe("/api/field-tests/itest/0"); // served via the API route
+      expect(existsSync(join(publicDir, "field-tests", "itest", "0.png"))).toBe(true); // written to disk here
+
       // the injected script both logs an error and grows the DOM well beyond the server HTML.
       expect(page.consoleErrors.join(" ")).toMatch(/synthetic console error/);
       expect(page.jsOnly).toBe(true);

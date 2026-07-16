@@ -256,7 +256,9 @@ export async function runFieldTest(
         try {
           await fs.mkdir(artifactDir, { recursive: true });
           await page.screenshot({ path: path.join(artifactDir, `${i}.png`), fullPage: true });
-          screenshot = `/field-tests/${opts.inspectionId}/${i}.png`;
+          // Served via an API route, NOT the static path — `next start` won't serve a public/ file
+          // written after startup. The file still lives at public/field-tests/<id>/<i>.png on disk.
+          screenshot = `/api/field-tests/${opts.inspectionId}/${i}`;
         } catch {
           screenshot = null;
         }
