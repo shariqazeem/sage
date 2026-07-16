@@ -222,7 +222,7 @@ async function callModel(input) {
         headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          model: MODEL, temperature: 0, max_tokens: 900,
+          model: MODEL, temperature: 0, max_tokens: Number(process.env.RT_MAX_TOKENS) || 900,
           response_format: { type: "json_object" },
           messages: [ { role: "system", content: SYSTEM_PROMPT }, { role: "user", content: buildUserContent(input) } ],
         }),
