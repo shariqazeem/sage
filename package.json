@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
+    "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

@@ -63,9 +63,14 @@ export async function sendTelegram(
   // mid-URL) and send them in sequence so the founder reads them in order.
   const chunks = splitForTelegram(text).filter((c) => c.trim().length > 0);
   if (chunks.length === 0) return false;
+  // HTML SAFETY: a chunked HTML message can split an open/close tag pair across chunks — Telegram
+  // then 400s that chunk and we'd swallow it (silent loss). A single chunk keeps HTML; a multi-chunk
+  // message falls back to PLAIN (safe — only formatting is lost, and command replies are ~always one
+  // chunk). Free-form concierge text is already plain, so this only ever affects a long HTML reply.
+  const useHtml = html && chunks.length === 1;
   let allOk = true;
   for (const chunk of chunks) {
-    allOk = (await sendOneMessage(token, chatId, chunk, html)) && allOk;
+    allOk = (await sendOneMessage(token, chatId, chunk, useHtml)) && allOk;
   }
   return allOk;
 }
