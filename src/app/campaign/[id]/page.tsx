@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getCampaign, listSubmissions, getDecisionBySubmission } from "@/lib/db/campaigns";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
+import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import { briefFromRow } from "@/lib/deputy/decisions";
 import { chainConfig } from "@/lib/deputy/networks";
 import { siteUrl } from "@/lib/site";
@@ -95,6 +96,7 @@ export default async function CampaignConsolePage({
       full: m.full,
     })),
     submissions,
+    activity: loadCampaignActivity(campaign.id),
     testerUrl: `${siteUrl()}/c/${campaign.id}`,
     vaultAddress: campaign.vaultAddress,
     vaultExplorerUrl: `${chainConfig(e.chainId).explorerUrl}/address/${campaign.vaultAddress}`,

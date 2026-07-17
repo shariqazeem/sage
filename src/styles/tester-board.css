@@ -212,3 +212,111 @@
   color: var(--ink-muted);
   margin: var(--s-2) 0 0;
 }
+
+/* ── Sage activity strip: the agent's real work, observable, + honest heartbeat ── */
+.tb-act {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: var(--s-4);
+  margin: var(--s-5) 0;
+}
+.tb-act-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 var(--s-2);
+}
+.tb-beat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 11px var(--font-mono, monospace);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+.tb-beat.warn {
+  color: var(--warn);
+}
+.tb-beat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.tb-beat.warn .tb-beat-dot {
+  background: var(--warn);
+}
+.tb-act-list {
+  display: flex;
+  flex-direction: column;
+}
+.tb-act-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.tb-act-row + .tb-act-row {
+  border-top: 1px solid var(--border);
+}
+.tb-act-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--ink-faint);
+}
+.tb-act-row.accent .tb-act-ico {
+  color: var(--accent);
+}
+.tb-act-row.pos .tb-act-ico {
+  color: var(--ok);
+}
+.tb-act-row.warn .tb-act-ico {
+  color: var(--warn);
+}
+.tb-act-row.dan .tb-act-ico {
+  color: var(--err);
+}
+.tb-act-text {
+  flex: 1;
+  min-width: 0;
+}
+.tb-act-text b {
+  font-weight: 700;
+}
+.tb-act-proof {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.tb-act-proof:hover {
+  text-decoration: underline;
+}
+.tb-act-time {
+  flex: none;
+  font: 500 11.5px var(--font-mono, monospace);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.tb-act-empty {
+  padding: var(--s-4) 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-faint);
+}

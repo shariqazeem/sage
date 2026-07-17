@@ -134,7 +134,7 @@ export async function callAgentWalletTool(
             walletAddress: existing.privyWalletAddress,
             balanceUsdc: usd(balance),
             perCampaignCapUsdc: usd(BigInt(existing.perCampaignCapBase)),
-            message: `This founder already has an agent wallet (${existing.privyWalletAddress}). To add funds, send USDC there.`,
+            message: `This founder already has an agent wallet. To add funds, tell them to send two things — USDC (their testing budget) and a little BTC for gas (BTC is GOAT's native gas token). Put the address on its OWN LINE so it's easy to tap-copy:\n${existing.privyWalletAddress}`,
           });
         }
         const capUsd = typeof args.perCampaignCapUsd === "number" ? args.perCampaignCapUsd : 0;
@@ -146,7 +146,7 @@ export async function callAgentWalletTool(
           ok: true,
           walletAddress: result.privyWalletAddress,
           perCampaignCapUsdc: capUsd,
-          message: `Agent wallet created on GOAT: ${result.privyWalletAddress}. Tell the founder to send USDC plus a little native BTC for gas (BTC is GOAT's native gas token) to it — you can spend up to ${capUsd} USDC per campaign, and any leftover stays as their balance.`,
+          message: `Agent wallet created on GOAT (you can spend up to ${capUsd} USDC per campaign; any leftover stays as their balance). Relay this to the founder: send two things to the address below — USDC (their testing budget) and a little BTC for gas (BTC is GOAT's native gas token). Put the address on its OWN LINE so it's easy to tap-copy:\n${result.privyWalletAddress}`,
         });
       }
       case "sage_agent_wallet_status": {

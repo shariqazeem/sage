@@ -119,13 +119,39 @@ export function summarizeSettled(
 export const USAGE_STATUS = "Usage: /status &lt;campaign-slug&gt;";
 export const NOT_FOUND = "Campaign not found.";
 
+/**
+ * First contact (a bare /start). A competent operator introducing itself: what Sage does,
+ * one example command, and what happens next. Deterministic (no LLM), plain enough to send
+ * as one HTML chunk. `<slug>` is escaped; the example uses a concrete URL, not a raw tag.
+ */
+export function startWelcomeText(): string {
+  return [
+    "<b>Sage</b> — hire an AI worker to test your product.",
+    "",
+    "I turn one product URL and a budget into paid testing missions, then pay real people in USDC for verified work — autonomously, inside on-chain limits I can't exceed, with a public proof receipt for every payout.",
+    "",
+    "To start, just tell me your product and a budget — for example:",
+    "test my product at https://yourproduct.com, budget $10",
+    "",
+    "What happens next: I inspect your product and DM you a mission plan in about 2 minutes. Nothing is charged until YOU fund it.",
+    "",
+    "Try /help for how it works, or /status &lt;slug&gt; for a campaign's live stats.",
+  ].join("\n");
+}
+
 export function helpText(): string {
   return [
-    "<b>Sage — Payout Deputy</b>",
+    "<b>Sage</b> — paid product testing, run by an AI worker.",
+    "",
+    "How it works:",
+    "1. Tell me your product URL and a budget — I inspect it and design specific testing missions.",
+    "2. You approve the plan and fund the campaign (real USDC on GOAT).",
+    "3. Sage pays testers automatically for verified work — and DMs you every payout with a proof link.",
+    "",
     "Commands:",
-    "/status &lt;slug&gt; — public campaign stats",
+    "/start — what Sage does and how to begin",
+    "/status &lt;slug&gt; — a campaign's public stats",
     "/agent — Sage's on-chain track record",
-    "/start &lt;slug&gt; — get a campaign link",
   ].join("\n");
 }
 

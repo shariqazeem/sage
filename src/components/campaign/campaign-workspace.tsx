@@ -16,6 +16,7 @@ import { reward, networkLabel, short } from "@/lib/format";
 import { NetworkChip } from "@/components/app/network-chip";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import { SageMark } from "@/components/brand/sage-mark";
+import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
 /** One tester submission, already reduced to display truth on the server. */
@@ -63,6 +64,7 @@ export interface WorkspaceData {
   campaignIdHash: string | null;
   missionPlanDigest: string | null;
   proofBaseTx: string | null;
+  activity: ActivityData;
 }
 
 const STATE_META: Record<
@@ -197,6 +199,8 @@ function Console({ data }: { data: WorkspaceData }) {
           </div>
         </div>
       </div>
+
+      <SageActivity campaignId={data.id} chainId={data.chainId} initial={data.activity} />
 
       {/* share the tester link */}
       <div className="sage-agent-card" style={{ marginBottom: 14 }}>

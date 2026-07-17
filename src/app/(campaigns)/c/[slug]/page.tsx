@@ -15,7 +15,9 @@ import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
 import { V2Board, HowYouGetPaid, TesterFaq } from "@/components/campaigns/v2-board";
+import { SageActivity } from "@/components/campaigns/sage-activity";
 import { PublicFeed } from "@/components/campaigns/public-feed";
+import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import "@/styles/tester-board.css";
 
 export const runtime = "nodejs";
@@ -42,6 +44,7 @@ export default async function CampaignPublicPage({
     const e = v2Economics(campaign);
     const live = campaign.status === "live";
     const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;
+    const activity = loadCampaignActivity(campaign.id);
     return (
       <main className="sb-shell">
         <header className="sb-top">
@@ -93,6 +96,8 @@ export default async function CampaignPublicPage({
           live={live}
           missions={e.missions}
         />
+
+        <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} />
 
         <TesterFaq />
 

@@ -15,6 +15,7 @@ import {
   helpText,
   NOT_FOUND,
   startText,
+  startWelcomeText,
   statusText,
   summarizeSettled,
   USAGE_STATUS,
@@ -143,7 +144,7 @@ export function buildReply(cmd: TgCommand): string | null {
       });
     }
     case "start": {
-      if (!cmd.payload) return helpText();
+      if (!cmd.payload) return startWelcomeText();
       const c = publicCampaign(cmd.payload);
       return startText({ title: c?.title ?? null, url: campaignUrl(cmd.payload) });
     }

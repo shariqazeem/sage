@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCampaign, listCampaignEvents, listSubmissions } from "@/lib/db/campaigns";
 import { summarizeSettled } from "@/lib/telegram/format";
+import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import { chainLabel } from "@/lib/deputy/networks";
 import { siteUrl } from "@/lib/site";
 
@@ -47,6 +48,11 @@ export async function GET(
     (s) => s.status === "pending" || s.status === "settling",
   ).length;
 
+  // Sage activity — a safe projection of the real work journal (see activity.ts). It
+  // never exposes evidence/notes/reason text; held/blocked carry a coarse class only.
+  // The honest heartbeat (lastCheckedAt) is the last moment Sage actually recorded work.
+  const { activity, lastCheckedAt } = loadCampaignActivity(c.id);
+
   return NextResponse.json(
     {
       id: c.id,
@@ -60,6 +66,8 @@ export async function GET(
       settledUsd: settledBase / 1_000_000,
       verifying,
       feed,
+      activity,
+      lastCheckedAt,
       url: `${siteUrl()}/c/${c.id}`,
     },
     {
