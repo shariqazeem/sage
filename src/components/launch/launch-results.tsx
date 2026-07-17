@@ -101,6 +101,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
         <div className="lx-card pad-lg">
           <div className="lx-h1" style={{ fontSize: 22 }}>Sage needs a little more to go on</div>
           {(result?.questions?.length ? result.questions : ["Could Sage reach your product over HTTPS?"]).map((q, i) => <div className="lx-question" key={i}>{q}</div>)}
+          <AnswerBox jobId={job.id} onDone={(j) => setJob(j)} onScheduled={() => { if (!poll.current) poll.current = setInterval(refresh, 2000); }} />
           {map && <MapSummary map={map} />}
           <div className="lx-next" style={{ marginTop: 14 }}>
             <RetryButton jobId={job.id} onDone={(j) => setJob(j)} onScheduled={() => { if (!poll.current) poll.current = setInterval(refresh, 2000); }} />
@@ -256,6 +257,32 @@ function RetryButton({ jobId, onDone, onScheduled }: { jobId: string; onDone: (j
       } catch { /* ignore */ }
       setBusy(false);
     }}>{busy ? "Retrying…" : "Try again"}</button>
+  );
+}
+
+/** Answer Sage's needs_input question(s); Sage folds the answer into the goal and re-plans. */
+function AnswerBox({ jobId, onDone, onScheduled }: { jobId: string; onDone: (j: JobView) => void; onScheduled: () => void }) {
+  const [answer, setAnswer] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <textarea
+        placeholder="Answer Sage’s question — e.g. the specific outcome a tester should prove — and Sage will re-plan."
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={3}
+        style={{ width: "100%", resize: "vertical", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border, #e5e5e0)", fontFamily: "inherit", fontSize: 14, background: "var(--paper, #fff)", color: "inherit" }}
+      />
+      <button className="lx-btn" disabled={busy || !answer.trim()} style={{ marginTop: 8 }} onClick={async () => {
+        setBusy(true);
+        try {
+          const res = await fetch(`/api/launch/${jobId}/clarify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ answer }) });
+          const data = await res.json();
+          if (data.ok) { onDone(data.job as JobView); if (data.replanned) { onScheduled(); setAnswer(""); } }
+        } catch { /* ignore */ }
+        setBusy(false);
+      }}>{busy ? "Re-planning…" : "Answer & re-plan"}</button>
+    </div>
   );
 }
 

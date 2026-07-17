@@ -4,6 +4,7 @@ import { runInspectionJob } from "@/lib/launch/job";
 import {
   opStartInspection,
   opGetInspection,
+  opAnswerInspection,
   opGetCampaign,
   opGetSubmission,
   opGetProof,
@@ -59,6 +60,19 @@ export const MCP_TOOLS: McpToolDef[] = [
         inspectionId: { type: "string", description: "The inspectionId from sage_start_inspection." },
       },
       required: ["inspectionId"],
+    },
+  },
+  {
+    name: "sage_answer_questions",
+    description:
+      "When a Sage inspection came back needs_input, pass the founder's answer here. Sage folds the answer into the goal and RE-PLANS the missions with the missing intent. Returns right away; the founder is messaged again when the new plan is ready. Only call for an inspection that is currently needs_input (or failed).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        inspectionId: { type: "string", description: "The inspectionId that needs input." },
+        answer: { type: "string", description: "The founder's answer to Sage's question(s), verbatim." },
+      },
+      required: ["inspectionId", "answer"],
     },
   },
   {
@@ -143,6 +157,14 @@ export async function callSageTool(
     }
     case "sage_get_inspection":
       return toolResult(opGetInspection(asString(args.inspectionId)));
+    case "sage_answer_questions": {
+      const r = opAnswerInspection(asString(args.inspectionId), asString(args.answer));
+      if (r.ok && r.replanned) {
+        const jobId = asString(args.inspectionId);
+        ctx.scheduleAfter(() => runInspectionJob(jobId));
+      }
+      return toolResult(r);
+    }
     case "sage_get_campaign":
       return toolResult(opGetCampaign(asString(args.campaignId)));
     case "sage_get_submission":

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { nanoid } from "nanoid";
+import { eq } from "drizzle-orm";
 
 import { db } from "./index";
 import { nowSeconds } from "./keys";
 import { inspectionJobs } from "./schema";
-import { claimInspectionJob, getInspectionJob } from "./inspection";
+import { claimInspectionJob, getInspectionJob, clarifyInspectionForRetry } from "./inspection";
 
 /**
  * Ownership transfer for the plan-claim (real in-memory SQLite). An anonymous inspection
@@ -53,5 +54,34 @@ describe("claimInspectionJob — anonymous → wallet, once, never stolen", () =
 
   it("refuses an unknown job", () => {
     expect(claimInspectionJob("nope", WALLET_A)).toEqual({ ok: false, reason: "no_such_job" });
+  });
+});
+
+describe("clarifyInspectionForRetry — fold a founder's answer into the goal + re-plan", () => {
+  const setStatus = (id: string, status: "needs_input" | "ready" | "queued" | "failed") =>
+    db.update(inspectionJobs).set({ status }).where(eq(inspectionJobs.id, id)).run();
+
+  it("appends the answer to the goal and resets a needs_input job to queued", () => {
+    const id = seedJob("anonymous");
+    setStatus(id, "needs_input");
+    expect(clarifyInspectionForRetry(id, "the wishing tree should show the smiley symbol")).toBe(true);
+    const job = getInspectionJob(id)!;
+    expect(job.status).toBe("queued"); // reset for the re-plan
+    expect(job.goal).toContain("g"); // original goal preserved
+    expect(job.goal.toLowerCase()).toContain("clarification"); // answer folded in as trusted context
+    expect(job.goal).toContain("wishing tree should show the smiley");
+  });
+
+  it("is a no-op (false) for a job that is not awaiting input", () => {
+    const id = seedJob("anonymous"); // seeded as 'ready'
+    expect(clarifyInspectionForRetry(id, "an answer")).toBe(false);
+    expect(getInspectionJob(id)?.status).toBe("ready");
+  });
+
+  it("rejects an empty answer", () => {
+    const id = seedJob("anonymous");
+    setStatus(id, "needs_input");
+    expect(clarifyInspectionForRetry(id, "   ")).toBe(false);
+    expect(getInspectionJob(id)?.status).toBe("needs_input"); // unchanged
   });
 });

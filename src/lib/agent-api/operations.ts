@@ -1,7 +1,7 @@
 import "server-only";
 
 import { startInspection } from "@/lib/launch/start";
-import { getInspectionJob } from "@/lib/db/inspection";
+import { getInspectionJob, clarifyInspectionForRetry } from "@/lib/db/inspection";
 import { jobToView } from "@/lib/launch/job";
 import {
   getCampaign,
@@ -173,6 +173,26 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
       ? "Send the founder approvalUrl. Only their wallet can approve, edit, and fund the campaign — the agent cannot."
       : null,
     fieldTest,
+  };
+}
+
+/**
+ * The founder ANSWERS a needs_input inspection: fold the answer into the goal + re-plan. The caller
+ * schedules `runInspectionJob(inspectionId)` when `replanned` is true (only a request handler may).
+ */
+export function opAnswerInspection(id: string, answer: string): OpResult<{ inspectionId: string; replanned: boolean; note: string }> {
+  const job = getInspectionJob(id);
+  if (!job) return { ok: false, error: "Inspection not found.", status: 404 };
+  const clean = (answer ?? "").trim();
+  if (!clean) return { ok: false, error: "An answer is required.", status: 400 };
+  const replanned = clarifyInspectionForRetry(id, clean);
+  return {
+    ok: true,
+    inspectionId: id,
+    replanned,
+    note: replanned
+      ? "Sage folded the answer into the goal and is re-planning; the founder will be messaged when the new plan is ready."
+      : "This inspection is not awaiting input right now (it may already be re-planning, ready, or in flight).",
   };
 }
 

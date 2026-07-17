@@ -156,6 +156,28 @@ export function resetInspectionForRetry(id: string): boolean {
 }
 
 /**
+ * Fold a founder's ANSWER to a needs_input question into the goal, then reset the job for a re-plan.
+ * The clarification becomes trusted architect context (the missing intent Sage asked for), so the
+ * re-run designs against it. Atomic + terminal-only (needs_input/failed), like a retry: a duplicate
+ * answer while a run is in flight is a no-op. Returns true only when THIS call performed the reset.
+ */
+export function clarifyInspectionForRetry(id: string, answer: string): boolean {
+  const cur = getInspectionJob(id);
+  if (!cur) return false;
+  const clean = answer.replace(/\s+/g, " ").trim().slice(0, 1000);
+  if (!clean) return false;
+  const clarified = `${cur.goal}\n\nFounder clarification (answering Sage's question): ${clean}`.slice(0, 4000);
+  const res = db
+    .update(inspectionJobs)
+    .set({ status: "queued", goal: clarified, failureReason: null, updatedAt: nowSeconds() })
+    .where(and(eq(inspectionJobs.id, id), inArray(inspectionJobs.status, ["failed", "needs_input"])))
+    .run();
+  if ((res.changes ?? 0) === 0) return false;
+  db.update(inspectionJobs).set({ retryCount: cur.retryCount + 1 }).where(eq(inspectionJobs.id, id)).run();
+  return true;
+}
+
+/**
  * Transfer an anonymous inspection's ownership to a founder wallet (the plan-claim). Only
  * succeeds when the job is currently owned by "anonymous" OR already by this exact wallet
  * (idempotent resume). If it belongs to a DIFFERENT wallet, it is refused — an anonymous

@@ -50,6 +50,7 @@ WHEN THE FOUNDER GIVES A PRODUCT URL + A BUDGET (e.g. "test my product at https:
 const READ_TOOLS = `YOUR READ / INSPECT TOOLS (they run inside Sage; no keys pass through you):
 - sage_start_inspection {productUrl, goal, targetUsers, budgetUsd, repoUrl?}: start a REAL inspection. It prepares a plan only. It returns right away; the plan builds in the background AND the founder is AUTOMATICALLY messaged the moment it's ready (or if it needs input / fails). So tell them you'll message them when it's done — do NOT tell them to poll, and don't call sage_get_inspection yourself unless they explicitly ask for a status before that message arrives.
 - sage_get_inspection {inspectionId}: check an inspection's status on demand. If stage is not ready yet, tell the founder it's still working. If it needs input, ask them those questions.
+- sage_answer_questions {inspectionId, answer}: when an inspection needed input and the founder REPLIES with their answer, call this with their exact answer. Sage folds it in and re-plans, then messages them the new plan. Use this whenever the founder is answering Sage's needs-input question(s) about a specific inspection — do NOT start a new inspection for the same product.
 - sage_get_campaign {campaignId}: report live status — network + token, funded/paid/remaining, missions, and each submission's Deputy decision + proof link.
 - sage_get_submission {submissionId}: report one submission's state, confidence, and proof.
 - sage_get_proof {txHash}: report one payout's verifiable proof.`;

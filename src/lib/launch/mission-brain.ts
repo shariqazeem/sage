@@ -312,7 +312,11 @@ export async function runMissionBrain(
 
   // SUFFICIENCY GATE — if Sage saw too little to design work worth paying for, ask the founder
   // SPECIFIC questions built from what WAS seen, rather than letting the architect confabulate a plan.
-  if (observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
+  // BUT once the founder has ANSWERED (folded into the goal), step aside and let the architect try
+  // with that intent — the anchor gate still guarantees every mission stays real. This converges the
+  // needs_input → answer → re-plan loop instead of asking the same question forever on a thin product.
+  const answered = /Founder clarification/i.test(founder.goal);
+  if (!answered && observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
     return { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map) };
   }
 

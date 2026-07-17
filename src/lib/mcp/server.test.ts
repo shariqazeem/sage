@@ -5,10 +5,11 @@ import { callSageTool, MCP_TOOLS, MCP_SERVER_INFO, type McpContext } from "./ser
 const ctx = (scheduleAfter = vi.fn()): McpContext => ({ scheduleAfter });
 
 describe("MCP tool registry", () => {
-  it("exposes exactly the five sage tools, each with an object input schema", () => {
+  it("exposes exactly the sage tools, each with an object input schema", () => {
     expect(MCP_TOOLS.map((t) => t.name)).toEqual([
       "sage_start_inspection",
       "sage_get_inspection",
+      "sage_answer_questions",
       "sage_get_campaign",
       "sage_get_submission",
       "sage_get_proof",
@@ -38,6 +39,13 @@ describe("callSageTool dispatch", () => {
   it("get_submission for a bogus id → isError", async () => {
     const r = await callSageTool("sage_get_submission", { submissionId: "nope" }, ctx());
     expect(r?.isError).toBe(true);
+  });
+
+  it("answer_questions for a bogus id → isError, schedules no re-plan", async () => {
+    const scheduleAfter = vi.fn();
+    const r = await callSageTool("sage_answer_questions", { inspectionId: "nope", answer: "the wishing tree should work" }, ctx(scheduleAfter));
+    expect(r?.isError).toBe(true);
+    expect(scheduleAfter).not.toHaveBeenCalled();
   });
 
   it("get_campaign for a bogus id → isError", async () => {
