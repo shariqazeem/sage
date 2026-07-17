@@ -175,6 +175,8 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `LLM_BASE_URL` / `COMMONSTACK_BASE_URL` | Gateway URL | Defaults to `https://api.commonstack.ai/v1` |
 | `LLM_MODEL` / `DEPUTY_MODEL` | Mission + payout model | Defaults to `deepseek/deepseek-v4-flash` |
 | `CONCIERGE_MODEL` † | Telegram concierge model (prod: `anthropic/claude-haiku-4-5`) | Falls back to `LLM_MODEL`→`DEPUTY_MODEL`→default (behavior silently changes) |
+| `CONCIERGE_API_KEY` / `_BASE_URL` † | Reserved LLM budget for the public concierge — preferred over `LLM_API_KEY`/`_BASE_URL`, so public chat traffic can never exhaust the money-critical judgment path's quota | Falls back to the shared chain, unchanged |
+| `CONCIERGE_DAILY_CAP` / `INSPECTION_DAILY_CAP` † | Per-chat daily caps (over the per-minute limit) on concierge turns (default 60) and inspections started (default 3); slash commands are uncapped | Defaults apply |
 | `LLM_FALLBACK_API_KEY`/`_BASE_URL`/`_MODEL` | Secondary provider (all 3 arm failover) | No fallback — a primary outage drops to heuristic |
 | `DEPUTY_AUTOPILOT_MAINNET` | Arms real-money auto-pay on GOAT | Mainnet campaigns hold for manual approval |
 | `FIELD_TEST_ENABLED` | `"1"` arms the Playwright "Field Test" — Sage actually browses the inspected product in a real headless browser (screenshots, JS-rendered content, console errors) and feeds it to the Mission Brain | HTML-only inspection (default; behaves exactly as before). Needs chromium: `npx playwright install --with-deps chromium` |

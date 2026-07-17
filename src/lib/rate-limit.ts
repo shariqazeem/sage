@@ -76,6 +76,10 @@ interface LimiterStore {
   redteamDaily: RateLimiter;
   /** authenticated Sage Agent API (ClawUp), per agent key. */
   agent: RateLimiter;
+  /** free-text concierge turns / day / chat — bounds a public chat's LLM spend over the per-minute cap. */
+  conciergeDaily: RateLimiter;
+  /** inspections started / day / chat — each runs the real (paid) inspection pipeline. */
+  inspectionDaily: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -94,6 +98,16 @@ function limiters(): LimiterStore {
         86_400_000,
       ),
       agent: new RateLimiter(30, 60_000), // 30 Sage Agent API calls / min / agent key
+      // Per-chat DAILY caps over the per-minute limit, so public bot traffic can't run up an
+      // LLM/inspection bill. Env-tunable; slash commands (no LLM) are never counted here.
+      conciergeDaily: new RateLimiter(
+        Math.max(1, Number(process.env.CONCIERGE_DAILY_CAP) || 60),
+        86_400_000,
+      ),
+      inspectionDaily: new RateLimiter(
+        Math.max(1, Number(process.env.INSPECTION_DAILY_CAP) || 3),
+        86_400_000,
+      ),
     };
   }
   return g.__sageLimiters;

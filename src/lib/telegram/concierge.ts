@@ -10,6 +10,12 @@ import {
   isAgentWalletTool,
   callAgentWalletTool,
 } from "@/lib/telegram/agent-wallet-tools";
+import { rateLimit } from "@/lib/rate-limit";
+import {
+  conciergeBase as base,
+  conciergeKey as key,
+  conciergeModel as model,
+} from "./concierge-config";
 
 /**
  * Sage's conversational front door on Telegram — its OWN agent, no third-party runtime.
@@ -26,16 +32,8 @@ import {
  * failure becomes an honest reply, never a broken webhook.
  */
 
-// CommonStack (OpenAI-compatible). Read the SAME env as the frozen Deputy brain, directly, so this
-// module never imports — or risks changing — the frozen verification layer (brain.ts).
-const base = (): string =>
-  (process.env.LLM_BASE_URL || process.env.COMMONSTACK_BASE_URL || "https://api.commonstack.ai/v1").replace(/\/+$/, "");
-const key = (): string => process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim() || "";
-const model = (): string =>
-  process.env.CONCIERGE_MODEL?.trim() ||
-  process.env.LLM_MODEL?.trim() ||
-  process.env.DEPUTY_MODEL?.trim() ||
-  "deepseek/deepseek-v4-flash";
+// base()/key()/model() (aliased in the imports above) resolve the concierge's LLM provider — its
+// OWN reserved budget, falling back to today's chain. It never imports the frozen brain.ts.
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_HISTORY = 12;
@@ -278,6 +276,24 @@ export async function runConcierge(
           // Bind every inspection to THIS chat server-side — never trust the model to pass clientRef
           // (a null clientRef collapsed idempotency to a shared namespace and left no chat linkage).
           if (tc.function.name === "sage_start_inspection") args.clientRef = chatId;
+
+          // Daily per-chat inspection cap: each inspection runs the real (paid) pipeline, so a
+          // public chat can't spin up unlimited ones. Over the limit → a friendly tool result.
+          if (
+            tc.function.name === "sage_start_inspection" &&
+            !rateLimit("inspectionDaily", `chat:${chatId}`).ok
+          ) {
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({
+                ok: false,
+                error:
+                  "This chat has reached today's inspection limit — try again tomorrow, or continue with an inspection you already started.",
+              }),
+            });
+            continue;
+          }
 
           const result = isAgentWalletTool(tc.function.name)
             ? await callAgentWalletTool(tc.function.name, args, chatId)

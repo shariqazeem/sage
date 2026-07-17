@@ -39,4 +39,17 @@ describe("RateLimiter", () => {
     // after sweep the key is fresh again
     expect(rl.hit("a").ok).toBe(true);
   });
+
+  it("daily caps: N hits/day/chat, blocks the rest, independent per chat, resets after 24h", () => {
+    let t = 0;
+    const day = 86_400_000;
+    const rl = new RateLimiter(3, day, () => t); // the inspectionDaily model
+    expect(rl.hit("chat:x").ok).toBe(true);
+    expect(rl.hit("chat:x").ok).toBe(true);
+    expect(rl.hit("chat:x").ok).toBe(true);
+    expect(rl.hit("chat:x").ok).toBe(false); // 4th same day → blocked
+    expect(rl.hit("chat:y").ok).toBe(true); // a different chat is unaffected
+    t = day; // next day
+    expect(rl.hit("chat:x").ok).toBe(true); // window reset
+  });
 });

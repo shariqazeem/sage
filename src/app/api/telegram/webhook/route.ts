@@ -57,6 +57,16 @@ export async function POST(req: Request): Promise<Response> {
   if (cmd.kind === "none" || cmd.kind === "unknown") {
     if (conciergeEnabled()) {
       after(async () => {
+        // Daily per-chat cap, over the per-minute limit: a public chat can't run up an LLM bill.
+        // Slash commands never reach this branch, so they stay uncapped.
+        if (!rateLimit("conciergeDaily", `chat:${chatId}`).ok) {
+          await sendTelegram(
+            chatId,
+            "You've reached today's chat limit with me — it resets within a day. Slash commands like /status and /help still work anytime.",
+            { html: false },
+          );
+          return;
+        }
         console.log("[telegram] concierge run chat=%s", chatId);
         const jobs: Array<() => void | Promise<void>> = [];
         const reply = await runConcierge(chatId, msg.text, (fn) => jobs.push(fn));
