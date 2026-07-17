@@ -13,8 +13,9 @@ import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
-import { V2Board } from "@/components/campaigns/v2-board";
+import { V2Board, HowYouGetPaid, TesterFaq } from "@/components/campaigns/v2-board";
 import { PublicFeed } from "@/components/campaigns/public-feed";
+import "@/styles/tester-board.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +82,8 @@ export default async function CampaignPublicPage({
           </div>
         </div>
 
+        <HowYouGetPaid />
+
         <div className="sb-sec-label">Missions</div>
         <V2Board
           campaignId={campaign.id}
@@ -89,6 +92,8 @@ export default async function CampaignPublicPage({
           live={live}
           missions={e.missions}
         />
+
+        <TesterFaq />
 
         <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
           You own the campaign vault; Sage is the bounded operator. It reviews each submission
