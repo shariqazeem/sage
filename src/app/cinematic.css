@@ -178,6 +178,18 @@ html:has(.clx) {
   font-size: 13px;
   box-shadow: none;
 }
+/* secondary hero button — outline, for the demoted "Launch a campaign" beside the primary CTA */
+.clx-cta-2 {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+.clx-cta-2:hover {
+  filter: none;
+  border-color: var(--accent);
+  box-shadow: none;
+}
 .clx-anchor {
   display: block;
   height: 0;

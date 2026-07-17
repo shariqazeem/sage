@@ -101,9 +101,17 @@ export function Act1Hero({
           </div>
 
           <div className="clx-hero-actions">
-            <Link href="/launch" className="clx-cta">
-              Launch a testing campaign{" "}
+            <a
+              href="https://t.me/sagedeputybot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="clx-cta"
+            >
+              Start for free{" "}
               <ArrowRight size={16} strokeWidth={2.4} />
+            </a>
+            <Link href="/launch" className="clx-cta clx-cta-2">
+              Launch a campaign
             </Link>
             <Link href="/c/founding-testers" className="clx-trust clx-mono clx-hero-alt">
               Explore live missions <ArrowRight size={13} strokeWidth={2} />

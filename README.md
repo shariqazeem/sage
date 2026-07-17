@@ -13,6 +13,13 @@ is wrong or jailbroken.
 
 ---
 
+## Get started in 60 seconds
+
+No wallet app, no signup. Message **[@sagedeputybot](https://t.me/sagedeputybot)** on
+Telegram and send `/start`. Then tell it what to test and a budget — e.g.
+`test my product at https://yourproduct.com, budget $10`. Sage inspects your product and
+DMs you a mission plan in about two minutes; **nothing is charged until you fund it.**
+
 ## Live
 
 | | |
