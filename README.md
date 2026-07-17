@@ -1,157 +1,104 @@
-# Sage — the control layer for AI agents that spend real money
+# Sage — hire an AI worker. Give it a budget, not your keys.
 
-> **Give an AI agent an allowance, not your keys.**
+> A founder points Sage at a product URL with a budget. Sage inspects the product,
+> designs paid testing missions, deploys an on-chain vault, and then **autonomously
+> pays human testers USDC for verified evidence — inside hard on-chain limits it can
+> never exceed.** Every payout cites its evidence and is published as a verifiable
+> `/proof/<tx>` receipt.
 
-Sage is an autonomous **Payout Deputy**. You fund a policy-capped, on-chain vault
-and define a task; people submit work; Sage's AI brain **verifies each submission
-against your criteria and releases USDC** — or the vault blocks it. Every payout
-is a real, verifiable on-chain transaction, and the agent's track record is
-anchored to its **ERC-8004** identity.
-
-**The guarantee:** the AI proposes *who* and *how much*; the **vault decides
-whether money can move.** Anything off-policy is blocked on-chain *before* funds
-move — even if the AI is wrong or compromised.
+**The value is bounded autonomy over money.** The agent spends without a human in the
+loop, but the *vault* — not a prompt — enforces the limits. **The AI proposes; the vault
+disposes.** Anything off-policy is blocked on-chain *before* funds move, even if the model
+is wrong or jailbroken.
 
 ---
 
-## Why it's different
-
-- **The AI cannot be jailbroken into paying.** The brain is hardened with
-  untrusted-data delimiters, a server-side injection detector, verbatim-quote
-  enforcement, and a confidence ceiling — **15 / 15 adversarial attacks held**
-  (see `tests/redteam/`).
-- **Verifiable, not vibes.** Every decision cites the exact evidence quotes it
-  read; every payout is a public `/proof/<tx>` page a stranger can re-check.
-- **Accountable.** The reputation is derived from real on-chain rows and anchored
-  to ERC-8004 — a track record, not a self-assertion.
-
 ## Live
-
 
 | | |
 |---|---|
 | **App** | https://sagepays.xyz |
-| **Founding testers** | [`/c/founding-testers`](https://sagepays.xyz/c/founding-testers) — test Sage, get paid real USDC on GOAT mainnet |
+| **Walletless founder** | [@sagedeputybot](https://t.me/sagedeputybot) — run an entire campaign from Telegram: inspect → fund → autonomous payouts → review held work, no wallet app |
+| **A public tester board** | e.g. [`/c/<slug>`](https://sagepays.xyz) — do a mission, get paid real USDC on GOAT mainnet |
 | **Agent identity** | [`/agents/sage`](https://sagepays.xyz/agents/sage) · ERC-8004 **#79** on [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) |
-| **Telegram** | [@sagedeputybot](https://t.me/sagedeputybot) — `/agent`, `/status <slug>` |
-| **A real autonomous payout** | [proof page](https://sagepays.xyz/proof/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) · [explorer](https://sepolia-explorer.metisdevops.link/tx/0x757e45437fecb13a0fae772559753a092646e94b5c7ceb00b00818ccb50a5eba) |
+| **A real autonomous payout** | `https://sagepays.xyz/proof/<TX>` <!-- HOT-SWAP: headline GOAT-mainnet proof from the canary/campaign --> |
 
-## Bootcamp integrations
+## Why it's different
 
-- **x402** — live payment rail (GOAT mainnet, merchant `sage`; real settled txs).
-- **ERC-8004** — on-chain agent identity + reputation (**#79**, chain 2345).
-- **GOAT Network (2345)** + **Metis Sepolia (59902)** — the payout chains, per-vault.
-- **GOAT-compatible adapter** — all chain access behind one interface (`src/lib/deputy`).
-
-## Real on mainnet vs. testnet (the honest split)
-
-| | Metis Sepolia — testnet | GOAT mainnet |
-|---|---|---|
-| ERC-8004 identity | — | ✅ **#79**, live on 8004scan |
-| x402 merchant + payments | — | ✅ merchant `sage`, real txs |
-| Policy Vault (deployed + funded) | ✅ | ✅ |
-| Full autopilot loop (verify → auto-pay) | ✅ **proven**, real payout | ✅ armed |
-
-Testnet is the sandbox, not a demo: destructive testing (the kill switch, the
-break-it gauntlet) runs on Sepolia **by design**; real money moves on GOAT mainnet.
-Nothing in Sage is simulated — every payout, block, decision, and fee is a real row
-or a real transaction.
-
-**Two kinds of replay safety, kept distinct.** The upgraded `PolicyVault` consumes
-each committed intent on-chain (check 7), so a settled intent can never move funds
-again — **contract-level** replay protection. Separately, the app keeps a durable
-settlement ledger and resumes crashed settles instead of blind-resending —
-**application-level** recovery. These are not the same guarantee: a vault deployed
-before the upgrade has the app-level ledger but **not** the on-chain guard, so it is
-a *legacy* vault. The Deputy's mainnet autopilot **refuses to auto-pay from a legacy
-(or unreadable) vault** and holds for manual approval; a freshly deployed vault gets
-the on-chain guard automatically. Combined track-record totals are shown as combined
-and split per chain — a mainnet figure never silently includes testnet USDC.
+- **The AI cannot be jailbroken into paying.** The judgment brain is hardened with
+  untrusted-data delimiters, an 8-family server-side injection detector, verbatim-quote
+  enforcement, and a confidence ceiling — and the vault is the final gate regardless.
+  The red-team suite (`tests/redteam/`) guards it in CI.
+- **It actually uses the product.** With the Field Test on, Sage browses the inspected
+  product in a real headless Chromium — screenshots, JS-rendered content, console errors —
+  and feeds that to mission design. It tests what's really there, not a guess from the HTML.
+- **Verifiable, not vibes.** Every decision cites the exact evidence it read; every payout
+  is a public `/proof/<tx>` page a stranger can re-check on-chain.
+- **Observable autonomy.** The tester board shows a live "Sage activity" feed — received,
+  verified (with confidence), paid, held, blocked — projected only from real rows, never
+  fabricated, with a zero-evidence-leak guarantee.
+- **Accountable.** Reputation is derived from real on-chain settlements and anchored to an
+  ERC-8004 identity — a track record, not a self-assertion.
 
 ## How it works
 
-1. **Fund a PolicyVault** — budget, per-tx cap, daily velocity cap, duration.
-2. **Create a campaign** — task, acceptance criteria, reward per person.
-3. **People submit** work + an evidence link.
-4. **The Deputy verifies** — fetches the evidence, checks it against the criteria
-   with an LLM, and produces a **decision receipt**: criteria met/unmet with
-   verbatim quotes, fraud signals, confidence, and the x402 verification fee.
-5. **Manual** → you approve and it settles. **Autopilot** → the Deputy pays
-   confident, clean matches on its own, *inside the vault's enforced limits*.
-6. Every payout / block → a public **`/proof/<tx>`** page.
+One intent, two human moments. The founder states **URL + goal + budget** once; the only
+two things they ever *do* are **approve the plan** and **fund it**. Everything else Sage
+does autonomously and narrates after acting, with an artifact behind every claim.
 
-## Stack
+1. **Inspect** — Sage fetches (and, with the Field Test, really browses) the product and
+   builds a structured map.
+2. **Design** — the Mission Brain drafts specific missions (architect → critic → a
+   deterministic validation gate; model output is untrusted until it passes the gate).
+3. **Deploy** — a founder-owned `CampaignVault` is created and funded on-chain, with hard
+   per-mission rewards, completion caps, and a total budget the agent cannot exceed.
+4. **Pay** — testers submit a public evidence link + note (bound to their wallet by a free
+   EIP-712 signature). The Payout Brain judges the evidence against the criteria; on high
+   confidence the vault settles USDC automatically and publishes the proof. Borderline work
+   is **held** for the founder — who can release or reject it right from Telegram.
 
-- **Next.js 15** (App Router, server-first RSC) · React 19 · **TypeScript strict**
-- **Solidity + Foundry** (`PolicyVault`, `contracts/`) · **viem**
-- **drizzle-orm + SQLite** · LLM brain over any **OpenAI-compatible** endpoint
+## Architecture
 
-## Quickstart
+Three separate LLM "brains" + one on-chain settlement core — separate on purpose.
+
+| Component | Role |
+|---|---|
+| **Mission Brain** | *Designs* missions: architect → critic → deterministic validate gate. |
+| **Payout Brain** | *Judges* tester evidence and proposes pay / review / hold. **Never states an amount.** |
+| **Telegram Concierge** | The walletless front door — a hand-rolled tool loop that deliberately never imports the judgment layer. |
+| **Vaults + settlement** | `CampaignVault` derives the exact reward, enforces caps + replay protection, and emits the settlement event that is the single source of truth. |
+
+**Invariants the code enforces:** no model ever computes a money amount (rewards come from a
+deterministic budget compiler); quotes in a decision must be verbatim substrings of the
+fetched evidence; untrusted content stays inside `<<<UNTRUSTED_…>>>` markers; mainnet
+auto-pay is gated behind a flag and a confidence threshold; the activity feed never
+fabricates progress. The safety-critical pieces (injection detector, autopilot gate, mandate
+policy builder, vault ABIs, budget math) are treated as frozen and guarded by tests.
+
+**Chains.** GOAT Network (chainId `2345`, real USDC, native gas BTC) is the production
+mainnet; Metis Sepolia (`59902`) is the testnet.
+
+**Two front doors, one engine.** Web (`sagepays.xyz`): connect a browser wallet, SIWE,
+guided launch. Walletless Telegram (`@sagedeputybot`): Sage mints a policy-guarded server
+wallet and funds/launches/reviews from chat — no wallet app.
+
+## Run it
 
 ```bash
 npm install
-cp .env.example .env      # fill in — every var is documented inline
+cp .env.example .env      # fill in what you have; missing integrations degrade honestly
 npm run dev               # http://localhost:3000
+npm run test              # unit/component + the red-team suite
+npm run build             # production build
+npm run preflight <chatId> # go/no-go check before a real campaign
 ```
 
-Quality gates (all green):
+Sage degrades honestly: with no LLM key the judgment brain drops to a transparent keyword
+heuristic that **can never auto-pay**; with no x402 creds evidence verification falls back to
+unpaid; a missing integration means it's *pending*, not broken. See `CLAUDE.md` for the full
+spec and the environment table.
 
-```bash
-npm run lint && npm run typecheck && npm run test && npm run build
-```
+## Stage 1
 
-The `PolicyVault` ABIs are checked in, so the app builds without Foundry. To
-rebuild the contracts: `cd contracts && forge build`.
-
-## Field Test (optional) — Sage actually uses the product
-
-By default the inspector reads server-rendered HTML only. Set `FIELD_TEST_ENABLED=1`
-to also run a **Field Test**: Sage opens the product in a real headless Chromium
-(reusing the same SSRF/public-host guards), navigates the entry page + a few ranked
-same-origin pages, and captures screenshots, JS-rendered content, console errors, and
-broken requests — feeding them to the Mission Brain and surfacing a "Sage used your
-product" strip on the results page. It never fills or submits forms; interaction is
-same-origin GET navigation only, and any failure degrades gracefully to the HTML-only
-inspection (the inspection job never fails because of it).
-
-Install the browser once:
-
-```bash
-npx playwright install --with-deps chromium
-FIELD_TEST_ENABLED=1 npm run dev
-```
-
-## Repo map
-
-```
-src/app/            Next.js routes (/app, /agents/sage, /proof/[tx], /api/*)
-src/lib/deputy/     the brain (LLM verify + hardening), pipeline, chain adapter
-src/lib/campaigns/  campaigns, settle-flow, journal, reputation
-src/lib/x402/       the GOAT x402 payment rail
-contracts/          Foundry PolicyVault + factory
-docs/CURRENT_STATE.md   the authoritative "where we are"
-docs/AGENT.md           operator runbook
-```
-
-## Seed user & Stage 2 growth
-
-**Seed user:** early-stage web-product founders who have shipped a public product but lack
-enough real users to quickly validate onboarding, positioning, and critical user journeys.
-Sage turns their product + a budget into paid, verified testing missions and pays testers
-autonomously inside hard on-chain limits.
-
-Stage-2 growth targets (interviews, activations, funded campaigns, verified completions,
-URL→plan and time-to-first-submission medians, exactly-once payout rate, zero policy
-violations, second-campaign rate, mission usefulness, GEO discoverability) and the Stage-1
-deliverables checklist live in [docs/SEED_USERS.md](docs/SEED_USERS.md).
-
-**Honest ecosystem status:** `GET /api/ecosystem` returns the one canonical model —
-ClawUp / ERC-8004 / x402 / campaign network / mainnet-autopilot — where every "verified /
-paid / live" is backed by real evidence (on-chain `ownerOf`, a settled x402 tx, the flagship
-campaign's actual network), **never** environment-variable presence alone.
-
-## Built for
-
-The **OpenClaw Summer Builder Bootcamp 2026** (GOAT / Metis / ClawUp). Sage's
-thesis: the agent economy needs a *payroll rail with a leash* — autonomous where
-it's safe, physically bounded where it counts.
+See **[STAGE1.md](STAGE1.md)** for the deliverables + proof, and **[GROWTH.md](GROWTH.md)**
+for the seed-user definition and growth metrics.
