@@ -30,9 +30,11 @@ much*; the **vault decides whether money can move.** Anything off-policy is bloc
 
 A real, autonomous, on-chain payout to a human for verified work:
 
-- **Proof receipt:** `https://sagepays.xyz/proof/<TX>` <!-- HOT-SWAP: canary or campaign proof -->
-- **Live campaign:** `https://sagepays.xyz/c/<slug>` <!-- HOT-SWAP -->
+- **Proof receipt (GOAT mainnet, real USDC):** https://sagepays.xyz/proof/0xd2483e5cfccd7dbe979683dfd8948cf9b022fe7348fa81fa127f91e785a8ffc4
+- **Second mainnet payout:** https://sagepays.xyz/proof/0x95e513daab18b096dfb2dbe8578d5d4378de5bda76b15841aeef33333521028f
 - **Agent track record:** [`/agents/sage`](https://sagepays.xyz/agents/sage) — settled total, payouts, and each receipt, all derived from on-chain rows.
+- **Live campaign:** `https://sagepays.xyz/c/<slug>` <!-- HOT-SWAP: tonight's $20 campaign -->
+- **Release-from-chat clip:** `<canary recording>` <!-- HOT-SWAP -->
 
 Every payout page shows the human fact (who got paid, how much, for which mission), the AI's
 verification receipt (the reasoning + the verbatim evidence quote it read), and the on-chain

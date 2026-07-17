@@ -21,7 +21,7 @@ is wrong or jailbroken.
 | **Walletless founder** | [@sagedeputybot](https://t.me/sagedeputybot) — run an entire campaign from Telegram: inspect → fund → autonomous payouts → review held work, no wallet app |
 | **A public tester board** | e.g. [`/c/<slug>`](https://sagepays.xyz) — do a mission, get paid real USDC on GOAT mainnet |
 | **Agent identity** | [`/agents/sage`](https://sagepays.xyz/agents/sage) · ERC-8004 **#79** on [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) |
-| **A real autonomous payout** | `https://sagepays.xyz/proof/<TX>` <!-- HOT-SWAP: headline GOAT-mainnet proof from the canary/campaign --> |
+| **A real autonomous payout** | [proof receipt](https://sagepays.xyz/proof/0xd2483e5cfccd7dbe979683dfd8948cf9b022fe7348fa81fa127f91e785a8ffc4) — real USDC on GOAT mainnet (more on [`/agents/sage`](https://sagepays.xyz/agents/sage)) |
 
 ## Why it's different
 
