@@ -17,10 +17,10 @@ much*; the **vault decides whether money can move.** Anything off-policy is bloc
 | Deliverable | Status | Proof |
 |---|---|---|
 | **Agent launched** — live, autonomous **mainnet** payouts running | ✅ | https://sagepays.xyz · [`/agents/sage`](https://sagepays.xyz/agents/sage) |
-| **x402** — real paid verification rail (GOAT) | ✅ | `<x402 payment receipt tx>` <!-- HOT-SWAP --> |
-| **ERC-8004 identity** — registered, reputation from real settlements | ✅ | agent **#79** · [8004scan chain 2345](https://8004scan.io/agents?chain=2345) · `<registry tx>` <!-- HOT-SWAP --> |
-| **Funding request** submitted | ☐/✅ | `<status / link>` <!-- confirm with Areej --> |
-| **Public GitHub repo** | ✅ | `<repo link>` <!-- HOT-SWAP after public flip --> |
+| **x402** — real paid verification rail (GOAT) | ✅ | live (merchant: `sage`) — evidence verification + operator fees run through the x402 rail; see the `/proof` receipts below |
+| **ERC-8004 identity** — registered, reputation from real settlements | ✅ | agent **#79** · [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) · [`/agents/sage`](https://sagepays.xyz/agents/sage) |
+| **Funding request** submitted | ☐ | _confirm status with the organizers_ |
+| **Public GitHub repo** | ✅ | https://github.com/shariqazeem/sage |
 | **Project website** | ✅ | https://sagepays.xyz |
 | **Product landing page** (live receipts) | ✅ | https://sagepays.xyz · [`/agents/sage`](https://sagepays.xyz/agents/sage) |
 | **Seed-user definition** | ✅ | [GROWTH.md](GROWTH.md) |
