@@ -156,3 +156,103 @@ describe("evidence-capability gate — unsupported_evidence_type (05.1)", () => 
     expect(codes(good({ evidenceRequirements: ["The public URL you tested", "The verbatim heading text shown on that page"] }))).not.toContain("unsupported_evidence_type");
   });
 });
+
+describe('"worth paying for" gate — worthless_presence_check (the yara.garden failure)', () => {
+  // These two are the EXACT missions the model produced for yara.garden — anchored + verifiable,
+  // but paying a human to confirm a DOM element exists is worthless. The deterministic gate rejects
+  // them even though the (weak) mission model would happily accept them.
+  it("rejects 'verify the nav/scaling controls are present in the document'", () => {
+    expect(
+      codes(
+        good({
+          missionKey: "nav-cta-presence",
+          title: "Validate Presence of Navigation CTAs",
+          objective: "Verify that the navigation and scaling controls ('+', '−', '·') are present in the document and have identifiable labels.",
+          instructions: "Navigate to https://app.example.com/. Inspect the page and confirm the '+', '−', and '·' controls are present.",
+          criteria: [
+            "The elements '+', '−', and '·' are present in the DOM as interactive tags",
+            "Each element has a distinct, non-empty accessible name or unique identifier",
+          ],
+          targetSurface: "https://app.example.com/",
+          sources: [{ kind: "page", ref: "https://app.example.com/", observation: "controls observed" }],
+        }),
+      ),
+    ).toContain("worthless_presence_check");
+  });
+
+  it("rejects 'confirm the audio toggle exists in the DOM'", () => {
+    expect(
+      codes(
+        good({
+          missionKey: "audio-toggle-presence",
+          title: "Verify Audio Toggle Presence and Accessibility",
+          objective: "Confirm the audio control element is present in the DOM and identifiable via its accessibility label or text.",
+          instructions: "Navigate to https://app.example.com/. Locate the '🔊' icon and confirm it exists.",
+          criteria: [
+            "The '🔊' icon element exists in the DOM",
+            "The element possesses a valid accessible name or label that describes its function",
+          ],
+          targetSurface: "https://app.example.com/",
+          sources: [{ kind: "page", ref: "https://app.example.com/", observation: "audio control observed" }],
+        }),
+      ),
+    ).toContain("worthless_presence_check");
+  });
+
+  // Real action→outcome missions (the shapes plausible.io produced) must be KEPT.
+  it("keeps 'searching X leads to a page containing Y' (action → outcome)", () => {
+    expect(
+      codes(
+        good({
+          missionKey: "docs-search-relevance",
+          title: "Verify Documentation Search Relevance",
+          objective: "Confirm that searching for 'Add your website' leads to a page containing actionable installation instructions.",
+          instructions: "Navigate to https://app.example.com/. Use the search input to query 'Add your website'. Select the result and record the destination URL.",
+          criteria: [
+            "The search result leads to the documentation page for adding a website",
+            "The destination page contains the text 'Add your website' as an H1 header",
+          ],
+          targetSurface: "https://app.example.com/",
+          sources: [{ kind: "page", ref: "https://app.example.com/", observation: "docs search" }],
+        }),
+      ),
+    ).not.toContain("worthless_presence_check");
+  });
+
+  it("keeps 'navigation results in the browser reaching the URL' (action → outcome)", () => {
+    expect(
+      codes(
+        good({
+          missionKey: "docs-cross-linking",
+          title: "Validate Documentation Cross-Linking",
+          objective: "Ensure the 'Get Started' navigation leads to the specific 'Add your website' guide.",
+          instructions: "Navigate to https://app.example.com/. Follow the 'Get Started' links to the guide and record the URL reached.",
+          criteria: [
+            "The navigation path results in the browser reaching the guide URL under app.example.com",
+            "The reached page displays 'Add your website details' as its H1 heading",
+          ],
+          targetSurface: "https://app.example.com/",
+          sources: [{ kind: "page", ref: "https://app.example.com/", observation: "get-started nav" }],
+        }),
+      ),
+    ).not.toContain("worthless_presence_check");
+  });
+
+  it("keeps a conditional-presence check that follows a real action ('error appears AFTER submitting')", () => {
+    expect(
+      codes(
+        good({
+          objective: "Confirm an inline error appears after submitting the signup form with an invalid email.",
+          criteria: [
+            "After submitting an invalid email, an inline error message is present near the email field",
+            "The error names the email field as the problem",
+          ],
+        }),
+      ),
+    ).not.toContain("worthless_presence_check");
+  });
+
+  it("does not flag the clean baseline mission (an action + outcome)", () => {
+    expect(codes(good())).not.toContain("worthless_presence_check");
+  });
+});

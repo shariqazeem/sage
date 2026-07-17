@@ -309,6 +309,7 @@ export type MissionValidationCode =
   | "instructions_criteria_inconsistent"
   | "evidence_cannot_prove_criteria"
   | "unsupported_evidence_type"
+  | "worthless_presence_check"
   | "prompt_injection_content";
 
 export interface MissionValidationIssue {

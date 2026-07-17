@@ -60,6 +60,39 @@ function anyMatch(patterns: RegExp[], text: string): boolean {
   return patterns.some((re) => re.test(text));
 }
 
+/* ── "worth paying for" gate: a mission whose SUCCESS is merely that a DOM element exists ── */
+
+// A criterion that just asserts an element/text is PRESENT / exists / is visible / is identifiable /
+// has an accessible name — the hallmark of a worthless presence check (paying a human to confirm a
+// button is in the DOM). Deliberately narrow, matched against criteria (which define success).
+const PRESENCE_CRITERION =
+  /\b(present in the (dom|document|page|markup)|exists? in the (dom|document|page|markup)|element (exists?|is present)|(is|are)\b[^.]{0,30}\bpresent\b|\bis (visible|identifiable|discoverable)\b|identifiable (via|by|through)|(has|possess(es)?|contain(s)?)\b[^.]{0,30}\b(accessible|aria)[- ]?(name|label)|non-empty\b[^.]{0,20}\b(accessible|aria|name|label|identifier))/i;
+
+// An action→OUTCOME signal: the criterion (or objective) hinges on a real thing HAPPENING — a URL is
+// reached, a page loads, a state changes, something results from an action. Any of these means the
+// mission is NOT a bare presence check, so it is kept. (A bare "navigate to <url>" does NOT count —
+// every mission has that; we require a produced result.)
+const ACTION_OUTCOME =
+  /\b(leads? to|results? in|reach(es|ed|ing)? the (url|page|screen|view|state)|redirect(s|ed|ing)? to|navigat(es|ed|ing) to the (url|page)|after (you )?(submit|click|sign|complet|search|enter|select|toggl|load|scroll)|the (reached|resulting|destination|next|following|new|updated) (page|screen|url|state|view)|successfully\b|is (added|created|saved|updated|removed|toggled|enabled|disabled|shown|displayed|returned) (after|when|once|upon)|responds? (with|to)|changes? (to|when|after))/i;
+
+/**
+ * True when a mission's success is merely confirming a DOM element/text is PRESENT, with no action
+ * that produces an observable outcome — worthless to pay a human for (the yara.garden failure). Pure.
+ * Conservative by design: fires only when a real presence criterion is there, the mission reads as a
+ * presence check (objective or a majority of criteria), AND nothing anywhere signals an action→outcome.
+ */
+export function isWorthlessPresenceCheck(m: Pick<CandidateMission, "objective" | "criteria" | "instructions">): boolean {
+  const crits = m.criteria.map(norm).filter(Boolean);
+  if (crits.length === 0) return false; // emptiness is handled by the spec gate
+  const presenceCrits = crits.filter((c) => PRESENCE_CRITERION.test(c)).length;
+  if (presenceCrits === 0) return false;
+  const objective = norm(m.objective);
+  const looksLikePresence = PRESENCE_CRITERION.test(objective) || presenceCrits / crits.length >= 0.5;
+  const blob = `${objective}\n${norm(m.instructions)}\n${crits.join("\n")}`;
+  const hasOutcome = ACTION_OUTCOME.test(blob);
+  return looksLikePresence && !hasOutcome;
+}
+
 function urlOrNull(raw: string): URL | null {
   try {
     return new URL(raw.trim());
@@ -185,6 +218,13 @@ export function validateMission(m: CandidateMission, scope: ValidationScope): Mi
       unsupported.field,
       `requires ${unsupported.category} ("${unsupported.match}") — Sage can only verify a public URL + quoted/observed text`,
     );
+
+  // 10. WORTH PAYING FOR — reject a mission whose success is merely that a DOM element exists.
+  // A presence check is worthless to pay a human for; the model is untrusted here, so the gate
+  // enforces it deterministically. Dropping every candidate leaves 0 accepted → the pipeline
+  // asks the founder what verifiable outcome they want (needs_input) rather than confabulating.
+  if (isWorthlessPresenceCheck(m))
+    add("worthless_presence_check", "criteria", "mission only confirms an element is present in the DOM — not worth paying a tester for; require an action + observable outcome");
 
   return { ok: issues.length === 0, missionKey: m.missionKey, issues };
 }
