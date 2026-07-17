@@ -146,6 +146,31 @@ export interface FieldTestNotableElement {
 }
 
 /**
+ * What a vision model reported when it LOOKED at one state screenshot — observations only, never
+ * plans or missions. Untrusted product content (kept inside the UNTRUSTED boundary + size-capped).
+ * Lets the product map understand a wordless/visual experience (yara.garden) that thin DOM text alone
+ * can't: an anime game titled "Yara", not "product (uncategorized)".
+ */
+export interface VisionObservation {
+  /** which state's screenshot this describes (index into FieldTestSummary.states). */
+  stateIndex: number;
+  /** the trigger of that state (echoed for readability), e.g. "initial load", "explored '+'" . */
+  trigger: string;
+  /** one plain sentence of what is visibly on screen. */
+  sceneDescription: string;
+  /** text legible in the screenshot (titles, labels, copy) — capped. */
+  visibleText: string[];
+  /** notable UI controls Sage can see, with a coarse kind (button/link/menu/canvas/input/icon/…). */
+  uiElements: { label: string; kind: string }[];
+  /** signals about what KIND of product this is (e.g. "interactive game", "anime art", "SaaS dashboard"). */
+  productTypeSignals: string[];
+  /** signals about who it is for (e.g. "casual players", "developers", "children"). */
+  audienceSignals: string[];
+  /** visible problems (broken layout, error text, blank canvas, illegible contrast) — honest, may be empty. */
+  qualityIssues: string[];
+}
+
+/**
  * ONE observed state in interactive-explore mode — a real thing Sage saw after a real action
  * (initial load, waiting out a loading screen, clicking a start/continue control, pressing a key).
  * `visibleTextExcerpt` is RENDERED DOM text (not raw HTML). Anchors every interactive mission to
@@ -174,6 +199,8 @@ export interface FieldTestSummary {
   states: FieldTestState[];
   /** honest one-line classification for the UI, e.g. "Interactive app detected · 5 states explored". */
   classification: string | null;
+  /** vision-model observations of the state screenshots (present only when the vision pass ran). */
+  visionObservations?: VisionObservation[];
   /** an honest reason when the field test was skipped/degraded (null on success). */
   limitation: string | null;
   durationMs: number;

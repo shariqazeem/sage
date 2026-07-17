@@ -8,6 +8,7 @@
  */
 
 import { norm, productMapDigest } from "./schemas";
+import { aggregateVisionSignals, visionCategory, type AggregatedVision } from "./vision";
 import type {
   FieldTestSummary,
   FounderLaunchInput,
@@ -16,6 +17,7 @@ import type {
   ProductObservation,
   RepoArtifact,
   SourceRef,
+  VisionObservation,
 } from "./schemas";
 
 function pageRef(o: ProductObservation, observation: string): SourceRef {
@@ -189,7 +191,64 @@ export function buildProductMap(
   // leaving the serialized map byte-identical to today.
   const map: ProductMapV1 = { ...base, digest: productMapDigest(base) };
   if (fieldTest && fieldTest.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0)) map.fieldTest = fieldTest;
+  // P14 — enrich the map's UNDERSTANDING from what a vision model saw in the state screenshots. Applied
+  // AFTER the digest, so the canonical digest stays a stable hash of the deterministic static evidence
+  // (vision is non-deterministic). No visionObservations → this is a no-op → the map is byte-identical.
+  // Vision only ever runs in interactive mode (states>1), so this only touches thin visual products —
+  // exactly the ones static text categorization fails on (yara.garden → "product (uncategorized)").
+  if (fieldTest?.visionObservations && fieldTest.visionObservations.length > 0) {
+    applyVisionUnderstanding(map, observations, fieldTest.visionObservations);
+  }
   return map;
+}
+
+/** A short product name derived from vision: the shortest title segment (or host brand) that the
+ *  vision model actually SAW on screen. yara.garden: title "Yara — a gentle world to heal" → "Yara". */
+function visionNameFrom(landing: ProductObservation | undefined, agg: AggregatedVision): string | null {
+  if (!landing) return null;
+  const visText = agg.visibleText.join(" · ").toLowerCase();
+  let hostBrand = "";
+  try {
+    hostBrand = new URL(landing.url).host.replace(/^www\./, "").split(".")[0].toLowerCase();
+  } catch {
+    /* no host */
+  }
+  const segs = landing.title.split(/\s[|–—:·-]\s/).map((s) => norm(s)).filter(Boolean);
+  for (const seg of segs) {
+    const low = seg.toLowerCase();
+    if (seg.split(/\s+/).length <= 2 && (visText.includes(low) || (hostBrand && low.includes(hostBrand)))) return seg;
+  }
+  if (hostBrand && visText.includes(hostBrand)) return hostBrand.charAt(0).toUpperCase() + hostBrand.slice(1);
+  return null;
+}
+
+/** Override category/name + seed audience/value-prop from vision — only for products Sage LOOKED at. */
+function applyVisionUnderstanding(map: ProductMapV1, observations: ProductObservation[], visionObs: VisionObservation[]): void {
+  const agg = aggregateVisionSignals(visionObs);
+  const landing = observations[0];
+
+  const cat = visionCategory(agg);
+  if (cat) map.category = cat;
+
+  const name = visionNameFrom(landing, agg);
+  if (name) map.productName = name;
+
+  if (agg.audienceSignals.length > 0 && landing) {
+    map.targetUserHypotheses = [
+      {
+        value: `Seen on screen: ${agg.audienceSignals.slice(0, 3).join(", ")}`,
+        confidence: 0.55,
+        sources: [pageRef(landing, "vision observation of the product")],
+        browserConfirmed: true,
+      },
+      ...map.targetUserHypotheses,
+    ];
+  }
+
+  // seed the value prop from what Sage actually saw only when the static one is empty/placeholder.
+  if ((!map.valueProp || /^\(no clear/.test(map.valueProp)) && agg.sceneDescriptions.length > 0) {
+    map.valueProp = agg.sceneDescriptions[0].slice(0, 200);
+  }
 }
 
 /** The set of every URL/host/repo-path known from the map — the mission-validation scope. */

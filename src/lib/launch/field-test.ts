@@ -20,6 +20,7 @@ import { promises as fs } from "node:fs";
 import type { BrowserContext, Page, Route } from "playwright";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
 import { resolvesPublic } from "./inspect";
+import { describeStatesWithVision } from "./vision";
 import type {
   FieldTestForm,
   FieldTestState,
@@ -410,6 +411,17 @@ export async function runFieldTest(
         entryErrors,
       });
       await entryPage.close().catch(() => {});
+      // P14 — LOOK at the state screenshots with a vision model (cost-guarded: only when there is
+      // more than one state to describe). Failure-isolated: if vision fails or is unconfigured, the
+      // summary is returned exactly as the no-vision path (no visionObservations key at all).
+      if (summary.states.length > 1) {
+        try {
+          const vision = await describeStatesWithVision(summary.states, artifactDir, { log: (m) => console.log(m) });
+          if (vision.length > 0) summary.visionObservations = vision;
+        } catch {
+          /* vision degraded — summary unchanged */
+        }
+      }
       return summary;
     }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildProductMap, scopeFromObservations } from "./product-map";
-import type { FounderLaunchInput, ProductObservation } from "./schemas";
+import type { FieldTestSummary, FounderLaunchInput, ProductObservation, VisionObservation } from "./schemas";
 
 /**
  * The product map is deterministic evidence: same inputs → same normalized map + digest;
@@ -62,5 +62,74 @@ describe("buildProductMap — deterministic, sourced, honest", () => {
     expect(scope.knownUrls.has("https://acme.example/")).toBe(true);
     // discovered same-origin links are in scope too (so a mission can target them).
     expect([...scope.knownUrls].some((u) => u.includes("/pricing"))).toBe(true);
+  });
+});
+
+/* ─────────────────────────── P14 — vision enrichment ─────────────────────── */
+
+const yaraObs = (): ProductObservation =>
+  obs("https://yara.example/", {
+    title: "Yara — a gentle world to heal",
+    headings: [],
+    claims: [],
+    ctas: ["·"],
+    forms: [],
+    techHints: [],
+    authBoundary: false,
+    states: [],
+  });
+
+function fieldTest(vision: VisionObservation[] | undefined): FieldTestSummary {
+  const base: FieldTestSummary = {
+    ran: true,
+    startUrl: "https://yara.example/",
+    mode: "interactive",
+    pages: [],
+    states: [
+      { trigger: "initial load", screenshot: "/api/field-tests/x/0", visibleTextExcerpt: "Yara", notableElements: [], pixelDeltaPct: 100, url: "https://yara.example/" },
+      { trigger: "explored '+'", screenshot: "/api/field-tests/x/1", visibleTextExcerpt: "Yara", notableElements: [], pixelDeltaPct: 20, url: "https://yara.example/" },
+    ],
+    classification: "Interactive app detected · 2 states explored",
+    limitation: null,
+    durationMs: 1,
+  };
+  return vision ? { ...base, visionObservations: vision } : base;
+}
+
+const yaraVision: VisionObservation[] = [
+  {
+    stateIndex: 0, trigger: "initial load",
+    sceneDescription: "An anime-styled ambient world with drifting particles",
+    visibleText: ["Yara", "make a wish"], uiElements: [{ label: "+", kind: "button" }],
+    productTypeSignals: ["interactive game", "anime art"],
+    audienceSignals: ["casual players seeking calm"], qualityIssues: [],
+  },
+];
+
+describe("buildProductMap — P14 vision enrichment", () => {
+  it("is byte-identical in its understanding when the field test carries NO vision observations", () => {
+    const noFt = buildProductMap([yaraObs()], [], founder);
+    const ftNoVision = buildProductMap([yaraObs()], [], founder, fieldTest(undefined));
+    // attaching a field test (without vision) must change NO understanding field.
+    expect(ftNoVision.productName).toBe(noFt.productName);
+    expect(ftNoVision.category).toBe(noFt.category);
+    expect(ftNoVision.valueProp).toBe(noFt.valueProp);
+    expect(ftNoVision.targetUserHypotheses).toEqual(noFt.targetUserHypotheses);
+    expect(ftNoVision.digest).toBe(noFt.digest);
+    expect(ftNoVision.category).toBe("product (uncategorized)"); // the un-enriched baseline
+  });
+
+  it("enriches category, name, and audience from vision when present", () => {
+    const map = buildProductMap([yaraObs()], [], founder, fieldTest(yaraVision));
+    expect(map.category).toMatch(/interactive game/i);
+    expect(map.category).toMatch(/anime-styled/i);
+    expect(map.productName).toBe("Yara"); // from the title's short segment, seen on screen
+    expect(map.targetUserHypotheses[0].value).toMatch(/seen on screen:.*casual players/i);
+  });
+
+  it("keeps the canonical digest stable — vision is applied AFTER the digest", () => {
+    const withVision = buildProductMap([yaraObs()], [], founder, fieldTest(yaraVision));
+    const withoutVision = buildProductMap([yaraObs()], [], founder, fieldTest(undefined));
+    expect(withVision.digest).toBe(withoutVision.digest);
   });
 });
