@@ -298,7 +298,7 @@ export async function runDeputyOnSubmission(
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
       journalHeld(campaign, submission, gate.reason, cid);
       // DM the founder who launched this campaign from Telegram (best-effort, never blocks).
-      void notifyFounderHeld(campaign, submission, gate.reason);
+      void notifyFounderHeld(campaign, submission);
       return { action: "held", reason: gate.reason, correlationId: cid };
     }
     return { action: "skipped", reason: gate.reason, correlationId: cid };

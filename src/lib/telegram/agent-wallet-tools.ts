@@ -16,6 +16,15 @@ import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
 import { GOAT_USDC } from "@/lib/deputy/networks";
+import { getCampaign, getSubmission } from "@/lib/db/campaigns";
+import {
+  listHeldSubmissions,
+  releaseSubmission,
+  rejectSubmission,
+  reviewSummary,
+  ownsCampaign,
+} from "@/lib/campaigns/review-actions";
+import { putPendingReview, consumePendingReview } from "./pending-review";
 
 /**
  * The Telegram concierge's AGENT-WALLET tools — the only place the chat agent can move money, and
@@ -108,6 +117,49 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
     description:
       "Execute the withdrawal the founder just confirmed (prepared by sage_request_withdrawal). Only call AFTER they clearly say yes to the exact amount + address. This moves real funds. Returns the transaction + explorer link.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "sage_list_held",
+    description:
+      "List the submissions Sage HELD for review on one of the founder's campaigns (it wasn't confident enough to auto-pay). Use when the founder asks to see or review held work. Returns each held submission's id, mission, confidence, a reason class, and the public evidence link — never the tester's private note. Gated to the founder's own campaigns.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        campaignId: { type: "string", description: "The campaign to list held submissions for." },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "sage_release_submission",
+    description:
+      "Prepare to RELEASE (approve + pay) one held submission the founder wants to accept. This does NOT pay yet — it returns a summary to read back to the founder. After they clearly say yes, call sage_confirm_release. Never releases on its own. Gated to the founder's own campaigns.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        submissionId: { type: "string", description: "The held submission id (from sage_list_held)." },
+      },
+      required: ["submissionId"],
+    },
+  },
+  {
+    name: "sage_confirm_release",
+    description:
+      "Actually release the prepared submission — settles the real payout through the vault (which enforces the cap + reward; no amount is passed). Call ONLY after the founder clearly confirms the summary from sage_release_submission.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "sage_reject_submission",
+    description:
+      "Reject one held submission the founder does NOT want to pay — marks it rejected, no payout, no funds move. Gated to the founder's own campaigns.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        submissionId: { type: "string", description: "The held submission id." },
+        why: { type: "string", description: "Optional short reason (kept internal, not shown to the tester)." },
+      },
+      required: ["submissionId"],
+    },
   },
 ];
 
@@ -271,6 +323,94 @@ export async function callAgentWalletTool(
           console.error("[agent-wallet-tools] withdraw failed:", e);
           return err(`The withdrawal didn't go through (${e instanceof Error ? e.message : String(e)}). Your funds are safe in the wallet — you can try again.`);
         }
+      }
+      case "sage_list_held": {
+        const b = founderBinding(chatId);
+        if (!b) return err("There's no agent wallet yet — set one up before reviewing campaigns.");
+        const campaign = getCampaign(typeof args.campaignId === "string" ? args.campaignId : "");
+        if (!campaign) return err("That campaign wasn't found.");
+        if (!ownsCampaign(campaign, b.privyWalletAddress))
+          return err("That campaign isn't one you launched, so you can't review its submissions.");
+        const held = listHeldSubmissions(campaign);
+        return ok({
+          ok: true,
+          campaignId: campaign.id,
+          count: held.length,
+          held: held.map((h) => ({
+            submissionId: h.submissionId,
+            mission: h.missionTitle,
+            confidence: h.confidencePct != null ? `${h.confidencePct}%` : null,
+            class: h.reasonClass,
+            evidence: h.evidenceUrl,
+          })),
+          message: held.length
+            ? `${held.length} submission(s) awaiting your review.`
+            : "Nothing is held for review right now.",
+        });
+      }
+      case "sage_release_submission": {
+        const b = founderBinding(chatId);
+        if (!b) return err("There's no agent wallet yet.");
+        const submission = getSubmission(typeof args.submissionId === "string" ? args.submissionId : "");
+        if (!submission) return err("That submission wasn't found.");
+        const campaign = getCampaign(submission.campaignId);
+        if (!campaign) return err("That submission's campaign wasn't found.");
+        if (!ownsCampaign(campaign, b.privyWalletAddress))
+          return err("That submission is on a campaign you didn't launch.");
+        const summary = reviewSummary(campaign, submission.id);
+        if ("error" in summary) return err(summary.error);
+        putPendingReview(chatId, campaign.id, submission.id);
+        const rewardUsdc = usd(BigInt(summary.rewardBase));
+        return ok({
+          ok: true,
+          needsConfirmation: true,
+          mission: summary.missionTitle,
+          rewardUsdc,
+          recipient: summary.recipient,
+          message: `Confirm with the founder: release ${rewardUsdc} USDC to ${summary.recipient} for "${summary.missionTitle}"? This settles a real payout. Call sage_confirm_release ONLY after they clearly say yes.`,
+        });
+      }
+      case "sage_confirm_release": {
+        const b = founderBinding(chatId);
+        if (!b) return err("There's no agent wallet.");
+        const pending = consumePendingReview(chatId);
+        if (!pending)
+          return err("There's no prepared release to confirm (it may have expired) — have the founder pick a held submission again first.");
+        const campaign = getCampaign(pending.campaignId);
+        if (!campaign || !ownsCampaign(campaign, b.privyWalletAddress))
+          return err("That campaign is no longer yours to settle.");
+        const res = await releaseSubmission(pending.campaignId, pending.submissionId);
+        if (!res.ok) return err(res.error ?? "The release didn't go through.");
+        if (res.settled && res.txHash) {
+          return ok({
+            ok: true,
+            settled: true,
+            txHash: res.txHash,
+            proofUrl: `${appUrl()}/proof/${res.txHash}`,
+            message: `Released and paid — proof: ${appUrl()}/proof/${res.txHash}`,
+          });
+        }
+        return ok({
+          ok: false,
+          settled: false,
+          reason: res.reason ?? "not settled",
+          message: res.needsOwnerAdd
+            ? "The recipient needs to be allowlisted before this can settle."
+            : `It didn't settle: ${res.reason ?? "the vault declined it"}. The submission is approved; you can retry.`,
+        });
+      }
+      case "sage_reject_submission": {
+        const b = founderBinding(chatId);
+        if (!b) return err("There's no agent wallet.");
+        const submission = getSubmission(typeof args.submissionId === "string" ? args.submissionId : "");
+        if (!submission) return err("That submission wasn't found.");
+        const campaign = getCampaign(submission.campaignId);
+        if (!campaign) return err("That submission's campaign wasn't found.");
+        if (!ownsCampaign(campaign, b.privyWalletAddress))
+          return err("That submission is on a campaign you didn't launch.");
+        const res = rejectSubmission(campaign.id, submission.id, typeof args.why === "string" ? args.why : undefined);
+        if (!res.ok) return err(res.error ?? "Couldn't reject it.");
+        return ok({ ok: true, message: "Rejected — no payout, no funds moved." });
       }
       default:
         return err(`unknown agent-wallet tool: ${name}`);

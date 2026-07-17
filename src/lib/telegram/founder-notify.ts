@@ -51,9 +51,17 @@ export async function notifyFounderSettled(
   );
 }
 
-/** "Held for review: <reason> — <console link>". */
-export async function notifyFounderHeld(campaign: Campaign, _submission: Submission, reason: string): Promise<void> {
+/** Held-review DM for a chat-launched campaign: point the founder at the chat review flow (the
+ *  console is owner-gated to the Privy wallet they can't sign as), never at a raw reason string. */
+export async function notifyFounderHeld(campaign: Campaign, submission: Submission): Promise<void> {
   const chatId = founderChatId(campaign);
   if (!chatId) return;
-  await dmWithRetry(chatId, `Held for review: ${reason} — ${appUrl()}/campaign/${campaign.id}`);
+  const mission = submission.missionIdHash ? getMissionByHash(campaign.id, submission.missionIdHash) : null;
+  const title = mission?.title ?? campaign.title;
+  await dmWithRetry(
+    chatId,
+    `Held for review — "${title}". I wasn't confident enough to auto-pay this one.\n` +
+      `Reply "show held submissions" and I'll list it so you can release or reject it.\n` +
+      `Board: ${appUrl()}/c/${campaign.id}`,
+  );
 }
