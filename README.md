@@ -36,9 +36,19 @@ DMs you a mission plan in about two minutes; **nothing is charged until you fund
   untrusted-data delimiters, an 8-family server-side injection detector, verbatim-quote
   enforcement, and a confidence ceiling — and the vault is the final gate regardless.
   The red-team suite (`tests/redteam/`) guards it in CI.
-- **It actually uses the product.** With the Field Test on, Sage browses the inspected
-  product in a real headless Chromium — screenshots, JS-rendered content, console errors —
-  and feeds that to mission design. It tests what's really there, not a guess from the HTML.
+- **It actually plays the product.** With the Field Test on, Sage explores the product in a
+  real headless Chromium *as a state machine* — waiting out loading screens, clicking into an
+  interactive app, and **reading each screen with a vision model**. It understands a wordless
+  game (yara.garden → *"interactive game, titled Yara"*), not a guess from the HTML.
+- **Missions can't be hallucinated.** Every mission carries verbatim anchors, and a
+  deterministic gate rejects any claim that isn't a literal substring of what Sage actually
+  observed — a *"Validate Zoom Control"* for a control that was never there cannot reach a
+  founder, whatever the model says. When observation is too thin, Sage asks instead of inventing.
+- **Autonomy with judgment, not a rubber stamp.** Sage **pays what it can verify** (a public
+  URL + quoted text settles automatically) **and holds what it can't** — an interactive-app
+  result it can't prove from a URL is held for a one-tap founder approval from Telegram, never
+  auto-paid on a guess. Corpus cross-verification of written accounts (against what Sage saw
+  but the tester never did) closes that loop next.
 - **Verifiable, not vibes.** Every decision cites the exact evidence it read; every payout
   is a public `/proof/<tx>` page a stranger can re-check on-chain.
 - **Observable autonomy.** The tester board shows a live "Sage activity" feed — received,
