@@ -59,7 +59,21 @@ export interface CreateInspectionInput {
 export function createInspectionJob(input: CreateInspectionInput): { job: InspectionJob; created: boolean } {
   const key = idempotencyKey(input.founderWallet, input.productUrl, input.totalBudgetBase, input.repoUrl);
   const existing = getInspectionJobByIdem(key);
-  if (existing) return { job: existing, created: false };
+  if (existing) {
+    // A prior run that FAILED (or stalled on needs_input) + a fresh request → retry it from scratch,
+    // so the founder isn't handed the same stale failure ("Try again" that never re-runs). The reset
+    // is atomic + terminal-only, so a duplicate submit while a run is in flight is a no-op (returns
+    // the in-progress job). created:true makes every caller (web, agent API, concierge) reschedule
+    // runInspectionJob. (Re-inspecting a READY url for a second campaign is a separate feature — it
+    // needs a fresh campaign slug — so a ready job is still returned as-is here.)
+    if (
+      (existing.status === "failed" || existing.status === "needs_input") &&
+      resetInspectionForRetry(existing.id)
+    ) {
+      return { job: getInspectionJob(existing.id) as InspectionJob, created: true };
+    }
+    return { job: existing, created: false };
+  }
 
   const id = nanoid(12);
   const now = nowSeconds();

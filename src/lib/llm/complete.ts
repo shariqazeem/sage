@@ -12,7 +12,10 @@ import "server-only";
 
 const DEFAULT_BASE_URL = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
-const TIMEOUT_MS = 45_000;
+// Mission design generates up to ~4200 tokens of JSON from a large (field-tested) product map, so
+// 45s was too tight on a lite model + gateway latency → provider_timeout. Give it real headroom;
+// env-tunable for slow providers/sites.
+const TIMEOUT_MS = Math.max(20_000, Number(process.env.LLM_TIMEOUT_MS) || 90_000);
 
 export interface LlmComplete {
   /** the parsed JSON object the model returned. */
