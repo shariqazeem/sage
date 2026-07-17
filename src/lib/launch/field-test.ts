@@ -4,11 +4,13 @@ import "server-only";
  * The "Field Test": Sage actually USES the inspected product in a real headless browser,
  * instead of only reading server-rendered HTML. It reuses the frozen SSRF/public-host guards
  * (validateEvidenceUrl + resolvesPublic) on the entry URL AND on every intercepted request,
- * navigates the entry + a few ranked same-origin pages, and captures what a real visit reveals
- * (screenshots, JS-rendered content, console errors, broken requests). It NEVER fills or submits
- * a form; interaction is limited to same-origin GET navigations. Playwright is imported lazily so
- * this module has no cost (and no dependency) unless the flag is on. Everything is failure-isolated:
- * any error degrades to an honest limitation — the inspection job must never fail because of it.
+ * then EITHER crawls a few ranked same-origin pages (a content site) OR — for a client-rendered
+ * interactive app / game — runs a small STATE MACHINE: it waits out loading screens, safely
+ * clicks start/continue controls, nudges a focused canvas with a few keys, and logs each real
+ * observed state. It NEVER fills or submits a form, never types data, never authenticates, and
+ * stays same-origin. Playwright is imported lazily so this module has no cost (and no dependency)
+ * unless the flag is on. Everything is failure-isolated: any error degrades to an honest
+ * limitation — the inspection job must never fail because exploration failed.
  *
  * Enabled ONLY when FIELD_TEST_ENABLED=1; otherwise the pipeline behaves exactly as before.
  */
@@ -18,7 +20,12 @@ import { promises as fs } from "node:fs";
 import type { BrowserContext, Page, Route } from "playwright";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
 import { resolvesPublic } from "./inspect";
-import type { FieldTestForm, FieldTestSummary } from "./schemas";
+import type {
+  FieldTestForm,
+  FieldTestState,
+  FieldTestSummary,
+  ProductMode,
+} from "./schemas";
 
 /** Raw per-page capture, before summarization (internal). */
 export interface FieldTestCapture {
@@ -38,6 +45,14 @@ const MAX_PAGES = 6;
 const TOTAL_MS = 90_000;
 const PAGE_MS = 15_000;
 const MAX_CTAS = 10;
+
+// interactive-explore budgets (spec caps).
+const MAX_INTERACTIONS = 12;
+const EXPLORE_MS = 180_000; // 3 minutes hard cap
+const LOADING_BUDGET_MS = 60_000;
+const LOADING_POLL_MS = 2_000;
+const STABLE_DELTA = 4; // % — under this vs the prior poll counts as "settled"
+const CANVAS_MIN_AREA = 40_000; // ≥ ~200×200: a real surface, not an icon
 
 /* ───────────────────────────────── pure, unit-testable helpers ───────────── */
 
@@ -79,7 +94,68 @@ export function computeJsOnly(rawHtmlTextLen: number, renderedTextLen: number): 
   return renderedTextLen >= 400 && renderedTextLen > rawHtmlTextLen * 2 + 300;
 }
 
-/** Build the durable summary from raw captures — caps CTAs, filters broken requests, computes jsOnly. Pure. */
+/** The signals gathered on entry to decide static-crawl vs interactive-explore. */
+export interface ProductSignals {
+  hasCanvas: boolean;
+  /** the largest canvas' pixel area (width×height), 0 if none. */
+  canvasArea: number;
+  webgl: boolean;
+  keyListeners: boolean;
+  gamepad: boolean;
+  spaRouting: boolean;
+  nodeCount: number;
+  renderedTextLen: number;
+  rawHtmlTextLen: number;
+  hasServiceWorker: boolean;
+}
+
+/**
+ * Decide the product mode from real signals. Interactive when there's a substantial canvas paired
+ * with a game-ish signal (WebGL, keyboard/gamepad listeners, or very thin text), or a thin SPA
+ * shell around a canvas. Otherwise static (a content site we crawl exactly as before). Pure.
+ */
+export function classifyMode(s: ProductSignals): ProductMode {
+  const bigCanvas = s.hasCanvas && s.canvasArea >= CANVAS_MIN_AREA;
+  const thinText = s.renderedTextLen < 600;
+  if (bigCanvas && (s.webgl || s.keyListeners || s.gamepad || thinText)) return "interactive";
+  if (s.gamepad && s.hasCanvas) return "interactive";
+  if (s.spaRouting && thinText && bigCanvas) return "interactive";
+  return "static";
+}
+
+/**
+ * The honest jsOnly fix (spec 5): near-zero visible text in BOTH the raw HTML and the rendered DOM,
+ * with a real canvas, is an INTERACTIVE APP — never "0 JavaScript-only pages". Pure.
+ */
+export function isInteractiveApp(rawHtmlTextLen: number, renderedTextLen: number, hasBigCanvas: boolean): boolean {
+  return hasBigCanvas && rawHtmlTextLen < 300 && renderedTextLen < 400;
+}
+
+/** A dependency-free visual fingerprint of a state (rendered-text volume, node count, canvas sample). */
+export interface StateFingerprint {
+  textLen: number;
+  nodeCount: number;
+  /** a coarse downsample of the largest canvas (0..255 values), or null (WebGL blank / no canvas). */
+  canvasSample: number[] | null;
+}
+
+/** Approximate change % between two fingerprints, 0..100 — a best-effort visual-change signal. Pure. */
+export function fingerprintDelta(a: StateFingerprint | null, b: StateFingerprint): number {
+  if (!a) return 100;
+  const pct = (x: number, y: number): number => {
+    const max = Math.max(x, y, 1);
+    return (Math.abs(x - y) / max) * 100;
+  };
+  let canvasDelta = 0;
+  if (a.canvasSample && b.canvasSample && a.canvasSample.length === b.canvasSample.length && a.canvasSample.length > 0) {
+    let diff = 0;
+    for (let i = 0; i < a.canvasSample.length; i++) if (Math.abs(a.canvasSample[i] - b.canvasSample[i]) > 12) diff++;
+    canvasDelta = (diff / a.canvasSample.length) * 100;
+  }
+  return Math.round(Math.max(pct(a.textLen, b.textLen), pct(a.nodeCount, b.nodeCount), canvasDelta));
+}
+
+/** Build the durable STATIC summary from raw captures — caps CTAs, filters broken requests. Pure. */
 export function buildFieldTestSummary(input: {
   startUrl: string;
   captures: FieldTestCapture[];
@@ -100,29 +176,66 @@ export function buildFieldTestSummary(input: {
   return {
     ran: pages.length > 0,
     startUrl: input.startUrl,
+    mode: "static",
     pages,
+    states: [],
+    classification: null,
     limitation: input.limitation,
     durationMs: input.durationMs,
   };
 }
 
-/** The compact per-page projection fed to the Mission Brain (stays inside the UNTRUSTED boundary). */
-export function fieldTestForMap(summary: FieldTestSummary): Array<{
-  url: string;
-  title: string;
-  ctas: string[];
-  consoleErrors: string[];
-  brokenRequests: { url: string; status: number }[];
-  jsOnly: boolean;
-}> {
-  return summary.pages.map((p) => ({
-    url: p.url,
-    title: p.title,
-    ctas: p.ctas.slice(0, 8),
-    consoleErrors: p.consoleErrors.slice(0, 5),
-    brokenRequests: p.brokenRequests.slice(0, 5),
-    jsOnly: p.jsOnly,
-  }));
+/** Build the durable INTERACTIVE summary from the observed state log. Pure. */
+export function buildInteractiveSummary(input: {
+  startUrl: string;
+  states: FieldTestState[];
+  durationMs: number;
+  limitation: string | null;
+}): FieldTestSummary {
+  const states = input.states.slice(0, MAX_INTERACTIONS + 4);
+  return {
+    ran: states.length > 0,
+    startUrl: input.startUrl,
+    mode: "interactive",
+    pages: [],
+    states,
+    classification: states.length > 0 ? `Interactive app detected · ${states.length} states explored` : null,
+    limitation: input.limitation,
+    durationMs: input.durationMs,
+  };
+}
+
+/**
+ * The compact projection fed to the Mission Brain (stays inside the UNTRUSTED boundary). Static
+ * mode keeps today's per-page shape; interactive mode surfaces the observed state log so a mission
+ * can only be anchored to a state Sage actually reached.
+ */
+export function fieldTestForMap(summary: FieldTestSummary):
+  | { mode: "static"; pages: Array<{ url: string; title: string; ctas: string[]; consoleErrors: string[]; brokenRequests: { url: string; status: number }[]; jsOnly: boolean }> }
+  | { mode: "interactive"; classification: string | null; states: Array<{ trigger: string; visibleTextExcerpt: string; notableElements: { tag: string; text: string; role: string }[]; url: string }> } {
+  if (summary.mode === "interactive") {
+    return {
+      mode: "interactive",
+      classification: summary.classification,
+      states: summary.states.slice(0, MAX_INTERACTIONS + 4).map((s) => ({
+        trigger: s.trigger,
+        visibleTextExcerpt: s.visibleTextExcerpt.slice(0, 600),
+        notableElements: s.notableElements.slice(0, 10),
+        url: s.url,
+      })),
+    };
+  }
+  return {
+    mode: "static",
+    pages: summary.pages.map((p) => ({
+      url: p.url,
+      title: p.title,
+      ctas: p.ctas.slice(0, 8),
+      consoleErrors: p.consoleErrors.slice(0, 5),
+      brokenRequests: p.brokenRequests.slice(0, 5),
+      jsOnly: p.jsOnly,
+    })),
+  };
 }
 
 /* ────────────────────── the Playwright orchestration (lazy, isolated) ─────── */
@@ -137,9 +250,9 @@ export interface FieldTestDeps {
 }
 
 /**
- * Field-test a product: browse the entry URL + up to 5 ranked same-origin pages (≤6 total,
- * ≤90s, ≤15s/page) and return a captured summary. Never throws — any failure returns a summary
- * with `ran:false` (or partial pages) and an honest `limitation`.
+ * Field-test a product. Detects the product mode on entry, then EITHER crawls same-origin pages
+ * (static) OR runs the interactive state machine (a client app / game). Never throws — any failure
+ * returns a summary with `ran:false` (or partial output) and an honest `limitation`.
  */
 export async function runFieldTest(
   opts: { inspectionId: string; startUrl: string; host: string; candidateLinks: string[] },
@@ -150,7 +263,8 @@ export async function runFieldTest(
   const publicDir = deps.publicDir ?? path.join(process.cwd(), "public");
   const started = Date.now();
   const degrade = (limitation: string): FieldTestSummary => ({
-    ran: false, startUrl: opts.startUrl, pages: [], limitation, durationMs: Date.now() - started,
+    ran: false, startUrl: opts.startUrl, mode: "static", pages: [], states: [], classification: null,
+    limitation, durationMs: Date.now() - started,
   });
 
   // 1. entry gate — same SSRF/public-host check as the HTML inspector.
@@ -196,7 +310,6 @@ export async function runFieldTest(
     .slice(0, MAX_PAGES);
 
   const artifactDir = path.join(publicDir, "field-tests", opts.inspectionId);
-  const captures: FieldTestCapture[] = [];
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   let context: BrowserContext | null = null;
 
@@ -205,6 +318,31 @@ export async function runFieldTest(
     context = await browser.newContext({
       userAgent: "SageFieldTest/1.0 (+read-only product field test)",
       viewport: { width: 1280, height: 800 },
+    });
+    // Instrument BEFORE any page script runs: record which event listeners + SPA routing appear,
+    // so mode detection reflects the real product, not a guess. Reads only; changes nothing.
+    await context.addInitScript(() => {
+      const w = window as unknown as { __sage?: Record<string, unknown> };
+      w.__sage = { keydown: false, gamepad: false, pushState: 0 };
+      const proto = EventTarget.prototype;
+      const orig = proto.addEventListener;
+      proto.addEventListener = function (type: string, ...rest: unknown[]) {
+        if (type === "keydown" || type === "keyup") (w.__sage as Record<string, boolean>).keydown = true;
+        if (type === "gamepadconnected") (w.__sage as Record<string, boolean>).gamepad = true;
+        // @ts-expect-error variadic passthrough
+        return orig.call(this, type, ...rest);
+      };
+      try {
+        const ps = history.pushState;
+        history.pushState = function (...a: unknown[]) {
+          (w.__sage as Record<string, number>).pushState =
+            ((w.__sage as Record<string, number>).pushState ?? 0) + 1;
+          // @ts-expect-error variadic passthrough
+          return ps.apply(this, a);
+        };
+      } catch {
+        /* history not writable — skip */
+      }
     });
     // Request interception: block non-http(s) schemes + any host failing the public-host check.
     await context.route("**/*", async (route: Route) => {
@@ -220,7 +358,78 @@ export async function runFieldTest(
       return void route.continue().catch(() => {});
     });
 
-    for (let i = 0; i < targets.length; i++) {
+    // 3. entry page — load, gather signals, decide the mode.
+    const entryPage = await context.newPage();
+    const entryErrors: string[] = [];
+    const entryFailed: { url: string; status: number }[] = [];
+    entryPage.on("console", (m) => {
+      if (m.type() === "error") entryErrors.push(m.text().slice(0, 300));
+    });
+    entryPage.on("response", (r) => {
+      const s = r.status();
+      if (s >= 400) entryFailed.push({ url: r.url().slice(0, 300), status: s });
+    });
+
+    let signals: ProductSignals | null = null;
+    let entryRawTextLen = 0;
+    try {
+      const resp = await entryPage.goto(targets[0] ?? opts.startUrl, { waitUntil: "domcontentloaded", timeout: PAGE_MS });
+      try {
+        const body = await resp?.text();
+        if (body) entryRawTextLen = visibleTextLen(body);
+      } catch {
+        /* keep 0 */
+      }
+      await entryPage.waitForLoadState("networkidle", { timeout: PAGE_MS }).catch(() => {});
+      signals = await gatherSignals(entryPage, entryRawTextLen);
+    } catch {
+      /* couldn't load entry — fall through to static (which will degrade honestly) */
+    }
+
+    const mode: ProductMode = signals ? classifyMode(signals) : "static";
+
+    if (mode === "interactive") {
+      // hand the already-loaded entry page to the state machine.
+      const summary = await exploreInteractive({
+        page: entryPage,
+        startUrl: opts.startUrl,
+        inspectionId: opts.inspectionId,
+        artifactDir,
+        host: opts.host,
+        started,
+        signals: signals as ProductSignals,
+        entryErrors,
+      });
+      await entryPage.close().catch(() => {});
+      return summary;
+    }
+
+    // ── STATIC CRAWL (byte-identical to the prior behavior) ──────────────────
+    const captures: FieldTestCapture[] = [];
+    // reuse the already-loaded entry page as page 0 to avoid a re-fetch.
+    try {
+      const title = (await entryPage.title().catch(() => "")).slice(0, 200);
+      const h1 = (await entryPage.locator("h1").first().innerText({ timeout: 1000 }).catch(() => ""))
+        .replace(/\s+/g, " ").trim().slice(0, 200);
+      const ctas = await extractCtas(entryPage);
+      const forms = await extractForms(entryPage);
+      const renderedTextLen = signals?.renderedTextLen ?? (await entryPage.evaluate(() => document.body?.innerText?.length ?? 0).catch(() => 0));
+      let screenshot: string | null = null;
+      try {
+        await fs.mkdir(artifactDir, { recursive: true });
+        await entryPage.screenshot({ path: path.join(artifactDir, `0.png`), fullPage: true });
+        screenshot = `/api/field-tests/${opts.inspectionId}/0`;
+      } catch {
+        screenshot = null;
+      }
+      captures.push({ url: entryPage.url(), title, h1, ctas, forms, consoleErrors: entryErrors, failedRequests: entryFailed, rawHtmlTextLen: entryRawTextLen, renderedTextLen, screenshot });
+    } catch {
+      /* entry capture failed — keep going */
+    } finally {
+      await entryPage.close().catch(() => {});
+    }
+
+    for (let i = 1; i < targets.length; i++) {
       if (Date.now() > deadline) break;
       const target = targets[i];
       const page = await context.newPage();
@@ -229,8 +438,6 @@ export async function runFieldTest(
       page.on("console", (m) => {
         if (m.type() === "error") consoleErrors.push(m.text().slice(0, 300));
       });
-      // Only real HTTP failures (status >= 400) count as broken — NOT requests we aborted at the
-      // guard (those would misattribute our own SSRF blocks to the product).
       page.on("response", (r) => {
         const s = r.status();
         if (s >= 400) failedRequests.push({ url: r.url().slice(0, 300), status: s });
@@ -244,7 +451,6 @@ export async function runFieldTest(
         } catch {
           /* keep 0 */
         }
-        // wait for network idle (capped) — this is where JS-rendered content appears.
         await page.waitForLoadState("networkidle", { timeout: PAGE_MS }).catch(() => {});
         const title = (await page.title().catch(() => "")).slice(0, 200);
         const h1 = (await page.locator("h1").first().innerText({ timeout: 1000 }).catch(() => ""))
@@ -256,8 +462,6 @@ export async function runFieldTest(
         try {
           await fs.mkdir(artifactDir, { recursive: true });
           await page.screenshot({ path: path.join(artifactDir, `${i}.png`), fullPage: true });
-          // Served via an API route, NOT the static path — `next start` won't serve a public/ file
-          // written after startup. The file still lives at public/field-tests/<id>/<i>.png on disk.
           screenshot = `/api/field-tests/${opts.inspectionId}/${i}`;
         } catch {
           screenshot = null;
@@ -269,25 +473,372 @@ export async function runFieldTest(
         await page.close().catch(() => {});
       }
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+
     return buildFieldTestSummary({
       startUrl: opts.startUrl,
       captures,
       durationMs: Date.now() - started,
-      limitation: captures.length ? "Field test ended early." : `Field test could not run (${msg.slice(0, 80)}).`,
+      limitation: captures.length ? null : "Field test found no reachable page.",
     });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return degrade(`Field test could not run (${msg.slice(0, 80)}).`);
   } finally {
     await context?.close().catch(() => {});
     await browser?.close().catch(() => {});
   }
+}
 
-  return buildFieldTestSummary({
-    startUrl: opts.startUrl,
-    captures,
-    durationMs: Date.now() - started,
-    limitation: captures.length ? null : "Field test found no reachable page.",
+/* ───────────────────────── interactive state machine ──────────────────────── */
+
+const START_WORDS = ["start", "play", "enter", "begin", "continue", "skip", "next", "explore"];
+const CONSENT_WORDS = ["accept", "agree", "got it", "dismiss", "close", "allow", "ok", "i understand", "continue"];
+
+/** Gather the entry signals (listeners recorded by the init script + a live DOM read). Reads only. */
+async function gatherSignals(page: Page, rawHtmlTextLen: number): Promise<ProductSignals> {
+  const s = await page
+    .evaluate(() => {
+      const canvases = Array.from(document.querySelectorAll("canvas")) as HTMLCanvasElement[];
+      let canvasArea = 0;
+      let webgl = false;
+      for (const c of canvases) {
+        const area = (c.width || 0) * (c.height || 0);
+        if (area > canvasArea) canvasArea = area;
+        if (!webgl) {
+          try {
+            webgl = !!(c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl"));
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const w = window as unknown as { __sage?: { keydown?: boolean; gamepad?: boolean; pushState?: number } };
+      const text = (document.body?.innerText || "").trim();
+      return {
+        hasCanvas: canvases.length > 0,
+        canvasArea,
+        webgl,
+        keyListeners: !!w.__sage?.keydown,
+        gamepad: !!w.__sage?.gamepad,
+        spaRouting: (w.__sage?.pushState ?? 0) > 0,
+        nodeCount: document.querySelectorAll("*").length,
+        renderedTextLen: text.length,
+        hasServiceWorker: !!navigator.serviceWorker?.controller,
+      };
+    })
+    .catch(() => null);
+  return {
+    hasCanvas: s?.hasCanvas ?? false,
+    canvasArea: s?.canvasArea ?? 0,
+    webgl: s?.webgl ?? false,
+    keyListeners: s?.keyListeners ?? false,
+    gamepad: s?.gamepad ?? false,
+    spaRouting: s?.spaRouting ?? false,
+    nodeCount: s?.nodeCount ?? 0,
+    renderedTextLen: s?.renderedTextLen ?? 0,
+    rawHtmlTextLen,
+    hasServiceWorker: s?.hasServiceWorker ?? false,
+  };
+}
+
+/** A coarse, dependency-free visual fingerprint (text volume + node count + downsampled canvas). */
+async function fingerprint(page: Page): Promise<StateFingerprint> {
+  const fp = await page
+    .evaluate(() => {
+      const text = (document.body?.innerText || "").trim();
+      let canvasSample: number[] | null = null;
+      const canvases = Array.from(document.querySelectorAll("canvas")) as HTMLCanvasElement[];
+      let biggest: HTMLCanvasElement | null = null;
+      let area = 0;
+      for (const c of canvases) {
+        const a = (c.width || 0) * (c.height || 0);
+        if (a > area) { area = a; biggest = c; }
+      }
+      if (biggest) {
+        try {
+          const small = document.createElement("canvas");
+          small.width = 24;
+          small.height = 24;
+          const ctx = small.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(biggest, 0, 0, 24, 24);
+            const data = ctx.getImageData(0, 0, 24, 24).data;
+            const out: number[] = [];
+            for (let i = 0; i < data.length; i += 16) out.push(data[i]); // sample R channel
+            // if every sample is identical (e.g. a blank WebGL buffer), treat as no signal.
+            if (out.some((v) => v !== out[0])) canvasSample = out;
+          }
+        } catch {
+          /* tainted / blank — no canvas signal */
+        }
+      }
+      return { textLen: text.length, nodeCount: document.querySelectorAll("*").length, canvasSample };
+    })
+    .catch(() => ({ textLen: 0, nodeCount: 0, canvasSample: null as number[] | null }));
+  return fp;
+}
+
+/** Rendered DOM visible-text excerpt (NOT raw HTML), capped. */
+async function renderedExcerpt(page: Page): Promise<string> {
+  return (await page.evaluate(() => (document.body?.innerText || "").replace(/\s+/g, " ").trim()).catch(() => ""))
+    .slice(0, 700);
+}
+
+/** A few notable rendered elements (headings, buttons, inputs) — tag/text/role only. Reads only. */
+async function notableElements(page: Page): Promise<{ tag: string; text: string; role: string }[]> {
+  return page
+    .evaluate(() => {
+      const out: { tag: string; text: string; role: string }[] = [];
+      const nodes = Array.from(document.querySelectorAll("h1,h2,h3,button,[role=button],a[href],input,label"));
+      for (const el of nodes) {
+        const he = el as HTMLElement;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+        const text = (he.innerText || he.getAttribute("aria-label") || (he as HTMLInputElement).placeholder || "")
+          .replace(/\s+/g, " ").trim().slice(0, 80);
+        if (!text) continue;
+        out.push({ tag: he.tagName.toLowerCase(), text, role: he.getAttribute("role") || "" });
+        if (out.length >= 12) break;
+      }
+      return out;
+    })
+    .catch(() => []);
+}
+
+/** Whether the page is showing a loading state right now (spinner/progress, "loading" text, bare canvas). */
+async function isLoading(page: Page): Promise<boolean> {
+  return page
+    .evaluate(() => {
+      const hasSpinner = !!document.querySelector('[class*="spinner" i], [class*="loading" i], [class*="loader" i], progress, [role="progressbar"]');
+      const text = (document.body?.innerText || "").trim().toLowerCase();
+      const loadingText = /\b(loading|please wait|entering|initializing)\b/.test(text) && text.length < 200;
+      const canvas = document.querySelector("canvas") as HTMLCanvasElement | null;
+      const canvasVisible = !!canvas && (canvas.getBoundingClientRect?.().width ?? 0) > 0;
+      const bareCanvas = canvasVisible && text.length < 40;
+      return hasSpinner || loadingText || bareCanvas;
+    })
+    .catch(() => false);
+}
+
+/**
+ * Run the interactive state machine on an already-loaded entry page: wait out loading, then a
+ * safe, capped interaction ladder — capturing a real state after each meaningful action. Never
+ * types data, never submits forms, stays same-origin. Failure-isolated.
+ */
+async function exploreInteractive(ctx: {
+  page: Page;
+  startUrl: string;
+  inspectionId: string;
+  artifactDir: string;
+  host: string;
+  started: number;
+  signals: ProductSignals;
+  entryErrors: string[];
+}): Promise<FieldTestSummary> {
+  const { page, inspectionId, artifactDir, host } = ctx;
+  const deadline = ctx.started + EXPLORE_MS;
+  const states: FieldTestState[] = [];
+  let prevFp: StateFingerprint | null = null;
+  let shotIdx = 0;
+
+  const sameOrigin = (u: string): boolean => {
+    try {
+      return new URL(u).host.toLowerCase() === host.toLowerCase();
+    } catch {
+      return false;
+    }
+  };
+
+  const capture = async (trigger: string): Promise<number> => {
+    const fp = await fingerprint(page);
+    const delta = fingerprintDelta(prevFp, fp);
+    prevFp = fp;
+    let screenshot: string | null = null;
+    try {
+      await fs.mkdir(artifactDir, { recursive: true });
+      await page.screenshot({ path: path.join(artifactDir, `${shotIdx}.png`), timeout: 8_000 });
+      screenshot = `/api/field-tests/${inspectionId}/${shotIdx}`;
+      shotIdx++;
+    } catch {
+      screenshot = null;
+    }
+    states.push({
+      trigger,
+      screenshot,
+      visibleTextExcerpt: await renderedExcerpt(page),
+      notableElements: await notableElements(page),
+      pixelDeltaPct: delta,
+      url: page.url(),
+    });
+    return delta;
+  };
+
+  try {
+    // 1. initial state (loading or not — the honest starting point).
+    await capture("initial load");
+
+    // 2. loading patience — poll until the state settles or the budget runs out.
+    if (await isLoading(page)) {
+      const loadDeadline = Math.min(deadline, Date.now() + LOADING_BUDGET_MS);
+      let stableRuns = 0;
+      let last: StateFingerprint | null = prevFp;
+      while (Date.now() < loadDeadline) {
+        await page.waitForTimeout(LOADING_POLL_MS);
+        const fp = await fingerprint(page);
+        const d = fingerprintDelta(last, fp);
+        last = fp;
+        const stillLoading = await isLoading(page);
+        if (d < STABLE_DELTA && !stillLoading) {
+          stableRuns++;
+          if (stableRuns >= 2) break;
+        } else {
+          stableRuns = 0;
+        }
+      }
+      // a loading screen must NEVER be the final capture — always record the settled state.
+      await capture("waited out loading");
+    }
+
+    let interactions = 0;
+    const canInteract = () => interactions < MAX_INTERACTIONS && Date.now() < deadline;
+
+    // 3a. dismiss a consent/cookie modal if present (once).
+    if (canInteract()) {
+      const clicked = await clickByText(page, CONSENT_WORDS);
+      if (clicked) {
+        interactions++;
+        await page.waitForTimeout(700);
+        if (!sameOrigin(page.url())) await page.goBack().catch(() => {});
+        await capture(`dismissed "${clicked}"`);
+      }
+    }
+
+    // 3b. click start/continue controls, in order, capturing each new state.
+    let noProgress = 0;
+    while (canInteract() && noProgress < 2) {
+      const clicked = await clickByText(page, START_WORDS);
+      if (!clicked) break;
+      interactions++;
+      await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      if (!sameOrigin(page.url())) {
+        await page.goBack().catch(() => {});
+        await page.waitForTimeout(400);
+      }
+      const delta = await capture(`clicked "${clicked}"`);
+      noProgress = delta < 2 ? noProgress + 1 : 0;
+    }
+
+    // 3c. a focused canvas: nudge it with a few safe keys (never inside a text input).
+    if (canInteract() && ctx.signals.hasCanvas && ctx.signals.canvasArea >= CANVAS_MIN_AREA) {
+      await focusCanvas(page).catch(() => {});
+      const keys = ["Space", "Enter", "ArrowRight", "ArrowUp", "KeyW"];
+      for (const key of keys) {
+        if (!canInteract()) break;
+        // never press a key while a text input is focused (would type / submit).
+        if (await textInputFocused(page)) break;
+        await page.keyboard.press(key).catch(() => {});
+        interactions++;
+        await page.waitForTimeout(900);
+        const delta = await capture(`pressed ${key}`);
+        if (delta < 1 && (key === "Space" || key === "Enter")) {
+          // no response to the primary keys → this canvas isn't keyboard-driven; stop nudging.
+          break;
+        }
+      }
+    }
+
+    // 3d. one scroll of the final state (reveals below-the-fold content).
+    if (canInteract()) {
+      const before = prevFp;
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight)).catch(() => {});
+      await page.waitForTimeout(500);
+      const fp = await fingerprint(page);
+      if (fingerprintDelta(before, fp) >= 3) {
+        prevFp = before;
+        await capture("scrolled");
+      }
+    }
+  } catch {
+    /* exploration failed mid-way — keep whatever states we captured */
+  }
+
+  return buildInteractiveSummary({
+    startUrl: ctx.startUrl,
+    states,
+    durationMs: Date.now() - ctx.started,
+    limitation: states.length > 1 ? null : "Interactive app detected, but exploration could not get past the first state.",
   });
+}
+
+/**
+ * Click the best VISIBLE element whose text/aria-label matches one of `words`. SAFETY: never a
+ * type=submit control and never an element inside a <form> (honors "never submit forms"). Returns
+ * the matched label, or null. Runs the match in-page, then Playwright-clicks by a stable handle.
+ */
+async function clickByText(page: Page, words: string[]): Promise<string | null> {
+  const idx = await page
+    .evaluate((ws: string[]) => {
+      const nodes = Array.from(document.querySelectorAll('button, [role="button"], a[href], [role="link"]'));
+      for (let i = 0; i < nodes.length; i++) {
+        const he = nodes[i] as HTMLElement;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+        // never submit a form with data. A submit control ASSOCIATED with a form (nested, or linked
+        // by the form= attribute → .form is non-null) is skipped; but a standalone <button>Start</button>
+        // defaults to type=submit yet submits nothing (no form), so it stays clickable — real "Start"
+        // controls are usually exactly that. Belt-and-braces: also skip anything inside a <form>.
+        const be = he as HTMLButtonElement;
+        if (be.type === "submit" && be.form) continue;
+        if (he.closest("form")) continue;
+        const label = (he.innerText || he.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().toLowerCase();
+        if (!label || label.length > 40) continue;
+        if (ws.some((w) => label === w || label.startsWith(w + " ") || label.includes(" " + w))) {
+          he.setAttribute("data-sage-click", String(i));
+          return { i, label };
+        }
+      }
+      return null;
+    }, words)
+    .catch(() => null);
+  if (!idx) return null;
+  try {
+    await page.locator(`[data-sage-click="${idx.i}"]`).first().click({ timeout: 4_000 });
+    await page.evaluate(() => document.querySelector("[data-sage-click]")?.removeAttribute("data-sage-click")).catch(() => {});
+    return idx.label;
+  } catch {
+    return null;
+  }
+}
+
+/** Click the center of the largest canvas to give it focus (a click, never typing). */
+async function focusCanvas(page: Page): Promise<void> {
+  const box = await page
+    .locator("canvas")
+    .first()
+    .boundingBox()
+    .catch(() => null);
+  if (box && box.width > 0 && box.height > 0) {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+  }
+}
+
+/** Whether a text input / textarea / contenteditable currently has focus (guard against typing). */
+async function textInputFocused(page: Page): Promise<boolean> {
+  return page
+    .evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName.toLowerCase();
+      if (tag === "textarea") return true;
+      if (el.isContentEditable) return true;
+      if (tag === "input") {
+        const t = ((el as HTMLInputElement).type || "text").toLowerCase();
+        return !["button", "submit", "checkbox", "radio", "range", "color"].includes(t);
+      }
+      return false;
+    })
+    .catch(() => false);
 }
 
 /** Collect visible primary CTA/button texts (top 10). Runs in the page; reads only. */

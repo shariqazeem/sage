@@ -188,7 +188,7 @@ export function buildProductMap(
   // shifts the map digest (or any downstream plan hash). Off/failed field test → no key at all,
   // leaving the serialized map byte-identical to today.
   const map: ProductMapV1 = { ...base, digest: productMapDigest(base) };
-  if (fieldTest && fieldTest.ran && fieldTest.pages.length > 0) map.fieldTest = fieldTest;
+  if (fieldTest && fieldTest.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0)) map.fieldTest = fieldTest;
   return map;
 }
 

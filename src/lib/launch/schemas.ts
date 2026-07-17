@@ -136,11 +136,44 @@ export interface FieldTestPage {
   screenshot: string | null;
 }
 
+/** How the product renders — decided on entry from real signals (canvas, listeners, SPA routing…). */
+export type ProductMode = "static" | "interactive";
+
+export interface FieldTestNotableElement {
+  tag: string;
+  text: string;
+  role: string;
+}
+
+/**
+ * ONE observed state in interactive-explore mode — a real thing Sage saw after a real action
+ * (initial load, waiting out a loading screen, clicking a start/continue control, pressing a key).
+ * `visibleTextExcerpt` is RENDERED DOM text (not raw HTML). Anchors every interactive mission to
+ * something actually observed — the antidote to confabulating missions from a loading screen.
+ */
+export interface FieldTestState {
+  /** what produced this state, e.g. "initial load", "waited out loading", "clicked 'Start'", "pressed Space". */
+  trigger: string;
+  screenshot: string | null;
+  /** rendered DOM visible text (not raw HTML), capped. */
+  visibleTextExcerpt: string;
+  notableElements: FieldTestNotableElement[];
+  /** approximate visual change vs the previous captured state, 0..100 (a change signal, best-effort). */
+  pixelDeltaPct: number;
+  url: string;
+}
+
 export interface FieldTestSummary {
-  /** true only when at least one page was actually browsed + captured. */
+  /** true only when at least one page/state was actually browsed + captured. */
   ran: boolean;
   startUrl: string;
+  /** static → a multi-page crawl (`pages`); interactive → a single-app state machine (`states`). */
+  mode: ProductMode;
   pages: FieldTestPage[];
+  /** interactive-mode observed states (empty in static mode). */
+  states: FieldTestState[];
+  /** honest one-line classification for the UI, e.g. "Interactive app detected · 5 states explored". */
+  classification: string | null;
   /** an honest reason when the field test was skipped/degraded (null on success). */
   limitation: string | null;
   durationMs: number;

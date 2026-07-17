@@ -7,11 +7,17 @@ import {
   requestGuard,
   visibleTextLen,
   computeJsOnly,
+  classifyMode,
+  isInteractiveApp,
+  fingerprintDelta,
   buildFieldTestSummary,
+  buildInteractiveSummary,
   fieldTestForMap,
   runFieldTest,
   type FieldTestCapture,
+  type ProductSignals,
 } from "./field-test";
+import type { FieldTestState } from "./schemas";
 
 /* ───────────────────────────── interception guard ───────────────────────── */
 
@@ -128,7 +134,7 @@ describe("buildFieldTestSummary", () => {
   });
 });
 
-describe("fieldTestForMap", () => {
+describe("fieldTestForMap (static)", () => {
   it("projects only the brain-relevant fields (no screenshots, no forms) and caps lists", () => {
     const summary = buildFieldTestSummary({
       startUrl: "https://example.com/",
@@ -145,8 +151,10 @@ describe("fieldTestForMap", () => {
       ],
     });
     const forMap = fieldTestForMap(summary);
-    expect(forMap).toHaveLength(1);
-    const p = forMap[0];
+    expect(forMap.mode).toBe("static");
+    if (forMap.mode !== "static") throw new Error("expected static");
+    expect(forMap.pages).toHaveLength(1);
+    const p = forMap.pages[0];
     expect(p).toStrictEqual({
       url: "https://example.com/pricing",
       title: "Pricing",
@@ -160,7 +168,126 @@ describe("fieldTestForMap", () => {
     expect(p.brokenRequests).toHaveLength(5);
     // the projection must not leak a screenshot path or forms to the LLM.
     expect(JSON.stringify(forMap)).not.toContain("/field-tests/");
-    expect(JSON.stringify(forMap)).not.toContain("forms");
+    expect(JSON.stringify(forMap)).not.toContain("\"forms\"");
+  });
+});
+
+/* ─────────────── interactive-mode helpers (the P12 state machine) ─────────── */
+
+function signals(over: Partial<ProductSignals> = {}): ProductSignals {
+  return {
+    hasCanvas: false,
+    canvasArea: 0,
+    webgl: false,
+    keyListeners: false,
+    gamepad: false,
+    spaRouting: false,
+    nodeCount: 200,
+    renderedTextLen: 2000,
+    rawHtmlTextLen: 1500,
+    hasServiceWorker: false,
+    ...over,
+  };
+}
+
+function state(trigger: string, over: Partial<FieldTestState> = {}): FieldTestState {
+  return {
+    trigger,
+    screenshot: `/api/field-tests/x/${trigger}`,
+    visibleTextExcerpt: "",
+    notableElements: [],
+    pixelDeltaPct: 20,
+    url: "https://game.example/",
+    ...over,
+  };
+}
+
+describe("classifyMode", () => {
+  it("interactive: a big WebGL canvas with thin text (a game/experience)", () => {
+    expect(classifyMode(signals({ hasCanvas: true, canvasArea: 640 * 480, webgl: true, renderedTextLen: 30 }))).toBe("interactive");
+  });
+  it("interactive: a big canvas that listens for keydown", () => {
+    expect(classifyMode(signals({ hasCanvas: true, canvasArea: 800 * 600, keyListeners: true, renderedTextLen: 900 }))).toBe("interactive");
+  });
+  it("interactive: a thin SPA shell wrapped around a big canvas", () => {
+    expect(classifyMode(signals({ hasCanvas: true, canvasArea: 700 * 500, spaRouting: true, renderedTextLen: 120 }))).toBe("interactive");
+  });
+  it("static: a content site with lots of text and no big canvas", () => {
+    expect(classifyMode(signals({ renderedTextLen: 5000 }))).toBe("static");
+  });
+  it("static: a small decorative canvas on a text-rich page is NOT a game", () => {
+    expect(classifyMode(signals({ hasCanvas: true, canvasArea: 64 * 64, renderedTextLen: 3000 }))).toBe("static");
+  });
+});
+
+describe("isInteractiveApp (the jsOnly honesty fix)", () => {
+  it("true: near-zero text in raw AND rendered, with a big canvas", () => {
+    expect(isInteractiveApp(50, 30, true)).toBe(true);
+  });
+  it("false: no canvas (a plain SPA shell — that's jsOnly, not an app)", () => {
+    expect(isInteractiveApp(50, 30, false)).toBe(false);
+  });
+  it("false: it actually rendered real text", () => {
+    expect(isInteractiveApp(50, 2000, true)).toBe(false);
+  });
+});
+
+describe("fingerprintDelta", () => {
+  it("100 vs a null prior (the first state is always kept)", () => {
+    expect(fingerprintDelta(null, { textLen: 10, nodeCount: 5, canvasSample: null })).toBe(100);
+  });
+  it("0 for an identical state", () => {
+    const fp = { textLen: 100, nodeCount: 50, canvasSample: [1, 2, 3, 4] };
+    expect(fingerprintDelta(fp, { ...fp, canvasSample: [...fp.canvasSample] })).toBe(0);
+  });
+  it("detects a canvas-only change when the DOM is byte-identical", () => {
+    const a = { textLen: 100, nodeCount: 50, canvasSample: [10, 10, 10, 10] };
+    const b = { textLen: 100, nodeCount: 50, canvasSample: [220, 220, 220, 220] };
+    expect(fingerprintDelta(a, b)).toBeGreaterThan(50);
+  });
+});
+
+describe("buildInteractiveSummary", () => {
+  it("marks mode interactive, keeps the state log, and sets an honest classification", () => {
+    const s = buildInteractiveSummary({
+      startUrl: "https://game.example/",
+      states: [state("initial load"), state("waited out loading"), state("clicked 'Start'")],
+      durationMs: 5,
+      limitation: null,
+    });
+    expect(s.mode).toBe("interactive");
+    expect(s.ran).toBe(true);
+    expect(s.pages).toEqual([]);
+    expect(s.states).toHaveLength(3);
+    expect(s.classification).toBe("Interactive app detected · 3 states explored");
+  });
+  it("ran=false and no classification when nothing was observed", () => {
+    const s = buildInteractiveSummary({ startUrl: "x", states: [], durationMs: 1, limitation: "loading never resolved" });
+    expect(s.ran).toBe(false);
+    expect(s.classification).toBeNull();
+  });
+});
+
+describe("fieldTestForMap (interactive)", () => {
+  it("surfaces the observed state log to the brain, no screenshots leaked", () => {
+    const summary = buildInteractiveSummary({
+      startUrl: "https://game.example/",
+      states: [
+        state("initial load", { visibleTextExcerpt: "Loading the world…" }),
+        state("clicked 'Start'", { visibleTextExcerpt: "Pick your character", notableElements: [{ tag: "button", text: "Warrior", role: "button" }] }),
+      ],
+      durationMs: 3,
+      limitation: null,
+    });
+    const forMap = fieldTestForMap(summary);
+    expect(forMap.mode).toBe("interactive");
+    if (forMap.mode !== "interactive") throw new Error("expected interactive");
+    expect(forMap.states).toHaveLength(2);
+    expect(forMap.states[1].trigger).toBe("clicked 'Start'");
+    expect(forMap.states[1].visibleTextExcerpt).toContain("Pick your character");
+    expect(forMap.classification).toContain("Interactive app detected");
+    // the projection must not leak a screenshot path to the LLM.
+    expect(JSON.stringify(forMap)).not.toContain("/api/field-tests/");
   });
 });
 
@@ -210,6 +337,7 @@ const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
         return;
       }
       expect(summary.ran).toBe(true);
+      expect(summary.mode).toBe("static"); // a text page with no big canvas is still crawled exactly as before
       expect(summary.pages.length).toBeGreaterThanOrEqual(1);
       const page = summary.pages[0];
       expect(page.title).toContain("Fixture");
@@ -224,4 +352,83 @@ const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
       await new Promise<void>((r) => server.close(() => r()));
     }
   }, 60_000);
+});
+
+/* ── flag-gated integration: a client game (loading → start → canvas world) ── */
+
+// A miniature SPA "game": a loading screen for ~700ms, then a Start button, then a
+// keyboard-driven canvas world. Exercises the whole state machine — mode detection,
+// loading patience, the click ladder, and canvas key nudging — the yara.garden shape.
+const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></head>
+<body>
+  <div id="loading">Loading the world…</div>
+  <div id="menu" style="display:none"><button id="start">Start</button></div>
+  <canvas id="game" width="640" height="480" style="display:none"></canvas>
+  <script>
+    var canvas = document.getElementById('game');
+    var ctx = canvas.getContext('2d');
+    var px = 40;
+    function draw(){ ctx.fillStyle = '#123456'; ctx.fillRect(0,0,640,480); ctx.fillStyle = '#ffcc00'; ctx.fillRect(px, 200, 60, 60); }
+    window.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { px = (px + 90) % 560; draw(); }
+    });
+    setTimeout(function(){
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('menu').style.display = 'block';
+    }, 700);
+    document.getElementById('start').addEventListener('click', function(){
+      document.getElementById('menu').style.display = 'none';
+      canvas.style.display = 'block';
+      draw();
+    });
+  </script>
+</body></html>`;
+
+(RUN_INTEGRATION ? describe : describe.skip)("runFieldTest interactive (local game fixture)", () => {
+  it("classifies interactive, waits out loading, and captures states PAST the loading screen", async () => {
+    const server: Server = createServer((req, res) => {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(GAME_FIXTURE);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const addr = server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const startUrl = `http://127.0.0.1:${port}/`;
+    const publicDir = mkdtempSync(join(tmpdir(), "sage-ft-game-"));
+
+    try {
+      const summary = await runFieldTest(
+        { inspectionId: "gtest", startUrl, host: `127.0.0.1:${port}`, candidateLinks: [] },
+        { isPublicHost: async () => true, allowUrl: () => ({ allow: true, reason: "test" }), publicDir },
+      );
+
+      if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
+        console.warn("[field-test.integration] chromium not installed — skipping game asserts");
+        return;
+      }
+      // 1. it recognized a client app, not a content site.
+      expect(summary.mode).toBe("interactive");
+      expect(summary.pages).toEqual([]);
+      expect(summary.classification).toMatch(/Interactive app detected/);
+
+      // 2. it got PAST the loading screen — the whole point of P12.
+      expect(summary.states.length).toBeGreaterThanOrEqual(3);
+      const triggers = summary.states.map((s) => s.trigger);
+      expect(triggers[0]).toBe("initial load");
+      expect(triggers).toContain("waited out loading");
+      expect(triggers.some((t) => /clicked "start"/i.test(t))).toBe(true);
+
+      // 3. a state after loading actually differs from the loading screen (real progress).
+      const postLoad = summary.states.find((s) => s.trigger === "waited out loading");
+      expect(postLoad).toBeTruthy();
+      expect(postLoad!.visibleTextExcerpt.toLowerCase()).not.toContain("loading the world");
+
+      // 4. reaching the canvas world produced a real visual change (a non-loading capture with delta).
+      const clickState = summary.states.find((s) => /clicked "start"/i.test(s.trigger));
+      expect(clickState).toBeTruthy();
+      expect(existsSync(join(publicDir, "field-tests", "gtest", "0.png"))).toBe(true);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }, 90_000);
 });

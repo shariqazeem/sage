@@ -30,9 +30,15 @@ const TERMINAL = new Set<Stage>(["ready", "needs_input", "failed", "superseded"]
 
 interface FieldTestView {
   ran: boolean;
+  mode?: "static" | "interactive";
+  classification?: string | null;
   pages: {
     url: string; title: string; jsOnly: boolean;
     consoleErrors: string[]; brokenRequests: { url: string; status: number }[]; screenshot: string | null;
+  }[];
+  states?: {
+    trigger: string; screenshot: string | null; visibleTextExcerpt: string; url: string;
+    notableElements: { tag: string; text: string; role: string }[];
   }[];
 }
 interface MapView {
@@ -150,6 +156,51 @@ function MapSummary({ map, full }: { map: MapView; full?: boolean }) {
 }
 
 function FieldTestStrip({ ft }: { ft: FieldTestView }) {
+  return ft.mode === "interactive" ? <InteractiveFieldTest ft={ft} /> : <StaticFieldTest ft={ft} />;
+}
+
+/** Interactive apps (games, canvas experiences, thin SPAs): Sage USED it — show the state log. */
+function InteractiveFieldTest({ ft }: { ft: FieldTestView }) {
+  const states = ft.states ?? [];
+  const shots = states.filter((s) => s.screenshot);
+  return (
+    <section className="lx-card pad-lg lx-field" aria-label="Field test" style={{ marginTop: 16 }}>
+      <div className="lx-kicker" style={{ marginBottom: 8 }}>Sage used your product</div>
+      <p className="lx-sub" style={{ fontSize: 14, margin: "0 0 10px" }}>
+        This isn’t a static page — it’s a live app. So Sage <b>used</b> it: it waited out loading, then interacted step by step, capturing each state it actually reached.
+      </p>
+      {ft.classification && (
+        <div className="lx-finds" style={{ marginBottom: 12 }}>
+          <span className="lx-find ok">{ft.classification}</span>
+        </div>
+      )}
+      {shots.length > 0 && (
+        <div className="lx-shots">
+          {shots.map((s, i) => (
+            <a key={i} className="lx-shot" href={s.screenshot ?? undefined} target="_blank" rel="noopener noreferrer" title={s.trigger}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={s.screenshot ?? ""} alt={s.trigger} loading="lazy" />
+              <span className="lx-shot-cap">{s.trigger}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      {states.length > 0 && (
+        <details className="lx-field-details">
+          <summary>The states Sage reached ({states.length})</summary>
+          {states.map((s, i) => (
+            <div key={i} className="lx-field-line">
+              <b>{s.trigger}</b>{s.visibleTextExcerpt ? ` — ${s.visibleTextExcerpt.slice(0, 140)}` : ""}
+            </div>
+          ))}
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** Content sites: the multi-page crawl (unchanged). */
+function StaticFieldTest({ ft }: { ft: FieldTestView }) {
   const shots = ft.pages.filter((p) => p.screenshot);
   const consoleErrors = ft.pages.reduce((n, p) => n + p.consoleErrors.length, 0);
   const broken = ft.pages.reduce((n, p) => n + p.brokenRequests.length, 0);
