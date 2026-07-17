@@ -768,10 +768,15 @@ async function exploreInteractive(ctx: {
     // 3b2. explore the actual affordances present — scenes, path choices, icon controls — for a
     // click/choice-driven experience with no "Start" button (yara.garden's world). Each distinct
     // control is clicked once; a control that navigates off-origin is reverted. Never a form submit.
-    const clickedAff = new Set<string>();
-    while (canInteract() && clickedAff.size < MAX_AFFORDANCES) {
-      const clicked = await clickAffordance(page, clickedAff);
-      if (!clicked) break;
+    const triedAff = new Set<string>();
+    let explored = 0;
+    while (canInteract() && explored < MAX_AFFORDANCES) {
+      const r = await clickAffordance(page, triedAff);
+      if (!r.ok) {
+        if (r.exhausted) break; // nothing left to try
+        continue; // this control couldn't be clicked — move to the next one
+      }
+      explored++;
       interactions++;
       await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
       await page.waitForTimeout(700);
@@ -779,7 +784,7 @@ async function exploreInteractive(ctx: {
         await page.goBack().catch(() => {});
         await page.waitForTimeout(400);
       }
-      await capture(`explored "${clicked}"`);
+      await capture(`explored "${r.label}"`);
     }
 
     // 3c. a focused canvas: nudge it with a few safe keys (never inside a text input).
@@ -864,22 +869,29 @@ async function clickByText(page: Page, words: string[]): Promise<string | null> 
   }
 }
 
+/** Success → the clicked label; `exhausted` → nothing new to try; otherwise a click that failed (try next). */
+type AffResult = { ok: true; label: string } | { ok: false; exhausted: boolean };
+
 /**
  * Click the most prominent VISIBLE affordance not already tried — a button, link, role=button,
- * .btn/.button, or a pointer-cursor glyph control (an emoji world's ·/🔊/+/− and scene choices).
+ * .btn/.button, or a pointer-cursor control (an emoji world's ·/🔊/+/− and its clickable scene labels).
  * SAFETY (identical to clickByText): never a form-associated submit, never anything inside a <form>.
- * `seen` (keyed by label/position) is grown so each control is clicked at most once. Returns the label.
+ * `seen` (keyed by label/position) is grown so each control is tried at most once. The click is FORCED
+ * (a live, animated world constantly moves elements under the cursor and obscures them with drifting
+ * particles — the normal actionability wait would just time out); the element was already confirmed
+ * visible + safe in-page, so a forced center click is appropriate for exploration.
  */
-async function clickAffordance(page: Page, seen: Set<string>): Promise<string | null> {
+async function clickAffordance(page: Page, seen: Set<string>): Promise<AffResult> {
   const pick = await page
     .evaluate((seenArr: string[]) => {
       const seenSet = new Set(seenArr);
       const set = new Set<Element>(Array.from(document.querySelectorAll('button, [role="button"], a[href], [role="link"], [class*="btn" i], [class*="button" i]')));
-      // include short-glyph controls that only announce themselves via a pointer cursor (icon buttons).
+      // include pointer-cursor controls that only announce themselves via the cursor (icon buttons AND
+      // short clickable scene labels like "Still Pond") — leaf-ish only, so we never grab a huge wrapper.
       for (const el of Array.from(document.querySelectorAll("body *"))) {
         const he = el as HTMLElement;
         const t = (he.innerText || "").trim();
-        if (t && t.length <= 3) {
+        if (t && t.length <= 24 && he.childElementCount <= 1) {
           try {
             if (getComputedStyle(he).cursor === "pointer") set.add(el);
           } catch {
@@ -903,15 +915,15 @@ async function clickAffordance(page: Page, seen: Set<string>): Promise<string | 
       return null;
     }, [...seen])
     .catch(() => null);
-  if (!pick) return null;
+  if (!pick) return { ok: false, exhausted: true };
   seen.add(pick.key); // mark tried whether or not the click lands (never retry the same control)
   try {
-    await page.locator('[data-sage-aff="1"]').first().click({ timeout: 4_000 });
+    await page.locator('[data-sage-aff="1"]').first().click({ timeout: 2_500, force: true });
     await page.evaluate(() => document.querySelector("[data-sage-aff]")?.removeAttribute("data-sage-aff")).catch(() => {});
-    return pick.label;
+    return { ok: true, label: pick.label };
   } catch {
     await page.evaluate(() => document.querySelector("[data-sage-aff]")?.removeAttribute("data-sage-aff")).catch(() => {});
-    return null;
+    return { ok: false, exhausted: false }; // this control failed — the caller tries the next one
   }
 }
 
