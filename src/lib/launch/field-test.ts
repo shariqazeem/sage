@@ -53,6 +53,8 @@ const LOADING_BUDGET_MS = 60_000;
 const LOADING_POLL_MS = 2_000;
 const STABLE_DELTA = 4; // % — under this vs the prior poll counts as "settled"
 const CANVAS_MIN_AREA = 40_000; // ≥ ~200×200: a real surface, not an icon
+const ANIMATION_PROBE_MS = 8_000; // watch a thin shell this long for self-animation (early-out on first change)
+const MAX_AFFORDANCES = 6; // distinct scene/controls to click in a choice-driven experience
 
 /* ───────────────────────────────── pure, unit-testable helpers ───────────── */
 
@@ -103,6 +105,8 @@ export interface ProductSignals {
   keyListeners: boolean;
   gamepad: boolean;
   spaRouting: boolean;
+  /** the DOM changed on its own between two samples, with NO interaction — a live/animated experience. */
+  selfAnimates: boolean;
   nodeCount: number;
   renderedTextLen: number;
   rawHtmlTextLen: number;
@@ -110,16 +114,21 @@ export interface ProductSignals {
 }
 
 /**
- * Decide the product mode from real signals. Interactive when there's a substantial canvas paired
- * with a game-ish signal (WebGL, keyboard/gamepad listeners, or very thin text), or a thin SPA
- * shell around a canvas. Otherwise static (a content site we crawl exactly as before). Pure.
+ * Decide the product mode from real signals. A product is INTERACTIVE (an app to be USED, not a page
+ * to be read) when it is a thin shell that is doing something the DOM alone can't express by sitting
+ * still: a substantial game canvas, OR a thin surface that self-animates or listens for keys/gamepad
+ * (e.g. yara.garden — an emoji world with no canvas at all). Otherwise it is a content site we crawl
+ * exactly as before. Text-rich pages are always static (a dashboard's pages ARE crawlable). Pure.
  */
 export function classifyMode(s: ProductSignals): ProductMode {
   const bigCanvas = s.hasCanvas && s.canvasArea >= CANVAS_MIN_AREA;
   const thinText = s.renderedTextLen < 600;
+  // a game / rendered experience on a canvas
   if (bigCanvas && (s.webgl || s.keyListeners || s.gamepad || thinText)) return "interactive";
   if (s.gamepad && s.hasCanvas) return "interactive";
-  if (s.spaRouting && thinText && bigCanvas) return "interactive";
+  // a thin, self-animating or input-driven DOM experience — no canvas required
+  if (thinText && (s.selfAnimates || s.keyListeners || s.gamepad)) return "interactive";
+  if (s.spaRouting && thinText && (bigCanvas || s.selfAnimates)) return "interactive";
   return "static";
 }
 
@@ -527,6 +536,11 @@ async function gatherSignals(page: Page, rawHtmlTextLen: number): Promise<Produc
       };
     })
     .catch(() => null);
+  const renderedTextLen = s?.renderedTextLen ?? 0;
+  // Self-animation probe — ONLY for a thin shell (a content-rich page is static no matter what it does).
+  // Watch the rendered text + node count for a while; if they change with NO interaction from us, this is
+  // a live experience (yara.garden's scenes cycle on their own). Early-outs on the first observed change.
+  const selfAnimates = renderedTextLen < 600 ? await selfAnimationProbe(page, ANIMATION_PROBE_MS) : false;
   return {
     hasCanvas: s?.hasCanvas ?? false,
     canvasArea: s?.canvasArea ?? 0,
@@ -534,11 +548,33 @@ async function gatherSignals(page: Page, rawHtmlTextLen: number): Promise<Produc
     keyListeners: s?.keyListeners ?? false,
     gamepad: s?.gamepad ?? false,
     spaRouting: s?.spaRouting ?? false,
+    selfAnimates,
     nodeCount: s?.nodeCount ?? 0,
-    renderedTextLen: s?.renderedTextLen ?? 0,
+    renderedTextLen,
     rawHtmlTextLen,
     hasServiceWorker: s?.hasServiceWorker ?? false,
   };
+}
+
+/**
+ * Watch a thin shell for self-animation: snapshot the rendered text + node count, then poll for up to
+ * `budgetMs`, returning true the moment the DOM changes on its OWN (we never touch it). Content churn —
+ * not length — is the signal (yara's scenes swap without changing the character count). Reads only.
+ */
+async function selfAnimationProbe(page: Page, budgetMs: number): Promise<boolean> {
+  const snap = () =>
+    page
+      .evaluate(() => `${(document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 400)}|${document.querySelectorAll("*").length}`)
+      .catch(() => "");
+  const first = await snap();
+  if (!first) return false;
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(1_500);
+    const now = await snap();
+    if (now && now !== first) return true;
+  }
+  return false;
 }
 
 /** A coarse, dependency-free visual fingerprint (text volume + node count + downsampled canvas). */
@@ -729,6 +765,23 @@ async function exploreInteractive(ctx: {
       noProgress = delta < 2 ? noProgress + 1 : 0;
     }
 
+    // 3b2. explore the actual affordances present — scenes, path choices, icon controls — for a
+    // click/choice-driven experience with no "Start" button (yara.garden's world). Each distinct
+    // control is clicked once; a control that navigates off-origin is reverted. Never a form submit.
+    const clickedAff = new Set<string>();
+    while (canInteract() && clickedAff.size < MAX_AFFORDANCES) {
+      const clicked = await clickAffordance(page, clickedAff);
+      if (!clicked) break;
+      interactions++;
+      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+      await page.waitForTimeout(700);
+      if (!sameOrigin(page.url())) {
+        await page.goBack().catch(() => {});
+        await page.waitForTimeout(400);
+      }
+      await capture(`explored "${clicked}"`);
+    }
+
     // 3c. a focused canvas: nudge it with a few safe keys (never inside a text input).
     if (canInteract() && ctx.signals.hasCanvas && ctx.signals.canvasArea >= CANVAS_MIN_AREA) {
       await focusCanvas(page).catch(() => {});
@@ -807,6 +860,57 @@ async function clickByText(page: Page, words: string[]): Promise<string | null> 
     await page.evaluate(() => document.querySelector("[data-sage-click]")?.removeAttribute("data-sage-click")).catch(() => {});
     return idx.label;
   } catch {
+    return null;
+  }
+}
+
+/**
+ * Click the most prominent VISIBLE affordance not already tried — a button, link, role=button,
+ * .btn/.button, or a pointer-cursor glyph control (an emoji world's ·/🔊/+/− and scene choices).
+ * SAFETY (identical to clickByText): never a form-associated submit, never anything inside a <form>.
+ * `seen` (keyed by label/position) is grown so each control is clicked at most once. Returns the label.
+ */
+async function clickAffordance(page: Page, seen: Set<string>): Promise<string | null> {
+  const pick = await page
+    .evaluate((seenArr: string[]) => {
+      const seenSet = new Set(seenArr);
+      const set = new Set<Element>(Array.from(document.querySelectorAll('button, [role="button"], a[href], [role="link"], [class*="btn" i], [class*="button" i]')));
+      // include short-glyph controls that only announce themselves via a pointer cursor (icon buttons).
+      for (const el of Array.from(document.querySelectorAll("body *"))) {
+        const he = el as HTMLElement;
+        const t = (he.innerText || "").trim();
+        if (t && t.length <= 3) {
+          try {
+            if (getComputedStyle(he).cursor === "pointer") set.add(el);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      for (const el of set) {
+        const he = el as HTMLElement;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+        const be = he as HTMLButtonElement;
+        if (be.type === "submit" && be.form) continue; // never submit a form with data
+        if (he.closest("form")) continue;
+        const label = (he.innerText || he.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().slice(0, 40);
+        const key = label || `control@${Math.round(rect.x)},${Math.round(rect.y)}`;
+        if (seenSet.has(key)) continue;
+        he.setAttribute("data-sage-aff", "1");
+        return { key, label: label || "a control" };
+      }
+      return null;
+    }, [...seen])
+    .catch(() => null);
+  if (!pick) return null;
+  seen.add(pick.key); // mark tried whether or not the click lands (never retry the same control)
+  try {
+    await page.locator('[data-sage-aff="1"]').first().click({ timeout: 4_000 });
+    await page.evaluate(() => document.querySelector("[data-sage-aff]")?.removeAttribute("data-sage-aff")).catch(() => {});
+    return pick.label;
+  } catch {
+    await page.evaluate(() => document.querySelector("[data-sage-aff]")?.removeAttribute("data-sage-aff")).catch(() => {});
     return null;
   }
 }

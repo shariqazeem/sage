@@ -182,6 +182,7 @@ function signals(over: Partial<ProductSignals> = {}): ProductSignals {
     keyListeners: false,
     gamepad: false,
     spaRouting: false,
+    selfAnimates: false,
     nodeCount: 200,
     renderedTextLen: 2000,
     rawHtmlTextLen: 1500,
@@ -212,11 +213,20 @@ describe("classifyMode", () => {
   it("interactive: a thin SPA shell wrapped around a big canvas", () => {
     expect(classifyMode(signals({ hasCanvas: true, canvasArea: 700 * 500, spaRouting: true, renderedTextLen: 120 }))).toBe("interactive");
   });
+  it("interactive: a thin, self-animating DOM experience with NO canvas (the yara.garden shape)", () => {
+    expect(classifyMode(signals({ hasCanvas: false, canvasArea: 0, renderedTextLen: 220, selfAnimates: true }))).toBe("interactive");
+  });
   it("static: a content site with lots of text and no big canvas", () => {
     expect(classifyMode(signals({ renderedTextLen: 5000 }))).toBe("static");
   });
   it("static: a small decorative canvas on a text-rich page is NOT a game", () => {
     expect(classifyMode(signals({ hasCanvas: true, canvasArea: 64 * 64, renderedTextLen: 3000 }))).toBe("static");
+  });
+  it("static: a thin page that does NOT self-animate and takes no input is just a thin page", () => {
+    expect(classifyMode(signals({ renderedTextLen: 220, selfAnimates: false }))).toBe("static");
+  });
+  it("static: self-animation on a TEXT-RICH page (a carousel) stays static — it's readable content", () => {
+    expect(classifyMode(signals({ renderedTextLen: 4000, selfAnimates: true }))).toBe("static");
   });
 });
 
@@ -361,7 +371,7 @@ const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
 // loading patience, the click ladder, and canvas key nudging — the yara.garden shape.
 const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></head>
 <body>
-  <div id="loading">Loading the world…</div>
+  <div id="loading">Loading the world</div>
   <div id="menu" style="display:none"><button id="start">Start</button></div>
   <canvas id="game" width="640" height="480" style="display:none"></canvas>
   <script>
@@ -372,10 +382,15 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
     window.addEventListener('keydown', function(e){
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { px = (px + 90) % 560; draw(); }
     });
+    // an animated loading screen that persists a few seconds — so a real browser sees motion WHILE
+    // still loading, and the loading-patience loop genuinely has to wait it out.
+    var n = 0;
+    var spin = setInterval(function(){ document.getElementById('loading').textContent = 'Loading the world' + '.'.repeat(n++ % 4); }, 300);
     setTimeout(function(){
+      clearInterval(spin);
       document.getElementById('loading').style.display = 'none';
       document.getElementById('menu').style.display = 'block';
-    }, 700);
+    }, 3500);
     document.getElementById('start').addEventListener('click', function(){
       document.getElementById('menu').style.display = 'none';
       canvas.style.display = 'block';
@@ -427,6 +442,64 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
       const clickState = summary.states.find((s) => /clicked "start"/i.test(s.trigger));
       expect(clickState).toBeTruthy();
       expect(existsSync(join(publicDir, "field-tests", "gtest", "0.png"))).toBe(true);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }, 90_000);
+});
+
+/* ── flag-gated integration: a canvasless, self-animating DOM world (the yara.garden shape) ── */
+
+// No canvas at all: a thin shell whose "critters" text churns on a timer (self-animation) and whose
+// named scenes are clickable choices. This is exactly why the canvas-only classifier missed yara.garden.
+const WORLD_FIXTURE = `<!doctype html><html><head><title>Fixture World</title></head>
+<body>
+  <div id="location">a gentle clearing</div>
+  <div id="critters">butterflies drift</div>
+  <button id="pond">Still Pond</button>
+  <button id="grove">Yara's Grove</button>
+  <span id="zoom" style="cursor:pointer">+</span>
+  <script>
+    var frames = ["butterflies drift left", "butterflies drift right", "leaves rustle", "a bird sings"];
+    var i = 0;
+    setInterval(function(){ document.getElementById("critters").textContent = frames[i++ % frames.length]; }, 800);
+    document.getElementById("pond").addEventListener("click", function(){ document.getElementById("location").textContent = "Still Pond — the water mirrors the sky"; });
+    document.getElementById("grove").addEventListener("click", function(){ document.getElementById("location").textContent = "Yara's Grove — tall trees hum overhead"; });
+  </script>
+</body></html>`;
+
+(RUN_INTEGRATION ? describe : describe.skip)("runFieldTest interactive (canvasless self-animating world)", () => {
+  it("detects a canvasless experience via self-animation and explores its scenes by clicking", async () => {
+    const server: Server = createServer((req, res) => {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(WORLD_FIXTURE);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const addr = server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const startUrl = `http://127.0.0.1:${port}/`;
+    const publicDir = mkdtempSync(join(tmpdir(), "sage-ft-world-"));
+
+    try {
+      const summary = await runFieldTest(
+        { inspectionId: "wtest", startUrl, host: `127.0.0.1:${port}`, candidateLinks: [] },
+        { isPublicHost: async () => true, allowUrl: () => ({ allow: true, reason: "test" }), publicDir },
+      );
+
+      if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
+        console.warn("[field-test.integration] chromium not installed — skipping world asserts");
+        return;
+      }
+      // classified interactive with NO canvas — purely from self-animation + thin text.
+      expect(summary.mode).toBe("interactive");
+      expect(summary.classification).toMatch(/Interactive app detected/);
+      expect(summary.states.length).toBeGreaterThanOrEqual(3);
+
+      // it clicked into the named scenes and captured the resulting world text.
+      const triggers = summary.states.map((s) => s.trigger).join(" | ");
+      expect(/explored "Still Pond"|explored "Yara's Grove"/i.test(triggers)).toBe(true);
+      const worldText = summary.states.map((s) => s.visibleTextExcerpt).join(" ").toLowerCase();
+      expect(/still pond|yara's grove/.test(worldText)).toBe(true);
     } finally {
       await new Promise<void>((r) => server.close(() => r()));
     }
