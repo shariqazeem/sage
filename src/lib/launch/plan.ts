@@ -14,6 +14,7 @@ import type { Hex } from "viem";
 import { campaignIdHash, computeCampaignPlan, missionIdHash } from "@/lib/campaigns/mission-plan";
 import { missionSpecDigest } from "@/lib/campaigns/mission-spec";
 import { verifyPublicIdentity, type IdentityMission } from "@/lib/campaigns/public-identity";
+import { classifyVerifiability } from "./validate-mission";
 import type {
   BudgetAllocation,
   CandidateMission,
@@ -83,6 +84,8 @@ export function compilePlan(input: CompilePlanInput): CompilePlanResult {
       rewardBase: alloc.rewardBase,
       maxCompletions: alloc.maxCompletions,
       verificationMethod: m.verificationMethod,
+      anchors: m.anchors ?? [],
+      verifiabilityClass: m.verifiabilityClass ?? classifyVerifiability(m),
       missionIdHash: mid,
       specDigest,
     };
@@ -127,6 +130,16 @@ export function compilePlan(input: CompilePlanInput): CompilePlanResult {
     return { ok: false, error: "compiled plan failed the public-identity self-check", identityMismatches: identity.mismatches.map((x) => x.reason) };
   }
 
+  // Plain-words verifiability disclosure — honesty about how each finding can be proven.
+  const urlCount = compiled.filter((c) => c.verifiabilityClass === "url-verifiable").length;
+  const obsCount = compiled.length - urlCount;
+  const verifiabilityNote =
+    obsCount === 0
+      ? `All ${compiled.length} missions are verified from a public page: the tester submits a URL and Sage checks the quoted text.`
+      : urlCount === 0
+        ? `All ${compiled.length} missions are observation-based: this product's outcomes can't be proven from a public URL, so each tester submits a written account that Sage judges for specific, checkable detail.`
+        : `${urlCount} of ${compiled.length} missions are verified from a public page (URL + quoted text); the other ${obsCount} are observation-based — the tester submits a written account Sage judges for specific detail.`;
+
   const out: MissionPlanV1 = {
     publicCampaignId: input.publicCampaignId,
     status: "deployment_ready",
@@ -139,6 +152,7 @@ export function compilePlan(input: CompilePlanInput): CompilePlanResult {
     campaignIdHash: cid,
     missionPlanDigest: plan.missionPlanDigest,
     openQuestions: [],
+    verifiabilityNote,
     modelVersion: input.modelVersion,
     promptVersion: input.promptVersion,
   };

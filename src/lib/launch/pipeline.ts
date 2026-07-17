@@ -13,6 +13,7 @@ import { inspectProduct, rankPrimaryLinks } from "./inspect";
 import { fieldTestEnabled, runFieldTest } from "./field-test";
 import { inspectRepo } from "./github";
 import { buildProductMap, scopeFromObservations } from "./product-map";
+import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
@@ -109,12 +110,16 @@ export async function inspectAndPlan(
   // 4. real LLM mission brain (architect → critic → deterministic gate).
   stamp("generating_missions");
   const scope = scopeFromObservations(inspection.observations, repo.artifacts);
-  const brain = await runMissionBrain(map, input, scope);
+  // the observation corpus is every string Sage actually observed — the anchor gate matches each
+  // mission's claimed anchors against it, so nothing can be invented from scraps.
+  const corpus = buildObservationCorpus(inspection.observations, map.fieldTest);
+  const brain = await runMissionBrain(map, input, scope, corpus);
   stamp("reviewing");
   if (!brain.ok) {
-    // a provider/parse/config failure is a RETRYABLE failure; only exhausting the
-    // deterministic gate after a corrective round is a needs_input (thin evidence).
-    const stage: LaunchStage = brain.reason === "no_missions_passed_validation" ? "needs_input" : "failed";
+    // a provider/parse/config failure is a RETRYABLE failure; exhausting the deterministic gate after a
+    // corrective round, OR too-thin observation, is a needs_input (Sage asks rather than confabulates).
+    const NEEDS_INPUT = new Set(["no_missions_passed_validation", "insufficient_observation"]);
+    const stage: LaunchStage = brain.reason && NEEDS_INPUT.has(brain.reason) ? "needs_input" : "failed";
     return out(stage, brain.reason, { map, brain, questions: brain.needsInputQuestions });
   }
 

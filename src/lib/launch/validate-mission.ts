@@ -15,9 +15,11 @@ import { detectUnsupportedEvidence } from "./evidence-capabilities";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
+  FieldTestSummary,
   MissionValidationCode,
   MissionValidationIssue,
   MissionValidationReport,
+  ProductObservation,
 } from "./schemas";
 
 /** The known, inspected scope a mission must stay inside. */
@@ -106,11 +108,152 @@ function urlsIn(text: string): string[] {
   return text.match(/https?:\/\/[^\s"'<>)]+/gi) ?? [];
 }
 
+/* ───────── the anchor gate: a mission may only claim what Sage actually observed ─────────── */
+
+const CORPUS_CAP = 80_000;
+const MIN_ANCHOR_LEN = 3;
+
+/** Normalize text for anchor matching: lowercase + collapse whitespace. */
+function normAnchorText(s: string): string {
+  return (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The OBSERVATION CORPUS — one normalized blob of every string Sage actually observed (static
+ * inspection + field-test states + vision). The anchor gate requires each mission anchor to be a
+ * literal substring of this corpus, so a mission cannot claim a feature ("Zoom Control") that was
+ * never seen, regardless of what any model emits. Pure + deterministic.
+ */
+export function buildObservationCorpus(observations: ProductObservation[], fieldTest?: FieldTestSummary | null): string {
+  const parts: string[] = [];
+  const push = (v?: string | null) => {
+    if (v) parts.push(v);
+  };
+  const pushAll = (a?: (string | null | undefined)[]) => {
+    for (const x of a ?? []) push(x);
+  };
+
+  for (const o of observations) {
+    push(o.title);
+    pushAll(o.headings);
+    pushAll(o.claims);
+    pushAll(o.ctas);
+    pushAll(o.snippets);
+    pushAll(o.states);
+    pushAll(o.landmarks);
+    for (const f of o.forms ?? []) {
+      push(f.label);
+      pushAll(f.fields);
+    }
+    for (const l of o.links ?? []) {
+      try {
+        push(new URL(l, o.url).pathname);
+      } catch {
+        /* skip */
+      }
+    }
+    try {
+      push(new URL(o.url).pathname);
+    } catch {
+      /* skip */
+    }
+  }
+
+  if (fieldTest) {
+    for (const p of fieldTest.pages ?? []) {
+      push(p.title);
+      push(p.h1);
+      pushAll(p.ctas);
+    }
+    for (const s of fieldTest.states ?? []) {
+      push(s.trigger);
+      push(s.visibleTextExcerpt);
+      for (const e of s.notableElements ?? []) push(e.text);
+    }
+    for (const v of fieldTest.visionObservations ?? []) {
+      push(v.sceneDescription);
+      pushAll(v.visibleText);
+      for (const e of v.uiElements ?? []) push(e.label);
+      pushAll(v.productTypeSignals);
+      pushAll(v.audienceSignals);
+      pushAll(v.qualityIssues);
+    }
+  }
+
+  return normAnchorText(parts.join(" • ")).slice(0, CORPUS_CAP);
+}
+
+/**
+ * The anchor check: a mission MUST cite at least one anchor, and EVERY anchor must be a literal
+ * (normalized) substring of the observation corpus. This is the anti-hallucination core — it runs
+ * mechanically, before any model opinion. Returns the issues found (empty when the mission is anchored).
+ */
+export function anchorIssues(m: Pick<CandidateMission, "anchors">, corpus: string): MissionValidationIssue[] {
+  const anchors = (m.anchors ?? []).map(normAnchorText).filter((a) => a.length >= MIN_ANCHOR_LEN);
+  if (anchors.length === 0) {
+    return [{ code: "unanchored_claim", field: "anchors", detail: "mission cites no verbatim observed anchor — it may be invented" }];
+  }
+  for (const a of anchors) {
+    if (!corpus.includes(a)) {
+      return [{ code: "unanchored_claim", field: "anchors", detail: `anchor was never observed by Sage: "${a.slice(0, 48)}"` }];
+    }
+  }
+  return [];
+}
+
+const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(url|page)|navigat\w+ to (the )?(url|https?|page)|results? in .*\b(url|page)\b)/i;
+const FINDS_TEXT = /\b(contains?|displays?|shows?)\b[^.]*\b(text|heading|h1|title|word|url|label)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b/i;
+
+/**
+ * Deterministic verifiability class: URL-VERIFIABLE when completion is provable by fetching a public
+ * page and quoting its text (the criteria hinge on reaching a specific URL/page AND finding specific
+ * text/heading there); OBSERVATION-BASED otherwise (the tester's judged written account). Pure.
+ */
+export function classifyVerifiability(m: Pick<CandidateMission, "objective" | "criteria" | "evidenceRequirements">): "url-verifiable" | "observation-based" {
+  const blob = `${m.objective}\n${m.criteria.join("\n")}\n${m.evidenceRequirements.join("\n")}`;
+  return REACHES_URL.test(blob) && FINDS_TEXT.test(blob) ? "url-verifiable" : "observation-based";
+}
+
+/* ─────────── sufficiency: is there enough real observation to design paid work? ─────────── */
+
+/** Below this, Sage saw too little to design missions worth paying for → needs_input. Deliberately
+ *  low: the anchor gate is the primary protection, so this only catches a near-empty inspection (a
+ *  login wall, a blank SPA), never a normal single-page product. */
+export const SUFFICIENCY_THRESHOLD = 3.0;
+
+export interface RichnessSignals {
+  /** interactive states explored. */
+  states: number;
+  /** pages inspected (static). */
+  pages: number;
+  /** vision observations captured. */
+  vision: number;
+  /** distinct interactive elements/CTAs seen. */
+  distinctElements: number;
+  /** total observed-text length (the corpus). */
+  textLen: number;
+}
+
+/**
+ * A deterministic observation-richness score. Weights pages + interactive states + vision + distinct
+ * elements + raw text volume. Used only as a floor: rich products (yara: 6 states + 6 vision) score
+ * high and proceed; near-empty inspections (a login wall) score low → needs_input. Pure.
+ */
+export function observationScore(s: RichnessSignals): number {
+  return (
+    Math.min(s.states, 6) * 1.0 +
+    Math.min(s.pages, 6) * 1.5 +
+    Math.min(s.vision, 6) * 1.0 +
+    Math.min(s.distinctElements, 15) * 0.4 +
+    Math.min(s.textLen / 400, 15) * 1.0
+  );
+}
+
 /**
  * Validate a single candidate mission against the deterministic rules + the inspected
  * scope. Returns a structured report; `ok` is true only when there are zero issues.
  */
-export function validateMission(m: CandidateMission, scope: ValidationScope): MissionValidationReport {
+export function validateMission(m: CandidateMission, scope: ValidationScope, corpus?: string): MissionValidationReport {
   const issues: MissionValidationIssue[] = [];
   const add = (code: MissionValidationCode, field: string, detail: string) =>
     issues.push({ code, field, detail });
@@ -226,6 +369,11 @@ export function validateMission(m: CandidateMission, scope: ValidationScope): Mi
   if (isWorthlessPresenceCheck(m))
     add("worthless_presence_check", "criteria", "mission only confirms an element is present in the DOM — not worth paying a tester for; require an action + observable outcome");
 
+  // 11. ANCHOR GATE (anti-hallucination core) — when a corpus is supplied, every mission anchor MUST be
+  // a verbatim substring of what Sage actually observed. A mission about a "Zoom Control" that was never
+  // seen cannot pass, whatever a model claimed. Skipped when no corpus is threaded (byte-identical).
+  if (corpus !== undefined) for (const issue of anchorIssues(m, corpus)) issues.push(issue);
+
   return { ok: issues.length === 0, missionKey: m.missionKey, issues };
 }
 
@@ -237,6 +385,7 @@ export function validateMission(m: CandidateMission, scope: ValidationScope): Mi
 export function validatePlanMissions(
   missions: CandidateMission[],
   scope: ValidationScope,
+  corpus?: string,
 ): MissionValidationReport[] {
   const keyCount = new Map<string, number>();
   const objCount = new Map<string, number>();
@@ -246,7 +395,7 @@ export function validatePlanMissions(
     objCount.set(objKey, (objCount.get(objKey) ?? 0) + 1);
   }
   return missions.map((m) => {
-    const report = validateMission(m, scope);
+    const report = validateMission(m, scope, corpus);
     if ((keyCount.get(m.missionKey) ?? 0) > 1)
       report.issues.push({ code: "duplicate_mission_key", field: "missionKey", detail: `key '${m.missionKey}' is not unique` });
     if ((objCount.get(norm(m.objective).toLowerCase()) ?? 0) > 1)

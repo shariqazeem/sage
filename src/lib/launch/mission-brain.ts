@@ -18,7 +18,7 @@ import {
   buildArchitectUser,
   buildCriticUser,
 } from "./mission-prompt";
-import { validatePlanMissions, type ValidationScope } from "./validate-mission";
+import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { fieldTestForMap } from "./field-test";
 import { norm } from "./schemas";
 import type {
@@ -108,6 +108,7 @@ function coerceMission(raw: unknown, i: number): CandidateMission | null {
     confidence: asFloat(o.confidence, 0.6),
     assumptions: asArr(o.assumptions).slice(0, 6),
     disallowed: asArr(o.disallowed).slice(0, 8),
+    anchors: asArr(o.anchors).slice(0, 12),
   };
 }
 
@@ -270,20 +271,63 @@ function applyCritic(candidates: CandidateMission[], critiques: MissionCritique[
   return survivors;
 }
 
+/** Deterministic observation-richness signals gathered from the map + corpus (for the sufficiency gate). */
+function gatherRichness(map: ProductMapV1, corpus: string) {
+  const ft = map.fieldTest;
+  const els = new Set<string>();
+  for (const s of ft?.states ?? []) for (const e of s.notableElements ?? []) if (e.text) els.add(e.text.toLowerCase());
+  for (const v of ft?.visionObservations ?? []) for (const e of v.uiElements ?? []) if (e.label) els.add(e.label.toLowerCase());
+  for (const p of ft?.pages ?? []) for (const c of p.ctas ?? []) els.add(c.toLowerCase());
+  return {
+    states: ft?.states?.length ?? 0,
+    pages: map.pagesInspected,
+    vision: ft?.visionObservations?.length ?? 0,
+    distinctElements: els.size,
+    textLen: corpus.length,
+  };
+}
+
+/** SPECIFIC needs_input questions generated from what Sage DID see (never confabulated). */
+function sufficiencyQuestions(map: ProductMapV1): string[] {
+  const qs: string[] = [];
+  const ft = map.fieldTest;
+  const vis = ft?.visionObservations ?? [];
+  const types = [...new Set(vis.flatMap((v) => v.productTypeSignals))].slice(0, 2);
+  const scene = vis.map((v) => v.sceneDescription).find(Boolean);
+  if (types.length) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
+  if (scene) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
+  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs to get into the real product?");
+  if (qs.length === 0) qs.push("Sage's inspection didn't surface enough to design paid missions with confidence. What is the one flow you most want validated, and how would a tester prove they completed it?");
+  return qs.slice(0, 3);
+}
+
 export async function runMissionBrain(
   map: ProductMapV1,
   founder: FounderLaunchInput,
   scope: ValidationScope,
+  corpus: string,
 ): Promise<MissionBrainResult> {
   if (!llmConfigured()) return EMPTY("llm_not_configured");
   if (map.pagesInspected === 0) return EMPTY("no_inspected_pages");
+
+  // SUFFICIENCY GATE — if Sage saw too little to design work worth paying for, ask the founder
+  // SPECIFIC questions built from what WAS seen, rather than letting the architect confabulate a plan.
+  if (observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
+    return { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map) };
+  }
 
   const needsInputQuestions: string[] = [];
   const run = async (arch: Extract<ArchitectResult, { ok: true }>) => {
     const critiques = await critic(arch.candidates, map);
     const survivors = dedupeKeys(applyCritic(arch.candidates, critiques, needsInputQuestions));
-    const reports = validatePlanMissions(survivors, scope);
-    return { critiques, survivors, reports, accepted: survivors.filter((_m, i) => reports[i].ok) };
+    // the anchor gate runs mechanically over the observation corpus — an unanchored ("Zoom Control")
+    // claim is rejected here regardless of what the model said. The verifiability class is stamped on
+    // each accepted mission (deterministic, never model-provided) for the plan's honest disclosure.
+    const reports = validatePlanMissions(survivors, scope, corpus);
+    const accepted = survivors
+      .filter((_m, i) => reports[i].ok)
+      .map((m) => ({ ...m, verifiabilityClass: classifyVerifiability(m) }));
+    return { critiques, survivors, reports, accepted };
   };
 
   let arch = await architect(map, founder);

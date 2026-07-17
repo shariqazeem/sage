@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { validateMission, validatePlanMissions, type ValidationScope } from "./validate-mission";
-import type { CandidateMission, MissionValidationCode } from "./schemas";
+import {
+  validateMission,
+  validatePlanMissions,
+  buildObservationCorpus,
+  anchorIssues,
+  classifyVerifiability,
+  type ValidationScope,
+} from "./validate-mission";
+import type { CandidateMission, FieldTestSummary, MissionValidationCode, ProductObservation } from "./schemas";
 
 /**
  * The deterministic gate is the safety net between the LLM and a founder-visible,
@@ -254,5 +261,95 @@ describe('"worth paying for" gate — worthless_presence_check (the yara.garden 
 
   it("does not flag the clean baseline mission (an action + outcome)", () => {
     expect(codes(good())).not.toContain("worthless_presence_check");
+  });
+});
+
+/* ────────────── P15 — the anchor gate (anti-hallucination core) ──────────── */
+
+const YARA_OBS: ProductObservation = {
+  url: "https://yara.example/", status: 200, title: "Yara — a gentle world to heal",
+  headings: [], claims: [], ctas: ["make a wish at the wishing tree"], forms: [],
+  links: [], authBoundary: false, techHints: [], states: [], landmarks: [],
+  snippets: [], inspectedAt: 0, contentSha256: "a".repeat(64),
+};
+const YARA_FT: FieldTestSummary = {
+  ran: true, startUrl: "https://yara.example/", mode: "interactive", pages: [],
+  states: [{
+    trigger: "explored '+'", screenshot: null,
+    visibleTextExcerpt: "Oh — hello. I felt you arrive. I'm Yara.",
+    notableElements: [{ tag: "button", text: "make a wish", role: "button" }],
+    pixelDeltaPct: 20, url: "https://yara.example/",
+  }],
+  classification: null, limitation: null, durationMs: 1,
+  visionObservations: [{
+    stateIndex: 0, trigger: "explored '+'", sceneDescription: "an anime world",
+    visibleText: ["Yara", "breathe", "tap to step inside"], uiElements: [{ label: "+", kind: "button" }],
+    productTypeSignals: ["interactive game"], audienceSignals: [], qualityIssues: [],
+  }],
+};
+
+describe("buildObservationCorpus + anchorIssues (the anti-hallucination gate)", () => {
+  const corpus = buildObservationCorpus([YARA_OBS], YARA_FT);
+
+  it("gathers observed static + field-test + vision text, normalized; excludes what was never seen", () => {
+    expect(corpus).toContain("make a wish at the wishing tree");
+    expect(corpus).toContain("oh — hello. i felt you arrive. i'm yara.");
+    expect(corpus).toContain("breathe");
+    expect(corpus).toContain("tap to step inside");
+    expect(corpus).not.toContain("zoom control");
+  });
+
+  it("passes anchors that appear verbatim in the corpus (case/whitespace-insensitive)", () => {
+    expect(anchorIssues({ anchors: ["make a wish", "breathe"] }, corpus)).toEqual([]);
+    expect(anchorIssues({ anchors: ["Oh — hello. I felt you arrive"] }, corpus)).toEqual([]);
+  });
+
+  it("REJECTS a mission anchored to something never observed — the Zoom Control class", () => {
+    const issues = anchorIssues({ anchors: ["Zoom Control", "breathe"] }, corpus);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("unanchored_claim");
+    expect(issues[0].detail).toMatch(/zoom control/i);
+  });
+
+  it("rejects a mission that cites NO anchors at all", () => {
+    expect(anchorIssues({ anchors: [] }, corpus)[0]?.code).toBe("unanchored_claim");
+    expect(anchorIssues({ anchors: undefined }, corpus)[0]?.code).toBe("unanchored_claim");
+    expect(anchorIssues({ anchors: ["ab"] }, corpus)[0]?.code).toBe("unanchored_claim"); // too short to count
+  });
+
+  it("integration: validateMission enforces the gate ONLY when a corpus is supplied (byte-identical otherwise)", () => {
+    const zoom = good({ anchors: ["Zoom Control"], targetSurface: "https://app.example.com/" });
+    expect(codes(zoom)).not.toContain("unanchored_claim"); // no corpus → gate skipped
+    expect(validateMission(zoom, SCOPE, corpus).issues.map((i) => i.code)).toContain("unanchored_claim");
+
+    const anchored = good({ anchors: ["make a wish"], targetSurface: "https://app.example.com/" });
+    expect(validateMission(anchored, SCOPE, corpus).issues.map((i) => i.code)).not.toContain("unanchored_claim");
+  });
+
+  it("validatePlanMissions threads the corpus to every mission", () => {
+    const reports = validatePlanMissions([good({ missionKey: "z", anchors: ["Zoom Control"] })], SCOPE, corpus);
+    expect(reports[0].issues.map((i) => i.code)).toContain("unanchored_claim");
+  });
+});
+
+describe("classifyVerifiability (deterministic)", () => {
+  it("url-verifiable: reach a specific URL and find specific text/heading there", () => {
+    expect(
+      classifyVerifiability({
+        objective: "confirm the docs search leads to the guide",
+        criteria: ["The result leads to the documentation page", "The reached page contains the text 'Add your website' as an H1 header"],
+        evidenceRequirements: ["The URL reached"],
+      }),
+    ).toBe("url-verifiable");
+  });
+
+  it("observation-based: an interactive behaviour with no external URL proof", () => {
+    expect(
+      classifyVerifiability({
+        objective: "confirm the arrival narrative triggers",
+        criteria: ["The text 'Oh — hello' appears after clicking the + control", "The tester can progress the dialogue"],
+        evidenceRequirements: ["A written account of what appeared"],
+      }),
+    ).toBe("observation-based");
   });
 });

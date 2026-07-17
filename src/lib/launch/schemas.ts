@@ -298,6 +298,13 @@ export interface CandidateMission {
   assumptions: string[];
   /** actions the tester must NOT take (destructive/authenticated/etc.). */
   disallowed: string[];
+  /** VERBATIM strings this mission claims to have observed (element text, vision text, a state excerpt,
+   *  a title). The deterministic anchor gate requires each to be a literal substring of the observation
+   *  corpus — a mission about a "Zoom Control" that was never observed cannot pass, whatever a model says. */
+  anchors?: string[];
+  /** deterministic verifiability class (set by the gate, never the model): a public page's text can prove
+   *  completion (url-verifiable) vs the tester's judged written account (observation-based). */
+  verifiabilityClass?: "url-verifiable" | "observation-based";
 }
 
 /* ───────────────────────────────────────────────── critic verdict ───────── */
@@ -337,6 +344,7 @@ export type MissionValidationCode =
   | "evidence_cannot_prove_criteria"
   | "unsupported_evidence_type"
   | "worthless_presence_check"
+  | "unanchored_claim"
   | "prompt_injection_content";
 
 export interface MissionValidationIssue {
@@ -397,6 +405,10 @@ export interface CompiledMission {
   rewardBase: bigint;
   maxCompletions: bigint;
   verificationMethod: string;
+  /** verbatim observed anchors (display only — NOT part of the spec digest). */
+  anchors?: string[];
+  /** deterministic verifiability class (display only — NOT part of the spec digest). */
+  verifiabilityClass?: "url-verifiable" | "observation-based";
   /** bytes32 — missionIdHash(publicCampaignId, missionKey). */
   missionIdHash: Hex;
   /** bytes32 — the MissionSpecV1 digest. */
@@ -420,6 +432,9 @@ export interface MissionPlanV1 {
   missionPlanDigest: Hex;
   /** open questions when status === "needs_input". */
   openQuestions: string[];
+  /** plain-words disclosure of how the plan's missions are verified (the url-verifiable vs
+   *  observation-based split) — honesty about what Sage can and cannot externally prove. */
+  verifiabilityNote?: string;
   /** the model + prompt schema version that produced the candidates. */
   modelVersion: string;
   promptVersion: string;
