@@ -15,6 +15,7 @@ import {
 import { reward, networkLabel, short } from "@/lib/format";
 import { NetworkChip } from "@/components/app/network-chip";
 import { ConnectWallet } from "@/components/app/connect-wallet";
+import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
 /** One tester submission, already reduced to display truth on the server. */
@@ -105,7 +106,7 @@ function OwnerGate({ data }: { data: WorkspaceData }) {
           that wallet, or view the public tester board instead.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <ConnectWallet />
+          <ConnectWallet chainId={data.chainId} />
           <button
             className="sage-btn"
             disabled={busy}
@@ -315,7 +316,7 @@ function TopBar({ chainId }: { chainId: number }) {
   return (
     <header className="sb-top">
       <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
-        <span className="sb-mark">S</span> Sage
+        <SageMark size={20} /> Sage
       </Link>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
         <Link href="/dashboard" className="cw-link" style={{ textDecoration: "none" }}>

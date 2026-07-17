@@ -47,6 +47,25 @@ whether the payouts hold up.
 
 ---
 
+## Principle — Sage is a worker, not a wizard
+
+> **Sage is a worker, not a wizard.** The founder states intent once — URL, goal, budget —
+> and there are exactly two human moments in the entire lifecycle: **approve the plan, and
+> fund it.** Everything else Sage does autonomously and narrates after acting, with an
+> artifact backing every claim. Three rules:
+>
+> 1. **One intent, zero forms after it.** Never ask the founder anything Sage can discover
+>    itself (the field test discovers pages; wallet tools discover balances). Ask only for
+>    genuine decisions.
+> 2. **Show work, not spinners.** "Alive" does not come from personality, animations, or
+>    more chat — it comes from observable work product: "I browsed 6 pages, here's what I
+>    saw," "I designed 5 missions, here's why each exists," "I paid $0.40, here's the
+>    receipt." The no-fabricated-feed rule, elevated to the design principle.
+> 3. **Money moments are explicit and receipt-backed.** Verify, pay, hold, notify — all
+>    autonomous, all announced after the fact with proof links.
+
+---
+
 ## 2. Architecture
 
 Three LLM "brains" + one on-chain settlement core. They are separate on purpose.

@@ -73,7 +73,7 @@ export function JailbreakBox() {
     <div className="sag-jb">
       <div className="sag-jb-label">TRY TO BREAK IT</div>
       <div className="sag-jb-title">
-        <Terminal size={16} /> Try to jailbreak the Deputy
+        <Terminal size={16} /> Try to jailbreak Sage
       </div>
       <p className="sag-jb-copy">
         Type anything and run it through Sage&apos;s <b>real</b> verification

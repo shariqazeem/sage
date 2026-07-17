@@ -785,12 +785,12 @@ function Row({
         {/* the Deputy's autonomous outcome — held (amber) or paid-by-Deputy */}
         {s.autopay?.state === "held" && s.status !== "paid" && (
           <div className="sage-autopay held">
-            <Clock size={13} /> Held by Deputy — {s.autopay.reason}
+            <Clock size={13} /> Held by Sage — {s.autopay.reason}
           </div>
         )}
         {s.status === "paid" && s.autopay?.state === "settled" && (
           <div className="sage-autopay paid">
-            <Sparkles size={13} /> Paid by Deputy
+            <Sparkles size={13} /> Paid by Sage
             {typeof s.brief?.confidence === "number" && (
               <> · {Math.round(s.brief.confidence * 100)}% confidence</>
             )}

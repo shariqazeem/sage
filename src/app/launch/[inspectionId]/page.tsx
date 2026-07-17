@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SageMark } from "@/components/brand/sage-mark";
 import "../launch.css";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { jobToView } from "@/lib/launch/job";
@@ -27,7 +28,7 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
     <div className="lx">
       <div className="lx-wrap">
         <header className="lx-head">
-          <Link href="/" className="lx-mark" aria-label="Sage home"><span /></Link>
+          <Link href="/" aria-label="Sage home" style={{ display: "inline-flex" }}><SageMark size={28} /></Link>
           <span className="lx-word">Sage</span>
           <Link href="/launch" className="lx-kicker" style={{ marginLeft: "auto", textDecoration: "none" }}>New inspection</Link>
         </header>

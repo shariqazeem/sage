@@ -51,8 +51,8 @@ export async function generateMetadata({
     ? `${amount} paid · Sage payout proof`
     : "Payout blocked · Sage proof";
   const description = proof.settled
-    ? `${amount} settled to ${short(proof.human.recipient)} on ${proof.human.network}, inside the Deputy's on-chain policy${proof.legacy ? "" : " — verified against its AI decision"}. Verify it yourself.`
-    : `A ${amount} payout was refused on-chain by the Deputy's policy vault. No funds moved. Verify it on ${proof.human.network}.`;
+    ? `${amount} settled to ${short(proof.human.recipient)} on ${proof.human.network}, inside Sage's on-chain policy${proof.legacy ? "" : " — verified against its AI decision"}. Verify it yourself.`
+    : `A ${amount} payout was refused on-chain by Sage's policy vault. No funds moved. Verify it on ${proof.human.network}.`;
   return {
     metadataBase: new URL(siteUrl()),
     title,

@@ -2,23 +2,23 @@
    Cinematic staggered reveal: each layer rises in sequence. Scoped .spp. */
 
 .spp {
-  --paper: #fbfbf9;
-  --ink: #1a1d21;
-  --ink2: #3a3e44;
-  --sec: #6b6f76;
-  --ter: #8a8d92;
-  --mut: #9a9da2;
-  --line: #ecebe6;
-  --line-2: #f1f0ec;
-  --line-3: #f4f3ef;
-  --surface-3: #faf9f6;
-  --accent: #1a1d21;
-  --pos: #15803d;
-  --pos-bg: #eef6f0;
-  --pos-line: #cfe6d6;
-  --dan: #dc2626;
-  --dan-bg: #fdeeee;
-  --dan-line: #f3cccc;
+  --paper: var(--bg);
+  --ink: inherit;
+  --ink2: var(--ink-muted);
+  --sec: var(--ink-muted);
+  --ter: var(--ink-faint);
+  --mut: var(--ink-faint);
+  --line: var(--border);
+  --line-2: var(--border);
+  --line-3: var(--border);
+  --surface-3: var(--bg);
+  --accent: inherit;
+  --pos: var(--ok);
+  --pos-bg: var(--ok-soft);
+  --pos-line: var(--ok-soft);
+  --dan: var(--err);
+  --dan-bg: var(--err-soft);
+  --dan-line: var(--err-soft);
 
   min-height: 100vh;
   width: 100%;
@@ -32,8 +32,8 @@
   align-items: center;
   padding: 28px 22px 64px;
 }
-body:has(.spp) { background: #fbfbf9; }
-.spp ::selection { background: #e7e6e1; }
+body:has(.spp) { background: var(--bg); }
+.spp ::selection { background: var(--border); }
 .spp .mono { font-family: var(--font-mono), ui-monospace, monospace; }
 
 @keyframes spp-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -80,7 +80,7 @@ body:has(.spp) { background: #fbfbf9; }
 
 /* cards (machine proof + safety) */
 .spp-card {
-  width: 100%; max-width: 600px; margin-top: 16px; background: #fff; border: 1px solid var(--line);
+  width: 100%; max-width: 600px; margin-top: 16px; background: var(--surface); border: 1px solid var(--line);
   border-radius: 18px; box-shadow: 0 1px 1px rgba(26, 29, 33, 0.03);
 }
 .spp-card.big { margin-top: 38px; box-shadow: 0 1px 1px rgba(26, 29, 33, 0.03), 0 16px 44px -30px rgba(26, 29, 33, 0.24); }
@@ -115,24 +115,24 @@ body:has(.spp) { background: #fbfbf9; }
   border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .spp-identity-l { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.spp-identity-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; color: var(--ink); }
+.spp-identity-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; color: var(--ink); }
 .spp-identity-name { font-size: 13px; font-weight: 600; }
 .spp-identity-sub { font-size: 11.5px; color: var(--ter); }
 .spp-identity a { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
 
 /* share preview */
 .spp-share { width: 100%; max-width: 600px; margin-top: 34px; }
-.spp-share-label { font-family: var(--font-mono), monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; color: #b3b5b9; text-transform: uppercase; margin-bottom: 10px; text-align: center; }
+.spp-share-label { font-family: var(--font-mono), monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 10px; text-align: center; }
 .spp-share-img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 12px 34px -22px rgba(26, 29, 33, 0.3); }
 .spp-share-card { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 12px 34px -22px rgba(26, 29, 33, 0.3); }
 .spp-share-dark { background: var(--ink); padding: 26px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .spp-share-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; font-size: 11px; font-weight: 700; }
 .spp-share-pill .dot { width: 5px; height: 5px; border-radius: 50%; }
 .spp-share-amt { font-family: var(--font-mono), monospace; font-size: 36px; font-weight: 700; letter-spacing: -0.03em; color: var(--paper); line-height: 1; }
-.spp-share-sub { font-size: 13px; color: #a9aab0; margin-top: 8px; }
-.spp-share-badge { flex: none; width: 52px; height: 52px; border-radius: 15px; background: #26292e; display: grid; place-items: center; }
+.spp-share-sub { font-size: 13px; color: var(--ink-faint); margin-top: 8px; }
+.spp-share-badge { flex: none; width: 52px; height: 52px; border-radius: 15px; background: var(--surface-inverse-raised); display: grid; place-items: center; }
 .spp-share-badge > div { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--paper); }
-.spp-share-light { background: #fff; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; }
+.spp-share-light { background: var(--surface); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; }
 .spp-share-url { font-family: var(--font-mono), monospace; font-size: 11.5px; color: var(--ter); }
 .spp-share-brand { font-size: 11.5px; font-weight: 600; color: var(--accent); }
 
@@ -148,7 +148,7 @@ body:has(.spp) { background: #fbfbf9; }
 .spp-nf a { display: inline-flex; margin-top: 20px; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }
 
 /* ── added: amber warn tone (legacy / unavailable), never green/red ── */
-.spp { --warn: #b45309; --warn-bg: #fdf6ec; --warn-line: #f0e2c8; }
+.spp { --warn: inherit; --warn-bg: var(--warn-soft); --warn-line: var(--warn-soft); }
 
 /* honesty banners */
 .spp-banner {

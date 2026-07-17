@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./launch.css";
+import { SageMark } from "@/components/brand/sage-mark";
 import { LaunchForm } from "@/components/launch/launch-form";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default function LaunchPage() {
     <div className="lx">
       <div className="lx-wrap">
         <header className="lx-head">
-          <Link href="/" className="lx-mark" aria-label="Sage home"><span /></Link>
+          <Link href="/" aria-label="Sage home" style={{ display: "inline-flex" }}><SageMark size={28} /></Link>
           <span className="lx-word">Sage</span>
           <span className="lx-kicker" style={{ marginLeft: "auto" }}>Launch</span>
         </header>

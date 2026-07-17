@@ -19,6 +19,7 @@
   --accent: #c2410c;       /* terracotta */
   --accent-soft: #fdf1ea;  /* subtle terracotta wash (hover/selected) */
   --accent-ink: #ffffff;   /* text on an accent fill */
+  --accent-strong: #9a3412;/* darker terracotta for hover / active */
 
   /* ── money-outcome semantics ONLY (never generic accents) ───────── */
   --ok: #15803d;           /* paid / verified / success */
@@ -27,12 +28,23 @@
   --err-soft: #fdeeee;
   --warn: #b45309;         /* caution (held-for-review, low balance) */
   --warn-soft: #fbf1e6;
+  /* tinted callout rings — a shade darker than each matching *-soft fill */
+  --accent-border: #f3d7c6;
+  --ok-border: #c3e3cd;
+  --err-border: #f2cccc;
+  --warn-border: #ecdcb4;
 
   /* ── lines + elevation ──────────────────────────────────────────── */
   --border: #e9e6df;
   --border-strong: #d8d3c9;
   --shadow-sm: 0 1px 2px rgba(26, 29, 33, 0.05);
   --shadow-md: 0 6px 24px rgba(26, 29, 33, 0.08);
+
+  /* ── inverse: the one dark surface (landing close, wallet hero) ──── */
+  --ink-inverse: #f3f3f1;            /* primary light text on dark */
+  --ink-inverse-muted: #b3b5b9;      /* muted light text on dark */
+  --border-inverse: #2c3138;         /* hairline on dark */
+  --surface-inverse-raised: #26292e; /* elevated card on dark */
 
   /* ── radii (6/10/16, + pill for status chips only) ──────────────── */
   --r-sm: 6px;

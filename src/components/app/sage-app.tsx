@@ -45,7 +45,7 @@ const BOOT_STEPS: { key: CreateStep; label: string }[] = [
   { key: "mint", label: "Mint test USDC" },
   { key: "create", label: "Deploy Policy Vault" },
   { key: "fund", label: "Fund the wallet" },
-  { key: "activate", label: "Activate the Deputy" },
+  { key: "activate", label: "Activate Sage" },
 ];
 // Where each createStep sits in the linear order (approve folds under "create").
 const STEP_ORDER: Record<string, number> = {
@@ -370,7 +370,7 @@ export function SageApp(props: Props) {
                 </div>
                 <div className="sage-onb-eyebrow">Sage</div>
                 <h1 className="sage-onb-h1">
-                  Your Deputy verifies the work, reasons about it, and pays real
+                  Sage verifies the work, reasons about it, and pays real
                   people in USDC. It spends only inside an allowance you set once.
                 </h1>
                 <p className="sage-onb-sub">
@@ -420,7 +420,7 @@ export function SageApp(props: Props) {
               <div className="sage-onb-center">
                 <div className="sage-onb-eyebrow tight">Your wallet</div>
                 <h2 className="sage-onb-h2">
-                  A wallet holds real USDC — your Deputy spends only from it, only
+                  A wallet holds real USDC — Sage spends only from it, only
                   inside the limits you set. On-chain, it&apos;s the Policy Vault.
                 </h2>
                 <div

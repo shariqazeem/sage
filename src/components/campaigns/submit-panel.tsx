@@ -73,7 +73,7 @@ function workerBeat(m: MySubmission): { icon: ReactNode; text: string; color: st
     };
   return {
     icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />,
-    text: "Deputy is verifying your evidence…",
+    text: "Sage is verifying your evidence…",
     color: "var(--sec)",
   };
 }

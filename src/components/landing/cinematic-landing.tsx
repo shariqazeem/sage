@@ -7,6 +7,7 @@ import { Act2Problem } from "./act2-problem";
 import { Act3Vault, type LandingReceipt } from "./act3-vault";
 import { Act4Proof } from "./act4-proof";
 import { Act5Close } from "./act5-close";
+import { SageMark } from "@/components/brand/sage-mark";
 
 interface Props {
   vault: VaultStateView | null;
@@ -46,9 +47,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
       <header className="clx-header">
         <div className="clx-header-in">
           <Link href="/" className="clx-brand" aria-label="Sage home">
-            <span className="clx-mark">
-              <span className="clx-mark-ring" />
-            </span>
+            <SageMark size={22} />
             <span className="clx-wordmark">Sage</span>
           </Link>
           <nav className="clx-topnav">
@@ -88,9 +87,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
       <footer className="clx-footer">
         <div className="clx-footer-in">
           <div className="clx-brand">
-            <span className="clx-mark">
-              <span className="clx-mark-ring sm" />
-            </span>
+            <SageMark size={18} />
             <span className="clx-wordmark" style={{ fontSize: 15 }}>
               Sage
             </span>

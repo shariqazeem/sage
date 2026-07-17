@@ -55,7 +55,7 @@ export function AutopilotCard({
             {!isAuto && <Check className="tick" size={14} />}
           </span>
           <span className="sage-auto-opt-p">
-            You confirm every payout. The Deputy verifies and recommends; you click
+            You confirm every payout. Sage verifies and recommends; you click
             Approve &amp; pay.
           </span>
         </button>
@@ -73,7 +73,7 @@ export function AutopilotCard({
             {isAuto && <Check className="tick" size={14} />}
           </span>
           <span className="sage-auto-opt-p">
-            Configure the mandate once. The Deputy pays verified work on its own.
+            Configure the mandate once. Sage pays verified work on its own.
             Every spend still passes the vault&apos;s on-chain checks it cannot
             change — and can never pay for the same work twice.
           </span>

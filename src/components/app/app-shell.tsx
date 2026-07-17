@@ -40,6 +40,7 @@ import { CountUp } from "@/components/app/count-up";
 import { BreakIt } from "@/components/hire/break-it";
 import { CopyButton } from "@/components/hire/copy-button";
 import { ConnectWallet } from "@/components/app/connect-wallet";
+import { SageMark } from "@/components/brand/sage-mark";
 import { PnLPanel, type PnLView } from "@/components/agents/pnl-panel";
 import { Ticker } from "@/components/app/ticker";
 
@@ -74,7 +75,7 @@ interface Props {
 const ONBOARDING_TEMPLATE = {
   title: "Test my app — 0.5 USDC",
   description:
-    "Try my app and tell me what broke. Paid in USDC on approval — the Deputy verifies each entry against the criteria below before anything settles.",
+    "Try my app and tell me what broke. Paid in USDC on approval — Sage verifies each entry against the criteria below before anything settles.",
   criteria:
     "Tried the app and completed the core flow\nLeft a genuine note on friction or a bug you hit\nEvidence link resolves (a screenshot, recording, or short write-up)",
   rewardUsd: "0.5",
@@ -160,7 +161,7 @@ export function AppShell({
         <Ticker />
         <header className="sb-top">
           <div className="sb-brand">
-            <span className="sb-mark">S</span> Sage
+            <SageMark size={20} /> Sage
           </div>
           <div className="sb-top-right">
             <button
@@ -298,7 +299,7 @@ export function AppShell({
                   </>
                 ) : (
                   <div className="sb-card sb-empty">
-                    No Deputy is live on this network yet. Deploy a Policy Vault to
+                    No agent is live on this network yet. Deploy a Policy Vault to
                     begin.
                   </div>
                 )}
@@ -513,7 +514,7 @@ export function AppShell({
                   <>
                     <div className="sage-pol-intro">
                       <p>
-                        The rules limit what your Deputy can do — and what{" "}
+                        The rules limit what your agent can do — and what{" "}
                         <em>you</em> can do. You cannot loosen your own leash.
                       </p>
                       <span className={`sage-status ${revoked ? "dan" : "pos"}`}>
@@ -750,7 +751,7 @@ export function AppShell({
                         className="sage-hint"
                         style={{ marginTop: 12, lineHeight: 1.55 }}
                       >
-                        The Deputy&apos;s identity registers on {identity.network}{" "}
+                        Sage&apos;s identity registers on {identity.network}{" "}
                         (chain {identity.chainId}). Once minted it appears here and
                         on 8004scan — with a reputation built only from real settled
                         payouts, nothing self-asserted.

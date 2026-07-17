@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SageMark } from "@/components/brand/sage-mark";
 import { getAddress } from "viem";
 import { Check, ShieldCheck } from "lucide-react";
 import { usd, reward as fmtReward, networkLabel } from "@/lib/format";
@@ -45,7 +46,7 @@ export default async function CampaignPublicPage({
       <main className="sb-shell">
         <header className="sb-top">
           <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
-            <span className="sb-mark">S</span> Sage
+            <SageMark size={20} /> Sage
           </Link>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             <NetworkChip chainId={e.chainId} size="xs" />
@@ -130,7 +131,7 @@ export default async function CampaignPublicPage({
     <main className="sb-shell">
       <header className="sb-top">
         <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
-          <span className="sb-mark">S</span> Sage
+          <SageMark size={20} /> Sage
         </Link>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <NetworkChip chainId={campaign.chainId} size="xs" />

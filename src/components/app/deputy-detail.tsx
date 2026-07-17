@@ -47,7 +47,7 @@ export function DeputyDetail({
         />
         <div className="sb-detail-id">
           <div className="sb-agent-name">
-            Payout Deputy
+            Payout agent
             {revoked ? (
               <span className="sb-pill dan">Revoked</span>
             ) : (

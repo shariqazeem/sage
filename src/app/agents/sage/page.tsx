@@ -23,14 +23,14 @@ export function generateMetadata(): Metadata {
   const id = getAgentIdentity();
   const r = getAgentReputation();
   const name = id.name ?? "Sage";
-  const title = `${name} — Autonomous Payout Deputy`;
+  const title = `${name} — Autonomous Payout Agent`;
   const description = r.active
     ? `${usd(r.settledTotalBase / 1e6)} settled across ${r.payoutCount} on-chain payout${
         r.payoutCount === 1 ? "" : "s"
       } to ${r.distinctRecipients} recipient${r.distinctRecipients === 1 ? "" : "s"}, ${
         r.blockedCount
       } blocked by policy. ERC-8004 identity on ${id.network} — every payout verifiable and graded.`
-    : `Sage's Payout Deputy — an ERC-8004 agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.`;
+    : `Sage — an ERC-8004 payout agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.`;
 
   return {
     metadataBase: new URL(siteUrl()),

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SageMark } from "@/components/brand/sage-mark";
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -82,12 +83,10 @@ export function AgentProfilePage({
     <div className="sag">
       <div className="sag-col sag-top sag-reveal">
         <div className="sag-brand">
-          <span className="sag-mark">
-            <span className="sag-mark-ring" />
-          </span>
+          <SageMark size={26} />
           <span className="sag-wordmark">Sage</span>
         </div>
-        <span className="sag-kicker">Autonomous Payout Deputy</span>
+        <span className="sag-kicker">Autonomous payout agent</span>
       </div>
 
       {/* identity */}
@@ -147,7 +146,7 @@ export function AgentProfilePage({
         <p className="sag-id-note">
           {registered ? (
             <>
-              This Deputy verifies submitted work, reasons about it, and pays real
+              Sage verifies submitted work, reasons about it, and pays real
               people in USDC — or gets blocked trying. Linked to ERC-8004 identity{" "}
               <b className="mono">#{identity.agentId}</b> on {identity.network}; the
               performance shown here is derived from Sage&apos;s verifiable
@@ -202,7 +201,7 @@ export function AgentProfilePage({
 
         {!r.active && (
           <div className="sag-empty">
-            No settled payouts yet — this track record begins the moment the Deputy
+            No settled payouts yet — this track record begins the moment Sage
             releases its first reward. Zeros here are honest, not hidden.
           </div>
         )}

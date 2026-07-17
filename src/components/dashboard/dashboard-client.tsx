@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { SageMark } from "@/components/brand/sage-mark";
 import { useState } from "react";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { chainConfig } from "@/lib/deputy/networks";
@@ -47,7 +48,7 @@ export function DashboardClient({
     <main className="sb-shell">
       <header className="sb-top">
         <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
-          <span className="sb-mark">S</span> Sage
+          <SageMark size={20} /> Sage
         </Link>
         <span className="sb-net">Founder dashboard</span>
       </header>

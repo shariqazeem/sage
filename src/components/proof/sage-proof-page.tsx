@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SageMark } from "@/components/brand/sage-mark";
 import {
   Check,
   X,
@@ -43,9 +44,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
     <div className="spp">
       <div className="spp-col spp-top spp-reveal">
         <div className="spp-brand">
-          <span className="spp-mark">
-            <span className="spp-mark-ring" />
-          </span>
+          <SageMark size={26} />
           <span className="spp-wordmark">Sage</span>
         </div>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>

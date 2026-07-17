@@ -91,7 +91,7 @@ export function DeputyAssessmentCard({
 
       <div className="sage-assess-head">
         <span className="sage-assess-title">
-          <Sparkles size={13} /> Deputy assessment
+          <Sparkles size={13} /> Sage assessment
         </span>
         <span className={`sage-assess-rec ${v.tone}`}>{v.word}</span>
       </div>
@@ -99,7 +99,7 @@ export function DeputyAssessmentCard({
       <span className={`sage-assess-engine ${brief.engine}`}>
         <span className="dot" />
         {brief.engine === "llm"
-          ? `Deputy AI · ${brief.model ?? "llm"}`
+          ? `Sage · ${brief.model ?? "llm"}`
           : "Heuristic v1 · LLM pending"}
       </span>
 
