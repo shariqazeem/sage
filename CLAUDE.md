@@ -193,6 +193,8 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `CRON_SECRET` | Vercel Cron bearer for the sweep | Scheduled sweep unauthorized (with neither set, the endpoint is closed) |
 | `SAGE_SESSION_SECRET` | SIWE cookie session signing | Auth sessions degraded |
 | `SAGE_AGENT_API_KEY` | Bearer for the authenticated Agent API | Agent API fails closed (404) |
+| `SAGE_ADMIN_SECRET` † | Operator secret for the out-of-band held-work review endpoint (`POST /api/admin/review`, header `x-sage-admin-secret`) that backs `scripts/review.mjs` | Endpoint fails closed (404); the Telegram review tools still work |
+| `MISSION_MODEL` † | Mission-DESIGN-only model override (prod: `anthropic/claude-haiku-4-5`); the payout/judgment brain is untouched | Mission design falls through to `LLM_MODEL`→`DEPUTY_MODEL`→default (unchanged) |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---
