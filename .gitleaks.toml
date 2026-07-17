@@ -1,0 +1,20 @@
+# Sage gitleaks config. Extends the default ruleset; allowlists ONLY specific, verified-public
+# values so a real leaked secret is still caught. Reviewed 2026-07-17 — see each entry's reason.
+title = "sage"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified false positives: public on-chain addresses, the canonical Anvil test key, empty .env.example placeholders."
+regexes = [
+  # Anvil/Hardhat default test private key #0 — public in every Ethereum dev setup, never holds mainnet funds.
+  '''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''',
+  # Public on-chain contract addresses (a testnet settlement token + GOAT USDC) — on-chain, not secrets.
+  '''0xF176f521290A937d81cc5878dfc19908f4D681A1''',
+  '''0x3022b87ac063DE95b1570F46f5e470F8B53112D8''',
+]
+paths = [
+  # Placeholder-only template; real values live in the untracked .env.
+  '''\.env\.example''',
+]
