@@ -234,7 +234,7 @@ export default async function CampaignPublicPage({
       />
 
       <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
-        Rewards are paid by Sage&apos;s Deputy from an on-chain wallet with hard
+        Rewards are paid by Sage from an on-chain wallet with hard
         spending limits (the Policy Vault). Every payout is a verifiable
         transaction you can inspect on the block explorer.
       </footer>
