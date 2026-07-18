@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   extractOrder,
   guardedFee,
@@ -7,6 +7,7 @@ import {
   runPayAndCall,
   settleStatus,
   type MerchantClient,
+  type TransferFn,
 } from "./payer-core";
 
 function mockRes(status: number, body: unknown): Response {
@@ -193,6 +194,60 @@ describe("runOperatorFee — RAIL 2 direct payment", () => {
     expect(r.paymentTx).toBe("0xFEETX");
     expect(r.orderId).toBe("fee_ord");
     expect(transfer).toHaveBeenCalledWith("0x00000000000000000000000000000000000ME12", "100000");
+  });
+});
+
+/**
+ * P17/P19 fee-quote probe + defensive clamp. The probe only LOGS by default — the amount actually sent
+ * must stay byte-identical to the old `order.amountWei || opts.amountWei`. The clamp is a client-side
+ * defense against an 18-dp facilitator mis-quote, and is INERT unless X402_CLAMP_FEE_DECIMALS=1.
+ */
+describe("runOperatorFee — fee-quote probe + clamp (money-path)", () => {
+  const DP18 = "100000000000000000"; // 0.1 USDC quoted in 18 decimals (1e17) — the reverting-fee hypothesis
+  const makeClient = (quotedWei: string): MerchantClient => ({
+    createOrder: vi.fn(async () => ({
+      orderId: "fee_ord",
+      payToAddress: "0xPAYTO",
+      amountWei: quotedWei,
+      tokenContract: "0xUSDC",
+      flow: "ERC20_DIRECT",
+    })),
+    waitForConfirmation: vi.fn(async () => ({ status: "PAYMENT_CONFIRMED" })),
+  });
+  const runFee = (client: MerchantClient, transfer: TransferFn) =>
+    runOperatorFee({
+      dappOrderId: "fee-1",
+      fromAddress: "0xagent",
+      tokenContract: "0xUSDC",
+      chainId: 2345,
+      amountWei: "100000",
+      transfer,
+      client,
+    });
+
+  afterEach(() => {
+    delete process.env.X402_CLAMP_FEE_DECIMALS;
+  });
+
+  it("DEFAULT (flag off): sends the facilitator's quote verbatim — behavior unchanged, even for an 18-dp quote", async () => {
+    const transfer = vi.fn(async () => ({ txHash: "0xFEETX" }));
+    await runFee(makeClient(DP18), transfer);
+    // The old code was `order.amountWei || opts.amountWei` → the quote wins. Probe must NOT change that.
+    expect(transfer).toHaveBeenCalledWith("0xPAYTO", DP18);
+  });
+
+  it("CLAMP armed + 18-dp quote (~1e12x ours): sends our 6-dp value instead", async () => {
+    process.env.X402_CLAMP_FEE_DECIMALS = "1";
+    const transfer = vi.fn(async () => ({ txHash: "0xFEETX" }));
+    await runFee(makeClient(DP18), transfer);
+    expect(transfer).toHaveBeenCalledWith("0xPAYTO", "100000");
+  });
+
+  it("CLAMP armed + a legitimate 6-dp quote: does NOT fire (surgical, not a blanket override)", async () => {
+    process.env.X402_CLAMP_FEE_DECIMALS = "1";
+    const transfer = vi.fn(async () => ({ txHash: "0xFEETX" }));
+    await runFee(makeClient("100000"), transfer);
+    expect(transfer).toHaveBeenCalledWith("0xPAYTO", "100000");
   });
 });
 

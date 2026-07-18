@@ -117,6 +117,9 @@ export async function runPayAndCall<T>(opts: {
     throw new Error(`x402: unsupported payment method '${order.paymentMethod}'`);
   }
 
+  // P17/P19 probe — the gated resource sets its own price, so there's no "ours" to compare; still log the
+  // quoted magnitude so an 18-dp mis-quote is visible (6-dp 0.1 = 100000; 18-dp 0.1 = 1e17).
+  console.warn(`[x402-probe] gated-resource order=${order.orderId} · quotedWei=${order.amountWei}`);
   const pay = await transfer(order.payTo, order.amountWei);
 
   if (client && opts.confirm !== false) {
@@ -138,6 +141,42 @@ export async function runPayAndCall<T>(opts: {
     throw new Error(`x402: paywalled call failed after payment (${retry.status})`);
   }
   return { result, paymentTx: pay.txHash, bypassed: false };
+}
+
+/**
+ * P17/P19 x402 FEE-QUOTE PROBE — the money we compute is 6-dp USDC (usdToWei(0.1) = 100000). The
+ * facilitator ECHOES an amount back on the order, and we transfer `order.amountWei || ours`. If the
+ * facilitator quotes 0.1 in 18 decimals (1e17) against 6-dp USDC, the transfer asks for ~10^12x the
+ * intended amount and REVERTS — the reverting-fee mystery. This logs the exact numbers so the hypothesis
+ * is CONFIRMED or KILLED by a real value (grep `[x402-probe]` in the pm2 logs), and returns the amount to
+ * actually send: unchanged by default, or CLAMPED to our 6-dp value when X402_CLAMP_FEE_DECIMALS=1 AND
+ * the quote looks ~10^12x too large (a facilitator-side mis-denomination we defend against client-side).
+ */
+function probeAndResolveFeeWei(ctx: string, ourWei: string, quotedWei: string | undefined | null): string {
+  const ZERO = BigInt(0);
+  let ours = ZERO;
+  let quoted = ZERO;
+  try {
+    ours = BigInt(ourWei || "0");
+    quoted = quotedWei ? BigInt(quotedWei) : ZERO;
+  } catch {
+    /* keep zeros */
+  }
+  // 6-dp: 0.1 USDC = 100000. 18-dp: 0.1 = 1e17. So an 18-vs-6 mis-denomination shows a ~10^12 ratio.
+  const ratio = ours > ZERO && quoted > ZERO ? Number(quoted) / Number(ours) : 0;
+  const looks18dp = ours > ZERO && quoted > ZERO && ratio >= 1e11;
+  const verdict =
+    quoted === ZERO
+      ? "facilitator returned no amount → we send our 6-dp value"
+      : quoted === ours
+        ? "MATCH — quote == our 6-dp value (denomination OK)"
+        : looks18dp
+          ? `MISMATCH — quote ~${ratio.toExponential(1)}x ours → 18-dp-vs-6-dp CONFIRMED (facilitator-side)`
+          : `MISMATCH — quote != ours (ratio ${ratio.toExponential(1)})`;
+  const clamp = looks18dp && process.env.X402_CLAMP_FEE_DECIMALS === "1";
+  console.warn(`[x402-probe] ${ctx} · ourWei=${ourWei} quotedWei=${quotedWei ?? "none"} · ${verdict}${clamp ? " · CLAMPED to ours" : ""}`);
+  if (clamp) return ourWei;
+  return quotedWei || ourWei;
 }
 
 /**
@@ -163,7 +202,12 @@ export async function runOperatorFee(opts: {
     fromAddress: opts.fromAddress,
     amountWei: opts.amountWei,
   });
-  const pay = await opts.transfer(order.payToAddress, order.amountWei || opts.amountWei);
+  const sendWei = probeAndResolveFeeWei(
+    `operator-fee ${opts.dappOrderId} order=${order.orderId}`,
+    opts.amountWei,
+    order.amountWei,
+  );
+  const pay = await opts.transfer(order.payToAddress, sendWei);
   if (opts.confirm !== false) {
     const conf = await opts.client.waitForConfirmation(order.orderId, {
       timeout: 120_000,
