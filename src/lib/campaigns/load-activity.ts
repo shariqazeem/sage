@@ -36,13 +36,15 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
     if (typeof conf === "number") confidence[sid] = conf;
   }
 
-  // A submission that is still PENDING but already has a recorded decision was HELD — surface the
-  // real (fixed) reason class so the feed reads "Held: …" instead of a false "verified".
+  // Any submission whose DECISION recommended something other than pay was HELD — surface the real
+  // reason so its decision line reads "Held: …", never a false "verified". Keyed on the decision, not
+  // current status, so a held-then-released payout still shows the hold (then a separate paid line).
   const heldReasons: Record<string, string> = {};
   for (const s of subs) {
-    if (s.status !== "pending") continue;
     const d = getDecisionBySubmission(s.id);
-    if (d) heldReasons[s.id] = reasonSentence(d.brief?.reasonCode);
+    if (d && d.brief?.recommendation && d.brief.recommendation !== "pay") {
+      heldReasons[s.id] = reasonSentence(d.brief.reasonCode);
+    }
   }
 
   const activity = projectActivity(
