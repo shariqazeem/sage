@@ -25,11 +25,11 @@
   top: 23px;
   bottom: -6px;
   width: 2px;
-  background: var(--line-2, #e4e2dc);
+  background: var(--line-2);
   transition: background 0.4s ease;
 }
 .sage-rail-node.done:not(:last-child)::before {
-  background: var(--pos, #15803d);
+  background: var(--pos);
 }
 .sage-rail-dot {
   flex: none;
@@ -38,7 +38,7 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  border: 1.5px solid var(--line-2, #e4e2dc);
+  border: 1.5px solid var(--line-2);
   background: #fff;
   color: transparent;
   margin-top: 1px;
@@ -49,18 +49,18 @@
     transform 0.35s var(--spring-bounce, ease);
 }
 .sage-rail-dot.active {
-  border-color: var(--accent, #1a1d21);
-  color: var(--accent, #1a1d21);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .sage-rail-dot.done {
-  border-color: var(--pos, #15803d);
-  background: var(--pos, #15803d);
+  border-color: var(--pos);
+  background: var(--pos);
   color: #fff;
   transform: scale(1.06);
 }
 .sage-rail-dot.blocked {
-  border-color: var(--dan, #dc2626);
-  background: var(--dan, #dc2626);
+  border-color: var(--dan);
+  background: var(--dan);
   color: #fff;
 }
 .sage-rail-main {
@@ -72,21 +72,21 @@
 .sage-rail-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
   line-height: 1.4;
 }
 .sage-rail-node.pending .sage-rail-label {
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-rail-sub {
   font-size: 12px;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
 }
 .sage-rail-sub.dan {
-  color: var(--dan, #dc2626);
+  color: var(--dan);
 }
 .sage-rail-amount {
-  color: var(--pos, #15803d);
+  color: var(--pos);
   font-weight: 700;
 }
 .sage-rail-proof {
@@ -101,7 +101,7 @@
   gap: 5px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--pos, #15803d);
+  color: var(--pos);
   text-decoration: none;
 }
 .sage-rail-prooflink:hover {
@@ -156,7 +156,7 @@
   border-radius: 999px;
   background: conic-gradient(
     from -90deg,
-    var(--warn, #b45309) calc(var(--frac) * 1turn),
+    var(--warn) calc(var(--frac) * 1turn),
     #ece9e2 0
   );
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
@@ -164,7 +164,7 @@
   transition: background 0.4s ease;
 }
 .sage-timelock.ready .sage-timelock-ring::before {
-  background: conic-gradient(var(--pos, #15803d) 1turn, #ece9e2 0);
+  background: conic-gradient(var(--pos) 1turn, #ece9e2 0);
 }
 .sage-timelock-sec {
   position: relative;
@@ -172,10 +172,10 @@
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--warn, #b45309);
+  color: var(--warn);
 }
 .sage-timelock.ready .sage-timelock-sec {
-  color: var(--pos, #15803d);
+  color: var(--pos);
 }
 .sage-timelock-info {
   display: flex;
@@ -209,7 +209,7 @@
   position: relative;
 }
 .sage-block-card.blocked {
-  background: var(--dan-bg, #fdeeee);
+  background: var(--dan-bg);
 }
 .sage-block-border {
   position: absolute;
@@ -222,7 +222,7 @@
 }
 .sage-block-border rect {
   fill: none;
-  stroke: var(--dan, #dc2626);
+  stroke: var(--dan);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
   stroke-dasharray: 100;
@@ -244,14 +244,14 @@
   font-size: 10.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-block-balance .v {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 .sage-block-balance .v.shake {
   animation: sage-shake 0.2s ease;
@@ -276,7 +276,7 @@
 }
 .sage-block-steady {
   font-size: 11px;
-  color: var(--pos, #15803d);
+  color: var(--pos);
   letter-spacing: 0.01em;
 }
 .sage-block-seal {
@@ -285,7 +285,7 @@
   gap: 10px;
   margin-top: 12px;
   padding: 11px 13px;
-  border: 1.5px solid var(--dan, #dc2626);
+  border: 1.5px solid var(--dan);
   border-radius: 6px;
   background: #fff;
   transform-origin: left center;
@@ -293,7 +293,7 @@
 }
 .sage-block-seal-ico {
   flex: none;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   margin-top: 1px;
 }
 .sage-block-seal-body {
@@ -305,17 +305,17 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
 }
 .sage-block-seal-text {
   font-size: 12.5px;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
   line-height: 1.4;
 }
 .sage-block-seal-link {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   text-decoration: none;
   margin-top: 2px;
 }
@@ -352,9 +352,9 @@
   left: 50%;
   transform: translate(-50%, -50%) rotate(-8deg);
   padding: 5px 12px;
-  border: 2px solid var(--dan, #dc2626);
+  border: 2px solid var(--dan);
   border-radius: 4px;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -364,11 +364,11 @@
 }
 .sage-revoke-done {
   font-size: 12.5px;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
   margin-top: 4px;
 }
 .sage-revoke-done a {
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   text-decoration: none;
 }
 .sage-revoke-hold {
@@ -396,8 +396,8 @@
 }
 .sage-sheet {
   width: min(420px, 100%);
-  background: var(--surface, #fff);
-  border: 1px solid var(--line, #ecebe6);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 26px 24px;
   text-align: center;
@@ -410,20 +410,20 @@
   width: 46px;
   height: 46px;
   border-radius: 999px;
-  background: var(--dan-bg, #fdeeee);
-  color: var(--dan, #dc2626);
+  background: var(--dan-bg);
+  color: var(--dan);
   margin-bottom: 12px;
 }
 .sage-sheet-h {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 .sage-sheet-p {
   font-size: 13.5px;
   line-height: 1.55;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
   margin: 10px auto 20px;
   max-width: 320px;
 }
@@ -433,12 +433,12 @@
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   padding: 12px 0;
 }
 .sage-sheet-err {
   font-size: 12.5px;
-  color: var(--dan, #dc2626);
+  color: var(--dan);
   margin-top: 10px;
 }
 .sage-sheet-cancel {
@@ -448,11 +448,11 @@
   background: none;
   font: inherit;
   font-size: 13px;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
   cursor: pointer;
 }
 .sage-sheet-cancel:hover {
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 @keyframes sage-fade-in {
   from {
@@ -499,13 +499,13 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  color: var(--mut, #9a9da2);
+  color: var(--mut);
 }
 .sage-boot-step.active .sage-boot-step-ico {
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-boot-step.done .sage-boot-step-ico {
-  color: var(--pos, #15803d);
+  color: var(--pos);
 }
 .sage-boot-dot {
   width: 6px;
@@ -515,19 +515,19 @@
 }
 .sage-boot-step-label {
   font-weight: 600;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 .sage-boot-step.pending .sage-boot-step-label {
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
 }
 .sage-boot-step-tx {
   margin-left: auto;
   font-size: 11.5px;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
   text-decoration: none;
 }
 .sage-boot-step-tx.muted {
-  color: var(--mut, #9a9da2);
+  color: var(--mut);
 }
 .sage-boot-step-tx:hover {
   text-decoration: underline;
@@ -556,18 +556,18 @@
 .sage-assess-engine.llm {
   background: #f2f1ee;
   border: 1px solid #e4e2dc;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-assess-engine.llm .dot {
-  background: var(--accent, #1a1d21);
+  background: var(--accent);
 }
 .sage-assess-engine.heuristic {
   background: #f4f2ec;
   border: 1px solid #e6e2d8;
-  color: var(--warn, #b45309);
+  color: var(--warn);
 }
 .sage-assess-engine.heuristic .dot {
-  background: var(--warn, #b45309);
+  background: var(--warn);
 }
 /* criterion + its verbatim quoted evidence */
 .sage-assess-line-body {
@@ -582,7 +582,7 @@
   gap: 4px;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
   background: #f2f1ee;
   border-left: 2px solid #e4e2dc;
   border-radius: 0 4px 4px 0;
@@ -617,17 +617,17 @@
 .sage-assess-chip.low {
   background: #f1f0ec;
   border-color: #e4e2dc;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-assess-chip.med {
   background: #fdf6ec;
   border-color: #f0e0c4;
-  color: var(--warn, #b45309);
+  color: var(--warn);
 }
 .sage-assess-chip.high {
-  background: var(--dan-bg, #fdeeee);
-  border-color: var(--dan-line, #f3cccc);
-  color: var(--dan, #dc2626);
+  background: var(--dan-bg);
+  border-color: var(--dan-line);
+  color: var(--dan);
 }
 /* thin confidence bar */
 .sage-assess-conf {
@@ -648,13 +648,13 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--accent, #1a1d21);
+  background: var(--accent);
   transition: width 0.5s var(--spring-gentle, ease);
 }
 .sage-assess-conf-k {
   flex: none;
   font-size: 10.5px;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 
 /* ── forensic receipt: threshold notch, microcopy, attack strip, provenance ─
@@ -665,7 +665,7 @@
   top: -3px;
   bottom: -3px;
   width: 1px;
-  background: var(--ter, #8a8d92);
+  background: var(--ter);
   border-radius: 1px;
   pointer-events: none;
 }
@@ -673,23 +673,23 @@
   margin: 4px 0 2px;
   font-size: 10px;
   letter-spacing: 0.02em;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-assess-thresh.pass {
-  color: var(--pos, #15803d);
+  color: var(--pos);
 }
 .sage-assess-thresh.hold {
-  color: var(--warn, #b45309);
+  color: var(--warn);
 }
 
 /* ATTACK strip — reuses THE BLOCK's red vocabulary; injection class only */
 .sage-attack-strip {
   margin: 0 0 11px;
   padding: 9px 11px;
-  border: 1.5px solid var(--dan, #dc2626);
+  border: 1.5px solid var(--dan);
   border-radius: 6px;
-  background: var(--dan-bg, #fdeeee);
-  color: var(--dan, #dc2626);
+  background: var(--dan-bg);
+  color: var(--dan);
   font-size: 11.5px;
   line-height: 1.45;
   display: flex;
@@ -714,7 +714,7 @@
   border-top: 1px solid #f2f1ee;
   font-size: 10px;
   line-height: 1.5;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
   word-break: break-all;
 }
 .sage-assess-prov .sep {
@@ -733,7 +733,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 9px 0;
-  border-top: 1px solid var(--line, #e6e4de);
+  border-top: 1px solid var(--line);
   font-size: 12.5px;
 }
 .sage-pnl-row:first-child {
@@ -743,46 +743,46 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--sec, #55585d);
+  color: var(--sec);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   letter-spacing: 0.04em;
 }
 .sage-pnl-k svg {
   flex: none;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-pnl-k.earned svg {
-  color: var(--pos, #15803d);
+  color: var(--pos);
 }
 .sage-pnl-v {
   font-weight: 700;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .sage-pnl-v.earned {
-  color: var(--pos, #15803d);
+  color: var(--pos);
 }
 .sage-pnl-note {
   font-style: normal;
   font-weight: 400;
   font-size: 10px;
-  color: var(--mut, #a8a29a);
+  color: var(--mut);
   margin-left: 6px;
 }
 .sage-assess-summary {
   font-size: 12.5px;
   line-height: 1.5;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
   margin: 9px 0 0;
 }
 .sage-assess-cfg {
   font-size: 9px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--mut, #9a9da2);
-  border: 1px solid var(--line-2, #e4e2dc);
+  color: var(--mut);
+  border: 1px solid var(--line-2);
   border-radius: 3px;
   padding: 0 3px;
 }
@@ -790,9 +790,9 @@
 /* ── AUTONOMY · the standing-mandate card ("confirm policy once") ────────── */
 .sage-auto {
   margin: 16px 0;
-  border: 1px solid var(--line-2, #e4e2dc);
+  border: 1px solid var(--line-2);
   border-radius: 12px;
-  background: var(--surface-3, #faf9f6);
+  background: var(--surface-3);
   padding: 14px 15px;
   transition:
     border-color 0.3s ease,
@@ -816,10 +816,10 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 .sage-auto-title svg {
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-auto-state {
   font-family: var(--font-mono), monospace;
@@ -828,11 +828,11 @@
   padding: 2px 9px;
   border-radius: 999px;
   background: #eceae3;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
 }
 .sage-auto-state.on {
   background: #f2f1ee;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-auto-opts {
   display: grid;
@@ -846,7 +846,7 @@
 }
 .sage-auto-opt {
   text-align: left;
-  border: 1px solid var(--line-2, #e4e2dc);
+  border: 1px solid var(--line-2);
   background: #fff;
   border-radius: 9px;
   padding: 12px;
@@ -867,8 +867,8 @@
   cursor: default;
 }
 .sage-auto-opt.on {
-  border-color: var(--accent, #1a1d21);
-  box-shadow: 0 0 0 1px var(--accent, #1a1d21) inset;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .sage-auto-opt-top {
   display: flex;
@@ -876,10 +876,10 @@
   gap: 7px;
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 .sage-auto-opt-top svg {
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
   flex: none;
 }
 .sage-auto-opt-top .tick {
@@ -888,7 +888,7 @@
 .sage-auto-opt-p {
   font-size: 11.5px;
   line-height: 1.45;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
 }
 .sage-auto-thresh {
   margin-top: 12px;
@@ -901,7 +901,7 @@
   justify-content: space-between;
   gap: 10px;
   font-size: 12.5px;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
 }
 .sage-auto-stepper {
   display: inline-flex;
@@ -912,31 +912,31 @@
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  border: 1px solid var(--line-2, #e4e2dc);
+  border: 1px solid var(--line-2);
   background: #fff;
   font-size: 16px;
   font-weight: 600;
   line-height: 1;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
   cursor: pointer;
   display: grid;
   place-items: center;
 }
 .sage-auto-stepper button:hover:not(:disabled) {
-  border-color: var(--accent, #1a1d21);
-  color: var(--accent, #1a1d21);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .sage-auto-stepper .mono {
   min-width: 62px;
   text-align: center;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-auto-note {
   font-size: 11px;
   line-height: 1.5;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
   margin: 10px 0 0;
 }
 .sage-auto-confirm {
@@ -954,11 +954,11 @@
   background: none;
   font: inherit;
   font-size: 12.5px;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
   cursor: pointer;
 }
 .sage-auto-cancel:hover {
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 
 /* ── autopay outcome chips in the review queue ──────────────────────────── */
@@ -979,20 +979,20 @@
 .sage-autopay.held {
   background: #fdf6ec;
   border: 1px solid #f0e0c4;
-  color: var(--warn, #b45309);
+  color: var(--warn);
 }
 .sage-autopay.paid {
-  background: var(--pos-bg, #eef6f0);
-  border: 1px solid var(--pos-line, #cfe6d6);
-  color: var(--pos, #15803d);
+  background: var(--pos-bg);
+  border: 1px solid var(--pos-line);
+  color: var(--pos);
 }
 .sage-autopay.paid a {
-  color: var(--pos, #15803d);
+  color: var(--pos);
   text-decoration: underline;
 }
 .sage-badge.indigo {
   background: #f2f1ee;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 
 /* ── x402 RAILS · verification chip + fees + Proof status ───────────────── */
@@ -1014,7 +1014,7 @@
 .sage-x402-chip.paid {
   background: #f2f1ee;
   border: 1px solid #e4e2dc;
-  color: var(--accent, #1a1d21);
+  color: var(--accent);
 }
 .sage-x402-chip.paid .mono {
   text-decoration: underline;
@@ -1022,7 +1022,7 @@
 .sage-x402-chip.pending {
   background: #f4f2ec;
   border: 1px solid #e6e2d8;
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
 }
 
 /* Wallet — the quiet operator-fees line */
@@ -1033,17 +1033,17 @@
   gap: 10px;
   margin: 12px 0 4px;
   padding: 9px 12px;
-  border: 1px solid var(--line, #ecebe6);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-3, #faf9f6);
+  background: var(--surface-3);
   font-size: 12px;
 }
 .sage-x402-fees .k {
-  color: var(--ter, #8a8d92);
+  color: var(--ter);
   letter-spacing: 0.02em;
 }
 .sage-x402-fees .v {
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -1053,9 +1053,9 @@
   align-items: flex-start;
   gap: 11px;
   padding: 13px 15px;
-  border: 1px solid var(--line-2, #e4e2dc);
+  border: 1px solid var(--line-2);
   border-radius: 10px;
-  background: var(--surface-3, #faf9f6);
+  background: var(--surface-3);
   margin-bottom: 22px;
 }
 .sage-x402-status.live {
@@ -1068,19 +1068,19 @@
   height: 8px;
   border-radius: 999px;
   margin-top: 5px;
-  background: var(--mut, #9a9da2);
+  background: var(--mut);
 }
 .sage-x402-status.live .sage-x402-status-dot {
-  background: var(--accent, #1a1d21);
+  background: var(--accent);
 }
 .sage-x402-status-head {
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--ink, #1a1d21);
+  color: var(--ink);
 }
 .sage-x402-status-sub {
   font-size: 11px;
-  color: var(--sec, #5b5f66);
+  color: var(--sec);
   margin-top: 3px;
   line-height: 1.5;
 }

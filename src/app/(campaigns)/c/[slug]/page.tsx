@@ -29,6 +29,16 @@ export const dynamic = "force-dynamic";
  * campaign's reward pool live, the settled feed links each payout to its on-chain
  * proof, and the submit panel is the same input/button system as the app.
  */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const c = getCampaign(slug);
+  return {
+    title: c ? `${c.title} · Sage` : "Reward campaign · Sage",
+    description:
+      "A paid testing mission on Sage. Do the work, submit your evidence, and an AI agent pays you real USDC from an on-chain vault — every payout a verifiable receipt.",
+  };
+}
+
 export default async function CampaignPublicPage({
   params,
 }: {

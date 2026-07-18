@@ -25,6 +25,11 @@ export const dynamic = "force-dynamic";
  * proof composers — this route never settles and duplicates no payout logic. V1 policy-vault
  * campaigns are handled by the legacy console.
  */
+export const metadata = {
+  title: "Campaign console · Sage",
+  description: "Watch your AI agent verify submissions and release payouts, inside on-chain limits it can never exceed.",
+};
+
 export default async function CampaignConsolePage({
   params,
 }: {
