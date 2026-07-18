@@ -94,6 +94,19 @@ describe("projectActivity", () => {
     expect(held?.confidencePct).toBeNull(); // confidence omitted so it can't contradict the hold
   });
 
+  it("a submission with BOTH autopay_held and decision_recorded yields exactly ONE held line", () => {
+    const held = projectActivity({
+      submissions: [{ id: "s1", wallet: "0xabc", createdAt: 100 }],
+      events: [
+        ev({ id: "e-hold", kind: "autopay_held", submissionId: "s1", createdAt: 130 }),
+        ev({ id: "e-dec", kind: "decision_recorded", submissionId: "s1", createdAt: 131 }),
+      ],
+      heldReasons: { s1: "the public page couldn't confirm this work (evidence_mismatch)" },
+    }).filter((a) => a.kind === "held");
+    expect(held).toHaveLength(1);
+    expect(held[0].reasonClass).toBe("the public page couldn't confirm this work (evidence_mismatch)");
+  });
+
   it("maps blocked → the vault check class, and falls back to 'integrity check'", () => {
     const [withIdx, noIdx] = [
       projectActivity({ submissions: [], events: [ev({ id: "e1", kind: "blocked", failedCheckIndex: 5, createdAt: 140 })] })[0],

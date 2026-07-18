@@ -211,7 +211,8 @@ function Line({
     case "held":
       icon = <Clock size={14} />;
       tone = "warn";
-      text = "Held for review";
+      // show the REAL reason class (a fixed sentence), never a bare "Held for review".
+      text = a.reasonClass ? `Held: ${a.reasonClass}` : "Held for review";
       break;
     case "blocked":
       icon = <XCircle size={14} />;

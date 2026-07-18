@@ -78,8 +78,10 @@ export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[
       case "decision_recorded": {
         const held = sid != null ? heldReasons[sid] : undefined;
         if (sid != null && held) {
-          // The decision HELD this submission — NEVER render a hold as "verified". Show the real
-          // reason class; the confidence is intentionally omitted so it can't contradict the hold.
+          // The decision HELD this submission — NEVER render a hold as "verified". One held line per
+          // submission (a sibling autopay_held may cover the same one). Show the real reason class;
+          // the confidence is omitted so it can't contradict the hold.
+          if (seenHeld.has(sid)) break;
           seenHeld.add(sid);
           out.push({ id: `held:${e.id}`, kind: "held", at: e.createdAt, amountBase: null, wallet: null, txHash: null, confidencePct: null, reasonClass: held });
         } else {
