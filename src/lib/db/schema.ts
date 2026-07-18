@@ -56,6 +56,16 @@ export const campaigns = sqliteTable("campaigns", {
    *  its missions). Default 1 (max farming resistance — a fresh payout needs a fresh wallet); a founder
    *  raises it at launch when they want trusted testers doing several missions. Enforced in preflight. */
   perWalletPayoutCap: integer("per_wallet_cap").notNull().default(1),
+  /**
+   * P16 PINNED PRIVATE ANSWER KEY — the distilled field-test observations (Sage's field-test corpus
+   * MINUS every public plan/card string), for observation-mode verification. Pinned AT ATTACH, before
+   * any tester sees a card, so it's an immutable snapshot like the mission plan + vault settings. Null
+   * on legacy campaigns → they stay founder-approved (Step 0). The digest anchors the proof receipt.
+   */
+  privateCorpus: text("private_corpus", { mode: "json" }).$type<{ source: string; text: string }[]>(),
+  privateCorpusDigest: text("private_corpus_digest"),
+  /** distinct SOURCES in the pinned key — the campaign-eligibility signal (thin key → founder-only). */
+  privateCorpusSources: integer("private_corpus_sources").notNull().default(0),
   vaultAddress: text("vault_address").notNull(),
   /**
    * The network this campaign settles on, by chainId. Default 59902 (Metis

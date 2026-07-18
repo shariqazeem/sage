@@ -68,6 +68,11 @@ export interface V2SetupInput {
   autonomy?: "manual" | "autopilot";
   /** Confidence bar for autopilot settles (0..1). Default 0.85. */
   autopilotThreshold?: number;
+  /** P16 pinned private answer key (distilled field-test corpus minus public strings) + its digest and
+   *  distinct-source count. Pinned here, at the same instant the plan locks. Absent → founder-approved. */
+  privateCorpus?: { source: string; text: string }[];
+  privateCorpusDigest?: string | null;
+  privateCorpusSources?: number;
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -357,6 +362,10 @@ export async function attachV2Campaign(
               ? (input.autopilotThreshold ?? 0.85)
               : undefined,
           vaultKind: "campaign_v2",
+          // P16 pinned private answer key — an immutable snapshot fixed at the same instant as the plan.
+          privateCorpus: input.privateCorpus ?? null,
+          privateCorpusDigest: input.privateCorpusDigest ?? null,
+          privateCorpusSources: input.privateCorpusSources ?? 0,
           campaignIdHash: preview.campaignIdHash as string,
           missionPlanDigest: preview.missionPlanDigest as string,
           settlementToken: getAddress(input.expectedToken),

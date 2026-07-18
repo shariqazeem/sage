@@ -6,6 +6,8 @@ import { loadDeploymentForSession, deploymentView } from "@/lib/launch/deploymen
 import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/lib/db/deployments";
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
+import { distillPrivateKey } from "@/lib/deputy/observation-verify";
+import type { FieldTestSummary } from "@/lib/launch/schemas";
 import { deploymentAttachDeps, deploymentChainVerifier, verifyActivate } from "@/lib/launch/verify-receipts";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { getCampaign } from "@/lib/db/campaigns";
@@ -71,9 +73,28 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     maxCompletions: BigInt(m.maxCompletions),
   }));
 
+  // P16 — PIN the distilled private answer key at the instant the plan locks (before any tester sees a
+  // card): Sage's field-test observations MINUS every public plan string, so a parrot of the card scores
+  // structural zero. Its digest anchors the proof receipt; a thin key leaves the campaign founder-only.
+  const fieldTest =
+    (job?.result as { map?: { fieldTest?: FieldTestSummary | null } } | undefined)?.map?.fieldTest ?? null;
+  const publicStrings = loaded.plan.missions.flatMap((m) => [
+    m.title,
+    m.objective,
+    m.instructions,
+    m.targetSurface,
+    ...(m.criteria ?? []),
+    ...(m.evidenceRequirements ?? []),
+    ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
+  ]);
+  const privateKey = distillPrivateKey(fieldTest, publicStrings);
+
   const result = await attachV2Campaign(
     {
       publicCampaignId: loaded.plan.publicCampaignId,
+      privateCorpus: privateKey.observations,
+      privateCorpusDigest: privateKey.digest,
+      privateCorpusSources: privateKey.distinctSources,
       title: campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: settings.chainId,
