@@ -17,6 +17,7 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
+import { reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
   replayHoldReason,
@@ -304,6 +305,24 @@ export async function runDeputyOnSubmission(
       return { action: "held", reason: gate.reason, correlationId: cid };
     }
     return { action: "skipped", reason: gate.reason, correlationId: cid };
+  }
+
+  // b'. P16 SAFETY VALVE — an observation-based mission is NEVER auto-paid. Sage can re-fetch a public
+  // URL to confirm url-verifiable work, but it cannot re-live a lived experience; that judgment is the
+  // founder's. Keyed off the STORED mission lint class (a money gate that defaults to the safe side).
+  // url-verifiable missions are byte-identical — this block is a no-op for them. [Step 2 lets the
+  // observation-mode capability + OBSERVATION_AUTOPAY release these; until then, always hold for review.]
+  if (submission.missionIdHash) {
+    const mission = getMissionByHash(campaign.id, submission.missionIdHash);
+    if (mission?.verifiabilityClass === "observation-based") {
+      agentLog(cid, "observation_hold", { missionKey: mission.missionKey });
+      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+        journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
+        void notifyFounderHeld(campaign, submission);
+        return { action: "held", reason: "observation_review", correlationId: cid };
+      }
+      return { action: "skipped", reason: "observation_review", correlationId: cid };
+    }
   }
 
   // c'. Sybil dedup — never auto-pay a copy of an entry already paid on this

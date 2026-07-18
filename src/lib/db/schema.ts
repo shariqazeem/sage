@@ -390,6 +390,13 @@ export const missions = sqliteTable(
     targetSurface: text("target_surface").notNull().default(""),
     /** ordered acceptance criteria. */
     criteria: text("criteria", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    /**
+     * P16 verifiability class — a MONEY GATE, not just a label: "url-verifiable" work Sage can confirm
+     * from a public URL + quoted text (auto-payable); "observation-based" work Sage can only judge
+     * against its own private eyes (never auto-paid without OBSERVATION_AUTOPAY + a confident match —
+     * held for the founder otherwise). Default is the SAFE side: an unclassified/legacy mission holds.
+     */
+    verifiabilityClass: text("verifiability_class").$type<"url-verifiable" | "observation-based">().notNull().default("observation-based"),
     /** legacy single free-text evidence requirement (V1-era), or null. */
     evidenceRequirements: text("evidence_requirements"),
     /** MissionSpecV1: ordered evidence requirements. */

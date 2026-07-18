@@ -27,6 +27,8 @@ export interface V2MissionView {
   paid: number;
   remainingSlots: number;
   status: string;
+  /** P16 money gate — "observation-based" missions are founder-approved (never auto-paid). */
+  verifiabilityClass: "url-verifiable" | "observation-based";
   /** true once every completion slot is paid (the mission is full). */
   full: boolean;
 }
@@ -69,6 +71,7 @@ export function v2Economics(campaign: Campaign): V2Economics {
       paid,
       remainingSlots,
       status: m.status,
+      verifiabilityClass: m.verifiabilityClass,
       full: remainingSlots === 0,
     };
   });

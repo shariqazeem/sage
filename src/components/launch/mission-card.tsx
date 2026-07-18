@@ -101,6 +101,12 @@ export function MissionCard({
         <span className="lx-tag">{mission.riskCategory.replace(/_/g, " ")}</span>
         <span className="lx-tag">max {reward(Number(mission.rewardBase) * Number(mission.maxCompletions))}</span>
       </div>
+      {mission.verifiabilityClass === "observation-based" && (
+        <p style={{ fontSize: 12.5, color: "var(--lx-muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
+          Payouts on this mission are founder-approved after Sage&apos;s assessment — Sage auto-pays work
+          it can re-verify from a public URL, and holds a lived experience for your call.
+        </p>
+      )}
       <details className="lx-detail">
         <summary>See the exact task, evidence, and sources</summary>
         <div className="lx-sub-h">Target</div>

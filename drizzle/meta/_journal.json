@@ -148,6 +148,13 @@
       "when": 1784366656801,
       "tag": "0020_add_campaign_per_wallet_cap",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784375118022,
+      "tag": "0021_add_mission_verifiability_class",
+      "breakpoints": true
     }
   ]
 }

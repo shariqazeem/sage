@@ -33,6 +33,8 @@ export interface MissionView {
   remainingSlots: number;
   full: boolean;
   status: string;
+  /** P16 — "observation-based" missions are founder-approved after Sage's assessment (never auto-paid). */
+  verifiabilityClass?: "url-verifiable" | "observation-based";
 }
 
 interface MySubmission {
@@ -164,6 +166,11 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
             <span className="v2-slots">{mission.remainingSlots} of {mission.maxCompletions} paid slots left</span>
             {mission.targetSurface && <a className="v2-chip link" href={mission.targetSurface} target="_blank" rel="noopener noreferrer">{hostOf(mission.targetSurface)}</a>}
           </div>
+          {mission.verifiabilityClass === "observation-based" && (
+            <p style={{ fontSize: 12.5, color: "var(--sec)", margin: "8px 0 0", lineHeight: 1.5 }}>
+              Payouts on this mission are founder-approved after Sage&apos;s assessment.
+            </p>
+          )}
 
           {/* already submitted → watch the real pipeline decide + pay */}
           {mine ? (

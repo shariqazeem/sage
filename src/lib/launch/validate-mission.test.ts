@@ -385,3 +385,47 @@ describe("classifyVerifiability (deterministic)", () => {
     ).toBe("observation-based");
   });
 });
+
+/* ─────────── P16 — classifyVerifiability is now a MONEY GATE: adversarial ─────────── */
+
+describe("classifyVerifiability — adversarial (a subjective mission can't be WORDED into auto-pay)", () => {
+  // Each of these is observation-based in SUBSTANCE (a lived/felt judgment) but bolts url-verifiable
+  // keywords on. As a money gate the classifier must keep them on the safe side (held, founder-approved).
+  const attacks: [string, Pick<CandidateMission, "objective" | "criteria" | "evidenceRequirements">][] = [
+    ["reach + quote, but asks how it FELT", {
+      objective: "Reach the onboarding page and judge the flow",
+      criteria: ["Navigate to the onboarding page and confirm it contains the welcome heading", "Describe how the onboarding felt"],
+      evidenceRequirements: ["Provide the URL reached and quote the heading, and say how smooth it was"],
+    }],
+    ["quote a heading, but rate how INTUITIVE it is", {
+      objective: "Assess the pricing page",
+      criteria: ["Reach the pricing page and quote the price text"],
+      evidenceRequirements: ["Provide the URL and quote the price, then rate how intuitive the pricing is"],
+    }],
+    ["url-verifiable phrasing wrapping an IMPRESSION", {
+      objective: "Experience the product tour",
+      criteria: ["Navigate to the tour page and confirm the title text", "Report your overall impression of the experience"],
+      evidenceRequirements: ["Quote the page title and describe the vibe"],
+    }],
+    ["ambiguous — 'report what you saw' is not provable from a URL", {
+      objective: "Try the app",
+      criteria: ["Complete the signup and report what you saw"],
+      evidenceRequirements: ["Tell us what happened"],
+    }],
+  ];
+  for (const [label, m] of attacks) {
+    it(`observation-based: ${label}`, () => {
+      expect(classifyVerifiability(m)).toBe("observation-based");
+    });
+  }
+
+  it("still lets a PURELY objective url-verifiable mission through (no false hold)", () => {
+    expect(
+      classifyVerifiability({
+        objective: "Confirm the install command is documented",
+        criteria: ["Navigate to the docs page and confirm it contains the text 'npm install tailwindcss'"],
+        evidenceRequirements: ["Provide the URL reached and quote the exact install command line"],
+      }),
+    ).toBe("url-verifiable");
+  });
+});

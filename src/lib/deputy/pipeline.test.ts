@@ -43,6 +43,7 @@ import {
   countPaidByWalletInCampaign,
   getCampaign,
   getDecisionBySubmission,
+  getMissionByHash,
   getSubmission,
   listSubmissionsForDedup,
   updateSubmission,
@@ -106,6 +107,8 @@ beforeEach(() => {
   // exercises a hold overrides just its own signal (and clearAllMocks doesn't reset implementations).
   vi.mocked(listSubmissionsForDedup).mockReturnValue([]);
   vi.mocked(countPaidByWalletInCampaign).mockReturnValue(0);
+  // P16 Step 0: default no mission row → the observation-review valve is a no-op unless a test opts in.
+  vi.mocked(getMissionByHash).mockReturnValue(undefined as never);
   vi.mocked(getVaultState).mockResolvedValue({
     status: "active",
     remaining: 100,
@@ -121,6 +124,26 @@ describe("runDeputyOnSubmission — happy path", () => {
     expect(r.action).toBe("settled");
     expect(r.txHash).toBe("0xTX");
     expect(r.correlationId).toBe("cid_test");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety valve)", () => {
+  it("HOLDS an observation-based mission with reason observation_review, before any settle", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based" } as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("observation_review");
+    expect(casSubmissionStatus).not.toHaveBeenCalled();
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("a url-verifiable mission settles exactly as before (byte-identical path)", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "url-verifiable" } as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
   });
 });

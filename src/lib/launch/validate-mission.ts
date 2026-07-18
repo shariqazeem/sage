@@ -205,16 +205,26 @@ export function anchorIssues(m: Pick<CandidateMission, "anchors">, corpus: strin
 // from it. These two patterns must recognize the phrasings the architect ACTUALLY writes — not just
 // "reach the page … contains the text", but the common "provide the URL of the … page" + "quote the
 // heading" form (real plausible.io / docs missions were mislabeled observation-based on that phrasing).
-const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(url|page)|navigat\w+ to (the )?(url|https?|page)|results? in .*\b(url|page)\b|url of (the |a )?\w+ page|page titled)/i;
+const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(\w+ )?(url|page)|navigat\w+ to (the )?(\w+ )?(url|https?|page)|results? in .*\b(url|page)\b|url of (the |a )?\w+ page|page titled)/i;
 const FINDS_TEXT = /\b(contains?|displays?|shows?|quote|quoting|provides?|providing|reports?|records?|capture) [^.]*\b(text|heading|h1|title|word|url|label|sentence|line|content)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b|\bpage titled\b|\bfound on the page\b/i;
 
+// SUBJECTIVE / experiential language — a mission that hinges on how something FELT, an impression, or a
+// UX vibe is OBSERVATION-BASED even if it also name-drops a URL + a heading. Since classifyVerifiability
+// is a MONEY GATE (P16: only url-verifiable auto-pays), it must be CONSERVATIVE — any whiff of "judge the
+// lived experience" defaults to the safe side, so an observation mission can't be WORDED into the
+// auto-pay path by bolting url-verifiable keywords onto a subjective task. Ambiguous → observation-based.
+const SUBJECTIVE = /\b(felt|feels?|feeling|impression|in your own words|mood|vibe|emotional|immersive|delightful|confusing|intuitive|enjoyable|frustrating|satisfying|janky|seamless|clunky|polished|smooth|the experience|user experience|how (it|the \w+) (feels?|felt|looks?|reads?|flows?))\b/i;
+
 /**
- * Deterministic verifiability class: URL-VERIFIABLE when completion is provable by fetching a public
- * page and quoting its text (the criteria hinge on reaching a specific URL/page AND finding specific
- * text/heading there); OBSERVATION-BASED otherwise (the tester's judged written account). Pure.
+ * Deterministic verifiability class — a MONEY GATE (only url-verifiable auto-pays). URL-VERIFIABLE when
+ * completion is provable by fetching a public page and quoting its text (criteria hinge on reaching a
+ * specific URL/page AND finding specific text there) AND the mission carries NO subjective/experiential
+ * ask. OBSERVATION-BASED otherwise (a judged account, or anything ambiguous — the safe side). Pure.
  */
 export function classifyVerifiability(m: Pick<CandidateMission, "objective" | "criteria" | "evidenceRequirements">): "url-verifiable" | "observation-based" {
   const blob = `${m.objective}\n${m.criteria.join("\n")}\n${m.evidenceRequirements.join("\n")}`;
+  // Subjectivity forces the safe side, whatever url-verifiable phrasing sits next to it.
+  if (SUBJECTIVE.test(blob)) return "observation-based";
   return REACHES_URL.test(blob) && FINDS_TEXT.test(blob) ? "url-verifiable" : "observation-based";
 }
 

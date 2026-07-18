@@ -43,6 +43,8 @@ export interface V2MissionSetupInput {
   targetSurface: string;
   criteria: string[];
   evidenceRequirements: string[];
+  /** P16 money gate — "url-verifiable" | "observation-based". Missing → the safe side (never autopays). */
+  verifiabilityClass?: "url-verifiable" | "observation-based";
   /** exact reward in token base units (6dp). */
   rewardBase: bigint;
   maxCompletions: bigint;
@@ -375,6 +377,9 @@ export async function attachV2Campaign(
             targetSurface: m.targetSurface,
             criteria: m.criteria,
             evidenceList: m.evidenceRequirements,
+            // P16 money gate — persist the class the mission was authored with; absent → the safe
+            // side ("observation-based" never auto-pays), matching the column default.
+            verifiabilityClass: m.verifiabilityClass ?? "observation-based",
             rewardAmount: Number(m.rewardBase),
             maxCompletions: Number(m.maxCompletions),
             status: "active",

@@ -120,6 +120,8 @@ function seedInconsistentV2(opts?: { withDecision?: boolean; hashSourceId?: stri
     status: "active",
     displayOrder: 0,
     specDigest: spec,
+    // url-verifiable so this test exercises the IDENTITY gate, not the P16 observation valve.
+    verifiabilityClass: "url-verifiable",
     lockedAt: 1,
   });
 

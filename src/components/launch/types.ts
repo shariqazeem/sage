@@ -18,6 +18,8 @@ export interface MissionView {
   maxCompletions: string;
   missionIdHash: string;
   specDigest: string;
+  /** P16 money gate — "observation-based" missions are founder-approved (never auto-paid). */
+  verifiabilityClass?: "url-verifiable" | "observation-based";
 }
 
 export interface PlanView {

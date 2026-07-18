@@ -1,0 +1,1 @@
+ALTER TABLE `missions` ADD `verifiability_class` text DEFAULT 'observation-based' NOT NULL;

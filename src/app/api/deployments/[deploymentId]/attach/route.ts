@@ -5,6 +5,7 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { loadDeploymentForSession, deploymentView } from "@/lib/launch/deployment-access";
 import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/lib/db/deployments";
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
+import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { deploymentAttachDeps, deploymentChainVerifier, verifyActivate } from "@/lib/launch/verify-receipts";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { getCampaign } from "@/lib/db/campaigns";
@@ -58,6 +59,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     targetSurface: m.targetSurface,
     criteria: m.criteria,
     evidenceRequirements: m.evidenceRequirements,
+    // P16 money gate — recompute the lint class deterministically from the same mission prose the plan
+    // classified (the durable job doesn't carry it). Same inputs → the class the founder was shown, and
+    // the persisted value the settle-time gate reads. Never trusts an absent field into the pay path.
+    verifiabilityClass: classifyVerifiability({
+      objective: m.objective,
+      criteria: m.criteria,
+      evidenceRequirements: m.evidenceRequirements,
+    }),
     rewardBase: BigInt(m.rewardBase),
     maxCompletions: BigInt(m.maxCompletions),
   }));

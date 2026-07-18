@@ -104,6 +104,9 @@ export function seedV2Campaign(opts?: {
       rewardAmount: Number(m.rewardBase),
       maxCompletions: Number(m.maxCompletions),
       displayOrder: i,
+      // The settle-path fixtures exercise AUTOPAY, which post-P16 only applies to url-verifiable
+      // missions; observation-based holds are covered in pipeline.test.ts.
+      verifiabilityClass: "url-verifiable",
     }),
   );
 
