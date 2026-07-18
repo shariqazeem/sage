@@ -74,7 +74,13 @@ export async function inspectAndPlan(
   //     to an honest limitation and the pipeline proceeds exactly as an HTML-only run would. It
   //     needs an inspectionId to name its screenshot artifacts (only the durable job supplies one).
   let fieldTest: FieldTestSummary | null = null;
-  if (fieldTestEnabled() && opts.inspectionId && inspection.observations.length > 0) {
+  // Run the browser when static HTML yielded observations, OR when the site RESPONDED but every page
+  // was blocked/challenged/empty. Client-rendered SPAs and bot-walled products (commercial stores,
+  // news, anything behind a WAF) return ZERO static observations to our read-only UA — the real
+  // headless browser is exactly the tool that can see them. A genuinely-dead URL (DNS failure, hard
+  // 404) just makes the failure-isolated field test return null, so the needs_input path is unchanged.
+  const reachedButThin = inspection.observations.length === 0 && inspection.blocked.length > 0;
+  if (fieldTestEnabled() && opts.inspectionId && (inspection.observations.length > 0 || reachedButThin)) {
     // A REAL stage — emitted only when the browser phase actually runs (no fake timers). Off-path
     // this stamp never fires, so the stage sequence stays identical to today.
     stamp("field_test");
@@ -112,7 +118,11 @@ export async function inspectAndPlan(
     : [];
   map.limitations = [...new Set([...map.limitations, ...inspectorLimitations, ...explorationNote, ...(repo.reason ? [`Repository: ${repo.reason}`] : [])])];
 
-  if (map.pagesInspected === 0) {
+  // Only ask "we couldn't inspect anything" when NEITHER the static crawl NOR the real browser saw a
+  // thing. A bot-walled or client-rendered product yields 0 static pages but a rich field test — that
+  // is a READY product, not a needs_input (the mission corpus below is built from the field test).
+  const fieldTestSaw = !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0));
+  if (map.pagesInspected === 0 && !fieldTestSaw) {
     return out("needs_input", "no_inspected_pages", { map, questions: map.openQuestions });
   }
 

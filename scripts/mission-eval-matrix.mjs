@@ -21,18 +21,24 @@ const only = flag("only", "");
 // ── THE MATRIX — one real, live, stable public URL per category (documented picks) ──────────────
 // expectMode: what the field test SHOULD classify. expectLint: which verifiability class should
 // dominate. thin: is a needs_input a CORRECT outcome for this URL (genuinely thin observation)?
+// URL picks are documented — and REVISED after the first BEFORE grid exposed bad picks:
+//  · spa-app: demo.realworld.io was DEAD (404) → excalidraw.com, a live client-rendered SPA.
+//  · non-english: leboncoin.fr hard-403s all bots → about.gitlab.com/fr-fr, a reachable French product.
+//  · ecommerce/heavy: allbirds & cnn WAF-challenge our read-only UA (0 static obs) — kept ON PURPOSE as
+//    the bot-walled test; `thin:"maybe"` because a graceful needs_input (ask for a demo) is a valid
+//    outcome when even the real browser can't anchor a payable mission to a nav-only render.
 const MATRIX = [
   { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "static", expectLint: "url", thin: "maybe" },
   { cat: "docs", url: "https://tailwindcss.com/docs", expectMode: "static", expectLint: "url", thin: false },
   { cat: "saas-marketing", url: "https://plausible.io", expectMode: "static", expectLint: "url", thin: false },
-  { cat: "spa-app", url: "https://demo.realworld.io", expectMode: "interactive", expectLint: "any", thin: false },
+  { cat: "spa-app", url: "https://excalidraw.com", expectMode: "interactive", expectLint: "any", thin: false }, // live CSR SPA
   { cat: "canvas-game", url: "https://play2048.co", expectMode: "interactive", expectLint: "obs", thin: false },
   { cat: "dom-world", url: "https://yara.garden", expectMode: "interactive", expectLint: "obs", thin: false }, // control
-  { cat: "ecommerce", url: "https://www.allbirds.com", expectMode: "static", expectLint: "url", thin: false },
+  { cat: "ecommerce", url: "https://www.allbirds.com", expectMode: "any", expectLint: "any", thin: "maybe" }, // bot-walled
   { cat: "login-wall", url: "https://web.telegram.org", expectMode: "any", expectLint: "any", thin: "maybe" }, // verification (b)
   { cat: "portfolio", url: "https://brittanychiang.com", expectMode: "static", expectLint: "url", thin: "maybe" },
-  { cat: "non-english", url: "https://www.leboncoin.fr", expectMode: "any", expectLint: "any", thin: false }, // verification (c)
-  { cat: "heavy-slow", url: "https://www.cnn.com", expectMode: "static", expectLint: "url", thin: false },
+  { cat: "non-english", url: "https://about.gitlab.com/fr-fr/", expectMode: "any", expectLint: "any", thin: false }, // verification (c)
+  { cat: "heavy-slow", url: "https://www.cnn.com", expectMode: "any", expectLint: "any", thin: "maybe" }, // bot-walled
 ];
 
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();

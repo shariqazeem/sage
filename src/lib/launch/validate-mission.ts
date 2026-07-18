@@ -201,8 +201,12 @@ export function anchorIssues(m: Pick<CandidateMission, "anchors">, corpus: strin
   return [];
 }
 
-const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(url|page)|navigat\w+ to (the )?(url|https?|page)|results? in .*\b(url|page)\b)/i;
-const FINDS_TEXT = /\b(contains?|displays?|shows?)\b[^.]*\b(text|heading|h1|title|word|url|label)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b/i;
+// A mission is URL-VERIFIABLE when it hinges on a specific reachable page AND on quoting specific text
+// from it. These two patterns must recognize the phrasings the architect ACTUALLY writes — not just
+// "reach the page … contains the text", but the common "provide the URL of the … page" + "quote the
+// heading" form (real plausible.io / docs missions were mislabeled observation-based on that phrasing).
+const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(url|page)|navigat\w+ to (the )?(url|https?|page)|results? in .*\b(url|page)\b|url of (the |a )?\w+ page|page titled)/i;
+const FINDS_TEXT = /\b(contains?|displays?|shows?|quote|quoting|provides?|providing|reports?|records?|capture) [^.]*\b(text|heading|h1|title|word|url|label|sentence|line|content)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b|\bpage titled\b|\bfound on the page\b/i;
 
 /**
  * Deterministic verifiability class: URL-VERIFIABLE when completion is provable by fetching a public

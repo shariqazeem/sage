@@ -352,4 +352,36 @@ describe("classifyVerifiability (deterministic)", () => {
       }),
     ).toBe("observation-based");
   });
+
+  // P-GEN regression: real plausible.io / docs missions read exactly like this and were WRONGLY
+  // labeled observation-based — the class is an honesty disclosure, so a mislabel is a truth defect.
+  it("url-verifiable: 'reach the page titled …' + 'quote the heading … found on the page'", () => {
+    expect(
+      classifyVerifiability({
+        objective: "Verify the documentation onboarding path",
+        criteria: ["Successfully reach the page titled 'Register for an account'", "Confirm the page content explains registration"],
+        evidenceRequirements: ["Provide the URL of the documentation page reached", "Quote the first heading or sentence found on the page"],
+      }),
+    ).toBe("url-verifiable");
+  });
+
+  it("url-verifiable: 'provide the URL of the landing page' + 'quote the primary heading text'", () => {
+    expect(
+      classifyVerifiability({
+        objective: "Validate value proposition clarity",
+        criteria: ["The primary heading text matches the documented value proposition"],
+        evidenceRequirements: ["Provide the URL of the landing page", "Quote the primary heading text"],
+      }),
+    ).toBe("url-verifiable");
+  });
+
+  it("stays observation-based for an experiential mission even with the broadened patterns", () => {
+    expect(
+      classifyVerifiability({
+        objective: "Test the panning interaction",
+        criteria: ["Pan the canvas by dragging and describe how the viewport responds"],
+        evidenceRequirements: ["Describe in your own words how panning felt and any lag observed"],
+      }),
+    ).toBe("observation-based");
+  });
 });

@@ -308,7 +308,12 @@ export async function runMissionBrain(
   corpus: string,
 ): Promise<MissionBrainResult> {
   if (!llmConfigured()) return EMPTY("llm_not_configured");
-  if (map.pagesInspected === 0) return EMPTY("no_inspected_pages");
+  // "Nothing inspected" only when the static crawl AND the real browser both saw nothing. A bot-walled
+  // store or client-rendered SPA has 0 static pages but a field test — hand it to the SUFFICIENCY GATE
+  // below, which judges whether what the browser DID see is rich enough to design paid work (else it
+  // asks a specific question rather than confabulating). Same predicate as the pipeline's own gate.
+  const fieldTestSaw = !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0));
+  if (map.pagesInspected === 0 && !fieldTestSaw) return EMPTY("no_inspected_pages");
 
   // SUFFICIENCY GATE — if Sage saw too little to design work worth paying for, ask the founder
   // SPECIFIC questions built from what WAS seen, rather than letting the architect confabulate a plan.
@@ -348,6 +353,13 @@ export async function runMissionBrain(
   }
 
   for (const q of map.openQuestions) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
+  // Never dead-end the founder loop: if the gate rejected every mission but neither the critic nor the
+  // map surfaced a question (e.g. a bot-walled/SPA product the browser reached but couldn't anchor a
+  // mission to), fall back to the SPECIFIC sufficiency questions built from what Sage DID see — so the
+  // needs_input → answer → re-plan loop always has something concrete to answer.
+  if (r.accepted.length === 0 && needsInputQuestions.length === 0) {
+    for (const q of sufficiencyQuestions(map)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
+  }
 
   return {
     ok: r.accepted.length > 0,

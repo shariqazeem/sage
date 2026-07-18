@@ -35,12 +35,16 @@ function dedupeFindings(f: MapFinding[]): MapFinding[] {
   return [...seen.values()];
 }
 
+// Keyword hints for a coarse category label. English first, then common accent-free equivalents in
+// FR/DE/ES/PT/IT so a non-English product isn't stranded at "uncategorized" (the vision path only
+// enriches INTERACTIVE products; static non-English pages rely on these). This label is descriptive
+// only — never a safety input — so a miss is cosmetic, never a money or anchor risk.
 const CATEGORY_HINTS: [RegExp, string][] = [
-  [/wallet|crypto|onchain|web3|token|defi|blockchain/i, "web3 / crypto"],
-  [/docs?|documentation|api reference|sdk|developer/i, "developer tool / docs"],
-  [/pricing|subscribe|plans|checkout|cart|shop|store/i, "commerce / saas"],
-  [/dashboard|analytics|workspace|projects?/i, "saas app"],
-  [/blog|news|magazine|article/i, "content / media"],
+  [/wallet|crypto|onchain|web3|token|defi|blockchain|cartera|portefeuille/i, "web3 / crypto"],
+  [/docs?|documentation|api reference|sdk|developer|developpeur|entwickler|desarrollador/i, "developer tool / docs"],
+  [/pricing|subscribe|plans|checkout|cart|shop|store|tarifs|boutique|panier|abonn|preise|warenkorb|kaufen|precios|tienda|carrito|comprar|prezzi|negozio|loja/i, "commerce / saas"],
+  [/dashboard|analytics|workspace|projects?|tableau de bord|espace de travail|arbeitsbereich/i, "saas app"],
+  [/blog|news|magazine|article|actualites|noticias|nachrichten/i, "content / media"],
 ];
 
 function inferCategory(obs: ProductObservation[]): string {
@@ -160,8 +164,11 @@ export function buildProductMap(
 
   const limitations: string[] = [];
   const openQuestions: string[] = [];
-  if (observations.length === 0) {
-    openQuestions.push("Sage could not inspect any page — is the product URL public and reachable over HTTPS?");
+  // Honest only when the browser ALSO saw nothing — a field-tested bot-walled/SPA product WAS
+  // inspected, just not through server-rendered HTML, so it is not a "couldn't inspect" case.
+  const fieldTestSaw = !!(fieldTest?.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0));
+  if (observations.length === 0 && !fieldTestSaw) {
+    openQuestions.push("Sage couldn't read any page at this URL — it may be unreachable or blocking automated visits. Is there a public link, or a demo or staging URL, Sage can use?");
   }
   if (observations.length > 0 && observations.length < 3) {
     limitations.push("Only a few pages were reachable, so the map is partial.");
