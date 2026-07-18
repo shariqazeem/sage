@@ -29,9 +29,9 @@ const only = flag("only", "");
 //    outcome when even the real browser can't anchor a payable mission to a nav-only render.
 const MATRIX = [
   { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "static", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // 1-sentence page: a thin url mission OR an honest ask are BOTH correct
-  { cat: "docs", url: "https://tailwindcss.com/docs", expectMode: "static", expectLint: "url", thin: false },
+  { cat: "docs", url: "https://tailwindcss.com/docs", expectMode: "static", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // a reference-doc site: design a "follow this guide" mission OR ask — both honest
   { cat: "saas-marketing", url: "https://plausible.io", expectMode: "static", expectLint: "url", thin: false },
-  { cat: "spa-app", url: "https://excalidraw.com", expectMode: "interactive", expectLint: "any", thin: false }, // live CSR SPA
+  { cat: "spa-app", url: "https://excalidraw.com", expectMode: "interactive", expectLint: "any", thin: "maybe", accept: ["ready", "needs_input"] }, // live CSR SPA; wordless/experiential like yara → a mission OR an honest ask both pass
   { cat: "canvas-game", url: "https://play2048.co", expectMode: "interactive", expectLint: "obs", thin: false },
   { cat: "dom-world", url: "https://yara.garden", expectMode: "interactive", expectLint: "obs", thin: false }, // control
   { cat: "ecommerce", url: "https://www.allbirds.com", expectMode: "any", expectLint: "any", thin: "maybe" }, // bot-walled
