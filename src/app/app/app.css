@@ -88,6 +88,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   padding: 22px 2px 18px;
 }
 .sb-brand {

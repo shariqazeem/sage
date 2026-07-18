@@ -125,6 +125,18 @@ async function mintSession(address: Address): Promise<void> {
  * and the TTL — a tampered or expired token reads as logged-out.
  */
 export async function getSessionAddress(): Promise<Address | null> {
+  // DEV-ONLY session bypass — lets local visual/QA work render the wallet-gated surfaces (console,
+  // dashboard) without a browser wallet. Doubly gated: NODE_ENV must be "development" AND
+  // DEV_SESSION_WALLET must be set to a valid address. In production NODE_ENV is "production" (skipped)
+  // and the var is never set, so this is unreachable there. A malformed value falls through to the real
+  // cookie check rather than logging anyone in.
+  if (process.env.NODE_ENV === "development" && process.env.DEV_SESSION_WALLET) {
+    try {
+      return getAddress(process.env.DEV_SESSION_WALLET);
+    } catch {
+      /* fall through */
+    }
+  }
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const dot = token.lastIndexOf(".");
