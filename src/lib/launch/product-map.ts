@@ -20,6 +20,20 @@ import type {
   VisionObservation,
 } from "./schemas";
 
+/** Did the field test actually observe anything (pages or states) in the real browser? Shared so the
+ *  "was this product inspectable?" decision has ONE definition, not several drifting copies. */
+export function fieldTestExplored(ft?: FieldTestSummary | null): boolean {
+  return !!(ft?.ran && ((ft.pages?.length ?? 0) > 0 || (ft.states?.length ?? 0) > 0));
+}
+
+/** Sage has SOMETHING real to design missions from: static pages OR a real-browser exploration. The
+ *  SINGLE source of truth — the pipeline bail, the mission-brain bail, and this map's open-question all
+ *  derive from it, so a future change can't silently fix one path and miss another (the drift that let
+ *  three independent `pagesInspected === 0` checks disagree on bot-walled/SPA products). */
+export function hasUsableInspection(map: Pick<ProductMapV1, "pagesInspected" | "fieldTest">): boolean {
+  return map.pagesInspected > 0 || fieldTestExplored(map.fieldTest);
+}
+
 function pageRef(o: ProductObservation, observation: string): SourceRef {
   return { kind: "page", ref: o.url, observation };
 }
@@ -165,10 +179,11 @@ export function buildProductMap(
   const limitations: string[] = [];
   const openQuestions: string[] = [];
   // Honest only when the browser ALSO saw nothing — a field-tested bot-walled/SPA product WAS
-  // inspected, just not through server-rendered HTML, so it is not a "couldn't inspect" case.
-  const fieldTestSaw = !!(fieldTest?.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0));
-  if (observations.length === 0 && !fieldTestSaw) {
-    openQuestions.push("Sage couldn't read any page at this URL — it may be unreachable or blocking automated visits. Is there a public link, or a demo or staging URL, Sage can use?");
+  // inspected, just not through server-rendered HTML, so it is not a "couldn't inspect" case. When it
+  // genuinely saw nothing, the likeliest cause is a WAF blocking automated visits, so we name the
+  // concrete founder actions — including allowlisting Sage's user agent — rather than a vague ask.
+  if (observations.length === 0 && !fieldTestExplored(fieldTest)) {
+    openQuestions.push("Sage couldn't read any page at this URL — it may be unreachable or blocking automated visits. Is there a public link or a demo/staging URL Sage can use, or can you allowlist Sage's user agent (SageMissionBrain/1.0) so it can read the page?");
   }
   if (observations.length > 0 && observations.length < 3) {
     limitations.push("Only a few pages were reachable, so the map is partial.");
@@ -203,7 +218,7 @@ export function buildProductMap(
   // shifts the map digest (or any downstream plan hash). Off/failed field test → no key at all,
   // leaving the serialized map byte-identical to today.
   const map: ProductMapV1 = { ...base, digest: productMapDigest(base) };
-  if (fieldTest && fieldTest.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0)) map.fieldTest = fieldTest;
+  if (fieldTestExplored(fieldTest)) map.fieldTest = fieldTest;
   // P14 — enrich the map's UNDERSTANDING from what a vision model saw in the state screenshots. Applied
   // AFTER the digest, so the canonical digest stays a stable hash of the deterministic static evidence
   // (vision is non-deterministic). No visionObservations → this is a no-op → the map is byte-identical.

@@ -12,7 +12,7 @@ import "server-only";
 import { inspectProduct, rankPrimaryLinks } from "./inspect";
 import { fieldTestEnabled, runFieldTest } from "./field-test";
 import { inspectRepo } from "./github";
-import { buildProductMap, scopeFromObservations } from "./product-map";
+import { buildProductMap, hasUsableInspection, scopeFromObservations } from "./product-map";
 import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { allocateBudget } from "./budget";
@@ -121,8 +121,8 @@ export async function inspectAndPlan(
   // Only ask "we couldn't inspect anything" when NEITHER the static crawl NOR the real browser saw a
   // thing. A bot-walled or client-rendered product yields 0 static pages but a rich field test — that
   // is a READY product, not a needs_input (the mission corpus below is built from the field test).
-  const fieldTestSaw = !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0));
-  if (map.pagesInspected === 0 && !fieldTestSaw) {
+  // `hasUsableInspection` is the shared predicate the mission brain gate uses too, so they can't drift.
+  if (!hasUsableInspection(map)) {
     return out("needs_input", "no_inspected_pages", { map, questions: map.openQuestions });
   }
 

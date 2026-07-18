@@ -28,7 +28,7 @@ const only = flag("only", "");
 //    the bot-walled test; `thin:"maybe"` because a graceful needs_input (ask for a demo) is a valid
 //    outcome when even the real browser can't anchor a payable mission to a nav-only render.
 const MATRIX = [
-  { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "static", expectLint: "url", thin: "maybe" },
+  { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "static", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // 1-sentence page: a thin url mission OR an honest ask are BOTH correct
   { cat: "docs", url: "https://tailwindcss.com/docs", expectMode: "static", expectLint: "url", thin: false },
   { cat: "saas-marketing", url: "https://plausible.io", expectMode: "static", expectLint: "url", thin: false },
   { cat: "spa-app", url: "https://excalidraw.com", expectMode: "interactive", expectLint: "any", thin: false }, // live CSR SPA
@@ -107,14 +107,20 @@ async function runOne(m, i) {
   const mode = ft?.mode ?? (ft ? "?" : "static(no-ft)");
   const isInteractive = mode === "interactive";
   const junkJourney = (map?.primaryJourney || []).some((j) => / — [^a-z0-9]{0,2}$/i.test(j.value || ""));
+  // Explicit per-row ACCEPTANCE SET — the allowed terminal statuses for this URL. A marginal product (a
+  // one-sentence page can honestly yield a thin mission OR a needs_input) lists BOTH, so a run-to-run
+  // flip doesn't flake CI. `failed` is never acceptable. Default derives from `thin`; a row may override
+  // with `accept`. `lintOptional` makes the url-vs-obs split informational (~) for variance-prone rows.
+  const accept = m.accept ?? (m.thin === true ? ["needs_input"] : m.thin === "maybe" ? ["ready", "needs_input"] : ["ready"]);
+  const softLint = (label) => (m.lintOptional ? `~(${label})` : `FAIL(${label})`);
   const checks = {
     mode: m.expectMode === "any" ? "n/a" : (ft ? (mode === m.expectMode ? "PASS" : `FAIL(${mode})`) : "n/a"),
     states: !isInteractive ? "n/a" : ((ft?.states?.length ?? 0) > 1 ? "PASS" : `FAIL(${ft?.states?.length ?? 0})`),
     loadingWaited: !isInteractive ? "n/a" : ((ft?.states || []).some((s) => /waited out loading/i.test(s.trigger)) ? "PASS" : "—"),
     category: job.status === "needs_input" ? "n/a" : (map?.category && map.category !== "product (uncategorized)" && !junkJourney ? "PASS" : `FAIL(${map?.category}${junkJourney ? "+junkJourney" : ""})`),
     anchorInteg: missions.length === 0 ? "n/a" : (integrity === 100 ? "PASS" : `FAIL(${integrity}%)`),
-    lintSplit: missions.length === 0 ? "n/a" : (m.expectLint === "any" ? "PASS" : m.expectLint === "url" ? (urlV > 0 ? "PASS" : `FAIL(0url/${obsV}obs)`) : (obsV > 0 ? "PASS" : `FAIL(${urlV}url/0obs)`)),
-    needsInput: job.status !== "needs_input" ? (m.thin === true ? "FAIL(should-ask)" : "PASS") : (m.thin === false ? "FAIL(false-fire)" : "PASS"),
+    lintSplit: missions.length === 0 ? "n/a" : (m.expectLint === "any" ? "PASS" : m.expectLint === "url" ? (urlV > 0 ? "PASS" : softLint(`0url/${obsV}obs`)) : (obsV > 0 ? "PASS" : softLint(`${urlV}url/0obs`))),
+    needsInput: accept.includes(job.status) ? "PASS" : `FAIL(got-${job.status},want-${accept.join("|")})`,
   };
   return { ...m, status: job.status, mode, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [] };
 }

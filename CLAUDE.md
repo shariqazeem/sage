@@ -66,6 +66,21 @@ whether the payouts hold up.
 
 ---
 
+## Standing operating policies (apply without asking)
+
+- After any green deploy to prod, push `main` to origin in the same pass. The public repo
+  tracks prod; a trailing public repo is a defect, not caution.
+- Deploys are guarded on 0 pending/settling submissions — verified via the app's own DB
+  driver (`better-sqlite3`), never a possibly-missing CLI (`sqlite3` is not installed on the VM).
+- Any change touching inspection, field test, vision, mission brain, or the gates runs the
+  P-GEN matrix battery (`scripts/mission-eval-matrix.mjs`) before deploy. **Anchor integrity
+  below 100% is a hard stop.**
+- Naming: "policy vault" is the human concept everywhere; exact contract kind and event
+  names live in technical rows only.
+- **P16 gate status: Stage 1 was submitted 2026-07-18. P16 is UNLOCKED.**
+
+---
+
 ## 2. Architecture
 
 Three LLM "brains" + one on-chain settlement core. They are separate on purpose.

@@ -20,6 +20,7 @@ import {
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { fieldTestForMap } from "./field-test";
+import { hasUsableInspection } from "./product-map";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
@@ -296,7 +297,7 @@ function sufficiencyQuestions(map: ProductMapV1): string[] {
   const scene = vis.map((v) => v.sceneDescription).find(Boolean);
   if (types.length) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
   if (scene) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
-  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs to get into the real product?");
+  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's user agent, SageMissionBrain/1.0?");
   if (qs.length === 0) qs.push("Sage's inspection didn't surface enough to design paid missions with confidence. What is the one flow you most want validated, and how would a tester prove they completed it?");
   return qs.slice(0, 3);
 }
@@ -311,9 +312,9 @@ export async function runMissionBrain(
   // "Nothing inspected" only when the static crawl AND the real browser both saw nothing. A bot-walled
   // store or client-rendered SPA has 0 static pages but a field test — hand it to the SUFFICIENCY GATE
   // below, which judges whether what the browser DID see is rich enough to design paid work (else it
-  // asks a specific question rather than confabulating). Same predicate as the pipeline's own gate.
-  const fieldTestSaw = !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0));
-  if (map.pagesInspected === 0 && !fieldTestSaw) return EMPTY("no_inspected_pages");
+  // asks a specific question rather than confabulating). `hasUsableInspection` is the SAME shared
+  // predicate the pipeline gate uses, so the two can never drift apart.
+  if (!hasUsableInspection(map)) return EMPTY("no_inspected_pages");
 
   // SUFFICIENCY GATE — if Sage saw too little to design work worth paying for, ask the founder
   // SPECIFIC questions built from what WAS seen, rather than letting the architect confabulate a plan.

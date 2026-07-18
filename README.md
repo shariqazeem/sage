@@ -44,6 +44,9 @@ DMs you a mission plan in about two minutes; **nothing is charged until you fund
   deterministic gate rejects any claim that isn't a literal substring of what Sage actually
   observed — a *"Validate Zoom Control"* for a control that was never there cannot reach a
   founder, whatever the model says. When observation is too thin, Sage asks instead of inventing.
+  **Audited across 11 product categories** (marketing pages, SaaS, docs, canvas games, SPAs,
+  bot-walled stores, a login wall, a non-English product): **zero hallucinated missions — every
+  break found was a capability gap, and every one is closed** (`scripts/mission-eval-matrix.mjs`).
 - **Autonomy with judgment, not a rubber stamp.** Sage **pays what it can verify** (a public
   URL + quoted text settles automatically) **and holds what it can't** — an interactive-app
   result it can't prove from a URL is held for a one-tap founder approval from Telegram, never

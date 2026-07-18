@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProductMap, scopeFromObservations } from "./product-map";
+import { buildProductMap, fieldTestExplored, hasUsableInspection, scopeFromObservations } from "./product-map";
 import type { FieldTestSummary, FounderLaunchInput, ProductObservation, VisionObservation } from "./schemas";
 
 /**
@@ -166,5 +166,26 @@ describe("buildProductMap — multilingual category hints", () => {
   it("categorizes a German developer page via non-English hints", () => {
     const de = obs("https://beispiel.de/", { title: "Entwickler Dokumentation", headings: ["API"], claims: [] });
     expect(buildProductMap([de], [], founder).category).toBe("developer tool / docs");
+  });
+});
+
+/* ───────────── P-GEN hardening — one shared "is this inspectable?" predicate ───────────── */
+
+describe("hasUsableInspection / fieldTestExplored (single source of truth)", () => {
+  const ft = (over: Partial<FieldTestSummary>): FieldTestSummary => ({
+    ran: true, startUrl: "https://x/", mode: "static", pages: [], states: [], classification: "", limitation: null, durationMs: 1, ...over,
+  });
+  it("fieldTestExplored: true only when the browser saw a page or a state", () => {
+    expect(fieldTestExplored(null)).toBe(false);
+    expect(fieldTestExplored(ft({ ran: false, pages: [{}] as never }))).toBe(false); // didn't run
+    expect(fieldTestExplored(ft({ pages: [], states: [] }))).toBe(false); // ran, saw nothing
+    expect(fieldTestExplored(ft({ pages: [{}] as never }))).toBe(true);
+    expect(fieldTestExplored(ft({ states: [{}] as never }))).toBe(true);
+  });
+  it("hasUsableInspection: static pages OR a browser exploration — the exact gate the pipeline+brain share", () => {
+    expect(hasUsableInspection({ pagesInspected: 2, fieldTest: undefined })).toBe(true); // static only
+    expect(hasUsableInspection({ pagesInspected: 0, fieldTest: ft({ states: [{}] as never }) })).toBe(true); // bot-walled rescued
+    expect(hasUsableInspection({ pagesInspected: 0, fieldTest: undefined })).toBe(false); // dead / hard-blocked
+    expect(hasUsableInspection({ pagesInspected: 0, fieldTest: ft({ pages: [], states: [] }) })).toBe(false); // browser saw nothing
   });
 });
