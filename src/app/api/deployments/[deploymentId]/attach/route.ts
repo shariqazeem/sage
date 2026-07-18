@@ -26,8 +26,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   const { deploymentId } = await ctx.params;
   // The founder's chosen payout mode from the wizard. Default autopilot — the agent that
   // designed the missions also pays them. Validated to the two allowed values.
-  const body = (await req.json().catch(() => ({}))) as { autonomy?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { autonomy?: unknown; perWalletCap?: unknown };
   const autonomy: "manual" | "autopilot" = body.autonomy === "manual" ? "manual" : "autopilot";
+  // P18/P19 — the founder-set per-campaign per-wallet payout cap. Validated + clamped to [1, 1000];
+  // anything invalid falls back to the safe default of 1. Chat-launch never sends it → default 1.
+  const perWalletCap = Math.min(1000, Math.max(1, Math.round(Number(body.perWalletCap)) || 1));
   const session = await getSessionAddress();
   const access = loadDeploymentForSession(deploymentId, session);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
@@ -106,6 +109,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       vaultAddress: getAddress(deployment.deployedVault),
       missions,
       autonomy,
+      perWalletCap,
     },
     deploymentAttachDeps(deployment, loaded.plan, settings),
   );

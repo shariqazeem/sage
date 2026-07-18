@@ -87,6 +87,9 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const budgetBase = Number(plan.totalBudgetBase);
   const [dailyCapUsd, setDailyCapUsd] = useState((budgetBase / 1e6).toString());
   const [durationDays, setDurationDays] = useState("14");
+  // P18/P19 — the most times ONE wallet can be paid across this whole campaign. Default 1 (max Sybil
+  // resistance — a fresh payout needs a fresh wallet); the founder raises it for trusted multi-mission testers.
+  const [perWalletCap, setPerWalletCap] = useState("1");
   // Payout mode. Default autopilot — the agent that designs the missions also pays them,
   // inside the vault's on-chain limits. The founder can switch to manual review.
   const [autonomy, setAutonomy] = useState<"manual" | "autopilot">("autopilot");
@@ -314,7 +317,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const attach = useCallback(
     async (cur: DeploymentView) => {
       setNote("Verifying the campaign…");
-      const r = await post(`/api/deployments/${cur.id}/attach`, { autonomy });
+      const r = await post(`/api/deployments/${cur.id}/attach`, { autonomy, perWalletCap: Math.max(1, Math.round(Number(perWalletCap) || 1)) });
       if (!r.data.ok) {
         setError(String(r.data.error ?? "Attachment did not complete. Your vault is safe."));
         if (r.data.deployment) setDep(r.data.deployment as DeploymentView);
@@ -322,7 +325,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
       }
       setDep(r.data.deployment as DeploymentView);
     },
-    [post, autonomy],
+    [post, autonomy, perWalletCap],
   );
 
   const phase: Phase = dep?.next.phase ?? "claim";
@@ -364,6 +367,8 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           setDailyCapUsd={setDailyCapUsd}
           durationDays={durationDays}
           setDurationDays={setDurationDays}
+          perWalletCap={perWalletCap}
+          setPerWalletCap={setPerWalletCap}
           autonomy={autonomy}
           setAutonomy={setAutonomy}
           busy={busy}
@@ -484,12 +489,14 @@ function LimitsPanel(props: {
   setDailyCapUsd: (v: string) => void;
   durationDays: string;
   setDurationDays: (v: string) => void;
+  perWalletCap: string;
+  setPerWalletCap: (v: string) => void;
   autonomy: "manual" | "autopilot";
   setAutonomy: (v: "manual" | "autopilot") => void;
   busy: boolean;
   onReview: () => void;
 }) {
-  const { plan, founder, chainId, dailyCapUsd, setDailyCapUsd, durationDays, setDurationDays, autonomy, setAutonomy, busy, onReview } = props;
+  const { plan, founder, chainId, dailyCapUsd, setDailyCapUsd, durationDays, setDurationDays, perWalletCap, setPerWalletCap, autonomy, setAutonomy, busy, onReview } = props;
   return (
     <div className="lxd-panel">
       <div className="lxd-grid">
@@ -501,6 +508,11 @@ function LimitsPanel(props: {
         <div className="lx-field" style={{ margin: 0 }}>
           <label className="lx-label">Duration (days)</label>
           <input className="lx-input" type="number" min="1" max="90" step="1" value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
+        </div>
+        <div className="lx-field" style={{ margin: 0 }}>
+          <label className="lx-label">Payouts per wallet</label>
+          <input className="lx-input" type="number" min="1" max="1000" step="1" value={perWalletCap} onChange={(e) => setPerWalletCap(e.target.value)} />
+          <span className="lx-hint">Most times one wallet can be paid across the whole campaign. 1 = strongest Sybil resistance.</span>
         </div>
         <Field label="Network"><span>{chainConfig(chainId).chipLabel}{chainConfig(chainId).isMainnet ? "" : " (testnet)"}</span></Field>
         <Field label="Owner (you)"><span className="mono">{short(founder)}</span></Field>

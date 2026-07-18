@@ -68,6 +68,8 @@ export interface V2SetupInput {
   autonomy?: "manual" | "autopilot";
   /** Confidence bar for autopilot settles (0..1). Default 0.85. */
   autopilotThreshold?: number;
+  /** P18/P19 founder-set per-campaign per-wallet payout cap (default 1). */
+  perWalletCap?: number;
   /** P16 pinned private answer key (distilled field-test corpus minus public strings) + its digest and
    *  distinct-source count. Pinned here, at the same instant the plan locks. Absent → founder-approved. */
   privateCorpus?: { source: string; text: string }[];
@@ -362,6 +364,8 @@ export async function attachV2Campaign(
               ? (input.autopilotThreshold ?? 0.85)
               : undefined,
           vaultKind: "campaign_v2",
+          // P18/P19 — the founder-set per-wallet payout cap (default 1, clamped upstream).
+          perWalletPayoutCap: Math.max(1, Math.round(input.perWalletCap ?? 1)),
           // P16 pinned private answer key — an immutable snapshot fixed at the same instant as the plan.
           privateCorpus: input.privateCorpus ?? null,
           privateCorpusDigest: input.privateCorpusDigest ?? null,
