@@ -250,6 +250,13 @@ export const decisions = sqliteTable(
     model: text("model"),
     /** the judgment (criteria / fraud / recommendation / reasonCode / summary) + the deciding provider. */
     brief: text("brief", { mode: "json" }).$type<StoredBrief>().notNull(),
+    /**
+     * P16 SHADOW LOG — the observation-mode "would-have-autopaid" record (counts + scalars only, never
+     * a matched string), persisted on EVERY observation submission while OBSERVATION_AUTOPAY is off, so
+     * the bar's N-values calibrate against real data before the flag is ever armed. Null on url-verifiable
+     * decisions and legacy rows. Its shape is `ObservationShadow` (src/lib/deputy/observation-judge.ts).
+     */
+    observationShadow: text("observation_shadow", { mode: "json" }).$type<Record<string, unknown>>(),
     /** sha256 of the fetched evidence bytes (provenance), or null. */
     contentSha256: text("content_sha256"),
     evidenceOk: integer("evidence_ok", { mode: "boolean" }).notNull().default(false),

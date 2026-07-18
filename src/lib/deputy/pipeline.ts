@@ -14,9 +14,12 @@ import {
   listSubmissionsForDedup,
   recordEvent,
   recordEventOnce,
+  setObservationShadow,
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
+import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
+import type { PrivateKey } from "./observation-verify";
 import { reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
@@ -307,21 +310,50 @@ export async function runDeputyOnSubmission(
     return { action: "skipped", reason: gate.reason, correlationId: cid };
   }
 
-  // b'. P16 SAFETY VALVE — an observation-based mission is NEVER auto-paid. Sage can re-fetch a public
-  // URL to confirm url-verifiable work, but it cannot re-live a lived experience; that judgment is the
-  // founder's. Keyed off the STORED mission lint class (a money gate that defaults to the safe side).
-  // url-verifiable missions are byte-identical — this block is a no-op for them. [Step 2 lets the
-  // observation-mode capability + OBSERVATION_AUTOPAY release these; until then, always hold for review.]
+  // b'. P16 — observation-based missions. Sage can re-fetch a public URL to confirm url-verifiable work,
+  // but a lived experience it can only judge against its OWN pinned private eyes. Compute the full
+  // observation decision (deterministic corpus match + injection + near-dup + the conditional LLM judge),
+  // persist the SHADOW (would-have-autopaid) for calibration, and RELEASE only if OBSERVATION_AUTOPAY is
+  // armed AND the whole bar passes. Default (flag off, or any failure): HOLD — exactly Step 0, now logged.
+  // url-verifiable missions are byte-identical (this block is a no-op for them).
   if (submission.missionIdHash) {
     const mission = getMissionByHash(campaign.id, submission.missionIdHash);
     if (mission?.verifiabilityClass === "observation-based") {
-      agentLog(cid, "observation_hold", { missionKey: mission.missionKey });
-      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-        journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
-        void notifyFounderHeld(campaign, submission);
-        return { action: "held", reason: "observation_review", correlationId: cid };
+      const key: PrivateKey = {
+        observations: campaign.privateCorpus ?? [],
+        distinctSources: campaign.privateCorpusSources,
+        digest: campaign.privateCorpusDigest ?? "0x0",
+      };
+      const decision = await runObservationDecision({
+        account: submission.note,
+        key,
+        priors: listSubmissionsForDedup(campaign.id, submissionId),
+        missionObjective: mission.objective,
+        criteria: mission.criteria,
+        hasHighFraud: brief.fraudSignals.some((f) => f.severity === "high"),
+      }).catch(() => null);
+      const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
+      if (decision) {
+        setObservationShadow(
+          submissionId,
+          toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>,
+        );
       }
-      return { action: "skipped", reason: "observation_review", correlationId: cid };
+      agentLog(cid, "observation", {
+        barPass: decision?.bar.pass ?? false,
+        distinct: decision?.publicView.distinctSources ?? 0,
+        reasons: decision?.bar.reasons ?? ["no_decision"],
+        autopay,
+      });
+      if (!autopay) {
+        if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+          journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
+          void notifyFounderHeld(campaign, submission);
+          return { action: "held", reason: "observation_review", correlationId: cid };
+        }
+        return { action: "skipped", reason: "observation_review", correlationId: cid };
+      }
+      // OBSERVATION_AUTOPAY armed + full bar passed → fall through to the Sybil checks + settle.
     }
   }
 

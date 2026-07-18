@@ -20,8 +20,20 @@ vi.mock("@/lib/db/campaigns", () => ({
   listPaidSubmissionsForDedup: vi.fn(() => []),
   listSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
+  setObservationShadow: vi.fn(),
   getMissionByHash: vi.fn(),
   listMissions: vi.fn(() => []),
+}));
+const HOLD_DECISION = {
+  bar: { pass: false, reasons: ["thin_corpus(0<5)"] },
+  publicView: { distinctSources: 0, matchedCount: 0, keyDistinctSources: 0, corpusDigest: "0x0", barPass: false, barReasons: ["thin_corpus(0<5)"] },
+  corpusMatch: { distinctSources: 0, matchedCount: 0, matched: [] },
+  injectionDetected: false, nearDupSimilarity: 0, obsConfidence: 0, contradictions: [],
+};
+vi.mock("./observation-judge", () => ({
+  runObservationDecision: vi.fn(async () => HOLD_DECISION),
+  observationAutopayEnabled: vi.fn(() => false),
+  toObservationShadow: vi.fn(() => ({})),
 }));
 vi.mock("@/lib/deputy/chain", () => ({
   getVaultState: vi.fn(),
@@ -51,6 +63,7 @@ import {
 import { getVaultState } from "@/lib/deputy/chain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
+import { observationAutopayEnabled, runObservationDecision } from "./observation-judge";
 
 const campaign = {
   id: "c1",
@@ -109,6 +122,9 @@ beforeEach(() => {
   vi.mocked(countPaidByWalletInCampaign).mockReturnValue(0);
   // P16 Step 0: default no mission row → the observation-review valve is a no-op unless a test opts in.
   vi.mocked(getMissionByHash).mockReturnValue(undefined as never);
+  // P16 Step 1: default observation decision holds, flag off — a test opts into a pass/armed explicitly.
+  vi.mocked(runObservationDecision).mockResolvedValue(HOLD_DECISION as never);
+  vi.mocked(observationAutopayEnabled).mockReturnValue(false);
   vi.mocked(getVaultState).mockResolvedValue({
     status: "active",
     remaining: 100,
@@ -142,6 +158,26 @@ describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety 
   it("a url-verifiable mission settles exactly as before (byte-identical path)", async () => {
     vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
     vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "url-verifiable" } as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("with OBSERVATION_AUTOPAY OFF, an observation mission holds even if the bar would pass (Step-0 default)", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: [] } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] } } as never);
+    vi.mocked(observationAutopayEnabled).mockReturnValue(false); // flag off
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("with OBSERVATION_AUTOPAY ARMED and the full bar passing, an observation mission SETTLES", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: [] } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] } } as never);
+    vi.mocked(observationAutopayEnabled).mockReturnValue(true); // armed
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("settled");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);

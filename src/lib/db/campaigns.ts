@@ -340,6 +340,11 @@ export function deleteDecision(submissionId: string): void {
   db.delete(decisions).where(eq(decisions.submissionId, submissionId)).run();
 }
 
+/** P16 — persist the observation SHADOW record (counts + scalars only) on this submission's decision. */
+export function setObservationShadow(submissionId: string, shadow: Record<string, unknown>): void {
+  db.update(decisions).set({ observationShadow: shadow }).where(eq(decisions.submissionId, submissionId)).run();
+}
+
 /**
  * Persist a decision receipt. Idempotent by the unique submissionId — a race
  * (submit-time compute + a lazy view) resolves to one row, not a crash.

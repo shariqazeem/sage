@@ -19,6 +19,7 @@ import { llmCompleteJson, llmConfigured } from "@/lib/llm/complete";
 import { detectInjection, UNTRUSTED_NOTE_CLOSE, UNTRUSTED_NOTE_OPEN } from "./brain-core";
 import { findNearDuplicate, type DedupCandidate } from "./dedup";
 import {
+  OBS_BAR,
   observationBar,
   verifyAgainstKey,
   type BarResult,
@@ -26,6 +27,12 @@ import {
   type ObservationSignals,
   type PrivateKey,
 } from "./observation-verify";
+
+/** Real-money observation autopay — OFF by default, everywhere. Even fully armed the payout still runs
+ *  the whole bar; this only decides whether a bar-PASS releases or (as in shadow) still holds. */
+export function observationAutopayEnabled(): boolean {
+  return process.env.OBSERVATION_AUTOPAY === "1";
+}
 
 /** The ONLY output of the observation LLM judge — confidence + contradictions over the account. */
 export interface ObservationJudgeResult {
@@ -46,6 +53,44 @@ export interface ObservationPublicView {
   barPass: boolean;
   /** count-only reasons, e.g. "few_matches(2<3)" — enumerated, never free text or a matched string. */
   barReasons: string[];
+}
+
+/**
+ * The SHADOW record persisted on the decision for calibration (Step 2 review) — counts + scalars ONLY,
+ * never a matched string or contradiction text, so even the operator's calibration log can't leak the
+ * key. `wouldAutopay` is the shadow "would have paid" while OBSERVATION_AUTOPAY is off.
+ */
+export interface ObservationShadow {
+  distinctSources: number;
+  matchedCount: number;
+  keyDistinctSources: number;
+  obsConfidence: number;
+  /** contradiction COUNT (never the text). */
+  contradictions: number;
+  nearDupSimilarity: number;
+  injectionDetected: boolean;
+  barPass: boolean;
+  barReasons: string[];
+  corpusDigest: string;
+  wouldAutopay: boolean;
+  at: number;
+}
+
+export function toObservationShadow(d: ObservationDecision, wouldAutopay: boolean, at: number): ObservationShadow {
+  return {
+    distinctSources: d.publicView.distinctSources,
+    matchedCount: d.publicView.matchedCount,
+    keyDistinctSources: d.publicView.keyDistinctSources,
+    obsConfidence: d.obsConfidence,
+    contradictions: d.contradictions.length,
+    nearDupSimilarity: d.nearDupSimilarity,
+    injectionDetected: d.injectionDetected,
+    barPass: d.bar.pass,
+    barReasons: d.bar.reasons,
+    corpusDigest: d.publicView.corpusDigest,
+    wouldAutopay,
+    at,
+  };
 }
 
 /** The full SERVER-SIDE observation decision (audit record). `publicView` is the only publishable part. */
@@ -170,4 +215,49 @@ export async function judgeObservationAccount(input: {
   } catch {
     return { obsConfidence: 0, contradictions: [] };
   }
+}
+
+/**
+ * The full observation orchestration: deterministic layer + a CONDITIONAL LLM call. The judge is only
+ * invoked when the deterministic pre-conditions could plausibly clear the bar (eligible corpus, ≥ the
+ * distinct-match floor, no injection, no near-dup) — so a parrot / generic / injected / copied account
+ * never spends an LLM call, and a degraded judge can never turn a would-hold into a pay. Returns the
+ * full server-side decision; the caller persists ONLY `publicView` to any tester-readable surface.
+ */
+export async function runObservationDecision(input: {
+  account: string | null;
+  key: PrivateKey;
+  priors: DedupCandidate[];
+  missionObjective: string;
+  criteria: string[];
+  hasHighFraud: boolean;
+  model?: string;
+}): Promise<ObservationDecision> {
+  const injection = detectInjection(input.account ?? "").length > 0;
+  const corpusMatch = verifyAgainstKey(input.account, input.key);
+  const near = findNearDuplicate({ note: input.account, contentSha256: null }, input.priors);
+  const preCouldPass =
+    !injection &&
+    !near &&
+    input.key.distinctSources >= OBS_BAR.minKeySources &&
+    corpusMatch.distinctSources >= OBS_BAR.minDistinctMatches;
+
+  const judge: ObservationJudgeResult = preCouldPass
+    ? await judgeObservationAccount({
+        account: input.account,
+        missionObjective: input.missionObjective,
+        criteria: input.criteria,
+        matchedObservations: corpusMatch.matched.map((o) => o.text),
+        contextObservations: input.key.observations.map((o) => o.text),
+        model: input.model,
+      })
+    : { obsConfidence: 0, contradictions: [] };
+
+  return assembleObservationDecision({
+    account: input.account,
+    key: input.key,
+    priors: input.priors,
+    judge,
+    hasHighFraud: input.hasHighFraud,
+  });
 }
