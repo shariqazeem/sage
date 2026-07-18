@@ -101,7 +101,7 @@ export default async function CampaignPublicPage({
 
         <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />
 
-        <TesterFaq />
+        <TesterFaq perWalletCap={campaign.perWalletPayoutCap} />
 
         <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
           You own the campaign vault; Sage is the bounded operator. It reviews each submission

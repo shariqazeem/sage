@@ -276,11 +276,12 @@ export function HowYouGetPaid() {
 }
 
 /** A short, honest FAQ for the crypto-curious tester. */
-export function TesterFaq() {
+export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) {
   const faqs: [string, string][] = [
     ["Where does the money come from?", "A founder pre-funded an on-chain vault with hard caps. Sage can only pay from that vault, and never above each mission's reward or completion cap — it cannot overspend."],
     ["Who decides if I get paid?", "An AI agent reads your evidence against the mission's criteria and decides. Every decision is published as a public receipt you can inspect — the reasoning and the on-chain payout."],
     ["What does “held for review” mean?", "Sage wasn't confident enough to auto-pay — usually the evidence was thin or unreachable. A human takes a look; you don't need to do anything."],
+    ["How do you keep it fair?", `Each wallet can earn up to ${perWalletCap} payout${perWalletCap === 1 ? "" : "s"} here, one per mission. Copied or near-identical reports are detected and held for a person to review — honest work in your own words is fine. A brand-new wallet is only noted as a caution for review; that alone never blocks a payout.`],
     ["Do I pay gas?", "No. Signing in and committing your evidence are free signatures — they authorize no transaction and move no funds. Only Sage's wallet pays gas, when it pays you."],
   ];
   return (
