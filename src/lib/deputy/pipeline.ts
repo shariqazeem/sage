@@ -6,15 +6,17 @@ import { encodeDetail } from "@/lib/campaigns/journal";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import {
   casSubmissionStatus,
+  countPaidByWalletInCampaign,
   getCampaign,
   getDecisionBySubmission,
   getSubmission,
   listPaidSubmissionsForDedup,
+  listSubmissionsForDedup,
   recordEvent,
   recordEventOnce,
   updateSubmission,
 } from "@/lib/db/campaigns";
-import { findDuplicate } from "./dedup";
+import { findDuplicate, findNearDuplicate } from "./dedup";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
   replayHoldReason,
@@ -315,6 +317,40 @@ export async function runDeputyOnSubmission(
   if (dup) {
     const reason = `possible duplicate — ${dup.reason}`;
     agentLog(cid, "dedup", { duplicate: true, reason: dup.reason });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
+  }
+
+  // c''. Near-duplicate (P18) — the same report lightly reworded across wallets (paraphrase farming).
+  // Scans ALL other submissions on the campaign, since a farm shows as a cluster of near-identical
+  // PENDING reports, not just paid ones. HELD for human review, never auto-rejected: the threshold is
+  // deliberately high, but a false "you copied" is worse than a miss, so a person makes the final call.
+  const near = findNearDuplicate(
+    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null },
+    listSubmissionsForDedup(campaign.id, submissionId),
+  );
+  if (near) {
+    const reason = `possible duplicate account — ${near.reason}`;
+    agentLog(cid, "near_dedup", { duplicate: true, similarity: near.similarity });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
+  }
+
+  // c'''. Per-campaign per-wallet payout CAP (P18) — the most times ONE wallet can be paid across the
+  // WHOLE campaign (default 1; a founder raises it for trusted multi-mission testers). The vault's
+  // per-mission recipientCompleted already blocks same-mission replay; this bounds one wallet across
+  // DIFFERENT missions. Counts paid+settling for this wallet; at/over cap → HELD (never a silent skip —
+  // the founder can still release manually). Deterministic DB check, before any chain read or signing.
+  const walletPaid = countPaidByWalletInCampaign(campaign.id, submission.wallet);
+  if (walletPaid >= campaign.perWalletPayoutCap) {
+    const reason = `wallet reached its per-campaign payout cap (${campaign.perWalletPayoutCap})`;
+    agentLog(cid, "wallet_cap", { walletPaid, cap: campaign.perWalletPayoutCap });
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
       journalHeld(campaign, submission, reason, cid);
       return { action: "held", reason, correlationId: cid };

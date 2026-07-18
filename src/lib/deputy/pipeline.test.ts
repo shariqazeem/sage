@@ -18,6 +18,8 @@ vi.mock("@/lib/db/campaigns", () => ({
   recordEventOnce: vi.fn(() => ({ inserted: true })),
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
+  listSubmissionsForDedup: vi.fn(() => []),
+  countPaidByWalletInCampaign: vi.fn(() => 0),
   getMissionByHash: vi.fn(),
   listMissions: vi.fn(() => []),
 }));
@@ -38,9 +40,11 @@ vi.mock("./agent-log", () => ({
 import { runDeputyOnSubmission } from "./pipeline";
 import {
   casSubmissionStatus,
+  countPaidByWalletInCampaign,
   getCampaign,
   getDecisionBySubmission,
   getSubmission,
+  listSubmissionsForDedup,
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { getVaultState } from "@/lib/deputy/chain";
@@ -55,6 +59,7 @@ const campaign = {
   ownerIsSage: true,
   autonomy: "autopilot",
   autopilotThreshold: 0.85,
+  perWalletPayoutCap: 1,
 } as unknown as Campaign;
 
 const submission = {
@@ -97,6 +102,10 @@ beforeEach(() => {
   vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec1" } as never);
   vi.mocked(ensureDecision).mockResolvedValue(payBrief);
   vi.mocked(casSubmissionStatus).mockReturnValue(true);
+  // P18 Sybil pre-checks default to "clean" so each test starts from a payable state; a test that
+  // exercises a hold overrides just its own signal (and clearAllMocks doesn't reset implementations).
+  vi.mocked(listSubmissionsForDedup).mockReturnValue([]);
+  vi.mocked(countPaidByWalletInCampaign).mockReturnValue(0);
   vi.mocked(getVaultState).mockResolvedValue({
     status: "active",
     remaining: 100,
@@ -113,6 +122,32 @@ describe("runDeputyOnSubmission — happy path", () => {
     expect(r.txHash).toBe("0xTX");
     expect(r.correlationId).toBe("cid_test");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", () => {
+  const FARM_NOTE =
+    "I completed the signup flow at the pricing page and confirmed the three plan tiers are visible and the get started button works.";
+
+  it("HOLDS a near-duplicate (paraphrased) report before any settle", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, note: FARM_NOTE } as never);
+    vi.mocked(listSubmissionsForDedup).mockReturnValue([
+      { note: FARM_NOTE.replace("signup", "sign up").replace("get started", "Get Started"), contentSha256: null },
+    ]);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/duplicate account/i);
+    expect(casSubmissionStatus).not.toHaveBeenCalled();
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("HOLDS once the wallet has reached its per-campaign payout cap", async () => {
+    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1); // cap is 1
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/per-campaign payout cap/i);
+    expect(casSubmissionStatus).not.toHaveBeenCalled();
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 });
 

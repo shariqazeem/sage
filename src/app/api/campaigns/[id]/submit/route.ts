@@ -11,6 +11,7 @@ import {
   getCampaign,
   getMissionByKey,
   countPaidForMission,
+  countRecentSubmissionsByWallet,
   listSubmissions,
   recordEvent,
 } from "@/lib/db/campaigns";
@@ -19,6 +20,10 @@ import { short } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Per-wallet-per-campaign daily submission cap (P18). Env-overridable; honest limit, never silent. */
+const SUBMIT_DAILY_LIMIT = Number(process.env.SUBMIT_DAILY_LIMIT) || 3;
+const ONE_DAY_SECONDS = 24 * 60 * 60;
 
 const SUBMIT_ERROR: Record<string, string> = {
   duplicate_wallet: "You've already submitted to this campaign.",
@@ -53,6 +58,17 @@ export async function POST(
   if (!campaign) return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   if (campaign.status !== "live") {
     return NextResponse.json({ error: "This campaign isn't accepting submissions." }, { status: 409 });
+  }
+
+  // Per-wallet daily submission cap (P18) — DB-backed (survives restarts) and honest: an explicit
+  // "you've reached the daily limit" 429, never a silent drop. Anti-spam on top of the per-IP burst
+  // limiter above; a farmer can't grind one campaign from a single wallet.
+  const sinceUnix = Math.floor(Date.now() / 1000) - ONE_DAY_SECONDS;
+  if (countRecentSubmissionsByWallet(id, wallet, sinceUnix) >= SUBMIT_DAILY_LIMIT) {
+    return NextResponse.json(
+      { error: `You've reached this campaign's daily submission limit (${SUBMIT_DAILY_LIMIT}/day per wallet). Please try again tomorrow.` },
+      { status: 429 },
+    );
   }
 
   let body: { evidence?: unknown; note?: unknown; missionKey?: unknown; claim?: EvidenceClaim; signature?: unknown };

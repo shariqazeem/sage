@@ -52,6 +52,10 @@ export const campaigns = sqliteTable("campaigns", {
   /** reward per approved submission, in USDC base units (6dp). */
   rewardAmount: integer("reward_amount").notNull(),
   maxRecipients: integer("max_recipients").notNull().default(0),
+  /** P18 Sybil cap: the most times ANY ONE wallet can be PAID across this whole campaign (across all
+   *  its missions). Default 1 (max farming resistance — a fresh payout needs a fresh wallet); a founder
+   *  raises it at launch when they want trusted testers doing several missions. Enforced in preflight. */
+  perWalletPayoutCap: integer("per_wallet_cap").notNull().default(1),
   vaultAddress: text("vault_address").notNull(),
   /**
    * The network this campaign settles on, by chainId. Default 59902 (Metis

@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `per_wallet_cap` integer DEFAULT 1 NOT NULL;

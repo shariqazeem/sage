@@ -23,6 +23,7 @@ const SENTENCE: Record<string, string> = {
   mainnet_manual: "mainnet payouts wait for your approval (mainnet_manual)",
   velocity_cap: "the campaign's payout-velocity cap was reached (velocity_cap)",
   duplicate: "this account already submitted for this mission (duplicate)",
+  duplicate_account: "the report closely matches another submission — possible multi-wallet farming (duplicate_account)",
   observation_review: "observation-based work that needs your judgment (observation_review)",
 };
 

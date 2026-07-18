@@ -241,6 +241,24 @@ export default async function CampaignPublicPage({
         threshold={campaign.autopilotThreshold}
       />
 
+      <div className="sb-sec-label">Fair play</div>
+      <ul className="sage-crit" style={{ marginTop: 6 }}>
+        <li>
+          <Check size={15} />
+          Each wallet can earn up to {campaign.perWalletPayoutCap} payout
+          {campaign.perWalletPayoutCap === 1 ? "" : "s"} in this campaign, and one per mission.
+        </li>
+        <li>
+          <Check size={15} />
+          Copied or near-identical reports are detected and held for a person to review — never
+          auto-paid. Honest work in your own words is fine.
+        </li>
+        <li>
+          <Check size={15} />
+          Brand-new wallets are noted as a caution for review; that alone never blocks a payout.
+        </li>
+      </ul>
+
       <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
         Rewards are paid by Sage from an on-chain wallet with hard
         spending limits (the Policy Vault). Every payout is a verifiable

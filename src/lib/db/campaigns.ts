@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNotNull, lt, lte, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, lte, ne, notInArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
 import {
@@ -484,6 +484,33 @@ export function listPaidSubmissionsForDedup(
     .all();
 }
 
+/**
+ * Every OTHER submission's report text on a campaign (any status except draft) — the corpus the P18
+ * near-duplicate detector scans for multi-wallet paraphrase farming. Unlike the exact-match dedup
+ * (paid only), farming shows up as a cluster of near-identical PENDING submissions, so we compare
+ * against all of them, not just what's already settled.
+ */
+export function listSubmissionsForDedup(
+  campaignId: string,
+  excludeSubmissionId: string,
+): { note: string | null; contentSha256: string | null }[] {
+  return db
+    .select({
+      note: submissions.note,
+      contentSha256: decisions.contentSha256,
+    })
+    .from(submissions)
+    .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        ne(submissions.status, "draft"),
+        ne(submissions.id, excludeSubmissionId),
+      ),
+    )
+    .all();
+}
+
 /* ─────────────────────────────────────────── missions (campaign_v2) ────── */
 
 /**
@@ -648,6 +675,43 @@ export function countPaidForMission(missionIdHash: string): number {
     .select({ id: submissions.id })
     .from(submissions)
     .where(and(eq(submissions.missionIdHash, missionIdHash), eq(submissions.status, "paid")))
+    .all().length;
+}
+
+/** How many times this wallet has submitted to this campaign since `sinceUnix` (P18 per-wallet daily
+ *  submission limit — DB-backed so it survives a process restart, unlike the in-memory burst limiter). */
+export function countRecentSubmissionsByWallet(
+  campaignId: string,
+  wallet: string,
+  sinceUnix: number,
+): number {
+  return db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        eq(submissions.wallet, wallet),
+        gte(submissions.createdAt, sinceUnix),
+      ),
+    )
+    .all().length;
+}
+
+/** How many times this wallet has ALREADY been paid (or is mid-settlement) across this whole campaign —
+ *  the P18 founder-set per-campaign per-wallet payout cap is enforced against this in preflight. Counts
+ *  `settling` too so a concurrent settle can't slip a wallet past its cap. */
+export function countPaidByWalletInCampaign(campaignId: string, wallet: string): number {
+  return db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        eq(submissions.wallet, wallet),
+        inArray(submissions.status, ["paid", "settling"]),
+      ),
+    )
     .all().length;
 }
 

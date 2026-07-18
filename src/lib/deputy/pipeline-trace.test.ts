@@ -17,6 +17,8 @@ vi.mock("@/lib/db/campaigns", () => ({
   recordEvent: vi.fn(),
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
+  listSubmissionsForDedup: vi.fn(() => []),
+  countPaidByWalletInCampaign: vi.fn(() => 0),
 }));
 vi.mock("@/lib/deputy/chain", () => ({
   getVaultState: vi.fn(),
@@ -45,6 +47,7 @@ const campaign = {
   ownerIsSage: true,
   autonomy: "autopilot",
   autopilotThreshold: 0.85,
+  perWalletPayoutCap: 1,
 } as unknown as Campaign;
 
 const submission = {

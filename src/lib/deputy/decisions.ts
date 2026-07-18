@@ -22,6 +22,7 @@ import type { Decision, Submission } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
+import { walletFreshnessSignal } from "./wallet-signals";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
@@ -225,6 +226,13 @@ export async function ensureDecision(
     contentSha256: evidence.contentSha256,
   });
 
+  // P18 wallet heuristic — a recipient-freshness CAUTION signal recorded on the brief. NEVER high
+  // severity, so it can't block a payout alone (the gate holds only on high-severity fraud); it merely
+  // combines with the brief's own signals for a reviewer, and a fresh wallet with strong verified
+  // evidence still pays. Failure-isolated inside walletFreshnessSignal (an RPC blip yields no signal).
+  const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
+  const fraudSignals = freshness ? [...brief.fraudSignals, freshness] : brief.fraudSignals;
+
   const { row, inserted } = insertDecision({
     submissionId,
     campaignId: campaign.id,
@@ -232,7 +240,7 @@ export async function ensureDecision(
     model: brief.model,
     brief: {
       criteria: brief.criteria,
-      fraudSignals: brief.fraudSignals,
+      fraudSignals,
       recommendation: brief.recommendation,
       reasonCode: brief.reasonCode,
       confidence: brief.confidence,
