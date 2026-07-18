@@ -25,6 +25,7 @@ export type X402Reason =
   | "insufficient_payer_balance"
   | "payment_unavailable"
   | "facilitator_timeout"
+  | "fee_payment_reverted"
   | "unknown_payment_failure";
 
 export function isX402Status(s: string | null | undefined): s is X402Status {
@@ -44,10 +45,20 @@ export function classifyX402Failure(message: string): X402Reason {
   if (m.includes("timeout") || m.includes("timed out") || m.includes("etimedout")) {
     return "facilitator_timeout";
   }
+  // the on-chain fee transfer itself reverted (e.g. a wrong-scale amount or a token issue) — distinct
+  // from the facilitator being unreachable, so name it instead of falling through to "unknown".
+  if (m.includes("revert")) {
+    return "fee_payment_reverted";
+  }
   if (
     m.includes("unavailable") ||
     m.includes("not found") ||
     m.includes("404") ||
+    m.includes("500") ||
+    m.includes("502") ||
+    m.includes("503") ||
+    m.includes("bad gateway") ||
+    m.includes("server error") ||
     m.includes("econnrefused") ||
     m.includes("network") ||
     m.includes("fetch failed") ||

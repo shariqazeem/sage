@@ -5,11 +5,14 @@ import {
   listSubmissions,
 } from "@/lib/db/campaigns";
 import { projectActivity, type ActivityEvent } from "./activity";
+import { reasonSentence } from "@/lib/deputy/reason-copy";
 
 export interface CampaignActivity {
   activity: ActivityEvent[];
   /** last moment Sage actually recorded work (unix seconds), or null if none yet. */
   lastCheckedAt: number | null;
+  /** is there work awaiting Sage right now (a pending submission)? Drives the honest heartbeat. */
+  pending: boolean;
 }
 
 /**
@@ -33,6 +36,15 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
     if (typeof conf === "number") confidence[sid] = conf;
   }
 
+  // A submission that is still PENDING but already has a recorded decision was HELD — surface the
+  // real (fixed) reason class so the feed reads "Held: …" instead of a false "verified".
+  const heldReasons: Record<string, string> = {};
+  for (const s of subs) {
+    if (s.status !== "pending") continue;
+    const d = getDecisionBySubmission(s.id);
+    if (d) heldReasons[s.id] = reasonSentence(d.brief?.reasonCode);
+  }
+
   const activity = projectActivity(
     {
       submissions: subs.map((s) => ({
@@ -42,6 +54,7 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
       })),
       events,
       confidence,
+      heldReasons,
     },
     limit,
   );
@@ -59,5 +72,6 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
     .filter((e) => SAGE_ACTIONS.includes(e.kind))
     .map((e) => e.createdAt);
   const lastCheckedAt = actionAt.length ? Math.max(...actionAt) : null;
-  return { activity, lastCheckedAt };
+  const pending = subs.some((s) => s.status === "pending");
+  return { activity, lastCheckedAt, pending };
 }

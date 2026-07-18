@@ -1,5 +1,6 @@
 import type { CampaignEvent } from "@/lib/db/schema";
 import { CHECK_NAMES } from "@/lib/deputy/reasons";
+import { reasonSentence } from "@/lib/deputy/reason-copy";
 
 /**
  * The public "Sage activity" feed — a projection of REAL campaign rows into safe,
@@ -38,6 +39,9 @@ export interface ActivitySource {
   events: CampaignEvent[];
   /** submissionId → overall decision confidence (0..1). Optional; missing → no % shown. */
   confidence?: Record<string, number>;
+  /** submissionId → the plain-language HELD sentence (from the fixed reason class). A submission in
+   *  this map was HELD, so its decision line renders "Held: …", never "verified". Optional. */
+  heldReasons?: Record<string, string>;
 }
 
 const clampPct = (n: number): number =>
@@ -47,6 +51,8 @@ const clampPct = (n: number): number =>
 export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[] {
   const walletOf = new Map(src.submissions.map((s) => [s.id, s.wallet]));
   const conf = src.confidence ?? {};
+  const heldReasons = src.heldReasons ?? {};
+  const seenHeld = new Set<string>();
   const out: ActivityEvent[] = [];
 
   // received — derived from submissions (submission_received isn't journaled).
@@ -70,17 +76,16 @@ export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[
     const sid = e.submissionId;
     switch (e.kind) {
       case "decision_recorded": {
-        const c = sid != null ? conf[sid] : undefined;
-        out.push({
-          id: `verified:${e.id}`,
-          kind: "verified",
-          at: e.createdAt,
-          amountBase: null,
-          wallet: null,
-          txHash: null,
-          confidencePct: typeof c === "number" ? clampPct(c) : null,
-          reasonClass: null,
-        });
+        const held = sid != null ? heldReasons[sid] : undefined;
+        if (sid != null && held) {
+          // The decision HELD this submission — NEVER render a hold as "verified". Show the real
+          // reason class; the confidence is intentionally omitted so it can't contradict the hold.
+          seenHeld.add(sid);
+          out.push({ id: `held:${e.id}`, kind: "held", at: e.createdAt, amountBase: null, wallet: null, txHash: null, confidencePct: null, reasonClass: held });
+        } else {
+          const c = sid != null ? conf[sid] : undefined;
+          out.push({ id: `verified:${e.id}`, kind: "verified", at: e.createdAt, amountBase: null, wallet: null, txHash: null, confidencePct: typeof c === "number" ? clampPct(c) : null, reasonClass: null });
+        }
         break;
       }
       case "settled":
@@ -101,7 +106,10 @@ export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[
         });
         break;
       }
-      case "autopay_held":
+      case "autopay_held": {
+        // Dedupe: if the decision line already showed this submission as held, don't repeat it.
+        if (sid != null && seenHeld.has(sid)) break;
+        if (sid != null) seenHeld.add(sid);
         out.push({
           id: `held:${e.id}`,
           kind: "held",
@@ -110,10 +118,11 @@ export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[
           wallet: null,
           txHash: null,
           confidencePct: null,
-          // coarse class ONLY — never the model's free-text hold reason.
-          reasonClass: "manual review",
+          // fixed reason CLASS sentence (never the model's free-text reason).
+          reasonClass: (sid != null && heldReasons[sid]) || reasonSentence(null),
         });
         break;
+      }
       case "blocked":
         out.push({
           id: `blocked:${e.id}`,

@@ -42,6 +42,11 @@ export interface ChainConfig {
 /** The default chain for any read/write that doesn't specify one. */
 export const DEFAULT_CHAIN_ID = 59902;
 
+/** GOAT Network mainnet — the real-money chain the product ships on (walletless always uses it; the
+ *  web deploy lists it first). The launch flow labels currency against this, so a mainnet plan never
+ *  shows testnet units. */
+export const GOAT_MAINNET_CHAIN_ID = 2345;
+
 /** GOAT mainnet USDC (6 decimals) — the real settlement token. */
 export const GOAT_USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8" as Address;
 

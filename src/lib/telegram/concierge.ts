@@ -159,7 +159,7 @@ function buildInspectionNotice(v: InspectionView): string {
       v.fieldTest && v.fieldTest.screenshots > 0
         ? `\n\nI clicked through ${v.fieldTest.pages} page${v.fieldTest.pages === 1 ? "" : "s"} and took screenshots — see the plan link.`
         : "";
-    return `Your testing plan for ${host} is ready — ${v.plan.missionCount} missions${total}:\n${rows}\n\nReply "launch" and I'll fund + launch it from your agent wallet.${fieldLine}`;
+    return `Your testing plan for ${host} is ready — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}${total}:\n${rows}\n\nReply "launch" and I'll fund + launch it from your agent wallet.${fieldLine}`;
   }
   if (v.stage === "needs_input") {
     const qs = (v.needsInput ?? [])

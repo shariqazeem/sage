@@ -33,6 +33,9 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
   const isIncomplete = proof.state === "incomplete_local_record";
   const committed =
     proof.state === "committed_settlement" || proof.state === "committed_rejection";
+  // Two-register naming: the TECHNICAL rows name the exact contract that settled this payout; the
+  // brand/footer line keeps the "Policy Vault" concept. Never a hardcoded contract name in a row.
+  const vaultContract = proof.vaultKind === "campaign_v2" ? "CampaignVault (v2)" : "PolicyVault (v1)";
 
   const tone = isMismatch ? "dan" : settled ? "pos" : "dan";
   const statusLabel = isMismatch ? "Integrity warning" : settled ? "Settled" : "Blocked";
@@ -170,7 +173,16 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
         </div>
 
         {proof.decision ? (
-          <DecisionReceipt decision={proof.decision} threshold={proof.threshold} />
+          <>
+            <DecisionReceipt decision={proof.decision} threshold={proof.threshold} />
+            {settled && proof.decision.recommendation !== "pay" && (
+              <p className="spp-card-note" style={{ margin: "0 20px 20px", lineHeight: 1.5 }}>
+                Sage held this for review rather than auto-paying it. The payout above was{" "}
+                <b>released on the founder&apos;s approval and executed by Sage</b> within the vault&apos;s
+                on-chain limits — not an autonomous payout.
+              </p>
+            )}
+          </>
         ) : (
           <div className="spp-unavail">
             <span className="spp-unavail-ico">
@@ -209,7 +221,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               #{proof.human.failedCheckIndex} · {proof.human.failedCheckReason}
             </Row>
           )}
-          <Row k="Policy Vault">{short(proof.chain.vault)}</Row>
+          <Row k={vaultContract}>{short(proof.chain.vault)}</Row>
           <Row k="Operator">{short(proof.chain.operator)}</Row>
           {proof.chain.attemptStatus && (
             <Row k="Attempt">{proof.chain.attemptStatus}</Row>
@@ -279,7 +291,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
         {!settled && !isMismatch && (
           <p className="spp-card-note" style={{ margin: "0 20px 20px", lineHeight: 1.5 }}>
             On the explorer this transaction reads <b>Success</b> — that is the vault
-            refusing <i>gracefully</i>: it emits a <span className="mono">SpendRejected</span>{" "}
+            refusing <i>gracefully</i>: it emits a <span className="mono">{proof.chain.eventType}</span>{" "}
             event and moves no funds, instead of reverting. The rejection is the proof.
           </p>
         )}

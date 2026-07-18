@@ -170,7 +170,7 @@ export interface FoundProof extends ProofBase {
     timestamp: number;
     vault: string;
     operator: string;
-    eventType: "SpendSettled" | "SpendRejected";
+    eventType: "SpendSettled" | "SpendRejected" | "PayoutSettled" | "PayoutRejected";
     onchainIntent: string;
     attemptStatus: string | null;
   };
@@ -606,7 +606,9 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
       timestamp: 0,
       vault: e.vault,
       operator: c.operator,
-      eventType: e.settled ? "SpendSettled" : "SpendRejected",
+      // V2 CampaignVault emits PayoutSettled/PayoutRejected (V1 PolicyVault emits SpendSettled) —
+      // the proof must name the event that actually fired on-chain, per the vault kind.
+      eventType: e.settled ? "PayoutSettled" : "PayoutRejected",
       onchainIntent: e.intentHash,
       attemptStatus: i.attempt?.status ?? null,
     },

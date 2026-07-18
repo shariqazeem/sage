@@ -30,6 +30,13 @@ describe("classifyX402Failure — sanitized reason codes only", () => {
       "unknown_payment_failure",
     );
   });
+
+  it("names a reverted fee transfer and a 502/bad-gateway facilitator error (not 'unknown')", () => {
+    expect(classifyX402Failure('The contract function "transfer" reverted')).toBe("fee_payment_reverted");
+    expect(classifyX402Failure("execution reverted")).toBe("fee_payment_reverted");
+    expect(classifyX402Failure("x402 resource failed (502)")).toBe("payment_unavailable");
+    expect(classifyX402Failure("Bad Gateway")).toBe("payment_unavailable");
+  });
 });
 
 describe("deriveStoredX402Status — legacy reconstruction", () => {

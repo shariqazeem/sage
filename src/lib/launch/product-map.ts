@@ -123,12 +123,18 @@ export function buildProductMap(
     observations
       .filter((o, i) => i === 0 || journeyOrder.test(o.url))
       .slice(0, 5)
-      .map((o, i) => ({
-        value: `${i + 1}. ${i === 0 ? "Arrive on" : "Continue to"} ${new URL(o.url).pathname} — ${o.ctas[0] ?? o.title}`,
-        confidence: 0.75,
-        sources: [pageRef(o, o.ctas.slice(0, 3).join(" / ") || "page in journey")],
-        browserConfirmed: true,
-      })),
+      .map((o, i) => {
+        // Never label a journey step with a glyph CTA ("·", "+"). Prefer a CTA with real words, else
+        // the page title, else the host — so the row reads "Arrive on / — Yara …", not "— ·".
+        const hasWords = (s: string) => /[a-z0-9]/i.test(s) && s.replace(/\s+/g, "").length > 1;
+        const label = o.ctas.find(hasWords) ?? (hasWords(o.title) ? o.title : new URL(o.url).host);
+        return {
+          value: `${i + 1}. ${i === 0 ? "Arrive on" : "Continue to"} ${new URL(o.url).pathname} — ${label}`,
+          confidence: 0.75,
+          sources: [pageRef(o, o.ctas.filter(hasWords).slice(0, 3).join(" / ") || "page in journey")],
+          browserConfirmed: true,
+        };
+      }),
   );
 
   const browserConfirmed = routes.map((r) => ({ ...r }));

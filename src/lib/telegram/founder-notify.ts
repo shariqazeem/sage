@@ -4,7 +4,8 @@ import { getAddress } from "viem";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { SettleOutcome } from "@/lib/campaigns/settle";
 import { getAgentWalletByAddress } from "@/lib/db/agent-wallets";
-import { getMissionByHash } from "@/lib/db/campaigns";
+import { getMissionByHash, getDecisionBySubmission } from "@/lib/db/campaigns";
+import { reasonSentence } from "@/lib/deputy/reason-copy";
 import { reward, short } from "@/lib/format";
 import { sendTelegram } from "./bot";
 
@@ -52,15 +53,17 @@ export async function notifyFounderSettled(
 }
 
 /** Held-review DM for a chat-launched campaign: point the founder at the chat review flow (the
- *  console is owner-gated to the Privy wallet they can't sign as), never at a raw reason string. */
+ *  console is owner-gated to the Privy wallet they can't sign as). Carries the FIXED reason class
+ *  (never the model's free-text reason), so the message can't contradict the shown confidence. */
 export async function notifyFounderHeld(campaign: Campaign, submission: Submission): Promise<void> {
   const chatId = founderChatId(campaign);
   if (!chatId) return;
   const mission = submission.missionIdHash ? getMissionByHash(campaign.id, submission.missionIdHash) : null;
   const title = mission?.title ?? campaign.title;
+  const reason = reasonSentence(getDecisionBySubmission(submission.id)?.brief?.reasonCode);
   await dmWithRetry(
     chatId,
-    `Held for review — "${title}". I wasn't confident enough to auto-pay this one.\n` +
+    `Held for your review — "${title}": ${reason}.\n` +
       `Reply "show held submissions" and I'll list it so you can release or reject it.\n` +
       `Board: ${appUrl()}/c/${campaign.id}`,
   );

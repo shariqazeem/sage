@@ -54,20 +54,20 @@ export interface JobView {
 }
 
 import { reward as networkReward, isTestnetChain } from "@/lib/format";
-import { DEFAULT_CHAIN_ID } from "@/lib/deputy/networks";
+import { GOAT_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /**
- * Reward/budget amounts in the launch flow, network-truthful. The flow deploys on the
- * default network (Metis Sepolia testnet), whose token — test mUSDC — is a REAL on-chain
- * token with NO monetary value, so it renders "N test mUSDC" and NEVER dollars. `base` is
- * token base units (6dp). Delegates to the canonical formatter so testnet/mainnet stays one
- * truth. (Mainnet USDC would render "$N".)
+ * Reward/budget amounts in the launch flow, network-truthful. The launch flow is the real-money
+ * GOAT-mainnet product path (the walletless flow always deploys on GOAT; the web flow lists it
+ * first), so amounts render as USDC by default and a mainnet plan NEVER shows testnet "test mUSDC".
+ * `base` is token base units (6dp). Delegates to the canonical formatter so testnet/mainnet stays
+ * one truth; a caller on a real testnet preview passes that chainId explicitly.
  */
-export const reward = (base: string | number, chainId: number = DEFAULT_CHAIN_ID) =>
+export const reward = (base: string | number, chainId: number = GOAT_MAINNET_CHAIN_ID) =>
   networkReward(Number(base), chainId);
 
-/** The token unit label for an already-humanized amount (testnet → "test mUSDC"). */
-export const launchToken = (chainId: number = DEFAULT_CHAIN_ID) =>
+/** The token unit label for an already-humanized amount (mainnet → "USDC"; testnet → "test mUSDC"). */
+export const launchToken = (chainId: number = GOAT_MAINNET_CHAIN_ID) =>
   isTestnetChain(chainId) ? "test mUSDC" : "USDC";
 
 export const shortHash = (h: string) => (h && h.length > 18 ? `${h.slice(0, 10)}…${h.slice(-6)}` : h);

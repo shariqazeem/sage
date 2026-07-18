@@ -100,8 +100,17 @@ export async function inspectAndPlan(
   // 3. deterministic product map (+ field-test evidence when present).
   stamp("mapping");
   const map = buildProductMap(inspection.observations, repo.artifacts, input, fieldTest);
-  // fold the inspector + repo limitations into the map's honest limitations.
-  map.limitations = [...new Set([...map.limitations, ...inspection.limitations, ...(repo.reason ? [`Repository: ${repo.reason}`] : [])])];
+  // fold the inspector + repo limitations into the map's honest limitations — CONDITION-AWARE: when
+  // the Field Test actually explored the live product, the "server-rendered HTML only" caveat is no
+  // longer true (a client-side flow WAS observed), so drop it and describe the real boundary instead.
+  const explored = !!(fieldTest?.ran && (fieldTest.pages.length > 0 || fieldTest.states.length > 0));
+  const inspectorLimitations = explored
+    ? inspection.limitations.filter((l) => !/server-rendered HTML only/i.test(l))
+    : inspection.limitations;
+  const explorationNote = explored
+    ? ["Sage explored the live product in a real browser; anything behind a login, or a specific interaction Sage didn't perform, may still be under-observed."]
+    : [];
+  map.limitations = [...new Set([...map.limitations, ...inspectorLimitations, ...explorationNote, ...(repo.reason ? [`Repository: ${repo.reason}`] : [])])];
 
   if (map.pagesInspected === 0) {
     return out("needs_input", "no_inspected_pages", { map, questions: map.openQuestions });

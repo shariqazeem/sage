@@ -66,12 +66,32 @@ describe("projectActivity", () => {
     expect(paid[0].txHash).toBe("0xdead");
   });
 
-  it("maps autopay_held → held with a coarse class only", () => {
+  it("maps autopay_held → held with the fixed reason sentence (never free text); heldReasons wins", () => {
     const held = projectActivity({
       submissions: [],
       events: [ev({ id: "e1", kind: "autopay_held", submissionId: "s1", detail: "held: evidence mentions competitor X", createdAt: 130 })],
     }).find((a) => a.kind === "held");
-    expect(held?.reasonClass).toBe("manual review");
+    expect(held?.reasonClass).toBe("Sage couldn't reach a confident decision (unknown)");
+
+    const withReason = projectActivity({
+      submissions: [],
+      events: [ev({ id: "e2", kind: "autopay_held", submissionId: "s2", createdAt: 131 })],
+      heldReasons: { s2: "the public page couldn't confirm this work (evidence_mismatch)" },
+    }).find((a) => a.kind === "held");
+    expect(withReason?.reasonClass).toBe("the public page couldn't confirm this work (evidence_mismatch)");
+  });
+
+  it("decision_recorded for a HELD submission renders held, NEVER verified (item 1)", () => {
+    const out = projectActivity({
+      submissions: [{ id: "s1", wallet: "0xabc", createdAt: 100 }],
+      events: [ev({ id: "e1", kind: "decision_recorded", submissionId: "s1", createdAt: 110 })],
+      confidence: { s1: 0.95 },
+      heldReasons: { s1: "the public page couldn't confirm this work (evidence_mismatch)" },
+    });
+    expect(out.find((a) => a.kind === "verified")).toBeUndefined(); // a hold is never "verified"
+    const held = out.find((a) => a.kind === "held");
+    expect(held?.reasonClass).toBe("the public page couldn't confirm this work (evidence_mismatch)");
+    expect(held?.confidencePct).toBeNull(); // confidence omitted so it can't contradict the hold
   });
 
   it("maps blocked → the vault check class, and falls back to 'integrity check'", () => {

@@ -44,10 +44,16 @@ export function SageActivity({
   campaignId,
   chainId,
   initial,
+  pending = false,
+  complete = false,
 }: {
   campaignId: string;
   chainId: number;
   initial: ActivityData;
+  /** is there work awaiting Sage (a pending submission)? */
+  pending?: boolean;
+  /** has the campaign ended (all paid / budget spent / closed)? */
+  complete?: boolean;
 }) {
   const [data, setData] = useState<ActivityData>(initial);
   const lastSig = useRef<string>(sig(initial));
@@ -97,7 +103,7 @@ export function SageActivity({
     <div className="tb-act">
       <div className="tb-act-h">
         <span>Sage activity</span>
-        <Heartbeat lastCheckedAt={data.lastCheckedAt} now={now} />
+        <Heartbeat lastCheckedAt={data.lastCheckedAt} now={now} pending={pending} complete={complete} />
       </div>
       <div className="tb-act-list">
         {data.activity.length > 0 ? (
@@ -115,10 +121,24 @@ export function SageActivity({
 function Heartbeat({
   lastCheckedAt,
   now,
+  pending = false,
+  complete = false,
 }: {
   lastCheckedAt: number | null;
   now: number | null;
+  /** is there work awaiting Sage right now (pending submissions)? */
+  pending?: boolean;
+  /** has the campaign ended (all slots paid / budget spent / closed)? */
+  complete?: boolean;
 }) {
+  // A finished campaign is COMPLETE, never "delayed" — there is nothing left for Sage to do.
+  if (complete) {
+    return (
+      <span className="tb-beat">
+        <span className="tb-beat-dot" /> Sage is done — all work settled
+      </span>
+    );
+  }
   if (lastCheckedAt == null) {
     return (
       <span className="tb-beat">
@@ -134,11 +154,13 @@ function Heartbeat({
       </span>
     );
   }
-  const delayed = now - lastCheckedAt > 600;
+  // "Delayed" only when it's TRUE: there is pending work AND Sage hasn't acted recently. With no
+  // pending work, a quiet campaign is simply standing by, not delayed.
+  const delayed = pending && now - lastCheckedAt > 600;
   return (
     <span className={`tb-beat${delayed ? " warn" : ""}`}>
       <span className="tb-beat-dot" />
-      {delayed ? "Sage may be delayed" : `Sage last checked ${ago(lastCheckedAt, now)}`}
+      {delayed ? "Sage may be delayed" : pending ? `Sage last checked ${ago(lastCheckedAt, now)}` : "Sage is standing by"}
     </span>
   );
 }

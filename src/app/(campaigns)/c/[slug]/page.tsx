@@ -45,6 +45,8 @@ export default async function CampaignPublicPage({
     const live = campaign.status === "live";
     const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;
     const activity = loadCampaignActivity(campaign.id);
+    // the campaign is complete when every paid slot is filled, or it's no longer live.
+    const complete = !live || (e.totalCompletions > 0 && e.paidCompletions >= e.totalCompletions);
     return (
       <main className="sb-shell">
         <header className="sb-top">
@@ -97,7 +99,7 @@ export default async function CampaignPublicPage({
           missions={e.missions}
         />
 
-        <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} />
+        <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />
 
         <TesterFaq />
 

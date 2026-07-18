@@ -9,6 +9,7 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { settleApprovedSubmission } from "./settle-flow";
+import { reasonSentence } from "@/lib/deputy/reason-copy";
 import { v2Economics } from "./v2-economics";
 import { canDecide, type SubmissionStatus } from "./status";
 import { nowSeconds } from "@/lib/db/keys";
@@ -36,20 +37,6 @@ export interface HeldItem {
   evidenceUrl: string | null;
 }
 
-/** A fixed, safe class from the recommendation — never the model's free-text reason. */
-function heldClass(recommendation: string | undefined): string {
-  switch (recommendation) {
-    case "hold":
-      return "low confidence or a fraud signal";
-    case "review":
-      return "needs a human look";
-    case "pay":
-      return "verified — awaiting your release";
-    default:
-      return "awaiting review";
-  }
-}
-
 /** Does this wallet own the campaign? (checksum-agnostic compare against posterWallet). */
 export function ownsCampaign(campaign: Campaign, wallet: string | null | undefined): boolean {
   if (!wallet) return false;
@@ -75,7 +62,9 @@ export function listHeldSubmissions(campaign: Campaign): HeldItem[] {
         missionTitle: titleByHash.get(s.missionIdHash ?? "") ?? "Mission",
         confidencePct:
           typeof brief?.confidence === "number" ? Math.round(brief.confidence * 100) : null,
-        reasonClass: heldClass(brief?.recommendation),
+        // the REAL, fixed reason class as a plain-language sentence — identical everywhere it renders,
+        // and never contradicting the confidence shown beside it. (Was a coarse recommendation string.)
+        reasonClass: reasonSentence(brief?.reasonCode),
         evidenceUrl: s.evidenceUrl,
       };
     });
