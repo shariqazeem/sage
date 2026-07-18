@@ -289,71 +289,84 @@ export async function runDeputyOnSubmission(
     confidence: brief.confidence,
   });
 
-  // b. gate — the exact autopilot conditions (mainnet real-money campaigns need
-  // DEPUTY_AUTOPILOT_MAINNET armed, else they hold for manual approval).
-  const gate = gateFromBrief(
-    brief,
-    campaign,
-    submission.status,
-    mainnetAutopilotEnabled(),
-  );
-  agentLog(cid, "gate", { pay: gate.pay, reason: gate.reason });
-  if (!gate.pay) {
-    // Only journal a hold for an autopilot campaign on a still-pending item;
-    // a manual campaign (or an already-handled item) is just a silent skip.
-    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-      journalHeld(campaign, submission, gate.reason, cid);
-      // DM the founder who launched this campaign from Telegram (best-effort, never blocks).
-      void notifyFounderHeld(campaign, submission);
-      return { action: "held", reason: gate.reason, correlationId: cid };
+  // b0. P16 — observation-based missions are judged against Sage's OWN pinned private corpus, NOT the
+  // url-verifiable brain. They are decided HERE, BEFORE the url-lane gate: a lived experience is
+  // legitimately absent from a static re-fetch, so the brain's `evidence_mismatch` is a FALSE fraud
+  // signal that must never pre-empt the observation judge (the bug this ordering fixes). Compute the
+  // full observation decision (deterministic corpus match + injection + near-dup + the conditional LLM
+  // judge), persist the SHADOW (would-have-autopaid) for calibration, and RELEASE only if
+  // OBSERVATION_AUTOPAY is armed AND the whole bar passes. Default (flag off, or any failure): HOLD.
+  // url-verifiable missions skip this block entirely and hit the gate below, byte-identical to before.
+  const mission = submission.missionIdHash
+    ? getMissionByHash(campaign.id, submission.missionIdHash)
+    : null;
+  const isObservation = mission?.verifiabilityClass === "observation-based";
+  if (isObservation && mission) {
+    const key: PrivateKey = {
+      observations: campaign.privateCorpus ?? [],
+      distinctSources: campaign.privateCorpusSources,
+      digest: campaign.privateCorpusDigest ?? "0x0",
+    };
+    // Only a REAL injection counts as fraud here — "prompt injection" is the frozen detector's
+    // constant (brain-core detectInjection). The url-lane reason codes (evidence_mismatch/no_evidence)
+    // are meaningless for an account judged against the corpus, so they must NOT block; the
+    // observation judge re-detects injection independently regardless.
+    const hasHighFraud = brief.fraudSignals.some(
+      (f) => f.severity === "high" && f.signal === "prompt injection",
+    );
+    const decision = await runObservationDecision({
+      account: submission.note,
+      key,
+      priors: listSubmissionsForDedup(campaign.id, submissionId),
+      missionObjective: mission.objective,
+      criteria: mission.criteria,
+      hasHighFraud,
+    }).catch(() => null);
+    const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
+    if (decision) {
+      setObservationShadow(
+        submissionId,
+        toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>,
+      );
     }
-    return { action: "skipped", reason: gate.reason, correlationId: cid };
+    agentLog(cid, "observation", {
+      barPass: decision?.bar.pass ?? false,
+      distinct: decision?.publicView.distinctSources ?? 0,
+      reasons: decision?.bar.reasons ?? ["no_decision"],
+      autopay,
+    });
+    if (!autopay) {
+      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+        journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
+        void notifyFounderHeld(campaign, submission);
+        return { action: "held", reason: "observation_review", correlationId: cid };
+      }
+      return { action: "skipped", reason: "observation_review", correlationId: cid };
+    }
+    // OBSERVATION_AUTOPAY armed + full bar passed → skip the url-lane gate, fall to Sybil + settle.
   }
 
-  // b'. P16 — observation-based missions. Sage can re-fetch a public URL to confirm url-verifiable work,
-  // but a lived experience it can only judge against its OWN pinned private eyes. Compute the full
-  // observation decision (deterministic corpus match + injection + near-dup + the conditional LLM judge),
-  // persist the SHADOW (would-have-autopaid) for calibration, and RELEASE only if OBSERVATION_AUTOPAY is
-  // armed AND the whole bar passes. Default (flag off, or any failure): HOLD — exactly Step 0, now logged.
-  // url-verifiable missions are byte-identical (this block is a no-op for them).
-  if (submission.missionIdHash) {
-    const mission = getMissionByHash(campaign.id, submission.missionIdHash);
-    if (mission?.verifiabilityClass === "observation-based") {
-      const key: PrivateKey = {
-        observations: campaign.privateCorpus ?? [],
-        distinctSources: campaign.privateCorpusSources,
-        digest: campaign.privateCorpusDigest ?? "0x0",
-      };
-      const decision = await runObservationDecision({
-        account: submission.note,
-        key,
-        priors: listSubmissionsForDedup(campaign.id, submissionId),
-        missionObjective: mission.objective,
-        criteria: mission.criteria,
-        hasHighFraud: brief.fraudSignals.some((f) => f.severity === "high"),
-      }).catch(() => null);
-      const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
-      if (decision) {
-        setObservationShadow(
-          submissionId,
-          toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>,
-        );
+  // b. gate — the exact autopilot conditions, for url-verifiable missions ONLY (observation missions
+  // were fully decided above). mainnet real-money campaigns need DEPUTY_AUTOPILOT_MAINNET armed, else
+  // they hold for manual approval.
+  if (!isObservation) {
+    const gate = gateFromBrief(
+      brief,
+      campaign,
+      submission.status,
+      mainnetAutopilotEnabled(),
+    );
+    agentLog(cid, "gate", { pay: gate.pay, reason: gate.reason });
+    if (!gate.pay) {
+      // Only journal a hold for an autopilot campaign on a still-pending item;
+      // a manual campaign (or an already-handled item) is just a silent skip.
+      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+        journalHeld(campaign, submission, gate.reason, cid);
+        // DM the founder who launched this campaign from Telegram (best-effort, never blocks).
+        void notifyFounderHeld(campaign, submission);
+        return { action: "held", reason: gate.reason, correlationId: cid };
       }
-      agentLog(cid, "observation", {
-        barPass: decision?.bar.pass ?? false,
-        distinct: decision?.publicView.distinctSources ?? 0,
-        reasons: decision?.bar.reasons ?? ["no_decision"],
-        autopay,
-      });
-      if (!autopay) {
-        if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-          journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
-          void notifyFounderHeld(campaign, submission);
-          return { action: "held", reason: "observation_review", correlationId: cid };
-        }
-        return { action: "skipped", reason: "observation_review", correlationId: cid };
-      }
-      // OBSERVATION_AUTOPAY armed + full bar passed → fall through to the Sybil checks + settle.
+      return { action: "skipped", reason: gate.reason, correlationId: cid };
     }
   }
 
