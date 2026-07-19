@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
-import { distillPrivateKey, verifyAgainstKey, normObs, observationBar, OBS_BAR, type ObservationSignals } from "./observation-verify";
+import {
+  distillPrivateKey,
+  verifyAgainstKey,
+  normObs,
+  observationBar,
+  legacyObservationBar,
+  validateContradictions,
+  OBS_BAR,
+  type ObservationSignals,
+} from "./observation-verify";
 
 // A yara-like interactive field test: 3 states + vision frames. The PUBLIC card strings are the plan
 // prose a tester can read; the PRIVATE observations are what Sage saw and the card never showed.
@@ -122,17 +131,17 @@ describe("verifyAgainstKey — genuine vs parrot vs distinct-source counting", (
   });
 });
 
-describe("observationBar — the fixed 6-condition structure (N-values calibrated in shadow)", () => {
+describe("observationBar — deterministic-primary gate (2b: confidence deleted, veto must be validated)", () => {
   const pass: ObservationSignals = {
-    distinctSources: 3, keyDistinctSources: 6, contradictions: 0, obsConfidence: 0.92, nearDupClear: true, hasHighFraud: false,
+    distinctSources: 3, keyDistinctSources: 6, vetoFired: false, nearDupClear: true, hasHighFraud: false,
   };
-  it("passes only when ALL six hold", () => {
+  it("passes when every arithmetic condition holds and no veto fired", () => {
     expect(observationBar(pass)).toEqual({ pass: true, reasons: [] });
   });
-  it("a single contradiction kills autopay outright, whatever else scores", () => {
-    const r = observationBar({ ...pass, contradictions: 1, distinctSources: 9, obsConfidence: 0.99 });
+  it("a VALIDATED veto kills autopay outright, whatever else scores", () => {
+    const r = observationBar({ ...pass, vetoFired: true, distinctSources: 9 });
     expect(r.pass).toBe(false);
-    expect(r.reasons.some((x) => x.startsWith("contradiction"))).toBe(true);
+    expect(r.reasons).toContain("contradiction");
   });
   it("a thin pinned corpus (campaign ineligible) holds", () => {
     expect(observationBar({ ...pass, keyDistinctSources: 4 }).pass).toBe(false);
@@ -140,14 +149,49 @@ describe("observationBar — the fixed 6-condition structure (N-values calibrate
   it("fewer than 3 distinct matches holds", () => {
     expect(observationBar({ ...pass, distinctSources: 2 }).reasons.some((x) => x.startsWith("few_matches"))).toBe(true);
   });
-  it("confidence below the stricter 0.90 lane holds", () => {
-    expect(observationBar({ ...pass, obsConfidence: 0.88 }).pass).toBe(false);
-  });
   it("a near-dup or a high-severity fraud signal holds", () => {
     expect(observationBar({ ...pass, nearDupClear: false }).reasons).toContain("near_dup");
     expect(observationBar({ ...pass, hasHighFraud: true }).reasons).toContain("high_fraud");
   });
-  it("the fixed structure exposes calibratable N-values", () => {
-    expect(OBS_BAR).toMatchObject({ minDistinctMatches: 3, minKeySources: 5, minConfidence: 0.9 });
+  it("confidence is NOT a bar input — it isn't even on the signals type (the 0.90 gate is deleted)", () => {
+    expect(OBS_BAR).toMatchObject({ minDistinctMatches: 3, minKeySources: 5 });
+    expect((OBS_BAR as Record<string, unknown>).minConfidence).toBeUndefined();
+  });
+});
+
+describe("validateContradictions — hallucination-inert veto (verbatim pair or it never blocks)", () => {
+  const key = distillPrivateKey(
+    { ran: true, startUrl: "https://y/", mode: "interactive", pages: [], classification: "x", limitation: null, durationMs: 1,
+      states: [{ trigger: "t", screenshot: "/0", visibleTextExcerpt: "a koi pond ripples in moonlight", notableElements: [], pixelDeltaPct: 100, url: "https://y/" }],
+      visionObservations: [] } as never,
+    ["public card text"],
+  );
+  const account = "i saw a koi pond ripples in moonlight and it was calm";
+  it("BLOCKS only when BOTH quotes are literal substrings (account + a pinned observation)", () => {
+    const v = validateContradictions([{ accountQuote: "koi pond ripples in moonlight", corpusQuote: "koi pond ripples in moonlight" }], account, key);
+    expect(v.validated.length).toBe(1);
+    expect(v.unverified.length).toBe(0);
+  });
+  it("a fabricated pair (quotes absent from the text) is UNVERIFIED and never blocks", () => {
+    const v = validateContradictions([{ accountQuote: "a checkout button", corpusQuote: "a shopping cart" }], account, key);
+    expect(v.validated.length).toBe(0);
+    expect(v.unverified.length).toBe(1);
+  });
+  it("a half-real pair (account quote real, corpus quote fabricated) does NOT validate", () => {
+    const v = validateContradictions([{ accountQuote: "koi pond ripples in moonlight", corpusQuote: "a pricing page with three tiers" }], account, key);
+    expect(v.validated.length).toBe(0);
+  });
+  it("a one-filler-word 'quote' is too thin to be checkable → unverified", () => {
+    const v = validateContradictions([{ accountQuote: "a", corpusQuote: "the" }], account, key);
+    expect(v.validated.length).toBe(0);
+  });
+});
+
+describe("legacyObservationBar — shadow-continuity only (confidence + raw contradictions gated)", () => {
+  const base = { distinctSources: 3, keyDistinctSources: 6, rawContradictions: 0, obsConfidence: 0.95, nearDupClear: true, hasHighFraud: false };
+  it("still gates on the OLD conditions so old-vs-new is comparable on real rows", () => {
+    expect(legacyObservationBar(base).pass).toBe(true);
+    expect(legacyObservationBar({ ...base, obsConfidence: 0.85 }).pass).toBe(false); // the wobble case
+    expect(legacyObservationBar({ ...base, rawContradictions: 1 }).pass).toBe(false); // even a hallucinated one
   });
 });

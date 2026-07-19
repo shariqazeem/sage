@@ -516,6 +516,35 @@ export function listSubmissionsForDedup(
     .all();
 }
 
+/**
+ * CAUSAL near-dup priors (P16 Step 2b) — only submissions that existed BEFORE this one (createdAt <
+ * beforeUnix). So re-judging a submission is STABLE: a later arrival can never retroactively flip an
+ * earlier submission's near-dup verdict. The observation path uses this instead of the time-blind
+ * variant; near-dup's intent (a copy of an EARLIER original) is naturally causal anyway.
+ */
+export function listEarlierSubmissionsForDedup(
+  campaignId: string,
+  excludeSubmissionId: string,
+  beforeUnix: number,
+): { note: string | null; contentSha256: string | null }[] {
+  return db
+    .select({
+      note: submissions.note,
+      contentSha256: decisions.contentSha256,
+    })
+    .from(submissions)
+    .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        ne(submissions.status, "draft"),
+        ne(submissions.id, excludeSubmissionId),
+        lt(submissions.createdAt, beforeUnix),
+      ),
+    )
+    .all();
+}
+
 /* ─────────────────────────────────────────── missions (campaign_v2) ────── */
 
 /**

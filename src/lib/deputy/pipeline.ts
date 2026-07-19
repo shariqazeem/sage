@@ -10,6 +10,7 @@ import {
   getCampaign,
   getDecisionBySubmission,
   getSubmission,
+  listEarlierSubmissionsForDedup,
   listPaidSubmissionsForDedup,
   listSubmissionsForDedup,
   recordEvent,
@@ -317,7 +318,9 @@ export async function runDeputyOnSubmission(
     const decision = await runObservationDecision({
       account: submission.note,
       key,
-      priors: listSubmissionsForDedup(campaign.id, submissionId),
+      // CAUSAL priors (2b): only submissions that existed BEFORE this one, so a later copy can never
+      // retroactively flag this genuine account as a near-dup on a re-sweep.
+      priors: listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt),
       missionObjective: mission.objective,
       criteria: mission.criteria,
       hasHighFraud,

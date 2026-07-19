@@ -7,7 +7,7 @@ import {
   getWalletMissionSubmission,
   listCampaignEvents,
 } from "@/lib/db/campaigns";
-import { briefFromRow } from "@/lib/deputy/decisions";
+import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
 import { decodeDetail } from "@/lib/campaigns/journal";
 
 export const runtime = "nodejs";
@@ -59,6 +59,9 @@ export async function GET(
   if (!sub) return NextResponse.json({ authed: true, submission: null });
 
   const stored = getDecisionBySubmission(sub.id);
+  // For an OBSERVATION mission Sage judges against its own private eyes — never the url-verifiable brain.
+  // The observation verdict (present only for observation missions) tells the board which panel to render.
+  const observation = observationFromRow(stored);
   return NextResponse.json({
     authed: true,
     submission: {
@@ -66,7 +69,9 @@ export async function GET(
       status: sub.status,
       payoutTx: sub.payoutTx,
       evidenceUrl: sub.evidenceUrl,
-      brief: stored ? briefFromRow(stored) : null,
+      // url-verifiable missions carry the brain brief; observation missions carry the observation verdict.
+      brief: observation ? null : stored ? briefFromRow(stored) : null,
+      observation,
       autopay: ownAutopay(id, sub.id),
     },
   });

@@ -23,6 +23,7 @@ import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
 import { walletFreshnessSignal } from "./wallet-signals";
+import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
@@ -42,6 +43,32 @@ export function briefFromRow(row: Decision): DecisionBrief {
     // x402_status/x402_reason were added later; historical rows derive honestly.
     x402Status: deriveStoredX402Status(row.x402Status, row.x402PaymentTx),
     x402Reason: (row.x402Reason as DecisionBrief["x402Reason"]) ?? null,
+  };
+}
+
+/**
+ * The leak-safe OBSERVATION verdict from a decision row's shadow, or null when the row isn't an
+ * observation mission's. Counts + the corpus digest only — the same publishable face as the shadow, safe
+ * for any tester- or founder-facing surface. Its presence tells a surface to render the observation panel
+ * (Sage judged against its OWN eyes) instead of the url-verifiable brief.
+ */
+export function observationFromRow(row: Decision | null | undefined): {
+  distinctSources: number;
+  matchedCount: number;
+  keyDistinctSources: number;
+  corpusDigest: string;
+  barPass: boolean;
+  barReasons: string[];
+} | null {
+  const s = (row?.observationShadow ?? null) as ObservationShadow | null;
+  if (!s) return null;
+  return {
+    distinctSources: s.distinctSources,
+    matchedCount: s.matchedCount,
+    keyDistinctSources: s.keyDistinctSources,
+    corpusDigest: s.corpusDigest,
+    barPass: s.barPass,
+    barReasons: s.barReasons,
   };
 }
 

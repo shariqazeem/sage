@@ -14,7 +14,7 @@ import {
   EVIDENCE_CLAIM_SCHEMA_VERSION, EVIDENCE_CLAIM_TTL_SECONDS, type EvidenceClaim,
 } from "@/lib/campaigns/evidence-claim";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
-import { DeputyAssessmentCard } from "./deputy-assessment";
+import { DeputyAssessmentCard, ObservationVerdictCard, type ObservationVerdict } from "./deputy-assessment";
 
 /** One mission's public view (serialized from V2Economics). */
 export interface MissionView {
@@ -42,6 +42,8 @@ interface MySubmission {
   status: string;
   payoutTx: string | null;
   brief: DecisionBrief | null;
+  /** present ONLY for observation missions — judged against Sage's private eyes, never the url lane. */
+  observation: ObservationVerdict | null;
   autopay: { state: "settled" | "held"; reason: string | null } | null;
 }
 
@@ -51,6 +53,16 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
   if (m.status === "paid") return { icon: <CheckCircle2 size={15} color="var(--pos)" />, text: "Paid · reward released to your wallet", color: "var(--pos)" };
   if (m.status === "rejected") return { icon: <XCircle size={15} color="var(--dan)" />, text: "This submission did not meet the mission criteria", color: "var(--dan)" };
   if (m.status === "blocked") return { icon: <XCircle size={15} color="var(--dan)" />, text: "The vault blocked this payout — no funds moved", color: "var(--dan)" };
+  // OBSERVATION mission — judged against what Sage saw itself, NEVER the url-verifiable brain. Describe
+  // the match honestly; a blank evidence link is not "missing evidence" here, and this is never "fraud".
+  if (m.observation) {
+    const o = m.observation;
+    return {
+      icon: <Clock size={15} color="var(--warn)" />,
+      text: `Held for review — your account matched ${o.distinctSources} of the ${o.keyDistinctSources} things Sage saw for itself`,
+      color: "var(--warn)",
+    };
+  }
   const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
   const held = m.autopay?.state === "held" || (!!m.brief && m.brief.recommendation !== "pay");
   if (held) {
@@ -90,8 +102,9 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       const res = await fetch(`/api/campaigns/${campaignId}/me?mission=${mission.missionIdHash}`, { cache: "no-store" });
       const json = (await res.json()) as { submission: MySubmission | null };
       const next = json.submission;
-      if (next?.brief && !hadBrief.current) setMaterialized(true);
-      hadBrief.current = !!next?.brief;
+      const hasVerdict = !!(next?.brief || next?.observation);
+      if (hasVerdict && !hadBrief.current) setMaterialized(true);
+      hadBrief.current = hasVerdict;
       setMine(next);
     } catch { /* retry next poll */ }
   }, [campaignId, mission.missionIdHash, siwe.authed]);
@@ -179,7 +192,11 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
                 {beat(mine).icon} {beat(mine).text}
               </div>
               {mine.status === "paid" && mine.payoutTx && <PaidShare reward={rewardLabel} tx={mine.payoutTx} />}
-              {mine.brief && <DeputyAssessmentCard brief={mine.brief} rewardUsd={null} threshold={0.85} materialize={materialized} />}
+              {mine.observation ? (
+                <ObservationVerdictCard v={mine.observation} materialize={materialized} />
+              ) : mine.brief ? (
+                <DeputyAssessmentCard brief={mine.brief} rewardUsd={null} threshold={0.85} materialize={materialized} />
+              ) : null}
             </div>
           ) : !live ? (
             <div className="v2-full">This mission isn&apos;t open for submissions right now.</div>
@@ -289,6 +306,7 @@ export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) 
     ["Who decides if I get paid?", "An AI agent reads your evidence against the mission's criteria and decides. Every decision is published as a public receipt you can inspect — the reasoning and the on-chain payout."],
     ["What does “held for review” mean?", "Sage wasn't confident enough to auto-pay — usually the evidence was thin or unreachable. A human takes a look; you don't need to do anything."],
     ["How do you keep it fair?", `Each wallet can earn up to ${perWalletCap} payout${perWalletCap === 1 ? "" : "s"} here, one per mission. Copied or near-identical reports are detected and held for a person to review — honest work in your own words is fine. A brand-new wallet is only noted as a caution for review; that alone never blocks a payout.`],
+    ["What exactly does the check verify?", "For a mission Sage judges against its own private exploration, it verifies your account describes specific things Sage saw for itself — details only someone who used the product would know. To be precise about its limits: it checks that knowledge, not authorship. It cannot tell whether you experienced it first-hand or learned the specifics from someone who did. Word-for-word copies of another tester are caught; a genuine retelling in your own words is trusted. With the per-wallet cap bounding the rewards, that's a deliberate, documented boundary — we'd rather state it plainly than overclaim."],
     ["Do I pay gas?", "No. Signing in and committing your evidence are free signatures — they authorize no transaction and move no funds. Only Sage's wallet pays gas, when it pays you."],
   ];
   return (

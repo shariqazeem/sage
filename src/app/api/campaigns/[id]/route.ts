@@ -13,7 +13,7 @@ import { reconcileVendorEvents } from "@/lib/campaigns/reconcile";
 import { decodeDetail } from "@/lib/campaigns/journal";
 import { assessSubmission } from "@/lib/campaigns/assess";
 import { heuristicBrief } from "@/lib/deputy/brain-core";
-import { briefFromRow, ensureDecision } from "@/lib/deputy/decisions";
+import { briefFromRow, ensureDecision, observationFromRow } from "@/lib/deputy/decisions";
 import { validateAutonomy, validateThreshold } from "@/lib/campaigns/validate";
 import { briefFingerprint, payloadVersion } from "@/lib/campaigns/live-poll";
 
@@ -87,6 +87,8 @@ export async function GET(
     const autopayBySub = buildAutopayMap(id);
     const submissions = listSubmissions(id).map((s) => {
       const stored = getDecisionBySubmission(s.id);
+      // observation missions carry the observation verdict; url-verifiable ones carry the brain brief.
+      const observation = observationFromRow(stored);
       return {
         id: s.id,
         wallet: s.wallet,
@@ -98,7 +100,8 @@ export async function GET(
         createdAt: s.createdAt,
         // the real stored brief or null — never a placeholder, so the receipt
         // "materializes" only once the genuine decision has landed.
-        brief: stored ? briefFromRow(stored) : null,
+        brief: observation ? null : stored ? briefFromRow(stored) : null,
+        observation,
         autopay: autopayBySub.get(s.id) ?? null,
       };
     });
@@ -106,8 +109,8 @@ export async function GET(
       submissions.map((s) => ({
         id: s.id,
         status: s.status,
-        hasBrief: !!s.brief,
-        briefFingerprint: briefFingerprint(s.brief),
+        hasBrief: !!s.brief || !!s.observation,
+        briefFingerprint: s.observation ? `obs:${s.observation.distinctSources}:${s.observation.barPass}` : briefFingerprint(s.brief),
         autopayState: s.autopay?.state ?? null,
         payoutTx: s.payoutTx,
       })),
@@ -129,8 +132,11 @@ export async function GET(
   const toCompute: string[] = [];
   const submissions = listSubmissions(id).map((s) => {
     const stored = getDecisionBySubmission(s.id);
-    let brief = stored ? briefFromRow(stored) : null;
-    if (!brief && s.status === "pending") {
+    // observation missions carry the observation verdict (Sage's own eyes) — never the url-lane brief
+    // or its heuristic placeholder.
+    const observation = observationFromRow(stored);
+    let brief = observation ? null : stored ? briefFromRow(stored) : null;
+    if (!brief && !observation && s.status === "pending") {
       brief = heuristicBrief(
         assessSubmission({
           criteria: campaign.criteria,
@@ -152,6 +158,7 @@ export async function GET(
       rejectReason: s.rejectReason,
       createdAt: s.createdAt,
       brief,
+      observation,
       autopay: autopayBySub.get(s.id) ?? null,
     };
   });

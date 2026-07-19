@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   Check,
   Clock,
+  Eye,
   Minus,
   Quote,
   ShieldAlert,
@@ -212,6 +213,47 @@ export function DeputyAssessmentCard({
         {brief.reasonCode}
         <span className="sep">·</span>
         {brief.contentSha256 ? `sha256 ${shaShort(brief.contentSha256)}` : "no evidence"}
+      </div>
+    </div>
+  );
+}
+
+/** The leak-safe OBSERVATION verdict — counts + the corpus digest only, never a matched string. Mirrors
+ *  the server ObservationShadow's publishable face. */
+export interface ObservationVerdict {
+  distinctSources: number;
+  matchedCount: number;
+  keyDistinctSources: number;
+  corpusDigest: string;
+  barPass: boolean;
+  barReasons: string[];
+}
+
+/**
+ * The OBSERVATION assessment panel — Sage judged the account against its OWN private field test, not the
+ * url-verifiable brain. THE panel an observation mission must render on every surface (tester board,
+ * founder console, proof) so a blank evidence link never surfaces as "missing evidence" or "fraud".
+ * Leak-safe by construction: counts + the corpus digest only, never a matched string.
+ */
+export function ObservationVerdictCard({ v, materialize = false }: { v: ObservationVerdict; materialize?: boolean }) {
+  const digest = v.corpusDigest && v.corpusDigest.length > 16 ? `${v.corpusDigest.slice(0, 8)}…${v.corpusDigest.slice(-6)}` : v.corpusDigest;
+  return (
+    <div className={`sage-assess${materialize ? " sage-materialize" : ""}`}>
+      <div className="sage-assess-head">
+        <span className="sage-assess-title">
+          <Sparkles size={13} /> Sage assessment · judged against its own eyes
+        </span>
+        <span className={`sage-assess-rec ${v.barPass ? "pos" : "amber"}`}>{v.barPass ? "MATCH" : "HOLD"}</span>
+      </div>
+      <p style={{ fontSize: 13.5, margin: "10px 0 2px", lineHeight: 1.5 }}>
+        <Eye size={13} style={{ verticalAlign: "-2px", marginRight: 5, color: "var(--accent)" }} />
+        Matched <b>{v.distinctSources}</b> of the <b>{v.keyDistinctSources}</b> distinct things Sage saw when it explored the product
+        itself — specifics a copy of the mission card could not contain.
+      </p>
+      <div className="sage-assess-prov mono">
+        matched <b>{v.matchedCount}</b>
+        <span className="sep">·</span>distinct <b>{v.distinctSources}/{v.keyDistinctSources}</b>
+        <span className="sep">·</span>corpus digest {digest}
       </div>
     </div>
   );

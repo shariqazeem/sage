@@ -19,6 +19,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
   listSubmissionsForDedup: vi.fn(() => []),
+  listEarlierSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
   setObservationShadow: vi.fn(),
   getMissionByHash: vi.fn(),

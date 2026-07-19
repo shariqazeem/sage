@@ -183,21 +183,61 @@ export function verifyAgainstKey(account: string | null | undefined, key: Privat
   return { distinctSources: sources.size, matchedCount: matched.length, matched };
 }
 
-/* ───────────────────────── the observation autopay BAR (structure fixed) ───────────────────────── */
+/* ─────────────────────── the observation autopay BAR (deterministic-primary) ─────────────────────── */
 
-/** The signals the bar weighs — the deterministic corpus match + the judge's + the existing gate's. */
+/**
+ * A judge contradiction claim — the account phrase and the pinned corpus line it supposedly contradicts.
+ * A veto blocks a payout ONLY when BOTH are verbatim quotes ({@link validateContradictions}); that is
+ * what makes the LLM's veto hallucination-inert.
+ */
+export interface ContradictionClaim {
+  accountQuote: string;
+  corpusQuote: string;
+}
+
+/** A checkable quote must carry real signal, not a single filler word. */
+const MIN_QUOTE_CONTENT_WORDS = 2;
+
+/**
+ * Validate a judge's contradiction claims against the ACTUAL text — the hallucination-inert veto. A claim
+ * can BLOCK only if it cites a verbatim quote PAIR: the account phrase is a literal (normalized)
+ * substring of the account AND the corpus phrase a literal substring of some pinned observation. A
+ * hallucinated contradiction cannot produce a checkable pair, so it can NEVER block — it is returned
+ * `unverified` for the founder's log only. Deterministic; mirrors the frozen enforceQuotes discipline.
+ */
+export function validateContradictions(
+  claims: ContradictionClaim[],
+  account: string | null | undefined,
+  key: PrivateKey,
+): { validated: ContradictionClaim[]; unverified: ContradictionClaim[] } {
+  const acct = normObs(account);
+  const validated: ContradictionClaim[] = [];
+  const unverified: ContradictionClaim[] = [];
+  for (const c of claims) {
+    const a = normObs(c?.accountQuote);
+    const k = normObs(c?.corpusQuote);
+    const aOk = contentTokens(a).length >= MIN_QUOTE_CONTENT_WORDS && acct.includes(a);
+    const kOk = contentTokens(k).length >= MIN_QUOTE_CONTENT_WORDS && key.observations.some((o) => o.text.includes(k));
+    if (aOk && kOk) validated.push(c);
+    else unverified.push(c);
+  }
+  return { validated, unverified };
+}
+
+/** The signals the bar weighs. The corpus match + two structural preconditions are the gate; the judge's
+ *  CONFIDENCE is logged but no longer gates (it wobbles at the provider level even at temp 0), and its
+ *  contradiction counts only once VALIDATED as a verbatim pair (vetoFired). */
 export interface ObservationSignals {
   /** distinct SOURCES the account matched in the pinned key (verifyAgainstKey). */
   distinctSources: number;
   /** distinct sources IN the pinned key — campaign eligibility (a thin answer key can't verify). */
   keyDistinctSources: number;
-  /** contradictions the observation judge found against the corpus (any > 0 kills autopay). */
-  contradictions: number;
-  /** observation-mode confidence (0..1) — a stricter lane than the url path. */
-  obsConfidence: number;
-  /** near-dup clear against every prior submission (the P18 detector, restated as a precondition). */
+  /** a VALIDATED contradiction veto fired (verbatim account↔corpus pair). Only this blocks; a
+   *  hallucinated/unverifiable contradiction never reaches here. */
+  vetoFired: boolean;
+  /** near-dup clear against every EARLIER submission (causal; a later arrival can't flip this). */
   nearDupClear: boolean;
-  /** a HIGH-severity fraud signal on the brief (existing rule; low/med freshness never blocks). */
+  /** a HIGH-severity fraud signal on the brief (injection/spam; low/med freshness never blocks). */
   hasHighFraud: boolean;
 }
 
@@ -208,22 +248,48 @@ export interface BarResult {
 }
 
 /**
- * The autopay bar STRUCTURE is fixed; the N-values are calibrated in shadow before the flag is armed.
- * Autopay an observation submission only if ALL six hold. A contradiction or a thin corpus kills it
- * outright, whatever else scores — the corpus match is the real bar, freshness only logs.
+ * The DETERMINISTIC-PRIMARY autopay bar (P16 Step 2b). PASS iff every arithmetic condition holds AND no
+ * validated veto fired. The LLM confidence scalar was DELETED from the gate: at the provider level it
+ * wobbled across identical inputs (0.85↔0.95 straddling a 0.90 line), so a genuine account's pay/hold
+ * could flip on sampling noise. Confidence is still computed + logged on the receipt; it just can no
+ * longer move money. This is the project's move a third time — presence-check gate, anchor gate, now the
+ * pay gate: when a model's judgment proved unreliable, the decision goes into arithmetic and the model
+ * is demoted to a role (a checkable veto) where its noise cannot move funds.
  */
 export const OBS_BAR = {
   minDistinctMatches: 3, // ≥3 DISTINCT non-public corpus matches (different sources)
   minKeySources: 5, // campaign eligibility — the pinned key holds ≥5 distinct observations
-  minConfidence: 0.9, // stricter than the 0.85 url lane
 } as const;
 
 export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_BAR): BarResult {
   const reasons: string[] = [];
   if (s.keyDistinctSources < cfg.minKeySources) reasons.push(`thin_corpus(${s.keyDistinctSources}<${cfg.minKeySources})`);
   if (s.distinctSources < cfg.minDistinctMatches) reasons.push(`few_matches(${s.distinctSources}<${cfg.minDistinctMatches})`);
-  if (s.contradictions > 0) reasons.push(`contradiction(${s.contradictions})`);
-  if (s.obsConfidence < cfg.minConfidence) reasons.push(`low_confidence(${s.obsConfidence.toFixed(2)}<${cfg.minConfidence})`);
+  if (s.vetoFired) reasons.push("contradiction");
+  if (!s.nearDupClear) reasons.push("near_dup");
+  if (s.hasHighFraud) reasons.push("high_fraud");
+  return { pass: reasons.length === 0, reasons };
+}
+
+/**
+ * The LEGACY (pre-2b) bar — confidence ≥ 0.90 AND zero RAW (unvalidated) contradictions gated. Kept ONLY
+ * to log the old-vs-new would-have decision side by side during shadow continuity, so the switch is
+ * comparable on real rows before autopay is armed. NEVER used to move money.
+ */
+export const OBS_LEGACY_MIN_CONFIDENCE = 0.9;
+export function legacyObservationBar(s: {
+  distinctSources: number;
+  keyDistinctSources: number;
+  rawContradictions: number;
+  obsConfidence: number;
+  nearDupClear: boolean;
+  hasHighFraud: boolean;
+}): BarResult {
+  const reasons: string[] = [];
+  if (s.keyDistinctSources < OBS_BAR.minKeySources) reasons.push(`thin_corpus(${s.keyDistinctSources}<${OBS_BAR.minKeySources})`);
+  if (s.distinctSources < OBS_BAR.minDistinctMatches) reasons.push(`few_matches(${s.distinctSources}<${OBS_BAR.minDistinctMatches})`);
+  if (s.rawContradictions > 0) reasons.push(`contradiction(${s.rawContradictions})`);
+  if (s.obsConfidence < OBS_LEGACY_MIN_CONFIDENCE) reasons.push(`low_confidence(${s.obsConfidence.toFixed(2)}<${OBS_LEGACY_MIN_CONFIDENCE})`);
   if (!s.nearDupClear) reasons.push("near_dup");
   if (s.hasHighFraud) reasons.push("high_fraud");
   return { pass: reasons.length === 0, reasons };

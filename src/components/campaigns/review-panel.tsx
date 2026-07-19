@@ -28,7 +28,7 @@ import {
 } from "@/lib/campaigns/live-poll";
 import { CopyButton } from "@/components/hire/copy-button";
 import { StatusBadge } from "./submit-panel";
-import { DeputyAssessmentCard } from "./deputy-assessment";
+import { DeputyAssessmentCard, ObservationVerdictCard, type ObservationVerdict } from "./deputy-assessment";
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
@@ -42,6 +42,8 @@ export interface ReviewSubmission {
   rejectReason: string | null;
   createdAt: number;
   brief?: DecisionBrief | null;
+  /** present ONLY for observation missions — judged against Sage's private eyes, never the url lane. */
+  observation?: ObservationVerdict | null;
   /** the latest autonomous outcome for this submission, if any. */
   autopay?: { state: "settled" | "held"; reason: string | null; at: number } | null;
 }
@@ -811,15 +813,18 @@ function Row({
           <div className="sage-sub-note" style={{ color: "var(--dan)" }}>{s.rejectReason}</div>
         )}
 
-        {/* the Deputy's verification receipt, before you confirm */}
-        {pending && s.brief && (
+        {/* the Deputy's verification receipt, before you confirm — observation missions show the
+            observation verdict (judged against Sage's own eyes), never the url-verifiable brain. */}
+        {pending && s.observation ? (
+          <ObservationVerdictCard v={s.observation} materialize={materialize} />
+        ) : pending && s.brief ? (
           <DeputyAssessmentCard
             brief={s.brief}
             rewardUsd={rewardUsd}
             threshold={threshold}
             materialize={materialize}
           />
-        )}
+        ) : null}
 
         {/* the settle cascade — bound to the real flow phase (moment 1) */}
         {(flow.phase === "deciding" ||
