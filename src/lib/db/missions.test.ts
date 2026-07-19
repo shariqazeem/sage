@@ -165,3 +165,32 @@ describe("V1 submission semantics unchanged (campaign-level)", () => {
     if (!dup.ok) expect(dup.error).toBe("duplicate_wallet");
   });
 });
+
+/**
+ * P16 multi-tester unblock — the evidence-URL replay index (sub_evidence_unq) must keep rejecting a
+ * reused url-lane proof, while OBSERVATION submissions (whose evidence is the shared product URL, stored
+ * NULL by the submit route) are exempt so a second, third… tester on one campaign all get through.
+ */
+describe("evidence-URL uniqueness — url-lane replay preserved, observation exempt", () => {
+  const mHash = `0x${"a".repeat(64)}`;
+
+  it("REJECTS a second submission reusing the same evidence URL in a campaign (replay guard byte-identical)", () => {
+    const { campaign } = seedCampaign();
+    const first = createSubmission({ campaignId: campaign.id, wallet: `0x${"1".repeat(40)}`, evidenceUrl: "https://proof.example/x", missionIdHash: mHash });
+    // different wallet → different dedupeKey, so the per-mission index doesn't trip FIRST; the collision
+    // is purely on (campaign, evidenceUrl).
+    const second = createSubmission({ campaignId: campaign.id, wallet: `0x${"2".repeat(40)}`, evidenceUrl: "https://proof.example/x", missionIdHash: mHash });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.error).toBe("duplicate_evidence");
+  });
+
+  it("ACCEPTS three observation submissions with NULL evidence on one campaign (nulls are distinct)", () => {
+    const { campaign } = seedCampaign();
+    // exactly what the submit route now stores for an observation mission: evidenceUrl = null.
+    const a = createSubmission({ campaignId: campaign.id, wallet: `0x${"3".repeat(40)}`, evidenceUrl: null, missionIdHash: mHash });
+    const b = createSubmission({ campaignId: campaign.id, wallet: `0x${"4".repeat(40)}`, evidenceUrl: null, missionIdHash: mHash });
+    const c = createSubmission({ campaignId: campaign.id, wallet: `0x${"5".repeat(40)}`, evidenceUrl: null, missionIdHash: mHash });
+    expect([a.ok, b.ok, c.ok]).toEqual([true, true, true]);
+  });
+});

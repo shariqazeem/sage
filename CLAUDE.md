@@ -72,6 +72,9 @@ whether the payouts hold up.
   tracks prod; a trailing public repo is a defect, not caution.
 - Deploys are guarded on 0 pending/settling submissions — verified via the app's own DB
   driver (`better-sqlite3`), never a possibly-missing CLI (`sqlite3` is not installed on the VM).
+- After rsync, verify every changed file's presence/content ON PROD before `build`+`restart`.
+  Bracket paths (`[id]`) have silently dropped from a file list once; a green build does not
+  prove the sync was complete (old-file + new-file can still compile consistently).
 - Any change touching inspection, field test, vision, mission brain, or the gates runs the
   P-GEN matrix battery (`scripts/mission-eval-matrix.mjs`) before deploy. **Anchor integrity
   below 100% is a hard stop.**

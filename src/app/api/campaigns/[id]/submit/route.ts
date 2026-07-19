@@ -90,6 +90,11 @@ export async function POST(
 
   let missionIdHash: string | null = null;
   let missionSpecDigest: string | null = null;
+  // For an OBSERVATION mission the evidence URL is the shared product page (every tester submits it), not
+  // a unique proof. Storing it would trip the url-lane replay index (sub_evidence_unq) and block the
+  // SECOND observation tester. We exempt it by storing NULL (SQLite treats NULLs as distinct), leaving the
+  // url-verifiable replay guard byte-identical — url-lane rows still store their real URL and collide.
+  let evidenceUrlToStore: string | null = evidenceUrl;
 
   if (campaign.vaultKind === "campaign_v2") {
     // ── V2: mission-scoped, signature-bound ──────────────────────────────────
@@ -103,6 +108,9 @@ export async function POST(
     if (countPaidForMission(mission.missionIdHash) >= mission.maxCompletions) {
       return NextResponse.json({ error: "This mission has reached its completion limit." }, { status: 409 });
     }
+    // Exempt observation-mission evidence from the url-lane replay index so a second, third… tester on the
+    // same product can each submit and be judged independently (the account is the evidence, not the URL).
+    if (mission.verifiabilityClass === "observation-based") evidenceUrlToStore = null;
     const claim = body.claim;
     const signature = body.signature;
     if (!claim || typeof signature !== "string") {
@@ -143,7 +151,7 @@ export async function POST(
   const result = createSubmission({
     campaignId: id,
     wallet,
-    evidenceUrl,
+    evidenceUrl: evidenceUrlToStore,
     note: note.value || null,
     missionIdHash,
     missionSpecDigest,
