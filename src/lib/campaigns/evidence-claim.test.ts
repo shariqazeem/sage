@@ -55,6 +55,20 @@ describe("evidence-claim — a correctly signed claim binds the tester to their 
     expect(computeEvidenceDigest(EV)).toBe(DIGEST);
     expect(computeEvidenceDigest({ ...EV, note: "different" })).not.toBe(DIGEST);
   });
+  it("canonicalizes the URL so a bare domain (client-signed) and its trailing-slash form (server) agree", () => {
+    // The client hashes the raw string the tester typed; the server hashes validateEvidenceUrl()'s
+    // canonical form (new URL().toString() appends the slash). Both MUST yield the same digest, else a
+    // bare-domain link is rejected as evidence_mismatch at submit — the bug this fixes.
+    expect(computeEvidenceDigest({ evidenceUrl: "https://yara.garden", note: "n" })).toBe(
+      computeEvidenceDigest({ evidenceUrl: "https://yara.garden/", note: "n" }),
+    );
+  });
+  it("a bare-domain link signed on the client verifies against the server's canonical digest", async () => {
+    const signed = computeEvidenceDigest({ evidenceUrl: "https://yara.garden", note: "arrival felt gentle" });
+    const server = computeEvidenceDigest({ evidenceUrl: new URL("https://yara.garden").toString(), note: "arrival felt gentle" });
+    const c = claim({ evidenceDigest: signed });
+    expect((await verifyEvidenceClaim(c, await sign(c), ctx({ evidenceDigest: server }))).ok).toBe(true);
+  });
 });
 
 describe("evidence-claim — no arbitrary payout wallet, no evidence swap", () => {

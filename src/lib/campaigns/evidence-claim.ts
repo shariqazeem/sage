@@ -25,9 +25,24 @@ export interface EvidenceInput {
  * Canonical evidence digest — a stable keccak256 over the EXACT submitted content, so the
  * signature binds to precisely this evidence. Changing a single character changes the
  * digest and invalidates the signature.
+ *
+ * The URL is canonicalized (`new URL().toString()`) BEFORE hashing, on both client and server. The
+ * server validates the link with `validateEvidenceUrl` → `url.toString()`, which appends a trailing
+ * slash to a bare domain (`https://x.com` → `https://x.com/`); if the client hashed the raw string a
+ * bare-domain link would sign one digest and verify as another (evidence_mismatch at submit). This is
+ * idempotent for an already-canonical URL; a syntactically invalid URL is left as-is (the server
+ * rejects it separately with a clearer message).
  */
 export function computeEvidenceDigest(input: EvidenceInput): Hex {
-  const canonical = JSON.stringify({ url: input.evidenceUrl ?? "", note: input.note ?? "" });
+  let url = (input.evidenceUrl ?? "").trim();
+  if (url) {
+    try {
+      url = new URL(url).toString();
+    } catch {
+      /* leave as-is — validateEvidenceUrl surfaces the real "must be a valid URL" error */
+    }
+  }
+  const canonical = JSON.stringify({ url, note: input.note ?? "" });
   return keccak256(stringToHex(canonical));
 }
 
