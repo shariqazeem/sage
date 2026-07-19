@@ -193,7 +193,7 @@ function Console({ data }: { data: WorkspaceData }) {
             </div>
             <div className="cw-mandate-s">
               {autopilot
-                ? `Sage settles a submission when its confidence clears the ${data.autopilotThreshold != null ? Math.round(data.autopilotThreshold * 100) : 85}% bar — inside your on-chain limits, which it can never exceed.`
+                ? `Sage settles work it can verify on its own, inside your on-chain limits it can never exceed — url-verifiable missions clear a confidence bar, observation missions must match what Sage saw for itself.`
                 : "Sage verifies and recommends; you release each reward. Every spend still passes the vault's on-chain checks."}
             </div>
           </div>

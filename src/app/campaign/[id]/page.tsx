@@ -4,6 +4,7 @@ import "../../app/demo-moments.css";
 import { notFound, redirect } from "next/navigation";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getCampaign, listSubmissions, getDecisionBySubmission } from "@/lib/db/campaigns";
+import { observationFromRow } from "@/lib/deputy/decisions";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import { briefFromRow } from "@/lib/deputy/decisions";
@@ -53,21 +54,29 @@ export default async function CampaignConsolePage({
         .sort((a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt))
         .map((s) => {
           const decision = getDecisionBySubmission(s.id);
-          const brief = decision ? briefFromRow(decision) : null;
+          // Observation missions are judged against Sage's own eyes — show the observation verdict
+          // (matched N of M), never the url-lane brain's confidence % or evidence_mismatch reason.
+          const observation = observationFromRow(decision);
+          const brief = observation ? null : decision ? briefFromRow(decision) : null;
           const state: WorkspaceSubmission["state"] =
             s.status === "paid" && s.payoutTx
               ? "paid"
-              : !brief
-                ? "reviewing"
-                : brief.recommendation === "pay"
-                  ? "verified"
-                  : "held";
+              : observation
+                ? "held" // observation missions hold for the founder's review while autopay is off
+                : !brief
+                  ? "reviewing"
+                  : brief.recommendation === "pay"
+                    ? "verified"
+                    : "held";
           return {
             wallet: s.wallet,
             missionTitle: titleByHash.get(s.missionIdHash ?? "") ?? "Mission",
             state,
-            confidence: brief?.confidence ?? null,
-            reason: brief?.reasonCode ?? brief?.summary ?? null,
+            // no url-lane % for observation; the match count is the verdict (leak-safe: counts only).
+            confidence: observation ? null : brief?.confidence ?? null,
+            reason: observation
+              ? `matched ${observation.distinctSources} of ${observation.keyDistinctSources} of Sage's own observations${observation.barPass ? " · clears the bar" : ""}`
+              : brief?.reasonCode ?? brief?.summary ?? null,
             proofTx: s.status === "paid" ? s.payoutTx : null,
             at: s.decidedAt ?? s.createdAt,
           };
