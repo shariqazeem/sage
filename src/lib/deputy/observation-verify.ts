@@ -130,17 +130,52 @@ export function distillPrivateKey(
   return { observations, distinctSources, digest };
 }
 
+/** Ultra-common words dropped before overlap scoring so overlap reflects real signal, not grammar.
+ *  Deliberately small — the goal is to ignore filler, not to stem or synonym-match (that stays the
+ *  LLM judge's job). */
+const OBS_STOPWORDS = new Set(
+  "the a an of to and or is are was were it its in on at for with this that then than there here you your we our my so they them their would could have has had some as be by up out into onto over off me first finally".split(
+    " ",
+  ),
+);
+function contentTokens(s: string): string[] {
+  const out: string[] = [];
+  for (const w of s.split(" ")) if (w.length >= 3 && !OBS_STOPWORDS.has(w)) out.push(w);
+  return out;
+}
+
+/** An observation counts when ≥ this fraction of its content words appear in the account. Real testers
+ *  PARAPHRASE — they never quote Sage's captured strings verbatim — so a pure substring test scores a
+ *  genuine account near zero (measured: a perfect account matched 1 of its 5 real sources). Chosen from
+ *  shadow data: at 0.6 a genuine paraphrased account recovers its true distinct-source count while a
+ *  public-card parrot stays at ZERO (0.5 begins to admit generic card language). */
+export const OBS_MATCH_OVERLAP = 0.6;
+
 /**
- * Match a tester's account against the pinned key: an observation counts when its text is a substring
- * of the normalized account. Returns DISTINCT sources matched (the bar's unit) + the matched entries.
- * Fully deterministic — identical (account, key) → identical result.
+ * Match a tester's account against the pinned key. An observation counts when its text is a verbatim
+ * substring of the account OR ≥ {@link OBS_MATCH_OVERLAP} of its content words appear in the account
+ * (paraphrase tolerance). Returns DISTINCT sources matched (the bar's unit) + the matched entries. Both
+ * branches are deterministic — identical (account, key) → identical result — so the match stays
+ * auditable against the pinned digest; the structural parrot-zero exclusion (public strings removed at
+ * distill) is untouched, so a card-copy still has nothing private to overlap with.
  */
 export function verifyAgainstKey(account: string | null | undefined, key: PrivateKey): CorpusMatch {
-  const acct = ` ${normObs(account)} `;
+  const acctN = normObs(account);
+  const acct = ` ${acctN} `;
+  const acctTokens = new Set(contentTokens(acctN));
   const matched: PrivateObservation[] = [];
   const sources = new Set<string>();
   for (const o of key.observations) {
-    if (acct.includes(o.text)) {
+    let hit = acct.includes(o.text);
+    if (!hit) {
+      const ot = contentTokens(o.text);
+      if (ot.length >= 2) {
+        let shared = 0;
+        for (const w of ot) if (acctTokens.has(w)) shared++;
+        hit = shared / ot.length >= OBS_MATCH_OVERLAP;
+      }
+    }
+    if (hit) {
       matched.push(o);
       sources.add(o.source);
     }

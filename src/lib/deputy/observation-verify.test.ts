@@ -82,6 +82,26 @@ describe("verifyAgainstKey — genuine vs parrot vs distinct-source counting", (
     expect(m.distinctSources).toBeGreaterThanOrEqual(3);
   });
 
+  it("a GENUINE PARAPHRASE (same screens, own words, NO verbatim quotes) scores ≥3 — the matcher fix", () => {
+    // The real-world case the exact-substring matcher failed: a human describes what they saw without
+    // quoting Sage's captured strings verbatim. word-overlap credits it; substring alone scored ~1.
+    const paraphrase =
+      "the very first thing was a wish i got to make, and a lantern i lit up. after that, a pond full of koi rippling under the moonlight where i cast a stone in. right at the end, blossoms off the cherry trees were falling down.";
+    const m = verifyAgainstKey(paraphrase, key);
+    expect(m.distinctSources).toBeGreaterThanOrEqual(3);
+  });
+
+  it("a GENERIC hand-wavy account (no specific observations) stays below the bar — overlap ≠ vagueness", () => {
+    const generic =
+      "i explored the whole experience, it felt calm and pretty, i saw some nice nature scenes and interacted with a few things here and there.";
+    expect(verifyAgainstKey(generic, key).distinctSources).toBeLessThan(3);
+  });
+
+  it("a PARAPHRASED parrot (public-card ideas reworded) still scores ZERO — overlap didn't weaken parrot-zero", () => {
+    const parrot = "I showed up on the site and captured the very first opening moment; the whole thing gives off a calm, restful vibe.";
+    expect(verifyAgainstKey(parrot, key).distinctSources).toBe(0);
+  });
+
   it("three phrases from ONE state count as ONE distinct source (not gameable by padding)", () => {
     // everything here is from state:0 only
     const oneState = "make a wish, light the lantern, the lantern drifts upward — all on the first screen";
