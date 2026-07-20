@@ -80,6 +80,25 @@ function splitLines(s: string): string[] {
 }
 
 /**
+ * P23-B: connectives that introduce a DISTINCT sub-object inside a vision/prose description. A vision
+ * scene sentence ("a sunset landscape featuring hills with floating lanterns and a stone path") is long
+ * (11–20 words) and near-unmatchable at the 0.6 overlap bar — a genuine tester who accurately describes
+ * what they saw ("floating lanterns", "a stone path") still misses the whole blob. Splitting on these
+ * connectives turns that ONE unmatchable blob into the several short firsthand PHRASES a real tester
+ * actually reproduces, so Sage's genuine visual knowledge becomes reachable — while parrot/guesser stay
+ * zero (each phrase still needs ≥2 firsthand-specific content words that aren't on the public card, and
+ * the ≥3-distinct-SOURCE bar means a lucky phrase or two never clears). Deliberately NOT the common
+ * prepositions on/at/in (they over-fragment real phrases like "make a wish at the wishing tree").
+ */
+const PHRASE_CONNECTIVES = /\s+(?:of|with|featuring|showing|depicting|displaying|including|and|over|that|beside|near)\s+/g;
+
+/** Break a normalized line into matchable phrases on connectives. Short lines (no connective — a UI label,
+ *  a dialogue quote, "tap to step inside") pass through WHOLE; only long prose fragments into object-phrases. */
+function phraseChunks(t: string): string[] {
+  return t.split(PHRASE_CONNECTIVES).map((x) => x.trim()).filter(Boolean);
+}
+
+/**
  * Distill the PINNED private key from a field test, EXCLUDING every public string (plan/card/board).
  * The exclusion is a normalized-substring test against the joined public blob, so anything a tester
  * could have read off the card is removed before storage — parrot-scores-zero is structural.
@@ -92,14 +111,18 @@ export function distillPrivateKey(
   const raw: PrivateObservation[] = [];
   const add = (source: string, text: string | null | undefined) => {
     for (const line of splitLines(text ?? "")) {
-      const t = normObs(line);
-      if (t.length < MIN_OBS_LEN) continue;
-      // P20.0 anti-guess: a matchable observation must be specific (≥3 content words), so generic
-      // product vocabulary ("shapes", "tools", "keyboard shortcuts") can't seed a guesser's matches.
-      if (contentTokens(t).length < OBS_MIN_CONTENT_WORDS) continue;
-      // STRUCTURAL parrot-exclusion: drop anything readable off a public card.
-      if (publicBlob.includes(` ${t} `) || publicBlob.includes(t)) continue;
-      raw.push({ source, text: t });
+      // P23-B: break a long prose line into the short firsthand phrases a genuine tester reproduces, so
+      // Sage's visual knowledge is matchable — not stored as one unmatchable 15-word blob. Short lines
+      // (labels, dialogue) have no connective and pass through whole.
+      for (const t of phraseChunks(normObs(line))) {
+        if (t.length < MIN_OBS_LEN) continue;
+        // P20.0 anti-guess: a matchable observation must be specific (≥2 content words), so generic
+        // product vocabulary ("shapes", "tools", "keyboard shortcuts") can't seed a guesser's matches.
+        if (contentTokens(t).length < OBS_MIN_CONTENT_WORDS) continue;
+        // STRUCTURAL parrot-exclusion: drop anything readable off a public card.
+        if (publicBlob.includes(` ${t} `) || publicBlob.includes(t)) continue;
+        raw.push({ source, text: t });
+      }
     }
   };
 

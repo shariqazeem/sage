@@ -261,6 +261,49 @@ describe("P21 corpus completeness — deep-exploration content survives + is gra
   });
 });
 
+describe("P23-B phrase-split — long vision prose becomes matchable, parrot/guesser still zero", () => {
+  // A yara-class VISUAL product: the corpus is dominated by long vision scene-descriptions (11–18 words)
+  // that no genuine tester reproduces at 60% overlap — the exact failure the strategy matrix exposed.
+  const visualApp: FieldTestSummary = {
+    ran: true, startUrl: "https://world.example/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 10,
+    states: [
+      { trigger: "initial", screenshot: "/v/0", visibleTextExcerpt: "tap to step inside", notableElements: [], pixelDeltaPct: 90, url: "https://world.example/" },
+      { trigger: "entered", screenshot: "/v/1", visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 80, url: "https://world.example/" },
+      { trigger: "explored", screenshot: "/v/2", visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 70, url: "https://world.example/" },
+    ],
+    visionObservations: [
+      { stateIndex: 0, trigger: "initial", sceneDescription: "a stylized anime illustration of a sunset landscape featuring hills and a pond with floating lanterns", visibleText: [], uiElements: [], productTypeSignals: [], audienceSignals: [], qualityIssues: [] },
+      { stateIndex: 1, trigger: "entered", sceneDescription: "a top down 2d grassy garden environment featuring cartoon characters and a stone path with trees", visibleText: [], uiElements: [], productTypeSignals: [], audienceSignals: [], qualityIssues: [] },
+      { stateIndex: 2, trigger: "explored", sceneDescription: "a tranquil pixel scene showing a glowing orb over a river with a wooden bridge", visibleText: [], uiElements: [], productTypeSignals: [], audienceSignals: [], qualityIssues: [] },
+    ],
+  };
+  const publicStrings = ["Experience the world", "the product", "the opening screen"];
+  const key = distillPrivateKey(visualApp, publicStrings);
+
+  it("splits scene prose into short firsthand phrases (not one unmatchable blob)", () => {
+    const texts = key.observations.map((o) => o.text);
+    for (const phrase of ["sunset landscape", "floating lanterns", "grassy garden environment", "a stone path", "glowing orb", "wooden bridge"]) {
+      expect(texts.some((t) => t.includes(phrase))).toBe(true);
+    }
+  });
+
+  it("a GENUINE tester describing THREE states' visuals now clears ≥3 (was unmatchable as blobs)", () => {
+    const genuine =
+      "I tapped to step inside. First a sunset landscape with floating lanterns, then it dropped me into a grassy garden with a stone path, and later a glowing orb over a river by a wooden bridge.";
+    expect(verifyAgainstKey(genuine, key).distinctSources).toBeGreaterThanOrEqual(3);
+  });
+
+  it("a CATEGORY guesser (generic vibes, no firsthand specifics) still stays below the bar", () => {
+    const guess = "It's a calming, peaceful nature game with relaxing music and soft art where you wander around and meet gentle characters.";
+    expect(verifyAgainstKey(guess, key).distinctSources).toBeLessThan(3);
+  });
+
+  it("a PARROT of the public card still scores ZERO (phrases from vision are not on the card)", () => {
+    const parrot = "I experienced the world by reaching the opening screen of the product.";
+    expect(verifyAgainstKey(parrot, key).distinctSources).toBe(0);
+  });
+});
+
 describe("validateContradictions — hallucination-inert veto (verbatim pair or it never blocks)", () => {
   const key = distillPrivateKey(
     { ran: true, startUrl: "https://y/", mode: "interactive", pages: [], classification: "x", limitation: null, durationMs: 1,
