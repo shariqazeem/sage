@@ -9,7 +9,7 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { settleApprovedSubmission } from "./settle-flow";
-import { reasonSentence } from "@/lib/deputy/reason-copy";
+import { buildHeldTriage, type TriageLean } from "./held-triage";
 import { v2Economics } from "./v2-economics";
 import { canDecide, type SubmissionStatus } from "./status";
 import { nowSeconds } from "@/lib/db/keys";
@@ -23,18 +23,26 @@ import type { Campaign } from "@/lib/db/schema";
  * V2 settle path (vault caps + replay protection + decoded outcome enforced there). No amount
  * is ever passed — the vault derives it.
  *
- * SAFETY: list output carries only safe fields — mission title, confidence %, a fixed coarse
- * class, and the public evidence URL. NEVER the submitter's note or the model's reason text.
- * Callers MUST check ownsCampaign before release/reject.
+ * SAFETY: list output carries only safe fields — mission title, confidence %, the deterministic P22
+ * triage (match counts + fixed reason sentences + an advisory lean), and the public evidence URL. NEVER
+ * the submitter's note or any model free-text — the triage lean is computed from counts, so nothing here
+ * can be swayed by (or leak) an untrusted note. Callers MUST check ownsCampaign before release/reject.
  */
 
 export interface HeldItem {
   submissionId: string;
   missionTitle: string;
   confidencePct: number | null;
+  /** plain-language reason it held — observation-aware (never the misleading url-lane "no_evidence"). */
   reasonClass: string;
   /** the public evidence link the tester submitted — never the note. */
   evidenceUrl: string | null;
+  /** P22 held-queue intelligence — all deterministic, all safe to relay through the concierge. */
+  lane: "observation" | "url";
+  matched: number | null;
+  keySources: number | null;
+  lean: TriageLean;
+  leanWhy: string;
 }
 
 /** Does this wallet own the campaign? (checksum-agnostic compare against posterWallet). */
@@ -47,25 +55,27 @@ export function ownsCampaign(campaign: Campaign, wallet: string | null | undefin
   }
 }
 
-/** Held (pending) submissions for a campaign — safe fields only, newest-first. */
+/** Held (pending) submissions for a campaign — safe fields only, newest-first, each PRE-ANALYZED (P22). */
 export function listHeldSubmissions(campaign: Campaign): HeldItem[] {
-  const titleByHash = new Map(
-    v2Economics(campaign).missions.map((m) => [m.missionIdHash, m.title]),
-  );
   return listSubmissions(campaign.id)
     .filter((s) => s.status === "pending")
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((s) => {
+      const t = buildHeldTriage(campaign, s);
       const brief = getDecisionBySubmission(s.id)?.brief;
       return {
         submissionId: s.id,
-        missionTitle: titleByHash.get(s.missionIdHash ?? "") ?? "Mission",
-        confidencePct:
-          typeof brief?.confidence === "number" ? Math.round(brief.confidence * 100) : null,
-        // the REAL, fixed reason class as a plain-language sentence — identical everywhere it renders,
-        // and never contradicting the confidence shown beside it. (Was a coarse recommendation string.)
-        reasonClass: reasonSentence(brief?.reasonCode),
+        missionTitle: t.missionTitle,
+        // confidence is a url-lane artefact; observation holds don't have one (the bar is deterministic).
+        confidencePct: t.lane === "url" && typeof brief?.confidence === "number" ? Math.round(brief.confidence * 100) : null,
+        // observation-AWARE reason (the url-lane "no_evidence" was misleading for observation work).
+        reasonClass: t.heldBecause[0] ?? "held for your review",
         evidenceUrl: s.evidenceUrl,
+        lane: t.lane,
+        matched: t.matched,
+        keySources: t.keySources,
+        lean: t.lean,
+        leanWhy: t.leanWhy,
       };
     });
 }

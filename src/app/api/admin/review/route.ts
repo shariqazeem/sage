@@ -5,6 +5,7 @@ import {
   releaseSubmission,
   rejectSubmission,
 } from "@/lib/campaigns/review-actions";
+import { autonomousResolutionStats } from "@/lib/campaigns/held-triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "list") {
     const campaign = getCampaign(body.campaignId ?? "");
     if (!campaign) return NextResponse.json({ error: "campaign not found" }, { status: 404 });
-    return NextResponse.json({ ok: true, held: listHeldSubmissions(campaign) });
+    return NextResponse.json({ ok: true, held: listHeldSubmissions(campaign), autonomy: autonomousResolutionStats(campaign.id) });
   }
 
   if (body.action === "reject") {

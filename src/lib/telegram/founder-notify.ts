@@ -4,8 +4,8 @@ import { getAddress } from "viem";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { SettleOutcome } from "@/lib/campaigns/settle";
 import { getAgentWalletByAddress } from "@/lib/db/agent-wallets";
-import { getMissionByHash, getDecisionBySubmission } from "@/lib/db/campaigns";
-import { reasonSentence } from "@/lib/deputy/reason-copy";
+import { getMissionByHash } from "@/lib/db/campaigns";
+import { buildHeldTriage, triageLines, leanLabel } from "@/lib/campaigns/held-triage";
 import { reward, short } from "@/lib/format";
 import { sendTelegram } from "./bot";
 
@@ -52,19 +52,37 @@ export async function notifyFounderSettled(
   );
 }
 
-/** Held-review DM for a chat-launched campaign: point the founder at the chat review flow (the
- *  console is owner-gated to the Privy wallet they can't sign as). Carries the FIXED reason class
- *  (never the model's free-text reason), so the message can't contradict the shown confidence. */
+/** A tester's own note, made safe for a DIRECT (non-LLM) founder DM: one line, capped, clearly framed as
+ *  their unverified words. A human reads this — a prompt-injection in it is inert (only an LLM obeys), and
+ *  this text never reaches the concierge model. Empty → null (a blank note is honest for observation work). */
+function testerWordsLine(note: string | null): string | null {
+  const t = (note ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  return `Their own words (unverified): "${t.length > 240 ? t.slice(0, 240) + "…" : t}"`;
+}
+
+/**
+ * P22 — the held-review DM now arrives PRE-ANALYZED (anti-rubber-stamp): the tester's claim and Sage's
+ * own match analysis come FIRST, the advisory lean LAST and framed as the founder's decision. The lean is
+ * deterministic (computed from match counts, never from a model reading the note), so a manipulated note
+ * cannot sway it. Points at the chat review flow — the console is owner-gated to the Privy wallet they
+ * can't sign as. Fires only on FINAL holds (P20.4).
+ */
 export async function notifyFounderHeld(campaign: Campaign, submission: Submission): Promise<void> {
   const chatId = founderChatId(campaign);
   if (!chatId) return;
-  const mission = submission.missionIdHash ? getMissionByHash(campaign.id, submission.missionIdHash) : null;
-  const title = mission?.title ?? campaign.title;
-  const reason = reasonSentence(getDecisionBySubmission(submission.id)?.brief?.reasonCode);
-  await dmWithRetry(
-    chatId,
-    `Held for your review — "${title}": ${reason}.\n` +
-      `Reply "show held submissions" and I'll list it so you can release or reject it.\n` +
-      `Board: ${appUrl()}/c/${campaign.id}`,
-  );
+  const t = buildHeldTriage(campaign, submission);
+  const words = testerWordsLine(submission.note);
+  const lines = [
+    `Held for your review — "${t.missionTitle}"${t.attempt > 1 ? ` (after ${t.attempt} attempts)` : ""}.`,
+    ...(words ? ["", words] : []),
+    "",
+    ...triageLines(t),
+    "",
+    leanLabel(t),
+    "",
+    `Reply "show held submissions" to release or reject it — I'll always read the reward + recipient back before paying.`,
+    `Board: ${appUrl()}/c/${campaign.id}`,
+  ];
+  await dmWithRetry(chatId, lines.join("\n"));
 }

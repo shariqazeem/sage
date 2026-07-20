@@ -24,6 +24,7 @@ import {
   reviewSummary,
   ownsCampaign,
 } from "@/lib/campaigns/review-actions";
+import { autonomousResolutionStats } from "@/lib/campaigns/held-triage";
 import { putPendingReview, consumePendingReview } from "./pending-review";
 
 /**
@@ -332,6 +333,7 @@ export async function callAgentWalletTool(
         if (!ownsCampaign(campaign, b.privyWalletAddress))
           return err("That campaign isn't one you launched, so you can't review its submissions.");
         const held = listHeldSubmissions(campaign);
+        const stats = autonomousResolutionStats(campaign.id);
         return ok({
           ok: true,
           campaignId: campaign.id,
@@ -339,12 +341,19 @@ export async function callAgentWalletTool(
           held: held.map((h) => ({
             submissionId: h.submissionId,
             mission: h.missionTitle,
-            confidence: h.confidencePct != null ? `${h.confidencePct}%` : null,
-            class: h.reasonClass,
+            // EVIDENCE FIRST: what Sage saw vs the account. The advisory `sageLean` is LAST + deterministic
+            // (never a model reading the note) — read the analysis before the lean, and never bulk-approve.
+            analysis:
+              h.matched != null && h.keySources != null
+                ? `matched ${h.matched} of ${h.keySources} things Sage saw firsthand; ${h.reasonClass}`
+                : h.reasonClass,
             evidence: h.evidenceUrl,
+            sageLean: h.lean, // "pay" | "reject" | "you-decide" — advisory only; the founder decides
+            leanWhy: h.leanWhy,
           })),
+          autonomy: `${Math.round(stats.rate * 100)}% of this campaign's observation work Sage resolves itself (${stats.wouldPay} would-pay + ${stats.fraudFlagged} flagged of ${stats.total}); ${stats.needsYou} need your judgment.`,
           message: held.length
-            ? `${held.length} submission(s) awaiting your review.`
+            ? `${held.length} submission(s) awaiting your review. Read each one's analysis before deciding; I never approve in bulk.`
             : "Nothing is held for review right now.",
         });
       }
