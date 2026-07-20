@@ -128,17 +128,26 @@ export function distillPrivateKey(
     });
   }
 
-  // P20.0 anti-inflation: drop any text that recurs across ≥ OBS_MAX_SOURCE_SPREAD distinct sources — a
-  // persistent generic (toolbar/menu seen on every screen) that would otherwise hand a guesser one match
-  // worth many distinct-source credits. Firsthand specifics live on a single screen, so they're untouched.
+  // P20.0/P21 anti-inflation: a text that recurs across ≥ OBS_MAX_SOURCE_SPREAD distinct sources is
+  // COLLAPSED to a single source (its first occurrence), not dropped. The threat it guards is a generic
+  // term ("toolbar") on every screen claiming MANY distinct-source credits from one guess — collapsing to
+  // one source removes that multiplier completely. But P21's deep exploration surfaces RICH-but-persistent
+  // UI too (a drawing app's "stroke width / arrow binding / zen mode" properties panel stays open across
+  // states); dropping that outright (the old behavior) deleted exactly the firsthand detail we now reach.
+  // Collapse keeps the content while still capping its credit at one source. Specific-vs-generic is handled
+  // separately by the ≥2-content-word floor + the category-signal exclusion above, not by persistence.
   const sourcesByText = new Map<string, Set<string>>();
   for (const o of raw) (sourcesByText.get(o.text) ?? sourcesByText.set(o.text, new Set()).get(o.text)!).add(o.source);
-  // Dedupe by (source, text); size + char cap.
+  // Dedupe by (source, text); collapse over-spread texts to their first source; size + char cap.
   const seen = new Set<string>();
+  const collapsedKept = new Set<string>(); // over-spread texts we've already admitted once
   const observations: PrivateObservation[] = [];
   let chars = 0;
   for (const o of raw) {
-    if ((sourcesByText.get(o.text)?.size ?? 0) >= OBS_MAX_SOURCE_SPREAD) continue;
+    if ((sourcesByText.get(o.text)?.size ?? 0) >= OBS_MAX_SOURCE_SPREAD) {
+      if (collapsedKept.has(o.text)) continue; // keep only the FIRST occurrence of a persistent text
+      collapsedKept.add(o.text);
+    }
     const k = `${o.source}|${o.text}`;
     if (seen.has(k)) continue;
     seen.add(k);

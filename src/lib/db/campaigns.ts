@@ -120,6 +120,26 @@ export function updateCampaignAnnounce(id: string, announceChatId: string | null
 }
 
 /**
+ * P21 — RE-PIN a campaign's distilled private corpus (Sage's own field-test eyes, minus every public
+ * string). Only ever grows COMPLETENESS: a deeper re-exploration replaces a thin/generic key with a
+ * richer one so genuine testers clear the ≥3-distinct bar. Judge-only data; never touches money, the
+ * vault, or the mission plan. The digest re-anchors what future proof receipts cite.
+ */
+export function setCampaignCorpus(
+  id: string,
+  corpus: { observations: { source: string; text: string }[]; digest: string; sources: number },
+): void {
+  db.update(campaigns)
+    .set({
+      privateCorpus: corpus.observations,
+      privateCorpusDigest: corpus.digest,
+      privateCorpusSources: corpus.sources,
+    })
+    .where(eq(campaigns.id, id))
+    .run();
+}
+
+/**
  * Bind a campaign to its deployed CampaignVault V2 plan: the vault kind, the on-chain
  * campaign identity hash, the immutable mission-plan digest, and the commitment
  * version. Set once at onboarding (after the vault is deployed + its plan hashed);

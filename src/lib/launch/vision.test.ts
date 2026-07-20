@@ -4,6 +4,7 @@ import {
   aggregateVisionSignals,
   visionCategory,
   describeStatesWithVision,
+  selectStatesForVision,
 } from "./vision";
 import type { FieldTestState, VisionObservation } from "./schemas";
 
@@ -133,5 +134,38 @@ describe("describeStatesWithVision", () => {
       describeImage: async (_s, i) => ({ observation: obsFor(i), promptTokens: 0 }),
     });
     expect(none).toEqual([]);
+  });
+});
+
+describe("selectStatesForVision (P21 — describe the RICHEST states, not the first N)", () => {
+  const rich = (i: number, over: Partial<FieldTestState> = {}): FieldTestState => ({
+    trigger: `s${i}`, screenshot: `/api/field-tests/x/${i}`, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 5, url: "https://g/", ...over,
+  });
+
+  it("returns all states when they fit under the cap, in index order", () => {
+    const out = selectStatesForVision([rich(0), rich(1), rich(2)], 6);
+    expect(out.map((x) => x.i)).toEqual([0, 1, 2]);
+  });
+
+  it("over the cap: keeps state 0 (the anchor) + the richest others, preserving true indices", () => {
+    // 0 = sparse anchor; 1..3 sparse; 4 & 5 are RICH (many elements, big delta) but come late.
+    const states = [
+      rich(0),
+      rich(1), rich(2), rich(3),
+      rich(4, { notableElements: Array.from({ length: 9 }, (_, k) => ({ tag: "label", text: `Stroke${k}`, role: "" })), pixelDeltaPct: 90 }),
+      rich(5, { notableElements: Array.from({ length: 7 }, (_, k) => ({ tag: "label", text: `Fill${k}`, role: "" })), pixelDeltaPct: 80 }),
+    ];
+    const out = selectStatesForVision(states, 3).map((x) => x.i);
+    // the two rich late states MUST be looked at; state 0 is always kept; ascending order preserved.
+    expect(out).toContain(4);
+    expect(out).toContain(5);
+    expect(out).toContain(0);
+    expect(out).toEqual([...out].sort((a, b) => a - b));
+    expect(out).toHaveLength(3);
+  });
+
+  it("drops states without a screenshot before selecting", () => {
+    const out = selectStatesForVision([rich(0, { screenshot: null }), rich(1), rich(2)], 6);
+    expect(out.map((x) => x.i)).toEqual([1, 2]);
   });
 });

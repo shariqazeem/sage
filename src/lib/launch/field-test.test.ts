@@ -12,6 +12,8 @@ import {
   fingerprintDelta,
   buildFieldTestSummary,
   buildInteractiveSummary,
+  interactiveClassification,
+  canvasStrokes,
   fieldTestForMap,
   runFieldTest,
   type FieldTestCapture,
@@ -269,12 +271,58 @@ describe("buildInteractiveSummary", () => {
     expect(s.ran).toBe(true);
     expect(s.pages).toEqual([]);
     expect(s.states).toHaveLength(3);
-    expect(s.classification).toBe("Interactive app detected · 3 states explored");
+    expect(s.classification).toBe("Interactive app detected · 3 states, 0 elements explored");
   });
   it("ran=false and no classification when nothing was observed", () => {
     const s = buildInteractiveSummary({ startUrl: "x", states: [], durationMs: 1, limitation: "loading never resolved" });
     expect(s.ran).toBe(false);
     expect(s.classification).toBeNull();
+  });
+});
+
+describe("interactiveClassification (P21 — states AND distinct elements)", () => {
+  it("counts distinct notable-element texts across states, case-insensitively", () => {
+    const states = [
+      state("initial load", { notableElements: [{ tag: "button", text: "Rectangle", role: "button" }] }),
+      state("drew on the canvas", {
+        notableElements: [
+          { tag: "label", text: "Stroke", role: "" },
+          { tag: "label", text: "Background", role: "" },
+          { tag: "button", text: "rectangle", role: "button" }, // dup of "Rectangle" (case-insensitive)
+        ],
+      }),
+    ];
+    // distinct: rectangle, stroke, background = 3
+    expect(interactiveClassification(states)).toBe("Interactive app detected · 2 states, 3 elements explored");
+  });
+  it("singularizes one element", () => {
+    expect(interactiveClassification([state("s", { notableElements: [{ tag: "b", text: "Only", role: "" }] })]))
+      .toBe("Interactive app detected · 1 states, 1 element explored");
+  });
+});
+
+describe("canvasStrokes (P21 — safe drag gestures inside a canvas)", () => {
+  const box = { x: 100, y: 50, width: 800, height: 600 };
+  it("plans DRAW_STROKES gestures by default, all confined to the central region of the box", () => {
+    const strokes = canvasStrokes(box);
+    expect(strokes.length).toBe(3);
+    const innerL = box.x + box.width * 0.2, innerR = box.x + box.width * 0.8;
+    const innerT = box.y + box.height * 0.2, innerB = box.y + box.height * 0.8;
+    for (const s of strokes) {
+      for (const [px, py] of [s.from, s.to]) {
+        expect(px).toBeGreaterThanOrEqual(innerL);
+        expect(px).toBeLessThanOrEqual(innerR);
+        expect(py).toBeGreaterThanOrEqual(innerT);
+        expect(py).toBeLessThanOrEqual(innerB);
+      }
+    }
+  });
+  it("is deterministic — the same box yields identical gestures", () => {
+    expect(canvasStrokes(box)).toEqual(canvasStrokes(box));
+  });
+  it("returns nothing for a zero-area box or a non-positive count", () => {
+    expect(canvasStrokes({ x: 0, y: 0, width: 0, height: 0 })).toEqual([]);
+    expect(canvasStrokes(box, 0)).toEqual([]);
   });
 });
 

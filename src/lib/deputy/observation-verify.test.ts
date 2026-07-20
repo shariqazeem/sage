@@ -181,12 +181,15 @@ describe("P20.0 anti-guess — generic/category vocab can't seed matches; a para
   const publicStrings = ["Verify the first drawing", "the canvas", "the tool"];
   const key = distillPrivateKey(shallowTool, publicStrings);
 
-  it("the distilled key drops category signals + persistent-generic + single-word terms", () => {
+  it("excludes category/single-word terms; COLLAPSES a persistent generic to one source (no inflation)", () => {
     const blob = key.observations.map((o) => o.text).join(" | ");
     expect(blob).not.toContain("diagramming tool"); // productType signals excluded
     expect(blob).not.toContain("designers"); // audience signals excluded
-    expect(blob).not.toContain("main toolbar"); // recurs across 3 states → source-spread drop
     expect(key.observations.some((o) => o.text === "menu" || o.text === "tools")).toBe(false); // single-word
+    // "main toolbar" recurs across 3 states → COLLAPSED to a single occurrence (P21: kept, not dropped, so
+    // rich-but-persistent UI survives) — it can therefore seed AT MOST one distinct source, never three.
+    const toolbarSources = new Set(key.observations.filter((o) => o.text === "main toolbar").map((o) => o.source));
+    expect(toolbarSources.size).toBeLessThanOrEqual(1);
   });
   it("a GENERIC GUESS (product category + common UI, no firsthand) scores BELOW the floor", () => {
     const guess = "It's a diagramming tool and whiteboard software with a main toolbar, menus, tools, and shapes for designers and developers.";
@@ -212,6 +215,49 @@ describe("P20.0 anti-guess — generic/category vocab can't seed matches; a para
       "I arrived on the opening screen, described what I experience, and confirmed it evokes calm and wonder — the whole first session.",
     ];
     for (const a of attempts) expect(verifyAgainstKey(a, yk).distinctSources).toBeLessThan(3);
+  });
+});
+
+describe("P21 corpus completeness — deep-exploration content survives + is granularly matchable", () => {
+  // A drawing app (the excalidraw class): a PERSISTENT properties panel repeated across states, and a
+  // context menu whose items land on separate lines (what the newline-preserving field-test excerpt now
+  // captures). This is the shape P21's deep explorer produces; the distiller must keep it AND make it
+  // matchable at a tester's granularity.
+  const drawingApp: FieldTestSummary = {
+    ran: true, startUrl: "https://draw.example/", mode: "interactive", pages: [],
+    states: [
+      { trigger: "initial", screenshot: "/d/0", visibleTextExcerpt: "your drawings are saved in your browser storage\nsave your work to a file regularly to avoid losing it", notableElements: [], pixelDeltaPct: 50, url: "https://draw.example/" },
+      { trigger: "drew a shape", screenshot: "/d/1", visibleTextExcerpt: "selected shape actions\nstroke width\nstroke style\nopacity slider", notableElements: [{ tag: "label", text: "selected shape actions", role: "" }], pixelDeltaPct: 80, url: "https://draw.example/" },
+      { trigger: "drew again", screenshot: "/d/2", visibleTextExcerpt: "selected shape actions\nstroke width\nstroke style\nopacity slider", notableElements: [], pixelDeltaPct: 5, url: "https://draw.example/" },
+      { trigger: "moved it", screenshot: "/d/3", visibleTextExcerpt: "selected shape actions\nstroke width\nstroke style\nopacity slider", notableElements: [], pixelDeltaPct: 5, url: "https://draw.example/" },
+      { trigger: "context menu", screenshot: "/d/4", visibleTextExcerpt: "select all\ntoggle grid\nsnap to objects\narrow binding\nzen mode", notableElements: [], pixelDeltaPct: 60, url: "https://draw.example/" },
+    ],
+    classification: null, limitation: null, durationMs: 10,
+  };
+  const publicStrings = ["Draw a shape on the canvas", "the app", "the drawing surface"];
+  const key = distillPrivateKey(drawingApp, publicStrings);
+
+  it("newline-separated menu/panel items become DISTINCT observations, not one unmatchable blob", () => {
+    const texts = key.observations.map((o) => o.text);
+    for (const item of ["select all", "toggle grid", "snap to objects", "zen mode", "stroke width", "stroke style"]) {
+      expect(texts).toContain(item);
+    }
+  });
+
+  it("a persistent panel repeated across 3+ states is COLLAPSED to one source (kept, not deleted)", () => {
+    const panelSources = new Set(key.observations.filter((o) => o.text === "selected shape actions").map((o) => o.source));
+    expect(panelSources.size).toBe(1); // one credit for the persistent panel — rich content survives, no inflation
+  });
+
+  it("a GENUINE tester (storage warning + properties panel + context menu) clears ≥3 distinct sources", () => {
+    const genuine =
+      "It warned that my drawings are saved in browser storage. I drew a shape and a selected shape actions panel appeared where I set the stroke width and dragged the opacity slider. Right-clicking showed select all, toggle grid, and zen mode.";
+    expect(verifyAgainstKey(genuine, key).distinctSources).toBeGreaterThanOrEqual(3);
+  });
+
+  it("a CATEGORY guesser (no firsthand menu/panel items) stays below the bar", () => {
+    const guess = "It's a drawing and diagramming tool with a canvas, some shapes, and a toolbar where you can draw things.";
+    expect(verifyAgainstKey(guess, key).distinctSources).toBeLessThan(3);
   });
 });
 

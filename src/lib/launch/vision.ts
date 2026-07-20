@@ -249,6 +249,29 @@ export interface VisionPassDeps {
 }
 
 /**
+ * Choose which screenshotted states the (cost-capped) vision pass should describe: the RICHEST ones.
+ * Richness = notable-element count (a panel/menu is dense) + visual-change magnitude + rendered-text
+ * volume. The very first screenshotted state (the initial/overview screen) is ALWAYS kept — it anchors
+ * the product's category/name for the map — and the remaining slots go to the highest-scoring states.
+ * True state indices are preserved (vision folds each frame into its own source), and the result is
+ * returned in ascending index order. Pure + deterministic. Exported for tests.
+ */
+export function selectStatesForVision(
+  states: FieldTestState[],
+  cap: number,
+): { s: FieldTestState; i: number }[] {
+  const withShots = states.map((s, i) => ({ s, i })).filter(({ s }) => !!s.screenshot);
+  if (withShots.length <= cap || cap <= 0) return withShots.slice(0, Math.max(0, cap));
+  const score = ({ s }: { s: FieldTestState }): number =>
+    (s.notableElements?.length ?? 0) * 2 +
+    Math.min(s.pixelDeltaPct ?? 0, 100) / 10 +
+    Math.min(s.visibleTextExcerpt?.length ?? 0, 700) / 200;
+  const [first, ...rest] = withShots;
+  const top = rest.sort((a, b) => score(b) - score(a)).slice(0, cap - 1);
+  return [first, ...top].sort((a, b) => a.i - b.i);
+}
+
+/**
  * LOOK at up to `maxImages` state screenshots and return vision observations. Cost is logged.
  * Cost-guarded by the caller (FIELD_TEST_ENABLED + states>1); here we simply degrade to [] when the
  * provider is unconfigured or every call fails. Never throws.
@@ -266,8 +289,11 @@ export async function describeStatesWithVision(
     return [];
   }
 
-  // pick the states that actually have a screenshot, capped.
-  const withShots = states.map((s, i) => ({ s, i })).filter(({ s }) => !!s.screenshot).slice(0, cap);
+  // pick the states worth LOOKING at, capped — the RICHEST states, not merely the first `cap`. Deep
+  // exploration (P21) reaches the most informative states LAST (a drawn shape + its properties panel),
+  // so a naive first-N slice would spend the vision budget on the empty opening screens and never look
+  // at the states that carry the firsthand corpus. `selectStatesForVision` keeps the true state index.
+  const withShots = selectStatesForVision(states, cap);
   if (withShots.length === 0) return [];
 
   const estTokens = withShots.length * EST_TOKENS_PER_IMAGE;

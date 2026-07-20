@@ -47,15 +47,26 @@ const TOTAL_MS = 90_000;
 const PAGE_MS = 15_000;
 const MAX_CTAS = 10;
 
-// interactive-explore budgets (spec caps).
-const MAX_INTERACTIONS = 12;
+// interactive-explore budgets (spec caps). P21 raised the interaction + affordance ceilings so deep,
+// tool-conditional UI (a drawing app's properties panel, an emoji world's many scenes) is actually
+// REACHED — corpus completeness is the ceiling on autonomous verification, so Sage must out-explore the
+// tester, not the reverse. The time cap is unchanged (still 3 min hard); the extra actions fit inside it.
+const MAX_INTERACTIONS = 20;
 const EXPLORE_MS = 180_000; // 3 minutes hard cap
 const LOADING_BUDGET_MS = 60_000;
 const LOADING_POLL_MS = 2_000;
 const STABLE_DELTA = 4; // % — under this vs the prior poll counts as "settled"
 const CANVAS_MIN_AREA = 40_000; // ≥ ~200×200: a real surface, not an icon
 const ANIMATION_PROBE_MS = 8_000; // watch a thin shell this long for self-animation (early-out on first change)
-const MAX_AFFORDANCES = 6; // distinct scene/controls to click in a choice-driven experience
+const MAX_AFFORDANCES = 10; // distinct scene/controls to click in a choice-driven experience (P21: 6→10)
+
+// P21 canvas DRAWING — the excalidraw gap: exploration clicked toolbar icons but never DREW, so it never
+// reached the states a real tester describes (a shape on the canvas + the properties panel that only
+// appears once something is selected). A few safe drag strokes inside the canvas produce those states.
+const DRAW_STROKES = 3; // safe drag gestures to make on a drawing surface
+// tool words that put a canvas app into a "create a shape" mode (excalidraw, tldraw, whiteboards). "text"
+// is DELIBERATELY excluded — selecting a text tool + clicking can focus a text input, and we never type.
+const CREATION_TOOL_WORDS = ["rectangle", "ellipse", "circle", "diamond", "arrow", "line", "draw", "pencil", "pen", "brush", "shape", "freehand"];
 
 /* ───────────────────────────────── pure, unit-testable helpers ───────────── */
 
@@ -165,6 +176,36 @@ export function fingerprintDelta(a: StateFingerprint | null, b: StateFingerprint
   return Math.round(Math.max(pct(a.textLen, b.textLen), pct(a.nodeCount, b.nodeCount), canvasDelta));
 }
 
+/** A drag gesture in viewport pixels — from → to, used to draw a stroke on a canvas surface. */
+export interface Stroke {
+  from: [number, number];
+  to: [number, number];
+}
+
+/**
+ * Plan `n` safe drag strokes INSIDE a canvas box, confined to its central 60% so a stroke never starts
+ * on an overlaid toolbar/property panel (those hug the edges) and never leaves the surface. Deterministic
+ * (no randomness — strokes are spread along a diagonal band), so the same box always yields the same
+ * gestures. Pure + unit-testable; the browser layer just replays these coordinates with the mouse.
+ */
+export function canvasStrokes(box: { x: number; y: number; width: number; height: number }, n = DRAW_STROKES): Stroke[] {
+  const strokes: Stroke[] = [];
+  if (box.width <= 0 || box.height <= 0 || n <= 0) return strokes;
+  const padX = box.width * 0.2;
+  const padY = box.height * 0.2;
+  const innerW = box.width - padX * 2;
+  const innerH = box.height - padY * 2;
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1); // 0..1 along the band
+    const fx = box.x + padX + innerW * (0.1 + 0.2 * t);
+    const fy = box.y + padY + innerH * (0.15 + 0.6 * t);
+    const tx = box.x + padX + innerW * (0.5 + 0.3 * t);
+    const ty = box.y + padY + innerH * (0.35 + 0.55 * t);
+    strokes.push({ from: [Math.round(fx), Math.round(fy)], to: [Math.round(tx), Math.round(ty)] });
+  }
+  return strokes;
+}
+
 /** Build the durable STATIC summary from raw captures — caps CTAs, filters broken requests. Pure. */
 export function buildFieldTestSummary(input: {
   startUrl: string;
@@ -202,17 +243,30 @@ export function buildInteractiveSummary(input: {
   durationMs: number;
   limitation: string | null;
 }): FieldTestSummary {
-  const states = input.states.slice(0, MAX_INTERACTIONS + 4);
+  const states = input.states.slice(0, MAX_INTERACTIONS + 6);
   return {
     ran: states.length > 0,
     startUrl: input.startUrl,
     mode: "interactive",
     pages: [],
     states,
-    classification: states.length > 0 ? `Interactive app detected · ${states.length} states explored` : null,
+    classification: states.length > 0 ? interactiveClassification(states) : null,
     limitation: input.limitation,
     durationMs: input.durationMs,
   };
+}
+
+/**
+ * The honest one-line classification: how many distinct states Sage reached AND how many distinct UI
+ * elements it saw across them — "show work, not spinners." A higher element count is the visible proof
+ * that the deep-exploration pass actually opened panels/menus, not just clicked through top-level screens.
+ * Pure.
+ */
+export function interactiveClassification(states: FieldTestState[]): string {
+  const elements = new Set<string>();
+  for (const s of states) for (const e of s.notableElements ?? []) if (e.text) elements.add(e.text.toLowerCase());
+  const el = elements.size;
+  return `Interactive app detected · ${states.length} states, ${el} element${el === 1 ? "" : "s"} explored`;
 }
 
 /**
@@ -626,10 +680,25 @@ async function fingerprint(page: Page): Promise<StateFingerprint> {
   return fp;
 }
 
-/** Rendered DOM visible-text excerpt (NOT raw HTML), capped. */
+/**
+ * Rendered DOM visible-text excerpt (NOT raw HTML), capped. Line structure is PRESERVED (only spaces/tabs
+ * within a line are collapsed, newlines are kept) — innerText puts each block element (a menu item, a
+ * panel row, a list entry) on its own line, and the corpus distiller splits on newlines. Collapsing every
+ * whitespace to one space (the old behavior) fused a whole context menu / properties panel into a single
+ * 40-word blob that no tester could paraphrase-match; keeping the lines turns it into discrete, matchable
+ * firsthand observations ("Select all", "Toggle grid", "Zen mode"). Capped a little higher to fit the lines.
+ */
 async function renderedExcerpt(page: Page): Promise<string> {
-  return (await page.evaluate(() => (document.body?.innerText || "").replace(/\s+/g, " ").trim()).catch(() => ""))
-    .slice(0, 700);
+  return (
+    await page
+      .evaluate(() =>
+        (document.body?.innerText || "")
+          .replace(/[^\S\n]+/g, " ") // collapse spaces/tabs but KEEP newlines
+          .replace(/\n{2,}/g, "\n") // squeeze blank lines
+          .trim(),
+      )
+      .catch(() => "")
+  ).slice(0, 900);
 }
 
 /** A few notable rendered elements (headings, buttons, inputs) — tag/text/role only. Reads only. */
@@ -780,23 +849,56 @@ async function exploreInteractive(ctx: {
     // 3b2. explore the actual affordances present — scenes, path choices, icon controls — for a
     // click/choice-driven experience with no "Start" button (yara.garden's world). Each distinct
     // control is clicked once; a control that navigates off-origin is reverted. Never a form submit.
+    // The `triedAff` set is SHARED across passes so a later re-scan (after drawing reveals a panel)
+    // only clicks the NEW controls, never re-clicking what it already saw.
     const triedAff = new Set<string>();
-    let explored = 0;
-    while (canInteract() && explored < MAX_AFFORDANCES) {
-      const r = await clickAffordance(page, triedAff);
-      if (!r.ok) {
-        if (r.exhausted) break; // nothing left to try
-        continue; // this control couldn't be clicked — move to the next one
+    const affordancePass = async (budget: number): Promise<number> => {
+      let explored = 0;
+      while (canInteract() && explored < budget) {
+        const r = await clickAffordance(page, triedAff);
+        if (!r.ok) {
+          if (r.exhausted) break; // nothing left to try
+          continue; // this control couldn't be clicked — move to the next one
+        }
+        explored++;
+        interactions++;
+        await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+        await page.waitForTimeout(700);
+        if (!sameOrigin(page.url())) {
+          await page.goBack().catch(() => {});
+          await page.waitForTimeout(400);
+        }
+        await capture(`explored "${r.label}"`);
       }
-      explored++;
-      interactions++;
-      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
-      await page.waitForTimeout(700);
-      if (!sameOrigin(page.url())) {
-        await page.goBack().catch(() => {});
+      return explored;
+    };
+    await affordancePass(MAX_AFFORDANCES);
+
+    // 3b3. DRAW on a canvas surface (P21). Select a creation tool (rectangle/ellipse/pen/…) if the app has
+    // a toolbar, then make a few safe strokes. This is the excalidraw fix: a drawn shape reveals selection
+    // handles + the properties panel (Stroke / Background / Fill / Opacity / …) — the exact states a real
+    // tester describes and that Sage otherwise never sees. Then a RE-SCAN clicks the freshly-revealed panel.
+    if (canInteract() && ctx.signals.hasCanvas && ctx.signals.canvasArea >= CANVAS_MIN_AREA) {
+      const tool = await clickByText(page, CREATION_TOOL_WORDS);
+      if (tool) {
+        interactions++;
         await page.waitForTimeout(400);
+        await capture(`selected "${tool}"`);
       }
-      await capture(`explored "${r.label}"`);
+      const strokes = await drawOnCanvas(page);
+      if (strokes > 0) {
+        interactions++;
+        await page.waitForTimeout(500);
+        await capture(strokes > 1 ? `drew ${strokes} shapes on the canvas` : "drew on the canvas");
+        // the properties panel now exists — re-scan for controls we couldn't see before drawing.
+        await affordancePass(Math.floor(MAX_AFFORDANCES / 2));
+      }
+      // 3b4. right-click for a context menu — more real, firsthand labels (copy, select all, tool options).
+      if (canInteract() && (await openContextMenu(page))) {
+        interactions++;
+        await capture("opened the context menu");
+        await page.keyboard.press("Escape").catch(() => {});
+      }
     }
 
     // 3c. a focused canvas: nudge it with a few safe keys (never inside a text input).
@@ -948,6 +1050,62 @@ async function focusCanvas(page: Page): Promise<void> {
     .catch(() => null);
   if (box && box.width > 0 && box.height > 0) {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+  }
+}
+
+/** The bounding box of the largest canvas on the page (drawing surface), or null. */
+async function largestCanvasBox(page: Page): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  const boxes = await page.locator("canvas").evaluateAll((els) =>
+    (els as HTMLCanvasElement[]).map((c) => {
+      const r = c.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    }),
+  ).catch(() => [] as { x: number; y: number; width: number; height: number }[]);
+  let best: { x: number; y: number; width: number; height: number } | null = null;
+  for (const b of boxes) if (b.width > 0 && b.height > 0 && (!best || b.width * b.height > best.width * best.height)) best = b;
+  return best;
+}
+
+/**
+ * P21 — DRAW on a canvas surface with a few safe drag strokes (mouse only — never a keystroke, never a
+ * form, always inside the surface via {@link canvasStrokes}). This is what makes a drawing app reveal the
+ * states a real tester describes: a shape on the canvas, selection handles, and the properties panel that
+ * only exists once something is drawn. Returns the number of strokes actually made. Read-adjacent: drawing
+ * a throwaway shape mutates only the in-page canvas, never the founder's data or anything off-origin.
+ */
+async function drawOnCanvas(page: Page): Promise<number> {
+  const box = await largestCanvasBox(page);
+  if (!box || box.width * box.height < CANVAS_MIN_AREA) return 0;
+  const strokes = canvasStrokes(box);
+  let made = 0;
+  for (const s of strokes) {
+    try {
+      await page.mouse.move(s.from[0], s.from[1]);
+      await page.mouse.down();
+      await page.mouse.move(s.to[0], s.to[1], { steps: 8 });
+      await page.mouse.up();
+      made++;
+      await page.waitForTimeout(250);
+    } catch {
+      break; // a failed gesture — stop drawing, keep whatever landed
+    }
+  }
+  // deselect so a stray later keystroke can't act on the selection (belt-and-braces; we don't type anyway).
+  await page.keyboard.press("Escape").catch(() => {});
+  return made;
+}
+
+/** Right-click the canvas centre to surface a context menu (more real labels: copy, select all, tool
+ *  options) — a read-only reveal (no data entered, no form submitted). The caller captures, then Escapes. */
+async function openContextMenu(page: Page): Promise<boolean> {
+  const box = await largestCanvasBox(page);
+  if (!box || box.width * box.height < CANVAS_MIN_AREA) return false;
+  try {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
+    await page.waitForTimeout(400);
+    return true;
+  } catch {
+    return false;
   }
 }
 
