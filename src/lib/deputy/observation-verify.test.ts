@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
+import { yaraFieldTest, yaraPublicStrings, excalidrawFieldTest, excalidrawPublicStrings } from "./observation-fixtures";
 import {
   distillPrivateKey,
   verifyAgainstKey,
@@ -156,6 +157,61 @@ describe("observationBar — deterministic-primary gate (2b: confidence deleted,
   it("confidence is NOT a bar input — it isn't even on the signals type (the 0.90 gate is deleted)", () => {
     expect(OBS_BAR).toMatchObject({ minDistinctMatches: 3, minKeySources: 5 });
     expect((OBS_BAR as Record<string, unknown>).minConfidence).toBeUndefined();
+  });
+});
+
+describe("P20.0 anti-guess — generic/category vocab can't seed matches; a paraphrased parrot ~zeroes", () => {
+  // A shallow, generic-dominated field test (the excalidraw failure class): every screen is category
+  // signals + a persistent toolbar + generic single words, with ONE firsthand specific per screen.
+  const shallowTool: FieldTestSummary = {
+    ran: true, startUrl: "https://tool.example/", mode: "interactive", pages: [],
+    states: [
+      { trigger: "s0", screenshot: "/t/0", visibleTextExcerpt: "menu\ntools", notableElements: [{ tag: "button", text: "main toolbar", role: "button" }], pixelDeltaPct: 50, url: "https://tool.example/" },
+      { trigger: "s1", screenshot: "/t/1", visibleTextExcerpt: "menu\ntools", notableElements: [{ tag: "button", text: "main toolbar", role: "button" }], pixelDeltaPct: 40, url: "https://tool.example/" },
+      { trigger: "s2", screenshot: "/t/2", visibleTextExcerpt: "menu\ntools", notableElements: [{ tag: "button", text: "main toolbar", role: "button" }], pixelDeltaPct: 40, url: "https://tool.example/" },
+    ],
+    classification: "Interactive app · 3 states",
+    visionObservations: [
+      { stateIndex: 0, trigger: "s0", sceneDescription: "a crimson anchor buoy bobbing in a harbor preview", visibleText: [], uiElements: [{ label: "main toolbar", kind: "button" }], productTypeSignals: ["diagramming tool", "whiteboard software", "saas dashboard"], audienceSignals: ["designers", "developers", "general users"], qualityIssues: [] },
+      { stateIndex: 1, trigger: "s1", sceneDescription: "a frostbite gradient panel sliding open on the left", visibleText: [], uiElements: [{ label: "main toolbar", kind: "button" }], productTypeSignals: ["diagramming tool", "whiteboard software"], audienceSignals: ["designers", "developers"], qualityIssues: [] },
+      { stateIndex: 2, trigger: "s2", sceneDescription: "a dotted marquee wrapping the selected widget cluster", visibleText: [], uiElements: [{ label: "main toolbar", kind: "button" }], productTypeSignals: ["diagramming tool", "saas dashboard"], audienceSignals: ["designers", "general users"], qualityIssues: [] },
+    ],
+    limitation: null, durationMs: 10,
+  };
+  const publicStrings = ["Verify the first drawing", "the canvas", "the tool"];
+  const key = distillPrivateKey(shallowTool, publicStrings);
+
+  it("the distilled key drops category signals + persistent-generic + single-word terms", () => {
+    const blob = key.observations.map((o) => o.text).join(" | ");
+    expect(blob).not.toContain("diagramming tool"); // productType signals excluded
+    expect(blob).not.toContain("designers"); // audience signals excluded
+    expect(blob).not.toContain("main toolbar"); // recurs across 3 states → source-spread drop
+    expect(key.observations.some((o) => o.text === "menu" || o.text === "tools")).toBe(false); // single-word
+  });
+  it("a GENERIC GUESS (product category + common UI, no firsthand) scores BELOW the floor", () => {
+    const guess = "It's a diagramming tool and whiteboard software with a main toolbar, menus, tools, and shapes for designers and developers.";
+    expect(verifyAgainstKey(guess, key).distinctSources).toBeLessThan(3);
+  });
+  it("a GENUINE account naming the firsthand specifics still clears (≥3)", () => {
+    const genuine = "I saw a crimson anchor buoy bobbing in a harbor preview, then a frostbite gradient panel sliding open, and a dotted marquee wrapping the selected widget cluster.";
+    expect(verifyAgainstKey(genuine, key).distinctSources).toBeGreaterThanOrEqual(3);
+  });
+  it("a PARAPHRASED PARROT (mission card reworded) scores ~zero on the real yara + excalidraw shapes", () => {
+    const yk = distillPrivateKey(yaraFieldTest, yaraPublicStrings);
+    const ek = distillPrivateKey(excalidrawFieldTest, excalidrawPublicStrings);
+    const pYara = "I checked how the very first session of the product feels; I reached the opening screen and took in the whole thing, and it really does give a calm, wonder-filled impression.";
+    const pEx = "I confirmed the rectangle tool properly begins a drawing action when used on the drawing surface of the app.";
+    expect(verifyAgainstKey(pYara, yk).distinctSources).toBeLessThan(3);
+    expect(verifyAgainstKey(pEx, ek).distinctSources).toBeLessThan(3);
+  });
+  it("RETRY-GRINDING: three increasingly card-adjacent attempts each stay below the floor (judged fresh)", () => {
+    const yk = distillPrivateKey(yaraFieldTest, yaraPublicStrings);
+    const attempts = [
+      "I looked at the first session experience of the product.",
+      "I looked at the first session, arrived on the opening screen, described the experience.",
+      "I arrived on the opening screen, described what I experience, and confirmed it evokes calm and wonder — the whole first session.",
+    ];
+    for (const a of attempts) expect(verifyAgainstKey(a, yk).distinctSources).toBeLessThan(3);
   });
 });
 

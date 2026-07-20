@@ -50,6 +50,21 @@ export interface CorpusMatch {
 const MIN_OBS_LEN = 4; // ignore trivially short fragments (calibratable in shadow)
 const MAX_OBS = 400; // size-cap the stored key
 const MAX_KEY_CHARS = 24_000; // hard char budget on the serialized key
+/**
+ * P20.0 anti-guess floor: an observation must carry this many CONTENT words to be a matchable answer-key
+ * entry. Generic category/UI terms ("shapes", "tools", "keyboard shortcuts") are 1–2 words and guessable;
+ * requiring ≥3 forces the key toward firsthand-distinctive detail a copier/guesser can't reproduce. Applied
+ * at BOTH distill (new keys) and match (existing keys), so the fuzzy-overlap matcher can't be gamed by
+ * common product vocabulary. Weak/shallow corpuses correctly thin out → founder-only until enriched (P21).
+ */
+const OBS_MIN_CONTENT_WORDS = 2;
+/**
+ * P20.0 anti-inflation: an observation TEXT that recurs across this many distinct sources is a persistent
+ * generic (a toolbar on every screen, a category label) — not firsthand-distinctive to any one moment.
+ * Dropping it stops a single generic guess from claiming many distinct-source credits at once. A truly
+ * firsthand observation is tied to one screen/moment (1 source), so this never touches genuine specifics.
+ */
+const OBS_MAX_SOURCE_SPREAD = 3;
 
 /** Normalize for matching: lowercased, punctuation→space, whitespace-collapsed. */
 export function normObs(s: string | null | undefined): string {
@@ -79,6 +94,9 @@ export function distillPrivateKey(
     for (const line of splitLines(text ?? "")) {
       const t = normObs(line);
       if (t.length < MIN_OBS_LEN) continue;
+      // P20.0 anti-guess: a matchable observation must be specific (≥3 content words), so generic
+      // product vocabulary ("shapes", "tools", "keyboard shortcuts") can't seed a guesser's matches.
+      if (contentTokens(t).length < OBS_MIN_CONTENT_WORDS) continue;
       // STRUCTURAL parrot-exclusion: drop anything readable off a public card.
       if (publicBlob.includes(` ${t} `) || publicBlob.includes(t)) continue;
       raw.push({ source, text: t });
@@ -98,22 +116,29 @@ export function distillPrivateKey(
       add(s, st.visibleTextExcerpt);
       (st.notableElements ?? []).forEach((e) => add(s, e.text));
     });
-    // Vision frames fold into their STATE so a screen + its screenshot are one source.
+    // Vision frames fold into their STATE so a screen + its screenshot are one source. productType /
+    // audience signals are DELIBERATELY excluded (P20.0): they are generic category classifications
+    // ("diagramming tool", "designers") — guessable, not firsthand-distinctive, so they'd let a guesser
+    // clear the bar. Only what Sage concretely SAW (scene description, on-screen text, element labels).
     (ft.visionObservations ?? []).forEach((v) => {
       const s = `state:${v.stateIndex}`;
       add(s, v.sceneDescription);
       (v.visibleText ?? []).forEach((t) => add(s, t));
       (v.uiElements ?? []).forEach((e) => add(s, e.label));
-      (v.productTypeSignals ?? []).forEach((t) => add(s, t));
-      (v.audienceSignals ?? []).forEach((t) => add(s, t));
     });
   }
 
+  // P20.0 anti-inflation: drop any text that recurs across ≥ OBS_MAX_SOURCE_SPREAD distinct sources — a
+  // persistent generic (toolbar/menu seen on every screen) that would otherwise hand a guesser one match
+  // worth many distinct-source credits. Firsthand specifics live on a single screen, so they're untouched.
+  const sourcesByText = new Map<string, Set<string>>();
+  for (const o of raw) (sourcesByText.get(o.text) ?? sourcesByText.set(o.text, new Set()).get(o.text)!).add(o.source);
   // Dedupe by (source, text); size + char cap.
   const seen = new Set<string>();
   const observations: PrivateObservation[] = [];
   let chars = 0;
   for (const o of raw) {
+    if ((sourcesByText.get(o.text)?.size ?? 0) >= OBS_MAX_SOURCE_SPREAD) continue;
     const k = `${o.source}|${o.text}`;
     if (seen.has(k)) continue;
     seen.add(k);
@@ -166,14 +191,15 @@ export function verifyAgainstKey(account: string | null | undefined, key: Privat
   const matched: PrivateObservation[] = [];
   const sources = new Set<string>();
   for (const o of key.observations) {
+    const ot = contentTokens(o.text);
+    // P20.0 anti-guess: only SPECIFIC observations (≥3 content words) are matchable — protects even
+    // legacy keys that were pinned before the distill-side filter, so common vocab can't be gamed.
+    if (ot.length < OBS_MIN_CONTENT_WORDS) continue;
     let hit = acct.includes(o.text);
     if (!hit) {
-      const ot = contentTokens(o.text);
-      if (ot.length >= 2) {
-        let shared = 0;
-        for (const w of ot) if (acctTokens.has(w)) shared++;
-        hit = shared / ot.length >= OBS_MATCH_OVERLAP;
-      }
+      let shared = 0;
+      for (const w of ot) if (acctTokens.has(w)) shared++;
+      hit = shared / ot.length >= OBS_MATCH_OVERLAP;
     }
     if (hit) {
       matched.push(o);
