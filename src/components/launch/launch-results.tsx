@@ -2,9 +2,41 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ShieldCheck, Eye } from "lucide-react";
 import { MissionCard } from "./mission-card";
 import { BudgetBar } from "./budget-bar";
 import type { JobView, PlanView } from "./types";
+
+/**
+ * P23 — the founder learns BEFORE funding whether this product's corpus supports autonomous payouts.
+ * Derived from the previewed corpus richness (the same key pinned at attach), never a promise. Honest
+ * either way: a thin product isn't a failure, it just means the founder confirms payouts themselves.
+ */
+function CorpusReadinessBadge({ readiness }: { readiness: { sources: number; autonomous: boolean } }) {
+  const ready = readiness.autonomous;
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "flex-start", gap: 8, margin: "0 0 12px", padding: "10px 12px",
+        borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+        border: `1px solid ${ready ? "var(--pos, #15803d)" : "var(--warn, #b45309)"}`,
+        background: ready ? "var(--pos-soft, rgba(21,128,61,0.06))" : "var(--warn-soft, rgba(180,83,9,0.06))",
+      }}
+    >
+      {ready ? <ShieldCheck size={15} style={{ color: "var(--pos, #15803d)", flexShrink: 0, marginTop: 1 }} />
+             : <Eye size={15} style={{ color: "var(--warn, #b45309)", flexShrink: 0, marginTop: 1 }} />}
+      <span>
+        {ready ? (
+          <><b>Rich enough for autonomous payouts.</b> Sage explored this product itself and pinned {readiness.sources} distinct
+          things it saw — enough to verify a tester&apos;s firsthand account and pay it automatically.</>
+        ) : (
+          <><b>This product will need your review.</b> Sage could only pin {readiness.sources} distinct firsthand thing
+          {readiness.sources === 1 ? "" : "s"} — too thin to auto-verify, so you&apos;ll confirm observation payouts yourself. Everything else works the same.</>
+        )}
+      </span>
+    </div>
+  );
+}
 
 /**
  * The durable results view for /launch/[inspectionId]. SEEDED server-side with the job,
@@ -129,6 +161,9 @@ export function LaunchResults({ initial }: { initial: JobView }) {
       {plan && plan.missions.length > 0 && (
         <section aria-label="Mission plan" style={{ marginTop: 22 }}>
           <div className="lx-kicker" style={{ margin: "0 0 6px" }}>Sage designed these missions from what it found</div>
+          {status === "ready" && job.corpusReadiness?.observation && (
+            <CorpusReadinessBadge readiness={job.corpusReadiness} />
+          )}
           {plan.missions.map((m) => (
             <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} onSaved={(j) => setJob(j)} />
           ))}

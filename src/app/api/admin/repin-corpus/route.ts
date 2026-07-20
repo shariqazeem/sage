@@ -2,7 +2,7 @@ import { NextResponse, after, type NextRequest } from "next/server";
 
 import { getCampaign, listMissions, setCampaignCorpus } from "@/lib/db/campaigns";
 import { inspectProduct, rankPrimaryLinks } from "@/lib/launch/inspect";
-import { fieldTestEnabled, runFieldTest } from "@/lib/launch/field-test";
+import { fieldTestEnabled, runFieldTest, explorationCounts } from "@/lib/launch/field-test";
 import { describeStatesWithVision } from "@/lib/launch/vision";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import path from "node:path";
@@ -91,10 +91,18 @@ export async function POST(req: NextRequest) {
         }
       }
       const key = distillPrivateKey(fieldTest, publicStrings);
-      setCampaignCorpus(campaignId, { observations: key.observations, digest: key.digest, sources: key.distinctSources });
+      const explored = explorationCounts(fieldTest); // P23 — refresh the board's exploration breadth too
+      setCampaignCorpus(campaignId, {
+        observations: key.observations,
+        digest: key.digest,
+        sources: key.distinctSources,
+        exploredScreens: explored.screens,
+        exploredElements: explored.elements,
+      });
       console.log(
         `[repin] ${campaignId}: DONE — ${before.sources} → ${key.distinctSources} distinct sources, ` +
-          `${key.observations.length} observations, digest ${key.digest.slice(0, 10)} (was ${(before.digest ?? "none").slice(0, 10)})`,
+          `${key.observations.length} observations, explored ${explored.screens} screens/${explored.elements} elements, ` +
+          `digest ${key.digest.slice(0, 10)} (was ${(before.digest ?? "none").slice(0, 10)})`,
       );
     } catch (err) {
       console.error(`[repin] ${campaignId}: FAILED —`, err);

@@ -14,11 +14,13 @@ import {
   buildInteractiveSummary,
   interactiveClassification,
   canvasStrokes,
+  explorationCounts,
   fieldTestForMap,
   runFieldTest,
   type FieldTestCapture,
   type ProductSignals,
 } from "./field-test";
+import type { FieldTestSummary } from "./schemas";
 import type { FieldTestState } from "./schemas";
 
 /* ───────────────────────────── interception guard ───────────────────────── */
@@ -298,6 +300,36 @@ describe("interactiveClassification (P21 — states AND distinct elements)", () 
   it("singularizes one element", () => {
     expect(interactiveClassification([state("s", { notableElements: [{ tag: "b", text: "Only", role: "" }] })]))
       .toBe("Interactive app detected · 1 states, 1 element explored");
+  });
+});
+
+describe("explorationCounts (P23 — Sage's exploration breadth for the board)", () => {
+  const base = { ran: true, startUrl: "https://x/", classification: null, limitation: null, durationMs: 1, pages: [], states: [] };
+  it("interactive: screens = states, elements = distinct notable-element texts", () => {
+    const summary = {
+      ...base, mode: "interactive",
+      states: [
+        state("initial", { notableElements: [{ tag: "b", text: "Rectangle", role: "" }] }),
+        state("drew", { notableElements: [{ tag: "l", text: "Stroke", role: "" }, { tag: "l", text: "rectangle", role: "" }] }),
+      ],
+    } as unknown as FieldTestSummary;
+    // distinct: rectangle, stroke = 2 (case-insensitive dedup); screens = 2
+    expect(explorationCounts(summary)).toEqual({ screens: 2, elements: 2 });
+  });
+  it("static: screens = pages, elements = distinct CTAs", () => {
+    const summary = {
+      ...base, mode: "static",
+      pages: [
+        { url: "a", title: "", h1: "", ctas: ["Sign up", "Pricing"], forms: [], consoleErrors: [], brokenRequests: [], jsOnly: false, screenshot: null },
+        { url: "b", title: "", h1: "", ctas: ["pricing", "Docs"], forms: [], consoleErrors: [], brokenRequests: [], jsOnly: false, screenshot: null },
+      ],
+    } as unknown as FieldTestSummary;
+    // distinct: sign up, pricing, docs = 3; screens = 2
+    expect(explorationCounts(summary)).toEqual({ screens: 2, elements: 3 });
+  });
+  it("returns 0/0 when the field test didn't run", () => {
+    expect(explorationCounts(null)).toEqual({ screens: 0, elements: 0 });
+    expect(explorationCounts({ ...base, ran: false } as unknown as FieldTestSummary)).toEqual({ screens: 0, elements: 0 });
   });
 });
 

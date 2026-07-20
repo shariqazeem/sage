@@ -66,6 +66,13 @@ export const campaigns = sqliteTable("campaigns", {
   privateCorpusDigest: text("private_corpus_digest"),
   /** distinct SOURCES in the pinned key — the campaign-eligibility signal (thin key → founder-only). */
   privateCorpusSources: integer("private_corpus_sources").notNull().default(0),
+  /**
+   * P23 — Sage's OWN exploration breadth, so the board can show "Sage explored this product itself:
+   * N screens, M elements". Persisted at attach (+ re-pin) from the field-test summary — screens =
+   * states/pages Sage reached, elements = distinct UI things it saw. 0 = unknown/not explored (hide it).
+   */
+  exploredScreens: integer("explored_screens").notNull().default(0),
+  exploredElements: integer("explored_elements").notNull().default(0),
   vaultAddress: text("vault_address").notNull(),
   /**
    * The network this campaign settles on, by chainId. Default 59902 (Metis

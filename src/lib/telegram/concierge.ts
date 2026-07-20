@@ -159,7 +159,14 @@ function buildInspectionNotice(v: InspectionView): string {
       v.fieldTest && v.fieldTest.screenshots > 0
         ? `\n\nI clicked through ${v.fieldTest.pages} page${v.fieldTest.pages === 1 ? "" : "s"} and took screenshots — see the plan link.`
         : "";
-    return `Your testing plan for ${host} is ready — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}${total}:\n${rows}\n\nReply "launch" and I'll fund + launch it from your agent wallet.${fieldLine}`;
+    // P23 — tell the founder BEFORE they fund whether these missions auto-pay or need their review.
+    const cr = v.corpusReadiness;
+    const readyLine = cr?.observation
+      ? cr.autonomous
+        ? `\n\nThese pay out automatically — I explored the product myself and can verify a tester's firsthand account.`
+        : `\n\nHeads up: this product was thin to explore, so I'll bring observation submissions to you to confirm rather than auto-paying.`
+      : "";
+    return `Your testing plan for ${host} is ready — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}${total}:\n${rows}\n\nReply "launch" and I'll fund + launch it from your agent wallet.${readyLine}${fieldLine}`;
   }
   if (v.stage === "needs_input") {
     const qs = (v.needsInput ?? [])

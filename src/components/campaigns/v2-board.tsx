@@ -61,13 +61,28 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
   if (m.status === "paid") return { icon: <CheckCircle2 size={15} color="var(--pos)" />, text: "Paid · reward released to your wallet", color: "var(--pos)" };
   if (m.status === "rejected") return { icon: <XCircle size={15} color="var(--dan)" />, text: "This submission did not meet the mission criteria", color: "var(--dan)" };
   if (m.status === "blocked") return { icon: <XCircle size={15} color="var(--dan)" />, text: "The vault blocked this payout — no funds moved", color: "var(--dan)" };
-  // OBSERVATION mission — judged against what Sage saw itself, NEVER the url-verifiable brain. Describe
-  // the match honestly; a blank evidence link is not "missing evidence" here, and this is never "fraud".
+  // OBSERVATION mission — judged against what Sage saw itself, NEVER the url-verifiable brain. P23: a
+  // RETRYABLE hold reads as PROGRESS (a coaching state, accent — never "held"/review), a bar PASS reads
+  // as verified-success, and only a FINAL hold (attempts exhausted / flagged) is "held for review".
   if (m.observation) {
     const o = m.observation;
+    if (m.retry?.retryable) {
+      return {
+        icon: <RefreshCw size={15} color="var(--accent)" />,
+        text: `Almost there — add a little more of what you did and saw, then resubmit.`,
+        color: "var(--accent)",
+      };
+    }
+    if (o.barPass) {
+      return {
+        icon: <ShieldCheck size={15} color="var(--accent)" />,
+        text: `Sage verified your work — the founder releases your reward shortly.`,
+        color: "var(--accent)",
+      };
+    }
     return {
       icon: <Clock size={15} color="var(--warn)" />,
-      text: `Held for review — your account matched ${o.distinctSources} of the ${o.keyDistinctSources} things Sage saw for itself`,
+      text: `Held for review — a person will take a look. You described ${o.distinctSources} of the ${o.keyDistinctSources} things Sage saw for itself.`,
       color: "var(--warn)",
     };
   }
@@ -80,7 +95,7 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
     return { icon: <Clock size={15} color="var(--warn)" />, text: `Held — ${why}`, color: "var(--warn)" };
   }
   if (m.brief) return { icon: <ShieldCheck size={15} color="var(--accent)" />, text: `Verified · ${Math.round(clamp01(m.brief.confidence) * 100)}% confidence`, color: "var(--accent)" };
-  return { icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />, text: "Sage is reviewing your evidence — usually pays within ~2 minutes", color: "var(--sec)" };
+  return { icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />, text: "Sage is checking your evidence against what it saw for itself…", color: "var(--sec)" };
 }
 
 /**
@@ -173,20 +188,47 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
   const soldOut = mission.full && !mine;
   const canRetry = !!mine?.retry?.retryable;
+  const isObservation = mission.verifiabilityClass === "observation-based";
 
   // The evidence form — reused for a FIRST submission and for a P20 revise-in-place (retry). The submit
   // handler is identical; the route decides create-vs-revise from the wallet's existing held submission.
+  // P23: for an OBSERVATION mission the ACCOUNT is the evidence, so the form leads with it and demotes the
+  // URL to optional; for a url-verifiable mission the public link leads, as before.
+  const account = (
+    <div className="sage-field">
+      <label className="sage-label">What you did and saw</label>
+      <textarea
+        className="sage-textarea"
+        rows={isObservation ? 5 : 3}
+        placeholder={
+          isObservation
+            ? "Describe the specific screens you opened, the exact labels and text you read, and what happened when you clicked — the details only someone who actually used it would know."
+            : "Quote the exact text or describe what you saw."
+        }
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        disabled={busy}
+      />
+    </div>
+  );
+  const link = (
+    <div className="sage-field">
+      <label className="sage-label">
+        {isObservation ? <>Public link <span className="muted">(optional)</span></> : "Public evidence link"}
+      </label>
+      <input
+        className="sage-input"
+        placeholder={isObservation ? "https://… only if you have a public link to add" : "https://… a public link to your proof"}
+        value={evidence}
+        onChange={(e) => setEvidence(e.target.value)}
+        disabled={busy}
+      />
+    </div>
+  );
   const formBlock = (
     <div className="v2-form">
-      <EvidenceCoaching evidenceList={mission.evidenceList} />
-      <div className="sage-field">
-        <label className="sage-label">Public evidence link</label>
-        <input className="sage-input" placeholder="https://… a public link to your proof" value={evidence} onChange={(e) => setEvidence(e.target.value)} disabled={busy} />
-      </div>
-      <div className="sage-field">
-        <label className="sage-label">What you observed</label>
-        <textarea className="sage-textarea" rows={3} placeholder="Quote the exact text or describe what you saw." value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} />
-      </div>
+      <EvidenceCoaching evidenceList={mission.evidenceList} observation={isObservation} />
+      {isObservation ? <>{account}{link}</> : <>{link}{account}</>}
       <p className="tb-sig">You&apos;ll sign a message binding this exact evidence to your wallet — a free signature that authorizes no transaction and moves no funds.</p>
       <div className="sage-row">
         <button className="sage-btn sage-btn-primary" disabled={busy} onClick={() => void submit()}>
@@ -227,9 +269,11 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
                 {beat(mine).icon} {beat(mine).text}
               </div>
               {mine.status === "paid" && mine.payoutTx && <PaidShare reward={rewardLabel} tx={mine.payoutTx} />}
-              {mine.observation ? (
+              {/* P23: a retryable hold reads as PROGRESS — the "Almost there" beat + the coaching block below
+                  carry it; the verdict card (which shows a "HOLD" chip) is reserved for verified/final states. */}
+              {mine.observation && !mine.retry?.retryable ? (
                 <ObservationVerdictCard v={mine.observation} materialize={materialized} />
-              ) : mine.brief ? (
+              ) : !mine.observation && mine.brief ? (
                 <DeputyAssessmentCard brief={mine.brief} rewardUsd={null} threshold={0.85} materialize={materialized} />
               ) : null}
               {/* P20 retry-while-held: a thin-but-genuine observation hold self-cures — coach + let the
@@ -270,7 +314,19 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
 
 /** Evidence coaching driven by the mission's requirements — mirrors mission-prompt.ts rule 6:
  *  Sage reads ONE public URL as text; screenshots/uploads/logged-in pages can't be verified. */
-function EvidenceCoaching({ evidenceList }: { evidenceList: string[] }) {
+function EvidenceCoaching({ evidenceList, observation = false }: { evidenceList: string[]; observation?: boolean }) {
+  if (observation) {
+    // P23 — for an observation mission Sage judges your firsthand ACCOUNT against what it saw itself.
+    return (
+      <div className="tb-coach">
+        {evidenceList.length > 0 && (
+          <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Do:</span><span>{evidenceList[0]}</span></div>
+        )}
+        <div className="tb-coach-row"><span className="ok">Clears</span><span>a specific, firsthand account in your own words — the exact screens, labels, and text you saw, and what happened when you acted. Details only someone who actually used it would know.</span></div>
+        <div className="tb-coach-row"><span className="no">Won&apos;t clear</span><span>a vague summary, or repeating the mission card. Sage compares your account to what it saw exploring the product itself.</span></div>
+      </div>
+    );
+  }
   return (
     <div className="tb-coach">
       {evidenceList.length > 0 && (
@@ -308,13 +364,18 @@ function PaidShare({ reward, tx }: { reward: string; tx: string }) {
   );
 }
 
-/** The top strip: how a first-time tester gets paid, in four honest steps. */
-export function HowYouGetPaid() {
+/** The top strip: how a first-time tester gets paid, in four honest steps. The final step is TRUTH-STATED
+ *  to the campaign's real autopay state (P23) — it never promises automatic payout when the flag is off. */
+export function HowYouGetPaid({ autopays = true }: { autopays?: boolean } = {}) {
   const steps: ReactNode[] = [
     <>Pick a mission below.</>,
     <>Connect your wallet + <b>one free signature</b> <span className="muted">— it just proves the wallet is yours. No gas, no transaction.</span></>,
-    <>Do the mission, then submit a <b>public link</b> + what you saw.</>,
-    <>Sage verifies and pays <b>USDC to your wallet</b> automatically <span className="muted">— usually within ~2 minutes, with a public proof receipt.</span></>,
+    <>Do the mission, then submit <b>what you did and saw</b>.</>,
+    autopays ? (
+      <>Sage verifies and pays <b>USDC to your wallet</b> automatically <span className="muted">— usually within ~2 minutes, with a public proof receipt.</span></>
+    ) : (
+      <>Sage assesses your work against what it saw for itself; the founder confirms payouts <span className="muted">— you&apos;re paid in <b>USDC</b> with a public proof receipt.</span></>
+    ),
   ];
   return (
     <div className="tb-pay">
@@ -336,7 +397,7 @@ export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) 
   const faqs: [string, string][] = [
     ["Where does the money come from?", "A founder pre-funded an on-chain vault with hard caps. Sage can only pay from that vault, and never above each mission's reward or completion cap — it cannot overspend."],
     ["Who decides if I get paid?", "An AI agent reads your evidence against the mission's criteria and decides. Every decision is published as a public receipt you can inspect — the reasoning and the on-chain payout."],
-    ["What does “held for review” mean?", "Sage wasn't confident enough to auto-pay — usually the evidence was thin or unreachable. A human takes a look; you don't need to do anything."],
+    ["My submission isn't paid yet — what now?", "If Sage says “almost there,” you're close — add more of what you actually did and saw (specific screens, exact labels, what happened when you clicked) and resubmit; you get a few tries. Only if those are used up, or something looks off, does it go to a person to review."],
     ["How do you keep it fair?", `Each wallet can earn up to ${perWalletCap} payout${perWalletCap === 1 ? "" : "s"} here, one per mission. Copied or near-identical reports are detected and held for a person to review — honest work in your own words is fine. A brand-new wallet is only noted as a caution for review; that alone never blocks a payout.`],
     ["What exactly does the check verify?", "For a mission Sage judges against its own private exploration, it verifies your account describes specific things Sage saw for itself — details only someone who used the product would know. To be precise about its limits: it checks that knowledge, not authorship. It cannot tell whether you experienced it first-hand or learned the specifics from someone who did. Word-for-word copies of another tester are caught; a genuine retelling in your own words is trusted. With the per-wallet cap bounding the rewards, that's a deliberate, documented boundary — we'd rather state it plainly than overclaim."],
     ["Do I pay gas?", "No. Signing in and committing your evidence are free signatures — they authorize no transaction and move no funds. Only Sage's wallet pays gas, when it pays you."],

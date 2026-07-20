@@ -11,6 +11,8 @@ import {
 } from "@/lib/db/campaigns";
 import { getVaultState } from "@/lib/deputy/chain";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
+import { campaignAutopays } from "@/lib/campaigns/autopay-status";
+import { Eye } from "lucide-react";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
@@ -55,6 +57,12 @@ export default async function CampaignPublicPage({
     const live = campaign.status === "live";
     const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;
     const activity = loadCampaignActivity(campaign.id);
+    // P23 — the headline may promise "paid automatically" ONLY when this campaign actually autopays.
+    const autopays = campaignAutopays(campaign, e.missions, e.isTestnet);
+    // P23 — Sage's own exploration breadth (the differentiator), shown only when we recorded it.
+    const explored = campaign.exploredScreens > 0
+      ? { screens: campaign.exploredScreens, elements: campaign.exploredElements }
+      : null;
     // the campaign is complete when every paid slot is filled, or it's no longer live.
     const complete = !live || (e.totalCompletions > 0 && e.paidCompletions >= e.totalCompletions);
     return (
@@ -96,9 +104,20 @@ export default async function CampaignPublicPage({
               <p className="v2-testnote">Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.</p>
             )}
           </div>
+
+          {explored && (
+            <div className="tb-explored">
+              <Eye size={15} />
+              <span>
+                <b>Sage explored this product itself</b> — {explored.screens} screen{explored.screens === 1 ? "" : "s"}
+                {explored.elements > 0 ? `, ${explored.elements} element${explored.elements === 1 ? "" : "s"}` : ""} — and
+                judges your account against what it saw for itself, not a checklist.
+              </span>
+            </div>
+          )}
         </div>
 
-        <HowYouGetPaid />
+        <HowYouGetPaid autopays={autopays} />
 
         <div className="sb-sec-label">Missions</div>
         <V2Board

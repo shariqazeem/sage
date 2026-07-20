@@ -114,6 +114,8 @@ export interface InspectionView {
   approvalNote: string | null;
   /** field-test artifacts, present only when Sage actually browsed the product in a real browser. */
   fieldTest: { pages: number; screenshots: number } | null;
+  /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
+  corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
 }
 
 /** Poll a durable inspection: honest stage, needs-input/failure, and when ready a concise plan. */
@@ -173,6 +175,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
       ? "Send the founder approvalUrl. Only their wallet can approve, edit, and fund the campaign — the agent cannot."
       : null,
     fieldTest,
+    corpusReadiness: v.corpusReadiness,
   };
 }
 

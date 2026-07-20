@@ -5,9 +5,40 @@ import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
 import { fieldTestEnabled } from "./field-test";
+import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
-import type { FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
+import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
+
+/**
+ * P23 — the founder learns BEFORE funding whether this product supports autonomous payouts. Preview the
+ * same corpus that gets pinned at attach (Sage's field-test observations minus the plan's public strings)
+ * and check it's rich enough (≥ the eligibility bar) for observation missions to auto-verify. url-lane
+ * missions autopay without a corpus, so an all-url plan is always "autonomous". Derived, never a promise.
+ */
+export interface CorpusReadiness {
+  /** the plan contains observation-based missions (which need a rich corpus to auto-verify). */
+  observation: boolean;
+  /** distinct sources in the previewed corpus — "N distinct things Sage saw for itself". */
+  sources: number;
+  /** rich enough for autonomous verification of the observation work (else the founder will review). */
+  autonomous: boolean;
+}
+
+function computeCorpusReadiness(map: ProductMapV1 | null, plan: MissionPlanV1 | null): CorpusReadiness | null {
+  if (!plan) return null;
+  const missions = plan.missions ?? [];
+  const hasObservation = missions.some((m) => (m as { verifiabilityClass?: string }).verifiabilityClass === "observation-based");
+  if (!hasObservation) return { observation: false, sources: 0, autonomous: true }; // url lane autopays sans corpus
+  const publicStrings = missions.flatMap((m) => [
+    m.title, m.objective, m.instructions, m.targetSurface,
+    ...(m.criteria ?? []), ...(m.evidenceRequirements ?? []),
+    ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
+  ]);
+  const fieldTest = (map?.fieldTest ?? null) as FieldTestSummary | null;
+  const sources = distillPrivateKey(fieldTest, publicStrings).distinctSources;
+  return { observation: true, sources, autonomous: sources >= OBS_BAR.minKeySources };
+}
 
 /** JSON-safe serialization (bigint → string) for durable JSON columns + APIs. */
 export function serialize<T>(v: T): unknown {
@@ -121,6 +152,8 @@ export interface JobView {
   result: { map: unknown; questions: string[]; reason: string | null } | null;
   /** the CURRENT revision's plan snapshot (serialized), or null. */
   plan: unknown;
+  /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
+  corpusReadiness: CorpusReadiness | null;
   revision: number;
   /** durable approval, when the current revision is approved. */
   approval: { approvedAt: number; revision: number; campaignIdHash: string; missionPlanDigest: string } | null;
@@ -147,6 +180,10 @@ export function jobToView(job: InspectionJob): JobView {
     failureReason: job.failureReason,
     result: res ? { map: res.map ?? null, questions: res.questions ?? [], reason: res.reason ?? null } : null,
     plan: current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null),
+    corpusReadiness: computeCorpusReadiness(
+      (res?.map ?? null) as ProductMapV1 | null,
+      (current ? current.planJson : (res as { plan?: unknown } | null)?.plan ?? null) as MissionPlanV1 | null,
+    ),
     revision: current?.revisionNumber ?? 0,
     approval:
       approvedRow && approvedRow.approvedAt != null

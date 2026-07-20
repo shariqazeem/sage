@@ -39,7 +39,7 @@ export function observationCoaching(distinctMatched: number, keySources: number,
   const left = attemptsLeft === 1 ? "1 attempt left" : `${attemptsLeft} attempts left`;
   return (
     `You matched ${distinctMatched} of the ${keySources} things Sage saw for itself. ` +
-    `To clear automatically, describe more of what you actually did and saw — the specific screens you opened, ` +
+    `To clear it, describe more of what you actually did and saw — the specific screens you opened, ` +
     `the exact labels and text you read, what happened when you clicked. Then resubmit (${left}).`
   );
 }

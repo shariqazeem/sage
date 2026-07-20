@@ -80,6 +80,12 @@ whether the payouts hold up.
   below 100% is a hard stop.**
 - Naming: "policy vault" is the human concept everywhere; exact contract kind and event
   names live in technical rows only.
+- **NO CORPUS ORACLE.** Never expose live, pre-submission feedback derived from corpus
+  matching — no strength meters, no as-you-type "you matched N" hints, no preview scoring.
+  Match feedback exists ONLY *after* a judged submission and is bounded by the attempt cap
+  (`OBS_MAX_ATTEMPTS`). Any earlier signal is a key-mining oracle: an attacker submits nothing
+  and reads the answer key off the meter. The 3-attempt post-judgment retry loop is the maximum
+  safe disclosure — knowing where NOT to build is part of the guarantee.
 - **P16 gate status: Stage 1 was submitted 2026-07-18. P16 is UNLOCKED.**
 
 ---

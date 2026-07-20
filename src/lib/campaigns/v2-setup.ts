@@ -75,6 +75,9 @@ export interface V2SetupInput {
   privateCorpus?: { source: string; text: string }[];
   privateCorpusDigest?: string | null;
   privateCorpusSources?: number;
+  /** P23 — Sage's exploration breadth (screens/elements) for the board's agent-star line. */
+  exploredScreens?: number;
+  exploredElements?: number;
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -370,6 +373,9 @@ export async function attachV2Campaign(
           privateCorpus: input.privateCorpus ?? null,
           privateCorpusDigest: input.privateCorpusDigest ?? null,
           privateCorpusSources: input.privateCorpusSources ?? 0,
+          // P23 — Sage's exploration breadth (screens/elements) for the board's agent-star line.
+          exploredScreens: input.exploredScreens ?? 0,
+          exploredElements: input.exploredElements ?? 0,
           campaignIdHash: preview.campaignIdHash as string,
           missionPlanDigest: preview.missionPlanDigest as string,
           settlementToken: getAddress(input.expectedToken),

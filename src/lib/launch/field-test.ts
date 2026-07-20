@@ -270,6 +270,22 @@ export function interactiveClassification(states: FieldTestState[]): string {
 }
 
 /**
+ * P23 — Sage's exploration BREADTH from a field-test summary, for the "Sage explored this product itself:
+ * N screens, M elements" board line. Screens = states reached (interactive) or pages crawled (static);
+ * elements = distinct UI things seen (notable elements interactive, CTAs static). Pure; 0/0 when nothing ran.
+ */
+export function explorationCounts(summary: FieldTestSummary | null | undefined): { screens: number; elements: number } {
+  if (!summary?.ran) return { screens: 0, elements: 0 };
+  const elements = new Set<string>();
+  if (summary.mode === "interactive") {
+    for (const s of summary.states) for (const e of s.notableElements ?? []) if (e.text) elements.add(e.text.toLowerCase());
+    return { screens: summary.states.length, elements: elements.size };
+  }
+  for (const p of summary.pages) for (const c of p.ctas ?? []) if (c) elements.add(c.toLowerCase());
+  return { screens: summary.pages.length, elements: elements.size };
+}
+
+/**
  * The compact projection fed to the Mission Brain (stays inside the UNTRUSTED boundary). Static
  * mode keeps today's per-page shape; interactive mode surfaces the observed state log so a mission
  * can only be anchored to a state Sage actually reached.

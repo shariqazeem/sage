@@ -127,16 +127,23 @@ export function updateCampaignAnnounce(id: string, announceChatId: string | null
  */
 export function setCampaignCorpus(
   id: string,
-  corpus: { observations: { source: string; text: string }[]; digest: string; sources: number },
+  corpus: {
+    observations: { source: string; text: string }[];
+    digest: string;
+    sources: number;
+    /** P23 — Sage's exploration breadth for the board's "N screens, M elements" line (optional). */
+    exploredScreens?: number;
+    exploredElements?: number;
+  },
 ): void {
-  db.update(campaigns)
-    .set({
-      privateCorpus: corpus.observations,
-      privateCorpusDigest: corpus.digest,
-      privateCorpusSources: corpus.sources,
-    })
-    .where(eq(campaigns.id, id))
-    .run();
+  const patch: Partial<typeof campaigns.$inferInsert> = {
+    privateCorpus: corpus.observations,
+    privateCorpusDigest: corpus.digest,
+    privateCorpusSources: corpus.sources,
+  };
+  if (typeof corpus.exploredScreens === "number") patch.exploredScreens = corpus.exploredScreens;
+  if (typeof corpus.exploredElements === "number") patch.exploredElements = corpus.exploredElements;
+  db.update(campaigns).set(patch).where(eq(campaigns.id, id)).run();
 }
 
 /**

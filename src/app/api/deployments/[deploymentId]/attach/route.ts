@@ -7,6 +7,7 @@ import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/li
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
+import { explorationCounts } from "@/lib/launch/field-test";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
 import { deploymentAttachDeps, deploymentChainVerifier, verifyActivate } from "@/lib/launch/verify-receipts";
 import { getInspectionJob } from "@/lib/db/inspection";
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
   ]);
   const privateKey = distillPrivateKey(fieldTest, publicStrings);
+  const explored = explorationCounts(fieldTest); // P23 — Sage's own exploration breadth, for the board
 
   const result = await attachV2Campaign(
     {
@@ -98,6 +100,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       privateCorpus: privateKey.observations,
       privateCorpusDigest: privateKey.digest,
       privateCorpusSources: privateKey.distinctSources,
+      exploredScreens: explored.screens,
+      exploredElements: explored.elements,
       title: campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: settings.chainId,
