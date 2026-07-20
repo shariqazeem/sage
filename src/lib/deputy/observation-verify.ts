@@ -287,6 +287,11 @@ export const OBS_BAR = {
   minKeySources: 5, // campaign eligibility — the pinned key holds ≥5 distinct observations
 } as const;
 
+/** P20: total times an observation submission may be judged (revise-while-held). Attempt 1..3; after the
+ *  third HOLD the submission is EXHAUSTED and flows to the founder's review — a genuine tester never hits
+ *  a dead end without a coached chance to add the detail that clears them. */
+export const OBS_MAX_ATTEMPTS = 3;
+
 export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_BAR): BarResult {
   const reasons: string[] = [];
   if (s.keyDistinctSources < cfg.minKeySources) reasons.push(`thin_corpus(${s.keyDistinctSources}<${cfg.minKeySources})`);

@@ -169,6 +169,13 @@
       "when": 1784380820235,
       "tag": "0023_observation_shadow_log",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784540897435,
+      "tag": "0024_add_submission_attempt",
+      "breakpoints": true
     }
   ]
 }

@@ -125,6 +125,27 @@
   color: var(--ok);
 }
 
+/* ── P20 retry-while-held: a calm invitation to revise, not an error ─────── */
+.v2-retry {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.v2-retry-coach {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin: 0;
+}
+.v2-retry-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
 /* ── deep-link highlight (opening /c/<slug>#<missionKey>) ────────────────── */
 .v2-mission.is-target {
   border-color: var(--accent);

@@ -5,11 +5,16 @@ import {
   createCampaign,
   createMission,
   createSubmission,
+  getDecisionBySubmission,
   getMissionByHash,
   getMissionByKey,
+  getSubmission,
+  getWalletMissionSubmission,
+  insertDecision,
   listMissions,
   lockMissionPlan,
   recomputeMissionSpecDigest,
+  reviseSubmission,
   updateMissionDraft,
   updateSubmission,
 } from "./campaigns";
@@ -192,5 +197,59 @@ describe("evidence-URL uniqueness — url-lane replay preserved, observation exe
     const b = createSubmission({ campaignId: campaign.id, wallet: `0x${"4".repeat(40)}`, evidenceUrl: null, missionIdHash: mHash });
     const c = createSubmission({ campaignId: campaign.id, wallet: `0x${"5".repeat(40)}`, evidenceUrl: null, missionIdHash: mHash });
     expect([a.ok, b.ok, c.ok]).toEqual([true, true, true]);
+  });
+});
+
+/**
+ * P20 retry-while-held — a held OBSERVATION submission is revised IN PLACE: one row, one payout per
+ * wallet (uniqueness never weakened), attempt counter climbs, and the stale judgment is cleared so the
+ * pipeline re-judges the new account fresh. The latest attempt SUPERSEDES the last.
+ */
+describe("reviseSubmission (P20 retry-while-held)", () => {
+  const mHash = `0x${"b".repeat(64)}`;
+
+  it("revises in place: same row id, attempt++, status back to pending, note/evidence replaced", () => {
+    const { campaign } = seedCampaign();
+    const w = `0x${"a".repeat(40)}`;
+    const r = createSubmission({ campaignId: campaign.id, wallet: w, evidenceUrl: null, note: "first try", missionIdHash: mHash });
+    if (!r.ok) throw new Error("seed");
+    expect(r.submission.attempt).toBe(1);
+    updateSubmission(r.submission.id, { status: "pending" });
+
+    const revised = reviseSubmission(r.submission.id, { evidenceUrl: null, note: "I opened the properties panel and read the stroke width" });
+    expect(revised?.id).toBe(r.submission.id); // SAME row — no second submission created
+    expect(revised?.attempt).toBe(2);
+    expect(revised?.status).toBe("pending");
+    expect(revised?.note).toBe("I opened the properties panel and read the stroke width");
+
+    // still exactly one row for this (mission, wallet): a retry never multiplies payouts
+    expect(getWalletMissionSubmission(mHash, w)?.id).toBe(r.submission.id);
+  });
+
+  it("clears the prior decision so the next judgment is fresh (no stale verdict carries over)", () => {
+    const { campaign } = seedCampaign();
+    const w = `0x${"c".repeat(40)}`;
+    const r = createSubmission({ campaignId: campaign.id, wallet: w, evidenceUrl: null, missionIdHash: mHash });
+    if (!r.ok) throw new Error("seed");
+    insertDecision({
+      submissionId: r.submission.id,
+      campaignId: campaign.id,
+      engine: "heuristic",
+      brief: { criteria: [], fraudSignals: [], recommendation: "hold", reasonCode: "no_evidence", confidence: 0, summary: "held", provider: null },
+    });
+    expect(getDecisionBySubmission(r.submission.id)).not.toBeNull();
+
+    reviseSubmission(r.submission.id, { evidenceUrl: null, note: "more detail" });
+    expect(getDecisionBySubmission(r.submission.id)).toBeNull(); // stale judgment gone
+  });
+
+  it("attempt climbs 1 → 2 → 3 across successive revises (the cap is enforced by the route, not here)", () => {
+    const { campaign } = seedCampaign();
+    const w = `0x${"d".repeat(40)}`;
+    const r = createSubmission({ campaignId: campaign.id, wallet: w, evidenceUrl: null, missionIdHash: mHash });
+    if (!r.ok) throw new Error("seed");
+    reviseSubmission(r.submission.id, { evidenceUrl: null, note: "second" });
+    reviseSubmission(r.submission.id, { evidenceUrl: null, note: "third" });
+    expect(getSubmission(r.submission.id)?.attempt).toBe(3);
   });
 });

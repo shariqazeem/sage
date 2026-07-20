@@ -1,0 +1,1 @@
+ALTER TABLE `submissions` ADD `attempt` integer DEFAULT 1 NOT NULL;

@@ -8,6 +8,8 @@ import {
   listCampaignEvents,
 } from "@/lib/db/campaigns";
 import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
+import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
+import { observationCoaching } from "@/lib/deputy/reason-copy";
 import { decodeDetail } from "@/lib/campaigns/journal";
 
 export const runtime = "nodejs";
@@ -62,6 +64,35 @@ export async function GET(
   // For an OBSERVATION mission Sage judges against its own private eyes — never the url-verifiable brain.
   // The observation verdict (present only for observation missions) tells the board which panel to render.
   const observation = observationFromRow(stored);
+  const autopay = ownAutopay(id, sub.id);
+
+  // P20 retry-while-held: a thin-but-genuine observation hold can be revised in place (≤3 attempts). The
+  // board reads `retry` to offer a resubmit affordance + leak-safe coaching. Counts only — never corpus text.
+  // Mirrors the pipeline's retryable rule EXACTLY: only a below-bar, non-fraud hold with attempts left is
+  // retryable. A bar-PASSED hold (ready to pay, founder approving) and a fraud hold are NOT — no button.
+  const attempt = sub.attempt ?? 1;
+  const attemptsLeft = Math.max(0, OBS_MAX_ATTEMPTS - attempt);
+  const heldNow = autopay?.state === "held" && sub.status !== "paid";
+  const fraudFlagged = !!observation?.barReasons.includes("high_fraud");
+  const barPassed = !!observation?.barPass;
+  const retryable = !!observation && heldNow && !barPassed && !fraudFlagged && attemptsLeft > 0;
+  const retry =
+    observation && heldNow
+      ? {
+          attempt,
+          maxAttempts: OBS_MAX_ATTEMPTS,
+          attemptsLeft,
+          retryable,
+          coaching: retryable
+            ? observationCoaching(observation.distinctSources, observation.keyDistinctSources, attemptsLeft)
+            : barPassed
+              ? "Sage verified your work — the founder is releasing your reward."
+              : fraudFlagged
+                ? "This submission was flagged for review — the founder is taking a look."
+                : `Sage couldn't auto-clear this after ${OBS_MAX_ATTEMPTS} attempts — the founder is reviewing it now.`,
+        }
+      : null;
+
   return NextResponse.json({
     authed: true,
     submission: {
@@ -72,7 +103,8 @@ export async function GET(
       // url-verifiable missions carry the brain brief; observation missions carry the observation verdict.
       brief: observation ? null : stored ? briefFromRow(stored) : null,
       observation,
-      autopay: ownAutopay(id, sub.id),
+      retry,
+      autopay,
     },
   });
 }

@@ -20,8 +20,8 @@ import {
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
-import type { PrivateKey } from "./observation-verify";
-import { reasonSentence } from "./reason-copy";
+import { OBS_MAX_ATTEMPTS, type PrivateKey } from "./observation-verify";
+import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
   replayHoldReason,
@@ -339,12 +339,28 @@ export async function runDeputyOnSubmission(
       autopay,
     });
     if (!autopay) {
+      // P20 — a hold is RETRYABLE only when the work FELL SHORT of the bar but looks honest and the tester
+      // has attempts left: thin, not dishonest, so we coach + let them resubmit (leak-safe, no founder DM —
+      // that would be noise on every thin first try). Everything else is a FINAL hold that DOES notify the
+      // founder: a submission that PASSED the bar (ready to pay — autopay is just off/mainnet), a fraud
+      // signal (an attack shouldn't get retries), a null decision (fail-safe), or exhausted attempts.
+      const attempt = submission.attempt ?? 1;
+      const fraudFlagged =
+        (decision?.injectionDetected ?? false) || (decision?.bar.reasons.includes("high_fraud") ?? false);
+      const barPassed = decision?.bar.pass ?? false;
+      const retryable = !!decision && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
+      const reasonCode = retryable ? "observation_retry" : "observation_review";
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-        journalHeld(campaign, submission, reasonSentence("observation_review"), cid);
-        void notifyFounderHeld(campaign, submission);
-        return { action: "held", reason: "observation_review", correlationId: cid };
+        journalHeld(
+          campaign,
+          submission,
+          retryable ? observationRetryLine(attempt, OBS_MAX_ATTEMPTS) : reasonSentence("observation_review"),
+          cid,
+        );
+        if (!retryable) void notifyFounderHeld(campaign, submission); // DM only on FINAL holds (P20.4)
+        return { action: "held", reason: reasonCode, correlationId: cid };
       }
-      return { action: "skipped", reason: "observation_review", correlationId: cid };
+      return { action: "skipped", reason: reasonCode, correlationId: cid };
     }
     // OBSERVATION_AUTOPAY armed + full bar passed → skip the url-lane gate, fall to Sybil + settle.
   }

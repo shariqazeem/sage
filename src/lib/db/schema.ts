@@ -156,6 +156,12 @@ export const submissions = sqliteTable(
     payoutTx: text("payout_tx"),
     decidedAt: integer("decided_at"),
     createdAt: integer("created_at").notNull(),
+    /**
+     * P20 retry-while-held: how many times this OBSERVATION submission has been judged (1..3). A held,
+     * not-yet-final observation submission can be revised in place — the latest attempt SUPERSEDES (still
+     * one row, one payout per wallet). createdAt stays the ORIGINAL time so causal near-dup is stable.
+     */
+    attempt: integer("attempt").notNull().default(1),
   },
   (t) => [
     uniqueIndex("sub_dedupe_unq").on(t.dedupeKey),

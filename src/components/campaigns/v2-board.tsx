@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  CheckCircle2, Clock, ExternalLink, Loader2, ShieldCheck, XCircle, Target,
+  CheckCircle2, Clock, ExternalLink, Loader2, RefreshCw, ShieldCheck, XCircle, Target,
 } from "lucide-react";
 import { getAddress } from "viem";
 import { reward as fmtReward } from "@/lib/format";
@@ -44,6 +44,14 @@ interface MySubmission {
   brief: DecisionBrief | null;
   /** present ONLY for observation missions — judged against Sage's private eyes, never the url lane. */
   observation: ObservationVerdict | null;
+  /** P20 — present when an observation submission is held; drives the revise-in-place affordance + coaching. */
+  retry: {
+    attempt: number;
+    maxAttempts: number;
+    attemptsLeft: number;
+    retryable: boolean;
+    coaching: string;
+  } | null;
   autopay: { state: "settled" | "held"; reason: string | null } | null;
 }
 
@@ -64,7 +72,9 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
     };
   }
   const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
-  const held = m.autopay?.state === "held" || (!!m.brief && m.brief.recommendation !== "pay");
+  // Require a brief before showing "Held" — a pending row with no decision (e.g. mid re-judge after a
+  // P20 revise, when the old decision was cleared) is being REVIEWED, not held; fall through to the spinner.
+  const held = !!m.brief && (m.autopay?.state === "held" || m.brief.recommendation !== "pay");
   if (held) {
     const why = highFraud ? "a fraud signal was flagged" : m.brief?.recommendation === "hold" ? "Sage needs more evidence" : "needs a human look";
     return { icon: <Clock size={15} color="var(--warn)" />, text: `Held — ${why}`, color: "var(--warn)" };
@@ -162,6 +172,31 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
 
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
   const soldOut = mission.full && !mine;
+  const canRetry = !!mine?.retry?.retryable;
+
+  // The evidence form — reused for a FIRST submission and for a P20 revise-in-place (retry). The submit
+  // handler is identical; the route decides create-vs-revise from the wallet's existing held submission.
+  const formBlock = (
+    <div className="v2-form">
+      <EvidenceCoaching evidenceList={mission.evidenceList} />
+      <div className="sage-field">
+        <label className="sage-label">Public evidence link</label>
+        <input className="sage-input" placeholder="https://… a public link to your proof" value={evidence} onChange={(e) => setEvidence(e.target.value)} disabled={busy} />
+      </div>
+      <div className="sage-field">
+        <label className="sage-label">What you observed</label>
+        <textarea className="sage-textarea" rows={3} placeholder="Quote the exact text or describe what you saw." value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} />
+      </div>
+      <p className="tb-sig">You&apos;ll sign a message binding this exact evidence to your wallet — a free signature that authorizes no transaction and moves no funds.</p>
+      <div className="sage-row">
+        <button className="sage-btn sage-btn-primary" disabled={busy} onClick={() => void submit()}>
+          {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing + submitting…</> : canRetry ? "Sign + resubmit" : "Sign + submit evidence"}
+        </button>
+        <button className="sage-btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+      {error && <div className="sage-toast dan"><XCircle size={15} /> {error}</div>}
+    </div>
+  );
 
   return (
     <div id={mission.missionKey} className={`v2-mission${soldOut ? " is-sold" : ""}${isTarget ? " is-target" : ""}`}>
@@ -197,6 +232,21 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
               ) : mine.brief ? (
                 <DeputyAssessmentCard brief={mine.brief} rewardUsd={null} threshold={0.85} materialize={materialized} />
               ) : null}
+              {/* P20 retry-while-held: a thin-but-genuine observation hold self-cures — coach + let the
+                  tester revise in place (no new row, no dead end). Founder is NOT pinged until attempts run out. */}
+              {canRetry && (
+                open ? (
+                  formBlock
+                ) : (
+                  <div className="v2-retry">
+                    <p className="v2-retry-coach">{mine.retry!.coaching}</p>
+                    <button className="sage-btn sage-btn-primary" onClick={() => { setError(null); setOpen(true); }}>
+                      <RefreshCw size={15} /> Revise &amp; resubmit
+                      <span className="v2-retry-count mono">{mine.retry!.attemptsLeft} left</span>
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           ) : !live ? (
             <div className="v2-full">This mission isn&apos;t open for submissions right now.</div>
@@ -210,25 +260,7 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
           ) : !open ? (
             <button className="sage-btn sage-btn-primary" onClick={() => setOpen(true)}>Submit evidence</button>
           ) : (
-            <div className="v2-form">
-              <EvidenceCoaching evidenceList={mission.evidenceList} />
-              <div className="sage-field">
-                <label className="sage-label">Public evidence link</label>
-                <input className="sage-input" placeholder="https://… a public link to your proof" value={evidence} onChange={(e) => setEvidence(e.target.value)} disabled={busy} />
-              </div>
-              <div className="sage-field">
-                <label className="sage-label">What you observed</label>
-                <textarea className="sage-textarea" rows={3} placeholder="Quote the exact text or describe what you saw." value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} />
-              </div>
-              <p className="tb-sig">You&apos;ll sign a message binding this exact evidence to your wallet — a free signature that authorizes no transaction and moves no funds.</p>
-              <div className="sage-row">
-                <button className="sage-btn sage-btn-primary" disabled={busy} onClick={() => void submit()}>
-                  {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing + submitting…</> : "Sign + submit evidence"}
-                </button>
-                <button className="sage-btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
-              </div>
-              {error && <div className="sage-toast dan"><XCircle size={15} /> {error}</div>}
-            </div>
+            formBlock
           )}
         </>
       )}

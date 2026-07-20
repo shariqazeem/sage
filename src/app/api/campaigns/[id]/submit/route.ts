@@ -9,13 +9,18 @@ import {
 import {
   createSubmission,
   getCampaign,
+  getDecisionBySubmission,
   getMissionByKey,
+  getWalletMissionSubmission,
+  reviseSubmission,
   countPaidForMission,
   countRecentSubmissionsByWallet,
   listSubmissions,
   recordEvent,
 } from "@/lib/db/campaigns";
 import { computeEvidenceDigest, verifyEvidenceClaim, type EvidenceClaim } from "@/lib/campaigns/evidence-claim";
+import { observationFromRow } from "@/lib/deputy/decisions";
+import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -60,17 +65,6 @@ export async function POST(
     return NextResponse.json({ error: "This campaign isn't accepting submissions." }, { status: 409 });
   }
 
-  // Per-wallet daily submission cap (P18) — DB-backed (survives restarts) and honest: an explicit
-  // "you've reached the daily limit" 429, never a silent drop. Anti-spam on top of the per-IP burst
-  // limiter above; a farmer can't grind one campaign from a single wallet.
-  const sinceUnix = Math.floor(Date.now() / 1000) - ONE_DAY_SECONDS;
-  if (countRecentSubmissionsByWallet(id, wallet, sinceUnix) >= SUBMIT_DAILY_LIMIT) {
-    return NextResponse.json(
-      { error: `You've reached this campaign's daily submission limit (${SUBMIT_DAILY_LIMIT}/day per wallet). Please try again tomorrow.` },
-      { status: 429 },
-    );
-  }
-
   let body: { evidence?: unknown; note?: unknown; missionKey?: unknown; claim?: EvidenceClaim; signature?: unknown };
   try {
     body = await req.json();
@@ -90,6 +84,10 @@ export async function POST(
 
   let missionIdHash: string | null = null;
   let missionSpecDigest: string | null = null;
+  // P20 retry-while-held: when set, this submit REVISES an existing held observation submission in place
+  // (re-judge, attempt++) instead of creating a new row — so a genuine tester who was held for thin detail
+  // gets a coached second/third try, never a dead end.
+  let reviseTargetId: string | null = null;
   // For an OBSERVATION mission the evidence URL is the shared product page (every tester submits it), not
   // a unique proof. Storing it would trip the url-lane replay index (sub_evidence_unq) and block the
   // SECOND observation tester. We exempt it by storing NULL (SQLite treats NULLs as distinct), leaving the
@@ -105,12 +103,30 @@ export async function POST(
     if (!mission || mission.status !== "active") {
       return NextResponse.json({ error: "That mission isn't open for submissions." }, { status: 409 });
     }
-    if (countPaidForMission(mission.missionIdHash) >= mission.maxCompletions) {
+    // P20 retry detection: an observation mission the wallet ALREADY has a non-final submission to is a
+    // REVISION (re-judge the held account), not a new entry — up to OBS_MAX_ATTEMPTS. Evidence is also
+    // exempted from the url-lane replay index (the account is the evidence, not the shared product URL).
+    if (mission.verifiabilityClass === "observation-based") {
+      evidenceUrlToStore = null;
+      const existing = getWalletMissionSubmission(mission.missionIdHash, wallet);
+      if (existing && existing.status !== "paid" && existing.status !== "rejected" && existing.status !== "blocked") {
+        // Only a below-bar, non-fraud hold may be revised (mirrors the pipeline). A bar-PASSED hold is
+        // awaiting the founder's payout — a resubmit would delete the passing verdict; a fraud hold is
+        // final (attacks don't get retries). Both are already with the founder, so refuse the revision.
+        const prior = observationFromRow(getDecisionBySubmission(existing.id));
+        if (prior && (prior.barPass || prior.barReasons.includes("high_fraud"))) {
+          return NextResponse.json({ error: "This submission is already with the founder for review — it can't be revised." }, { status: 409 });
+        }
+        if ((existing.attempt ?? 1) >= OBS_MAX_ATTEMPTS) {
+          return NextResponse.json({ error: `You've used all ${OBS_MAX_ATTEMPTS} attempts on this mission — it's now with the founder for review.` }, { status: 409 });
+        }
+        reviseTargetId = existing.id;
+      }
+    }
+    // Completion cap gates only a NEW entry — a retry occupies its existing (unpaid, held) slot.
+    if (!reviseTargetId && countPaidForMission(mission.missionIdHash) >= mission.maxCompletions) {
       return NextResponse.json({ error: "This mission has reached its completion limit." }, { status: 409 });
     }
-    // Exempt observation-mission evidence from the url-lane replay index so a second, third… tester on the
-    // same product can each submit and be judged independently (the account is the evidence, not the URL).
-    if (mission.verifiabilityClass === "observation-based") evidenceUrlToStore = null;
     const claim = body.claim;
     const signature = body.signature;
     if (!claim || typeof signature !== "string") {
@@ -148,29 +164,47 @@ export async function POST(
     }
   }
 
-  const result = createSubmission({
-    campaignId: id,
-    wallet,
-    evidenceUrl: evidenceUrlToStore,
-    note: note.value || null,
-    missionIdHash,
-    missionSpecDigest,
-  });
-  if (!result.ok) {
-    return NextResponse.json({ error: SUBMIT_ERROR[result.error] ?? SUBMIT_ERROR.unknown }, { status: 409 });
+  // Per-wallet daily submission cap (P18) — anti-spam, DB-backed, honest 429. A RETRY revises an existing
+  // held submission (doesn't add a row), so it's exempt — a held tester improving their account isn't spam.
+  if (!reviseTargetId) {
+    const sinceUnix = Math.floor(Date.now() / 1000) - ONE_DAY_SECONDS;
+    if (countRecentSubmissionsByWallet(id, wallet, sinceUnix) >= SUBMIT_DAILY_LIMIT) {
+      return NextResponse.json(
+        { error: `You've reached this campaign's daily submission limit (${SUBMIT_DAILY_LIMIT}/day per wallet). Please try again tomorrow.` },
+        { status: 429 },
+      );
+    }
   }
 
-  recordEvent({
-    campaignId: id,
-    submissionId: result.submission.id,
-    kind: "submission_received",
-    detail: short(wallet),
-  });
+  let submissionId: string;
+  let status: string;
+  if (reviseTargetId) {
+    // P20 retry: revise IN PLACE (attempt++, re-judge fresh). One row, one payout per wallet, unchanged.
+    const revised = reviseSubmission(reviseTargetId, { evidenceUrl: evidenceUrlToStore, note: note.value || null });
+    if (!revised) return NextResponse.json({ error: SUBMIT_ERROR.unknown }, { status: 409 });
+    submissionId = revised.id;
+    status = revised.status;
+    recordEvent({ campaignId: id, submissionId, kind: "submission_received", detail: `${short(wallet)} · revised (attempt ${revised.attempt}/${OBS_MAX_ATTEMPTS})` });
+  } else {
+    const result = createSubmission({
+      campaignId: id,
+      wallet,
+      evidenceUrl: evidenceUrlToStore,
+      note: note.value || null,
+      missionIdHash,
+      missionSpecDigest,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ error: SUBMIT_ERROR[result.error] ?? SUBMIT_ERROR.unknown }, { status: 409 });
+    }
+    submissionId = result.submission.id;
+    status = result.submission.status;
+    recordEvent({ campaignId: id, submissionId, kind: "submission_received", detail: short(wallet) });
+  }
 
   // Run the Deputy AFTER the response flushes — verify (decision) and, on autopilot, settle.
   // The submission is already durable, so a slow brain/chain call never delays or fails the
   // submit. The pipeline is the ONE payout path; this route never calls requestPayout.
-  const submissionId = result.submission.id;
   after(async () => {
     try {
       await runDeputyOnSubmission(submissionId);
@@ -179,5 +213,5 @@ export async function POST(
     }
   });
 
-  return NextResponse.json({ ok: true, submissionId, status: result.submission.status });
+  return NextResponse.json({ ok: true, submissionId, status, revised: !!reviseTargetId });
 }

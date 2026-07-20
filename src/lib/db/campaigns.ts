@@ -254,6 +254,35 @@ export function updateSubmission(
 }
 
 /**
+ * P20 retry-while-held: revise a held OBSERVATION submission IN PLACE — new evidence/note, attempt++,
+ * status back to pending, old decision cleared so it re-judges fresh. Returns the updated row. The caller
+ * gates eligibility (observation, not final, attempts remaining). createdAt is UNTOUCHED so the causal
+ * near-dup snapshot stays anchored to the original submission moment (a retry can't be flagged against
+ * work that arrived after it).
+ */
+export function reviseSubmission(
+  id: string,
+  patch: { evidenceUrl: string | null; note: string | null },
+): Submission | null {
+  const cur = getSubmission(id);
+  if (!cur) return null;
+  db.update(submissions)
+    .set({
+      evidenceUrl: patch.evidenceUrl,
+      note: patch.note,
+      attempt: (cur.attempt ?? 1) + 1,
+      status: "pending",
+      rejectReason: null,
+      payoutTx: null,
+      decidedAt: null,
+    })
+    .where(eq(submissions.id, id))
+    .run();
+  deleteDecision(id); // stale judgment gone → the pipeline recomputes fresh on the new account
+  return getSubmission(id);
+}
+
+/**
  * Compare-and-set a submission's status ATOMICALLY: transitions only from the
  * exact `from` state (WHERE status = from), stamping `decidedAt` = now so a
  * crash mid-settle leaves a timestamp the sweep can detect. Returns true iff THIS
