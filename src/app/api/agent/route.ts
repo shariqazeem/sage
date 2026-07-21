@@ -114,6 +114,7 @@ export async function POST(req: Request): Promise<Response> {
  */
 export async function GET(): Promise<Response> {
   const ref = await resolveAgentRef();
+  const founder = ref.startsWith("wallet:"); // a connected SIWE founder → knows their own campaigns
   const messages: Array<{ role: "user" | "agent"; content: string }> = [];
   try {
     const parsed: unknown = JSON.parse(loadChatMessages(ref));
@@ -130,7 +131,7 @@ export async function GET(): Promise<Response> {
   } catch {
     /* no/broken history → empty */
   }
-  return NextResponse.json({ ok: true, messages });
+  return NextResponse.json({ ok: true, founder, messages });
 }
 
 /** DELETE /api/agent — start a fresh chat: clear this session's persisted history. */

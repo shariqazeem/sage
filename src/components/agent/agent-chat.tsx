@@ -112,6 +112,7 @@ export function AgentChat() {
   const [busy, setBusy] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [pageContext, setPageContext] = useState<{ kind: string; id: string } | undefined>();
+  const [founder, setFounder] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -147,8 +148,9 @@ export function AgentChat() {
       try {
         const res = await fetch("/api/agent", { credentials: "same-origin" });
         const data = (await res.json().catch(() => null)) as
-          | { messages?: Array<{ role: "user" | "agent"; content: string }> }
+          | { founder?: boolean; messages?: Array<{ role: "user" | "agent"; content: string }> }
           | null;
+        if (!cancelled && data?.founder) setFounder(true);
         if (!cancelled && data?.messages?.length) {
           setMessages(
             data.messages.map((m, i) => ({
@@ -302,6 +304,15 @@ export function AgentChat() {
           </p>
           {inputBar}
           <div className="ac-chips">
+            {founder && (
+              <button
+                className="ac-chip"
+                type="button"
+                onClick={() => void sendText("How are my campaigns doing?")}
+              >
+                How are my campaigns doing?
+              </button>
+            )}
             {pageContext && (
               <button
                 className="ac-chip"
