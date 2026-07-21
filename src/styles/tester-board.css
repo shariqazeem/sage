@@ -28,6 +28,116 @@
   font-weight: 400;
 }
 
+/* P26 — hero card + header (converted from inline styles) */
+.tb-hero {
+  margin-bottom: var(--s-4);
+}
+.tb-hero-title {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tracking-h2);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.tb-hero-desc {
+  font-size: 15px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+.tb-top-net {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* P26 — the exploration line, promoted to a hero band with counts that tick up on view. */
+.tb-explored-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-4) 0 var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: var(--r-lg);
+}
+.tb-explored-ico {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.tb-explored-body {
+  min-width: 0;
+}
+.tb-explored-stat {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tb-explored-n {
+  color: var(--accent);
+  font-weight: 700;
+}
+.tb-explored-cap {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  margin-top: 3px;
+}
+.tb-explored-cap b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* P26 — the match ring: visualizes X-of-Y matched, fills on mount (momentum, not a warning). */
+.v2-ring {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 52px;
+}
+.v2-ring svg {
+  transform: rotate(-90deg);
+}
+.v2-ring-track {
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-width: 4;
+}
+.v2-ring-prog {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--dur-3) var(--ease-out);
+}
+.v2-ring-mid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-family: var(--font-mono, monospace);
+}
+.v2-ring-mid b {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.v2-ring-mid span {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
 /* ── "How you get paid" strip ───────────────────────────────────────────── */
 .tb-pay {
   border: 1px solid var(--border);
@@ -149,13 +259,21 @@
   color: var(--ok);
 }
 
-/* ── P20 retry-while-held: a calm invitation to revise, not an error ─────── */
+/* ── P20/P26 retry-while-held: MOMENTUM, not an error — a match ring + a calm invitation ─── */
 .v2-retry {
   margin-top: var(--s-3);
   padding-top: var(--s-3);
   border-top: 1px solid var(--border);
   display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.v2-retry-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--s-2);
 }
 .v2-retry-coach {

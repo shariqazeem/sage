@@ -1,8 +1,9 @@
 /* Sage — the five demo hero-moments (presentational only).
    Every animation here is triggered by real async state in the components; this
-   file only defines how those state changes look. Reuses the motion-pass tokens
-   (--spring-*, --elev-*, --dur-*) and the design palette (indigo #1a1d21, green
-   #15803d, red #dc2626, amber). Reduced-motion is handled globally in motion.css. */
+   file only defines how those state changes look. Reuses the motion vocabulary
+   (the --dur and --ease tokens via the motion.css aliases) and the design tokens
+   (--ink, --accent, --ok / --err money-semantics, --warn). Reduced-motion is
+   handled globally in motion.css. */
 
 /* ── MOMENT 1 · settle cascade (review-panel) ───────────────────────────── */
 .sage-rail {
@@ -39,7 +40,7 @@
   display: grid;
   place-items: center;
   border: 1.5px solid var(--line-2);
-  background: #fff;
+  background: var(--surface);
   color: transparent;
   margin-top: 1px;
   transition:
@@ -55,13 +56,13 @@
 .sage-rail-dot.done {
   border-color: var(--pos);
   background: var(--pos);
-  color: #fff;
+  color: var(--accent-ink);
   transform: scale(1.06);
 }
 .sage-rail-dot.blocked {
   border-color: var(--dan);
   background: var(--dan);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .sage-rail-main {
   display: flex;
@@ -157,14 +158,14 @@
   background: conic-gradient(
     from -90deg,
     var(--warn) calc(var(--frac) * 1turn),
-    #ece9e2 0
+    var(--border) 0
   );
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
   transition: background 0.4s ease;
 }
 .sage-timelock.ready .sage-timelock-ring::before {
-  background: conic-gradient(var(--pos) 1turn, #ece9e2 0);
+  background: conic-gradient(var(--pos) 1turn, var(--border) 0);
 }
 .sage-timelock-sec {
   position: relative;
@@ -287,7 +288,7 @@
   padding: 11px 13px;
   border: 1.5px solid var(--dan);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   transform-origin: left center;
   animation: sage-stamp-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -554,16 +555,16 @@
   border-radius: 999px;
 }
 .sage-assess-engine.llm {
-  background: #f2f1ee;
-  border: 1px solid #e4e2dc;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   color: var(--accent);
 }
 .sage-assess-engine.llm .dot {
   background: var(--accent);
 }
 .sage-assess-engine.heuristic {
-  background: #f4f2ec;
-  border: 1px solid #e6e2d8;
+  background: var(--bg);
+  border: 1px solid var(--border);
   color: var(--warn);
 }
 .sage-assess-engine.heuristic .dot {
@@ -583,8 +584,8 @@
   font-size: 11px;
   line-height: 1.4;
   color: var(--accent);
-  background: #f2f1ee;
-  border-left: 2px solid #e4e2dc;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent-border);
   border-radius: 0 4px 4px 0;
   padding: 3px 7px;
   margin-top: 1px;
@@ -615,13 +616,13 @@
   flex: none;
 }
 .sage-assess-chip.low {
-  background: #f1f0ec;
-  border-color: #e4e2dc;
+  background: var(--bg);
+  border-color: var(--accent-border);
   color: var(--ter);
 }
 .sage-assess-chip.med {
-  background: #fdf6ec;
-  border-color: #f0e0c4;
+  background: var(--warn-soft);
+  border-color: var(--warn-border);
   color: var(--warn);
 }
 .sage-assess-chip.high {
@@ -640,7 +641,7 @@
   flex: 1;
   height: 4px;
   border-radius: 999px;
-  background: #f2f1ee;
+  background: var(--accent-soft);
   position: relative; /* anchor the threshold notch */
   overflow: visible; /* let the notch poke above/below the bar */
 }
@@ -711,7 +712,7 @@
 .sage-assess-prov {
   margin-top: 9px;
   padding-top: 9px;
-  border-top: 1px solid #f2f1ee;
+  border-top: 1px solid var(--accent-soft);
   font-size: 10px;
   line-height: 1.5;
   color: var(--ter);
@@ -799,8 +800,8 @@
     background 0.3s ease;
 }
 .sage-auto.on {
-  border-color: #e4e2dc;
-  background: #faf9f6;
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 .sage-auto-head {
   display: flex;
@@ -827,11 +828,11 @@
   font-weight: 600;
   padding: 2px 9px;
   border-radius: 999px;
-  background: #eceae3;
+  background: var(--border);
   color: var(--sec);
 }
 .sage-auto-state.on {
-  background: #f2f1ee;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .sage-auto-opts {
@@ -847,7 +848,7 @@
 .sage-auto-opt {
   text-align: left;
   border: 1px solid var(--line-2);
-  background: #fff;
+  background: var(--surface);
   border-radius: 9px;
   padding: 12px;
   cursor: pointer;
@@ -860,7 +861,7 @@
     box-shadow 0.2s ease;
 }
 .sage-auto-opt:hover:not(:disabled) {
-  border-color: #e4e2dc;
+  border-color: var(--accent-border);
 }
 .sage-auto-opt:disabled {
   opacity: 0.6;
@@ -893,7 +894,7 @@
 .sage-auto-thresh {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #f2f1ee;
+  border-top: 1px solid var(--accent-soft);
 }
 .sage-auto-thresh-row {
   display: flex;
@@ -913,7 +914,7 @@
   height: 26px;
   border-radius: 7px;
   border: 1px solid var(--line-2);
-  background: #fff;
+  background: var(--surface);
   font-size: 16px;
   font-weight: 600;
   line-height: 1;
@@ -977,8 +978,8 @@
   flex: none;
 }
 .sage-autopay.held {
-  background: #fdf6ec;
-  border: 1px solid #f0e0c4;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
   color: var(--warn);
 }
 .sage-autopay.paid {
@@ -991,7 +992,7 @@
   text-decoration: underline;
 }
 .sage-badge.indigo {
-  background: #f2f1ee;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -1012,16 +1013,16 @@
   flex: none;
 }
 .sage-x402-chip.paid {
-  background: #f2f1ee;
-  border: 1px solid #e4e2dc;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   color: var(--accent);
 }
 .sage-x402-chip.paid .mono {
   text-decoration: underline;
 }
 .sage-x402-chip.pending {
-  background: #f4f2ec;
-  border: 1px solid #e6e2d8;
+  background: var(--bg);
+  border: 1px solid var(--border);
   color: var(--ter);
 }
 
@@ -1059,8 +1060,8 @@
   margin-bottom: 22px;
 }
 .sage-x402-status.live {
-  border-color: #e4e2dc;
-  background: #faf9f6;
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 .sage-x402-status-dot {
   flex: none;

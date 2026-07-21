@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { getAddress } from "viem";
 import { reward as fmtReward } from "@/lib/format";
+import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
@@ -56,6 +57,39 @@ interface MySubmission {
 }
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+
+/** P26 — a small ring that fills to X-of-Y matched on mount: the retryable-hold state as MOMENTUM
+ *  (progress toward the bar), never a warning. Presentational — the numbers are Sage's real match counts. */
+function MatchRing({ matched, total }: { matched: number; total: number }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setOn(true), 60);
+    return () => clearTimeout(t);
+  }, []);
+  const frac = on && total > 0 ? clamp01(matched / total) : 0;
+  const R = 20;
+  const C = 2 * Math.PI * R;
+  return (
+    <div className="v2-ring" role="img" aria-label={`${matched} of ${total} matched`}>
+      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
+        <circle cx="26" cy="26" r={R} className="v2-ring-track" />
+        <circle
+          cx="26"
+          cy="26"
+          r={R}
+          className="v2-ring-prog"
+          style={{ strokeDasharray: C, strokeDashoffset: C * (1 - frac) }}
+        />
+      </svg>
+      <div className="v2-ring-mid">
+        <b>
+          <CountUp value={on ? matched : 0} />
+        </b>
+        <span>/{total}</span>
+      </div>
+    </div>
+  );
+}
 
 function beat(m: MySubmission): { icon: ReactNode; text: string; color: string } {
   if (m.status === "paid") return { icon: <CheckCircle2 size={15} color="var(--pos)" />, text: "Paid · reward released to your wallet", color: "var(--pos)" };
@@ -283,11 +317,17 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
                   formBlock
                 ) : (
                   <div className="v2-retry">
-                    <p className="v2-retry-coach">{mine.retry!.coaching}</p>
-                    <button className="sage-btn sage-btn-primary" onClick={() => { setError(null); setOpen(true); }}>
-                      <RefreshCw size={15} /> Revise &amp; resubmit
-                      <span className="v2-retry-count mono">{mine.retry!.attemptsLeft} left</span>
-                    </button>
+                    <MatchRing
+                      matched={mine.observation?.distinctSources ?? 0}
+                      total={mine.observation?.keyDistinctSources ?? 0}
+                    />
+                    <div className="v2-retry-body">
+                      <p className="v2-retry-coach">{mine.retry!.coaching}</p>
+                      <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => { setError(null); setOpen(true); }}>
+                        <RefreshCw size={15} /> Revise &amp; resubmit
+                        <span className="v2-retry-count mono">{mine.retry!.attemptsLeft} left</span>
+                      </button>
+                    </div>
                   </div>
                 )
               )}
@@ -432,7 +472,7 @@ export function V2Board({ campaignId, campaignIdHash, chainId, live, missions }:
     return () => window.clearTimeout(t);
   }, [missions]);
   return (
-    <div className="v2-board">
+    <div className="v2-board sage-stagger">
       {missions.map((m) => (
         <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} />
       ))}

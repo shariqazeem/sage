@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { chainConfig } from "@/lib/deputy/networks";
+import { CountUp } from "@/components/app/count-up";
 import type { CampaignCard } from "@/lib/campaigns/overview";
 
 function short(a: string): string {
@@ -33,6 +35,10 @@ export function DashboardClient({
   const siwe = useSiwe();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // Flip on after mount so the metrics count UP from zero (CountUp animates on value change);
+  // reduced-motion makes CountUp jump, so this stays honest + calm.
+  const [live, setLive] = useState(false);
+  useEffect(() => setLive(true), []);
 
   const connect = async () => {
     setBusy(true);
@@ -47,17 +53,23 @@ export function DashboardClient({
   return (
     <main className="sb-shell">
       <header className="sb-top">
-        <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
+        <Link href="/" className="sb-brand sb-dash-cta">
           <SageMark size={20} /> Sage
         </Link>
-        <span className="sb-net">Founder dashboard</span>
+        {signedIn ? (
+          <Link href="/launch" className="sage-btn sage-btn-primary sage-btn-sm sb-dash-cta">
+            <Plus size={15} /> Launch campaign
+          </Link>
+        ) : (
+          <span className="sb-net">Founder dashboard</span>
+        )}
       </header>
 
       {!signedIn ? (
-        <div className="sage-agent-card" style={{ textAlign: "center", padding: "40px 28px" }}>
+        <div className="sage-agent-card sb-dash-gate">
           <div className="sage-eyebrow">Your campaigns</div>
-          <h1 style={{ fontSize: 26, margin: "10px 0 8px" }}>Connect to see your campaigns</h1>
-          <p className="sage-hint" style={{ maxWidth: 440, margin: "0 auto 20px" }}>
+          <h1 className="sb-dash-h1">Connect to see your campaigns</h1>
+          <p className="sage-hint sb-dash-gate-p">
             Sign in with the wallet you launched from. You&apos;ll see every campaign you own, what
             Sage has paid, and can open each console.
           </p>
@@ -71,54 +83,51 @@ export function DashboardClient({
         </div>
       ) : (
         <>
-          <div className="sage-eyebrow" style={{ marginTop: 6 }}>
-            Founder dashboard
-          </div>
-          <h1 style={{ fontSize: 28, margin: "6px 0 2px" }}>Your campaigns</h1>
-          {address && (
-            <div className="sage-hint mono" style={{ marginBottom: 18 }}>
-              {short(address)}
-            </div>
-          )}
+          <div className="sage-eyebrow sb-dash-eyebrow">Founder dashboard</div>
+          <h1 className="sb-dash-h1">Your campaigns</h1>
+          {address && <div className="sage-hint mono sb-dash-addr">{short(address)}</div>}
 
-          <div className="sage-metarow" style={{ marginBottom: 22 }}>
-            <span className="sage-metachip">
-              <b>{campaigns.length}</b> campaigns
-            </span>
-            <span className="sage-metachip">
-              <b>{usd(paidAmountBase)}</b> released
-            </span>
-            <span className="sage-metachip">
-              <b>{totalPaid}</b> payouts
-            </span>
-            <span className="sage-metachip">
-              <b>{approvedRecipients}</b> testers paid
-            </span>
+          <div className="sb-dash-stats">
+            <div className="sb-dash-stat">
+              <CountUp className="sb-dash-stat-v" value={live ? campaigns.length : 0} />
+              <span className="sb-dash-stat-k">Campaigns</span>
+            </div>
+            <div className="sb-dash-stat">
+              <CountUp className="sb-dash-stat-v" value={live ? paidAmountBase : 0} format={usd} />
+              <span className="sb-dash-stat-k">Released</span>
+            </div>
+            <div className="sb-dash-stat">
+              <CountUp className="sb-dash-stat-v" value={live ? totalPaid : 0} />
+              <span className="sb-dash-stat-k">Payouts</span>
+            </div>
+            <div className="sb-dash-stat">
+              <CountUp className="sb-dash-stat-v" value={live ? approvedRecipients : 0} />
+              <span className="sb-dash-stat-k">Testers paid</span>
+            </div>
           </div>
 
           {campaigns.length === 0 ? (
-            <div className="sage-agent-card" style={{ textAlign: "center", padding: 36 }}>
-              <p className="sage-hint" style={{ marginBottom: 16 }}>
+            <div className="sage-agent-card sb-dash-empty">
+              <p className="sage-hint sb-dash-empty-p">
                 No campaigns yet — Sage will inspect your product and design paid testing missions.
               </p>
-              <Link href="/launch" className="sage-btn sage-btn-primary" style={{ textDecoration: "none" }}>
+              <Link href="/launch" className="sage-btn sage-btn-primary sb-dash-cta">
                 Launch your first campaign
               </Link>
             </div>
           ) : (
-            <div style={{ display: "grid", gap: 12 }}>
+            <div className="sb-dash-cards sage-stagger">
               {campaigns.map((c) => (
                 <Link
                   key={c.id}
                   href={`/campaign/${c.id}`}
-                  className="sage-agent-card"
-                  style={{ textDecoration: "none", display: "block", color: "inherit" }}
+                  className="sage-agent-card sb-agent-tap sb-dash-card"
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                    <span style={{ fontWeight: 600, fontSize: 16 }}>{c.title}</span>
+                  <div className="sb-dash-card-head">
+                    <span className="sb-dash-card-title">{c.title}</span>
                     <span className="sb-net">{chainConfig(c.chainId).chipLabel}</span>
                   </div>
-                  <div className="sage-metarow" style={{ marginTop: 12 }}>
+                  <div className="sage-metarow sb-dash-card-meta">
                     <span className="sage-metachip">{c.status}</span>
                     <span className="sage-metachip">{usd(c.rewardBase)} / mission</span>
                     <span className="sage-metachip">
@@ -136,11 +145,11 @@ export function DashboardClient({
             </div>
           )}
 
-          <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href="/launch" className="sage-btn sage-btn-primary" style={{ textDecoration: "none" }}>
-              Launch new campaign
-            </Link>
-            <button className="sage-btn sage-btn-ghost" onClick={() => void siwe.signOut().then(() => router.refresh())}>
+          <div className="sb-dash-foot">
+            <button
+              className="sage-foot-muted"
+              onClick={() => void siwe.signOut().then(() => router.refresh())}
+            >
               Sign out
             </button>
           </div>

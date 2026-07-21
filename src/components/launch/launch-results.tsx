@@ -15,16 +15,8 @@ import type { JobView, PlanView } from "./types";
 function CorpusReadinessBadge({ readiness }: { readiness: { sources: number; autonomous: boolean } }) {
   const ready = readiness.autonomous;
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "flex-start", gap: 8, margin: "0 0 12px", padding: "10px 12px",
-        borderRadius: 10, fontSize: 13, lineHeight: 1.5,
-        border: `1px solid ${ready ? "var(--pos, #15803d)" : "var(--warn, #b45309)"}`,
-        background: ready ? "var(--pos-soft, rgba(21,128,61,0.06))" : "var(--warn-soft, rgba(180,83,9,0.06))",
-      }}
-    >
-      {ready ? <ShieldCheck size={15} style={{ color: "var(--pos, #15803d)", flexShrink: 0, marginTop: 1 }} />
-             : <Eye size={15} style={{ color: "var(--warn, #b45309)", flexShrink: 0, marginTop: 1 }} />}
+    <div className={`lx-corpus${ready ? " ready" : ""}`}>
+      {ready ? <ShieldCheck size={15} /> : <Eye size={15} />}
       <span>
         {ready ? (
           <><b>Rich enough for autonomous payouts.</b> Sage explored this product itself and pinned {readiness.sources} distinct
@@ -302,11 +294,11 @@ function AnswerBox({ jobId, onDone, onScheduled }: { jobId: string; onDone: (j: 
   return (
     <div style={{ marginTop: 14 }}>
       <textarea
+        className="lx-textarea"
         placeholder="Answer Sage’s question — e.g. the specific outcome a tester should prove — and Sage will re-plan."
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
         rows={3}
-        style={{ width: "100%", resize: "vertical", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border, #e5e5e0)", fontFamily: "inherit", fontSize: 14, background: "var(--paper, #fff)", color: "inherit" }}
       />
       <button className="lx-btn" disabled={busy || !answer.trim()} style={{ marginTop: 8 }} onClick={async () => {
         setBusy(true);

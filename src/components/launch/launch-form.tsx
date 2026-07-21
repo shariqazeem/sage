@@ -2,21 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Plus } from "lucide-react";
 
 /**
- * Step 1 — describe the launch, as a GUIDED, cinematic sequence: one focused question at a
- * time (product → goal → budget) instead of a dense form, so it feels effortless. On the final
- * step it creates (or reuses) a DURABLE inspection job and navigates to /launch/[inspectionId].
- * The id lives in the URL, so refresh / back-forward / reopen all resume the same state.
+ * Step 1 — describe the launch as a GUIDED, cinematic sequence, kept deliberately short (P26): the
+ * product + what to learn on one screen, then the budget. The optional GitHub repo hides behind an
+ * "add repo" affordance so it never taxes the common path. On the final step it creates (or reuses) a
+ * DURABLE inspection job and navigates to /launch/[inspectionId]; the id lives in the URL so refresh /
+ * back-forward / reopen all resume the same state.
  */
 const STEPS = [
   {
-    q: "What should Sage test?",
-    hint: "A public page Sage can open. It only reads your product — it never signs in, buys, or changes anything.",
-  },
-  {
-    q: "What do you want to learn?",
-    hint: "Be specific — Sage designs the testing missions around exactly this.",
+    q: "What should Sage test, and what do you want to learn?",
+    hint: "A public page Sage can open — it only reads your product, never signs in, buys, or changes anything. Then say what you want to learn; Sage designs the missions around exactly that.",
   },
   {
     q: "Set the testing budget.",
@@ -36,15 +34,16 @@ function isHttpUrl(u: string): boolean {
 export function LaunchForm() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5" });
+  const [showRepo, setShowRepo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const stepValid = (i = step): boolean => {
-    if (i === 0) return isHttpUrl(form.productUrl);
-    if (i === 1) return form.goal.trim().length > 3 && form.targetUsers.trim().length > 0;
+    if (i === 0) return isHttpUrl(form.productUrl) && form.goal.trim().length > 3;
     return Number(form.budgetUsd) >= 0.5;
   };
 
@@ -114,37 +113,31 @@ export function LaunchForm() {
               value={form.productUrl}
               onChange={(e) => set("productUrl", e.target.value)}
             />
-            <input
-              className="lx-input"
+            <textarea
+              className="lx-textarea"
               style={{ marginTop: 10 }}
-              type="url"
-              placeholder="Public GitHub repo — optional"
-              value={form.repoUrl}
-              onChange={(e) => set("repoUrl", e.target.value)}
+              placeholder="What do you want to learn? e.g. can a first-time user reach the dashboard without getting stuck?"
+              value={form.goal}
+              onChange={(e) => set("goal", e.target.value)}
             />
+            {showRepo ? (
+              <input
+                className="lx-input"
+                style={{ marginTop: 10 }}
+                type="url"
+                placeholder="Public GitHub repo"
+                value={form.repoUrl}
+                onChange={(e) => set("repoUrl", e.target.value)}
+              />
+            ) : (
+              <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowRepo(true)}>
+                <Plus size={14} /> Add a GitHub repo <span className="muted">— optional</span>
+              </button>
+            )}
           </>
         )}
 
         {step === 1 && (
-          <>
-            <textarea
-              autoFocus
-              className="lx-textarea lxo-input"
-              placeholder="e.g. We shipped a new onboarding — can a first-time user reach the dashboard without getting stuck?"
-              value={form.goal}
-              onChange={(e) => set("goal", e.target.value)}
-            />
-            <input
-              className="lx-input"
-              style={{ marginTop: 10 }}
-              placeholder="Who should test it? e.g. non-technical founders"
-              value={form.targetUsers}
-              onChange={(e) => set("targetUsers", e.target.value)}
-            />
-          </>
-        )}
-
-        {step === 2 && (
           <div className="lxo-budget">
             <input
               autoFocus

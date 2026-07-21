@@ -12,11 +12,11 @@ import {
 import { getVaultState } from "@/lib/deputy/chain";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { campaignAutopays } from "@/lib/campaigns/autopay-status";
-import { Eye } from "lucide-react";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
 import { V2Board, HowYouGetPaid, TesterFaq } from "@/components/campaigns/v2-board";
+import { ExploredBanner } from "@/components/campaigns/explored-banner";
 import { SageActivity } from "@/components/campaigns/sage-activity";
 import { PublicFeed } from "@/components/campaigns/public-feed";
 import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
@@ -71,18 +71,20 @@ export default async function CampaignPublicPage({
           <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
             <SageMark size={20} /> Sage
           </Link>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span className="tb-top-net">
             <NetworkChip chainId={e.chainId} size="xs" />
             <span className="sb-net"><span className="dot" /> Reward campaign</span>
           </span>
         </header>
 
-        <div className="sage-agent-card" style={{ marginBottom: 16 }}>
+        <div className="sage-agent-card tb-hero">
           <div className="sage-eyebrow"><ShieldCheck size={13} /> Paid from a founder-owned vault with hard on-chain limits</div>
-          <h1 style={{ fontSize: 27, fontWeight: 700, letterSpacing: "-0.025em", margin: "0 0 8px" }}>{campaign.title}</h1>
+          <h1 className="tb-hero-title">{campaign.title}</h1>
           {campaign.descriptionMd && (
-            <p style={{ fontSize: 15, color: "var(--sec)", lineHeight: 1.55, margin: 0 }}>{campaign.descriptionMd}</p>
+            <p className="tb-hero-desc">{campaign.descriptionMd}</p>
           )}
+
+          {explored && <ExploredBanner screens={explored.screens} elements={explored.elements} />}
 
           <div className="v2-econ">
             <div className="v2-econ-row">
@@ -104,17 +106,6 @@ export default async function CampaignPublicPage({
               <p className="v2-testnote">Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.</p>
             )}
           </div>
-
-          {explored && (
-            <div className="tb-explored">
-              <Eye size={15} />
-              <span>
-                <b>Sage explored this product itself</b> — {explored.screens} screen{explored.screens === 1 ? "" : "s"}
-                {explored.elements > 0 ? `, ${explored.elements} element${explored.elements === 1 ? "" : "s"}` : ""} — and
-                judges your account against what it saw for itself, not a checklist.
-              </span>
-            </div>
-          )}
         </div>
 
         <HowYouGetPaid autopays={autopays} />

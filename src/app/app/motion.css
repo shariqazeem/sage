@@ -11,18 +11,23 @@
 }
 
 :root {
-  /* spring easings + durations */
-  --spring-snappy: cubic-bezier(0.32, 0.72, 0, 1);
-  --spring-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-snappy: 350ms;
-  --dur-gentle: 500ms;
-  --dur-bounce: 450ms;
+  /* P26 — harmonized onto the P24 vocabulary (src/styles/tokens.css). The app's semantic motion
+     names are kept (hundreds of .sage-* rules reference them) but now ALIAS the shared primitives,
+     so every app surface rides the same rhythm as the landing + Agent dock. Durations therefore
+     inherit the tokens' prefers-reduced-motion collapse; the *{} handler below still covers the
+     hardcoded-ms keyframes (sage-materialize/-draw) that don't ride a token. */
+  --spring-snappy: var(--ease-out);
+  --spring-gentle: var(--ease-out);
+  --spring-bounce: var(--ease-spring);
+  --dur-snappy: var(--dur-2); /* 320ms — interactive lift/press, tab cross-fade */
+  --dur-gentle: var(--dur-2); /* entrance staggers converge to the standard reveal */
+  --dur-bounce: var(--dur-3); /* 640ms — the one expressive tier (hold-to-create rubber-band) */
 
-  /* elevation — layered soft shadows (rest / raised / overlay) */
-  --elev-rest: 0 1px 2px rgba(26, 29, 33, 0.04), 0 6px 16px -8px rgba(26, 29, 33, 0.07);
-  --elev-raised: 0 2px 4px rgba(26, 29, 33, 0.05), 0 14px 30px -10px rgba(26, 29, 33, 0.12);
-  --elev-overlay: 0 4px 10px rgba(26, 29, 33, 0.07), 0 28px 64px -14px rgba(26, 29, 33, 0.2);
+  /* elevation — aliased onto the token shadows. Rest is intentionally calmer (receipt minimalism:
+     1px borders + spacing over shadow stacks); raised is a clear hover lift; overlay is a real sheet. */
+  --elev-rest: var(--shadow-sm);
+  --elev-raised: var(--shadow-md);
+  --elev-overlay: var(--shadow-float);
 }
 
 /* ── interactive lift: buttons press + lift, tabs press, chips ──────────── */

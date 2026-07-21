@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { Sparkles, X, ArrowUp } from "lucide-react";
+import { Sparkles, X, ArrowUp, ArrowUpRight } from "lucide-react";
 import "./agent-dock.css";
 
 /**
@@ -40,11 +40,20 @@ function derivePageContext(pathname: string | null): PageContext | undefined {
   if (!pathname) return undefined;
   let m = pathname.match(/^\/campaigns?\/([^/]+)/);
   if (m && m[1] !== "new") return { kind: "campaign", id: decodeURIComponent(m[1]) };
+  m = pathname.match(/^\/c\/([^/]+)/); // the public board — the slug the founder/tester is viewing
+  if (m) return { kind: "campaign", id: decodeURIComponent(m[1]) };
   m = pathname.match(/^\/launch\/([^/]+)/);
   if (m) return { kind: "inspection", id: decodeURIComponent(m[1]) };
   m = pathname.match(/^\/proof\/([^/]+)/);
   if (m) return { kind: "proof", id: decodeURIComponent(m[1]) };
   return undefined;
+}
+
+/** The deploy hand-off: pull the SAME-ORIGIN path of a /launch/<id> link out of a reply, so it can be
+ *  offered as a prominent "Fund + launch" action (money is a hand-off on web, never an action here). */
+function deployPath(text: string): string | null {
+  const m = text.match(/https?:\/\/[^\s]*(\/launch\/[A-Za-z0-9_-]+)/);
+  return m ? m[1] : null;
 }
 
 const clock = (ts: number): string =>
@@ -258,8 +267,17 @@ export function AgentDock() {
         aria-hidden={!open}
       >
         <div className="agent-head">
-          <span className="agent-brand">Sage</span>
-          <span className="agent-mode">Agent</span>
+          <span className="agent-brand">
+            <Sparkles size={16} strokeWidth={2} /> Sage
+          </span>
+          <div className="agent-switch" role="group" aria-label="Mode">
+            <button className="agent-seg" type="button" onClick={() => setOpen(false)}>
+              Normal
+            </button>
+            <button className="agent-seg on" type="button" aria-current="true">
+              Agent
+            </button>
+          </div>
           <button
             className="agent-close"
             onClick={() => setOpen(false)}
@@ -315,6 +333,11 @@ export function AgentDock() {
                   m.text
                 )}
               </div>
+              {m.role === "agent" && !m.streaming && deployPath(m.text) && (
+                <a className="agent-fund" href={deployPath(m.text)!} onClick={() => setOpen(false)}>
+                  Fund + launch <ArrowUpRight size={15} strokeWidth={2.2} />
+                </a>
+              )}
             </div>
           ))}
 
