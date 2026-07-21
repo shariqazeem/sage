@@ -7,16 +7,14 @@ import { usd } from "@/lib/format";
 import { CountUpLanding } from "./count-up-landing";
 
 const HEADLINE = [
-  "Give",
-  "an",
+  "The",
   "AI",
   "agent",
-  "an",
-  "allowance",
-  "—", // em dash, its own beat
-  "not",
+  "that",
+  "runs",
   "your",
-  "keys.",
+  "product",
+  "testing.",
 ];
 
 /**
@@ -75,20 +73,26 @@ export function Act1Hero({
         <div className="clx-hero-copy">
           <div className="clx-pill">
             <span className="clx-dot" />
-            <span className="clx-mono">An AI agent with its own wallet</span>
+            <span className="clx-mono">Autonomous product testing</span>
           </div>
 
           <h1 className="clx-h1">
             {HEADLINE.map((w, i) => (
               <span
                 key={i}
-                className={`clx-word${w === "—" ? " dash" : ""}`}
+                className="clx-word"
                 style={{ ["--wi" as string]: i }}
               >
                 {w}
               </span>
             ))}
           </h1>
+
+          <p className="clx-hero-sub">
+            Point Sage at a URL and a budget. It explores your product itself, designs
+            paid missions, verifies real testers against what it saw, and pays them
+            on-chain — inside limits it can never exceed.
+          </p>
 
           <div className="clx-hero-balance">
             <span className="clx-bal-k clx-mono">Paid to real testers</span>

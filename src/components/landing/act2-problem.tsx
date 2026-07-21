@@ -10,34 +10,25 @@ const ASKS = [
 ];
 
 /**
- * ACT 2 — THE PROBLEM, IN MOTION. Three "Approve?" prompts slide in spread apart
- * (the endless permission tax of handing an agent your keys), then collapse and
- * stack into a single card: "Confirm the policy once." Scroll-linked via two
- * IntersectionObserver sentinels (enter → spread, deeper → collapse) + CSS
- * transforms only. Reversible on scroll-up. Under reduced-motion both sentinels
- * report immediately → the resolved single card, fully readable.
+ * ACT 2 — THE PROBLEM → THE RESOLUTION. P24: was a 2-viewport sticky-scroll
+ * choreography whose sticky stage un-stuck partway, leaving a full blank viewport of
+ * dead scroll. Rebuilt as a single normal-flow section that reveals ONCE on enter (no
+ * sticky runway → no dead zone): the three endless "Approve?" prompts (the tax of
+ * handing an agent your keys), then the one card that resolves them. Staggered reveal
+ * from the motion vocabulary; under reduced-motion the tokens zero out → it's just
+ * there, fully readable.
  */
 export function Act2Problem() {
-  const enter = useInView<HTMLSpanElement>({ once: false, threshold: 0.1 });
-  const collapse = useInView<HTMLSpanElement>({ once: false, threshold: 0.1 });
-
-  const phase = collapse.inView ? "collapsed" : enter.inView ? "spread" : "hidden";
+  const { ref, inView } = useInView<HTMLDivElement>({ once: true, threshold: 0.2 });
 
   return (
     <section className="clx-act clx-act2" aria-label="The problem">
-      <span ref={enter.ref} className="clx-sentinel clx-sentinel-a" aria-hidden />
-      <span
-        ref={collapse.ref}
-        className="clx-sentinel clx-sentinel-b"
-        aria-hidden
-      />
-
-      <div className={`clx-act2-stage phase-${phase}`}>
+      <div ref={ref} className={`clx-act2-stage${inView ? " in" : ""}`}>
         <div className="clx-eyebrow clx-mono">The tax of keys</div>
 
-        <div className="clx-act2-cards" aria-hidden={phase === "collapsed"}>
+        <div className="clx-act2-cards">
           {ASKS.map((ask, i) => (
-            <div key={i} className={`clx-ask slot-${i}`}>
+            <div key={i} className="clx-ask" style={{ ["--i" as string]: i }}>
               <span className="clx-ask-q clx-mono">Approve?</span>
               <span className="clx-ask-line">{ask}</span>
               <span className="clx-ask-tick">
@@ -48,7 +39,7 @@ export function Act2Problem() {
           ))}
         </div>
 
-        <div className="clx-once" role="note">
+        <div className="clx-once" role="note" style={{ ["--i" as string]: 3 }}>
           <span className="clx-once-ico">
             <Check size={22} strokeWidth={2.4} />
           </span>

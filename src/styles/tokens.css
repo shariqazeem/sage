@@ -52,7 +52,7 @@
   --r-lg: 16px;
   --r-pill: 999px;
 
-  /* ── spacing scale ──────────────────────────────────────────────── */
+  /* ── spacing scale — 8pt rhythm (4 is the half-step) ────────────── */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -60,6 +60,56 @@
   --s-5: 24px;
   --s-6: 32px;
   --s-7: 48px;
+  /* P24 — larger steps for landing whitespace ("premium = space"). Strict 8pt. */
+  --s-8: 64px;
+  --s-9: 80px;
+  --s-10: 96px;
+  --s-11: 128px;
+  --s-12: 160px;
+
+  /* ── P24 DISPLAY TYPE SCALE — the single source for P24–P26 ──────── */
+  /* Sizes are fluid (clamp); tracking TIGHTENS as size grows (display type wants
+   * negative tracking, body wants none). Each role = size + line-height + tracking. */
+  --fs-display: clamp(2.6rem, 1.3rem + 5.4vw, 4.4rem);
+  --lh-display: 1.015;
+  --tracking-display: -0.035em;
+
+  --fs-h1: clamp(2rem, 1.35rem + 2.7vw, 3.1rem);
+  --lh-h1: 1.06;
+  --tracking-h1: -0.025em;
+
+  --fs-h2: clamp(1.45rem, 1.15rem + 1.5vw, 2.1rem);
+  --lh-h2: 1.15;
+  --tracking-h2: -0.016em;
+
+  --fs-lead: clamp(1.12rem, 1rem + 0.6vw, 1.35rem); /* hero sub / lead paragraph */
+  --lh-lead: 1.5;
+  --tracking-lead: -0.011em;
+
+  --fs-body: 1rem;
+  --lh-body: 1.6;
+  --tracking-body: 0em;
+
+  --fs-mono: 0.8125rem; /* data, labels, addresses */
+  --tracking-mono: 0.02em;
+
+  /* ── P24 MOTION VOCABULARY — 3 durations, 2 easings (one spring) ─── */
+  --dur-1: 160ms; /* micro: hover, tap, small state */
+  --dur-2: 320ms; /* standard: reveal, fade, slide */
+  --dur-3: 640ms; /* expressive: hero stagger, count-up */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* firm deceleration */
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.5, 1); /* gentle overshoot */
+}
+
+/* prefers-reduced-motion COLLAPSES everything: every motion built on the vocabulary
+ * above uses these duration tokens, so zeroing them makes transitions + animations
+ * instant (no fork, no per-component media query). New P24–P26 motion MUST use these. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+  }
 }
 
 /* Kill the dark bleed: the page surface is always paper. (The legacy dark system in
