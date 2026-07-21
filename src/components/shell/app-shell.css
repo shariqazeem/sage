@@ -1,0 +1,267 @@
+/**
+ * app-shell.css — P27 premium app shell (Adaption-style, on Sage's LIGHT system).
+ * A floating hover-expand rail, a top-center Home|Agent mode pill, and top-right context pills.
+ * Everything is fixed/floating chrome on the base tokens (src/styles/tokens.css) — it floats over
+ * both the .hire and .lx page scopes, so it carries its own styling. No gradients, no dark surfaces.
+ * All motion rides the --dur/--ease tokens → prefers-reduced-motion collapses it.
+ */
+
+/* When the shell is active (set on <html> by AppShell), give the page content room for the fixed
+   top mode-pill + (on narrow screens) the rail. Targets the known page containers. */
+html[data-app-shell="on"] .sb-shell,
+html[data-app-shell="on"] .lx-wrap,
+html[data-app-shell="on"] .agent-page {
+  padding-top: 78px;
+}
+@media (max-width: 1180px) {
+  html[data-app-shell="on"] .sb-shell,
+  html[data-app-shell="on"] .lx-wrap {
+    padding-left: 84px;
+    padding-right: 24px;
+  }
+}
+@media (max-width: 720px) {
+  html[data-app-shell="on"] .sb-shell,
+  html[data-app-shell="on"] .lx-wrap,
+  html[data-app-shell="on"] .agent-page {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: 92px; /* room for the mobile bottom rail */
+  }
+}
+
+/* ── the hover-expand rail ─────────────────────────────────────────────────────────── */
+.app-rail {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 60px;
+  transition: width var(--dur-2) var(--ease-out);
+}
+.app-rail:hover,
+.app-rail.is-expanded {
+  width: 236px;
+}
+.app-rail-card,
+.app-rail-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+.app-rail-card {
+  padding: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-rail-brand,
+.app-rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 42px;
+  padding: 0 11px;
+  border-radius: var(--r-md);
+  color: var(--ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.app-rail-brand {
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.app-rail-brand svg,
+.app-rail-item svg {
+  flex: none;
+}
+.app-rail-item:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.app-rail-item.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* the bottom pills (invite + wallet) */
+.app-rail-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 52px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.app-rail-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.app-rail-pill svg {
+  flex: none;
+}
+.app-rail-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.app-rail-user .app-rail-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.app-rail-user .app-rail-sub {
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+/* labels fade + reveal as the rail widens (the card's overflow clips them collapsed) */
+.app-rail-label {
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.app-rail:hover .app-rail-label,
+.app-rail.is-expanded .app-rail-label {
+  opacity: 1;
+}
+
+/* ── top-center mode pill ──────────────────────────────────────────────────────────── */
+.mode-pill {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 61;
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-sm);
+}
+.mode-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border-radius: var(--r-pill);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+.mode-seg:hover {
+  color: var(--ink);
+}
+.mode-seg.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── top-right context pills ───────────────────────────────────────────────────────── */
+.ctx-pills {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.ctx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* ── mobile: the rail becomes a floating bottom bar ────────────────────────────────── */
+@media (max-width: 720px) {
+  .app-rail {
+    left: 50%;
+    top: auto;
+    bottom: 14px;
+    transform: translateX(-50%);
+    flex-direction: row;
+    width: auto !important;
+    align-items: center;
+    gap: var(--s-2);
+  }
+  .app-rail-card {
+    flex-direction: row;
+    gap: 2px;
+    border-radius: var(--r-pill);
+  }
+  .app-rail-brand,
+  .app-rail .app-rail-label {
+    display: none; /* icons only on the mobile bar */
+  }
+  .app-rail-brand,
+  .app-rail-item {
+    height: 44px;
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+  .app-rail-pill.app-rail-user {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+    border-radius: var(--r-pill);
+  }
+  .app-rail-pill.app-rail-invite {
+    display: none; /* keep the mobile bar tight */
+  }
+  .ctx-pills {
+    display: none; /* the mode pill owns the top on mobile; network shows in-page */
+  }
+}

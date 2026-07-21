@@ -8,7 +8,10 @@ import { rateLimit } from "@/lib/rate-limit";
  */
 
 const resolveAgentRef = vi.fn(async () => "anon:route");
-const runConciergeWeb = vi.fn(async (..._a: unknown[]) => "stub reply");
+const runConciergeWeb = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return "stub reply";
+});
 const conciergeEnabled = vi.fn(() => true);
 
 vi.mock("@/lib/auth/agent-session", () => ({ resolveAgentRef: () => resolveAgentRef() }));

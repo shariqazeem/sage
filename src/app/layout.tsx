@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
-import { AgentDock } from "@/components/agent/agent-dock";
+import { AppShell } from "@/components/shell/app-shell";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,7 +34,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
         {children}
-        <AgentDock />
+        <AppShell />
       </body>
     </html>
   );

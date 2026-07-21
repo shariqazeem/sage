@@ -1320,6 +1320,81 @@
 .cw-row-v { color: var(--ink, var(--ink)); text-align: right; min-width: 0; }
 .cw-hash { font-size: 11px; color: var(--ter); word-break: break-all; }
 
+/* ── P27 · welcome home (Adaption-style, on-system): greeting + two entry cards ── */
+.sb-welcome {
+  margin: 4px 0 var(--s-5);
+}
+.sb-welcome-h1 {
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tracking-h1);
+  font-weight: 680;
+  color: var(--ink);
+  margin: 0;
+}
+.sb-welcome-name {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.86em;
+}
+.sb-welcome-sub {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  color: var(--ink-muted);
+  margin: var(--s-2) 0 0;
+}
+.sb-home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+@media (max-width: 620px) {
+  .sb-home-cards {
+    grid-template-columns: 1fr;
+  }
+}
+.sb-home-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  text-decoration: none;
+  color: inherit;
+  padding: 22px;
+}
+.sb-home-card-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  flex: none;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.sb-home-card-title {
+  font-size: 17px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.sb-home-card-desc {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.sb-home-card-cta {
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 /* ── P26 · founder dashboard — one primary action, receipt-quiet metrics, calm cards ── */
 .sb-dash-cta { flex: none; text-decoration: none; }
 .sb-dash-eyebrow { margin-top: 6px; }

@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * P25/P26 — Agent Mode on the web. The overlay is one shared component mounted in the root layout, so
- * the "Agent" pill is on every app page (never the marketing landing). P26 makes it an IMMERSIVE mode:
- * a Normal ⇄ Agent switch, a dark command surface. Here we drive the wiring end-to-end with a STUBBED
- * /api/agent (deterministic, no LLM): a URL+budget yields a reply whose deploy link renders both as a
- * plain link AND a prominent "Fund + launch" hand-off — money is a hand-off on the web, never an action.
+ * P27 — Agent Mode on the web is now a premium LIGHT full-page route (`/agent`), reached from the
+ * shell's Home|Agent pill (the dark overlay is gone). Same server (`/api/agent`), read-only, funding
+ * is a hand-off. Here we drive the page with a STUBBED /api/agent (deterministic, no LLM): the empty
+ * state shows the greeting + chips, and a URL+budget yields a reply whose deploy link renders both as
+ * a plain link AND a prominent "Fund + launch" hand-off.
  */
-test.describe("P26 — Agent Mode on the web (immersive)", () => {
-  test("the pill opens the Agent mode surface; a URL+budget yields a plan + fund hand-off", async ({ page }) => {
+test.describe("P27 — light Agent page + app shell", () => {
+  test("the /agent page: greeting + chips, a message yields a reply + fund hand-off", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" }); // typewriter reveals instantly → deterministic
     await page.route("**/api/agent", async (route) => {
       await route.fulfill({
@@ -22,18 +22,11 @@ test.describe("P26 — Agent Mode on the web (immersive)", () => {
       });
     });
 
-    await page.goto("/launch");
+    await page.goto("/agent");
 
-    const pill = page.getByRole("button", { name: /Open Agent mode/i });
-    await expect(pill).toBeVisible();
-    await pill.click();
-
-    // The Normal ⇄ Agent switch is the mode toggle; Agent is the active mode.
-    await expect(page.getByRole("button", { name: /^Normal$/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Agent$/ })).toBeVisible();
-
-    // The overlay states plainly what it can do here (funding is a hand-off).
-    await expect(page.getByText(/Funding happens in the deploy wizard or on Telegram/i)).toBeVisible();
+    // Empty state: the greeting + a suggestion chip.
+    await expect(page.getByRole("heading", { name: /How can we help you/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /How does Sage verify testers/i })).toBeVisible();
 
     const input = page.getByRole("textbox", { name: /Message Sage/i });
     await expect(input).toBeVisible();
@@ -44,7 +37,6 @@ test.describe("P26 — Agent Mode on the web (immersive)", () => {
     await expect(page.getByText("test https://myapp.com, budget $10")).toBeVisible();
     const link = page.getByRole("link", { name: /sagepays\.xyz\/launch\/insp_demo/i });
     await expect(link).toBeVisible();
-    await expect(link).toHaveAttribute("href", "https://sagepays.xyz/launch/insp_demo");
 
     // The money hand-off: a prominent same-origin "Fund + launch" action into the deploy wizard.
     const fund = page.getByRole("link", { name: /Fund \+ launch/i });
@@ -52,8 +44,13 @@ test.describe("P26 — Agent Mode on the web (immersive)", () => {
     await expect(fund).toHaveAttribute("href", "/launch/insp_demo");
   });
 
-  test("Agent mode is absent on the marketing landing", async ({ page }) => {
+  test("the app shell is present on founder routes, absent on the marketing landing", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page.locator(".mode-pill")).toBeVisible();
+    await expect(page.locator(".app-rail")).toBeVisible();
+
     await page.goto("/");
-    await expect(page.getByRole("button", { name: /Open Agent mode/i })).toHaveCount(0);
+    await expect(page.locator(".mode-pill")).toHaveCount(0);
+    await expect(page.locator(".app-rail")).toHaveCount(0);
   });
 });

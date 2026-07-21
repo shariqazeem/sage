@@ -13,9 +13,7 @@ import {
   Hand,
 } from "lucide-react";
 import { reward, networkLabel, short } from "@/lib/format";
-import { NetworkChip } from "@/components/app/network-chip";
 import { ConnectWallet } from "@/components/app/connect-wallet";
-import { SageMark } from "@/components/brand/sage-mark";
 import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
@@ -95,7 +93,6 @@ function OwnerGate({ data }: { data: WorkspaceData }) {
   const [busy, setBusy] = useState(false);
   return (
     <main className="sb-shell">
-      <TopBar chainId={data.chainId} />
       <div className="sage-agent-card" style={{ maxWidth: 520, margin: "40px auto" }}>
         <div className="sage-eyebrow">
           <ShieldCheck size={13} /> Founder console
@@ -141,8 +138,6 @@ function Console({ data }: { data: WorkspaceData }) {
 
   return (
     <main className="sb-shell">
-      <TopBar chainId={data.chainId} />
-
       {/* header */}
       <div className="sage-agent-card" style={{ marginBottom: 14 }}>
         <div className="sage-eyebrow">
@@ -313,23 +308,6 @@ function Console({ data }: { data: WorkspaceData }) {
         per-mission reward, or the completion caps.
       </footer>
     </main>
-  );
-}
-
-function TopBar({ chainId }: { chainId: number }) {
-  return (
-    <header className="sb-top">
-      <Link href="/" className="sb-brand" style={{ textDecoration: "none" }}>
-        <SageMark size={20} /> Sage
-      </Link>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-        <Link href="/dashboard" className="cw-link" style={{ textDecoration: "none" }}>
-          Dashboard
-        </Link>
-        <NetworkChip chainId={chainId} size="xs" />
-        <span className="sb-net"><span className="dot" /> Founder console</span>
-      </span>
-    </header>
   );
 }
 
