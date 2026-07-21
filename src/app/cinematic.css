@@ -153,15 +153,15 @@ html:has(.clx) {
   border: 1px solid var(--accent);
   text-decoration: none;
   transition:
-    transform 0.2s ease,
-    filter 0.2s ease,
-    box-shadow 0.2s ease;
-  box-shadow: 0 8px 22px -10px rgba(20, 22, 26, 0.6);
+    transform var(--dur-1) var(--ease-spring),
+    filter var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+  box-shadow: var(--shadow-cta);
 }
 .clx-cta:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
-  box-shadow: 0 12px 28px -10px rgba(20, 22, 26, 0.66);
+  box-shadow: var(--shadow-cta-hover);
 }
 .clx-cta:active {
   transform: scale(0.98);
@@ -202,7 +202,7 @@ html:has(.clx) {
   top: 0;
   z-index: 60;
   backdrop-filter: saturate(150%) blur(12px);
-  background: rgba(251, 251, 249, 0.82);
+  background: var(--scrim-header);
   border-bottom: 1px solid var(--line);
 }
 .clx-header-in {
@@ -253,7 +253,7 @@ html:has(.clx) {
   font-size: 13.5px;
   color: var(--sec);
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: color var(--dur-1) var(--ease-out);
 }
 .clx-topnav a:hover {
   color: var(--ink);
@@ -363,7 +363,7 @@ html:has(.clx) {
 /* secondary hero link ("Explore live missions") — a subdued text link beside the CTA */
 .clx-hero-alt {
   text-decoration: none;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-1) var(--ease-out);
 }
 .clx-hero-alt:hover {
   opacity: 0.62;
@@ -415,7 +415,7 @@ html:has(.clx) {
   color: var(--paper);
   display: grid;
   place-items: center;
-  box-shadow: 0 20px 50px -20px rgba(26, 29, 33, 0.5);
+  box-shadow: var(--shadow-hero);
 }
 .clx-hero-ph-label {
   position: absolute;
@@ -481,7 +481,7 @@ html:has(.clx) {
   border: 1px solid var(--line-2);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 12px 30px -18px rgba(26, 29, 33, 0.28);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -587,10 +587,10 @@ html:has(.clx) {
   opacity: 0.5;
   transform: translateX(-12px);
   transition:
-    opacity 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
-    transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
-    border-color 0.5s ease,
-    background 0.5s ease;
+    opacity var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out),
+    background var(--dur-2) var(--ease-out);
 }
 .clx-check.state-verified,
 .clx-check.state-blocked {
@@ -669,7 +669,7 @@ html:has(.clx) {
   width: 62px;
   text-align: right;
   flex: none;
-  transition: color 0.4s ease;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .state-verified .clx-check-status {
   color: var(--pos);
@@ -689,7 +689,7 @@ html:has(.clx) {
   border: 1px solid var(--line-2);
   border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 20px 48px -26px rgba(26, 29, 33, 0.3);
+  box-shadow: var(--shadow-float);
 }
 .clx-think-card .sage-assess-head {
   display: flex;
@@ -720,7 +720,7 @@ html:has(.clx) {
 }
 .clx-think-settle:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px -16px rgba(21, 128, 61, 0.45);
+  box-shadow: var(--shadow-ok-glow);
 }
 .clx-think-amt {
   font-size: 15px;
@@ -782,13 +782,13 @@ html:has(.clx) {
     border-color 0.2s ease;
 }
 .clx-receipts.is-in .clx-receipt {
-  animation: clx-rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: clx-rise var(--dur-3) var(--ease-out) both;
   animation-delay: calc(var(--i) * 70ms);
 }
 .clx-receipt:hover {
   transform: translateY(-3px);
   border-color: var(--line-2);
-  box-shadow: 0 16px 34px -18px rgba(26, 29, 33, 0.24);
+  box-shadow: var(--shadow-card-hover);
 }
 .clx-receipt.blocked {
   background: var(--dan-bg);
@@ -906,7 +906,7 @@ html:has(.clx) {
   background: var(--surface);
   color: var(--ink);
   border-color: var(--surface);
-  box-shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-on-dark);
 }
 .clx-cta-invert:hover {
   filter: none;
@@ -1035,7 +1035,10 @@ html:has(.clx) {
   }
   .clx-word,
   .clx-ask,
-  .clx-receipt {
+  .clx-receipt,
+  .clx-hero-sub,
+  .clx-once,
+  .clx-act2-stage .clx-eyebrow {
     opacity: 1 !important;
     transform: none !important;
   }
