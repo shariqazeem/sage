@@ -1,6 +1,7 @@
 import "server-only";
 
 import { runInspectionJob } from "@/lib/launch/job";
+import { getDeputyOverview } from "@/lib/campaigns/overview";
 import {
   opStartInspection,
   opGetInspection,
@@ -110,6 +111,10 @@ export const MCP_TOOLS: McpToolDef[] = [
 export interface McpContext {
   /** Schedule background work after the response — the route wires this to `after()`. */
   scheduleAfter: (fn: () => void | Promise<void>) => void;
+  /** The AUTHENTICATED founder wallet, bound SERVER-SIDE from the session ref (never a tool arg).
+   *  Set only on the web concierge when a SIWE wallet is connected; enables sage_my_campaigns. The
+   *  public MCP never sets it, so an external agent can't read another founder's campaigns. */
+  founderWallet?: string;
 }
 
 export interface ToolResult {
@@ -171,6 +176,45 @@ export async function callSageTool(
       return toolResult(opGetSubmission(asString(args.submissionId)));
     case "sage_get_proof":
       return toolResult(await opGetProof(asString(args.txHash)));
+    case "sage_my_campaigns": {
+      // The founder wallet is the SERVER-BOUND ctx value, NEVER a tool arg — so this can only ever
+      // read the campaigns of the wallet the session is authenticated as.
+      const wallet = ctx.founderWallet;
+      if (!wallet) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                ok: false,
+                error:
+                  "This only works for a founder connected on the web. Ask them to connect their wallet first.",
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      const o = getDeputyOverview(wallet);
+      const summary = {
+        ok: true,
+        wallet: `${wallet.slice(0, 6)}…${wallet.slice(-4)}`,
+        campaignCount: o.campaigns.length,
+        totalReleasedUsd: (o.paidAmountBase / 1_000_000).toFixed(2),
+        totalPayouts: o.totalPaid,
+        submissionsPendingReview: o.totalPending,
+        campaigns: o.campaigns.map((c) => ({
+          id: c.id,
+          title: c.title,
+          status: c.status,
+          rewardUsd: (c.rewardBase / 1_000_000).toFixed(2),
+          submissions: c.submissions,
+          pendingReview: c.pending,
+          paid: c.paid,
+        })),
+      };
+      return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }], isError: false };
+    }
     default:
       return null;
   }

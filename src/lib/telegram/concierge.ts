@@ -87,7 +87,7 @@ STYLE: plain text only — no markdown symbols, no bold. Paste URLs raw; Telegra
 /** P25 — the SINGLE additive paragraph for the web surface. The web agent reuses every steering +
  *  anti-hallucination block above unchanged; this only reframes the channel and the money handoff:
  *  no money tools exist on web, so funding is a hand-off (deep link for a connected wallet, else Telegram). */
-const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspect a product, plan its missions, and answer questions about a campaign, inspection, submission, or proof — but you have NO money tools here: you cannot create a wallet, fund, deploy, approve, or move anything. UNLIKE TELEGRAM, YOU CANNOT PUSH MESSAGES HERE: after you start an inspection, do NOT say you'll "message you when it's ready" — instead say it's building now and they can ask you "is it ready?" in a moment (you'll check it) or check back on this page. When the founder is ready to FUND + LAUNCH, hand off: give them the deploy link https://sagepays.xyz/launch/<inspectionId> (their own connected wallet approves + funds there), and mention they can also do it walletless from Telegram (@sagedeputybot). Never say you funded, deployed, launched, or moved money on the web — you didn't and can't.`;
+const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspect a product, plan its missions, and answer questions about a campaign, inspection, submission, or proof — but you have NO money tools here: you cannot create a wallet, fund, deploy, approve, or move anything. YOU KNOW THE FOUNDER'S OWN CAMPAIGNS: when they ask "how are my campaigns doing?", "anything to review?", or about their campaigns/payouts in general, call sage_my_campaigns (no arguments — it identifies them by their connected wallet) and answer from its real counts; if it says the wallet isn't connected, ask them to connect it. UNLIKE TELEGRAM, YOU CANNOT PUSH MESSAGES HERE: after you start an inspection, do NOT say you'll "message you when it's ready" — instead say it's building now and they can ask you "is it ready?" in a moment (you'll check it) or check back on this page. When the founder is ready to FUND + LAUNCH, hand off: give them the deploy link https://sagepays.xyz/launch/<inspectionId> (their own connected wallet approves + funds there), and mention they can also do it walletless from Telegram (@sagedeputybot). Never say you funded, deployed, launched, or moved money on the web — you didn't and can't.`;
 
 type Surface = "telegram" | "web";
 
@@ -142,7 +142,16 @@ const asOpenAI = (t: { name: string; description: string; inputSchema: unknown }
   type: "function" as const,
   function: { name: t.name, description: t.description, parameters: t.inputSchema },
 });
-const WEB_TOOLS = MCP_TOOLS.map(asOpenAI);
+// P27 — a WEB-ONLY read tool: the founder's own campaigns. Not in the shared MCP registry (so the
+// public /mcp never lists it); the wallet is bound SERVER-SIDE from the session ref (McpContext.
+// founderWallet), never a tool arg, so it can only read the connected founder's own campaigns.
+const MY_CAMPAIGNS_TOOL = {
+  name: "sage_my_campaigns",
+  description:
+    "List THIS founder's own campaigns with live counts — status, reward, submissions, how many are pending review, and total released. Use when the founder asks about 'my campaigns', how they're doing, or whether anything needs their review. No arguments; the founder is identified by their connected wallet.",
+  inputSchema: { type: "object", properties: {} },
+};
+const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL].map(asOpenAI);
 const TG_TOOLS = [...MCP_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
@@ -300,7 +309,11 @@ async function runAgentTurn(
   ];
   const tools = toolsFor(surface);
   const rlKey = `${surface === "telegram" ? "chat" : "web"}:${ref}`;
-  const ctx: McpContext = { scheduleAfter };
+  // The founder wallet is bound from the SERVER-RESOLVED ref (the route's resolveAgentRef), never the
+  // model — so sage_my_campaigns can only ever read the connected founder's own campaigns.
+  const founderWallet =
+    surface === "web" && ref.startsWith("wallet:") ? ref.slice("wallet:".length) : undefined;
+  const ctx: McpContext = { scheduleAfter, founderWallet };
 
   let reply = "";
   try {

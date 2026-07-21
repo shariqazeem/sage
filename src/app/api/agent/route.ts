@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { resolveAgentRef } from "@/lib/auth/agent-session";
+import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
 import {
   runConciergeWeb,
   conciergeEnabled,
@@ -104,4 +105,37 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   return NextResponse.json({ ok: true, reply });
+}
+
+/**
+ * GET /api/agent — this session's persisted conversation, so the web chat survives reloads/visits.
+ * The concierge already stores a trimmed per-ref history; we resolve the ref server-side and return
+ * only the clean user/assistant turns (no tool scaffolding, no system prompt).
+ */
+export async function GET(): Promise<Response> {
+  const ref = await resolveAgentRef();
+  const messages: Array<{ role: "user" | "agent"; content: string }> = [];
+  try {
+    const parsed: unknown = JSON.parse(loadChatMessages(ref));
+    if (Array.isArray(parsed)) {
+      for (const m of parsed) {
+        if (!m || typeof m !== "object") continue;
+        const role = (m as { role?: unknown }).role;
+        const content = (m as { content?: unknown }).content;
+        if (typeof content !== "string" || !content) continue;
+        if (role === "user") messages.push({ role: "user", content });
+        else if (role === "assistant") messages.push({ role: "agent", content });
+      }
+    }
+  } catch {
+    /* no/broken history → empty */
+  }
+  return NextResponse.json({ ok: true, messages });
+}
+
+/** DELETE /api/agent — start a fresh chat: clear this session's persisted history. */
+export async function DELETE(): Promise<Response> {
+  const ref = await resolveAgentRef();
+  saveChatMessages(ref, "[]");
+  return NextResponse.json({ ok: true });
 }

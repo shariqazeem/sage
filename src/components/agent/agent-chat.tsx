@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ArrowUp, ArrowUpRight } from "lucide-react";
+import { ArrowUp, ArrowUpRight, SquarePen } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import "./agent-chat.css";
 
@@ -111,6 +111,7 @@ export function AgentChat() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [pageContext, setPageContext] = useState<{ kind: string; id: string } | undefined>();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -127,6 +128,46 @@ export function AgentChat() {
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // On mount: read an optional page-context (?ctx=campaign:<id>) and load this session's persisted
+  // conversation, so the chat survives reloads/visits (the concierge already stores per-ref history).
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("ctx");
+    if (raw) {
+      const idx = raw.indexOf(":");
+      const kind = idx > 0 ? raw.slice(0, idx) : "";
+      const id = idx > 0 ? raw.slice(idx + 1) : "";
+      if (id && ["campaign", "inspection", "submission", "proof"].includes(kind)) {
+        setPageContext({ kind, id });
+      }
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/agent", { credentials: "same-origin" });
+        const data = (await res.json().catch(() => null)) as
+          | { messages?: Array<{ role: "user" | "agent"; content: string }> }
+          | null;
+        if (!cancelled && data?.messages?.length) {
+          setMessages(
+            data.messages.map((m, i) => ({
+              id: i + 1,
+              role: m.role,
+              text: m.content,
+              ts: Date.now(),
+              streaming: false,
+            })),
+          );
+          nextId.current = data.messages.length + 1;
+        }
+      } catch {
+        /* ignore — start fresh */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -158,7 +199,7 @@ export function AgentChat() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, pageContext: pageContext ?? undefined }),
         });
         const data = (await res.json().catch(() => null)) as
           | { ok?: boolean; reply?: string; error?: string }
@@ -184,8 +225,20 @@ export function AgentChat() {
         setBusy(false);
       }
     },
-    [busy, reduced],
+    [busy, reduced, pageContext],
   );
+
+  const newChat = useCallback(async () => {
+    setMessages([]);
+    setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
+    try {
+      await fetch("/api/agent", { method: "DELETE", credentials: "same-origin" });
+    } catch {
+      /* ignore */
+    }
+    inputRef.current?.focus();
+  }, []);
 
   const onChip = (chip: Chip) => {
     if (chip.send) void sendText(chip.text);
@@ -249,6 +302,15 @@ export function AgentChat() {
           </p>
           {inputBar}
           <div className="ac-chips">
+            {pageContext && (
+              <button
+                className="ac-chip"
+                type="button"
+                onClick={() => void sendText("What's the status here?")}
+              >
+                What&apos;s the status here?
+              </button>
+            )}
             {CHIPS.map((c) => (
               <button key={c.text} className="ac-chip" type="button" onClick={() => onChip(c)}>
                 {c.text}
@@ -258,6 +320,11 @@ export function AgentChat() {
         </div>
       ) : (
         <div className="ac-active">
+          <div className="ac-bar">
+            <button className="ac-newchat" type="button" onClick={() => void newChat()}>
+              <SquarePen size={14} strokeWidth={2} /> New chat
+            </button>
+          </div>
           <div className="ac-scroll" ref={scrollRef}>
             {messages.map((m) => (
               <div key={m.id} className={`ac-msg ${m.role}`}>
