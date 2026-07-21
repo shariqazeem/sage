@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
+import { AgentDock } from "@/components/agent/agent-dock";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,7 +32,10 @@ export default function RootLayout({
     // to <html>; defining them on <body> would leave the root font-family
     // unresolved and fall back to the browser default serif.
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <AgentDock />
+      </body>
     </html>
   );
 }

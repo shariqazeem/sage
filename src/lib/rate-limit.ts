@@ -80,6 +80,10 @@ interface LimiterStore {
   conciergeDaily: RateLimiter;
   /** inspections started / day / chat — each runs the real (paid) inspection pipeline. */
   inspectionDaily: RateLimiter;
+  /** web Agent-mode turns, per session — a per-minute burst cap on the public chat overlay. */
+  agentWeb: RateLimiter;
+  /** web Agent-mode turns / day / session — bounds one browser session's LLM spend (P25). */
+  agentWebDaily: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -106,6 +110,11 @@ function limiters(): LimiterStore {
       ),
       inspectionDaily: new RateLimiter(
         Math.max(1, Number(process.env.INSPECTION_DAILY_CAP) || 3),
+        86_400_000,
+      ),
+      agentWeb: new RateLimiter(12, 60_000), // 12 web Agent-mode turns / min / session
+      agentWebDaily: new RateLimiter(
+        Math.max(1, Number(process.env.AGENT_WEB_DAILY_CAP) || 40),
         86_400_000,
       ),
     };
