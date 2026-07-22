@@ -43,6 +43,7 @@ import {
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
+import { judgeModelGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
 import { mainnetAutopilotEnabled } from "@/lib/env";
@@ -405,6 +406,25 @@ export async function runDeputyOnSubmission(
         return { action: "held", reason: gate.reason, correlationId: cid };
       }
       return { action: "skipped", reason: gate.reason, correlationId: cid };
+    }
+
+    // b2. UNAPPROVED JUDGE MODEL — deterministic, subtract-only. gate.pay is true here; a payout may be
+    // authorized ONLY by a model that PASSED the promotion battery (P-JUDGE + red-team). The ACTUAL model
+    // that decided (brief.model, stamped by callProvider) is checked against the approved allowlist, so a
+    // fallback model, an alias that resolved elsewhere, or missing provenance all fall to MANUAL REVIEW —
+    // even at pay/1.0. The existing gates above are untouched; this can only turn a would-pay into a hold.
+    const modelGate = judgeModelGate(brief, gate.pay);
+    if (modelGate.blocked) {
+      // the REQUESTED primary model, for the audit line (read inline so the pipeline needs no brain import).
+      const requested = process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "default";
+      const reason = `judge_model_unapproved (requested=${requested}, actual=${brief.model ?? "none"}, policy=${MODEL_POLICY_VERSION})`;
+      agentLog(cid, "model_policy", { blocked: modelGate.blocked, requested, actual: brief.model });
+      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+        journalHeld(campaign, submission, reason, cid);
+        void notifyFounderHeld(campaign, submission);
+        return { action: "held", reason, correlationId: cid };
+      }
+      return { action: "skipped", reason, correlationId: cid };
     }
   }
 

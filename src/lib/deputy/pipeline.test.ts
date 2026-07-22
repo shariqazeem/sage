@@ -89,7 +89,7 @@ const submission = {
 
 const payBrief: DecisionBrief = {
   engine: "llm",
-  model: "deepseek/deepseek-v4-flash",
+  model: "google/gemini-3.1-flash-lite-preview",
   provider: "test",
   criteria: [],
   fraudSignals: [],

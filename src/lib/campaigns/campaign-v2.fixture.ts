@@ -123,7 +123,7 @@ export function seedV2Campaign(opts?: {
     submissionId: r.submission.id,
     campaignId: created.id,
     engine: "llm",
-    model: "gemini-3.1-flash-lite-preview",
+    model: "google/gemini-3.1-flash-lite-preview",
     brief: payBrief(),
     contentSha256: "a".repeat(64),
     evidenceOk: true,

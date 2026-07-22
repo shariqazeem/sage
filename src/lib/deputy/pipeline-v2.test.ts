@@ -66,7 +66,7 @@ import type { Campaign } from "@/lib/db/schema";
 function payBriefFor(): DecisionBrief {
   return {
     engine: "llm",
-    model: "gemini-3.1-flash-lite-preview",
+    model: "google/gemini-3.1-flash-lite-preview",
     provider: "api.commonstack.ai",
     criteria: [{ criterion: "the app loads", met: true, confidence: 0.97, quote: "it loads fine" }],
     fraudSignals: [],
@@ -111,6 +111,33 @@ describe("V2 pipeline — an unknown tester is paid via requestPayout, no allowl
     expect(attempt?.commitmentVersion).toBe(2);
     expect(attempt?.amountBase).toBe(f.mission.rewardAmount);
     expect(attempt?.recipient.toLowerCase()).toBe(f.submission.wallet.toLowerCase());
+  });
+
+  it("an UNAPPROVED judge model with a perfect qualifying brief CANNOT pay → held (judge_model_unapproved)", async () => {
+    const f = seedV2Campaign();
+    const calls = { requestPayout: 0 };
+    // qualifies (pay / 0.97 / clean) but was produced by a model NOT on the autopay allowlist (the
+    // fallback deepseek, or an alias) — the deterministic model gate blocks the payout regardless.
+    vi.mocked(ensureDecision).mockResolvedValue({ ...payBriefFor(), model: "deepseek/deepseek-v4-flash" });
+    const deps = { campaignAdapter: makeFakeAdapter(f, { calls }), operatorAddress: () => V2_OPERATOR };
+
+    const r = await runDeputyOnSubmission(f.submission.id, deps);
+
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/judge_model_unapproved/);
+    expect(calls.requestPayout).toBe(0); // never broadcast
+    expect(getSubmission(f.submission.id)?.status).toBe("pending"); // reviewable, not paid
+  });
+
+  it("MISSING model provenance (null) with a qualifying brief also CANNOT pay → held", async () => {
+    const f = seedV2Campaign();
+    const calls = { requestPayout: 0 };
+    vi.mocked(ensureDecision).mockResolvedValue({ ...payBriefFor(), model: null });
+    const deps = { campaignAdapter: makeFakeAdapter(f, { calls }), operatorAddress: () => V2_OPERATOR };
+    const r = await runDeputyOnSubmission(f.submission.id, deps);
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/judge_model_unapproved/);
+    expect(calls.requestPayout).toBe(0);
   });
 
   it("re-firing the pipeline settles EXACTLY once (status guard + durable attempt)", async () => {
@@ -272,7 +299,7 @@ describe("V1 pipeline — still goes through vendor approval (the paths differ)"
       submissionId: sub.submission.id,
       campaignId: campaign.id,
       engine: "llm",
-      model: "gemini",
+      model: "google/gemini-3.1-flash-lite-preview",
       brief: payBriefFor(),
       contentSha256: "a".repeat(64),
       evidenceOk: true,

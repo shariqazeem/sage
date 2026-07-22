@@ -139,7 +139,7 @@ function seedInconsistentV2(opts?: { withDecision?: boolean; hashSourceId?: stri
       submissionId: r.submission.id,
       campaignId: created.id,
       engine: "llm",
-      model: "gemini",
+      model: "google/gemini-3.1-flash-lite-preview",
       brief: payBrief(),
       contentSha256: "a".repeat(64),
       evidenceOk: true,
@@ -165,7 +165,7 @@ function seedInconsistentV2(opts?: { withDecision?: boolean; hashSourceId?: stri
 const payDecisionBrief: DecisionBrief = {
   ...payBrief(),
   engine: "llm",
-  model: "gemini",
+  model: "google/gemini-3.1-flash-lite-preview",
   evidenceOk: true,
   contentSha256: "a".repeat(64),
   latencyMs: 1000,
