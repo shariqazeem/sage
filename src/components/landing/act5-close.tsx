@@ -31,7 +31,7 @@ export function Act5Close({
         </p>
 
         <div className="clx-close-actions">
-          <Link href="/launch" className="clx-cta clx-cta-invert">
+          <Link href="/dashboard" className="clx-cta clx-cta-invert">
             Launch a testing campaign <ArrowRight size={16} strokeWidth={2.4} />
           </Link>
         </div>

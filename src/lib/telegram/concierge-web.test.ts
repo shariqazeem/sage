@@ -131,14 +131,31 @@ describe("web Agent mode — clientRef is forced server-side", () => {
       }),
       textTurn("Started — I'll have your plan shortly."),
     );
-    const ref = "anon:sessionA";
+    const ref = "wallet:0xAbC0000000000000000000000000000000000123";
     const reply = await runConciergeWeb(ref, "test https://example.com, budget $10", noop);
 
     expect(h.callSageTool).toHaveBeenCalledTimes(1);
     const [name, args] = h.callSageTool.mock.calls[0] as unknown as [string, Record<string, unknown>];
     expect(name).toBe("sage_start_inspection");
     expect(args.clientRef).toBe(ref); // forced, not "anon:ATTACKER"
+    // the inspection is bound to the CONNECTED wallet (server-side), so the founder owns + can fund it
+    expect(args.founderOverride).toBe("0xabc0000000000000000000000000000000000123");
     expect(reply).toContain("plan");
+  });
+});
+
+describe("web Agent mode — launching requires a connected wallet", () => {
+  it("refuses to start an inspection for an anon (no-wallet) web session", async () => {
+    script.push(
+      toolTurn("sage_start_inspection", { productUrl: "https://x.com", goal: "g", budgetUsd: 5 }),
+      textTurn("Connect your wallet to launch."),
+    );
+    await runConciergeWeb("anon:noWallet", "test https://x.com, budget $5", noop);
+
+    expect(h.callSageTool).not.toHaveBeenCalled();
+    const round2 = fetchCalls[1].messages as Array<{ role: string; content?: string }>;
+    const toolResult = round2.find((m) => m.role === "tool");
+    expect(toolResult?.content ?? "").toMatch(/connect their wallet/i);
   });
 });
 
@@ -168,7 +185,7 @@ describe("web Agent mode — money tools are unreachable", () => {
 
 describe("web Agent mode — inspection cap holds", () => {
   it("refuses sage_start_inspection once the per-session daily inspection cap is spent", async () => {
-    const ref = "anon:capSession";
+    const ref = "wallet:0xca900000000000000000000000000000000000001"; // connected → passes the wallet gate
     const rlKey = `web:${ref}`;
     // Spend the default cap (INSPECTION_DAILY_CAP=3) so the turn's attempt is over the line.
     for (let i = 0; i < 3; i++) rateLimit("inspectionDaily", rlKey);

@@ -114,7 +114,7 @@ export function Act1Hero({
               Start for free{" "}
               <ArrowRight size={16} strokeWidth={2.4} />
             </a>
-            <Link href="/launch" className="clx-cta clx-cta-2">
+            <Link href="/dashboard" className="clx-cta clx-cta-2">
               Launch a campaign
             </Link>
             <Link href="/c/founding-testers" className="clx-trust clx-mono clx-hero-alt">

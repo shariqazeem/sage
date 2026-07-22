@@ -153,6 +153,7 @@ export async function callSageTool(
           repoUrl: args.repoUrl,
         },
         args.clientRef,
+        typeof args.founderOverride === "string" ? args.founderOverride : undefined,
       );
       if (r.ok && r.created) {
         const jobId = r.inspectionId;

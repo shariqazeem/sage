@@ -54,7 +54,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
             <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
             <Link href="/dashboard">Dashboard</Link>
-            <Link href="/launch" className="clx-cta clx-cta-sm">
+            <Link href="/dashboard" className="clx-cta clx-cta-sm">
               Launch a campaign
             </Link>
           </nav>
@@ -99,7 +99,7 @@ export function CinematicLanding({ vault, history, network, hasHero, receipt, no
             <a href="#how">How it works</a>
             <a href="#proof">Proof</a>
             <Link href="/dashboard">Dashboard</Link>
-            <Link href="/launch">Launch a campaign</Link>
+            <Link href="/dashboard">Launch a campaign</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>
         </div>

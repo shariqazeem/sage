@@ -336,7 +336,28 @@ async function runAgentTurn(
           }
           // FORCE-BIND the inspection to THIS session server-side — never trust the model to pass its
           // own clientRef (a null/forged one would collapse idempotency + break session linkage).
-          if (tc.function.name === "sage_start_inspection") args.clientRef = ref;
+          if (tc.function.name === "sage_start_inspection") {
+            args.clientRef = ref;
+            // WEB: launching is a founder action. Bind the inspection to the CONNECTED wallet so the
+            // founder can approve + fund their own plan (the deploy checks ownership against the SIWE
+            // wallet). Without a wallet, don't create an orphan inspection nobody can fund — ask them
+            // to connect. (founderOverride is set server-side, never from the model.)
+            if (surface === "web") {
+              if (!ctx.founderWallet) {
+                messages.push({
+                  role: "tool",
+                  tool_call_id: tc.id,
+                  content: JSON.stringify({
+                    ok: false,
+                    error:
+                      "To launch a campaign, the founder needs to connect their wallet first (the wallet button in the sidebar). Ask them to connect it, then start the inspection — that way they can approve and fund the plan they own.",
+                  }),
+                });
+                continue;
+              }
+              args.founderOverride = ctx.founderWallet.toLowerCase();
+            }
+          }
 
           // DEFENSE-IN-DEPTH: money tools NEVER run on web. They aren't in WEB_TOOLS (the model can't
           // pick one), but if a name ever leaks through, refuse — the web surface cannot move money.

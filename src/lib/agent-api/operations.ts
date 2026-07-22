@@ -66,6 +66,7 @@ function slugRef(s: unknown): string {
 export function opStartInspection(
   body: StartInspectionBody,
   clientRef: unknown,
+  founderOverride?: string,
 ): OpResult<StartInspectionOk> {
   const result = startInspection({
     productUrl: body.productUrl,
@@ -73,7 +74,10 @@ export function opStartInspection(
     goal: body.goal,
     targetUsers: body.targetUsers,
     budgetUsd: body.budgetUsd,
-    founder: `clawup:${slugRef(clientRef)}`,
+    // The founder OWNS the inspection (the deploy checks it against the SIWE wallet). On the web the
+    // concierge passes the connected wallet here so the founder can approve + fund their own plan;
+    // Telegram/MCP fall back to the clientRef namespace (they fund a different way).
+    founder: founderOverride ?? `clawup:${slugRef(clientRef)}`,
   });
   if (!result.ok) return { ok: false, error: result.error, status: 400 };
 
