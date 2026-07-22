@@ -46,12 +46,40 @@ const LLM_ATTEMPTS = 3;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** A resolved LLM endpoint the brain can call. */
-interface LlmProvider {
+export interface LlmProvider {
   endpoint: string;
   key: string;
   model: string;
   /** the provider host, recorded on the brief's `provider` (e.g. "api.commonstack.ai"). */
   host: string;
+}
+
+/**
+ * Evaluation-only injection for {@link verifySubmission}. When omitted (production), the brain resolves
+ * its provider chain from the environment exactly as before — every field here is opt-in and defaults to
+ * the current behavior, so a plain `verifySubmission(input)` call is byte-identical to pre-seam code.
+ * This lets P-JUDGE drive the REAL production judgment path (prompt → parse → enforceQuotes → hardenBrief
+ * → the provenance-stamped brief) against a CHOSEN model, and lets the fault-injection tests simulate a
+ * timeout / refusal / truncation / fallback deterministically — with NO copied logic to drift.
+ */
+export interface VerifyOptions {
+  /** Force the PRIMARY provider (skip env resolution). `null` = no primary (test the no-LLM path). */
+  provider?: LlmProvider | null;
+  /** Force the FALLBACK provider. `null` = no fallback. */
+  fallback?: LlmProvider | null;
+  /** Inject fetch (fault-injection tests). Production uses the global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Build a PRIMARY provider that judges with a specific `model` on the configured base + key — the seam
+ * P-JUDGE uses to bake off a candidate model through the exact production call. Returns null when no
+ * primary key is configured. Omit `model` to get the env-resolved primary unchanged.
+ */
+export function providerForModel(model?: string): LlmProvider | null {
+  const p = primaryProvider();
+  if (!p) return null;
+  return model?.trim() ? { ...p, model: model.trim() } : p;
 }
 
 /** Host of a URL for the brief's `provider` field; falls back to the raw string. */
@@ -140,11 +168,12 @@ async function callProvider(
   p: LlmProvider,
   input: BrainInput,
   started: number,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<DecisionBrief> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
   try {
-    const res = await fetch(p.endpoint, {
+    const res = await fetchImpl(p.endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${p.key}`,
@@ -207,8 +236,11 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * honest HEURISTIC. A fallback success is still engine "llm" (it can auto-pay);
  * only the heuristic can never auto-pay.
  */
-export async function verifySubmission(input: BrainInput): Promise<DecisionBrief> {
-  const primary = primaryProvider();
+export async function verifySubmission(input: BrainInput, opts: VerifyOptions = {}): Promise<DecisionBrief> {
+  // Production: undefined → env resolution (byte-identical to before). Eval: an explicit provider (or an
+  // explicit `null` to test the no-LLM degrade). `fetchImpl` defaults to the global fetch.
+  const primary = opts.provider !== undefined ? opts.provider : primaryProvider();
+  const fetchImpl = opts.fetchImpl ?? fetch;
   if (!primary) return hardenBrief(heuristicFallback(input, null), input);
 
   const started = Date.now();
@@ -218,7 +250,7 @@ export async function verifySubmission(input: BrainInput): Promise<DecisionBrief
   //    keeps autopilot on the verified LLM path instead of the heuristic.
   for (let attempt = 1; attempt <= LLM_ATTEMPTS; attempt++) {
     try {
-      return await callProvider(primary, input, started);
+      return await callProvider(primary, input, started, fetchImpl);
     } catch (err) {
       console.error(
         `[deputy/brain] primary ${primary.host} attempt ${attempt}/${LLM_ATTEMPTS} failed:`,
@@ -231,10 +263,10 @@ export async function verifySubmission(input: BrainInput): Promise<DecisionBrief
   // 2) FALLBACK — one shot on a DIFFERENT provider. Demo-day insurance: a primary
   //    outage still yields a verified LLM brief instead of silently degrading to
   //    the heuristic (which can never auto-pay), so the hero moment survives.
-  const fallback = fallbackProvider();
+  const fallback = opts.fallback !== undefined ? opts.fallback : fallbackProvider();
   if (fallback) {
     try {
-      const brief = await callProvider(fallback, input, started);
+      const brief = await callProvider(fallback, input, started, fetchImpl);
       console.warn(
         `[deputy/brain] primary exhausted — failed over to ${fallback.host} (${fallback.model})`,
       );
