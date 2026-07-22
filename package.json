@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:browser-security": "RENDER_BROWSER_TEST=1 vitest run src/lib/deputy/evidence-render.browser.test.ts src/lib/net/egress-proxy.test.ts src/lib/net/ip-classify.test.ts",
+    "test:field-egress": "FIELD_TEST_ENABLED=1 vitest run src/lib/launch/field-test.test.ts",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",
