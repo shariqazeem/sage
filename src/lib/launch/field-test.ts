@@ -20,6 +20,7 @@ import { promises as fs } from "node:fs";
 import type { BrowserContext, Page, Route } from "playwright";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
 import { resolvesPublic } from "./inspect";
+import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import type {
   FieldTestForm,
@@ -327,6 +328,12 @@ export interface FieldTestDeps {
   allowUrl?: (url: string) => { allow: boolean; reason: string };
   /** default: <cwd>/public. Tests point this at a tmp dir. */
   publicDir?: string;
+  /** TEST-ONLY: exact "host:port" destinations the egress proxy may reach despite being loopback. */
+  egressAllowLoopback?: ReadonlySet<string>;
+  /** TEST-ONLY: extra proxy destination ports (local fixtures use random ports). */
+  egressAllowedPorts?: ReadonlySet<number>;
+  /** TEST-ONLY: proxy DNS override (simulate rebinding / mixed records). */
+  egressLookup?: (host: string) => Promise<{ address: string; family: number }[]>;
 }
 
 /**
@@ -390,11 +397,18 @@ export async function runFieldTest(
     .slice(0, MAX_PAGES);
 
   const artifactDir = path.join(publicDir, "field-tests", opts.inspectionId);
+  // AUTHORITATIVE egress boundary — every browser request exits through this local proxy, which resolves +
+  // validates + pins each destination (defeats DNS-rebinding/TOCTOU). Production allowlists nothing.
+  const proxy = await startEgressProxy({
+    allowLoopback: deps.egressAllowLoopback,
+    allowedPorts: deps.egressAllowedPorts,
+    lookup: deps.egressLookup,
+  });
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   let context: BrowserContext | null = null;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, proxy: { server: proxy.url }, args: proxy.chromiumArgs });
     context = await browser.newContext({
       userAgent: "SageFieldTest/1.0 (+read-only product field test)",
       viewport: { width: 1280, height: 800 },
@@ -424,7 +438,9 @@ export async function runFieldTest(
         /* history not writable — skip */
       }
     });
-    // Request interception: block non-http(s) schemes + any host failing the public-host check.
+    // DEFENSE-IN-DEPTH page-level guard (the egress proxy is the authoritative boundary): an early abort
+    // for obviously-bad schemes/hosts. A plain route.continue() is safe — every request the browser makes,
+    // redirect hops included, still exits through the proxy, which resolves + validates + pins it.
     await context.route("**/*", async (route: Route) => {
       const url = route.request().url();
       if (!allowUrl(url).allow) return void route.abort().catch(() => {});
@@ -577,6 +593,7 @@ export async function runFieldTest(
   } finally {
     await context?.close().catch(() => {});
     await browser?.close().catch(() => {});
+    await proxy.close().catch(() => {});
   }
 }
 

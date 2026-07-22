@@ -19,6 +19,7 @@ const LIVE = process.env.RENDER_BROWSER_TEST === "1";
 
 interface Fixture {
   origin: string;
+  port: number;
   url: (p?: string) => string;
   hits: () => number;
   reset: () => void;
@@ -38,6 +39,7 @@ async function startFixture(initial: http.RequestListener): Promise<Fixture> {
   const origin = `http://127.0.0.1:${port}`;
   return {
     origin,
+    port,
     url: (p = "/") => origin + p,
     hits: () => hits,
     reset: () => { hits = 0; },
@@ -62,14 +64,17 @@ function browserProcs(): number {
 
 let evidence: Fixture;
 let internal: Fixture;
-let allow: ReadonlySet<string>;
+let hooks: { allowOrigins: ReadonlySet<string>; egressAllowedPorts: ReadonlySet<number>; egressLookup?: (h: string) => Promise<{ address: string; family: number }[]> };
 let baselineProcs = 0;
 
-describe.runIf(LIVE)("evidence renderer — real browser security", () => {
+describe.runIf(LIVE)("evidence renderer — real browser security (egress boundary)", () => {
   beforeAll(async () => {
     evidence = await startFixture(html("<h1>evidence</h1>"));
     internal = await startFixture((_req, res) => { res.writeHead(200); res.end("INTERNAL SECRET DATA"); });
-    allow = new Set([evidence.origin]); // ONLY the evidence origin is bypassed; internal stays guarded
+    // Only the evidence origin is allowlisted at the proxy. internal's port is made *reachable in principle*
+    // (in egressAllowedPorts) so that when internal is refused, the refusal is proven to come from the IP
+    // guard — not from a port coincidence. internal is never allowlisted, so the proxy must always block it.
+    hooks = { allowOrigins: new Set([evidence.origin]), egressAllowedPorts: new Set([80, 443, evidence.port, internal.port]) };
     baselineProcs = browserProcs();
     console.log(`[browser-procs] baseline (before any render) = ${baselineProcs}`);
   }, 60_000);
@@ -89,7 +94,7 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
 
   it("a clean page renders its visible text (baseline)", async () => {
     evidence.setHandler(html("<h1>Hello Evidence</h1><p>Visible tester text.</p>"));
-    const r = await renderEvidence(evidence.url("/simple"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/simple"), hooks);
     expect(r.outcome).toBe("ok");
     expect(r.text).toContain("Hello Evidence");
     expect(browserProcs()).toBeLessThanOrEqual(baselineProcs); // browser closed after success
@@ -98,7 +103,7 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
   it("private-IP subresource is BLOCKED (internal service never hit)", async () => {
     internal.reset();
     evidence.setHandler(html(`PARENT PAGE<img src="${internal.origin}/pixel"><script>fetch("${internal.origin}/data").catch(()=>{});new Image().src="${internal.origin}/beacon";</script>`));
-    const r = await renderEvidence(evidence.url("/subresource"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/subresource"), hooks);
     expect(r.text).toContain("PARENT PAGE"); // the page still renders...
     expect(internal.hits(), "the guard must abort every subresource to the internal origin").toBe(0); // ...but never reaches internal
   }, 40_000);
@@ -109,14 +114,44 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
       res.writeHead(302, { location: `${internal.origin}/secret` });
       res.end();
     });
-    const r = await renderEvidence(evidence.url("/redirect"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/redirect"), hooks);
     expect(internal.hits(), "the guard must block a redirect into the internal origin").toBe(0);
     expect(r.text).toBeNull(); // nothing captured — the redirect target was refused
   }, 40_000);
 
+  it("a REDIRECT CHAIN evidence→evidence→private is blocked at the private hop (internal never hit)", async () => {
+    internal.reset();
+    evidence.setHandler((req, res) => {
+      if (req.url === "/hop2") { res.writeHead(302, { location: `${internal.origin}/secret` }); return void res.end(); }
+      res.writeHead(302, { location: "/hop2" });
+      res.end();
+    });
+    await renderEvidence(evidence.url("/chain"), hooks);
+    expect(internal.hits(), "each redirect hop is re-validated by the proxy; the private hop is refused").toBe(0);
+  }, 40_000);
+
+  it("DNS REBINDING: a hostname that resolves (via the proxy) to internal loopback is blocked", async () => {
+    internal.reset();
+    // the proxy resolves every host itself; here the injected resolver maps the attacker host to internal's
+    // loopback address. The proxy validates the RESOLVED address and refuses — the browser never connects.
+    const rebindHooks = { ...hooks, egressLookup: async (h: string) => (h === "rebind.attacker.test" ? [{ address: "127.0.0.1", family: 4 }] : []) };
+    evidence.setHandler(html(`REBIND PARENT<script>fetch("http://rebind.attacker.test:${internal.port}/steal").catch(()=>{});</script>`));
+    const r = await renderEvidence(evidence.url("/rebind"), rebindHooks);
+    expect(r.text).toContain("REBIND PARENT");
+    expect(internal.hits(), "the proxy must refuse a host that resolves to a private address").toBe(0);
+  }, 40_000);
+
+  it("a WebSocket to the internal service is blocked (WS egress goes through the proxy)", async () => {
+    internal.reset();
+    evidence.setHandler(html(`WS PARENT<script>try{const w=new WebSocket("ws://127.0.0.1:${internal.port}/");w.onopen=()=>w.send("x");}catch(e){}</script>`));
+    const r = await renderEvidence(evidence.url("/ws"), hooks);
+    expect(r.text).toContain("WS PARENT");
+    expect(internal.hits(), "a WebSocket handshake to a non-allowlisted loopback port must be refused").toBe(0);
+  }, 40_000);
+
   it("a popup / second tab is CLOSED (no OAuth dance, no leak)", async () => {
     evidence.setHandler(html(`PARENT<script>window.open("${evidence.origin}/other","_blank");window.open("about:blank");</script>`));
-    const r = await renderEvidence(evidence.url("/popup"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/popup"), hooks);
     expect(r.text).toContain("PARENT"); // the parent renders; popups were closed, not followed
   }, 40_000);
 
@@ -128,20 +163,20 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
       }
       html(`DOWNLOAD PAGE<script>const a=document.createElement("a");a.href="/file";a.download="eve.bin";document.body.appendChild(a);a.click();</script>`)(req, res);
     });
-    const r = await renderEvidence(evidence.url("/download"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/download"), hooks);
     expect(r.text).toContain("DOWNLOAD PAGE"); // render survived; the download was cancelled by the context
   }, 40_000);
 
   it("delayed DOM (injected < settle window) IS captured", async () => {
     evidence.setHandler(html(`<div id="x">loading</div><script>setTimeout(()=>{document.getElementById("x").textContent="DELAYED CONTENT SHOWN"},1000)</script>`));
-    const r = await renderEvidence(evidence.url("/delayed"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/delayed"), hooks);
     expect(r.text).toContain("DELAYED CONTENT SHOWN");
   }, 40_000);
 
   it("oversized innerText is CAPPED at MAX_TEXT_CHARS", async () => {
     const huge = "A".repeat(400_000);
     evidence.setHandler(html(`<div>${huge}</div>`));
-    const r = await renderEvidence(evidence.url("/huge"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/huge"), hooks);
     expect(r.text).not.toBeNull();
     expect(r.text!.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
   }, 40_000);
@@ -154,8 +189,8 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
       try{localStorage.setItem("k","1")}catch(e){}; document.cookie="k=1";
       document.getElementById("o").textContent = seen;
     </script>`));
-    const a = await renderEvidence(evidence.url("/persist"), { allowOrigins: allow });
-    const b = await renderEvidence(evidence.url("/persist"), { allowOrigins: allow });
+    const a = await renderEvidence(evidence.url("/persist"), hooks);
+    const b = await renderEvidence(evidence.url("/persist"), hooks);
     expect(a.text).toContain("FRESH");
     expect(b.text, "a second render must not see the first render's cookies/localStorage").toContain("FRESH");
   }, 60_000);
@@ -171,8 +206,8 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
           document.getElementById("o").textContent = navigator.serviceWorker.controller ? "CONTROLLED" : "NOCONTROL"; })();
       </script>`)(req, res);
     });
-    const a = await renderEvidence(evidence.url("/sw"), { allowOrigins: allow });
-    const b = await renderEvidence(evidence.url("/sw"), { allowOrigins: allow });
+    const a = await renderEvidence(evidence.url("/sw"), hooks);
+    const b = await renderEvidence(evidence.url("/sw"), hooks);
     expect(a.text).toContain("NOCONTROL");
     expect(b.text, "a service worker from render A must not control render B").toContain("NOCONTROL");
   }, 60_000);
@@ -180,7 +215,7 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
   it("an endless connection does NOT hang — returns within the cap", async () => {
     evidence.setHandler(() => { /* never respond: hold the socket open */ });
     const t0 = Date.now();
-    const r = await renderEvidence(evidence.url("/hang"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/hang"), hooks);
     const elapsed = Date.now() - t0;
     expect(r.text).toBeNull();
     expect(["timeout", "nav_failed"]).toContain(r.outcome);
@@ -190,9 +225,9 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
 
   it("a connection reset mid-load → returns null, browser closed (no leak, no crash)", async () => {
     evidence.setHandler((req) => { req.socket.destroy(); });
-    const r = await renderEvidence(evidence.url("/reset"), { allowOrigins: allow });
+    const r = await renderEvidence(evidence.url("/reset"), hooks);
     expect(r.text).toBeNull();
-    expect(["nav_failed", "error", "timeout"]).toContain(r.outcome);
+    expect(["nav_failed", "error", "timeout", "empty"]).toContain(r.outcome); // proxy 502 → empty page
     expect(browserProcs()).toBeLessThanOrEqual(baselineProcs); // browser closed after exception
   }, 45_000);
 
@@ -200,7 +235,7 @@ describe.runIf(LIVE)("evidence renderer — real browser security", () => {
     // internal.origin is loopback and NOT in allowOrigins → the production guard blocks it at the entry,
     // proving the test bypass is per-origin, not a blanket loopback allowance.
     internal.reset();
-    const r = await renderEvidence(internal.url("/direct"), { allowOrigins: allow });
+    const r = await renderEvidence(internal.url("/direct"), hooks);
     expect(r.outcome).toBe("guard_block");
     expect(internal.hits()).toBe(0);
   }, 20_000);

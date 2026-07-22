@@ -27,6 +27,7 @@ import "server-only";
  */
 import { requestGuard } from "@/lib/launch/field-test";
 import { resolvesPublic } from "@/lib/launch/inspect";
+import { startEgressProxy } from "@/lib/net/egress-proxy";
 
 const NAV_MS = 15_000; // per-navigation budget
 const SETTLE_MS = 2_500; // fixed hydration settle AFTER load (networkidle alone is unreliable on SPAs)
@@ -46,6 +47,10 @@ export const RENDERER_VERSION = "render-v1";
  */
 export interface RenderTestHooks {
   allowOrigins?: ReadonlySet<string>;
+  /** TEST-ONLY DNS override handed to the egress proxy (simulate rebinding / mixed records). */
+  egressLookup?: (host: string) => Promise<{ address: string; family: number }[]>;
+  /** TEST-ONLY: extra destination ports the egress proxy may reach (fixtures run on random ports). */
+  egressAllowedPorts?: ReadonlySet<number>;
 }
 
 export type RenderedEvidenceMode = "off" | "shadow" | "enforce";
@@ -112,6 +117,28 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
     return ok;
   };
 
+  // AUTHORITATIVE egress boundary: every browser request (nav, redirect, subresource, WebSocket, worker,
+  // beacon) is forced through this local proxy, which resolves + validates + pins each destination itself
+  // (closing the DNS-rebinding / TOCTOU window a page-level guard leaves open). In production nothing is
+  // allowlisted, so loopback + private targets are always refused. In tests the fixture origins are
+  // allowlisted and an injected resolver simulates malicious DNS.
+  const allowLoopback = new Set<string>();
+  if (testHooks?.allowOrigins) {
+    for (const o of testHooks.allowOrigins) {
+      try {
+        const u = new URL(o);
+        allowLoopback.add(`${u.hostname}:${u.port || (u.protocol === "https:" ? 443 : 80)}`);
+      } catch {
+        /* skip an unparseable test origin */
+      }
+    }
+  }
+  const proxy = await startEgressProxy({
+    allowLoopback,
+    lookup: testHooks?.egressLookup,
+    allowedPorts: testHooks?.egressAllowedPorts,
+  });
+
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   let timedOut = false;
   const hardTimer = setTimeout(() => {
@@ -119,7 +146,7 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
     void browser?.close().catch(() => {});
   }, TOTAL_MS);
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, proxy: { server: proxy.url }, args: proxy.chromiumArgs });
     const context = await browser.newContext({
       userAgent: "SageDeputy/1.0 (+evidence-verification, read-only)",
       viewport: { width: 1280, height: 800 },
@@ -137,37 +164,12 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
       }
       return publicHostCached(h);
     };
+    // DEFENSE-IN-DEPTH page-level guard (the egress proxy is the authoritative boundary). A plain
+    // route.continue() is safe now: a request the browser follows — including a redirect hop — still exits
+    // through the proxy, which resolves + validates + pins it, so there is no unguarded egress here.
     await context.route("**/*", async (route) => {
-      const first = route.request().url();
-      if (!(await guardOk(first))) return void route.abort().catch(() => {});
-      // Follow redirects MANUALLY, re-guarding every hop. A server-side 3xx is a real SSRF vector: neither
-      // route.continue() nor a fulfilled redirect re-fires this handler for the hop, so the browser would
-      // follow a 302 into a PRIVATE host (cloud metadata, an internal service) unguarded. We instead fetch
-      // with maxRedirects:0 and validate each Location against the SAME guard before fetching it — private
-      // targets are aborted before any connection. A chain that never resolves (or exceeds the cap) is
-      // refused rather than handed to the browser to follow.
-      try {
-        let target = first;
-        let response = await route.fetch({ maxRedirects: 0 });
-        for (let hop = 0; hop < 6 && response.status() >= 300 && response.status() < 400; hop++) {
-          const loc = response.headers()["location"];
-          if (!loc) break;
-          let next: string;
-          try {
-            next = new URL(loc, target).toString();
-          } catch {
-            return void route.abort().catch(() => {});
-          }
-          if (!(await guardOk(next))) return void route.abort().catch(() => {});
-          target = next;
-          response = await route.fetch({ url: next, maxRedirects: 0 });
-        }
-        // Still a redirect after the cap → refuse rather than let the browser follow an unvalidated hop.
-        if (response.status() >= 300 && response.status() < 400) return void route.abort().catch(() => {});
-        return void route.fulfill({ response }).catch(() => {});
-      } catch {
-        return void route.abort().catch(() => {});
-      }
+      if (await guardOk(route.request().url())) return void route.continue().catch(() => {});
+      return void route.abort().catch(() => {});
     });
     const page = await context.newPage();
     page.on("download", (d) => void d.cancel().catch(() => {})); // refuse downloads
@@ -191,5 +193,6 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
   } finally {
     clearTimeout(hardTimer);
     await browser?.close().catch(() => {});
+    await proxy.close().catch(() => {});
   }
 }

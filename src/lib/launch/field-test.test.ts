@@ -418,8 +418,15 @@ const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
     try {
       const summary = await runFieldTest(
         { inspectionId: "itest", startUrl, host: `127.0.0.1:${port}`, candidateLinks: [] },
-        // Inject permissive guards so the loopback fixture is allowed (prod uses the real SSRF guards).
-        { isPublicHost: async () => true, allowUrl: () => ({ allow: true, reason: "test" }), publicDir },
+        // Inject permissive guards + allowlist the loopback fixture at the egress proxy (prod allowlists
+        // nothing, so loopback is always refused there).
+        {
+          isPublicHost: async () => true,
+          allowUrl: () => ({ allow: true, reason: "test" }),
+          publicDir,
+          egressAllowLoopback: new Set([`127.0.0.1:${port}`]),
+          egressAllowedPorts: new Set([port]),
+        },
       );
 
       if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
@@ -494,7 +501,13 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
     try {
       const summary = await runFieldTest(
         { inspectionId: "gtest", startUrl, host: `127.0.0.1:${port}`, candidateLinks: [] },
-        { isPublicHost: async () => true, allowUrl: () => ({ allow: true, reason: "test" }), publicDir },
+        {
+          isPublicHost: async () => true,
+          allowUrl: () => ({ allow: true, reason: "test" }),
+          publicDir,
+          egressAllowLoopback: new Set([`127.0.0.1:${port}`]),
+          egressAllowedPorts: new Set([port]),
+        },
       );
 
       if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
@@ -563,7 +576,13 @@ const WORLD_FIXTURE = `<!doctype html><html><head><title>Fixture World</title></
     try {
       const summary = await runFieldTest(
         { inspectionId: "wtest", startUrl, host: `127.0.0.1:${port}`, candidateLinks: [] },
-        { isPublicHost: async () => true, allowUrl: () => ({ allow: true, reason: "test" }), publicDir },
+        {
+          isPublicHost: async () => true,
+          allowUrl: () => ({ allow: true, reason: "test" }),
+          publicDir,
+          egressAllowLoopback: new Set([`127.0.0.1:${port}`]),
+          egressAllowedPorts: new Set([port]),
+        },
       );
 
       if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
