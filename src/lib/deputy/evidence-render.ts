@@ -31,7 +31,22 @@ import { resolvesPublic } from "@/lib/launch/inspect";
 const NAV_MS = 15_000; // per-navigation budget
 const SETTLE_MS = 2_500; // fixed hydration settle AFTER load (networkidle alone is unreliable on SPAs)
 const TOTAL_MS = 28_000; // hard cap on the whole render
+/** Hard cap on captured innerText: a malicious page can render megabytes of text; bound what crosses the
+ *  CDP bridge into our process and what can ever reach the judge (the same bound static evidence gets). */
+export const MAX_TEXT_CHARS = 100_000;
 export const RENDERER_VERSION = "render-v1";
+
+/**
+ * TEST-ONLY injection. Not reachable through production configuration or any environment variable —
+ * production calls `renderEvidence(url)` with no hooks, so the guard + public-DNS check apply to every
+ * request exactly as before. An integration test passes `allowOrigins` so it can serve fixtures on
+ * loopback (which the production guard correctly refuses) WITHOUT weakening that guard: only the exact
+ * listed origins bypass it; every other origin — including a DIFFERENT loopback port — still goes through
+ * the unmodified `requestGuard` + `resolvesPublic`.
+ */
+export interface RenderTestHooks {
+  allowOrigins?: ReadonlySet<string>;
+}
 
 export type RenderedEvidenceMode = "off" | "shadow" | "enforce";
 
@@ -68,8 +83,18 @@ export interface RenderResult {
  * Render a single evidence URL in a guarded headless browser. Same-origin is NOT required (evidence can
  * be on any public host), but the entry AND every subresource must pass `requestGuard` + resolve public.
  */
-export async function renderEvidence(rawUrl: string): Promise<RenderResult> {
-  if (!requestGuard(rawUrl).allow) return { text: null, outcome: "guard_block", finalUrl: null };
+export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks): Promise<RenderResult> {
+  // TEST-ONLY loopback bypass (empty in production → no effect). Only exact listed origins skip the guard.
+  const bypassOrigin = (url: string): boolean => {
+    const origins = testHooks?.allowOrigins;
+    if (!origins || origins.size === 0) return false;
+    try {
+      return origins.has(new URL(url).origin);
+    } catch {
+      return false;
+    }
+  };
+  if (!bypassOrigin(rawUrl) && !requestGuard(rawUrl).allow) return { text: null, outcome: "guard_block", finalUrl: null };
 
   let chromium: typeof import("playwright").chromium;
   try {
@@ -100,18 +125,49 @@ export async function renderEvidence(rawUrl: string): Promise<RenderResult> {
       viewport: { width: 1280, height: 800 },
       acceptDownloads: false,
     });
-    // The adversarial-browser guard — byte-for-byte the Field Test's interceptor.
-    await context.route("**/*", async (route) => {
-      const url = route.request().url();
-      if (!requestGuard(url).allow) return void route.abort().catch(() => {});
+    // The adversarial-browser guard — the Field Test's interceptor, hardened against redirect SSRF.
+    const guardOk = async (url: string): Promise<boolean> => {
+      if (bypassOrigin(url)) return true; // TEST-ONLY fixture origin (empty in production)
+      if (!requestGuard(url).allow) return false;
       let h: string;
       try {
         h = new URL(url).hostname;
       } catch {
+        return false;
+      }
+      return publicHostCached(h);
+    };
+    await context.route("**/*", async (route) => {
+      const first = route.request().url();
+      if (!(await guardOk(first))) return void route.abort().catch(() => {});
+      // Follow redirects MANUALLY, re-guarding every hop. A server-side 3xx is a real SSRF vector: neither
+      // route.continue() nor a fulfilled redirect re-fires this handler for the hop, so the browser would
+      // follow a 302 into a PRIVATE host (cloud metadata, an internal service) unguarded. We instead fetch
+      // with maxRedirects:0 and validate each Location against the SAME guard before fetching it — private
+      // targets are aborted before any connection. A chain that never resolves (or exceeds the cap) is
+      // refused rather than handed to the browser to follow.
+      try {
+        let target = first;
+        let response = await route.fetch({ maxRedirects: 0 });
+        for (let hop = 0; hop < 6 && response.status() >= 300 && response.status() < 400; hop++) {
+          const loc = response.headers()["location"];
+          if (!loc) break;
+          let next: string;
+          try {
+            next = new URL(loc, target).toString();
+          } catch {
+            return void route.abort().catch(() => {});
+          }
+          if (!(await guardOk(next))) return void route.abort().catch(() => {});
+          target = next;
+          response = await route.fetch({ url: next, maxRedirects: 0 });
+        }
+        // Still a redirect after the cap → refuse rather than let the browser follow an unvalidated hop.
+        if (response.status() >= 300 && response.status() < 400) return void route.abort().catch(() => {});
+        return void route.fulfill({ response }).catch(() => {});
+      } catch {
         return void route.abort().catch(() => {});
       }
-      if (!(await publicHostCached(h))) return void route.abort().catch(() => {});
-      return void route.continue().catch(() => {});
     });
     const page = await context.newPage();
     page.on("download", (d) => void d.cancel().catch(() => {})); // refuse downloads
@@ -126,8 +182,9 @@ export async function renderEvidence(rawUrl: string): Promise<RenderResult> {
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
     await page.waitForTimeout(SETTLE_MS).catch(() => {});
     const finalUrl = page.url();
-    const text = await page.evaluate(() => (document.body?.innerText || "").trim()).catch(() => "");
-    const clean = text ? text.replace(/\s+/g, " ").trim() : "";
+    // Cap IN-PAGE before it crosses the bridge — a hostile page can render megabytes of text.
+    const text = await page.evaluate((max) => (document.body?.innerText || "").slice(0, max).trim(), MAX_TEXT_CHARS).catch(() => "");
+    const clean = text ? text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT_CHARS) : "";
     return clean ? { text: clean, outcome: "ok", finalUrl } : { text: null, outcome: "empty", finalUrl };
   } catch {
     return { text: null, outcome: timedOut ? "timeout" : "error", finalUrl: null };
