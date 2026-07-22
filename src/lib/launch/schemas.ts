@@ -312,9 +312,52 @@ export interface CandidateMission {
   /** deterministic verifiability class (set by the gate, never the model): a public page's text can prove
    *  completion (url-verifiable) vs the tester's judged written account (observation-based). */
   verifiabilityClass?: "url-verifiable" | "observation-based";
+  /** Eyes V2 DESIGN-TIME grounding map (internal candidate metadata; display-only, NOT part of any spec
+   *  digest and STRIPPED during canonical compilation). Ties each criterion to the observed facts that
+   *  support it, the evidence requirement that proves it, and how Sage can verify it. When present, the
+   *  deterministic grounding gate checks it against the inspection's observation set. */
+  groundingV1?: MissionGroundingV1;
+}
+
+/** How a criterion can be verified: a deterministic substring of a public page, a semantic read of a
+ *  public page, or the tester's judged written account against Sage's private observation corpus. */
+export type VerificationMode = "deterministic_url" | "semantic_url" | "observation";
+
+/** The design-time evidence mapping for ONE criterion (see CandidateMission.groundingV1). */
+export interface CriterionGroundingV1 {
+  criterionIndex: number;
+  /** observed-fact ids (from ProductMapV1.observations) that support this criterion. */
+  sourceFactIds: string[];
+  /** action-transition ids where the criterion is about a state change. */
+  sourceTransitionIds?: string[];
+  /** the evidenceRequirements[] index that proves this criterion. */
+  evidenceIndex: number;
+  verificationMode: VerificationMode;
+}
+
+export interface MissionGroundingV1 {
+  version: "mission-grounding-v1";
+  criteria: CriterionGroundingV1[];
 }
 
 /* ───────────────────────────────────────────────── critic verdict ───────── */
+
+/**
+ * Structured issue codes the critic emits alongside its decision (Mission Brain V2) — a bounded vocabulary
+ * instead of free prose, so the critique is machine-checkable and consistent. Advisory: the deterministic
+ * gate is still the authority (the critic proposes, the gate disposes).
+ */
+export type CriticIssueCode =
+  | "hallucinated_source"      // cites a fact/source that was not observed
+  | "unsupported_action"       // asks the tester to do something the product doesn't support / wasn't seen
+  | "criterion_evidence_mismatch" // the evidence can't prove the criterion
+  | "generic_mission"          // not specific to this product's observed reality
+  | "duplicate_coverage"       // another mission already covers this state + objective
+  | "impossible_verification"  // Sage cannot verify the claimed outcome
+  | "unsafe_or_authenticated"  // destructive / wallet-signing / login-required flow
+  | "ambiguous_completion"     // "done" is not clearly defined
+  | "target_scope_violation"   // targets a surface outside the inspected scope
+  | "excessive_assumptions";   // leans on assumptions rather than observed facts
 
 export type CriticDecision = "accept" | "revise" | "merge" | "reject" | "needs_input";
 
@@ -323,6 +366,9 @@ export interface MissionCritique {
   decision: CriticDecision;
   /** concise, structured reasons (decisions + corrections; never hidden CoT). */
   reasons: string[];
+  /** structured issue codes (Mission Brain V2) — a machine-checkable summary of `reasons`. Optional +
+   *  advisory; the deterministic gate remains the authority. */
+  issueCodes?: CriticIssueCode[];
   /** when decision === "revise": the corrected mission. */
   revised?: CandidateMission;
   /** when decision === "needs_input": the founder question to resolve it. */
@@ -352,7 +398,12 @@ export type MissionValidationCode =
   | "unsupported_evidence_type"
   | "worthless_presence_check"
   | "unanchored_claim"
-  | "prompt_injection_content";
+  | "prompt_injection_content"
+  // Eyes V2 grounding gate (only fires when a mission carries a design-time grounding map):
+  | "ungrounded_fact_ref"        // a cited observed-fact id does not exist in the inspection's set
+  | "inferred_decisive_source"   // a criterion's decisive source is inferred-only (vision), not seen
+  | "criterion_evidence_unmapped"// a criterion has no grounding entry / no capable evidence mapping
+  | "evidence_mode_incapable";   // the chosen verification mode cannot prove the criterion
 
 export interface MissionValidationIssue {
   code: MissionValidationCode;

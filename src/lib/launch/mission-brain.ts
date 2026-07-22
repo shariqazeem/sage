@@ -333,7 +333,9 @@ export async function runMissionBrain(
     // the anchor gate runs mechanically over the observation corpus — an unanchored ("Zoom Control")
     // claim is rejected here regardless of what the model said. The verifiability class is stamped on
     // each accepted mission (deterministic, never model-provided) for the plan's honest disclosure.
-    const reports = validatePlanMissions(survivors, scope, corpus);
+    // Eyes V2: thread the inspection's observation set so the grounding gate can check any design-time
+    // grounding map a candidate carries (no-op for candidates without one — backward-compatible).
+    const reports = validatePlanMissions(survivors, scope, corpus, map.observations);
     const accepted = survivors
       .filter((_m, i) => reports[i].ok)
       .map((m) => ({ ...m, verifiabilityClass: classifyVerifiability(m) }));

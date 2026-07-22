@@ -12,6 +12,8 @@
 import { detectInjection } from "@/lib/deputy/brain-core";
 import { validateMissionSpec } from "@/lib/campaigns/mission-spec";
 import { detectUnsupportedEvidence } from "./evidence-capabilities";
+import { validateMissionGrounding } from "./mission-grounding";
+import type { ObservationSetV1 } from "./observed-facts";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
@@ -267,7 +269,7 @@ export function observationScore(s: RichnessSignals): number {
  * Validate a single candidate mission against the deterministic rules + the inspected
  * scope. Returns a structured report; `ok` is true only when there are zero issues.
  */
-export function validateMission(m: CandidateMission, scope: ValidationScope, corpus?: string): MissionValidationReport {
+export function validateMission(m: CandidateMission, scope: ValidationScope, corpus?: string, observationSet?: ObservationSetV1 | null): MissionValidationReport {
   const issues: MissionValidationIssue[] = [];
   const add = (code: MissionValidationCode, field: string, detail: string) =>
     issues.push({ code, field, detail });
@@ -388,6 +390,12 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
   // seen cannot pass, whatever a model claimed. Skipped when no corpus is threaded (byte-identical).
   if (corpus !== undefined) for (const issue of anchorIssues(m, corpus)) issues.push(issue);
 
+  // 12. GROUNDING GATE (Eyes V2) — when the mission carries a design-time grounding map AND an observation
+  // set is threaded, every cited fact/transition must exist, a decisive source must be `seen`, each
+  // criterion must map to capable evidence, and the verification mode must be able to prove it. No map or
+  // no set → no-op (backward-compatible; byte-identical to before).
+  for (const issue of validateMissionGrounding(m, observationSet)) issues.push(issue);
+
   return { ok: issues.length === 0, missionKey: m.missionKey, issues };
 }
 
@@ -400,6 +408,7 @@ export function validatePlanMissions(
   missions: CandidateMission[],
   scope: ValidationScope,
   corpus?: string,
+  observationSet?: ObservationSetV1 | null,
 ): MissionValidationReport[] {
   const keyCount = new Map<string, number>();
   const objCount = new Map<string, number>();
@@ -409,7 +418,7 @@ export function validatePlanMissions(
     objCount.set(objKey, (objCount.get(objKey) ?? 0) + 1);
   }
   return missions.map((m) => {
-    const report = validateMission(m, scope, corpus);
+    const report = validateMission(m, scope, corpus, observationSet);
     if ((keyCount.get(m.missionKey) ?? 0) > 1)
       report.issues.push({ code: "duplicate_mission_key", field: "missionKey", detail: `key '${m.missionKey}' is not unique` });
     if ((objCount.get(norm(m.objective).toLowerCase()) ?? 0) > 1)
