@@ -9,6 +9,7 @@ import {
 } from "react";
 import { ArrowUp, ArrowUpRight, SquarePen } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
+import { InlineLaunch } from "./inline-launch";
 import "./agent-chat.css";
 
 /**
@@ -113,6 +114,7 @@ export function AgentChat() {
   const [reduced, setReduced] = useState(false);
   const [pageContext, setPageContext] = useState<{ kind: string; id: string } | undefined>();
   const [founder, setFounder] = useState(false);
+  const [launchPath, setLaunchPath] = useState<string | null>(null); // the /launch/<id> being launched inline
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -358,9 +360,17 @@ export function AgentChat() {
                   )}
                 </div>
                 {m.role === "agent" && !m.streaming && deployPath(m.text) && (
-                  <a className="ac-fund" href={deployPath(m.text)!}>
-                    Fund + launch <ArrowUpRight size={15} strokeWidth={2.2} />
-                  </a>
+                  launchPath === deployPath(m.text) ? (
+                    <InlineLaunch inspectionId={deployPath(m.text)!.replace(/^\/launch\//, "")} />
+                  ) : (
+                    <button
+                      className="ac-fund"
+                      type="button"
+                      onClick={() => setLaunchPath(deployPath(m.text))}
+                    >
+                      Fund + launch here <ArrowUpRight size={15} strokeWidth={2.2} />
+                    </button>
+                  )
                 )}
               </div>
             ))}

@@ -324,3 +324,23 @@
   max-width: 720px;
   margin: 0 auto var(--s-5);
 }
+
+/* ── inline launch (the deploy flow, embedded in the chat) ───────────────────────────── */
+.ac-inline {
+  align-self: stretch;
+  width: 100%;
+  margin-top: var(--s-3);
+}
+/* the embedded BudgetBar/DeployFlow live in the .lx scope, but here they must NOT claim the
+   full viewport height (launch.css sets .lx { min-height: 100vh }) or center a page. */
+.lx.ac-inline {
+  min-height: 0;
+  background: transparent;
+}
+.ac-inline-note {
+  align-self: flex-start;
+  margin-top: var(--s-2);
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--ink-muted);
+}
