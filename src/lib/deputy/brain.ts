@@ -5,7 +5,6 @@ import {
   SYSTEM_PROMPT,
   PAYOUT_PROMPT_VERSION,
   buildUserContent,
-  repairJson,
   parseBriefContent,
   enforceQuotes,
   hardenBrief,
@@ -13,6 +12,7 @@ import {
   estimateCostUsd,
   type BrainInput,
   type DecisionBrief,
+  type DecisionBriefContent,
 } from "./brain-core";
 
 /**
@@ -21,8 +21,12 @@ import {
  * EXACT parser version that passed the promotion battery, so any change to how the money decision is
  * parsed (e.g. tightening it to reject repaired / truncated / partial output) MUST bump this and be
  * re-evaluated before autopay is re-approved. Non-money generation paths are unaffected by this constant.
+ *
+ * v2 — the STRICT money parse: JSON.parse only, no repairJson/fence-strip/brace-wrap/balanced-extraction/
+ * partial completion, and an abnormal finish_reason or refusal fails closed. Strictly a SUBSET of what v1
+ * accepted, so it can only reduce autopay recall, never increase autopay.
  */
-export const PARSER_POLICY_VERSION = "payout-parse-v1";
+export const PARSER_POLICY_VERSION = "payout-parse-v2";
 
 /**
  * ============================================================================
@@ -162,17 +166,53 @@ function heuristicFallback(input: BrainInput, latencyMs: number | null): Decisio
 }
 
 interface ChatResponse {
-  choices?: { message?: { content?: string } }[];
+  choices?: {
+    message?: { content?: string; refusal?: string | null };
+    finish_reason?: string | null;
+  }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
 /**
- * ONE call to a provider — fetch, parse, enforce quotes, then build + harden the
- * brief. Throws on any failure (bad status, empty or unparseable output, timeout)
- * so the caller can retry or fail over. A success is always engine "llm", stamped
- * with the model + provider host that produced it. `started` anchors latency to
- * the whole decision (including any prior failed attempts), which is the honest
- * wall-clock a reviewer cares about.
+ * finish_reason values that mean the completion did NOT end normally — a truncated (length / max_tokens),
+ * content-filtered, or tool-diverted response is an INCOMPLETE money decision and must fail closed. An
+ * absent finish_reason or a provider-normal marker ("stop", "end_turn", …) is allowed; the strict
+ * JSON.parse in {@link parseMoneyBrief} is the backstop for a body truncated without a marker.
+ */
+const ABNORMAL_FINISH: ReadonlySet<string> = new Set(["length", "max_tokens", "content_filter", "tool_calls", "function_call"]);
+
+/**
+ * STRICT money-decision parse — the payout path must NEVER repair, salvage, or complete a model's output.
+ * Unlike the tolerant `repairJson` (kept for non-money generation), this does exactly one thing: JSON.parse
+ * the raw content. No fence-stripping, no brace re-wrapping, no first-balanced-object extraction, no
+ * partial completion. Trailing content, fences, prose wrapping, or a truncated body all throw → the caller
+ * fails over → the heuristic (which can never autopay). It then requires the money-critical fields
+ * (recommendation + a numeric confidence) to be EXPLICITLY present; a partial decision fails closed. The
+ * remaining fields are shaped by the shared coercer over the already-strictly-parsed object (never the
+ * transport). Returns null on any deviation — this can only REDUCE what autopays, never increase it.
+ */
+function parseMoneyBrief(content: string): DecisionBriefContent | null {
+  let obj: unknown;
+  try {
+    obj = JSON.parse(content.trim());
+  } catch {
+    return null; // not strict JSON — no repair is attempted on the money path
+  }
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const o = obj as Record<string, unknown>;
+  // Money-critical fields must be EXPLICITLY present + well-formed — a missing/partial decision fails closed.
+  if (o.recommendation !== "pay" && o.recommendation !== "review" && o.recommendation !== "hold") return null;
+  if (o.confidence == null || !Number.isFinite(Number(o.confidence))) return null;
+  return parseBriefContent(o);
+}
+
+/**
+ * ONE call to a provider — fetch, STRICT-parse, enforce quotes, then build + harden the brief. Throws on
+ * any failure (bad status, an abnormal finish_reason, a refusal, an empty / non-strict-JSON / incomplete
+ * output, timeout) so the caller can retry or fail over. The money parse never repairs: a fenced, prose-
+ * wrapped, brace-dropped, trailing-garbage, or truncated body is REJECTED here rather than salvaged. A
+ * success is always engine "llm", stamped with the model + provider host that produced it. `started`
+ * anchors latency to the whole decision (including any prior failed attempts), the honest wall-clock.
  */
 async function callProvider(
   p: LlmProvider,
@@ -194,8 +234,8 @@ async function callProvider(
         model: p.model,
         temperature: 0,
         max_tokens: MAX_TOKENS,
-        // Force valid JSON — without this some models drop the outer braces.
-        // A provider that ignores it just falls to the repair + fail-over path.
+        // Force valid JSON — without this some models drop the outer braces. A provider that ignores it
+        // fails the STRICT money parse (parseMoneyBrief) and falls over; it is never repaired or salvaged.
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -206,11 +246,18 @@ async function callProvider(
     if (!res.ok) throw new Error(`llm ${res.status}`);
 
     const data = (await res.json()) as ChatResponse;
-    const content = data.choices?.[0]?.message?.content;
+    const choice = data.choices?.[0];
+    // FAIL CLOSED on a money decision that did not complete normally: an abnormal finish_reason
+    // (truncation / content-filter / tool diversion) or an explicit refusal. These would otherwise be
+    // salvaged by the old repair path into a partial "decision".
+    const finishReason = choice?.finish_reason ?? null;
+    if (finishReason && ABNORMAL_FINISH.has(finishReason)) throw new Error(`abnormal finish_reason: ${finishReason}`);
+    if (choice?.message?.refusal) throw new Error("model refusal");
+    const content = choice?.message?.content;
     if (!content) throw new Error("empty completion");
 
-    const parsed = parseBriefContent(repairJson(content));
-    if (!parsed) throw new Error("unparseable brief");
+    const parsed = parseMoneyBrief(content); // STRICT — no repair/salvage on the payout path
+    if (!parsed) throw new Error("unparseable or incomplete money brief");
 
     const { content: safe } = enforceQuotes(parsed, input.evidenceText);
     return hardenBrief(

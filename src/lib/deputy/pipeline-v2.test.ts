@@ -69,7 +69,7 @@ function payBriefFor(): DecisionBrief {
     model: "google/gemini-3.1-flash-lite-preview",
     provider: "api.commonstack.ai",
     promptVersion: "payout-v1", // the APPROVED policy identity → clears the autopay identity gate
-    parserVersion: "payout-parse-v1",
+    parserVersion: "payout-parse-v2",
     criteria: [{ criterion: "the app loads", met: true, confidence: 0.97, quote: "it loads fine" }],
     fraudSignals: [],
     recommendation: "pay",

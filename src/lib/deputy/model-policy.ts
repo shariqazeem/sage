@@ -59,8 +59,8 @@ export const AUTOPAY_APPROVED_MODELS: ReadonlySet<string> = new Set<string>([
  * combination is re-evaluated and its line is added/updated here.
  */
 const APPROVED_IDENTITIES: ReadonlySet<string> = new Set<string>([
-  identityKey({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v1" }),
-  identityKey({ provider: "api.commonstack.ai", model: "anthropic/claude-haiku-4-5", promptVersion: "payout-v1", parserVersion: "payout-parse-v1" }),
+  identityKey({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v2" }),
+  identityKey({ provider: "api.commonstack.ai", model: "anthropic/claude-haiku-4-5", promptVersion: "payout-v1", parserVersion: "payout-parse-v2" }),
 ]);
 
 /** True only for a non-empty, exactly-canonical approved model identity. Null/unknown → false. A weaker

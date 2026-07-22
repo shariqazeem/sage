@@ -94,7 +94,7 @@ const payBrief: DecisionBrief = {
   // autopay identity gate — the deployed prod combination.
   provider: "api.commonstack.ai",
   promptVersion: "payout-v1",
-  parserVersion: "payout-parse-v1",
+  parserVersion: "payout-parse-v2",
   criteria: [],
   fraudSignals: [],
   recommendation: "pay",

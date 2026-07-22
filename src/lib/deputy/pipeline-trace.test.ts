@@ -64,7 +64,7 @@ const payBrief: DecisionBrief = {
   // the APPROVED policy identity so the payout clears the autopay identity gate.
   provider: "api.commonstack.ai",
   promptVersion: "payout-v1",
-  parserVersion: "payout-parse-v1",
+  parserVersion: "payout-parse-v2",
   criteria: [],
   fraudSignals: [],
   recommendation: "pay",
