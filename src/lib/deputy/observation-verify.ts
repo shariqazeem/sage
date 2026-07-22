@@ -195,7 +195,7 @@ const OBS_STOPWORDS = new Set(
     " ",
   ),
 );
-function contentTokens(s: string): string[] {
+export function contentTokens(s: string): string[] {
   const out: string[] = [];
   for (const w of s.split(" ")) if (w.length >= 3 && !OBS_STOPWORDS.has(w)) out.push(w);
   return out;
@@ -255,13 +255,24 @@ export interface ContradictionClaim {
 
 /** A checkable quote must carry real signal, not a single filler word. */
 const MIN_QUOTE_CONTENT_WORDS = 2;
+/**
+ * A real contradiction is a FOCUSED conflicting claim ("a blue square", "no signup, straight in") — never
+ * a whole narrative. When the account-side quote is a paragraph-length span, the model is over-reaching:
+ * it pairs a rich genuine narrative (extra onboarding detail Sage didn't capture) with one observation and
+ * calls the whole thing a "contradiction". That FALSE veto wrongly denies an honest tester their pay. A
+ * focused-claim cap makes a paragraph-length "contradiction" fall to `unverified` (logged, never blocks),
+ * while every genuine short conflict still vetoes. Measured against the observed failure (a 12-content-word
+ * onboarding span); a real contradiction quote is far shorter.
+ */
+const MAX_CONTRADICTION_ACCOUNT_WORDS = 10;
 
 /**
  * Validate a judge's contradiction claims against the ACTUAL text — the hallucination-inert veto. A claim
- * can BLOCK only if it cites a verbatim quote PAIR: the account phrase is a literal (normalized)
- * substring of the account AND the corpus phrase a literal substring of some pinned observation. A
- * hallucinated contradiction cannot produce a checkable pair, so it can NEVER block — it is returned
- * `unverified` for the founder's log only. Deterministic; mirrors the frozen enforceQuotes discipline.
+ * can BLOCK only if it cites a FOCUSED verbatim quote PAIR: the account phrase is a literal (normalized)
+ * substring of the account (and is a focused claim, ≤ {@link MAX_CONTRADICTION_ACCOUNT_WORDS} content
+ * words, not a whole narrative) AND the corpus phrase a literal substring of some pinned observation. A
+ * hallucinated OR paragraph-length contradiction cannot produce a checkable focused pair, so it can NEVER
+ * block — it is returned `unverified` for the founder's log only. Deterministic; mirrors enforceQuotes.
  */
 export function validateContradictions(
   claims: ContradictionClaim[],
@@ -274,12 +285,83 @@ export function validateContradictions(
   for (const c of claims) {
     const a = normObs(c?.accountQuote);
     const k = normObs(c?.corpusQuote);
-    const aOk = contentTokens(a).length >= MIN_QUOTE_CONTENT_WORDS && acct.includes(a);
+    const aWords = contentTokens(a).length;
+    const aOk = aWords >= MIN_QUOTE_CONTENT_WORDS && aWords <= MAX_CONTRADICTION_ACCOUNT_WORDS && acct.includes(a);
     const kOk = contentTokens(k).length >= MIN_QUOTE_CONTENT_WORDS && key.observations.some((o) => o.text.includes(k));
     if (aOk && kOk) validated.push(c);
     else unverified.push(c);
   }
   return { validated, unverified };
+}
+
+/**
+ * A corroboration claim — an account phrase and the private corpus line it RE-DESCRIBES in different
+ * words. The positive mirror of a {@link ContradictionClaim}: Sage's eyes narrate a screen in verbose
+ * third-person prose ("a character named yara standing on a path speaking to the player") while a genuine
+ * tester narrates the same moment first-person ("i talked to yara and she talked back") — no shared card
+ * language, so the deterministic word-overlap matcher scores it ZERO though the work is real. The LLM
+ * judge bridges that vocabulary gap by CITING a verbatim pair; the count still comes from arithmetic.
+ */
+export interface CorroborationClaim {
+  accountQuote: string;
+  corpusQuote: string;
+}
+
+/** The distinct content tokens of the PUBLIC card/plan strings — the words a parrot could copy off the
+ *  board. Passed to {@link validateCorroborations} so a corroboration's lexical anchor must be a
+ *  NON-public token: the model may bridge vocabulary, but can never anchor a "match" on public language. */
+export function publicTokenSet(publicStrings: string[]): Set<string> {
+  return new Set(contentTokens(normObs(publicStrings.join(" • "))));
+}
+
+/**
+ * Validate a judge's corroboration claims against the ACTUAL text — the positive mirror of
+ * {@link validateContradictions}, and the recall path for genuine work Sage saw but described in words a
+ * tester would never reproduce verbatim. A corroboration COUNTS only when it cites a pair that is
+ * verbatim, specific, and FIRST-HAND:
+ *   · `accountQuote` is a literal (normalized) substring of the account, ≥2 content words;
+ *   · `corpusQuote` is a literal substring of ONE pinned observation, ≥2 content words;
+ *   · the accountQuote carries ≥1 content token that is NOT a public-card token — firsthand words the
+ *     tester wrote that the card never showed. A PARROT phrase is pure card language (every token public)
+ *     → rejected; a genuine paraphrase always has firsthand words. There is deliberately NO lexical
+ *     requirement against the corpus: a TRUE semantic bridge ("she talked to me" ↔ "a character named
+ *     yara … speaking to the player") shares only the product name or nothing, so demanding a shared
+ *     non-public token would kill exactly the genuine case while letting a near-lexical GUESS through.
+ * Parrot-zero stays STRUCTURAL (a card copy can never be the account side of a corroboration); the model
+ * is trusted ONLY for the semantic link, which the verbatim pair + the ≥3-distinct-source bar +
+ * injection/near-dup guards still bound. Each validated corroboration maps to the SOURCE of the (first)
+ * observation it cites; the caller UNIONS these with the deterministic matches. Deterministic given input.
+ */
+export function validateCorroborations(
+  claims: CorroborationClaim[],
+  account: string | null | undefined,
+  key: PrivateKey,
+  publicTokens: Set<string> = new Set(),
+): { validated: CorroborationClaim[]; sources: Set<string> } {
+  const acct = normObs(account);
+  const validated: CorroborationClaim[] = [];
+  const sources = new Set<string>();
+  for (const c of claims) {
+    const a = normObs(c?.accountQuote);
+    const k = normObs(c?.corpusQuote);
+    const aTokens = contentTokens(a);
+    const kTokens = contentTokens(k);
+    if (aTokens.length < MIN_QUOTE_CONTENT_WORDS || kTokens.length < MIN_QUOTE_CONTENT_WORDS) continue;
+    if (!acct.includes(a)) continue; // the account phrase must be real (verbatim substring)
+    const obs = key.observations.find((o) => o.text.includes(k)); // the corpus phrase must be real
+    if (!obs) continue;
+    // FIRST-HAND floor: the account phrase must carry ≥1 NON-card token — firsthand words the tester
+    // wrote that aren't on the card ("clicked", "went", "move"). A parrot phrase is pure card language
+    // (every token public) → rejected. There is NO lexical requirement AGAINST the corpus: a TRUE
+    // semantic bridge shares only the product name or nothing ("she talked to me" ↔ "…speaking to the
+    // player"), so demanding shared non-public words would kill the genuine case while letting a
+    // near-lexical GUESS pass. The model is trusted ONLY for the semantic link; the verbatim pair, the
+    // ≥3-distinct-source bar, and injection/near-dup still bound it.
+    if (!aTokens.some((w) => !publicTokens.has(w))) continue;
+    validated.push(c);
+    sources.add(obs.source); // one corroboration → at most one distinct-source credit (anti-padding)
+  }
+  return { validated, sources };
 }
 
 /** The signals the bar weighs. The corpus match + two structural preconditions are the gate; the judge's

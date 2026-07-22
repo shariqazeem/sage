@@ -8,8 +8,11 @@ import {
   observationBar,
   legacyObservationBar,
   validateContradictions,
+  validateCorroborations,
+  publicTokenSet,
   OBS_BAR,
   type ObservationSignals,
+  type PrivateKey,
 } from "./observation-verify";
 
 // A yara-like interactive field test: 3 states + vision frames. The PUBLIC card strings are the plan
@@ -329,6 +332,117 @@ describe("validateContradictions — hallucination-inert veto (verbatim pair or 
   it("a one-filler-word 'quote' is too thin to be checkable → unverified", () => {
     const v = validateContradictions([{ accountQuote: "a", corpusQuote: "the" }], account, key);
     expect(v.validated.length).toBe(0);
+  });
+
+  it("a PARAGRAPH-length 'contradiction' (>10 content words) is over-reach → unverified, never blocks", () => {
+    // the real false-veto: a rich genuine narrative (extra onboarding detail Sage didn't capture) paired
+    // with one observation and called a contradiction. A focused claim it is not → it must not block.
+    const narrativeAccount =
+      "i saw a koi pond ripples in moonlight, and then yara greeted me warmly and asked for my name and my favorite animal and my current mood and how my whole day had been going so far";
+    const longQuote =
+      "yara greeted me warmly and asked for my name and my favorite animal and my current mood and how my whole day had been going";
+    const v = validateContradictions(
+      [{ accountQuote: longQuote, corpusQuote: "koi pond ripples in moonlight" }],
+      narrativeAccount, key,
+    );
+    expect(v.validated.length).toBe(0);
+    expect(v.unverified.length).toBe(1);
+  });
+
+  it("a FOCUSED conflicting claim (≤10 content words) still vetoes", () => {
+    const v = validateContradictions(
+      [{ accountQuote: "a koi pond ripples in moonlight", corpusQuote: "koi pond ripples in moonlight" }],
+      account, key,
+    );
+    expect(v.validated.length).toBe(1);
+  });
+});
+
+describe("validateCorroborations — verbatim + FIRST-HAND (the recall path, semantic bridge, precision-hard)", () => {
+  // A vision-prose corpus (the yara class): third-person scene notes a first-person tester never quotes.
+  const key: PrivateKey = {
+    observations: [
+      { source: "state:5", text: "a character named yara standing on a path speaking to the player" },
+      { source: "state:3", text: "a 2d top down game scene with a green lawn" },
+      { source: "state:0", text: "a progress bar over a sunset title screen" },
+    ],
+    distinctSources: 3,
+    digest: "0x00",
+  };
+  // A GENUINE first-person account — same moments, Sage's words nowhere in it.
+  const account =
+    "i clicked talk to yara and she talked to me. then i could move my character around the top down game scene. at the start there was a loading progress bar.";
+  // the product name "yara" + card verbs are PUBLIC — a parrot can copy them, so they can't be firsthand.
+  const publicTokens = publicTokenSet(["Engage with Yara's Greeting", "Trigger the introductory dialogue with Yara"]);
+
+  it("validates a TRUE semantic bridge that shares ONLY the product name with the corpus (the genuine case)", () => {
+    // "i clicked talk to yara and she talked to me" ↔ "a character named yara … speaking to the player":
+    // the ONLY shared token is the public "yara" — a shared-anchor rule would kill this; the first-hand
+    // floor (account carries non-card "clicked"/"talk"/"talked") correctly ACCEPTS it.
+    const { validated, sources } = validateCorroborations(
+      [{ accountQuote: "i clicked talk to yara and she talked to me", corpusQuote: "a character named yara standing on a path speaking to the player" }],
+      account, key, publicTokens,
+    );
+    expect(validated).toHaveLength(1);
+    expect([...sources]).toEqual(["state:5"]);
+  });
+
+  it("a GENUINE paraphrase corroborates ≥3 DISTINCT sources → clears the bar via the recall path", () => {
+    const { sources } = validateCorroborations(
+      [
+        { accountQuote: "she talked to me", corpusQuote: "a character named yara standing on a path speaking to the player" },
+        { accountQuote: "move my character around the top down game scene", corpusQuote: "a 2d top down game scene with a green lawn" },
+        { accountQuote: "a loading progress bar", corpusQuote: "a progress bar over a sunset title screen" },
+      ],
+      account, key, publicTokens,
+    );
+    expect(sources.size).toBeGreaterThanOrEqual(3); // state:5, state:3, state:0
+  });
+
+  it("REJECTS a PARROT phrase — pure card language (every token public) can't be the account side", () => {
+    // the account side is all card words → no firsthand content → rejected, whatever corpus line is cited.
+    const parrotAccount = "trigger the introductory dialogue with yara to engage the greeting";
+    const { validated, sources } = validateCorroborations(
+      [{ accountQuote: "trigger the introductory dialogue with yara", corpusQuote: "a character named yara standing on a path speaking to the player" }],
+      parrotAccount, key, publicTokens,
+    );
+    expect(validated).toHaveLength(0);
+    expect(sources.size).toBe(0);
+  });
+
+  it("REJECTS a fabricated pair (account quote not in the account)", () => {
+    const { validated } = validateCorroborations(
+      [{ accountQuote: "i saw a checkout cart", corpusQuote: "a 2d top down game scene with a green lawn" }],
+      account, key, publicTokens,
+    );
+    expect(validated).toHaveLength(0);
+  });
+
+  it("REJECTS a corpus quote that is not a substring of any observation", () => {
+    const { validated } = validateCorroborations(
+      [{ accountQuote: "move my character", corpusQuote: "a pricing page with three tiers" }],
+      account, key, publicTokens,
+    );
+    expect(validated).toHaveLength(0);
+  });
+
+  it("REJECTS a one-content-word quote as too thin to be checkable", () => {
+    const { validated } = validateCorroborations(
+      [{ accountQuote: "character", corpusQuote: "character" }],
+      account, key, publicTokens,
+    );
+    expect(validated).toHaveLength(0);
+  });
+
+  it("two corroborations citing the SAME observation count as ONE distinct source (anti-padding)", () => {
+    const { sources } = validateCorroborations(
+      [
+        { accountQuote: "i clicked talk to yara", corpusQuote: "a character named yara standing" },
+        { accountQuote: "she talked to me", corpusQuote: "path speaking to the player" },
+      ],
+      account, key, publicTokens,
+    );
+    expect(sources.size).toBe(1); // both map to state:5
   });
 });
 

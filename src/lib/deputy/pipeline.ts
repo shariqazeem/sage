@@ -315,6 +315,19 @@ export async function runDeputyOnSubmission(
     const hasHighFraud = brief.fraudSignals.some(
       (f) => f.severity === "high" && f.signal === "prompt injection",
     );
+    // The PUBLIC card surface a tester could parrot — the same mission prose distill excluded from the
+    // key. A corroboration's lexical anchor must be a NON-public token, so parrot-zero stays structural
+    // in the recall path (the product name / card verbs can never anchor a "match").
+    const publicStrings = [
+      mission.title,
+      mission.objective,
+      mission.instructions,
+      mission.targetSurface,
+      ...(mission.criteria ?? []),
+      ...(mission.evidenceList ?? []),
+      ...(mission.evidenceRequirements ? [mission.evidenceRequirements] : []),
+      mission.descriptionMd,
+    ].filter((s): s is string => typeof s === "string" && s.length > 0);
     const decision = await runObservationDecision({
       account: submission.note,
       key,
@@ -323,7 +336,13 @@ export async function runDeputyOnSubmission(
       priors: listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt),
       missionObjective: mission.objective,
       criteria: mission.criteria,
+      publicStrings,
       hasHighFraud,
+      // The corroboration recall path needs a STRONG judge to bridge the vision↔experience vocabulary
+      // gap (a weak model finds only the near-lexical matches — measured). OBS_JUDGE_MODEL routes just the
+      // observation judge to it; unset → falls back to the default judge model (weaker recall → genuine
+      // work holds for the founder, the SAFE degradation, never a wrong pay).
+      model: process.env.OBS_JUDGE_MODEL || undefined,
     }).catch(() => null);
     const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
     if (decision) {

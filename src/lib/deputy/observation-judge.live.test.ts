@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distillPrivateKey, verifyAgainstKey } from "./observation-verify";
+import { distillPrivateKey } from "./observation-verify";
 import { judgeObservationAccount } from "./observation-judge";
 import {
   observationCases,
@@ -23,16 +23,12 @@ const keys = {
   excalidraw: distillPrivateKey(excalidrawFieldTest, excalidrawPublicStrings),
 };
 
-const matchedFor = (label: "yara" | "excalidraw", account: string) =>
-  verifyAgainstKey(account, keys[label]).matched.map((o) => o.text);
-
 const judge = (product: "yara" | "excalidraw", account: string) =>
   judgeObservationAccount({
     account,
     missionObjective: product === "yara" ? "Validate the first-session feel" : "Validate the first drawing",
     criteria: ["The tester describes what they actually experienced"],
-    matchedObservations: matchedFor(product, account),
-    contextObservations: keys[product].observations.map((o) => o.text),
+    privateObservations: keys[product].observations.map((o) => o.text),
   });
 
 describe.runIf(process.env.OBS_LIVE_EVAL === "1")("observation judge — LIVE ledger", () => {
