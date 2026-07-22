@@ -30,7 +30,10 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
         if (data?.ok && data.job) {
           setJob(data.job);
           const s = data.job.status;
-          if (s === "ready" || s === "failed" || s === "needs_input" || s === "superseded") {
+          // Stop only on terminal states. `needs_input` is transient — the founder answers in the
+          // chat above (the agent's sage_answer_questions), the plan builds, and this poll catches
+          // the flip to `ready` and swaps itself for the funded flow. So keep polling through it.
+          if (s === "ready" || s === "failed" || s === "superseded") {
             settled.current = true;
           }
         } else if (data?.error) {
@@ -59,6 +62,26 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
   if (!job) return <div className="ac-inline-note">Loading your plan…</div>;
   if (job.status === "failed") {
     return <div className="ac-inline-note">That inspection didn&apos;t finish — start a new one.</div>;
+  }
+  // `needs_input`: Sage has questions only the founder can answer. Surface them and point back to
+  // the chat (where the agent resolves them) — this panel keeps polling and opens itself once ready.
+  if (job.status === "needs_input") {
+    const questions = (job.result?.questions ?? []).filter((q) => q.trim()).slice(0, 4);
+    return (
+      <div className="ac-inline-needs">
+        <p className="ac-inline-note">
+          Sage needs a couple details to finish your plan — answer in the chat above and this opens
+          automatically.
+        </p>
+        {questions.length > 0 && (
+          <ul className="ac-inline-qs">
+            {questions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
   }
   if (job.status !== "ready" || !job.plan) {
     return <div className="ac-inline-note">Sage is still building your plan — this will open the moment it&apos;s ready.</div>;

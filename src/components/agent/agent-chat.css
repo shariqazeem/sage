@@ -344,3 +344,31 @@
   font-style: italic;
   color: var(--ink-muted);
 }
+
+/* needs_input: Sage's clarifying questions, surfaced inline while the founder answers in the chat */
+.ac-inline-needs {
+  align-self: stretch;
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+}
+.ac-inline-needs .ac-inline-note {
+  margin-top: 0;
+  color: var(--ink);
+  font-style: normal;
+  font-weight: 500;
+}
+.ac-inline-qs {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ac-inline-qs li {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
