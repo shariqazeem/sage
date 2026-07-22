@@ -117,6 +117,7 @@ describe("verifySubmission — provider chain (primary → fallback → heuristi
               summary: "verified",
             }),
           },
+          finish_reason: "stop", // Gate C: money path requires explicit normal completion
         },
       ],
       usage: { prompt_tokens: 120, completion_tokens: 60 },

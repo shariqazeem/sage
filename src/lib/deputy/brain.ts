@@ -14,6 +14,7 @@ import {
   type DecisionBrief,
   type DecisionBriefContent,
 } from "./brain-core";
+import { readCompletion, terminationRejectReason, type ChatCompletionResponse } from "./completion";
 
 /**
  * POLICY-IDENTITY version of the MONEY-PATH PARSE in {@link callProvider} — how raw model output is
@@ -23,10 +24,13 @@ import {
  * re-evaluated before autopay is re-approved. Non-money generation paths are unaffected by this constant.
  *
  * v2 — the STRICT money parse: JSON.parse only, no repairJson/fence-strip/brace-wrap/balanced-extraction/
- * partial completion, and an abnormal finish_reason or refusal fails closed. Strictly a SUBSET of what v1
- * accepted, so it can only reduce autopay recall, never increase autopay.
+ * partial completion.
+ * v3 — additionally requires EXPLICIT normal completion termination (the completion adapter): a payout may
+ * be authorized only when the provider signalled a recognized normal finish (`stop`); an absent/unknown
+ * finish_reason, a truncation (length/max_tokens), a content filter, or a refusal fails closed. Strictly a
+ * SUBSET of what v2 accepted, so it can only reduce autopay recall, never increase autopay.
  */
-export const PARSER_POLICY_VERSION = "payout-parse-v2";
+export const PARSER_POLICY_VERSION = "payout-parse-v3";
 
 /**
  * ============================================================================
@@ -165,22 +169,6 @@ function heuristicFallback(input: BrainInput, latencyMs: number | null): Decisio
   });
 }
 
-interface ChatResponse {
-  choices?: {
-    message?: { content?: string; refusal?: string | null };
-    finish_reason?: string | null;
-  }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
-}
-
-/**
- * finish_reason values that mean the completion did NOT end normally — a truncated (length / max_tokens),
- * content-filtered, or tool-diverted response is an INCOMPLETE money decision and must fail closed. An
- * absent finish_reason or a provider-normal marker ("stop", "end_turn", …) is allowed; the strict
- * JSON.parse in {@link parseMoneyBrief} is the backstop for a body truncated without a marker.
- */
-const ABNORMAL_FINISH: ReadonlySet<string> = new Set(["length", "max_tokens", "content_filter", "tool_calls", "function_call"]);
-
 /**
  * STRICT money-decision parse — the payout path must NEVER repair, salvage, or complete a model's output.
  * Unlike the tolerant `repairJson` (kept for non-money generation), this does exactly one thing: JSON.parse
@@ -245,18 +233,18 @@ async function callProvider(
     });
     if (!res.ok) throw new Error(`llm ${res.status}`);
 
-    const data = (await res.json()) as ChatResponse;
-    const choice = data.choices?.[0];
-    // FAIL CLOSED on a money decision that did not complete normally: an abnormal finish_reason
-    // (truncation / content-filter / tool diversion) or an explicit refusal. These would otherwise be
-    // salvaged by the old repair path into a partial "decision".
-    const finishReason = choice?.finish_reason ?? null;
-    if (finishReason && ABNORMAL_FINISH.has(finishReason)) throw new Error(`abnormal finish_reason: ${finishReason}`);
-    if (choice?.message?.refusal) throw new Error("model refusal");
-    const content = choice?.message?.content;
-    if (!content) throw new Error("empty completion");
+    const data = (await res.json()) as ChatCompletionResponse;
+    const completion = readCompletion(data); // preserve the provider's actual termination metadata
+    // FAIL CLOSED unless the provider EXPLICITLY signalled a normal completion. A refusal, an ABSENT
+    // finish_reason, a truncation (length/max_tokens), a content filter, or any non-normal reason all mean
+    // this is not a payable decision — even if the body parses. The money path never infers a normal
+    // completion from a parseable object; a syntactically complete PAY object with finish_reason "length"
+    // must not pay.
+    const reject = terminationRejectReason(completion);
+    if (reject) throw new Error(`non-normal completion: ${reject}`);
+    if (!completion.content) throw new Error("empty completion");
 
-    const parsed = parseMoneyBrief(content); // STRICT — no repair/salvage on the payout path
+    const parsed = parseMoneyBrief(completion.content); // STRICT — no repair/salvage on the payout path
     if (!parsed) throw new Error("unparseable or incomplete money brief");
 
     const { content: safe } = enforceQuotes(parsed, input.evidenceText);
@@ -273,11 +261,7 @@ async function callProvider(
         evidenceOk: input.evidenceOk,
         contentSha256: input.contentSha256 ?? null,
         latencyMs: Date.now() - started,
-        costUsd: estimateCostUsd(
-          p.model,
-          data.usage?.prompt_tokens ?? 0,
-          data.usage?.completion_tokens ?? 0,
-        ),
+        costUsd: estimateCostUsd(p.model, completion.promptTokens, completion.completionTokens),
         x402PaymentTx: null,
       },
       input,

@@ -24,6 +24,7 @@ import "server-only";
  */
 import { createHash } from "node:crypto";
 import type { DecisionBrief } from "./brain-core";
+import { readCompletion, terminationRejectReason, type ChatCompletionResponse } from "./completion";
 
 /** Bump when the entailment SYSTEM prompt changes (the veto's own policy identity). */
 export const ENTAILMENT_PROMPT_VERSION = "entail-v1";
@@ -170,12 +171,7 @@ function buildUserContent(input: EntailmentInput): string {
   return `Criteria to check:\n${lines.join("\n")}\n\nSubmitter note (untrusted, not evidence):\n<<<UNTRUSTED_NOTE>>>${scrub(input.note ?? "")}<<<END_UNTRUSTED_NOTE>>>`;
 }
 
-const ABNORMAL_FINISH: ReadonlySet<string> = new Set(["length", "max_tokens", "content_filter", "tool_calls", "function_call"]);
 const VERDICTS: ReadonlySet<string> = new Set(["entailed", "not_entailed", "uncertain"]);
-
-interface ChatResponse {
-  choices?: { message?: { content?: string; refusal?: string | null }; finish_reason?: string | null }[];
-}
 
 /**
  * STRICT parse + validate the entailment output. No repair (JSON.parse only). Requires: an object with a
@@ -274,15 +270,14 @@ export async function runEntailmentVeto(input: EntailmentInput, opts: Entailment
       }),
     });
     if (!res.ok) return fail(input, "provider_error", `llm ${res.status}`, provider.model, provider.host, Date.now() - started);
-    const data = (await res.json()) as ChatResponse;
-    const choice = data.choices?.[0];
-    const finishReason = choice?.finish_reason ?? null;
-    if (choice?.message?.refusal) return fail(input, "abnormal_finish", "model refusal", provider.model, provider.host, Date.now() - started);
-    if (finishReason && ABNORMAL_FINISH.has(finishReason)) return fail(input, "abnormal_finish", `finish_reason ${finishReason}`, provider.model, provider.host, Date.now() - started);
-    const content = choice?.message?.content;
-    if (!content) return fail(input, "invalid_output", "empty completion", provider.model, provider.host, Date.now() - started);
+    const completion = readCompletion((await res.json()) as ChatCompletionResponse);
+    // FAIL CLOSED (veto) unless the veto's own completion ended normally — an absent/abnormal finish or a
+    // refusal means we can't trust the verdict to CLEAR the veto, so we veto (the safe direction).
+    const reject = terminationRejectReason(completion);
+    if (reject) return fail(input, "abnormal_finish", reject, provider.model, provider.host, Date.now() - started);
+    if (!completion.content) return fail(input, "invalid_output", "empty completion", provider.model, provider.host, Date.now() - started);
 
-    const rows = parseEntailment(content, ids); // STRICT — no repair
+    const rows = parseEntailment(completion.content, ids); // STRICT — no repair
     if (!rows) return fail(input, "invalid_output", "entailment output failed strict validation", provider.model, provider.host, Date.now() - started);
 
     const failing = rows.filter((r) => r.verdict !== "entailed");

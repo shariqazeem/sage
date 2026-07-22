@@ -45,7 +45,7 @@ export function payBrief(): StoredBrief {
     // the APPROVED policy identity (paired with the approved model set in seedV2Campaign) — so the
     // reconstructed brief clears the autopay identity gate on the happy path.
     promptVersion: "payout-v1",
-    parserVersion: "payout-parse-v2",
+    parserVersion: "payout-parse-v3",
   };
 }
 

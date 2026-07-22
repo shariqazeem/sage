@@ -17,7 +17,7 @@ const APPROVED = {
   provider: "api.commonstack.ai",
   model: "google/gemini-3.1-flash-lite-preview",
   promptVersion: "payout-v1",
-  parserVersion: "payout-parse-v2",
+  parserVersion: "payout-parse-v3",
 };
 const brief = (over: Partial<Record<keyof typeof APPROVED, string | null>> = {}) => ({ ...APPROVED, ...over });
 
@@ -49,7 +49,7 @@ describe("autopay-approved judge policy-identity (deterministic, subtract-only)"
   });
 
   it("a BUMPED PARSER version CANNOT pay — a money-parse change requires re-evaluation before autopay", () => {
-    const g = judgeIdentityGate(brief({ parserVersion: "payout-parse-v3" }), true);
+    const g = judgeIdentityGate(brief({ parserVersion: "payout-parse-v4" }), true);
     expect(g.pay).toBe(false);
     expect(g.blocked).toBe("judge_identity_unapproved");
     expect(g.approvedIdentity).toBe(false);
@@ -76,7 +76,7 @@ describe("autopay-approved judge policy-identity (deterministic, subtract-only)"
     expect(isApprovedJudgeModel(fallbackModel)).toBe(false); // not in the set today
     expect(isApprovedJudgeModel(APPROVED.model)).toBe(true); // an included model passes the weak check
     // ...yet an approved model at a bumped parser is NOT an approved identity:
-    expect(isApprovedJudgeIdentity({ ...APPROVED, parserVersion: "payout-parse-v3" })).toBe(false);
+    expect(isApprovedJudgeIdentity({ ...APPROVED, parserVersion: "payout-parse-v4" })).toBe(false);
   });
 
   it("the current prod primary FULL identity is approved → NO behavior change for the deployed combination", () => {
@@ -85,7 +85,7 @@ describe("autopay-approved judge policy-identity (deterministic, subtract-only)"
   });
 
   it("identityKey is stable + distinguishes every component", () => {
-    expect(identityKey(APPROVED)).toBe("api.commonstack.ai|google/gemini-3.1-flash-lite-preview|payout-v1|payout-parse-v2");
+    expect(identityKey(APPROVED)).toBe("api.commonstack.ai|google/gemini-3.1-flash-lite-preview|payout-v1|payout-parse-v3");
     expect(identityKey({ ...APPROVED, promptVersion: "payout-v2" })).not.toBe(identityKey(APPROVED));
   });
 });

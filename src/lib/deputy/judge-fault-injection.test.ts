@@ -20,9 +20,10 @@ const INPUT: BrainInput = {
   evidenceOk: true, contentSha256: null,
 };
 
-/** A chat-completions Response carrying `content`. */
+/** A chat-completions Response carrying `content`, with an explicit NORMAL finish (Gate C requires it;
+ *  these fault cases isolate OTHER failures — timeout, bad status, refusal text, malformed/empty body). */
 function completion(content: string): Response {
-  return new Response(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 10 } }), {
+  return new Response(JSON.stringify({ choices: [{ message: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } }), {
     status: 200, headers: { "content-type": "application/json" },
   });
 }

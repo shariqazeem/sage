@@ -14,6 +14,7 @@ import { isAutoPayQualifying, type BrainInput } from "./brain-core";
  * logic). A rejected body is retried 3× on the primary, then — with no fallback — degrades to heuristic.
  */
 const primaryProv: LlmProvider = { endpoint: "https://primary.test/v1/chat/completions", key: "k", model: "test/primary", host: "primary.test" };
+const fallbackProv: LlmProvider = { endpoint: "https://fallback.test/v1/chat/completions", key: "k", model: "test/fallback", host: "fallback.test" };
 
 const INPUT: BrainInput = {
   campaignTitle: "t", criteria: ["did the thing"], conditionType: "approval",
@@ -59,9 +60,18 @@ describe("strict money parse — the payout path never repairs, salvages, or com
     expect(b.recommendation).toBe("pay");
   });
 
-  it("CLEAN strict JSON with NO finish_reason (gateway omits it) → still parses (deny-list, not allow-list)", async () => {
-    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: null, fetchImpl: serve({ content: PAY_JSON }) });
-    expect(b.engine).toBe("llm");
+  it("valid JSON with NO finish_reason → CANNOT pay (Gate C: explicit normal completion required)", async () => {
+    // The money path never infers a normal completion from a parseable body — an absent finish_reason
+    // fails closed to the heuristic. (This inverts the Gate-B deny-list; see completion.ts.)
+    await expectFailClosed(serve({ content: PAY_JSON }));
+  });
+
+  it("valid JSON + finish_reason \"max_tokens\" → cannot pay (truncation marker)", async () => {
+    await expectFailClosed(serve({ content: PAY_JSON, finish_reason: "max_tokens" }));
+  });
+
+  it("valid JSON + an UNKNOWN finish_reason → cannot pay (only recognized-normal may continue)", async () => {
+    await expectFailClosed(serve({ content: PAY_JSON, finish_reason: "some_new_reason" }));
   });
 
   it("FENCED JSON (```json … ```) → rejected, heuristic, never autopay", async () => {
@@ -112,5 +122,33 @@ describe("strict money parse — the payout path never repairs, salvages, or com
     // gate would have autopaid. Strict parse rejects it → heuristic → cannot autopay. Recall down, safety up.
     const b = await expectFailClosed(serve({ content: "```json " + JSON.stringify({ criteria: [], fraudSignals: [], recommendation: "pay", reasonCode: "all_criteria_met", confidence: 0.99, summary: "looks great." }) + " ```", finish_reason: "stop" }));
     expect(b.model).toBe(null); // the heuristic decided — the salvaged LLM text never became a brief
+  });
+});
+
+describe("explicit normal completion — the rule applies INDEPENDENTLY to the fallback provider", () => {
+  // route by host: the primary always fails over (throws), so the fallback's completion is what decides.
+  const failoverTo = (fallbackOpts: { content?: string; finish_reason?: string; refusal?: string }) =>
+    (async (url: string) => {
+      if (String(url).includes("primary.test")) throw new Error("primary down");
+      return completion(fallbackOpts); // the fallback endpoint's response
+    }) as unknown as typeof fetch;
+
+  it("approved FALLBACK with explicit \"stop\" → engine llm with fallback provenance (normal gates)", async () => {
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: fallbackProv, fetchImpl: failoverTo({ content: PAY_JSON, finish_reason: "stop" }) });
+    expect(b.engine).toBe("llm");
+    expect(b.provider).toBe("fallback.test");
+    expect(b.model).toBe("test/fallback");
+  });
+
+  it("FALLBACK with an ABSENT finish_reason → cannot pay (heuristic, independent of the primary)", async () => {
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: fallbackProv, fetchImpl: failoverTo({ content: PAY_JSON }) });
+    expect(b.engine).toBe("heuristic");
+    expect(judgeDecision(b).autopayQualified).toBe(false);
+  });
+
+  it("FALLBACK with an ABNORMAL finish_reason (length) → cannot pay", async () => {
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: fallbackProv, fetchImpl: failoverTo({ content: PAY_JSON, finish_reason: "length" }) });
+    expect(b.engine).toBe("heuristic");
+    expect(judgeDecision(b).autopayQualified).toBe(false);
   });
 });
