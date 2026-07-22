@@ -8,6 +8,7 @@
  */
 
 import { norm, productMapDigest } from "./schemas";
+import { deriveObservations } from "./observed-facts";
 import { aggregateVisionSignals, visionCategory, type AggregatedVision } from "./vision";
 import type {
   FieldTestSummary,
@@ -226,6 +227,13 @@ export function buildProductMap(
   // exactly the ones static text categorization fails on (yara.garden → "product (uncategorized)").
   if (fieldTest?.visionObservations && fieldTest.visionObservations.length > 0) {
     applyVisionUnderstanding(map, observations, fieldTest.visionObservations);
+  }
+  // Eyes V2 — derive the action-grounded observation set deterministically from the field test. Attached
+  // AFTER the digest (like fieldTest/vision), so it is digest-neutral + purely additive. A map without a
+  // field test yields an empty set (no key spread), keeping the serialized map byte-identical to today.
+  if (fieldTestExplored(fieldTest)) {
+    const obs = deriveObservations(fieldTest);
+    if (obs.facts.length > 0 || obs.transitions.length > 0) map.observations = obs;
   }
   return map;
 }

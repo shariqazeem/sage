@@ -246,6 +246,13 @@ export interface ProductMapV1 {
    * field test leaves the map (and every downstream hash) byte-identical to today.
    */
   fieldTest?: FieldTestSummary | null;
+  /**
+   * Eyes V2 — the action-grounded, source-addressable observation set derived deterministically from the
+   * field test (type-only reference to avoid a runtime cycle). ALSO excluded from `digest`, so it is
+   * purely additive: an inspection without it produces byte-identical downstream hashes, and old artifacts
+   * that lack it remain readable. Populated after the digest is computed.
+   */
+  observations?: import("./observed-facts").ObservationSetV1 | null;
 }
 
 /* ────────────────────────────────────────────── candidate mission ───────── */
