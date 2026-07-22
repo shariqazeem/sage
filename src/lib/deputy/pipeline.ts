@@ -43,7 +43,7 @@ import {
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
-import { judgeModelGate, MODEL_POLICY_VERSION } from "./model-policy";
+import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
 import { mainnetAutopilotEnabled } from "@/lib/env";
@@ -408,17 +408,18 @@ export async function runDeputyOnSubmission(
       return { action: "skipped", reason: gate.reason, correlationId: cid };
     }
 
-    // b2. UNAPPROVED JUDGE MODEL — deterministic, subtract-only. gate.pay is true here; a payout may be
-    // authorized ONLY by a model that PASSED the promotion battery (P-JUDGE + red-team). The ACTUAL model
-    // that decided (brief.model, stamped by callProvider) is checked against the approved allowlist, so a
-    // fallback model, an alias that resolved elsewhere, or missing provenance all fall to MANUAL REVIEW —
-    // even at pay/1.0. The existing gates above are untouched; this can only turn a would-pay into a hold.
-    const modelGate = judgeModelGate(brief, gate.pay);
-    if (modelGate.blocked) {
+    // b2. UNAPPROVED JUDGE IDENTITY — deterministic, subtract-only. gate.pay is true here; a payout may be
+    // authorized ONLY by the EXACT (provider, model, prompt, parser) combination that PASSED the promotion
+    // battery (P-JUDGE + red-team). The identity stamped on the brief by callProvider is checked against
+    // the approved allowlist, so a fallback model, a different provider, a bumped prompt or parser, an
+    // alias that resolved elsewhere, or missing/legacy provenance all fall to MANUAL REVIEW — even at
+    // pay/1.0. The existing gates above are untouched; this can only turn a would-pay into a hold.
+    const identityGate = judgeIdentityGate(brief, gate.pay);
+    if (identityGate.blocked) {
       // the REQUESTED primary model, for the audit line (read inline so the pipeline needs no brain import).
       const requested = process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "default";
-      const reason = `judge_model_unapproved (requested=${requested}, actual=${brief.model ?? "none"}, policy=${MODEL_POLICY_VERSION})`;
-      agentLog(cid, "model_policy", { blocked: modelGate.blocked, requested, actual: brief.model });
+      const reason = `judge_identity_unapproved (requested=${requested}, actual=${brief.model ?? "none"}@${brief.provider ?? "none"}, prompt=${brief.promptVersion ?? "none"}, parser=${brief.parserVersion ?? "none"}, policy=${MODEL_POLICY_VERSION})`;
+      agentLog(cid, "model_policy", { blocked: identityGate.blocked, requested, actual: brief.model, provider: brief.provider, promptVersion: brief.promptVersion, parserVersion: brief.parserVersion, approvedModel: identityGate.approvedModel });
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
         journalHeld(campaign, submission, reason, cid);
         void notifyFounderHeld(campaign, submission);

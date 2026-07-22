@@ -68,6 +68,8 @@ function payBriefFor(): DecisionBrief {
     engine: "llm",
     model: "google/gemini-3.1-flash-lite-preview",
     provider: "api.commonstack.ai",
+    promptVersion: "payout-v1", // the APPROVED policy identity → clears the autopay identity gate
+    parserVersion: "payout-parse-v1",
     criteria: [{ criterion: "the app loads", met: true, confidence: 0.97, quote: "it loads fine" }],
     fraudSignals: [],
     recommendation: "pay",
@@ -113,18 +115,18 @@ describe("V2 pipeline — an unknown tester is paid via requestPayout, no allowl
     expect(attempt?.recipient.toLowerCase()).toBe(f.submission.wallet.toLowerCase());
   });
 
-  it("an UNAPPROVED judge model with a perfect qualifying brief CANNOT pay → held (judge_model_unapproved)", async () => {
+  it("an UNAPPROVED judge model with a perfect qualifying brief CANNOT pay → held (judge_identity_unapproved)", async () => {
     const f = seedV2Campaign();
     const calls = { requestPayout: 0 };
     // qualifies (pay / 0.97 / clean) but was produced by a model NOT on the autopay allowlist (the
-    // fallback deepseek, or an alias) — the deterministic model gate blocks the payout regardless.
+    // fallback deepseek, or an alias) — the deterministic identity gate blocks the payout regardless.
     vi.mocked(ensureDecision).mockResolvedValue({ ...payBriefFor(), model: "deepseek/deepseek-v4-flash" });
     const deps = { campaignAdapter: makeFakeAdapter(f, { calls }), operatorAddress: () => V2_OPERATOR };
 
     const r = await runDeputyOnSubmission(f.submission.id, deps);
 
     expect(r.action).toBe("held");
-    expect(r.reason).toMatch(/judge_model_unapproved/);
+    expect(r.reason).toMatch(/judge_identity_unapproved/);
     expect(calls.requestPayout).toBe(0); // never broadcast
     expect(getSubmission(f.submission.id)?.status).toBe("pending"); // reviewable, not paid
   });
@@ -136,7 +138,7 @@ describe("V2 pipeline — an unknown tester is paid via requestPayout, no allowl
     const deps = { campaignAdapter: makeFakeAdapter(f, { calls }), operatorAddress: () => V2_OPERATOR };
     const r = await runDeputyOnSubmission(f.submission.id, deps);
     expect(r.action).toBe("held");
-    expect(r.reason).toMatch(/judge_model_unapproved/);
+    expect(r.reason).toMatch(/judge_identity_unapproved/);
     expect(calls.requestPayout).toBe(0);
   });
 

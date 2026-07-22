@@ -3,6 +3,7 @@ import "server-only";
 import { assessSubmission } from "@/lib/campaigns/assess";
 import {
   SYSTEM_PROMPT,
+  PAYOUT_PROMPT_VERSION,
   buildUserContent,
   repairJson,
   parseBriefContent,
@@ -13,6 +14,15 @@ import {
   type BrainInput,
   type DecisionBrief,
 } from "./brain-core";
+
+/**
+ * POLICY-IDENTITY version of the MONEY-PATH PARSE in {@link callProvider} — how raw model output is
+ * turned into a brief that can authorize a payout. The autopay identity gate (`model-policy.ts`) pins the
+ * EXACT parser version that passed the promotion battery, so any change to how the money decision is
+ * parsed (e.g. tightening it to reject repaired / truncated / partial output) MUST bump this and be
+ * re-evaluated before autopay is re-approved. Non-money generation paths are unaffected by this constant.
+ */
+export const PARSER_POLICY_VERSION = "payout-parse-v1";
 
 /**
  * ============================================================================
@@ -209,6 +219,10 @@ async function callProvider(
         engine: "llm",
         model: p.model,
         provider: p.host,
+        // POLICY IDENTITY — the exact prompt + money-parser that produced this brief. hardenBrief spreads
+        // the brief, so these survive into the returned + persisted brief for the autopay identity gate.
+        promptVersion: PAYOUT_PROMPT_VERSION,
+        parserVersion: PARSER_POLICY_VERSION,
         evidenceOk: input.evidenceOk,
         contentSha256: input.contentSha256 ?? null,
         latencyMs: Date.now() - started,

@@ -35,6 +35,11 @@ export function briefFromRow(row: Decision): DecisionBrief {
     // reasonCode + provider were added later; default them for pre-existing rows.
     reasonCode: row.brief.reasonCode ?? "unknown",
     provider: row.brief.provider ?? null,
+    // POLICY IDENTITY — the prompt + money-parser version that produced this brief. Persisted in the json
+    // blob (no schema change); null for legacy rows predating the stamp → the autopay identity gate holds
+    // them for manual review, which is the safe (subtract-only) default.
+    promptVersion: row.brief.promptVersion ?? null,
+    parserVersion: row.brief.parserVersion ?? null,
     evidenceOk: row.evidenceOk,
     contentSha256: row.contentSha256,
     latencyMs: row.latencyMs,
@@ -273,6 +278,10 @@ export async function ensureDecision(
       confidence: brief.confidence,
       summary: brief.summary,
       provider: brief.provider,
+      // POLICY IDENTITY — persist the prompt + money-parser version so the reconstructed brief still
+      // carries the exact combination the autopay identity gate must approve.
+      promptVersion: brief.promptVersion ?? null,
+      parserVersion: brief.parserVersion ?? null,
     },
     contentSha256: brief.contentSha256,
     evidenceOk: brief.evidenceOk,

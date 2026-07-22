@@ -61,7 +61,10 @@ const submission = {
 const payBrief: DecisionBrief = {
   engine: "llm",
   model: "google/gemini-3.1-flash-lite-preview",
-  provider: "test",
+  // the APPROVED policy identity so the payout clears the autopay identity gate.
+  provider: "api.commonstack.ai",
+  promptVersion: "payout-v1",
+  parserVersion: "payout-parse-v1",
   criteria: [],
   fraudSignals: [],
   recommendation: "pay",

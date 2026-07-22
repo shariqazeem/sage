@@ -19,10 +19,12 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { verifySubmission, providerForModel, type LlmProvider } from "./brain";
 import { gateFromBrief } from "./autopilot";
-import type { BrainInput, DecisionBrief } from "./brain-core";
+import { PAYOUT_PROMPT_VERSION, type BrainInput, type DecisionBrief } from "./brain-core";
 
-/** Bump when SYSTEM_PROMPT / the money-decision shape changes — recorded on every row for provenance. */
-export const JUDGE_PROMPT_VERSION = "payout-v1";
+/** The payout prompt version this eval runs against — single-sourced from brain-core so it can never
+ *  drift from what production stamps on a brief (and what the autopay identity gate pins). Recorded on
+ *  every row for provenance. */
+export const JUDGE_PROMPT_VERSION = PAYOUT_PROMPT_VERSION;
 
 export type JudgeOutcome = "autopay" | "review" | "hold";
 

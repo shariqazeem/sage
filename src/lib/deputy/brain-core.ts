@@ -102,10 +102,25 @@ export interface DecisionBrief extends DecisionBriefContent {
    */
   x402Status?: import("@/lib/x402/x402-status").X402Status;
   x402Reason?: import("@/lib/x402/x402-status").X402Reason | null;
+  /**
+   * POLICY IDENTITY — the version of the payout SYSTEM_PROMPT ({@link PAYOUT_PROMPT_VERSION}) and of the
+   * money-path PARSER (`PARSER_POLICY_VERSION` in brain.ts) that produced this brief. Stamped by
+   * `callProvider` on a fresh LLM brief and persisted, so the autopay identity gate can require the EXACT
+   * evaluated (provider, model, prompt, parser) combination. Null on the heuristic (which never
+   * auto-pays) and on legacy rows predating the stamp (→ the gate holds them for manual review).
+   */
+  promptVersion?: string | null;
+  parserVersion?: string | null;
 }
 
-/** What we persist in `decisions.brief` (json): the judgment + the deciding provider. */
-export type StoredBrief = DecisionBriefContent & { provider: string | null };
+/** What we persist in `decisions.brief` (json): the judgment, the deciding provider, and the policy
+ *  identity (prompt + parser version) so a reconstructed brief still carries the combination that
+ *  produced it — the autopay identity gate reads these. */
+export type StoredBrief = DecisionBriefContent & {
+  provider: string | null;
+  promptVersion?: string | null;
+  parserVersion?: string | null;
+};
 
 export interface BrainInput {
   campaignTitle: string;
@@ -127,6 +142,16 @@ export const EVIDENCE_CHARS = 12_000;
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const truncate = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n)}\n…[truncated]` : s;
+
+/**
+ * POLICY-IDENTITY version of the payout SYSTEM_PROMPT below. The autopay identity gate
+ * (`model-policy.ts`) pins the EXACT prompt version that passed the promotion battery, so ANY material
+ * change to SYSTEM_PROMPT (the money rubric) MUST bump this. Bumping it invalidates autopay approval for
+ * every model until the new (provider, model, prompt, parser) combination is re-evaluated (P-JUDGE with
+ * 0 wrong-autopay + the live red-team) and re-added to APPROVED_IDENTITIES. The version is stamped onto
+ * every fresh LLM brief and persisted, so the gate reads the prompt that actually produced the decision.
+ */
+export const PAYOUT_PROMPT_VERSION = "payout-v1";
 
 /**
  * The system prompt for payout verification. Written to be skeptical but fair,
