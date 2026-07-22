@@ -13,6 +13,25 @@
 import { createHash } from "node:crypto";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
 
+/**
+ * Structured, NON-SENSITIVE provenance for a rendered-evidence attempt (W2). Carries lengths + digests +
+ * outcome + URLs only — never raw attacker-controlled page text — so it is safe to journal. Recorded on
+ * every triggered attempt (shadow OR enforce) for promotion analysis + payout auditability.
+ */
+export interface RenderProvenance {
+  requestedUrl: string;
+  finalUrl: string | null;
+  mode: "shadow" | "enforce";
+  triggerReason: "thin_text" | "no_js_notice";
+  staticLen: number;
+  staticDigest: string | null;
+  renderedLen: number | null;
+  renderedDigest: string | null;
+  outcome: string; // RenderOutcome from evidence-render.ts
+  rendererVersion: string;
+  at: number;
+}
+
 export interface EvidenceResult {
   text: string;
   contentSha256: string | null;
@@ -20,12 +39,39 @@ export interface EvidenceResult {
   fetchedAt: number;
   ok: boolean;
   failReason?: string;
+  /** which fetch produced the text the JUDGE saw — "static" (plain HTTP) or "rendered" (headless browser,
+   *  W2 enforce). In shadow mode this stays "static" (rendered text never reaches the judge). Absent on
+   *  failures. */
+  mode?: "static" | "rendered";
+  /** rendered-capture provenance when a render was triggered (shadow or enforce); never raw page text. */
+  render?: RenderProvenance;
 }
 
 const TIMEOUT_MS = 5000;
 const MAX_BYTES = 250 * 1024; // 250KB cap
 const MAX_REDIRECTS = 2;
 const MAX_TEXT_CHARS = 40_000;
+/** Below this, a static fetch's text is "thin" — the SPA-shell signature that warrants a rendered retry. */
+const RENDER_THIN_CHARS = 200;
+
+const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
+
+/** A static result worth re-fetching in a real browser: near-empty text, or an explicit no-JS notice. */
+function isThinEvidence(text: string): boolean {
+  return text.length < RENDER_THIN_CHARS || /\benable\s+JavaScript\b/i.test(text);
+}
+
+/**
+ * The rendered-evidence rollout state (canonical resolver lives in evidence-render.ts; duplicated here as
+ * a trivial env read so this module pulls NO browser deps). `off` (default / unknown) | `shadow` (legacy
+ * `RENDERED_EVIDENCE=1` maps here — render + compare but the JUDGE still sees static) | `enforce`.
+ */
+function renderedEvidenceMode(): "off" | "shadow" | "enforce" {
+  const raw = process.env.RENDERED_EVIDENCE_MODE?.trim().toLowerCase();
+  if (raw === "shadow" || raw === "enforce" || raw === "off") return raw;
+  if (process.env.RENDERED_EVIDENCE === "1") return "shadow";
+  return "off";
+}
 
 function collapse(s: string): string {
   return s.replace(/\s+/g, " ").trim();
@@ -153,13 +199,48 @@ export async function fetchEvidence(
     const ctype = (res.headers.get("content-type") ?? "").toLowerCase();
     const raw = new TextDecoder("utf-8", { fatal: false }).decode(buf);
     const text = ctype.includes("html") ? stripHtml(raw) : collapse(raw);
+    const staticText = text.slice(0, MAX_TEXT_CHARS);
     const contentSha256 = createHash("sha256").update(buf).digest("hex");
-    return {
-      text: text.slice(0, MAX_TEXT_CHARS),
-      contentSha256,
-      fetchedAt,
-      ok: true,
-    };
+    const staticResult: EvidenceResult = { text: staticText, contentSha256, fetchedAt, ok: true, mode: "static" };
+
+    // RENDERED CAPTURE (W2 — off | shadow | enforce). A client-rendered SPA returns a near-empty shell to
+    // this plain fetch, so genuine work HOLDS for lack of evidence. When NOT off, and the static text is
+    // thin, re-fetch in a guarded headless browser (adversarial — every request re-validated; see
+    // evidence-render.ts). SHADOW: record the static-vs-rendered comparison but return STATIC (the judge's
+    // input is byte-for-byte unchanged). ENFORCE: rendered text may reach the judge, only when richer.
+    // Any failure keeps the static result. Dynamic import so this module pulls no browser deps unless a
+    // render actually fires.
+    const mode = renderedEvidenceMode();
+    if (mode !== "off" && isThinEvidence(staticText)) {
+      try {
+        const { renderEvidence, RENDERER_VERSION } = await import("./evidence-render");
+        const r = await renderEvidence(rawUrl);
+        const render: RenderProvenance = {
+          requestedUrl: rawUrl,
+          finalUrl: r.finalUrl,
+          mode,
+          triggerReason: staticText.length < RENDER_THIN_CHARS ? "thin_text" : "no_js_notice",
+          staticLen: staticText.length,
+          staticDigest: contentSha256,
+          renderedLen: r.text ? r.text.length : null,
+          renderedDigest: r.text ? sha256(r.text) : null,
+          outcome: r.outcome,
+          rendererVersion: RENDERER_VERSION,
+          at: fetchedAt,
+        };
+        // ENFORCE only: rendered text reaches the judge (when strictly richer). It is returned as `.text`,
+        // so it receives the EXACT same untrusted-markers/caps/truncation as static evidence downstream.
+        if (mode === "enforce" && r.text && r.text.length > staticText.length) {
+          return { text: r.text.slice(0, MAX_TEXT_CHARS), contentSha256: sha256(r.text), fetchedAt, ok: true, mode: "rendered", render };
+        }
+        // SHADOW (or enforce-but-not-richer): the static evidence is what the judge sees; comparison logged.
+        return { ...staticResult, render };
+      } catch {
+        /* keep the static result — the render is best-effort */
+      }
+    }
+
+    return staticResult;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return fail(
