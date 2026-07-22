@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { DecisionBrief } from "./brain-core";
 
@@ -50,6 +50,15 @@ vi.mock("./agent-log", () => ({
   newCorrelationId: () => "cid_test",
   agentLog: vi.fn(),
 }));
+// The entailment veto defaults to "off" (implementation persists across clearAllMocks) so every existing
+// test is unaffected; the mode truth-table below overrides per test to exercise shadow/enforce.
+const ENTAILED = { ran: true, vetoed: false, verdicts: [], vetoReason: "all entailed", model: "anthropic/claude-haiku-4-5", provider: "ent.test", promptVersion: "entail-v1", parserVersion: "entail-parse-v1", latencyMs: 5, inputDigest: "d0", resultDigest: "d1", error: null };
+const VETOED = { ...ENTAILED, vetoed: true, vetoReason: "1/1 not entailed (c0:not_entailed)" };
+vi.mock("./entailment", () => ({
+  entailmentMode: vi.fn(() => "off"),
+  entailmentInputFromBrief: vi.fn(() => ({ criteria: [{ id: "c0", criterion: "x", quote: "q" }], note: null })),
+  runEntailmentVeto: vi.fn(async () => ENTAILED),
+}));
 
 import { runDeputyOnSubmission } from "./pipeline";
 import {
@@ -66,6 +75,7 @@ import {
 import { getVaultState } from "@/lib/deputy/chain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
+import { entailmentMode, runEntailmentVeto } from "./entailment";
 import { observationAutopayEnabled, runObservationDecision } from "./observation-judge";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 
@@ -149,6 +159,46 @@ describe("runDeputyOnSubmission — happy path", () => {
     expect(r.txHash).toBe("0xTX");
     expect(r.correlationId).toBe("cid_test");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("entailment veto — mode truth table (off/shadow never change payout; only enforce holds)", () => {
+  // Reset the leaked implementations so the mode can't bleed into later describe blocks.
+  afterEach(() => {
+    vi.mocked(entailmentMode).mockReturnValue("off");
+    vi.mocked(runEntailmentVeto).mockResolvedValue(ENTAILED as never);
+  });
+
+  it("OFF (default) → the veto never runs; a qualifying submission settles", async () => {
+    vi.mocked(entailmentMode).mockReturnValue("off");
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
+    expect(runEntailmentVeto).not.toHaveBeenCalled();
+  });
+
+  it("SHADOW + vetoed → the veto RUNS and is journaled, but the payout is UNCHANGED (still settles)", async () => {
+    vi.mocked(entailmentMode).mockReturnValue("shadow");
+    vi.mocked(runEntailmentVeto).mockResolvedValue(VETOED as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(runEntailmentVeto).toHaveBeenCalledTimes(1);
+    expect(r.action).toBe("settled"); // shadow measures; it never changes money
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("ENFORCE + vetoed → HELD (entailment_veto), never settles", async () => {
+    vi.mocked(entailmentMode).mockReturnValue("enforce");
+    vi.mocked(runEntailmentVeto).mockResolvedValue(VETOED as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/entailment_veto/);
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("ENFORCE + all entailed → settles (a passing veto never blocks genuine work)", async () => {
+    vi.mocked(entailmentMode).mockReturnValue("enforce");
+    vi.mocked(runEntailmentVeto).mockResolvedValue(ENTAILED as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
   });
 });
 

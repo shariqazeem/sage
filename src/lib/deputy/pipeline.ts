@@ -44,6 +44,7 @@ import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
 import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
+import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
 import { mainnetAutopilotEnabled } from "@/lib/env";
@@ -426,6 +427,32 @@ export async function runDeputyOnSubmission(
         return { action: "held", reason, correlationId: cid };
       }
       return { action: "skipped", reason, correlationId: cid };
+    }
+
+    // b3. ENTAILMENT VETO (shadow-gated) — the final CONTENT check before autopay. gate.pay + identity are
+    // both satisfied here, so this runs ONLY for a would-be autopay (post-qualification). An independently-
+    // approved model re-checks whether the brief's OWN cited quotes ENTAIL each met criterion (a marketing
+    // phrase ≠ the tester did it). off → skip; shadow → run + journal, never change the payout; enforce →
+    // a not_entailed/uncertain verdict or any failure downgrades to MANUAL REVIEW. It NEVER mutates the
+    // brief (quotes/confidence/recommendation) — like the identity gate, it can only turn a would-pay into
+    // a hold. Journals digests + verdict enums only, never raw page/criterion content.
+    const emode = entailmentMode();
+    if (emode !== "off") {
+      const veto = await runEntailmentVeto(entailmentInputFromBrief(brief, submission.note));
+      agentLog(cid, "entailment", {
+        mode: emode, ran: veto.ran, vetoed: veto.vetoed, verdicts: veto.verdicts.map((v) => `${v.criterionId}:${v.verdict}`),
+        model: veto.model, promptVersion: veto.promptVersion, parserVersion: veto.parserVersion, latencyMs: veto.latencyMs,
+        inputDigest: veto.inputDigest, resultDigest: veto.resultDigest, error: veto.error, reason: veto.vetoReason,
+      });
+      if (emode === "enforce" && veto.vetoed) {
+        const reason = `entailment_veto (${veto.vetoReason})`;
+        if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+          journalHeld(campaign, submission, reason, cid);
+          void notifyFounderHeld(campaign, submission);
+          return { action: "held", reason, correlationId: cid };
+        }
+        return { action: "skipped", reason, correlationId: cid };
+      }
     }
   }
 
