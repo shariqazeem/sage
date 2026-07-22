@@ -51,6 +51,7 @@ vi.mock("./decisions", () => ({ ensureDecision: vi.fn() }));
 
 import { runDeputyOnSubmission } from "./pipeline";
 import { ensureDecision } from "./decisions";
+import { __approveForTest, __clearTestApprovals } from "./model-policy";
 import { ensureVendorApproved } from "@/lib/deputy/signer";
 import { getSubmission } from "@/lib/db/campaigns";
 import { getAttempt } from "@/lib/db/settlement-attempts";
@@ -86,6 +87,9 @@ function payBriefFor(): DecisionBrief {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Prod approves nothing; inject the fixture's identity EXPLICITLY so the pay path can settle (Gate C).
+  __clearTestApprovals();
+  __approveForTest({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" });
   vi.mocked(ensureDecision).mockResolvedValue(payBriefFor());
 });
 

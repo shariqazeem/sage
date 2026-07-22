@@ -76,6 +76,7 @@ import { getVaultState } from "@/lib/deputy/chain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
 import { entailmentMode, runEntailmentVeto } from "./entailment";
+import { __approveForTest, __clearTestApprovals } from "./model-policy";
 import { observationAutopayEnabled, runObservationDecision } from "./observation-judge";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
 
@@ -129,6 +130,9 @@ const settledOutcome = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Prod approves nothing; the pay-path tests inject the fixture's identity EXPLICITLY (Gate C).
+  __clearTestApprovals();
+  __approveForTest({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" });
   vi.mocked(getSubmission).mockReturnValue(submission);
   vi.mocked(getCampaign).mockReturnValue(campaign);
   vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec1" } as never);
@@ -159,6 +163,15 @@ describe("runDeputyOnSubmission — happy path", () => {
     expect(r.txHash).toBe("0xTX");
     expect(r.correlationId).toBe("cid_test");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("with the SHIPPED (empty) approved registry, the same qualifying submission is HELD, not settled", async () => {
+    // Gate C fail-safe: nothing is production-approved, so a would-be autopay falls to manual review.
+    __clearTestApprovals();
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/judge_identity_unapproved/);
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 });
 

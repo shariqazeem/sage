@@ -21,6 +21,7 @@ vi.mock("@/lib/telegram/bot", () => ({
 
 import { runDeputyOnSubmission } from "./pipeline";
 import { verifySubmission } from "./brain";
+import { __approveForTest, __clearTestApprovals } from "./model-policy";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import {
   createCampaign,
@@ -177,6 +178,9 @@ const payDecisionBrief: DecisionBrief = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // prod approves nothing; inject the fixture's identity explicitly so a consistent campaign can settle.
+  __clearTestApprovals();
+  __approveForTest({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" });
   vi.mocked(verifyEvidence).mockResolvedValue({
     text: "the app loads",
     contentSha256: "a".repeat(64),

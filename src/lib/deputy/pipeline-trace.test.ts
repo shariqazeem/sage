@@ -39,6 +39,7 @@ import {
 import { getVaultState } from "@/lib/deputy/chain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
+import { __approveForTest } from "./model-policy";
 
 const campaign = {
   id: "c1",
@@ -84,6 +85,8 @@ describe("correlated trace", () => {
     vi.mocked(getCampaign).mockReturnValue(campaign);
     vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec_9f2" } as never);
     vi.mocked(ensureDecision).mockResolvedValue(payBrief);
+    // prod approves nothing; inject the fixture's identity explicitly so the settle path runs (Gate C).
+    __approveForTest({ provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" });
     vi.mocked(casSubmissionStatus).mockReturnValue(true);
     vi.mocked(getVaultState).mockResolvedValue({
       status: "active",
