@@ -1,0 +1,94 @@
+{
+  "evaluationId": "grounded-semantic-draft-v1",
+  "hardCap": 6,
+  "callsConsumed": 3,
+  "calls": [
+    {
+      "seq": 1,
+      "fixture": "state_claim",
+      "role": "architect",
+      "startedAt": "2026-07-23T14:14:45.547Z",
+      "completedAt": "2026-07-23T14:14:48.416Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed"
+    },
+    {
+      "seq": 1,
+      "fixture": "—",
+      "role": "—",
+      "startedAt": "2026-07-23T14:16:07.425Z",
+      "completedAt": "2026-07-23T14:16:07.425Z",
+      "outcomeCode": "note:stepResults cleared for re-attempt after prompt enum fix; callsConsumed kept",
+      "terminalState": "note"
+    },
+    {
+      "seq": 2,
+      "fixture": "state_claim",
+      "role": "architect",
+      "startedAt": "2026-07-23T14:16:08.930Z",
+      "completedAt": "2026-07-23T14:16:11.856Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed"
+    },
+    {
+      "seq": 3,
+      "fixture": "state_claim",
+      "role": "critic",
+      "startedAt": "2026-07-23T14:16:11.860Z",
+      "completedAt": "2026-07-23T14:16:48.354Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed"
+    }
+  ],
+  "stepResults": {
+    "state_claim": {
+      "id": "state_claim",
+      "classification": "critic_semantic_failed",
+      "metrics": {
+        "architectStatus": "ok",
+        "criticStatus": "ok",
+        "architectErrorCode": null,
+        "criticErrorCode": null,
+        "architectContractVersion": "semantic-draft-v1",
+        "draftMissionCount": 1,
+        "draftCriterionCount": 1,
+        "compiledMissionCount": 1,
+        "compilerRejectedCount": 0,
+        "compilerRejectionCodes": {},
+        "derivedAnchorCount": 1,
+        "derivedSourceCount": 1,
+        "derivedTargetSurfaceCount": 1,
+        "groundingValid": 1,
+        "criticSupported": 0,
+        "canonicalGatePassed": 0,
+        "accepted": 0,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 1,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": false,
+        "allocatedBudgetBase": "0",
+        "architectContentShape": "bare_object",
+        "criticContentShape": "bare_object",
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": [],
+        "error": null,
+        "architectModelActual": "gemini-3.1-flash-lite-preview",
+        "criticModelActual": "claude-haiku-4-5-20251001",
+        "architectProvider": "api.commonstack.ai",
+        "criticProvider": "api.commonstack.ai",
+        "architectPromptTokens": 1518,
+        "architectCompletionTokens": 246,
+        "architectLatencyMs": 2926,
+        "criticPromptTokens": 857,
+        "criticCompletionTokens": 53,
+        "criticLatencyMs": 36494,
+        "ghostArchitectMentioned": false
+      }
+    }
+  }
+}

@@ -107,6 +107,7 @@ RULES (absolute):
 - If the founder's requested capability/goal was NOT observed in the OBSERVATIONS, return {"missions":[]} — do NOT invent it, and do NOT substitute unrelated work just to produce output.
 - Cite ONLY the exact fact ids (factRefs) and transition ids (transitionRef) shown in the OBSERVATIONS below. A citation to any id NOT shown there is rejected.
 - Express each criterion EXACTLY ONCE — one object with: text, evidenceRequirement, criterionKind, factRefs, transitionRef, evidenceMode, supportRationale. Do NOT number, index, or repeat anything.
+- criterionKind MUST be exactly one of: state, action_outcome, content_claim, visual_quality. evidenceMode MUST be exactly one of: deterministic_url, semantic_url, observation.
 - An "action_outcome" criterion MUST set transitionRef to a real transition id and cite at least one factRef from that transition's AFTER state. Every other criterionKind sets transitionRef to null.
 - Inferred vision facts may GUIDE design but can NEVER be the only decisive support — a decisive criterion needs a seen DOM/field fact or a safe transition.
 - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.

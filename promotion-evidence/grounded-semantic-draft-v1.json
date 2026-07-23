@@ -1,0 +1,85 @@
+{
+  "artifact": "grounded-semantic-draft-v1",
+  "note": "semantic mission-draft closure — NOT model approval, NOT promotion-ready",
+  "timestamp": "2026-07-23T14:16:48.359Z",
+  "callsConsumed": 3,
+  "hardCap": 6,
+  "ledgerPath": "grounded-semantic-draft-v1.ledger.json",
+  "modelSubstitution": null,
+  "requestedModels": {
+    "architect": "google/gemini-3.1-flash-lite-preview",
+    "critic": "anthropic/claude-haiku-4-5"
+  },
+  "architectContractVersion": "semantic-draft-v1",
+  "transportSchemas": {
+    "architect": "sage_grounded_architect_semantic_draft_v1",
+    "critic": "sage_grounded_critic_v2"
+  },
+  "configurationConclusive": true,
+  "capabilityConclusive": true,
+  "steps": [
+    {
+      "id": "state_claim",
+      "classification": "critic_semantic_failed",
+      "metrics": {
+        "architectStatus": "ok",
+        "criticStatus": "ok",
+        "architectErrorCode": null,
+        "criticErrorCode": null,
+        "architectContractVersion": "semantic-draft-v1",
+        "draftMissionCount": 1,
+        "draftCriterionCount": 1,
+        "compiledMissionCount": 1,
+        "compilerRejectedCount": 0,
+        "compilerRejectionCodes": {},
+        "derivedAnchorCount": 1,
+        "derivedSourceCount": 1,
+        "derivedTargetSurfaceCount": 1,
+        "groundingValid": 1,
+        "criticSupported": 0,
+        "canonicalGatePassed": 0,
+        "accepted": 0,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 1,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": false,
+        "allocatedBudgetBase": "0",
+        "architectContentShape": "bare_object",
+        "criticContentShape": "bare_object",
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": [],
+        "error": null,
+        "architectModelActual": "gemini-3.1-flash-lite-preview",
+        "criticModelActual": "claude-haiku-4-5-20251001",
+        "architectProvider": "api.commonstack.ai",
+        "criticProvider": "api.commonstack.ai",
+        "architectPromptTokens": 1518,
+        "architectCompletionTokens": 246,
+        "architectLatencyMs": 2926,
+        "criticPromptTokens": 857,
+        "criticCompletionTokens": 53,
+        "criticLatencyMs": 36494,
+        "ghostArchitectMentioned": false
+      }
+    }
+  ],
+  "recommendation": "critic_semantic_failed",
+  "compilerPipelineProven": true,
+  "compilerPipelineEvidence": "state_claim, REAL Gemini architect: architectStatus=ok, archShape=bare_object, draftMissionCount=1, compiledMissionCount=1, compilerRejectedCount=0. Sage DERIVED anchors(1)/sources(1)/targetSurface(1) — the model authored none. groundingValid=1, tier state_seen=1. The prior structured-v2 blocker (architect cross-field grounding miss \"missions.0:custom\") is RESOLVED: the model no longer authors indexes/urls/anchors, so it cannot get them wrong.",
+  "terminalState": "critic_semantic_failed — the REAL Haiku critic returned a bare_object (criticShape=bare_object, criticStatus=ok) via json_schema but judged the mission unsupported (criticSupported=0). Transport, semantic-draft Zod, the deterministic compiler and the grounding validator ALL worked; only the critic's semantic decision withheld support. Per the sprint this is terminal — stop and preserve the frozen fixture for a later semantic bake-off.",
+  "iterationNote": "2 architect calls: session-1 architectStatus=schema_invalid (architectSchemaErrorPaths [\"missions.0.criteria.0.criterionKind:invalid_value\"] — the prompt did not list the criterionKind/evidenceMode enum values; json_schema did not enforce the enum for Gemini via CommonStack). Prompt fixed to list both enums; stepResults cleared for a deliberate re-attempt (callsConsumed kept cumulative — the 6-cap held). session-2 architect ok. Total 3 of 6 paid calls.",
+  "confirmations": {
+    "noModelChoseIndexes": true,
+    "noModelChosePageState": true,
+    "noModelChoseSources": true,
+    "noModelChoseAnchors": true,
+    "noModelChoseTargetSurface": true,
+    "noModelChoseVerificationClass": true,
+    "noModelChosePayoutAmount": true
+  }
+}
