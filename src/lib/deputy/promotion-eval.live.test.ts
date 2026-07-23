@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { runPromotionEval, type CallOutcome, type Checkpoint } from "./promotion-runner";
 import { verifySubmission, providerForModel } from "./brain";
-import { runEntailmentVeto, entailmentProvider, entailmentInputFromBrief } from "./entailment";
+import { runEntailmentVeto, entailmentProvider } from "./entailment";
+import { ENTAILMENT_FIXTURES } from "./entailment-fixtures";
 import { judgeDecision, judgeMetricsFrom, JUDGE_PROMPT_VERSION, type JudgeRow, type JudgeOutcome } from "./judge-eval";
 import { JUDGE_FIXTURES } from "./judge-fixtures";
 import type { BrainInput } from "./brain-core";
@@ -72,20 +73,26 @@ describe.runIf(LIVE)("promotion runner — live production path", () => {
     };
 
     const runEntailOne = async (fixtureId: string): Promise<CallOutcome> => {
-      const f = JUDGE_FIXTURES.find((x) => x.id === fixtureId)!;
+      // DEDICATED entailment corpus (S5): one criterion + one VERBATIM quote per fixture — not the old
+      // malformed multi-criterion adaptation of the judge fixtures that produced 0/15 model_failures.
+      const f = ENTAILMENT_FIXTURES.find((x) => x.id === fixtureId)!;
       const cap = statusCapturingFetch();
       const provider = entailmentProvider();
-      const input = entailmentInputFromBrief({ criteria: f.criteria.map((c, i) => ({ criterion: c, met: true, confidence: 1, quote: i === 0 ? f.evidenceText.slice(0, 60) : undefined })) }, f.note);
+      const input = { criteria: [{ id: "c0", criterion: f.criterion, quote: f.quote }], note: f.note };
       const res = await runEntailmentVeto(input, { provider: provider && { ...provider, model: MODEL }, fetchImpl: cap.fetchImpl });
       const { status, retryAfterMs } = cap.last();
-      if (res.ran) return { kind: "valid", detail: res.vetoed ? "vetoed" : "entailed" };
+      if (res.ran) {
+        const verdict = res.verdicts[0]?.verdict ?? "uncertain";
+        const correct = verdict === f.expected;
+        return { kind: "valid", detail: `${f.trap}:${verdict}${correct ? "" : `(≠${f.expected})`}` };
+      }
       if (status === 429) return { kind: "rate_limited", retryAfterMs: retryAfterMs ?? undefined };
       if (res.error === "invalid_output" || res.error === "abnormal_finish") return { kind: "model_failure", detail: res.error };
       return { kind: "transient", detail: res.error ?? `status ${status ?? "none"}` };
     };
 
     const result = await runPromotionEval({
-      fixtures: JUDGE_FIXTURES.map((f) => ({ id: f.id })),
+      fixtures: (TARGET === "entail" ? ENTAILMENT_FIXTURES : JUDGE_FIXTURES).map((f) => ({ id: f.id })),
       runsPerFixture: RUNS,
       runOne: TARGET === "entail" ? runEntailOne : runJudgeOne,
       minIntervalMs: Number(process.env.PROMO_MIN_INTERVAL) || 1_200,
