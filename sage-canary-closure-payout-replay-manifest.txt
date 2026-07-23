@@ -1,0 +1,52 @@
+SAGE V2 — REAL CANARY CLOSURE + PAYOUT ACTION REPLAY
+====================================================
+Patch: sage-canary-closure-payout-replay.patch   (base 581d51b~1 → HEAD e62cacf)
+
+COMMITS (atomic, one per phase)
+  581d51b  P0  honest operator-auth vs founder-consent + grounded provenance + inconclusive fix
+  1fcb84d  P1  close grounded canary through job→revision→approval (LIVE attempt + deterministic machinery)
+  3a10b14  P2  deterministic MissionProbeV1 + VerificationPolicyV1 compiler
+  62b13fe  P3  durable VerificationPolicyV1 binding + fail-closed loader (migration 0026)
+  c03a5d5  P4  subtractive payout action-replay before settlement (PAYOUT_ACTION_REPLAY_MODE)
+  0a8d72a  P5  idempotent replay journal (migration 0027)
+  15c813e  P6  subtractive proofs — deputy broadcast-spy + real-browser
+  e62cacf  P7  demo:payout-replay vertical
+
+NEW FILES
+  src/lib/launch/mission-probe.ts ................. MissionProbeV1 + VerificationPolicyV1 pure compiler
+  src/lib/launch/mission-probe.test.ts ............ 21 derivation/rejection/tamper tests
+  src/lib/deputy/verification-policy.ts ........... fail-closed campaign policy loader
+  src/lib/deputy/verification-policy.test.ts ...... 6 fail-closed tests
+  src/lib/deputy/payout-replay.ts ................. PAYOUT_ACTION_REPLAY_MODE + subtractive replay runner
+  src/lib/deputy/payout-replay.test.ts ............ 13 money-semantics truth-table tests
+  src/lib/deputy/payout-replay-idempotency.test.ts  5 idempotency tests
+  src/lib/deputy/payout-replay.browser.test.ts .... real guarded-browser (gated: test:payout-replay-browser)
+  src/lib/deputy/demo-payout-replay.test.ts ....... vertical demo (gated: demo:payout-replay)
+  src/lib/db/payout-replay-journal.ts ............. durable idempotency journal accessors
+  src/lib/launch/canary-closure.live.test.ts ...... P1 live (canary:closure) + deterministic (canary:closure:det)
+  drizzle/0026_simple_ben_grimm.sql ............... campaigns.verification_policy(+_digest)  [authored, NOT deployed]
+  drizzle/0027_glossy_omega_flight.sql ............ payout_replay_journal                     [authored, NOT deployed]
+
+MODIFIED
+  src/lib/launch/mission-canary.ts ................ operatorAuthorized + isValidFounderWallet + canaryPlanCommitment
+  src/lib/launch/pipeline.ts ...................... canary-before-legacy ordering; grounded provenance; policy compile
+  src/lib/launch/job.ts ........................... grounded provenance into job/revision metadata
+  src/lib/deputy/pipeline.ts ...................... payout action-replay integrated pre-broadcast
+  src/lib/db/schema.ts, campaigns.ts .............. policy columns + bindCampaignVerificationPolicy
+  src/app/api/launch/[id]/approve/route.ts ........ approval recomputes + binds policy digest (fail closed)
+  src/lib/campaigns/vault-strategy.ts ............. VaultStrategyDeps.payoutReplay test seam
+  src/lib/launch/grounding-critic-bakeoff-v2.live.test.ts  configurationConclusive = !stop
+  + the canary test suites updated for the renamed symbols / valid-hex wallets
+
+PAID CALLS: the P1 live closure attempt spent the 2-call smoke budget (ledger records 3 dispatches incl one
+  pre-fix harness iteration). It BLOCKED at the canonical gate on the fixture corpus; founderCanaryReady was
+  NOT set. No further paid calls. See promotion-evidence/canary-closure.json + canary-truth-amendment.json.
+
+RUN
+  npm run test                         # full deterministic suite (browser/live/demo gated out)
+  npm run canary:closure:det           # deterministic closure machinery proof (0 paid)
+  npm run test:payout-replay-browser   # real guarded-browser payout replay (needs chromium)
+  npm run demo:payout-replay           # the vertical demo (needs chromium)
+
+NOT DONE (by policy): no funding, deploy, migration APPLIED to prod, launch, settlement, payout, push, or flag
+  enablement. PAYOUT_ACTION_REPLAY_MODE + MISSION_GROUNDING_MODE default OFF.
