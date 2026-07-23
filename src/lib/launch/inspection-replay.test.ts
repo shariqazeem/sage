@@ -1,11 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { buildProbe, buildProbes, inspectionReplayMode } from "./inspection-replay";
+import { buildProbe, buildProbes, inspectionReplayMode, allowedKey } from "./inspection-replay";
 import { deriveObservations } from "./observed-facts";
 import type { ActionTransitionV1, ObservationSetV1 } from "./observed-facts";
 import type { FieldTestState, FieldTestSummary } from "./schemas";
 
 const state = (over: Partial<FieldTestState>): FieldTestState => ({
-  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over,
+  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over,
 });
 /** a realistic set: load → click 'Start' → "Talk to Yara" appears. */
 function yaraSet(): ObservationSetV1 {
@@ -79,5 +79,26 @@ describe("inspection replay — deterministic safety gate", () => {
     const probes = buildProbes(set);
     expect(probes.length).toBe(1);
     expect(probes[0].verb).toBe("click");
+  });
+
+  it("REJECTS an UNVERIFIED transition (network not captured → not positively safe)", () => {
+    const set = yaraSet();
+    const t: ActionTransitionV1 = { ...transitionOf(set), safeClassification: "unverified", networkMethodSummary: "not_captured" };
+    expect(buildProbe(t, set)).toEqual({ rejected: "unsafe_transition" });
+  });
+
+  it("REJECTS a press whose key is not on the allowlist (no synthesized Enter)", () => {
+    const set = yaraSet();
+    const t: ActionTransitionV1 = { ...transitionOf(set), verb: "press", locator: { accessibleName: "F13" } };
+    expect(buildProbe(t, set)).toEqual({ rejected: "key_not_allowlisted:F13" });
+  });
+
+  it("allowedKey is a strict allowlist — unknown keys return null (never Enter)", () => {
+    expect(allowedKey("Space")).toBe("Space");
+    expect(allowedKey("ArrowLeft")).toBe("ArrowLeft");
+    expect(allowedKey("a")).toBe("a");
+    expect(allowedKey("F13")).toBeNull();
+    expect(allowedKey("PageDown")).toBeNull();
+    expect(allowedKey(undefined)).toBeNull();
   });
 });

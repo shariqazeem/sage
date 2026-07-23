@@ -397,6 +397,10 @@ export async function runFieldTest(
     .slice(0, MAX_PAGES);
 
   const artifactDir = path.join(publicDir, "field-tests", opts.inspectionId);
+  // Per-transition egress methods — the request interceptor records each allowed request's method, and
+  // capture() drains them into the state, so a transition's safety can be POSITIVELY established
+  // (GET/HEAD-only → safe; a mutating method → state_changing; nothing recorded → unverified).
+  const methodsSinceCapture: string[] = [];
   // AUTHORITATIVE egress boundary — every browser request exits through this local proxy, which resolves +
   // validates + pins each destination (defeats DNS-rebinding/TOCTOU). Production allowlists nothing.
   const proxy = await startEgressProxy({
@@ -451,6 +455,7 @@ export async function runFieldTest(
         return void route.abort().catch(() => {});
       }
       if (!(await publicHostCached(h))) return void route.abort().catch(() => {});
+      methodsSinceCapture.push(route.request().method().toUpperCase()); // record egress methods per transition
       return void route.continue().catch(() => {});
     });
 
@@ -491,6 +496,7 @@ export async function runFieldTest(
         startUrl: opts.startUrl,
         inspectionId: opts.inspectionId,
         artifactDir,
+        methodsSinceCapture,
         host: opts.host,
         started,
         signals: signals as ProductSignals,
@@ -784,8 +790,10 @@ async function exploreInteractive(ctx: {
   started: number;
   signals: ProductSignals;
   entryErrors: string[];
+  /** shared buffer the request interceptor fills with egress methods; capture() drains it per state. */
+  methodsSinceCapture: string[];
 }): Promise<FieldTestSummary> {
-  const { page, inspectionId, artifactDir, host } = ctx;
+  const { page, inspectionId, artifactDir, host, methodsSinceCapture } = ctx;
   const deadline = ctx.started + EXPLORE_MS;
   const states: FieldTestState[] = [];
   let prevFp: StateFingerprint | null = null;
@@ -819,6 +827,7 @@ async function exploreInteractive(ctx: {
       notableElements: await notableElements(page),
       pixelDeltaPct: delta,
       url: page.url(),
+      networkMethods: methodsSinceCapture.splice(0), // the methods observed since the previous capture
     });
     return delta;
   };

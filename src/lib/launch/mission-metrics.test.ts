@@ -5,7 +5,7 @@ import { deriveObservations, decisiveFacts } from "./observed-facts";
 import type { ObservationSetV1 } from "./observed-facts";
 import type { CandidateMission, MissionValidationCode, MissionValidationReport, FieldTestState, FieldTestSummary, MissionGroundingV1 } from "./schemas";
 
-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over });
+const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over });
 function obsSet(): ObservationSetV1 {
   const ft: FieldTestSummary = {
     ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1,

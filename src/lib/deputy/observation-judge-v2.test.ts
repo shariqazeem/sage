@@ -4,7 +4,7 @@ import { deriveObservations } from "@/lib/launch/observed-facts";
 import type { ObservationSetV1 } from "@/lib/launch/observed-facts";
 import type { FieldTestState, FieldTestSummary } from "@/lib/launch/schemas";
 
-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.test/", ...over });
+const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.test/", networkMethods: ["GET"], ...over });
 /** load → click Start → "garden world" + Talk to Yara → click Talk to Yara → "Yara says: hello traveler". */
 function yara(): ObservationSetV1 {
   const ft: FieldTestSummary = {

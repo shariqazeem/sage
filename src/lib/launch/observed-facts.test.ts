@@ -3,7 +3,7 @@ import { deriveObservations, decisiveFacts, factIndex, parseTrigger, stateDigest
 import type { FieldTestSummary, FieldTestState, VisionObservation } from "./schemas";
 
 const state = (over: Partial<FieldTestState>): FieldTestState => ({
-  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over,
+  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over,
 });
 const summary = (over: Partial<FieldTestSummary>): FieldTestSummary => ({
   ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], states: [], classification: null, limitation: null, durationMs: 10, ...over,

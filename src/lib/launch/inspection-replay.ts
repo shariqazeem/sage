@@ -106,6 +106,8 @@ export function buildProbe(transition: ActionTransitionV1, set: ObservationSetV1
   }
 
   const key = transition.verb === "press" ? loc.accessibleName || loc.raw : undefined;
+  // a press probe must resolve to an ALLOWLISTED key — never a synthesized Enter fallback.
+  if (transition.verb === "press" && !allowedKey(key)) return { rejected: `key_not_allowlisted:${key ?? "none"}` };
   const probe: InspectionProbeV1 = {
     version: INSPECTION_PROBE_VERSION,
     id: sha16(JSON.stringify([transition.id, transition.verb, loc, expectedAddedTexts])),
@@ -194,8 +196,11 @@ export async function runInspectionProbe(probe: InspectionProbeV1, deps: ReplayD
     emit({ event: "replay_action", probeId: probe.id, detail: probe.verb });
     try {
       if (probe.verb === "click") await locator!.click({ timeout: ACTION_MS });
-      else if (probe.verb === "press") await page.keyboard.press(normalizeKey(probe.key));
-      else await page.mouse.wheel(0, 800);
+      else if (probe.verb === "press") {
+        const key = allowedKey(probe.key);
+        if (!key) return done("unsafe_rejected", `key not on allowlist: ${probe.key ?? "none"}`, false);
+        await page.keyboard.press(key); // page-level key; the field test's press was a global key event
+      } else await page.mouse.wheel(0, 800);
     } catch {
       return done(timedOut ? "probe_flake" : "product_drift", "action could not be performed", false);
     }
@@ -266,11 +271,20 @@ export async function runReplayShadow(
   return { ran: probes.length > 0, mode, probes: probes.length, byClassification, results, records };
 }
 
-function normalizeKey(key: string | undefined): string {
-  if (!key) return "Enter";
+/**
+ * Explicit key ALLOWLIST — an observed key is normalized to a canonical Playwright key ONLY if it is on
+ * the list; an unknown key returns null and the probe is rejected. There is NO Enter fallback (that would
+ * synthesize an action Sage never observed).
+ */
+export function allowedKey(key: string | undefined): string | null {
+  if (!key) return null;
   const k = key.trim();
-  if (/^space$/i.test(k) || k === " ") return "Space";
+  if (/^(space| )$/i.test(k)) return "Space";
   if (/^enter$/i.test(k)) return "Enter";
-  if (/^arrow(left|right|up|down)$/i.test(k)) return k.replace(/^arrow/i, "Arrow").replace(/(left|right|up|down)/i, (m) => m[0].toUpperCase() + m.slice(1).toLowerCase());
-  return k.length === 1 ? k : "Enter";
+  if (/^(escape|esc)$/i.test(k)) return "Escape";
+  if (/^tab$/i.test(k)) return "Tab";
+  const arrow = /^arrow(left|right|up|down)$/i.exec(k);
+  if (arrow) return "Arrow" + arrow[1][0].toUpperCase() + arrow[1].slice(1).toLowerCase();
+  if (/^[a-z0-9]$/i.test(k)) return k.toUpperCase().length === 1 ? k : k; // single letter/digit
+  return null; // unknown → not replayable
 }

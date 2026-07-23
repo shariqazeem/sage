@@ -25,7 +25,7 @@ const RUN = process.env.DEMO_AGENTIC === "1";
 const log = (s: string) => console.log(s);
 
 /** The fixture product's inspected state log — as if Sage field-tested a small narrative game. */
-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.fixture/", ...over });
+const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.fixture/", networkMethods: ["GET"], ...over });
 const FIELD_TEST: FieldTestSummary = {
   ran: true, startUrl: "https://yara.fixture/", mode: "interactive", pages: [], classification: "Interactive app · 3 states", limitation: null, durationMs: 4200,
   states: [

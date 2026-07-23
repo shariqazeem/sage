@@ -186,6 +186,9 @@ export interface FieldTestState {
   /** approximate visual change vs the previous captured state, 0..100 (a change signal, best-effort). */
   pixelDeltaPct: number;
   url: string;
+  /** HTTP methods observed BETWEEN the previous state and this one (from the field test's request
+   *  interceptor). Absent/empty = not captured → the transition into this state is safety-UNVERIFIED. */
+  networkMethods?: string[];
 }
 
 export interface FieldTestSummary {

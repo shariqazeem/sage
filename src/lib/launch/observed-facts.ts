@@ -74,11 +74,13 @@ export interface ActionTransitionV1 {
   removedTexts: string[];
   /** true when the after-state observably differs from the before-state (text delta or pixel delta). */
   observableChange: boolean;
-  /** what we know about the request methods this transition involved — the field test is read-only, so
-   *  navigational; per-request methods are not captured, hence "not_captured". */
+  /** the request methods this transition actually involved, from the field test's per-state capture:
+   *  `get_observed` (only GET/HEAD seen), `state_changing` (a mutating method seen), or `not_captured`
+   *  (no per-transition network was recorded — safety is UNVERIFIED, not assumed safe). */
   networkMethodSummary: "not_captured" | "get_observed" | "state_changing";
-  /** safe-action classification: the field test only performs read-only nav/keys, so `safe`. */
-  safeClassification: "safe" | "state_changing" | "unsafe";
+  /** safe-action classification. `safe` ONLY when positively established (get_observed); a mutating
+   *  method → `state_changing`; no capture → `unverified` (NOT replayable). */
+  safeClassification: "safe" | "unverified" | "state_changing" | "unsafe";
   /** field-test provenance: the indices of the before/after states in fieldTest.states. */
   provenance: { fromStateIndex: number; toStateIndex: number };
 }
@@ -191,14 +193,23 @@ export function deriveObservations(fieldTest: FieldTestSummary | null | undefine
       const added = [...after].filter((t) => !before.has(t)).sort();
       const removed = [...before].filter((t) => !after.has(t)).sort();
       const observableChange = added.length > 0 || removed.length > 0 || s.pixelDeltaPct >= 3;
-      const nameEl = (s.notableElements ?? []).find((e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase());
+      // network summary + safety from the after-state's captured methods. `safe` ONLY when we positively
+      // observed GET/HEAD-only; a mutating method → state_changing; no capture → unverified (NOT safe).
+      const methods = (s.networkMethods ?? []).map((m) => m.toUpperCase());
+      const summary: ActionTransitionV1["networkMethodSummary"] =
+        methods.length === 0 ? "not_captured" : methods.every((m) => m === "GET" || m === "HEAD") ? "get_observed" : "state_changing";
+      const safeClassification: ActionTransitionV1["safeClassification"] =
+        summary === "get_observed" ? "safe" : summary === "state_changing" ? "state_changing" : "unverified";
+      // the locator is built from the BEFORE state's target element (what was acted on), not the after
+      // state — the after state's elements are the RESULT, not the control that was clicked.
+      const beforeEl = (prev.notableElements ?? []).find((e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase());
       const canonical = JSON.stringify({ f: stateIds[i - 1], t: stateId, v: verb, n: name ?? "", a: added, r: removed });
       transitions.push({
         version: "action-transition-v1", id: sha(canonical).slice(0, 24),
         startUrl: prev.url, beforeStateDigest: stateIds[i - 1], verb,
-        locator: { ...(nameEl?.role ? { role: nameEl.role } : {}), ...(name ? { accessibleName: name } : {}), ...(name && !nameEl ? { raw: name } : {}) },
+        locator: { ...(beforeEl?.role ? { role: beforeEl.role } : {}), ...(name ? { accessibleName: name } : {}), ...(name && !beforeEl ? { raw: name } : {}) },
         afterUrl: s.url, afterStateDigest: stateId, addedTexts: added, removedTexts: removed,
-        observableChange, networkMethodSummary: "not_captured", safeClassification: "safe",
+        observableChange, networkMethodSummary: summary, safeClassification,
         provenance: { fromStateIndex: i - 1, toStateIndex: i },
       });
     }
