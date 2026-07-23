@@ -1,0 +1,29 @@
+{
+  "artifact": "canary-closure",
+  "mode": "deterministic",
+  "machineryProven": true,
+  "jobStatus": "ready",
+  "canaryStatus": "selected",
+  "canaryReason": null,
+  "planSource": "grounded_v2",
+  "brainReason": "no_missions_passed_validation",
+  "revisionReason": "generated_grounded_v2",
+  "revisionModel": "google/gemini-3.1-flash-lite-preview",
+  "provenance": {
+    "planSource": "grounded_v2",
+    "architectModel": "google/gemini-3.1-flash-lite-preview",
+    "architectProvider": "commonstack",
+    "architectContractVersion": "semantic-draft-v1",
+    "criticModel": "google/gemini-3.1-flash-lite-preview",
+    "criticProvider": "commonstack",
+    "criticContractVersion": "critic-contract-v3",
+    "observationSetDigest": "5ca8ec82ff8346e4512f5c3d",
+    "groundedPlanDigest": "9ed857ab2aafa75a67c65bc38fca49eb16ecadfe130eac470eb1502722bdc400",
+    "missionPlanDigest": "0x4861c927df066864e6139f279ae17c43854dac3af8fdb9b380c7b870cf9e8fa8"
+  },
+  "approvedBeforeApproval": false,
+  "approvalRecompute": "ok",
+  "staleRejected": true,
+  "approved": true,
+  "approvedAfter": true
+}

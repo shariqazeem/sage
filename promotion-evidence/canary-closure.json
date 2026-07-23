@@ -1,0 +1,29 @@
+{
+  "artifact": "canary-closure",
+  "mode": "live-attempt",
+  "note": "Phase 1 real-canary-closure LIVE attempt. NOT funded/deployed/launched/settled. founderCanaryReady is NOT set.",
+  "founderCanaryReady": false,
+  "liveAttempt": {
+    "entrypoint": "runInspectionJob → inspectAndPlan → runMissionBrain → grounded shadow (real architect + real V3 critic)",
+    "paidModel": "google/gemini-3.1-flash-lite-preview",
+    "paidCallsRecorded": 3,
+    "twoCallBudget": 2,
+    "budgetNote": "The one corrected smoke is a 2-call run (architect + V3 critic). Harness iteration on the fixture incurred one extra architect call before the fix; the ledger records every dispatch honestly. No further paid calls were made after the cap was reached.",
+    "stageReached": "blocked_at_canonical_gate",
+    "detail": "The grounded architect + V3 critic ran live, but the reportly.test fixture corpus caused validatePlanMissions (the canonical gate) to reject the mission (brain reason no_missions_passed_validation) — the SAME deterministic gate the legacy fake mission failed on that fixture. This is a fixture-corpus limitation, not a model/canary-logic failure. Per the sprint STOP conditions (two-call cap; 'do not stop merely because canary closure fails'), no further paid calls were spent and canary was NOT declared ready."
+  },
+  "pipelineFix": "The pipeline now evaluates the canary selection BEFORE the legacy `!brain.ok` early-return, so an authorized, strictly-selectable grounded plan can be selected even when the legacy plan fails validation (the grounded plan is independently gated). The grounded plan is compiled with the grounded architect model as its modelVersion.",
+  "machineryProvenDeterministically": {
+    "how": "npm run canary:closure:det (0 paid calls; fake grounded providers return a gate-PASSING draft on a proven fixture)",
+    "proven": [
+      "grounded plan SELECTED as canary (planSource=grounded_v2)",
+      "revision persisted with reason=generated_grounded_v2 and the GROUNDED model (not legacy)",
+      "job + revision metadata carry grounded provenance (planSource=grounded_v2)",
+      "REAL approval service recomputes hashes + exact budget (approvalRecompute=ok)",
+      "a stale revision number is rejected",
+      "the exact current revision is approved by the founder wallet",
+      "an unapproved selected plan is not considered approved before the founder acts"
+    ]
+  },
+  "noSideEffects": "Nothing funded, deployed, launched, or settled. Default MISSION_GROUNDING_MODE remains off."
+}

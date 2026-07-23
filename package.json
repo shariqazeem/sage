@@ -28,6 +28,8 @@
     "bakeoff:critic2": "GROUNDING_CRITIC2=1 GROUNDING_CRITIC_BAKEOFF2_CONFIRM=CALL_CAP_4 vitest run src/lib/launch/grounding-critic-bakeoff-v2.live.test.ts --reporter=basic",
     "canary:smoke:dryrun": "GROUNDING_CANARY_SMOKE_DRYRUN=1 vitest run src/lib/launch/mission-canary-smoke.live.test.ts --reporter=basic",
     "canary:smoke": "GROUNDING_CANARY_SMOKE=1 GROUNDING_CANARY_SMOKE_CONFIRM=CALL_CAP_2 vitest run src/lib/launch/mission-canary-smoke.live.test.ts --reporter=basic",
+    "canary:closure": "SAGE_DB_PATH=$(mktemp -d)/closure.db CANARY_CLOSURE=1 CANARY_CLOSURE_CONFIRM=CALL_CAP_2 vitest run src/lib/launch/canary-closure.live.test.ts --reporter=basic",
+    "canary:closure:det": "SAGE_DB_PATH=$(mktemp -d)/closure-det.db CANARY_CLOSURE_DET=1 vitest run src/lib/launch/canary-closure.live.test.ts --reporter=basic",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",

@@ -1,0 +1,21 @@
+{
+  "evaluationId": "canary-closure",
+  "cap": 2,
+  "calls": [
+    {
+      "role": "architect",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "at": "2026-07-23T16:28:55.634Z"
+    },
+    {
+      "role": "critic",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "at": "2026-07-23T16:28:59.953Z"
+    },
+    {
+      "role": "architect",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "at": "2026-07-23T16:30:54.076Z"
+    }
+  ]
+}

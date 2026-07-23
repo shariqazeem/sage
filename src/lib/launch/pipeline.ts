@@ -189,18 +189,10 @@ export async function inspectAndPlan(
   const corpus = buildObservationCorpus(inspection.observations, map.fieldTest);
   const brain = await runMissionBrain(map, input, scope, corpus);
   stamp("reviewing");
-  if (!brain.ok) {
-    // a provider/parse/config failure is a RETRYABLE failure; exhausting the deterministic gate after a
-    // corrective round, OR too-thin observation, is a needs_input (Sage asks rather than confabulates).
-    const NEEDS_INPUT = new Set(["no_missions_passed_validation", "insufficient_observation"]);
-    const stage: LaunchStage = brain.reason && NEEDS_INPUT.has(brain.reason) ? "needs_input" : "failed";
-    return out(stage, brain.reason, { map, brain, questions: brain.needsInputQuestions });
-  }
-
   // compile a candidate mission set → exact allocation → canonical MissionPlanV1 (MissionSpecV1 + vault hashes).
   // Used identically for the legacy plan and (under canary) the grounded plan, so both traverse the SAME
   // deterministic allocator + compiler. No model computes money; allocateBudget owns the base-unit amounts.
-  const compileMissions = (missions: typeof brain.accepted) => {
+  const compileMissions = (missions: typeof brain.accepted, modelVersion: string) => {
     const allocation = allocateBudget(
       missions.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })),
       input.totalBudgetBase,
@@ -208,7 +200,7 @@ export async function inspectAndPlan(
     if (!allocation.ok) return { ok: false as const, allocation, plan: null };
     const compiled = compilePlan({
       publicCampaignId, productMapDigest: map.digest, missions, allocation,
-      tokenDecimals: input.tokenDecimals, modelVersion: brain.model, promptVersion: MISSION_PROMPT_VERSION, revision: 1,
+      tokenDecimals: input.tokenDecimals, modelVersion, promptVersion: MISSION_PROMPT_VERSION, revision: 1,
     });
     if (!compiled.ok) return { ok: false as const, allocation, plan: null, error: compiled.error };
     return { ok: true as const, allocation, plan: compiled.plan };
@@ -216,7 +208,9 @@ export async function inspectAndPlan(
 
   // 5. CANARY DECISION — may the grounded V2 plan REPLACE legacy for this launch? Authority comes ONLY from the
   //    process mode + the server-verified identity + the operator allowlist (never from founder/model/product
-  //    text). Default off ⇒ `disabled` ⇒ legacy proceeds byte-identically to before.
+  //    text). Default off ⇒ `disabled` ⇒ legacy proceeds byte-identically to before. Evaluated BEFORE the legacy
+  //    `!brain.ok` early-return: a grounded canary is independently gated (its own strict signals + gate + exact
+  //    allocation) and must NOT depend on the legacy plan also passing validation.
   const canaryDecision = evaluateCanarySelection({
     mode: missionGroundingMode(),
     identity: opts.canaryIdentity ?? null,
@@ -224,9 +218,9 @@ export async function inspectAndPlan(
   });
 
   if (canaryDecision.status === "selected") {
-    // compile the GROUNDED missions through the identical allocator+compiler; exact base-unit equality is
-    // mandatory; bind an approval token to the authoritative on-chain digest + budget + revision.
-    const g = compileMissions(canaryDecision.plan.missions);
+    // compile the GROUNDED missions through the identical allocator+compiler, using the GROUNDED architect model
+    // as the plan's modelVersion; exact base-unit equality is mandatory; commit the plan (provenance, not auth).
+    const g = compileMissions(canaryDecision.plan.missions, canaryDecision.plan.architectModel ?? brain.model);
     if (!g.ok || !g.plan) return out("failed", `canary_compile_failed:${(g as { error?: string }).error ?? g.allocation.reason ?? "unknown"}`, { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "compile_failed", planSource: "none" } });
     if (g.plan.allocatedBase !== input.totalBudgetBase) return out("failed", "canary_budget_not_exact", { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "budget_not_exact", planSource: "none" } });
     const commitment = canaryPlanCommitment({ planDigest: g.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: g.plan.totalBudgetBase.toString(), revision: g.plan.revision });
@@ -241,8 +235,17 @@ export async function inspectAndPlan(
       canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, planCommitment: commitment.commitment, wallet: canaryDecision.wallet, provenance } });
   }
 
+  // canary not selected → the LEGACY plan governs. A legacy generation failure is retryable (provider/parse)
+  // or a needs_input (gate exhausted / too thin). The canary status is carried for observability.
+  if (!brain.ok) {
+    const NEEDS_INPUT = new Set(["no_missions_passed_validation", "insufficient_observation"]);
+    const stage: LaunchStage = brain.reason && NEEDS_INPUT.has(brain.reason) ? "needs_input" : "failed";
+    return out(stage, brain.reason, { map, brain, questions: brain.needsInputQuestions,
+      canary: { status: canaryDecision.status, reason: canaryDecision.reason, planSource: "none" } });
+  }
+
   // 6. LEGACY compile (also the comparison artifact when an authorized canary is blocked).
-  const legacy = compileMissions(brain.accepted);
+  const legacy = compileMissions(brain.accepted, brain.model);
   if (!legacy.ok) {
     if ((legacy as { error?: string }).error) return out("failed", (legacy as { error?: string }).error!, { map, brain, allocation: legacy.allocation });
     return out("needs_input", legacy.allocation.reason, { map, brain, allocation: legacy.allocation, questions: [legacy.allocation.reason ?? "Increase the budget to fund a meaningful plan."] });
