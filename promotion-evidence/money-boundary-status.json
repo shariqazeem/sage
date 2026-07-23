@@ -1,0 +1,12 @@
+{
+  "artifact": "money-boundary-status",
+  "note": "Zero-paid money-boundary closure sprint. No deploy/fund/push/flag-enable; migrations authored not applied.",
+  "campaignPolicyAttachmentProven": true,
+  "revisionPolicyBindingProven": true,
+  "completeProbeCoverageProven": true,
+  "centralSettlementEnforcementProven": true,
+  "payoutReplayRuntimeReachable": true,
+  "payoutReplayBrowserProven": true,
+  "founderCanaryReady": false,
+  "gates": { "typecheck": "pass", "lint": "0 errors (3 warnings)", "deterministicSuite": "1473 passed / 62 skipped", "migrationProof": "4 passed", "permitProof": "8 passed", "browserMatrix": "9 passed", "payoutBrowser": "2 passed", "e2eAttach": "1 passed" }
+}

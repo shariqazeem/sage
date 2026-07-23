@@ -1,0 +1,35 @@
+SAGE V2 — PAYOUT REPLAY MONEY-BOUNDARY CLOSURE (zero paid calls)
+================================================================
+Patch: sage-money-boundary-closure.patch  (base a513982~1 → HEAD, 8 commits)
+
+Made VerificationPolicy/MissionProbe enforcement genuinely reachable + impossible to bypass. founderCanaryReady
+stays FALSE (live canonical-gate closure is a later sprint).
+
+COMMITS
+  a513982 P0  source-audit amendment — 8 defects
+  444d160 P1  VerificationPolicyV2 (complete, self-verifying, strict Zod; key-order-independent digest)
+  104c069 P2  bind policy to the CURRENT REVISION (mig 0028); approval reads revision not job.result
+  a22927a P3+P4  attach approved policy write-once (mig 0029, real deploy-attach caller) + fail-closed applicability
+  8e43535 P5  CENTRAL ReplayPermit at settleApprovedSubmission (every sink dominated)
+  1d752b0 P6  enforce expectedAfterUrl + carry real beforeStateDigest
+  eab5b21 P7  concurrency-safe journal upsert + runner-version cache + shadow preflight + ledger reconciliation
+  14fa2df P8  real-DB attach→load E2E + write-once negatives
+
+KEY FILES
+  new: mission-probe-v2.ts, approve-policy.ts, campaigns/attach-policy.ts, deputy/replay-permit.ts,
+       deputy/policy-test-fixtures.ts, drizzle/0028+0029
+  mod: campaigns.ts (attachVerificationPolicyToCampaign write-once), plan-revisions.ts (policy binding + guard),
+       pipeline.ts (V2 compile + block incomplete + shadow preflight), approve route (read revision),
+       deployments/[id]/attach route (real attach caller), settle-flow.ts (central permit),
+       verification-policy.ts + payout-replay.ts (V2 fail-closed), inspection-replay.ts (URL enforcement),
+       payout-replay-journal.ts (upsert + runner version)
+
+RUN
+  npm run test                     # 1473 passed / 62 skipped
+  npm run e2e:money-boundary       # real-DB attach→load spine
+  npm run test:inspection-replay   # URL+text browser matrix (chromium)
+  npm run test:payout-replay-browser
+  npm run canary:preflight
+
+NOT DONE (policy): no deploy, funding, migration APPLIED to prod, launch, settlement, payout, push, or flag
+  enablement. Defaults MISSION_GROUNDING_MODE=off + PAYOUT_ACTION_REPLAY_MODE=off. founderCanaryReady=false.
