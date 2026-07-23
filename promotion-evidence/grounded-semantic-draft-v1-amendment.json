@@ -1,0 +1,15 @@
+{
+  "artifact": "grounded-semantic-draft-v1-amendment",
+  "note": "APPEND-ONLY amendment. The original grounded-semantic-draft-v1.json is immutable and unchanged.",
+  "amends": "grounded-semantic-draft-v1.json",
+  "timestamp": "amended-2026-07-23",
+  "configurationConclusive": true,
+  "compilerPipelineConclusive": true,
+  "capabilityConclusive": false,
+  "criticSemanticConclusion": "oracle_ambiguous",
+  "reason": "Only state_claim ran. Safe replay and ghost export were not attempted. The state_claim wording may ask either whether text is displayed or whether the underlying marketing claim is true.",
+  "supersedesFields": {
+    "capabilityConclusive": "The original evidence's capabilityConclusive=true is corrected to false here: a single-fixture critic non-support with an ambiguous criterion does not conclusively establish the critic's semantic capability.",
+    "recommendation": "The original 'critic_semantic_failed' stands as the run outcome, but the SEMANTIC conclusion about the critic is 'oracle_ambiguous' pending the paired-corpus bake-off (grounding-critic-semantic-v1)."
+  }
+}
