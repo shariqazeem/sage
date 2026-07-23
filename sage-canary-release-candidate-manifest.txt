@@ -1,0 +1,50 @@
+SAGE V2 — CANONICAL GATE CLOSURE + SELF-CANARY RELEASE CANDIDATE
+================================================================
+Patch: sage-canary-release-candidate.patch   (base e62cacf → HEAD, 6 commits + export)
+Prior sprint attached: sage-canary-closure-payout-replay.patch (+ its manifest)
+
+OUTCOME: A — one real Flash-Lite grounded plan crossed the actual canonical gate, persisted as the current
+revision, received the real authenticated approval, attached its verification policy, and reached a
+settlement-spy replay demo. founderCanaryReady = true. productionDeployed = false.
+
+COMMITS (atomic, one per phase)
+  5b79ad1  P0  forensic reconciliation (ledger 3 dispatches; gate outcome recovered; 0 paid)
+  444d863  P1  reportly regression passes the gate with provenance (0 paid)
+  2978850  P2  settlement-sink audit + gate the sweep + schema preflight
+  575276b  P3  ONE clean live closure — outcome A, founderCanaryReady (2 paid, new ledger)
+  4cbfaff  P4  demo:self-canary staging (reproduce + 3 negatives)
+  8caa6d0  P5  DARK/OBSERVE/SELF_CANARY configs + preflight command + runbook
+
+NEW / CHANGED FILES
+  src/lib/launch/canary-forensics.test.ts ............... P0 forensic + P1 regression
+  src/lib/deputy/canary-preflight.ts ................... payoutReplaySchemaReady (fail-closed schema check)
+  src/lib/deputy/pipeline.ts ........................... preflight refusal before any decision (canary)
+  src/app/api/deputy/sweep/route.ts .................... replay guard on the matured-approval timelock loop
+  src/lib/db/canary-migration.test.ts ................. migration proof (previous schema → upgrade → clean)
+  src/lib/launch/canary-runtime-closure-v2.live.test.ts  P3 live closure harness (dry + paid, draft-retaining)
+  src/lib/deputy/demo-self-canary.test.ts ............. P4 staging demo (npm run demo:self-canary)
+  scripts/canary-release-preflight.mjs ................ npm run canary:preflight
+  package.json ........................................ closure:v2[:dry], demo:self-canary, canary:preflight
+  .gitignore .......................................... promotion-evidence/.private/ (retained parsed drafts)
+
+EVIDENCE (sanitized; promotion-evidence/)
+  canary-forensics.json ............... gate outcome + root cause (unknown_with_evidence; pipeline sound)
+  canary-migrations-explained.md ...... 0026/0027 behaviour (clean/upgrade/rollback)
+  settlement-sink-audit.md ............ every settleApprovedSubmission caller + which the gate dominates
+  canary-runtime-closure-v2.{json,ledger.json} ... the LIVE closure trace + the fresh 2-call ledger
+  self-canary-release.md .............. DARK/OBSERVE/SELF_CANARY configs + preflight + operator runbook
+  self-canary-release-gates.json ...... the 10 release-gate booleans
+  (private, gitignored) promotion-evidence/.private/closure-v2-* ... retained parsed architect draft + verdicts
+
+PAID CALLS: new ledger canary-runtime-closure-v2 — exactly 2 (1 architect + 1 V3 critic, Flash-Lite). The
+  prior-sprint ledger's 3-dispatch cap breach is reconciled in canary-forensics.json (priorTwoCallCapBreached).
+
+RUN
+  npm run test                       # 1447 passed / 59 skipped
+  npm run canary:preflight           # release gates (DARK/OBSERVE/SELF_CANARY)
+  npm run closure:v2:dry             # closure preconditions (0 paid)
+  npm run demo:self-canary           # staging demo (needs chromium)
+  npm run test:payout-replay-browser # real guarded-browser replay (needs chromium)
+
+NOT DONE (by policy): no deploy, funding, migration APPLIED to prod, launch, settlement, payout, push, or flag
+  enablement. Defaults remain MISSION_GROUNDING_MODE=off + PAYOUT_ACTION_REPLAY_MODE=off.

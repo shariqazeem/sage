@@ -1,0 +1,22 @@
+{
+  "artifact": "self-canary-release-gates",
+  "note": "Final release-candidate gate booleans. Nothing deployed/funded/launched/settled/pushed/globally-enabled.",
+  "architectCapabilityProven": true,
+  "criticCapabilityProven": true,
+  "canonicalGateLiveProven": true,
+  "runtimePersistenceLiveProven": true,
+  "founderApprovalProven": true,
+  "verificationPolicyBindingProven": true,
+  "payoutReplayBrowserProven": true,
+  "settlementVetoProven": true,
+  "founderCanaryReady": true,
+  "productionDeployed": false,
+  "evidence": {
+    "liveClosure": "canary-runtime-closure-v2.json (2 paid calls, canonicalGatePassed=1, action_replayed=1, approved, policy persisted)",
+    "settlementSinkAudit": "settlement-sink-audit.md",
+    "migrations": "canary-migrations-explained.md",
+    "forensics": "canary-forensics.json (root cause = unknown_with_evidence; pipeline sound)",
+    "release": "self-canary-release.md",
+    "gates": { "typecheck": "pass", "lint": "pass", "deterministicSuite": "1447 passed / 59 skipped", "browserPayoutReplay": "2 passed", "inspectionReplayBrowser": "7 passed", "migrationProof": "3 passed", "demoSelfCanary": "5 passed" }
+  }
+}
