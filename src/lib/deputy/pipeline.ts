@@ -44,6 +44,7 @@ import {
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
+import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
 import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
@@ -513,6 +514,26 @@ export async function runDeputyOnSubmission(
       return { action: "held", reason, correlationId: cid };
     }
     return { action: "skipped", reason, correlationId: cid };
+  }
+
+  // c0. PAYOUT ACTION REPLAY (Phase 4) — for an ACTION mission on a canary campaign, Sage RE-PERFORMS the exact
+  // deterministic action in a FRESH guarded browser before settlement and compares it to the bound MissionProbeV1.
+  // SUBTRACTIVE ONLY: a `reproduced` result merely lets the already-qualified decision continue (it never creates
+  // a payout, raises confidence, or replaces missing evidence); any other result vetoes in canary (hold before
+  // broadcast) or is journaled in shadow (settlement unchanged). Runs AFTER all evidence/judge qualification +
+  // Sybil/cap, BEFORE preflight/CAS/settle. off (default) → skip → byte-identical existing behavior.
+  if (payoutActionReplayMode() !== "off" && mission) {
+    const replay = await runPayoutActionReplay(campaign, mission.missionKey, deps.payoutReplay ?? {});
+    agentLog(cid, "payout_replay", { mode: replay.mode, decision: replay.decision, code: replay.code, isAction: replay.isActionMission, probes: replay.probeResults });
+    if (replay.decision === "hold") {
+      const reason = `action_replay_veto:${replay.code}`;
+      if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+        journalHeld(campaign, submission, reason, cid);
+        return { action: "held", reason, correlationId: cid };
+      }
+      return { action: "skipped", reason, correlationId: cid };
+    }
+    // shadow → decision is always "allow" (journaled above, settlement unchanged); canary reproduced → continue.
   }
 
   // c. pre-flight — for V2 the DB↔chain agreement is enforced here BEFORE any

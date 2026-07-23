@@ -167,6 +167,8 @@ export interface VaultStrategyDeps {
   campaignAdapter?: CampaignVaultAdapter;
   /** the Sage operator configured for a chain (for V2 agreement). */
   operatorAddress?: (chainId: number) => Address;
+  /** Phase 4 — payout action-replay test seam (fake browser runner + loopback/egress deps). Undefined in prod. */
+  payoutReplay?: import("@/lib/deputy/payout-replay").PayoutReplayDeps;
 }
 
 /* ─────────────────────────────────────────────────────────── errors ─────── */

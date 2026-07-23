@@ -41,6 +41,9 @@ export interface VerificationPolicyV1 {
   missionPlanDigest: string;
   productMapDigest: string;
   observationSetDigest: string;
+  /** missionKeys that HAVE ≥1 action_outcome criterion — an action mission. If such a key is absent from
+   *  `probes`, its probe could not compile, so the mission is NOT autonomous-payout eligible (HOLD in canary). */
+  actionMissions: string[];
   probes: MissionProbeV1[];
   policyDigest: string;
 }
@@ -184,10 +187,12 @@ export interface CompilePolicyResult {
 export function compileVerificationPolicy(input: CompilePolicyInput): CompilePolicyResult {
   const probes: MissionProbeV1[] = [];
   const rejections: CompilePolicyResult["rejections"] = [];
+  const actionMissionSet = new Set<string>();
   for (const mission of input.missions) {
     const criteria = mission.groundingV1?.criteria ?? [];
     for (const gc of criteria) {
       if (gc.criterionKind !== "action_outcome") continue; // not an action probe; no rejection
+      actionMissionSet.add(mission.missionKey); // this mission IS an action mission
       const r = compileMissionProbe({ mission, criterionIndex: gc.criterionIndex, grounding: gc, set: input.set, replayReproduced: input.replayReproduced, scope: input.scope });
       if ("probe" in r) probes.push(r.probe);
       else rejections.push({ missionKey: mission.missionKey, criterionIndex: gc.criterionIndex, code: r.rejected });
@@ -199,6 +204,7 @@ export function compileVerificationPolicy(input: CompilePolicyInput): CompilePol
     missionPlanDigest: input.missionPlanDigest,
     productMapDigest: input.productMapDigest,
     observationSetDigest: input.set.digest,
+    actionMissions: [...actionMissionSet].sort(),
     probes,
   };
   const policyDigest = sha(canon(policyBody));
@@ -207,5 +213,5 @@ export function compileVerificationPolicy(input: CompilePolicyInput): CompilePol
 
 /** Recompute a policy's digest for tamper detection (used at approval + settlement). */
 export function verificationPolicyDigest(policy: Omit<VerificationPolicyV1, "policyDigest">): string {
-  return sha(canon({ version: policy.version, missionPlanDigest: policy.missionPlanDigest, productMapDigest: policy.productMapDigest, observationSetDigest: policy.observationSetDigest, probes: policy.probes }));
+  return sha(canon({ version: policy.version, missionPlanDigest: policy.missionPlanDigest, productMapDigest: policy.productMapDigest, observationSetDigest: policy.observationSetDigest, actionMissions: policy.actionMissions, probes: policy.probes }));
 }

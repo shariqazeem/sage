@@ -18,7 +18,7 @@ function isPolicy(v: unknown): v is VerificationPolicyV1 {
   if (!v || typeof v !== "object") return false;
   const p = v as Record<string, unknown>;
   return p.version === "verification-policy-v1" && typeof p.missionPlanDigest === "string" && typeof p.productMapDigest === "string" &&
-    typeof p.observationSetDigest === "string" && Array.isArray(p.probes) && typeof p.policyDigest === "string";
+    typeof p.observationSetDigest === "string" && Array.isArray(p.actionMissions) && Array.isArray(p.probes) && typeof p.policyDigest === "string";
 }
 
 export function loadVerifiedCampaignPolicy(campaign: Pick<Campaign, "verificationPolicy" | "verificationPolicyDigest" | "missionPlanDigest">): PolicyLoad {
