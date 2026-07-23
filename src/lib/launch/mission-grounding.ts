@@ -1,4 +1,4 @@
-import type { CandidateMission, MissionValidationIssue } from "./schemas";
+import type { CandidateMission, MissionValidationIssue, CriterionGroundingV1, GroundingTier } from "./schemas";
 import type { ObservationSetV1 } from "./observed-facts";
 import { factIndex } from "./observed-facts";
 
@@ -17,12 +17,28 @@ import { factIndex } from "./observed-facts";
  * no-op here — the existing anchor gate still applies. `groundingV1` is display-only and is stripped at
  * canonical compilation, so it never touches a spec digest or budget arithmetic.
  */
-export function validateMissionGrounding(mission: CandidateMission, set: ObservationSetV1 | null | undefined): MissionValidationIssue[] {
+export function validateMissionGrounding(
+  mission: CandidateMission,
+  set: ObservationSetV1 | null | undefined,
+  opts: { expectedDigest?: string; replayReproduced?: ReadonlySet<string> } = {},
+): MissionValidationIssue[] {
   const g = mission.groundingV1;
   if (!g || !set) return [];
   const issues: MissionValidationIssue[] = [];
   const idx = factIndex(set);
   const byCriterion = new Map(g.criteria.map((c) => [c.criterionIndex, c]));
+
+  // the grounding map must reference the EXACT observation set that entered the architect.
+  if (opts.expectedDigest && g.observationSetDigest && g.observationSetDigest !== opts.expectedDigest) {
+    issues.push({ code: "observation_set_mismatch", field: "groundingV1", detail: "observationSetDigest does not match the inspection set" });
+  }
+  // exact criterion-index coverage: 0..n-1 once each, no duplicate / extra / negative / out-of-range.
+  const seenIdx = new Set<number>();
+  for (const c of g.criteria) {
+    if (c.criterionIndex < 0 || c.criterionIndex >= mission.criteria.length) issues.push({ code: "criterion_index_invalid", field: "groundingV1", detail: `criterion index ${c.criterionIndex} out of range` });
+    else if (seenIdx.has(c.criterionIndex)) issues.push({ code: "criterion_index_invalid", field: "groundingV1", detail: `duplicate criterion index ${c.criterionIndex}` });
+    else seenIdx.add(c.criterionIndex);
+  }
 
   for (let i = 0; i < mission.criteria.length; i++) {
     const gc = byCriterion.get(i);
@@ -38,7 +54,19 @@ export function validateMissionGrounding(mission: CandidateMission, set: Observa
       if (!idx.facts.has(fid)) issues.push({ code: "ungrounded_fact_ref", field: `criteria[${i}]`, detail: `fact ${fid} not in the observation set` });
     }
     for (const tid of gc.sourceTransitionIds ?? []) {
-      if (!idx.transitions.has(tid)) issues.push({ code: "ungrounded_fact_ref", field: `criteria[${i}]`, detail: `transition ${tid} not in the observation set` });
+      const t = idx.transitions.get(tid);
+      if (!t) { issues.push({ code: "ungrounded_fact_ref", field: `criteria[${i}]`, detail: `transition ${tid} not in the observation set` }); continue; }
+      // a cited transition's after-state must correspond to at least one cited fact (the outcome it claims).
+      if (gc.sourceFactIds.length > 0 && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.stateId === t.afterStateDigest || idx.facts.get(fid)?.stateId === t.beforeStateDigest)) {
+        issues.push({ code: "page_state_mismatch", field: `criteria[${i}]`, detail: "cited transition's before/after state does not match any cited fact" });
+      }
+    }
+    // page/state the criterion claims must match one of its cited facts (no unrelated-fact substitution).
+    if (gc.stateId && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.stateId === gc.stateId)) {
+      issues.push({ code: "page_state_mismatch", field: `criteria[${i}]`, detail: "claimed stateId matches none of the cited facts" });
+    }
+    if (gc.pageUrl && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.pageUrl === gc.pageUrl)) {
+      issues.push({ code: "page_state_mismatch", field: `criteria[${i}]`, detail: "claimed pageUrl matches none of the cited facts" });
     }
     // at least one DECISIVE (seen) source — an inferred-only criterion cannot anchor.
     const existing = gc.sourceFactIds.map((id) => idx.facts.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.facts.get>>[];
@@ -125,6 +153,28 @@ export function coverageReport(set: ObservationSetV1 | null | undefined, mission
 }
 
 /* ───────────────────────────────────── canonical compilation strip ──────── */
+
+/**
+ * Deterministic grounding TIER for one criterion (additional truth, not a payout-policy replacement). A
+ * cited transition that is `safe` AND replay-reproduced → action_replayed; a valid observed transition
+ * (safe, not reproduced) → action_observed; a seen decisive fact → state_seen; only inferred vision →
+ * inferred_only; nothing valid → ungrounded. An unsafe/unverified transition can NEVER be replay-backed.
+ */
+export function classifyGroundingTier(
+  gc: CriterionGroundingV1,
+  set: ObservationSetV1,
+  replayReproduced: ReadonlySet<string> = new Set(),
+): GroundingTier {
+  const idx = factIndex(set);
+  const transitions = (gc.sourceTransitionIds ?? []).map((id: string) => idx.transitions.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.transitions.get>>[];
+  const safeTransitions = transitions.filter((t) => t.safeClassification === "safe");
+  if (safeTransitions.some((t) => replayReproduced.has(t.id))) return "action_replayed";
+  if (safeTransitions.length > 0) return "action_observed";
+  const facts = gc.sourceFactIds.map((id: string) => idx.facts.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.facts.get>>[];
+  if (facts.some((f) => f.grounding === "seen" && f.decisive)) return "state_seen";
+  if (facts.some((f) => f.grounding === "inferred")) return "inferred_only";
+  return "ungrounded";
+}
 
 /** Strip design-time-only grounding metadata for canonical compilation (never claims it survives to
  *  payout). Returns a shallow copy without `groundingV1`. */

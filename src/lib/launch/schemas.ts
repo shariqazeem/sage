@@ -345,19 +345,31 @@ export type VerificationMode = "deterministic_url" | "semantic_url" | "observati
 /** The design-time evidence mapping for ONE criterion (see CandidateMission.groundingV1). */
 export interface CriterionGroundingV1 {
   criterionIndex: number;
-  /** observed-fact ids (from ProductMapV1.observations) that support this criterion. */
+  /** observed-fact ids (from ProductMapV1.observations) that support this criterion (a.k.a. factRefs). */
   sourceFactIds: string[];
-  /** action-transition ids where the criterion is about a state change. */
+  /** action-transition ids where the criterion is about a state change (a.k.a. transitionRef). */
   sourceTransitionIds?: string[];
   /** the evidenceRequirements[] index that proves this criterion. */
   evidenceIndex: number;
   verificationMode: VerificationMode;
+  /** the product page the criterion concerns (must match the cited facts). */
+  pageUrl?: string;
+  /** the field-test state id the criterion concerns (must match the cited facts). */
+  stateId?: string;
+  /** concise model rationale — for the CRITIC only, never treated as proof by the deterministic gate. */
+  supportRationale?: string;
 }
 
 export interface MissionGroundingV1 {
   version: "mission-grounding-v1";
+  /** binds this map to the EXACT observation set that entered the architect. */
+  observationSetDigest?: string;
   criteria: CriterionGroundingV1[];
 }
+
+/** The deterministic grounding TIER for a criterion — additional design/payout truth, NOT a replacement
+ *  for verifiabilityClass. inferred_only/ungrounded can never support a decisive criterion. */
+export type GroundingTier = "action_replayed" | "action_observed" | "state_seen" | "inferred_only" | "ungrounded";
 
 /* ───────────────────────────────────────────────── critic verdict ───────── */
 
@@ -422,7 +434,11 @@ export type MissionValidationCode =
   | "ungrounded_fact_ref"        // a cited observed-fact id does not exist in the inspection's set
   | "inferred_decisive_source"   // a criterion's decisive source is inferred-only (vision), not seen
   | "criterion_evidence_unmapped"// a criterion has no grounding entry / no capable evidence mapping
-  | "evidence_mode_incapable";   // the chosen verification mode cannot prove the criterion
+  | "evidence_mode_incapable"    // the chosen verification mode cannot prove the criterion
+  | "observation_set_mismatch"   // groundingV1.observationSetDigest ≠ the inspection's set
+  | "criterion_index_invalid"    // duplicate / extra / negative / out-of-range criterion index
+  | "unsafe_transition_support"  // a cited transition is unsafe/unverified and cannot back the criterion
+  | "page_state_mismatch";       // cited pageUrl/stateId does not match the referenced facts
 
 export interface MissionValidationIssue {
   code: MissionValidationCode;
