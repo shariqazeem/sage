@@ -1,109 +1,72 @@
 import Link from "next/link";
-import type { VaultStateView, PayoutReceipt } from "@/lib/deputy/chain";
+import type { PayoutReceipt } from "@/lib/deputy/chain";
 import type { EcosystemStatus } from "@/lib/ecosystem/status";
 import { EcosystemStrip } from "@/components/ecosystem/ecosystem-strip";
-import { Act1Hero } from "./act1-hero";
-import { Act2Problem } from "./act2-problem";
-import { Act3Vault, type LandingReceipt } from "./act3-vault";
-import { Act4Proof } from "./act4-proof";
-import { Act5Close } from "./act5-close";
 import { SageMark } from "@/components/brand/sage-mark";
+import { geist } from "./fonts";
+import { LandingNav } from "./landing-nav";
+import { SceneHero } from "./scene-hero";
+import { SceneWorkflow } from "./scene-workflow";
+import { SceneReplay } from "./scene-replay";
+import { ScenePolicy } from "./scene-policy";
+import { SceneProof } from "./scene-proof";
+import { SceneClose } from "./scene-close";
 
 interface Props {
-  vault: VaultStateView | null;
-  history: PayoutReceipt[];
   network: { name: string; chainId: number };
-  hasHero: boolean;
-  /** The real settled receipt featured in Act 3, or null → the check rail. */
-  receipt: LandingReceipt | null;
-  /** Server-stamped clock so relative times match across SSR + hydration. */
+  totals: { paidUsd: number; payoutCount: number; blockedCount: number };
+  feed: PayoutReceipt[];
+  perTxCap: number | null;
   now: number;
-  /** The honest ecosystem-status model — each claim shown only when really true. */
   ecosystem: EcosystemStatus;
 }
 
 /**
- * The Sage landing as a scroll-driven, five-act cinematic sequence. This shell is
- * a Server Component: it computes everything from LIVE vault state + real on-chain
- * payout history and hands each act its numbers. Only the acts themselves are
- * client components (they own the scroll choreography). Nothing here is faked —
- * the hero balance, the checks' cap, the receipt feed, and the closing stats are
- * all real.
+ * Sage landing V2 — a cinematic sequence following SEE → DESIGN → REPLAY → PAY. This
+ * shell is a Server Component: it hands each scene its numbers, all derived from ONE
+ * source (`feed`) so nothing on the page can contradict. Only motion leaves (Reveal,
+ * nav toggle, replay toggle) are client islands.
  */
-export function CinematicLanding({ vault, history, network, hasHero, receipt, now, ecosystem }: Props) {
-  // Honest vault state: NO fabricated fallbacks. When the live read fails, the
-  // hero says "temporarily unavailable" — it never invents a $500 allowance.
-  const perTxCap = vault?.perTxCap ?? null;
-
-  // Act 4 (the receipt feed) and Act 5 (the totals) read the SAME on-chain payout
-  // history, so they can never contradict each other. (The agent profile at
-  // /agents/sage carries the canonical COMBINED, cross-chain track record.)
-  const settled = history.filter((h) => h.settled);
-  const blocked = history.filter((h) => !h.settled);
-  const totalReleased = settled.reduce((s, h) => s + h.amount, 0);
-
+export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosystem }: Props) {
   return (
-    <div className="clx">
-      <header className="clx-header">
-        <div className="clx-header-in">
-          <Link href="/" className="clx-brand" aria-label="Sage home">
-            <SageMark size={22} />
-            <span className="clx-wordmark">Sage</span>
-          </Link>
-          <nav className="clx-topnav">
-            <a href="#how">How it works</a>
-            <a href="#proof">Proof</a>
-            <Link href="/dashboard">Dashboard</Link>
-            <Link href="/dashboard" className="clx-cta clx-cta-sm">
-              Launch a campaign
-            </Link>
-          </nav>
-        </div>
-      </header>
+    <div className={`slv2 ${geist.variable}`}>
+      <LandingNav />
 
-      <main className="clx-main">
-        <Act1Hero
-          settledUsd={totalReleased}
-          payoutCount={settled.length}
+      <main>
+        <SceneHero
+          paidUsd={totals.paidUsd}
+          payoutCount={totals.payoutCount}
           networkName={network.name}
-          hasHero={hasHero}
         />
 
-        <Act2Problem />
+        <SceneWorkflow />
 
-        <span id="how" className="clx-anchor" aria-hidden />
-        <Act3Vault receipt={receipt} perTxCap={perTxCap} />
+        <SceneReplay />
 
-        <span id="proof" className="clx-anchor" aria-hidden />
-        <Act4Proof feed={history} now={now} networkName={network.name} />
+        <ScenePolicy perTxCap={perTxCap} />
 
-        <Act5Close
-          totalReleased={totalReleased}
-          payoutsCount={settled.length}
-          blocksCount={blocked.length}
-        />
+        <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
+
+        <SceneClose totals={totals} networkName={network.name} />
       </main>
 
-      <footer className="clx-footer">
-        <div className="clx-footer-in">
-          <div className="clx-brand">
+      <footer className="foot">
+        <div className="wrap foot-in">
+          <Link href="/" className="nav-brand" aria-label="Sage home">
             <SageMark size={18} />
-            <span className="clx-wordmark" style={{ fontSize: 15 }}>
-              Sage
-            </span>
-            <span className="clx-mono clx-foot-tag">
-              An AI agent you can trust with a wallet · {network.name}
-            </span>
-          </div>
-          <nav className="clx-footnav">
-            <a href="#how">How it works</a>
-            <a href="#proof">Proof</a>
+            <span>Sage</span>
+          </Link>
+          <span className="mono foot-tag">
+            An agent with eyes, judgment, and a wallet · {network.name}
+          </span>
+          <nav className="foot-nav" aria-label="Footer">
+            <a href="#how">How Sage works</a>
+            <a href="#proof">Live proof</a>
             <Link href="/dashboard">Dashboard</Link>
-            <Link href="/dashboard">Launch a campaign</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>
         </div>
-        <div className="clx-footer-in" style={{ marginTop: 14, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+        <div className="wrap foot-eco">
           <EcosystemStrip status={ecosystem} />
         </div>
       </footer>
