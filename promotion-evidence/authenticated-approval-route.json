@@ -1,0 +1,22 @@
+{
+  "artifact": "authenticated-approval-route",
+  "ephemeralWallet": "0x5d4fd313e82bc64f1fda622d2b7d5c3fcc99625e",
+  "statusCodes": {
+    "no_session": 401,
+    "forged_session": 401,
+    "wrong_wallet": 403,
+    "stale_revision": 409,
+    "body_override_ignored": 200,
+    "replay": 200,
+    "changed_policy_digest": 409,
+    "required_policy_missing": 409,
+    "incomplete_policy": 409,
+    "changed_plan_digest": 409,
+    "superseded": 409
+  },
+  "approvedRevision": 1,
+  "approvedCount": 1,
+  "missionPlanDigest": "0x48ebdbb8c45de13621fc9c511ac4b0aadc71559564c064dadaaa8a52fad800d6",
+  "verificationPolicyDigest": "83ee9d8855a9235b53cc06108de72bfc8812b98f4e44c6da59332ff85bcd7428",
+  "authenticatedApprovalRouteProven": true
+}

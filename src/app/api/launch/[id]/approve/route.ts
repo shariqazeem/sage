@@ -25,6 +25,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (job.status !== "ready") return NextResponse.json({ ok: false, error: "This inspection has no approvable plan." }, { status: 409 });
 
   const session = await getSessionAddress();
+  // A real-founder job REQUIRES a verified session: no/forged session → 401 (unauthenticated). The anonymous
+  // (walletless) path is preserved — those jobs never carry a founder wallet to prove. A valid session for a
+  // DIFFERENT wallet → 403 (forbidden). getSessionAddress returns null for a missing/tampered/expired token.
+  if (!session && job.founderWallet !== "anonymous") {
+    return NextResponse.json({ ok: false, error: "Sign in to approve." }, { status: 401 });
+  }
   const founder = session ?? "anonymous";
   if (job.founderWallet !== founder.toLowerCase() && job.founderWallet !== "anonymous") {
     return NextResponse.json({ ok: false, error: "Not your inspection." }, { status: 403 });
