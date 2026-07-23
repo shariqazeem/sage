@@ -61,19 +61,22 @@ function classifyRoleError(code: string): "strict_parse_error" | "provider_error
  * other value (including "enforce") falls closed to off, with the reason exposed via
  * {@link missionGroundingModeReason}. Records only bounded counts/enums/ids — never raw corpus.
  */
-export type MissionGroundingMode = "off" | "shadow";
+export type MissionGroundingMode = "off" | "shadow" | "canary";
 /**
- * Only off | shadow are supported. ENFORCE IS NOT IMPLEMENTED — V2 candidates never replace the legacy
- * selection nor traverse the canonical gates, so `enforce` (or any unknown value) fails closed to off,
- * with the reason exposed via {@link missionGroundingModeReason}. Shadow is advisory only.
+ * off | shadow | canary only. `shadow` measures the grounded plan alongside the legacy one, changing nothing.
+ * `canary` additionally lets the grounded plan be SELECTED in place of legacy — but ONLY for a server-verified,
+ * allowlisted, opted-in founder AND only when every strict grounding condition holds (see mission-canary.ts);
+ * the selection authority is NEVER derived from founder/model/product text. ENFORCE IS NOT IMPLEMENTED — any
+ * other value (incl. `enforce`) fails closed to off, with the reason exposed via {@link missionGroundingModeReason}.
  */
 export function missionGroundingMode(): MissionGroundingMode {
-  return process.env.MISSION_GROUNDING_MODE?.trim().toLowerCase() === "shadow" ? "shadow" : "off";
+  const v = process.env.MISSION_GROUNDING_MODE?.trim().toLowerCase();
+  return v === "canary" ? "canary" : v === "shadow" ? "shadow" : "off";
 }
 export function missionGroundingModeReason(): string | null {
   const v = process.env.MISSION_GROUNDING_MODE?.trim().toLowerCase();
   if (v === "enforce") return "enforce_not_implemented (fell closed to off)";
-  if (v && v !== "off" && v !== "shadow") return `unknown_mode:${v} (fell closed to off)`;
+  if (v && v !== "off" && v !== "shadow" && v !== "canary") return `unknown_mode:${v} (fell closed to off)`;
   return null;
 }
 
@@ -136,6 +139,39 @@ export const CRITIC_TRANSPORT_SCHEMA_V3: { name: string; schema: Record<string, 
 };
 
 export type CriticVerdict = "supported" | "partially_supported" | "unsupported" | "contradictory";
+
+/** The positively-established strict conditions a grounded plan must ALL satisfy before it may be selected as
+ *  a canary plan. Each is computed deterministically over the ACCEPTED (canonical-gate-passed) V2 missions —
+ *  none is taken on trust from an upstream filter. `mission-canary.ts` requires every one to be true. */
+export interface GroundedPlanSignals {
+  architectStrictValid: boolean;
+  compilerProducedMissions: boolean;
+  everyCriterionCriticSupported: boolean;
+  allDecisiveGrounded: boolean;
+  noInferredOnlyDecisive: boolean;
+  safeTransitionsEstablished: boolean;
+  canonicalGatePassed: boolean;
+  allocationExactEqual: boolean;
+  provenancePresent: boolean;
+}
+
+/** The compiled, canonical-gate-passed grounded plan + its strict signals + model/provider provenance. Present
+ *  on the shadow result ONLY when mode ≠ off AND at least one mission survived the full grounded chain. It is
+ *  the ONLY channel by which a grounded plan can reach selection; whether it is ACTUALLY selected is decided
+ *  entirely by mission-canary (mode === canary + server-verified authority + all signals true). */
+export interface GroundedCandidatePlan {
+  missions: CandidateMission[];
+  suppliedBudgetBase: string;
+  allocatedBudgetBase: string;
+  architectModel: string | null;
+  architectProvider: string | null;
+  criticModel: string | null;
+  criticProvider: string | null;
+  observationSetDigest: string;
+  signals: GroundedPlanSignals;
+  /** true ⇔ every signal is true AND missions.length > 0 (all strict conditions met). */
+  strictSelectable: boolean;
+}
 
 export interface GroundingShadowResult {
   version: "grounding-shadow-v1";
@@ -233,6 +269,9 @@ export interface GroundingShadowResult {
   derivedAnchorCount: number;
   derivedSourceCount: number;
   derivedTargetSurfaceCount: number;
+  /** Phase 5 CANARY — the compiled grounded plan + strict signals, present only when mode ≠ off and the full
+   *  grounded chain produced at least one accepted mission. Selection is decided by mission-canary, not here. */
+  groundedCandidatePlan?: GroundedCandidatePlan | null;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -478,6 +517,45 @@ export async function runGroundedShadow(
   const allocatedBase = alloc.ok ? alloc.missions.reduce((s, x) => s + x.rewardBase * x.maxCompletions, BigInt(0)) : BigInt(0);
   const exactBudgetEquality = alloc.ok && allocatedBase === input.totalBudgetBase;
   const objectives = new Set(candidates.map((m) => m.objective.trim().toLowerCase()));
+
+  // Phase 5 — POSITIVELY re-establish every strict grounding condition over the ACCEPTED (canonical-gate-passed)
+  // missions. Nothing is taken on trust from the upstream filters: each signal is recomputed here so a canary
+  // selection can never rest on an assumption. All strings remain untrusted DATA; we only read ids/tiers/flags.
+  let allDecisiveGrounded = accepted.length > 0;
+  let noInferredOnlyDecisive = accepted.length > 0;
+  let safeTransitionsEstablished = true;
+  for (const m of accepted) {
+    const gcs = m.groundingV1?.criteria ?? [];
+    if (gcs.length < m.criteria.length) allDecisiveGrounded = false;
+    for (const gc of gcs) {
+      const tier = classifyGroundingTier(gc, set, deps.replayReproduced);
+      if (tier === "inferred_only" || tier === "ungrounded") noInferredOnlyDecisive = false;
+      for (const tid of gc.sourceTransitionIds ?? []) {
+        const t = set.transitions.find((x) => x.id === tid);
+        if (!t || t.safeClassification !== "safe") safeTransitionsEstablished = false;
+        if (gc.criterionKind === "action_outcome" && !deps.replayReproduced?.has(tid)) safeTransitionsEstablished = false;
+      }
+    }
+  }
+  const everyCriterionCriticSupported = criticStatus === "ok" && accepted.length > 0 && accepted.every((m) => supportedKeys.has(m.missionKey));
+  const provenancePresent = !!(architectActual && architectProvider && criticActual && criticProvider);
+  const signals: GroundedPlanSignals = {
+    architectStrictValid: architectStatus === "ok",
+    compilerProducedMissions: candidates.length > 0,
+    everyCriterionCriticSupported,
+    allDecisiveGrounded,
+    noInferredOnlyDecisive,
+    safeTransitionsEstablished,
+    canonicalGatePassed: accepted.length > 0,
+    allocationExactEqual: exactBudgetEquality,
+    provenancePresent,
+  };
+  const strictSelectable = accepted.length > 0 && Object.values(signals).every(Boolean);
+  const groundedCandidatePlan: GroundedCandidatePlan | null = missionGroundingMode() !== "off" && accepted.length > 0
+    ? { missions: accepted, suppliedBudgetBase: input.totalBudgetBase.toString(), allocatedBudgetBase: allocatedBase.toString(),
+        architectModel: architectActual, architectProvider, criticModel: criticActual, criticProvider, observationSetDigest: digest, signals, strictSelectable }
+    : null;
+
   return base({
     ran: true,
     candidateCount: candidates.length,
@@ -503,6 +581,7 @@ export async function runGroundedShadow(
     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
     observationView: viewMeta,
     canonicalRejectionCodes,
+    groundedCandidatePlan,
     ...draftTelemetry(),
     ...telemetry(),
   });

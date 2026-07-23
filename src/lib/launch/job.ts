@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
+import { canaryAllowlist, type CanaryIdentity } from "./mission-canary";
 import { fieldTestEnabled } from "./field-test";
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
@@ -63,6 +64,14 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     tokenDecimals: job.tokenDecimals,
   };
 
+  // Phase 5 CANARY — a SERVER-VERIFIED identity, built ONLY from the SIWE-verified founder wallet the job was
+  // created under. Never from founder text / goal / product content / model output. In the building phase the
+  // operator's server allowlist IS the recorded opt-in (no per-founder opt-in UI / DB column yet), so `optedIn`
+  // tracks allowlist membership; the authority gate independently re-checks the allowlist + canary mode.
+  const canaryIdentity: CanaryIdentity | null = job.founderWallet
+    ? { wallet: job.founderWallet, optedIn: canaryAllowlist().has(job.founderWallet.trim().toLowerCase()), source: "server_session" }
+    : null;
+
   try {
     const result = await inspectAndPlan(
       input,
@@ -71,7 +80,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         updateInspectionJob(jobId, stage as InspectionStatus, {});
       },
       0,
-      { inspectionId: jobId },
+      { inspectionId: jobId, canaryIdentity },
     );
 
     const serialized = serialize(result);

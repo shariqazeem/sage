@@ -16,6 +16,8 @@ import { buildProductMap, hasUsableInspection, scopeFromObservations } from "./p
 import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
+import { missionGroundingMode } from "./mission-grounding-shadow";
+import { bindCanaryApproval, evaluateCanarySelection, type CanaryIdentity } from "./mission-canary";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -43,6 +45,26 @@ export interface LaunchResult {
   questions: string[];
   /** stage transitions observed (for durable progress + observability). */
   trail: { stage: LaunchStage; at: number }[];
+  /** Phase 5 CANARY — the grounded-plan selection outcome for this launch (absent when the canary path never
+   *  engaged). `selected` ⇒ `plan` is the grounded V2 plan bound by `approvalToken`; `blocked` ⇒ `plan` is null
+   *  and legacy was preserved for comparison but NOT launched (manual handling required). */
+  canary?: CanaryPipelineOutcome | null;
+}
+
+export interface CanaryPipelineOutcome {
+  status: "disabled" | "unauthorized" | "blocked" | "selected";
+  reason: string | null;
+  /** which plan `LaunchResult.plan` carries when the run is ready ("grounded_v2" only on selected). */
+  planSource: "legacy" | "grounded_v2" | "none";
+  /** the deterministic grounded-plan digest (selected only). */
+  groundedDigest?: string;
+  /** the authoritative on-chain missionPlanDigest of the compiled plan that was selected (or, on block, the
+   *  legacy comparison plan's digest). */
+  planDigest?: string;
+  /** the approval token binding an approval to {planDigest, budget, revision} (selected only). */
+  approvalToken?: string;
+  /** the server-verified allowlisted wallet the canary was authorized for (selected only). */
+  wallet?: string;
 }
 
 /**
@@ -55,7 +77,7 @@ export async function inspectAndPlan(
   publicCampaignId: string,
   onStage: (stage: LaunchStage) => void = () => {},
   now = 0,
-  opts: { inspectionId?: string; replayDeps?: { allowLoopback?: ReadonlySet<string>; egressAllowedPorts?: ReadonlySet<number> } } = {},
+  opts: { inspectionId?: string; replayDeps?: { allowLoopback?: ReadonlySet<string>; egressAllowedPorts?: ReadonlySet<number> }; canaryIdentity?: CanaryIdentity | null } = {},
 ): Promise<LaunchResult> {
   const trail: { stage: LaunchStage; at: number }[] = [];
   const stamp = (stage: LaunchStage) => {
@@ -63,7 +85,7 @@ export async function inspectAndPlan(
     onStage(stage);
   };
   const out = (stage: LaunchStage, reason: string | null, partial: Partial<LaunchResult> = {}): LaunchResult => ({
-    stage, reason, map: null, brain: null, allocation: null, plan: null, questions: [], trail, ...partial,
+    stage, reason, map: null, brain: null, allocation: null, plan: null, questions: [], trail, canary: null, ...partial,
   });
 
   // 1. inspect the real product (bounded + SSRF-guarded).
@@ -157,36 +179,60 @@ export async function inspectAndPlan(
     return out(stage, brain.reason, { map, brain, questions: brain.needsInputQuestions });
   }
 
-  // 5. exact budget allocation over the accepted missions.
-  const allocation = allocateBudget(
-    brain.accepted.map((m) => ({
-      missionKey: m.missionKey,
-      weight: m.rewardWeight,
-      suggestedMaxCompletions: m.maxCompletions,
-      priority: m.priority,
-      effortMinutes: m.effortMinutes,
-    })),
-    input.totalBudgetBase,
-  );
-  if (!allocation.ok) {
-    return out("needs_input", allocation.reason, { map, brain, allocation, questions: [allocation.reason ?? "Increase the budget to fund a meaningful plan."] });
-  }
+  // compile a candidate mission set → exact allocation → canonical MissionPlanV1 (MissionSpecV1 + vault hashes).
+  // Used identically for the legacy plan and (under canary) the grounded plan, so both traverse the SAME
+  // deterministic allocator + compiler. No model computes money; allocateBudget owns the base-unit amounts.
+  const compileMissions = (missions: typeof brain.accepted) => {
+    const allocation = allocateBudget(
+      missions.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })),
+      input.totalBudgetBase,
+    );
+    if (!allocation.ok) return { ok: false as const, allocation, plan: null };
+    const compiled = compilePlan({
+      publicCampaignId, productMapDigest: map.digest, missions, allocation,
+      tokenDecimals: input.tokenDecimals, modelVersion: brain.model, promptVersion: MISSION_PROMPT_VERSION, revision: 1,
+    });
+    if (!compiled.ok) return { ok: false as const, allocation, plan: null, error: compiled.error };
+    return { ok: true as const, allocation, plan: compiled.plan };
+  };
 
-  // 6. compile to canonical MissionSpecV1 + CampaignVaultV2 hashes.
-  const compiled = compilePlan({
-    publicCampaignId,
-    productMapDigest: map.digest,
-    missions: brain.accepted,
-    allocation,
-    tokenDecimals: input.tokenDecimals,
-    modelVersion: brain.model,
-    promptVersion: MISSION_PROMPT_VERSION,
-    revision: 1,
+  // 5. CANARY DECISION — may the grounded V2 plan REPLACE legacy for this launch? Authority comes ONLY from the
+  //    process mode + the server-verified identity + the operator allowlist (never from founder/model/product
+  //    text). Default off ⇒ `disabled` ⇒ legacy proceeds byte-identically to before.
+  const canaryDecision = evaluateCanarySelection({
+    mode: missionGroundingMode(),
+    identity: opts.canaryIdentity ?? null,
+    plan: brain.groundingShadow?.groundedCandidatePlan,
   });
-  if (!compiled.ok) {
-    return out("failed", compiled.error, { map, brain, allocation });
+
+  if (canaryDecision.status === "selected") {
+    // compile the GROUNDED missions through the identical allocator+compiler; exact base-unit equality is
+    // mandatory; bind an approval token to the authoritative on-chain digest + budget + revision.
+    const g = compileMissions(canaryDecision.plan.missions);
+    if (!g.ok || !g.plan) return out("failed", `canary_compile_failed:${(g as { error?: string }).error ?? g.allocation.reason ?? "unknown"}`, { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "compile_failed", planSource: "none" } });
+    if (g.plan.allocatedBase !== input.totalBudgetBase) return out("failed", "canary_budget_not_exact", { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "budget_not_exact", planSource: "none" } });
+    const approval = bindCanaryApproval({ planDigest: g.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: g.plan.totalBudgetBase.toString(), revision: g.plan.revision });
+    stamp("ready");
+    return out("ready", null, { map, brain, allocation: g.allocation, plan: g.plan, questions: brain.needsInputQuestions,
+      canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, approvalToken: approval.token, wallet: canaryDecision.wallet } });
   }
 
+  // 6. LEGACY compile (also the comparison artifact when an authorized canary is blocked).
+  const legacy = compileMissions(brain.accepted);
+  if (!legacy.ok) {
+    if ((legacy as { error?: string }).error) return out("failed", (legacy as { error?: string }).error!, { map, brain, allocation: legacy.allocation });
+    return out("needs_input", legacy.allocation.reason, { map, brain, allocation: legacy.allocation, questions: [legacy.allocation.reason ?? "Increase the budget to fund a meaningful plan."] });
+  }
+
+  if (canaryDecision.status === "blocked") {
+    // An AUTHORIZED canary founder whose grounded plan failed a strict condition. Per policy: preserve legacy
+    // for comparison, mark canary blocked, and do NOT silently launch legacy — require explicit manual handling.
+    return out("failed", `canary_blocked:${canaryDecision.reason}`, { map, brain, allocation: legacy.allocation,
+      canary: { status: "blocked", reason: canaryDecision.reason, planSource: "none", planDigest: legacy.plan.missionPlanDigest } });
+  }
+
+  // disabled | unauthorized → legacy proceeds exactly as before.
   stamp("ready");
-  return out("ready", null, { map, brain, allocation, plan: compiled.plan, questions: brain.needsInputQuestions });
+  return out("ready", null, { map, brain, allocation: legacy.allocation, plan: legacy.plan, questions: brain.needsInputQuestions,
+    canary: { status: canaryDecision.status, reason: canaryDecision.reason, planSource: "legacy" } });
 }

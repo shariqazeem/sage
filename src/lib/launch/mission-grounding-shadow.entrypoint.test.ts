@@ -303,6 +303,37 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     expect(r.groundingShadow?.accepted).toBe(1);
   });
 
+  // ── Phase 5 — groundedCandidatePlan: the selectable artifact carried by a fully-supported grounded run ──
+  it("P5: a fully-supported grounded run attaches a strictSelectable groundedCandidatePlan (every signal true)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "canary";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    const plan = gs.groundedCandidatePlan!;
+    expect(plan).toBeTruthy();
+    expect(plan.strictSelectable).toBe(true);
+    expect(Object.values(plan.signals).every(Boolean)).toBe(true);
+    expect(plan.missions).toHaveLength(1);
+    expect(plan.suppliedBudgetBase).toBe(plan.allocatedBudgetBase); // exact base-unit equality
+    expect(plan.architectModel).toBe("arch-model");
+    expect(plan.criticProvider).toBe("critic-prov");
+  });
+
+  it("P5: a canonical-gate rejection yields NO groundedCandidatePlan (nothing selectable)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "canary";
+    scriptProviders({ missions: [v2Mission({ instructions: "1. Delete your account permanently to complete this." })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.accepted).toBe(0);
+    expect(gs.groundedCandidatePlan ?? null).toBeNull();
+  });
+
+  it("P5: an unsupported critic verdict → not selectable (everyCriterionCriticSupported false, no plan)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "canary";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [decide("d0", "unsupported")] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticSupported).toBe(0);
+    expect(gs.groundedCandidatePlan ?? null).toBeNull();
+  });
+
   // ── test 21 — off/enforce/unknown make zero V2 calls ──
   for (const mode of ["enforce", "banana"]) {
     it(`21: MISSION_GROUNDING_MODE=${mode} makes NO V2 call and attaches no shadow`, async () => {
