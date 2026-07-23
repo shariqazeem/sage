@@ -467,3 +467,96 @@ describe("DRILL: settle throws", () => {
     });
   });
 });
+
+// ── Phase 6C — PAYOUT ACTION REPLAY through the REAL pre-broadcast gate (broadcast = settleApprovedSubmission) ──
+import { compileVerificationPolicy } from "@/lib/launch/mission-probe";
+import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib/launch/observed-facts";
+import type { CandidateMission } from "@/lib/launch/schemas";
+import type { ValidationScope } from "@/lib/launch/validate-mission";
+import type { ProbeClassification } from "@/lib/launch/inspection-replay";
+import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+
+const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
+const RSCOPE: ValidationScope = { hosts: new Set(["app.test"]) } as ValidationScope;
+const rFact: ObservedFactV1 = { version: "obs-fact-v1", id: "f-after", source: "field_transition", grounding: "seen", decisive: true, pageUrl: "https://app.test/report", stateId: "s-after", visibleTexts: ["Report ready"], provenanceDigest: "pd" };
+const rTrans: ActionTransitionV1 = { version: "action-transition-v1", id: "t-load", startUrl: "https://app.test/", beforeStateDigest: "b", verb: "click", locator: { role: "button", accessibleName: "Load report" }, afterUrl: "https://app.test/report", afterStateDigest: "s-after", addedTexts: ["Report ready"], removedTexts: [], observableChange: true, networkMethodSummary: "get_observed", safeClassification: "safe", provenance: { fromStateIndex: 0, toStateIndex: 1 } };
+const rSet: ObservationSetV1 = { version: "obs-set-v1" as ObservationSetV1["version"], facts: [rFact], transitions: [rTrans], captureVersion: 1, digest: "setdig" };
+const rMission: CandidateMission = { missionKey: "m-load", criteria: ["c"], evidenceRequirements: ["e"], groundingV1: { version: "mission-grounding-v1", observationSetDigest: "setdig", criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", sourceFactIds: ["f-after"], sourceTransitionIds: ["t-load"], evidenceIndex: 0, verificationMode: "observation" }] } } as unknown as CandidateMission;
+const rPolicy = compileVerificationPolicy({ missionPlanDigest: "0xplan", productMapDigest: "0xmap", set: rSet, missions: [rMission], replayReproduced: new Set(["t-load"]), scope: RSCOPE }).policy;
+
+function canaryCampaign(over: Record<string, unknown> = {}) {
+  return { ...campaign, missionPlanDigest: "0xplan", verificationPolicy: rPolicy, verificationPolicyDigest: rPolicy.policyDigest, ...over } as unknown as Campaign;
+}
+const urlActionMission = { missionKey: "m-load", verifiabilityClass: "url-verifiable" };
+const fakeReplay = (classification: ProbeClassification, reason = "") => ({ payoutReplay: { journal: noopJournal, runProbe: async (p: { id: string }) => ({ classification, reason, probeId: p.id }) } });
+
+describe("Phase 6C — payout action replay at the real pre-broadcast gate", () => {
+  beforeEach(() => { vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never); });
+  afterEach(() => { delete process.env.PAYOUT_ACTION_REPLAY_MODE; });
+
+  it("off: an action mission settles unchanged (broadcast happens)", async () => {
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("no_observable_change"));
+    expect(r.action).toBe("settled");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("canary + reproduced + would-PAY: settlement continues (broadcast happens once)", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("reproduced"));
+    expect(r.action).toBe("settled");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("canary + replay VETO + would-PAY: HELD, broadcast spy stays ZERO", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("product_drift", "a change occurred but not the expected one"));
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("action_replay_veto:wrong_after_state");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled(); // NEVER broadcast
+  });
+
+  it("canary + tampered policy: HELD, broadcast spy stays ZERO", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    const tampered = JSON.parse(JSON.stringify(rPolicy));
+    tampered.probes[0].expected.addedTexts = ["whatever I want"];
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign({ verificationPolicy: tampered }));
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("reproduced"));
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("action_replay_veto:policy_digest_mismatch");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("canary + wrong mission binding (probe mission not this one): skip → settles", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "other-mission", verifiabilityClass: "url-verifiable" } as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("reproduced"));
+    expect(r.action).toBe("settled"); // not an action mission in the policy → replay does not apply
+  });
+
+  it("shadow + replay failure + would-PAY: journaled, settlement UNCHANGED (still settles)", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "shadow";
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    const r = await runDeputyOnSubmission("s1", fakeReplay("no_observable_change"));
+    expect(r.action).toBe("settled");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("canary + reproduced but the DECISION does not pay: remains HELD (replay never rescues)", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    vi.mocked(getCampaign).mockReturnValue(canaryCampaign());
+    vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
+    vi.mocked(ensureDecision).mockResolvedValue({ ...payBrief, recommendation: "hold", reasonCode: "no_evidence", confidence: 0.2, evidenceOk: false });
+    const r = await runDeputyOnSubmission("s1", fakeReplay("reproduced"));
+    expect(r.action).toBe("held");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+});

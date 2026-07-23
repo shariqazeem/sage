@@ -14,6 +14,7 @@
     "test:browser-security": "RENDER_BROWSER_TEST=1 vitest run src/lib/deputy/evidence-render.browser.test.ts src/lib/net/egress-proxy.test.ts src/lib/net/ip-classify.test.ts",
     "test:field-egress": "FIELD_TEST_ENABLED=1 vitest run src/lib/launch/field-test.test.ts",
     "test:inspection-replay": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspection-replay.browser.test.ts",
+    "test:payout-replay-browser": "PAYOUT_REPLAY_BROWSER_TEST=1 vitest run src/lib/deputy/payout-replay.browser.test.ts",
     "demo:agentic-v2": "DEMO_AGENTIC=1 vitest run src/lib/launch/demo-agentic-v2.test.ts --reporter=basic",
     "test:inspection-live": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspect-and-plan.integration.test.ts",
     "smoke:grounding:dryrun": "GROUNDING_SMOKE_DRYRUN=1 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
