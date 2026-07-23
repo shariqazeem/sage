@@ -64,13 +64,14 @@ const actionMission = (over: Record<string, unknown> = {}) => v2Mission({
 
 let architectV2Calls = 0;
 let capturedV2User = "";
+let capturedCriticUser = "";
 type Reply = { json: unknown; model: string; provider: string; latencyMs: number; promptTokens: number; completionTokens: number };
 const reply = (json: unknown, model: string, provider: string): Reply => ({ json, model, provider, latencyMs: 1, promptTokens: 0, completionTokens: 0 });
-function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: boolean } = {}) {
-  architectV2Calls = 0; capturedV2User = "";
+function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: boolean | string; criticThrows?: string } = {}) {
+  architectV2Calls = 0; capturedV2User = ""; capturedCriticUser = "";
   vi.mocked(llmCompleteJson).mockImplementation(async ({ system, user }: { system: string; user: string }) => {
-    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error("v2 boom"); return reply(v2, "arch-model", "arch-prov"); }
-    if (system.includes("grounding CRITIC")) return reply(verdicts, "critic-model", "critic-prov");
+    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error(typeof opts.v2Throws === "string" ? opts.v2Throws : "v2 boom"); return reply(v2, "arch-model", "arch-prov"); }
+    if (system.includes("grounding CRITIC")) { capturedCriticUser = user; if (opts.criticThrows) throw new Error(opts.criticThrows); return reply(verdicts, "critic-model", "critic-prov"); }
     // legacy architect/critic → a coercible mission so runMissionBrain reaches the shadow block regardless.
     return reply({ missions: [{ missionKey: "legacy", title: "Legacy mission", objective: "do the legacy thing", instructions: "1. step", targetSurface: "https://p.test/" }] }, "legacy-model", "legacy-prov");
   });
@@ -342,5 +343,94 @@ describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBr
     const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
     expect(architectV2Calls).toBe(0);
     expect(r.groundingShadow).toBeUndefined();
+  });
+
+  // ── P0.1 — critic factRefs canonical (sorted-unique) equality ──
+  const twoFactMission = () => v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, yaraFact.id] })] } });
+
+  it("P0.1: critic returning DUPLICATE factRefs [a,a] against cited [a,b] fails closed (schema rejects dups)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [twoFactMission()] }, { verdicts: [support("reach-start", 0, [startFact.id, startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.groundingValid).toBe(1);
+    expect(gs.criticStatus).toBe("schema_invalid"); // [a,a] violates the uniqueness refine
+    expect(gs.criticSupported).toBe(0);
+    expect(gs.accepted).toBe(0);
+  });
+
+  it("P0.1: critic returning REORDERED factRefs [b,a] equals cited [a,b] (order-independent) → supported", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [twoFactMission()] }, { verdicts: [support("reach-start", 0, [yaraFact.id, startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("ok");
+    expect(gs.criticSupported).toBe(1);
+    expect(gs.accepted).toBe(1);
+  });
+
+  // ── P0.2 — bounded execution-status telemetry (a 429 is distinguishable from a genuine unsupported) ──
+  it("P0.2: a normal supported run reports architectStatus + criticStatus 'ok' with per-role metadata", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.architectStatus).toBe("ok");
+    expect(gs.criticStatus).toBe("ok");
+    expect(gs.architectParsePolicy).toBe("strict");
+    expect(gs.criticParsePolicy).toBe("strict");
+    expect(gs.architectLatencyMs).not.toBeNull();
+  });
+
+  it("P0.2: a critic PROVIDER error (429) → criticStatus provider_error + bounded errorCode (NOT unsupported)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { criticThrows: "llm_status_429" });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.architectStatus).toBe("ok"); // architect succeeded — the probe is distinct from the critic
+    expect(gs.criticStatus).toBe("provider_error");
+    expect(gs.criticErrorCode).toBe("llm_status_429");
+    expect(gs.criticSupported).toBe(0);
+  });
+
+  it("P0.2: a genuine UNSUPPORTED verdict → criticStatus 'ok' + criticSupported 0 (distinct from provider_error)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "unsupported", factRefs: [startFact.id] }] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("ok"); // the call succeeded...
+    expect(gs.criticErrorCode).toBeNull();
+    expect(gs.criticSupported).toBe(0); // ...it just judged the mission unsupported
+  });
+
+  it("P0.2: an architect PROVIDER error → architectStatus provider_error (bounded code)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { v2Throws: "llm_status_429" });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.architectStatus).toBe("provider_error");
+    expect(gs.architectErrorCode).toBe("llm_status_429");
+    expect(gs.criticStatus).toBe("not_run"); // never reached the critic
+  });
+
+  it("P0.2: an architect STRICT-PARSE style error is classified strict_parse_error", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { v2Throws: "llm_strict_finish_length" });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.architectStatus).toBe("strict_parse_error");
+    expect(gs.architectErrorCode).toBe("llm_strict_finish_length");
+  });
+
+  // ── P0.3 — goal alignment ──
+  it("P0.3: the critic payload contains the founder's goal as bounded untrusted data", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    await runMissionBrain(makeMap(), { ...input, goal: "validate the onboarding claim" }, scope(), CORPUS);
+    expect(capturedCriticUser).toContain("founderGoalUntrusted");
+    expect(capturedCriticUser).toContain("validate the onboarding claim");
+  });
+
+  it("P0.3: a grounded-but-unrelated mission the critic marks unsupported is NOT accepted", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    // the mission is fully grounded (groundingValid 1) but the critic judges it does not advance the goal.
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "unsupported", factRefs: [startFact.id] }] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.groundingValid).toBe(1);
+    expect(gs.criticSupported).toBe(0);
+    expect(gs.accepted).toBe(0);
   });
 });
