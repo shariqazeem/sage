@@ -24,6 +24,13 @@ vi.mock("@/lib/launch/field-test", async (o) => ({ ...(await o<typeof import("@/
 vi.mock("@/lib/launch/github", async (o) => ({ ...(await o<typeof import("@/lib/launch/github")>()), inspectRepo: vi.fn(async () => ({ artifacts: [], reason: null })) }));
 vi.mock("@/lib/launch/inspection-replay", async (o) => ({ ...(await o<typeof import("@/lib/launch/inspection-replay")>()), runReplayShadow: vi.fn() }));
 vi.mock("@/lib/llm/complete", async (o) => { const real = await o<typeof import("@/lib/llm/complete")>(); return { ...real, llmConfigured: () => true, llmCompleteJson: vi.fn() }; });
+// P2 money sink: real settleApprovedSubmission (+ central permit) with settleWithRecovery as the money spy.
+const { moneySpy } = vi.hoisted(() => ({ moneySpy: vi.fn(async () => ({ settled: true, txHash: "0xTX", recipient: `0x${"a".repeat(40)}`, amountBase: 1 })) }));
+vi.mock("@/lib/campaigns/settle", () => ({ settleWithRecovery: moneySpy }));
+vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
+vi.mock("@/lib/telegram/bot", () => ({ announceCampaignSettled: vi.fn(), announceCampaignBlocked: vi.fn() }));
+vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn() }));
+vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
 
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { inspectProduct } from "@/lib/launch/inspect";
@@ -166,5 +173,39 @@ describe.runIf(RUN)("authenticated approval route — genuine SIWE", () => {
     const trace = { artifact: "authenticated-approval-route", ephemeralWallet: wallet, statusCodes: codes, approvedRevision: approved.revisionNumber, approvedCount, missionPlanDigest: rev0.missionPlanDigest, verificationPolicyDigest: rev0.verificationPolicyDigest, authenticatedApprovalRouteProven: true };
     fs.writeFileSync(path.resolve("promotion-evidence/authenticated-approval-route.json"), JSON.stringify(trace, null, 2));
     console.log("[auth-route] proven — matrix:", JSON.stringify(codes));
+
+    // ── P2 — route-to-money: the AUTHENTICATED approved revision continues to the money sink ──
+    const { createCampaign, getCampaign, updateCampaignV2Plan } = await import("@/lib/db/campaigns");
+    const { attachApprovedPolicyToCampaign } = await import("@/lib/campaigns/attach-policy");
+    const { loadVerifiedCampaignPolicy } = await import("@/lib/deputy/verification-policy");
+    const { settleApprovedSubmission } = await import("@/lib/campaigns/settle-flow");
+    const { memReplayJournal } = await import("@/lib/deputy/policy-test-fixtures");
+    const { getAddress } = await import("viem");
+    const { nowSeconds } = await import("@/lib/db/keys");
+    const { missions } = await import("@/lib/db/schema");
+
+    const camp = createCampaign({ title: "AR", descriptionMd: "", criteria: [], conditionType: "approval", onchainCheck: null, rewardAmount: 1, maxRecipients: 1, vaultAddress: getAddress(`0x${"1".repeat(40)}`), posterWallet: wallet, ownerIsSage: true, status: "live", autonomy: "autopilot", autopilotThreshold: 0.85 } as never);
+    updateCampaignV2Plan(camp.id, { vaultKind: "campaign_v2", campaignIdHash: rev0.campaignIdHash, missionPlanDigest: rev0.missionPlanDigest, commitmentVersion: 2 });
+    expect(attachApprovedPolicyToCampaign(camp.id, jobId)).toMatchObject({ ok: true, attached: true }); // uses the AUTHENTICATED-approved revision
+    const campaign = getCampaign(camp.id)!;
+    const loaded = loadVerifiedCampaignPolicy(campaign);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const probeDigest = loaded.policy.probes[0].probeDigest;
+    const missionKey = loaded.policy.actionCriteria[0].missionKey;
+    db.insert(missions).values({ id: "m1", campaignId: camp.id, missionKey, missionIdHash: "0xM", title: "t", descriptionMd: "", targetSurface: "https://reportly.test/report", rewardAmount: 1, maxCompletions: 1, missionSpecDigest: "0x", verifiabilityClass: "observation-based", createdAt: nowSeconds(), updatedAt: nowSeconds() } as never).run();
+    const sub = { id: "sub-ar", campaignId: camp.id, missionIdHash: "0xM", wallet: `0x${"a".repeat(40)}`, status: "approved" } as never;
+    const mkJournal = (o: { code: string; decision: "allow" | "hold"; now?: () => number }) => { const j = memReplayJournal(o.now ? { now: o.now } : {}); const l = j.begin("sub-ar", loaded.policy.policyDigest, probeDigest); j.complete(l.runId, "sub-ar", loaded.policy.policyDigest, probeDigest, { decision: o.decision, code: o.code, latencyMs: 1 }); return j; };
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    const settle = (j: unknown) => settleApprovedSubmission(campaign, sub, { payoutReplay: { journal: j } } as never);
+    const spyCounts: Record<string, number> = {};
+    moneySpy.mockClear(); await settle(mkJournal({ code: "reproduced", decision: "allow" })); spyCounts.freshReproduced = moneySpy.mock.calls.length;
+    moneySpy.mockClear(); await settle(mkJournal({ code: "wrong_after_state", decision: "hold" })); spyCounts.drift = moneySpy.mock.calls.length;
+    moneySpy.mockClear(); await settle(mkJournal({ code: "reproduced", decision: "allow", now: () => Math.floor(Date.now() / 1000) - 400 })); spyCounts.stale = moneySpy.mock.calls.length;
+    moneySpy.mockClear(); const tc = getCampaign(camp.id)!; (tc.verificationPolicy as { probes: { expected: { addedTexts: string[] } }[] }).probes[0].expected.addedTexts = ["x"]; await settleApprovedSubmission(tc, sub, { payoutReplay: { journal: mkJournal({ code: "reproduced", decision: "allow" }) } } as never); spyCounts.tamper = moneySpy.mock.calls.length;
+    moneySpy.mockClear(); delete process.env.PAYOUT_ACTION_REPLAY_MODE; await settle(mkJournal({ code: "reproduced", decision: "allow" })); spyCounts.covenantFrozen = moneySpy.mock.calls.length;
+    expect(spyCounts).toEqual({ freshReproduced: 1, drift: 0, stale: 0, tamper: 0, covenantFrozen: 0 });
+    fs.writeFileSync(path.resolve("promotion-evidence/authenticated-approval-route.json"), JSON.stringify({ ...trace, routeToMoneySpyCounts: spyCounts }, null, 2));
+    console.log("[auth-route] route→money spy:", JSON.stringify(spyCounts));
   }, 120_000);
 });

@@ -1,6 +1,6 @@
 {
   "artifact": "authenticated-approval-route",
-  "ephemeralWallet": "0x5d4fd313e82bc64f1fda622d2b7d5c3fcc99625e",
+  "ephemeralWallet": "0x4b941a0c7c5830bef699c647c5ff113ef57efbc8",
   "statusCodes": {
     "no_session": 401,
     "forged_session": 401,
@@ -18,5 +18,12 @@
   "approvedCount": 1,
   "missionPlanDigest": "0x48ebdbb8c45de13621fc9c511ac4b0aadc71559564c064dadaaa8a52fad800d6",
   "verificationPolicyDigest": "83ee9d8855a9235b53cc06108de72bfc8812b98f4e44c6da59332ff85bcd7428",
-  "authenticatedApprovalRouteProven": true
+  "authenticatedApprovalRouteProven": true,
+  "routeToMoneySpyCounts": {
+    "freshReproduced": 1,
+    "drift": 0,
+    "stale": 0,
+    "tamper": 0,
+    "covenantFrozen": 0
+  }
 }
