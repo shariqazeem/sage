@@ -214,6 +214,41 @@ export function compileVerificationPolicy(input: CompilePolicyInput): CompilePol
   return { policy: { ...policyBody, policyDigest }, rejections };
 }
 
+/** P5 — recompute a stored probe's digest from its OWN fields (reconstructing the exact compiler body order), so
+ *  a tampered probe field is detected regardless of the parsed object's key order. */
+export function recomputeProbeDigest(p: MissionProbeV1): string {
+  const body = {
+    version: p.version, missionKey: p.missionKey, criterionIndex: p.criterionIndex, kind: p.kind,
+    observationSetDigest: p.observationSetDigest, sourceFactIds: p.sourceFactIds, sourceTransitionId: p.sourceTransitionId,
+    startUrl: p.startUrl, beforeStateDigest: p.beforeStateDigest,
+    action: { verb: p.action.verb, role: p.action.role, name: p.action.name, ...(p.action.key ? { key: p.action.key } : {}) },
+    expected: { afterUrl: p.expected.afterUrl, afterStateDigest: p.expected.afterStateDigest, addedTexts: p.expected.addedTexts, removedTexts: p.expected.removedTexts },
+    safety: { classification: p.safety.classification, networkMethods: p.safety.networkMethods, inspectionReplayReproduced: p.safety.inspectionReplayReproduced },
+  };
+  return sha(canon(body));
+}
+
+/** A probe URL must be a parseable https URL, or an http loopback (127.0.0.1/localhost) for controlled tests. */
+function isValidProbeUrl(u: string): boolean {
+  try { const p = new URL(u); return p.protocol === "https:" || (p.protocol === "http:" && /^(127\.0\.0\.1|localhost)(:\d+)?$/i.test(p.host)); } catch { return false; }
+}
+
+/** P5 — deterministically REVALIDATE a stored probe (not just the outer policy digest): recomputed probeDigest,
+ *  non-empty source fact + transition + state digests, valid URLs, an outcome signal, and GET/HEAD-only safety. */
+export function validateProbeIntegrity(p: MissionProbeV1): { ok: true } | { ok: false; reason: string } {
+  if (recomputeProbeDigest(p) !== p.probeDigest) return { ok: false, reason: "probe_digest_mismatch" };
+  if (p.kind !== "action_replay") return { ok: false, reason: "bad_kind" };
+  if (!p.observationSetDigest) return { ok: false, reason: "empty_observation_set_digest" };
+  if (!p.sourceFactIds || p.sourceFactIds.length === 0) return { ok: false, reason: "no_source_facts" };
+  if (!p.sourceTransitionId) return { ok: false, reason: "no_transition" };
+  if (!p.beforeStateDigest || !p.expected.afterStateDigest) return { ok: false, reason: "empty_state_digest" };
+  if (!isValidProbeUrl(p.startUrl) || !isValidProbeUrl(p.expected.afterUrl)) return { ok: false, reason: "invalid_url" };
+  if (!p.expected.addedTexts || p.expected.addedTexts.length === 0) return { ok: false, reason: "no_outcome_signal" };
+  const s = p.safety;
+  if (s.classification !== "safe" || !s.networkMethods || s.networkMethods.length === 0 || !s.networkMethods.every((m) => m === "GET" || m === "HEAD") || s.inspectionReplayReproduced !== true) return { ok: false, reason: "unsafe_evidence" };
+  return { ok: true };
+}
+
 /** Recompute a policy's digest for tamper detection (used at approval + settlement). */
 export function verificationPolicyDigest(policy: Omit<VerificationPolicyV1, "policyDigest">): string {
   return sha(canon({ version: policy.version, missionPlanDigest: policy.missionPlanDigest, productMapDigest: policy.productMapDigest, observationSetDigest: policy.observationSetDigest, actionMissions: policy.actionMissions, probes: policy.probes }));

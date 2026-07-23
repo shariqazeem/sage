@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { compileMissionProbe, type MissionProbeV1, type ProbeRejectionCode } from "./mission-probe";
+import { compileMissionProbe, validateProbeIntegrity, type MissionProbeV1, type ProbeRejectionCode } from "./mission-probe";
 import type { ObservationSetV1 } from "./observed-facts";
 import type { CandidateMission } from "./schemas";
 import type { ValidationScope } from "./validate-mission";
@@ -82,7 +82,7 @@ export function verificationPolicyV2Digest(policy: Omit<VerificationPolicyV2, "p
 
 export type PolicyV2Completeness =
   | { complete: true }
-  | { complete: false; reason: "missing_probe" | "duplicate_criterion" | "extra_probe" | "probe_criterion_mismatch" | "digest_mismatch" | "empty" };
+  | { complete: false; reason: "missing_probe" | "duplicate_criterion" | "extra_probe" | "probe_criterion_mismatch" | "digest_mismatch" | "empty" | "probe_invalid" | "probe_obs_digest_mismatch" };
 
 /**
  * Validate that a V2 policy is COMPLETE + self-consistent: no duplicate (missionKey, criterionIndex); every
@@ -108,6 +108,12 @@ export function validateVerificationPolicyV2Complete(policy: VerificationPolicyV
   for (const p of policy.probes) {
     const refs = policy.actionCriteria.filter((ac) => ac.missionKey === p.missionKey && ac.criterionIndex === p.criterionIndex && ac.probeDigest === p.probeDigest);
     if (refs.length !== 1) return { complete: false, reason: "extra_probe" };
+  }
+  // P5 — REVALIDATE each probe itself (not just the outer digest): recomputed probeDigest, source facts/
+  // transition, state digests, URLs, outcome signal, safety evidence; and its obs-set digest must match the policy.
+  for (const p of policy.probes) {
+    if (p.observationSetDigest !== policy.observationSetDigest) return { complete: false, reason: "probe_obs_digest_mismatch" };
+    if (!validateProbeIntegrity(p).ok) return { complete: false, reason: "probe_invalid" };
   }
   return { complete: true };
 }

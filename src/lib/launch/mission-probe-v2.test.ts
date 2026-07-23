@@ -63,6 +63,42 @@ describe("validateVerificationPolicyV2Complete — self-consistency", () => {
   });
 });
 
+describe("P5 — probe revalidation (not just the outer digest)", () => {
+  it("a compiled probe passes validateProbeIntegrity; the compiler output stays valid", async () => {
+    const { validateProbeIntegrity, recomputeProbeDigest } = await import("./mission-probe");
+    const p = compile([twoCrit]).policy.probes[0];
+    expect(validateProbeIntegrity(p)).toEqual({ ok: true });
+    expect(recomputeProbeDigest(p)).toBe(p.probeDigest);
+  });
+  it("each integrity condition fails closed", async () => {
+    const { validateProbeIntegrity, recomputeProbeDigest } = await import("./mission-probe");
+    const good = compile([twoCrit]).policy.probes[0];
+    const reseal = (o: Partial<typeof good>) => { const p = { ...good, ...o }; return { ...p, probeDigest: recomputeProbeDigest(p) }; };
+    expect(validateProbeIntegrity({ ...good, sourceFactIds: [] } as typeof good).ok).toBe(false); // digest mismatch (not resealed)
+    expect(validateProbeIntegrity(reseal({ sourceFactIds: [] }))).toMatchObject({ ok: false, reason: "no_source_facts" });
+    expect(validateProbeIntegrity(reseal({ beforeStateDigest: "" }))).toMatchObject({ ok: false, reason: "empty_state_digest" });
+    expect(validateProbeIntegrity(reseal({ startUrl: "ftp://x/" }))).toMatchObject({ ok: false, reason: "invalid_url" });
+    expect(validateProbeIntegrity(reseal({ expected: { ...good.expected, addedTexts: [] } }))).toMatchObject({ ok: false, reason: "no_outcome_signal" });
+    expect(validateProbeIntegrity(reseal({ safety: { ...good.safety, networkMethods: [] } }))).toMatchObject({ ok: false, reason: "unsafe_evidence" });
+  });
+  it("a policy with a valid OUTER digest but a TAMPERED probe field fails completeness (probe_invalid)", () => {
+    const p = compile([twoCrit]).policy;
+    // tamper a probe's expected text but KEEP its probeDigest, then reseal ONLY the outer policy digest.
+    const tampered = { ...p, probes: p.probes.map((x, i) => i === 0 ? { ...x, expected: { ...x.expected, addedTexts: ["Injected"] } } : x) };
+    const resealed = { ...tampered, policyDigest: verificationPolicyV2Digest(tampered) };
+    expect(validateVerificationPolicyV2Complete(resealed)).toMatchObject({ complete: false, reason: "probe_invalid" });
+  });
+  it("a probe whose observationSetDigest disagrees with the policy fails (probe_obs_digest_mismatch)", async () => {
+    const { recomputeProbeDigest } = await import("./mission-probe");
+    const p = compile([twoCrit]).policy;
+    const bad = { ...p, probes: p.probes.map((x, i) => { if (i !== 0) return x; const y = { ...x, observationSetDigest: "different" }; return { ...y, probeDigest: recomputeProbeDigest(y) }; }) };
+    // fix the actionCriteria probeDigest to match + reseal outer, so ONLY the obs-digest disagreement remains.
+    const ac = bad.actionCriteria.map((a) => a.criterionIndex === bad.probes[0].criterionIndex && a.missionKey === bad.probes[0].missionKey ? { ...a, probeDigest: bad.probes[0].probeDigest } : a);
+    const resealed = { ...bad, actionCriteria: ac, policyDigest: verificationPolicyV2Digest({ ...bad, actionCriteria: ac }) };
+    expect(validateVerificationPolicyV2Complete(resealed)).toMatchObject({ complete: false, reason: "probe_obs_digest_mismatch" });
+  });
+});
+
 describe("VerificationPolicyV2Schema — strict nested", () => {
   it("accepts a compiled policy; rejects unknown top-level + nested fields", () => {
     const p = compile([twoCrit]).policy;
