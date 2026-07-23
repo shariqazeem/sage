@@ -17,7 +17,7 @@ vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
 
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { getMissionByHash } from "@/lib/db/campaigns";
-import { makeV2Policy, v2Campaign, memReplayJournal } from "./policy-test-fixtures";
+import { makeV2Policy, v2Campaign, legacyCampaign, memReplayJournal } from "./policy-test-fixtures";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 
@@ -66,14 +66,36 @@ describe("verifyReplayPermit at settleApprovedSubmission — fail closed at the 
     await settle(v2Campaign(), permitFor(true));
     expect(settleWithRecovery).toHaveBeenCalledTimes(1);
   });
-  it("canary + policyRequired=false → historical settle (no permit needed)", async () => {
+  it("NON-required legacy campaign (no policy) + any mode → historical settle", async () => {
     process.env[MODE] = "canary";
-    await settle(v2Campaign({ verificationPolicyRequired: false }), memReplayJournal());
+    await settle(legacyCampaign(), memReplayJournal());
     expect(settleWithRecovery).toHaveBeenCalledTimes(1);
+    delete process.env[MODE];
+    await settle(legacyCampaign(), memReplayJournal());
+    expect(settleWithRecovery).toHaveBeenCalledTimes(2);
   });
-  it("mode off → historical settle, permit not enforced", async () => {
-    await settle(v2Campaign(), memReplayJournal());
-    expect(settleWithRecovery).toHaveBeenCalledTimes(1);
+  it("IMMUTABLE COVENANT: required + off / shadow / unknown → FROZEN (never settles)", async () => {
+    for (const m of ["off", "shadow", "enforce", "banana"]) {
+      if (m === "off") delete process.env[MODE]; else process.env[MODE] = m;
+      settleWithRecovery.mockClear();
+      const r = await settle(v2Campaign(), permitFor(true)); // even WITH a reproduced permit
+      expect(settleWithRecovery).not.toHaveBeenCalled();
+      expect((r.outcome as { reason: string }).reason).toContain("covenant_frozen");
+    }
+  });
+  it("INCONSISTENT: a policy attached while required=false → fail closed (never settles)", async () => {
+    process.env[MODE] = "canary";
+    const bad = v2Campaign({ verificationPolicyRequired: false }); // has a policy but not marked required
+    const r = await settle(bad, memReplayJournal());
+    expect(settleWithRecovery).not.toHaveBeenCalled();
+    expect((r.outcome as { reason: string }).reason).toContain("inconsistent:policy_without_required");
+  });
+  it("covenant metadata incomplete (missing version/source-revision) → fail closed", async () => {
+    process.env[MODE] = "canary";
+    await settle(v2Campaign({ verificationPolicyVersion: null }), permitFor(true));
+    expect(settleWithRecovery).not.toHaveBeenCalled();
+    await settle(v2Campaign({ policySourceRevisionNumber: null }), permitFor(true));
+    expect(settleWithRecovery).not.toHaveBeenCalled();
   });
   it("canary + required + tampered campaign policy → fail closed (never settles)", async () => {
     process.env[MODE] = "canary";

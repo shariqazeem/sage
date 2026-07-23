@@ -20,7 +20,12 @@ export function makeV2Policy(missions: CandidateMission[] = [V2_MISSION], replay
 /** A policy-REQUIRED canary campaign carrying a complete V2 policy (the common case under test). */
 export function v2Campaign(over: Partial<Campaign> = {}, missions?: CandidateMission[], replayed?: Set<string>): Campaign {
   const policy = makeV2Policy(missions, replayed);
-  return { id: "c1", title: "T", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyRequired: true, ...over } as unknown as Campaign;
+  return { id: "c1", title: "T", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyVersion: policy.version, verificationPolicyRequired: true, policySourceRevisionNumber: 1, ...over } as unknown as Campaign;
+}
+
+/** A NON-required legacy campaign with NO attached policy (the only consistent non-required state). */
+export function legacyCampaign(over: Partial<Campaign> = {}): Campaign {
+  return { id: "c-legacy", title: "L", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: null, verificationPolicyDigest: null, verificationPolicyRequired: false, ...over } as unknown as Campaign;
 }
 
 /** A persisting in-memory replay journal (the replay writes it; the central permit reads it). */
