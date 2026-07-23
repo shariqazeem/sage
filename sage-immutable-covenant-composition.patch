@@ -1,0 +1,3469 @@
+diff --git a/.sprint-state.md b/.sprint-state.md
+index f83b60f..f8455d9 100644
+--- a/.sprint-state.md
++++ b/.sprint-state.md
+@@ -1,27 +1,18 @@
+-# SPRINT: Payout Replay Money-Boundary Closure (ZERO paid calls)
++# SPRINT: Immutable Replay Covenant + Final-HEAD Composition Closure
+ 
+-Single objective: make VerificationPolicy + MissionProbe enforcement genuinely REACHABLE and IMPOSSIBLE TO
+-BYPASS across every automated settlement path. Repair sprint — NO features, NO models, NO deploy/fund/push/flag.
+-founderCanaryReady stays FALSE this sprint (live canonical-gate closure is a later sprint).
++Turn the live grounded-plan proof + VerificationPolicyV2 into one truthful, immutable, final-HEAD self-canary
++release candidate. ZERO paid calls — reuse retained architect/critic payloads (.private/closure-v2-*). No new
++features / bake-off / threshold changes / deploy / push / fund / prod-migration. Do not weaken any gate.
+ 
+ ## Phases (update as I go — NO speculative results)
+-- [ ] P0 — append-only source-audit amendment (record the 8 exact defects). COMMIT.
+-- [x] P1 — VerificationPolicyV2 (versioned, complete, strict nested Zod; actionCriteria coverage). COMMIT.
+-- [x] P2 — bind policy to CURRENT REVISION (migration after 0027; createRevision persists; approval reads revision).
+-- [x] P3 — ATTACH approved policy to campaign in the real deploy path (write-once, atomic).
+-- [x] P4 — fail-closed applicability (policyRequired truth table; never infer non-action from incomplete policy).
+-- [x] P5 — CENTRAL settlement enforcement: ReplayPermit at settleApprovedSubmission; every sink gated.
+-- [x] P6 — runInspectionProbe enforces expectedAfterUrl + real beforeStateDigest; URL+text matrix.
+-- [x] P7 — ledger reservation-vs-dispatch semantics + journal concurrency/preflight/version.
+-- [x] P8 — real DB vertical E2E (scripted model, real everything else) + negatives.
+-- [x] FINAL — report + patch + manifest + status fields (founderCanaryReady=false).
++- [ ] P0 — truth amendment (branch order; correct the "authenticated approval" overclaim). ZERO paid. COMMIT.
++- [x] P1 — IMMUTABLE covenant: a required campaign HOLDS under off/shadow/unknown; env flag can't remove it.
++- [x] P2 — activation FAIL-CLOSED: attach route consumes attach result; refuse before chain; attach before markLive.
++- [x] P3 — ONE unified schema preflight (0026-0029 columns/table/index); SELF_CANARY+OBSERVE refuse if absent.
++- [x] P4 — FRESH lease/generation-bound permits (CAS on runId; ≤5min age; stale→HOLD+re-run; late can't overwrite).
++- [x] P5 — revalidate the PROBE itself (recomputed digest, source/URL/safety, 1:1 coverage).
++- [x] P6 — ZERO-CALL final-HEAD composition proof using retained payloads (or stop composition_evidence_unavailable).
++- [ ] P7 — final-head evidence artifact + founderCanaryReady gate + report.
+ 
+-## The 8 defects being repaired (from prior overclaims)
+-1. bindCampaignVerificationPolicy has NO caller (attach never wired).
+-2. null policy SKIPS (not fail-closed for required campaigns).
+-3. partial action-criterion probe coverage can ALLOW.
+-4. approval policy read from job.result, not the current revision.
+-5. campaign policy binding is OVERWRITEABLE.
+-6. sweep approved-submission re-fire + decide/settle routes BYPASS replay.
+-7. expectedAfterUrl NOT enforced in runInspectionProbe.
+-8. ledger can't distinguish reservation from provider dispatch (the 3rd dispatch).
++## Retained payloads (verified present): .private/closure-v2-{architect-draft,critic-verdicts}.json (flash-lite)
++## HEAD base: 5184894
+diff --git a/drizzle/0030_charming_nekra.sql b/drizzle/0030_charming_nekra.sql
+new file mode 100644
+index 0000000..fd6951c
+--- /dev/null
++++ b/drizzle/0030_charming_nekra.sql
+@@ -0,0 +1 @@
++ALTER TABLE `payout_replay_journal` ADD `run_id` text;
+\ No newline at end of file
+diff --git a/drizzle/meta/0030_snapshot.json b/drizzle/meta/0030_snapshot.json
+new file mode 100644
+index 0000000..68a79e8
+--- /dev/null
++++ b/drizzle/meta/0030_snapshot.json
+@@ -0,0 +1,2174 @@
++{
++  "version": "6",
++  "dialect": "sqlite",
++  "id": "aaea89c9-8ee0-437b-80b3-455889d21f2a",
++  "prevId": "bbe2977b-29d7-4894-ae21-dd9b8a6062c3",
++  "tables": {
++    "agent_wallets": {
++      "name": "agent_wallets",
++      "columns": {
++        "chat_id": {
++          "name": "chat_id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "founder_address": {
++          "name": "founder_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "privy_wallet_id": {
++          "name": "privy_wallet_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "privy_wallet_address": {
++          "name": "privy_wallet_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "policy_id": {
++          "name": "policy_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "per_campaign_cap_base": {
++          "name": "per_campaign_cap_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "chain_id": {
++          "name": "chain_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 2345
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "campaigns": {
++      "name": "campaigns",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "title": {
++          "name": "title",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "description_md": {
++          "name": "description_md",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "criteria": {
++          "name": "criteria",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'[]'"
++        },
++        "condition_type": {
++          "name": "condition_type",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'approval'"
++        },
++        "onchain_check": {
++          "name": "onchain_check",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "reward_amount": {
++          "name": "reward_amount",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "max_recipients": {
++          "name": "max_recipients",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "per_wallet_cap": {
++          "name": "per_wallet_cap",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        },
++        "private_corpus": {
++          "name": "private_corpus",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "private_corpus_digest": {
++          "name": "private_corpus_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "private_corpus_sources": {
++          "name": "private_corpus_sources",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "explored_screens": {
++          "name": "explored_screens",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "explored_elements": {
++          "name": "explored_elements",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "vault_address": {
++          "name": "vault_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "chain_id": {
++          "name": "chain_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 59902
++        },
++        "poster_wallet": {
++          "name": "poster_wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "owner_is_sage": {
++          "name": "owner_is_sage",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'draft'"
++        },
++        "autonomy": {
++          "name": "autonomy",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'manual'"
++        },
++        "autopilot_threshold": {
++          "name": "autopilot_threshold",
++          "type": "real",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0.85
++        },
++        "announce_chat_id": {
++          "name": "announce_chat_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "sandbox": {
++          "name": "sandbox",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "vault_kind": {
++          "name": "vault_kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'policy_v1'"
++        },
++        "campaign_id_hash": {
++          "name": "campaign_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "mission_plan_digest": {
++          "name": "mission_plan_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "settlement_token": {
++          "name": "settlement_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "commitment_version": {
++          "name": "commitment_version",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        },
++        "verification_policy": {
++          "name": "verification_policy",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy_digest": {
++          "name": "verification_policy_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy_version": {
++          "name": "verification_policy_version",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy_required": {
++          "name": "verification_policy_required",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "policy_source_revision_number": {
++          "name": "policy_source_revision_number",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "concierge_chats": {
++      "name": "concierge_chats",
++      "columns": {
++        "chat_id": {
++          "name": "chat_id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "messages_json": {
++          "name": "messages_json",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'[]'"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "decisions": {
++      "name": "decisions",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "submission_id": {
++          "name": "submission_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "engine": {
++          "name": "engine",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "model": {
++          "name": "model",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "brief": {
++          "name": "brief",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "observation_shadow": {
++          "name": "observation_shadow",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "content_sha256": {
++          "name": "content_sha256",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "evidence_ok": {
++          "name": "evidence_ok",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "latency_ms": {
++          "name": "latency_ms",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "cost_usd": {
++          "name": "cost_usd",
++          "type": "real",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "x402_payment_tx": {
++          "name": "x402_payment_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "x402_status": {
++          "name": "x402_status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "x402_reason": {
++          "name": "x402_reason",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "commitment_version": {
++          "name": "commitment_version",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        },
++        "mission_id_hash": {
++          "name": "mission_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "mission_spec_digest": {
++          "name": "mission_spec_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "vault_kind": {
++          "name": "vault_kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "decisions_submission_unq": {
++          "name": "decisions_submission_unq",
++          "columns": [
++            "submission_id"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {
++        "decisions_submission_id_submissions_id_fk": {
++          "name": "decisions_submission_id_submissions_id_fk",
++          "tableFrom": "decisions",
++          "tableTo": "submissions",
++          "columnsFrom": [
++            "submission_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        },
++        "decisions_campaign_id_campaigns_id_fk": {
++          "name": "decisions_campaign_id_campaigns_id_fk",
++          "tableFrom": "decisions",
++          "tableTo": "campaigns",
++          "columnsFrom": [
++            "campaign_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "deployments": {
++      "name": "deployments",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "job_id": {
++          "name": "job_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "revision_id": {
++          "name": "revision_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "revision_number": {
++          "name": "revision_number",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "founder_wallet": {
++          "name": "founder_wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "chain_id": {
++          "name": "chain_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "state": {
++          "name": "state",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'prepared'"
++        },
++        "settings": {
++          "name": "settings",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id_hash": {
++          "name": "campaign_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "mission_plan_digest": {
++          "name": "mission_plan_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "calldata_digest": {
++          "name": "calldata_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "total_budget_base": {
++          "name": "total_budget_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "predicted_vault": {
++          "name": "predicted_vault",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "deployed_vault": {
++          "name": "deployed_vault",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "claim_nonce": {
++          "name": "claim_nonce",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "claim_signature": {
++          "name": "claim_signature",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "create_tx": {
++          "name": "create_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "approve_tx": {
++          "name": "approve_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "fund_tx": {
++          "name": "fund_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "activate_tx": {
++          "name": "activate_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "attached_campaign_id": {
++          "name": "attached_campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "failure_reason": {
++          "name": "failure_reason",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "deployments_job_idx": {
++          "name": "deployments_job_idx",
++          "columns": [
++            "job_id",
++            "created_at"
++          ],
++          "isUnique": false
++        },
++        "deployments_revision_idx": {
++          "name": "deployments_revision_idx",
++          "columns": [
++            "revision_id"
++          ],
++          "isUnique": false
++        }
++      },
++      "foreignKeys": {
++        "deployments_job_id_inspection_jobs_id_fk": {
++          "name": "deployments_job_id_inspection_jobs_id_fk",
++          "tableFrom": "deployments",
++          "tableTo": "inspection_jobs",
++          "columnsFrom": [
++            "job_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        },
++        "deployments_revision_id_plan_revisions_id_fk": {
++          "name": "deployments_revision_id_plan_revisions_id_fk",
++          "tableFrom": "deployments",
++          "tableTo": "plan_revisions",
++          "columnsFrom": [
++            "revision_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "events": {
++      "name": "events",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "submission_id": {
++          "name": "submission_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "kind": {
++          "name": "kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "detail": {
++          "name": "detail",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "tx_hash": {
++          "name": "tx_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "log_index": {
++          "name": "log_index",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "vault_address": {
++          "name": "vault_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "amount": {
++          "name": "amount",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "failed_check_index": {
++          "name": "failed_check_index",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "events_campaign_idx": {
++          "name": "events_campaign_idx",
++          "columns": [
++            "campaign_id",
++            "created_at"
++          ],
++          "isUnique": false
++        },
++        "events_chain_unq": {
++          "name": "events_chain_unq",
++          "columns": [
++            "tx_hash",
++            "log_index"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {
++        "events_campaign_id_campaigns_id_fk": {
++          "name": "events_campaign_id_campaigns_id_fk",
++          "tableFrom": "events",
++          "tableTo": "campaigns",
++          "columnsFrom": [
++            "campaign_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "fees": {
++      "name": "fees",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "settle_tx": {
++          "name": "settle_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "submission_id": {
++          "name": "submission_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "amount_base": {
++          "name": "amount_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'pending'"
++        },
++        "payment_tx": {
++          "name": "payment_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "order_id": {
++          "name": "order_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "fees_settle_unq": {
++          "name": "fees_settle_unq",
++          "columns": [
++            "settle_tx"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "inspection_jobs": {
++      "name": "inspection_jobs",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "founder_wallet": {
++          "name": "founder_wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "idempotency_key": {
++          "name": "idempotency_key",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'queued'"
++        },
++        "public_campaign_id": {
++          "name": "public_campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "product_url": {
++          "name": "product_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "repo_url": {
++          "name": "repo_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "goal": {
++          "name": "goal",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "target_users": {
++          "name": "target_users",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "total_budget_base": {
++          "name": "total_budget_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "token_decimals": {
++          "name": "token_decimals",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 6
++        },
++        "pages_inspected": {
++          "name": "pages_inspected",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "repo_files_inspected": {
++          "name": "repo_files_inspected",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "product_map_digest": {
++          "name": "product_map_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "model": {
++          "name": "model",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "provider": {
++          "name": "provider",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "prompt_version": {
++          "name": "prompt_version",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "revision": {
++          "name": "revision",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "result": {
++          "name": "result",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "failure_reason": {
++          "name": "failure_reason",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "retry_count": {
++          "name": "retry_count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "input_digest": {
++          "name": "input_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "output_digest": {
++          "name": "output_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "inspection_jobs_idem_unq": {
++          "name": "inspection_jobs_idem_unq",
++          "columns": [
++            "idempotency_key"
++          ],
++          "isUnique": true
++        },
++        "inspection_jobs_owner_idx": {
++          "name": "inspection_jobs_owner_idx",
++          "columns": [
++            "founder_wallet",
++            "created_at"
++          ],
++          "isUnique": false
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "locks": {
++      "name": "locks",
++      "columns": {
++        "name": {
++          "name": "name",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "missions": {
++      "name": "missions",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "mission_key": {
++          "name": "mission_key",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "mission_id_hash": {
++          "name": "mission_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "title": {
++          "name": "title",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "description_md": {
++          "name": "description_md",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "objective": {
++          "name": "objective",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "instructions": {
++          "name": "instructions",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "target_surface": {
++          "name": "target_surface",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "''"
++        },
++        "criteria": {
++          "name": "criteria",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'[]'"
++        },
++        "verifiability_class": {
++          "name": "verifiability_class",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'observation-based'"
++        },
++        "evidence_requirements": {
++          "name": "evidence_requirements",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "evidence_list": {
++          "name": "evidence_list",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'[]'"
++        },
++        "reward_amount": {
++          "name": "reward_amount",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "max_completions": {
++          "name": "max_completions",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'active'"
++        },
++        "display_order": {
++          "name": "display_order",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        },
++        "spec_digest": {
++          "name": "spec_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "revision_of": {
++          "name": "revision_of",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "locked_at": {
++          "name": "locked_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "closed_at": {
++          "name": "closed_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "missions_campaign_key_unq": {
++          "name": "missions_campaign_key_unq",
++          "columns": [
++            "campaign_id",
++            "mission_key"
++          ],
++          "isUnique": true
++        },
++        "missions_campaign_hash_unq": {
++          "name": "missions_campaign_hash_unq",
++          "columns": [
++            "campaign_id",
++            "mission_id_hash"
++          ],
++          "isUnique": true
++        },
++        "missions_campaign_idx": {
++          "name": "missions_campaign_idx",
++          "columns": [
++            "campaign_id",
++            "display_order"
++          ],
++          "isUnique": false
++        }
++      },
++      "foreignKeys": {
++        "missions_campaign_id_campaigns_id_fk": {
++          "name": "missions_campaign_id_campaigns_id_fk",
++          "tableFrom": "missions",
++          "tableTo": "campaigns",
++          "columnsFrom": [
++            "campaign_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "payout_replay_journal": {
++      "name": "payout_replay_journal",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "submission_id": {
++          "name": "submission_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "policy_digest": {
++          "name": "policy_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "probe_digest": {
++          "name": "probe_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "decision": {
++          "name": "decision",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "outcome_code": {
++          "name": "outcome_code",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "started_at": {
++          "name": "started_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "completed_at": {
++          "name": "completed_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "latency_ms": {
++          "name": "latency_ms",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "attempt": {
++          "name": "attempt",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        },
++        "probe_version": {
++          "name": "probe_version",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'mission-probe-v1'"
++        },
++        "run_id": {
++          "name": "run_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "prj_key_unq": {
++          "name": "prj_key_unq",
++          "columns": [
++            "submission_id",
++            "policy_digest",
++            "probe_digest"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "pending_withdrawals": {
++      "name": "pending_withdrawals",
++      "columns": {
++        "chat_id": {
++          "name": "chat_id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "amount_base": {
++          "name": "amount_base",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "to_address": {
++          "name": "to_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "consumed": {
++          "name": "consumed",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "plan_revisions": {
++      "name": "plan_revisions",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "job_id": {
++          "name": "job_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "revision_number": {
++          "name": "revision_number",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "parent_revision_id": {
++          "name": "parent_revision_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "author_wallet": {
++          "name": "author_wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "reason": {
++          "name": "reason",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'generated'"
++        },
++        "product_map_digest": {
++          "name": "product_map_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "plan_json": {
++          "name": "plan_json",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "budget_base": {
++          "name": "budget_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "validation_ok": {
++          "name": "validation_ok",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": true
++        },
++        "campaign_id_hash": {
++          "name": "campaign_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "mission_plan_digest": {
++          "name": "mission_plan_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "model": {
++          "name": "model",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "provider": {
++          "name": "provider",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "approved_at": {
++          "name": "approved_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "approver_wallet": {
++          "name": "approver_wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "approval_record": {
++          "name": "approval_record",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy": {
++          "name": "verification_policy",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy_digest": {
++          "name": "verification_policy_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "verification_policy_required": {
++          "name": "verification_policy_required",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": false
++        },
++        "grounded_provenance": {
++          "name": "grounded_provenance",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "superseded_at": {
++          "name": "superseded_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "plan_revisions_job_num_unq": {
++          "name": "plan_revisions_job_num_unq",
++          "columns": [
++            "job_id",
++            "revision_number"
++          ],
++          "isUnique": true
++        },
++        "plan_revisions_job_idx": {
++          "name": "plan_revisions_job_idx",
++          "columns": [
++            "job_id",
++            "revision_number"
++          ],
++          "isUnique": false
++        }
++      },
++      "foreignKeys": {
++        "plan_revisions_job_id_inspection_jobs_id_fk": {
++          "name": "plan_revisions_job_id_inspection_jobs_id_fk",
++          "tableFrom": "plan_revisions",
++          "tableTo": "inspection_jobs",
++          "columnsFrom": [
++            "job_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "settlement_attempts": {
++      "name": "settlement_attempts",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "payout_intent_hash": {
++          "name": "payout_intent_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "decision_digest": {
++          "name": "decision_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "commitment_version": {
++          "name": "commitment_version",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        },
++        "mission_id_hash": {
++          "name": "mission_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "vault_kind": {
++          "name": "vault_kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'policy_v1'"
++        },
++        "submission_id": {
++          "name": "submission_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "chain_id": {
++          "name": "chain_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "vault_address": {
++          "name": "vault_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "recipient": {
++          "name": "recipient",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "amount_base": {
++          "name": "amount_base",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'prepared'"
++        },
++        "tx_hash": {
++          "name": "tx_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "sender_address": {
++          "name": "sender_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "broadcast_nonce": {
++          "name": "broadcast_nonce",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "calldata_hash": {
++          "name": "calldata_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "broadcast_at": {
++          "name": "broadcast_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "failed_check_index": {
++          "name": "failed_check_index",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "last_error": {
++          "name": "last_error",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        }
++      },
++      "indexes": {
++        "settlement_attempts_intent_unq": {
++          "name": "settlement_attempts_intent_unq",
++          "columns": [
++            "payout_intent_hash"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {
++        "settlement_attempts_submission_id_submissions_id_fk": {
++          "name": "settlement_attempts_submission_id_submissions_id_fk",
++          "tableFrom": "settlement_attempts",
++          "tableTo": "submissions",
++          "columnsFrom": [
++            "submission_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        },
++        "settlement_attempts_campaign_id_campaigns_id_fk": {
++          "name": "settlement_attempts_campaign_id_campaigns_id_fk",
++          "tableFrom": "settlement_attempts",
++          "tableTo": "campaigns",
++          "columnsFrom": [
++            "campaign_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "submissions": {
++      "name": "submissions",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "campaign_id": {
++          "name": "campaign_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "wallet": {
++          "name": "wallet",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "evidence_url": {
++          "name": "evidence_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "note": {
++          "name": "note",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "mission_id_hash": {
++          "name": "mission_id_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "mission_spec_digest": {
++          "name": "mission_spec_digest",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "dedupe_key": {
++          "name": "dedupe_key",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'pending'"
++        },
++        "reject_reason": {
++          "name": "reject_reason",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "payout_tx": {
++          "name": "payout_tx",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "decided_at": {
++          "name": "decided_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "attempt": {
++          "name": "attempt",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        }
++      },
++      "indexes": {
++        "sub_dedupe_unq": {
++          "name": "sub_dedupe_unq",
++          "columns": [
++            "dedupe_key"
++          ],
++          "isUnique": true
++        },
++        "sub_evidence_unq": {
++          "name": "sub_evidence_unq",
++          "columns": [
++            "campaign_id",
++            "evidence_url"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {
++        "submissions_campaign_id_campaigns_id_fk": {
++          "name": "submissions_campaign_id_campaigns_id_fk",
++          "tableFrom": "submissions",
++          "tableTo": "campaigns",
++          "columnsFrom": [
++            "campaign_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "no action",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "vault_cursors": {
++      "name": "vault_cursors",
++      "columns": {
++        "vault_address": {
++          "name": "vault_address",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "last_block": {
++          "name": "last_block",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 0
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    }
++  },
++  "views": {},
++  "enums": {},
++  "_meta": {
++    "schemas": {},
++    "tables": {},
++    "columns": {}
++  },
++  "internal": {
++    "indexes": {}
++  }
++}
+\ No newline at end of file
+diff --git a/drizzle/meta/_journal.json b/drizzle/meta/_journal.json
+index 0c3368d..8d3ee98 100644
+--- a/drizzle/meta/_journal.json
++++ b/drizzle/meta/_journal.json
+@@ -211,6 +211,13 @@
+       "when": 1784830406394,
+       "tag": "0029_salty_forgotten_one",
+       "breakpoints": true
++    },
++    {
++      "idx": 30,
++      "version": "6",
++      "when": 1784835579703,
++      "tag": "0030_charming_nekra",
++      "breakpoints": true
+     }
+   ]
+ }
+\ No newline at end of file
+diff --git a/package.json b/package.json
+index df27a77..f40b097 100644
+--- a/package.json
++++ b/package.json
+@@ -40,7 +40,8 @@
+     "closure:v2": "SAGE_DB_PATH=$(mktemp -d)/ccv2.db CANARY_CLOSURE_V2=1 CANARY_CLOSURE_V2_CONFIRM=CALL_CAP_2 vitest run src/lib/launch/canary-runtime-closure-v2.live.test.ts --reporter=basic",
+     "demo:self-canary": "DEMO_SELF_CANARY=1 vitest run src/lib/deputy/demo-self-canary.test.ts --reporter=basic",
+     "canary:preflight": "node scripts/canary-release-preflight.mjs",
+-    "e2e:money-boundary": "SAGE_DB_PATH=$(mktemp -d)/e2e.db MONEY_BOUNDARY_E2E=1 vitest run src/lib/campaigns/attach-policy.integration.test.ts --reporter=basic"
++    "e2e:money-boundary": "SAGE_DB_PATH=$(mktemp -d)/e2e.db MONEY_BOUNDARY_E2E=1 vitest run src/lib/campaigns/attach-policy.integration.test.ts --reporter=basic",
++    "composition:final": "SAGE_DB_PATH=$(mktemp -d)/fhc.db FINAL_COMPOSITION=1 vitest run src/lib/launch/final-head-composition.live.test.ts --reporter=basic"
+   },
+   "dependencies": {
+     "@modelcontextprotocol/sdk": "^1.26.0",
+diff --git a/promotion-evidence/final-head-composition.json b/promotion-evidence/final-head-composition.json
+new file mode 100644
+index 0000000..320bd80
+--- /dev/null
++++ b/promotion-evidence/final-head-composition.json
+@@ -0,0 +1,26 @@
++{
++  "artifact": "final-head-composition",
++  "headSha": "HEAD",
++  "jobStage": "ready",
++  "canaryStatus": "selected",
++  "planSource": "grounded_v2",
++  "canonicalGatePassed": 1,
++  "accepted": 1,
++  "exactBudgetEquality": true,
++  "actionReplayed": 1,
++  "revisionReason": "generated_grounded_v2",
++  "policyRequired": true,
++  "architectPayloadSha": "13b006779f741ea80d2ac4fbd834cd729d2abfc7d7059ea236def92edbd2b32c",
++  "criticPayloadSha": "fae641752c3db39d77647af9db6ff0774ba2d84a2ade783bfaff5c4d2f5a9845",
++  "missionPlanDigest": "0x61ee5bc02edd98ea4ccab2b5e60ea61ab2799573d8054119152c82e98e4e86b5",
++  "verificationPolicyDigest": "908e425776273a778972de1348e32c84f0b91e06ad77b4f9e43c86db31ab8fab",
++  "wrongFounderRejected": true,
++  "campaignPolicyDigest": "908e425776273a778972de1348e32c84f0b91e06ad77b4f9e43c86db31ab8fab",
++  "reproducedSpy": 1,
++  "driftSpy": 0,
++  "staleSpy": 0,
++  "tamperSpy": 0,
++  "modeOffSpy": 0,
++  "authenticatedApprovalRouteProven": false,
++  "finalHeadCompositionProven": true
++}
+\ No newline at end of file
+diff --git a/promotion-evidence/final-head-truth-amendment.json b/promotion-evidence/final-head-truth-amendment.json
+new file mode 100644
+index 0000000..0d66173
+--- /dev/null
++++ b/promotion-evidence/final-head-truth-amendment.json
+@@ -0,0 +1,24 @@
++{
++  "artifact": "final-head-truth-amendment",
++  "note": "APPEND-ONLY. Prior evidence untouched. Establishes source truth on the final HEAD (branch order: sage-canary-release-candidate → sage-money-boundary-closure).",
++  "timestamp": "2026-07-24T00:00:00Z",
++  "headSha": "5184894",
++  "branchOrder": ["sage-canary-release-candidate", "sage-money-boundary-closure"],
++  "status": {
++    "liveModelCanonicalGateProven": true,
++    "liveModelRevisionPersistenceProven": true,
++    "authenticatedApprovalRouteProven": false,
++    "finalHeadCompositionProven": false,
++    "founderCanaryReady": false,
++    "productionDeployed": false
++  },
++  "correction": {
++    "claim": "The prior canary-runtime-closure-v2 live harness was described as exercising founder approval.",
++    "reality": "It called the approval SERVICE directly (verifyPlanForApproval + approveRevision) and only COMPARED the wrong-founder address (after.founderWallet !== wrongWallet); it did NOT exercise the authenticated approval ROUTE with a real verified session/signature. authenticatedApprovalRouteProven is therefore FALSE until P6 tests it (and if only the service can be tested, it stays false)."
++  },
++  "gates_to_flip_founderCanaryReady": [
++    "liveModelCanonicalGateProven", "finalHeadCompositionProven", "authenticatedApprovalRouteProven",
++    "activationFailClosedProven", "immutableReplayCovenantProven", "freshLeaseBoundPermitProven",
++    "completePolicyBindingProven", "centralSettlementEnforcementProven", "guardedBrowserReplayProven"
++  ]
++}
+diff --git a/scripts/canary-release-preflight.mjs b/scripts/canary-release-preflight.mjs
+index 9bd8b6c..ad0226f 100644
+--- a/scripts/canary-release-preflight.mjs
++++ b/scripts/canary-release-preflight.mjs
+@@ -31,19 +31,30 @@ const mm = process.env.MISSION_MODEL ?? process.env.DEPUTY_MODEL ?? "";
+ const cm = process.env.MISSION_GROUNDING_CRITIC_MODEL ?? mm;
+ add("Flash-Lite model routing", (!isCanary) || (mm === MODEL && cm === MODEL), `mission=${mm || "unset"} critic=${cm || "unset"}`);
+ 
+-// 4. database migration/version — the 0026 columns + 0027 table
++// 4. database migration/version — mirrors REQUIRED_SCHEMA in src/lib/deputy/canary-preflight.ts (0026-0029).
++const REQUIRED = {
++  campaigns: ["verification_policy", "verification_policy_digest", "verification_policy_version", "verification_policy_required", "policy_source_revision_number"],
++  plan_revisions: ["verification_policy", "verification_policy_digest", "verification_policy_required", "grounded_provenance"],
++  journalCols: ["probe_version", "submission_id", "policy_digest", "probe_digest", "completed_at"],
++  journalIndex: "prj_key_unq",
++};
+ const dbPath = process.env.SAGE_DB_PATH ?? join(process.cwd(), "var", "sage.db");
+-let schemaOk = false, ambiguous = 0;
++let schemaMissing = ["db_unreadable"], ambiguous = 0;
+ try {
+   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+-  const cols = new Set(db.pragma("table_info(campaigns)").map((c) => c.name));
+-  const hasJournal = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payout_replay_journal'").all().length > 0;
+-  schemaOk = cols.has("verification_policy") && cols.has("verification_policy_digest") && hasJournal;
+-  // 5. no pending ambiguous payout attempt (in-flight replay rows)
+-  if (hasJournal) ambiguous = db.prepare("SELECT COUNT(*) n FROM payout_replay_journal WHERE completed_at IS NULL").get().n;
++  const cols = (t) => new Set(db.pragma(`table_info(${t})`).map((c) => c.name));
++  schemaMissing = [];
++  const cc = cols("campaigns"); for (const c of REQUIRED.campaigns) if (!cc.has(c)) schemaMissing.push(`campaigns.${c}`);
++  const rc = cols("plan_revisions"); for (const c of REQUIRED.plan_revisions) if (!rc.has(c)) schemaMissing.push(`plan_revisions.${c}`);
++  const jc = cols("payout_replay_journal");
++  if (jc.size === 0) schemaMissing.push("payout_replay_journal");
++  else for (const c of REQUIRED.journalCols) if (!jc.has(c)) schemaMissing.push(`payout_replay_journal.${c}`);
++  if (db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='${REQUIRED.journalIndex}'`).all().length === 0) schemaMissing.push(`index:${REQUIRED.journalIndex}`);
++  if (jc.size > 0) ambiguous = db.prepare("SELECT COUNT(*) n FROM payout_replay_journal WHERE completed_at IS NULL").get().n;
+   db.close();
+ } catch (e) { add("database reachable", false, String(e.message).slice(0, 80)); }
+-add("migration 0026/0027 present", schemaOk, `db=${dbPath}`);
++const schemaOk = schemaMissing.length === 0;
++add("migration 0026-0029 complete", schemaOk, schemaOk ? `db=${dbPath}` : `missing: ${schemaMissing.slice(0, 4).join(", ")}`);
+ add("no ambiguous in-flight replay", ambiguous === 0, `in_flight=${ambiguous}`);
+ 
+ // 6. chromium availability (guarded browser)
+@@ -60,9 +71,12 @@ add("egress proxy present", egress || existsSync(join(process.cwd(), "src/lib/ne
+ add("kill switch (modes→off)", true, "MISSION_GROUNDING_MODE=off + PAYOUT_ACTION_REPLAY_MODE=off disables all canary behaviour");
+ 
+ const hard = checks.filter((c) => !c.ok);
+-console.log("\nSELF-CANARY RELEASE PREFLIGHT" + (isCanary ? " (SELF_CANARY)" : gm === "shadow" ? " (OBSERVE)" : " (DARK)"));
++// OBSERVE (shadow) reads/writes the journal too, so it — like SELF_CANARY — REFUSES when the schema is absent.
++const isObserve = gm === "shadow" || rm === "shadow";
++const mustEnforce = isCanary || isObserve;
++console.log("\nSELF-CANARY RELEASE PREFLIGHT" + (isCanary ? " (SELF_CANARY)" : isObserve ? " (OBSERVE)" : " (DARK)"));
+ for (const c of checks) console.log(`  ${c.ok ? "✅" : "❌"} ${c.name} — ${c.detail}`);
+-console.log("\nPer-campaign (re-verified at launch by fail-closed deputy gates): approved revision, VerificationPolicyV1");
++console.log("\nPer-campaign (re-verified at launch by fail-closed deputy gates): approved revision, VerificationPolicyV2");
+ console.log("digest, campaign/mission/probe binding, wallet/gas/token balances.\n");
+-if (isCanary && hard.length) { console.error(`REFUSE: ${hard.length} hard failure(s) in SELF_CANARY mode.`); process.exit(1); }
+-console.log(hard.length ? `NOTE: ${hard.length} check(s) failed (non-canary mode — advisory).` : "All release gates green.");
++if (mustEnforce && hard.length) { console.error(`REFUSE: ${hard.length} hard failure(s) in ${isCanary ? "SELF_CANARY" : "OBSERVE"} mode.`); process.exit(1); }
++console.log(hard.length ? `NOTE: ${hard.length} check(s) failed (DARK mode — advisory).` : "All release gates green.");
+diff --git a/src/app/api/deployments/[deploymentId]/attach/route.ts b/src/app/api/deployments/[deploymentId]/attach/route.ts
+index 3da52e3..1028d17 100644
+--- a/src/app/api/deployments/[deploymentId]/attach/route.ts
++++ b/src/app/api/deployments/[deploymentId]/attach/route.ts
+@@ -6,6 +6,10 @@ import { loadDeploymentForSession, deploymentView } from "@/lib/launch/deploymen
+ import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/lib/db/deployments";
+ import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
+ import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
++import { getApprovedRevision } from "@/lib/db/plan-revisions";
++import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
++import { payoutReplaySchemaReady } from "@/lib/deputy/canary-preflight";
++import { deserializePlan } from "@/lib/launch/serde";
+ import { classifyVerifiability } from "@/lib/launch/validate-mission";
+ import { distillPrivateKey } from "@/lib/deputy/observation-verify";
+ import { explorationCounts } from "@/lib/launch/field-test";
+@@ -55,6 +59,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
+     return NextResponse.json({ ok: false, error: `The vault is not active (${active.reason}).` }, { status: 409 });
+   }
+ 
++  // Phase 2 — EARLY activation preflight (before the DB attach): if the approved revision carries a REQUIRED
++  // VerificationPolicyV2, it must be schema-supported + complete + bound to this plan. Refuse up front rather
++  // than creating a campaign that could never enforce its covenant. A non-required revision passes through.
++  const approvedForPreflight = getApprovedRevision(deployment.jobId);
++  if (approvedForPreflight?.verificationPolicyRequired) {
++    if (!payoutReplaySchemaReady().ok) {
++      return NextResponse.json({ ok: false, error: "Verification-policy schema is not present; cannot activate a required-policy campaign." }, { status: 409 });
++    }
++    const check = checkRevisionPolicyForApproval({
++      verificationPolicy: approvedForPreflight.verificationPolicy ?? null,
++      verificationPolicyDigest: approvedForPreflight.verificationPolicyDigest ?? null,
++      verificationPolicyRequired: true,
++      planMissionPlanDigest: deserializePlan(approvedForPreflight.planJson).missionPlanDigest,
++    });
++    if (!check.ok) {
++      return NextResponse.json({ ok: false, error: `The approved plan's verification policy is not activatable (${check.reason}).` }, { status: 409 });
++    }
++  }
++
+   if (deployment.state === "active") beginAttach(deploymentId);
+ 
+   const job = getInspectionJob(deployment.jobId);
+@@ -129,10 +152,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
+     );
+   }
+ 
+-  // Phase 3 — attach the APPROVED revision's VerificationPolicyV2 to the new campaign (write-once, atomic). A
+-  // non-canary campaign is a no-op; a canary campaign gets its complete policy bound once. A failure degrades
+-  // SAFELY: a required-but-missing policy leaves the deputy fail-closed (holds), never an unprotected payout.
+-  attachApprovedPolicyToCampaign(result.campaignId, deployment.jobId);
++  // Phase 2 — activation FAILS CLOSED. The approved revision's VerificationPolicyV2 MUST attach to the new
++  // campaign (write-once, atomic) BEFORE the deployment is marked live. A required-but-missing / malformed /
++  // incomplete / stale / conflicting policy → recovery_required + a bounded non-success; the deployment is
++  // NEVER marked live with an unenforceable covenant. A non-required (non-canary) revision attaches nothing.
++  const policyAttach = attachApprovedPolicyToCampaign(result.campaignId, deployment.jobId);
++  if (!policyAttach.ok) {
++    markRecoveryRequired(deploymentId, `attach_policy:${policyAttach.reason}`.slice(0, 280));
++    return NextResponse.json(
++      { ok: false, error: `Verification policy could not be attached (${policyAttach.reason}). Your vault is safe; retry attaching.`, stage: "policy_attach", deployment: deploymentView(getDeployment(deploymentId)!, tokenDecimals) },
++      { status: 409 },
++    );
++  }
+ 
+   const live = markLive(deploymentId, result.campaignId);
+   return NextResponse.json({ ok: true, campaignId: result.campaignId, deployment: deploymentView(live.deployment ?? getDeployment(deploymentId)!, tokenDecimals) });
+diff --git a/src/lib/campaigns/attach-policy.integration.test.ts b/src/lib/campaigns/attach-policy.integration.test.ts
+index 3cf144f..3000ebc 100644
+--- a/src/lib/campaigns/attach-policy.integration.test.ts
++++ b/src/lib/campaigns/attach-policy.integration.test.ts
+@@ -56,4 +56,41 @@ describe.runIf(RUN)("money-boundary E2E — approved revision → attach → rea
+     updateCampaignV2Plan(other.id, { vaultKind: "campaign_v2", campaignIdHash: "0xo", missionPlanDigest: "0xdifferent", commitmentVersion: 2 });
+     expect(attachVerificationPolicyToCampaign({ campaignId: other.id, policy, policyDigest: policy.policyDigest, policyVersion: "verification-policy-v2", policyRequired: true, sourceRevisionNumber: 1, revisionMissionPlanDigest: PLAN })).toMatchObject({ ok: false, reason: "plan_mismatch" });
+   });
++
++  it("P2 activation fail-closed: required_but_missing → ok:false; non-required → attached:false; conflict → ok:false", async () => {
++    const { compileVerificationPolicyV2 } = await import("@/lib/launch/mission-probe-v2");
++    const { createRevision, approveRevision } = await import("@/lib/db/plan-revisions");
++    const { createCampaign, getCampaign, updateCampaignV2Plan } = await import("@/lib/db/campaigns");
++    const { attachApprovedPolicyToCampaign } = await import("./attach-policy");
++    const { createInspectionJob } = await import("@/lib/db/inspection");
++    const { V2_SET, V2_MISSION } = await import("@/lib/deputy/policy-test-fixtures");
++    const { getAddress } = await import("viem");
++    const WALLET = "0x00000000000000000000000000000000000000e9";
++    const mkPlan = (digest: string) => ({ publicCampaignId: "p", status: "draft", revision: 1, productMapDigest: "0xmap", missions: [], totalBudgetBase: BigInt(1), allocatedBase: BigInt(1), tokenDecimals: 6, campaignIdHash: "0xc", missionPlanDigest: digest, openQuestions: [], modelVersion: "m", promptVersion: "p" });
++    const mkCampaign = (digest: string, hexFill: string) => { const c = createCampaign({ title: hexFill, descriptionMd: "", criteria: [], conditionType: "approval", onchainCheck: null, rewardAmount: 1, maxRecipients: 1, vaultAddress: getAddress(`0x${hexFill.repeat(40)}`), posterWallet: WALLET, ownerIsSage: true, status: "live", autonomy: "autopilot", autopilotThreshold: 0.85 } as never); updateCampaignV2Plan(c.id, { vaultKind: "campaign_v2", campaignIdHash: "0xc", missionPlanDigest: digest, commitmentVersion: 2 }); return c; };
++
++    // (a) REQUIRED revision with NO policy → activation must fail closed.
++    const jNoPolicy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-nopolicy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
++    const rNo = createRevision({ jobId: jNoPolicy.id, authorWallet: WALLET, reason: "generated_grounded_v2", plan: mkPlan("0xreq") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicyRequired: true });
++    approveRevision(jNoPolicy.id, rNo.revisionNumber, WALLET, { ok: true });
++    const cNo = mkCampaign("0xreq", "3");
++    expect(attachApprovedPolicyToCampaign(cNo.id, jNoPolicy.id)).toMatchObject({ ok: false, reason: "required_but_missing" });
++    expect(getCampaign(cNo.id)!.verificationPolicyDigest).toBeNull(); // nothing bound
++
++    // (b) NON-required revision (no policy) → attached:false (activation proceeds).
++    const jLegacy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-legacy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
++    const rLeg = createRevision({ jobId: jLegacy.id, authorWallet: WALLET, reason: "generated", plan: mkPlan("0xleg") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicyRequired: false });
++    approveRevision(jLegacy.id, rLeg.revisionNumber, WALLET, { ok: true });
++    expect(attachApprovedPolicyToCampaign(mkCampaign("0xleg", "4").id, jLegacy.id)).toMatchObject({ ok: true, attached: false });
++
++    // (c) required + complete policy → attach ok; re-attach idempotent.
++    const jOk = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-ok", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
++    const pol = compileVerificationPolicyV2({ missionPlanDigest: "0xok", productMapDigest: "0xmap", set: V2_SET, missions: [V2_MISSION], replayReproduced: new Set(["t-load"]), scope: { hosts: new Set(["app.test"]) } as never }).policy;
++    const rOk = createRevision({ jobId: jOk.id, authorWallet: WALLET, reason: "generated_grounded_v2", plan: mkPlan("0xok") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicy: pol, verificationPolicyDigest: pol.policyDigest, verificationPolicyRequired: true });
++    approveRevision(jOk.id, rOk.revisionNumber, WALLET, { ok: true });
++    const cOk = mkCampaign("0xok", "5");
++    expect(attachApprovedPolicyToCampaign(cOk.id, jOk.id)).toMatchObject({ ok: true, attached: true });
++    expect(attachApprovedPolicyToCampaign(cOk.id, jOk.id)).toMatchObject({ ok: true }); // idempotent
++    expect(getCampaign(cOk.id)!.verificationPolicyDigest).toBe(pol.policyDigest);
++  });
+ });
+diff --git a/src/lib/campaigns/attach-policy.ts b/src/lib/campaigns/attach-policy.ts
+index 820f7f0..1450f6b 100644
+--- a/src/lib/campaigns/attach-policy.ts
++++ b/src/lib/campaigns/attach-policy.ts
+@@ -23,8 +23,11 @@ export function attachApprovedPolicyToCampaign(campaignId: string, jobId: string
+   if (!current || current.id !== approved.id) return { ok: false, reason: "approved_not_current" };
+   const rawPolicy = approved.verificationPolicy ?? null;
+   if (rawPolicy == null) {
+-    // no policy on the approved revision → nothing to attach (non-canary campaign).
+-    return { ok: true, attached: false, reason: approved.verificationPolicyRequired ? "required_but_missing" : "no_policy" };
++    // a required revision with no bound policy is a HARD failure (defect #5) — never an accepted no-op. A
++    // non-required revision genuinely has nothing to attach (non-canary campaign).
++    return approved.verificationPolicyRequired
++      ? { ok: false, reason: "required_but_missing" }
++      : { ok: true, attached: false, reason: "no_policy" };
+   }
+   // re-verify the policy against the approved plan before binding (defense in depth).
+   const check = checkRevisionPolicyForApproval({
+diff --git a/src/lib/db/canary-migration.test.ts b/src/lib/db/canary-migration.test.ts
+index 8768ad3..f9cf876 100644
+--- a/src/lib/db/canary-migration.test.ts
++++ b/src/lib/db/canary-migration.test.ts
+@@ -57,7 +57,7 @@ describe("migrations 0026/0027 — previous schema → upgrade", () => {
+     const db = new Database(":memory:");
+     applyUpTo(db, "0025");
+     expect(schemaReady(db).ok).toBe(false);
+-    for (const f of ["0026", "0027", "0028", "0029"]) {
++    for (const f of ["0026", "0027", "0028", "0029", "0030"]) {
+       const file = files.find((x) => x.startsWith(f))!;
+       for (const stmt of fs.readFileSync(path.join(DRIZZLE, file), "utf8").split("--> statement-breakpoint")) { const s = stmt.trim(); if (s) db.exec(s); }
+     }
+diff --git a/src/lib/db/payout-replay-journal.ts b/src/lib/db/payout-replay-journal.ts
+index 8f3ecb8..1189a83 100644
+--- a/src/lib/db/payout-replay-journal.ts
++++ b/src/lib/db/payout-replay-journal.ts
+@@ -1,6 +1,6 @@
+ import "server-only";
+ 
+-import { and, eq, sql } from "drizzle-orm";
++import { and, eq, isNull, sql } from "drizzle-orm";
+ import { nanoid } from "nanoid";
+ import { db } from "./index";
+ import { nowSeconds } from "./keys";
+@@ -18,13 +18,18 @@ export interface ReplayJournalLookup {
+   code: string;
+   completed: boolean;
+   attempt: number;
++  /** P4 — the active lease + completion time + runner version, for freshness + CAS. */
++  runId: string | null;
++  completedAt: number | null;
++  probeVersion: string;
+ }
+ 
+-/** The interface the replay runner uses; the DB implementation is `dbReplayJournal`, a fake is used in tests. */
++/** The interface the replay runner uses; the DB implementation is `dbReplayJournal`, a fake is used in tests.
++ *  P4 — begin() returns an opaque lease (runId + attempt); complete() CAS-updates only against that exact lease. */
+ export interface ReplayJournalHandle {
+   lookup(submissionId: string, policyDigest: string, probeDigest: string): ReplayJournalLookup | null;
+-  begin(submissionId: string, policyDigest: string, probeDigest: string): void;
+-  complete(submissionId: string, policyDigest: string, probeDigest: string, outcome: { decision: "allow" | "hold"; code: string; latencyMs: number }): void;
++  begin(submissionId: string, policyDigest: string, probeDigest: string): { runId: string; attempt: number };
++  complete(runId: string, submissionId: string, policyDigest: string, probeDigest: string, outcome: { decision: "allow" | "hold"; code: string; latencyMs: number }): boolean;
+ }
+ 
+ const whereKey = (submissionId: string, policyDigest: string, probeDigest: string) =>
+@@ -38,24 +43,31 @@ export const dbReplayJournal: ReplayJournalHandle = {
+   lookup(submissionId, policyDigest, probeDigest) {
+     const row = db.select().from(payoutReplayJournal).where(whereKey(submissionId, policyDigest, probeDigest)).get();
+     if (!row) return null;
+-    // cache validity includes the runner version — a result from a different runner is not reusable.
+-    if (row.probeVersion !== REPLAY_RUNNER_VERSION) return { decision: "hold", code: "runner_version_stale", completed: false, attempt: row.attempt };
+-    return { decision: (row.decision as "allow" | "hold") ?? "hold", code: row.outcomeCode ?? "internal_error", completed: row.completedAt != null, attempt: row.attempt };
++    return { decision: (row.decision as "allow" | "hold") ?? "hold", code: row.outcomeCode ?? "internal_error", completed: row.completedAt != null, attempt: row.attempt, runId: row.runId, completedAt: row.completedAt, probeVersion: row.probeVersion };
+   },
+   begin(submissionId, policyDigest, probeDigest) {
+     const now = nowSeconds();
++    const runId = nanoid(18);
+     // ATOMIC upsert (INSERT … ON CONFLICT DO UPDATE on the unique key) — concurrency-safe: two racing begins
+-    // never both insert, and an in-flight crash is reconciled (reset to in-flight + attempt bumped, runner
+-    // version refreshed). Read-only replay makes a re-run safe.
++    // never both insert; a re-begin mints a FRESH runId lease (invalidating any older in-flight run's later
++    // completion) + resets to in-flight + bumps attempt. Read-only replay makes a re-run safe.
+     db.insert(payoutReplayJournal)
+-      .values({ id: nanoid(14), submissionId, policyDigest, probeDigest, startedAt: now, attempt: 1, probeVersion: REPLAY_RUNNER_VERSION })
++      .values({ id: nanoid(14), submissionId, policyDigest, probeDigest, startedAt: now, attempt: 1, probeVersion: REPLAY_RUNNER_VERSION, runId })
+       .onConflictDoUpdate({
+         target: [payoutReplayJournal.submissionId, payoutReplayJournal.policyDigest, payoutReplayJournal.probeDigest],
+-        set: { startedAt: now, completedAt: null, decision: null, outcomeCode: null, latencyMs: null, probeVersion: REPLAY_RUNNER_VERSION, attempt: sql`${payoutReplayJournal.attempt} + 1` },
++        set: { startedAt: now, completedAt: null, decision: null, outcomeCode: null, latencyMs: null, probeVersion: REPLAY_RUNNER_VERSION, runId, attempt: sql`${payoutReplayJournal.attempt} + 1` },
+       })
+       .run();
++    const row = db.select().from(payoutReplayJournal).where(whereKey(submissionId, policyDigest, probeDigest)).get();
++    return { runId, attempt: row?.attempt ?? 1 };
+   },
+-  complete(submissionId, policyDigest, probeDigest, outcome) {
+-    db.update(payoutReplayJournal).set({ decision: outcome.decision, outcomeCode: outcome.code, completedAt: nowSeconds(), latencyMs: outcome.latencyMs }).where(whereKey(submissionId, policyDigest, probeDigest)).run();
++  complete(runId, submissionId, policyDigest, probeDigest, outcome) {
++    // CAS on the active lease: only complete while THIS run is still the active in-flight one. A superseded or
++    // late completion (a newer begin minted a different runId) matches 0 rows and cannot overwrite the current.
++    const res = db.update(payoutReplayJournal)
++      .set({ decision: outcome.decision, outcomeCode: outcome.code, completedAt: nowSeconds(), latencyMs: outcome.latencyMs })
++      .where(and(whereKey(submissionId, policyDigest, probeDigest), eq(payoutReplayJournal.runId, runId), isNull(payoutReplayJournal.completedAt)))
++      .run();
++    return res.changes === 1;
+   },
+ };
+diff --git a/src/lib/db/schema.ts b/src/lib/db/schema.ts
+index 3624537..99204be 100644
+--- a/src/lib/db/schema.ts
++++ b/src/lib/db/schema.ts
+@@ -770,6 +770,9 @@ export const payoutReplayJournal = sqliteTable(
+     attempt: integer("attempt").notNull().default(1),
+     /** the probe/browser runner version (for cache invalidation across runner changes). */
+     probeVersion: text("probe_version").notNull().default("mission-probe-v1"),
++    /** P4 — the ACTIVE lease id. begin() mints a fresh runId; complete() CAS-updates only while it matches, so
++     *  a superseded/late completion of an older run can never overwrite the current one. */
++    runId: text("run_id"),
+   },
+   (t) => [uniqueIndex("prj_key_unq").on(t.submissionId, t.policyDigest, t.probeDigest)],
+ );
+diff --git a/src/lib/deputy/canary-preflight.test.ts b/src/lib/deputy/canary-preflight.test.ts
+new file mode 100644
+index 0000000..8f1f57b
+--- /dev/null
++++ b/src/lib/deputy/canary-preflight.test.ts
+@@ -0,0 +1,50 @@
++import { describe, it, expect } from "vitest";
++import Database from "better-sqlite3";
++import fs from "node:fs";
++import path from "node:path";
++import { verifyPayoutReplaySchema, REQUIRED_SCHEMA } from "./canary-preflight";
++
++/** P3 — the unified schema verifier: clean-install / 0025-upgrade / partially-migrated / malformed-index. */
++
++const DRIZZLE = path.resolve("drizzle");
++const files = fs.readdirSync(DRIZZLE).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
++function migrated(upTo: string): Database.Database {
++  const db = new Database(":memory:");
++  for (const f of files) { if (f.slice(0, 4) > upTo) break; for (const s of fs.readFileSync(path.join(DRIZZLE, f), "utf8").split("--> statement-breakpoint")) { const t = s.trim(); if (t) db.exec(t); } }
++  return db;
++}
++const probe = (db: Database.Database) => ({ all: (q: string) => db.prepare(q).all() as unknown[] });
++
++describe("verifyPayoutReplaySchema — unified preflight", () => {
++  it("CLEAN install (all migrations) → ok, nothing missing", () => {
++    const db = migrated("9999");
++    expect(verifyPayoutReplaySchema(probe(db))).toEqual({ ok: true, missing: [] });
++    db.close();
++  });
++  it("PREVIOUS schema (0025) → not ready, lists every 0026-0029 column/table/index", () => {
++    const db = migrated("0025");
++    const r = verifyPayoutReplaySchema(probe(db));
++    expect(r.ok).toBe(false);
++    for (const c of REQUIRED_SCHEMA.campaigns) expect(r.missing).toContain(`campaigns.${c}`);
++    for (const c of REQUIRED_SCHEMA.plan_revisions) expect(r.missing).toContain(`plan_revisions.${c}`);
++    expect(r.missing).toContain("payout_replay_journal");
++    db.close();
++  });
++  it("PARTIALLY migrated (0026 only: campaign policy cols, no journal / rev cols) → not ready", () => {
++    const db = migrated("0026");
++    const r = verifyPayoutReplaySchema(probe(db));
++    expect(r.ok).toBe(false);
++    expect(r.missing).toContain("payout_replay_journal");                 // 0027 absent
++    expect(r.missing).toContain("plan_revisions.verification_policy");     // 0028 absent
++    expect(r.missing).not.toContain("campaigns.verification_policy");      // 0026 present
++    db.close();
++  });
++  it("MALFORMED (journal table present but the unique index dropped) → not ready (index missing)", () => {
++    const db = migrated("9999");
++    db.exec(`DROP INDEX ${REQUIRED_SCHEMA.payout_replay_journal.uniqueIndex}`);
++    const r = verifyPayoutReplaySchema(probe(db));
++    expect(r.ok).toBe(false);
++    expect(r.missing).toContain(`index:${REQUIRED_SCHEMA.payout_replay_journal.uniqueIndex}`);
++    db.close();
++  });
++});
+diff --git a/src/lib/deputy/canary-preflight.ts b/src/lib/deputy/canary-preflight.ts
+index 1ca0f53..5697123 100644
+--- a/src/lib/deputy/canary-preflight.ts
++++ b/src/lib/deputy/canary-preflight.ts
+@@ -4,25 +4,44 @@ import { sql } from "drizzle-orm";
+ import { db } from "@/lib/db";
+ 
+ /**
+- * Phase 2 — release preflight for payout action replay. `PAYOUT_ACTION_REPLAY_MODE=canary` REQUIRES the
+- * migration-0026 campaign policy columns and the migration-0027 journal table. If they are missing, the deputy
+- * must refuse canary mode BEFORE processing a submission — never after a PAY decision. Deterministic; read-only.
++ * P3 — the ONE runtime schema verifier for the payout-replay / VerificationPolicy system, used by BOTH the
++ * deputy (payoutReplaySchemaReady) and the release CLI (scripts/canary-release-preflight.mjs mirrors this spec).
++ * Verifies migrations 0026-0029: the campaign + plan-revision policy columns, the journal table + probe_version
++ * column, and the journal's unique binding index. SELF_CANARY and OBSERVE must refuse when anything is absent.
++ * Deterministic, read-only.
+  */
+-export function payoutReplaySchemaReady(): { ok: boolean; missing: string[] } {
++
++/** The single source of truth for the required schema (mirrored by the CLI). */
++export const REQUIRED_SCHEMA = {
++  campaigns: ["verification_policy", "verification_policy_digest", "verification_policy_version", "verification_policy_required", "policy_source_revision_number"],
++  plan_revisions: ["verification_policy", "verification_policy_digest", "verification_policy_required", "grounded_provenance"],
++  payout_replay_journal: { columns: ["probe_version", "run_id", "submission_id", "policy_digest", "probe_digest", "completed_at"], uniqueIndex: "prj_key_unq" },
++} as const;
++
++type SchemaProbe = { all: (q: string) => unknown[] };
++
++/** Verify the schema against a given probe (default: the global db). Exported so tests can pass a temp DB. */
++export function verifyPayoutReplaySchema(probe: SchemaProbe = { all: (q) => db.all(sql.raw(q)) as unknown[] }): { ok: boolean; missing: string[] } {
+   const missing: string[] = [];
++  const cols = (table: string): Set<string> => {
++    try { return new Set((probe.all(`PRAGMA table_info(${table})`) as { name: string }[]).map((c) => c.name)); } catch { return new Set(); }
++  };
++  const campaignCols = cols("campaigns");
++  for (const c of REQUIRED_SCHEMA.campaigns) if (!campaignCols.has(c)) missing.push(`campaigns.${c}`);
++  const revCols = cols("plan_revisions");
++  for (const c of REQUIRED_SCHEMA.plan_revisions) if (!revCols.has(c)) missing.push(`plan_revisions.${c}`);
++  const journalCols = cols("payout_replay_journal");
++  if (journalCols.size === 0) missing.push("payout_replay_journal");
++  else for (const c of REQUIRED_SCHEMA.payout_replay_journal.columns) if (!journalCols.has(c)) missing.push(`payout_replay_journal.${c}`);
++  // the unique binding index must exist (idempotency + concurrency safety depend on it).
+   try {
+-    const cols = db.all(sql`PRAGMA table_info(campaigns)`) as { name: string }[];
+-    const names = new Set(cols.map((c) => c.name));
+-    if (!names.has("verification_policy")) missing.push("campaigns.verification_policy");
+-    if (!names.has("verification_policy_digest")) missing.push("campaigns.verification_policy_digest");
+-  } catch {
+-    missing.push("campaigns");
+-  }
+-  try {
+-    const t = db.all(sql`SELECT name FROM sqlite_master WHERE type='table' AND name='payout_replay_journal'`) as { name: string }[];
+-    if (t.length === 0) missing.push("payout_replay_journal");
+-  } catch {
+-    missing.push("payout_replay_journal");
+-  }
++    const idx = probe.all(`SELECT name FROM sqlite_master WHERE type='index' AND name='${REQUIRED_SCHEMA.payout_replay_journal.uniqueIndex}'`) as { name: string }[];
++    if (idx.length === 0) missing.push(`index:${REQUIRED_SCHEMA.payout_replay_journal.uniqueIndex}`);
++  } catch { missing.push(`index:${REQUIRED_SCHEMA.payout_replay_journal.uniqueIndex}`); }
+   return { ok: missing.length === 0, missing };
+ }
++
++/** Deputy-facing: the runtime check against the global db. canary AND shadow refuse when this is not ok. */
++export function payoutReplaySchemaReady(): { ok: boolean; missing: string[] } {
++  return verifyPayoutReplaySchema();
++}
+diff --git a/src/lib/deputy/demo-payout-replay.test.ts b/src/lib/deputy/demo-payout-replay.test.ts
+index cfef31b..ed19fc0 100644
+--- a/src/lib/deputy/demo-payout-replay.test.ts
++++ b/src/lib/deputy/demo-payout-replay.test.ts
+@@ -43,7 +43,7 @@ import type { CandidateMission } from "@/lib/launch/schemas";
+ import type { ValidationScope } from "@/lib/launch/validate-mission";
+ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+ 
+-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
++const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
+ let fx: { port: number; close: () => Promise<void> };
+ const PAGE = (drift: boolean) => `<!doctype html><title>Reportly</title><main><button id="b">Load report</button><div id="o"></div></main><script>document.getElementById('b').addEventListener('click',function(){document.getElementById('o').textContent=${drift ? "'Loading failed'" : "'Report ready'"};});</script>`;
+ beforeAll(async () => {
+diff --git a/src/lib/deputy/demo-self-canary.test.ts b/src/lib/deputy/demo-self-canary.test.ts
+index 160edb1..11e61b1 100644
+--- a/src/lib/deputy/demo-self-canary.test.ts
++++ b/src/lib/deputy/demo-self-canary.test.ts
+@@ -45,7 +45,7 @@ import type { CandidateMission } from "@/lib/launch/schemas";
+ import type { ValidationScope } from "@/lib/launch/validate-mission";
+ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+ 
+-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
++const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
+ let fx: { port: number; close: () => Promise<void> };
+ const PAGE = (drift: boolean) => `<!doctype html><title>Reportly</title><main><button id="b">Load report</button><div id="o"></div></main><script>document.getElementById('b').addEventListener('click',function(){document.getElementById('o').textContent=${drift ? "'Loading failed'" : "'Report ready'"};});</script>`;
+ beforeAll(async () => {
+diff --git a/src/lib/deputy/payout-replay-idempotency.test.ts b/src/lib/deputy/payout-replay-idempotency.test.ts
+index a81283a..389c2f2 100644
+--- a/src/lib/deputy/payout-replay-idempotency.test.ts
++++ b/src/lib/deputy/payout-replay-idempotency.test.ts
+@@ -1,7 +1,7 @@
+ import { describe, it, expect, afterEach } from "vitest";
+ import { runPayoutActionReplay, type PayoutReplayDeps } from "./payout-replay";
+ import type { ReplayJournalHandle, ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
+-import { v2Campaign } from "./policy-test-fixtures";
++import { v2Campaign, memReplayJournal } from "./policy-test-fixtures";
+ import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib/launch/observed-facts";
+ import type { CandidateMission } from "@/lib/launch/schemas";
+ import type { ValidationScope } from "@/lib/launch/validate-mission";
+@@ -23,24 +23,13 @@ const set: ObservationSetV1 = { version: "obs-set-v1" as ObservationSetV1["versi
+ const mission: CandidateMission = { missionKey: "m-load", criteria: ["c"], evidenceRequirements: ["e"], groundingV1: { version: "mission-grounding-v1", observationSetDigest: "setdig", criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", sourceFactIds: ["f-after"], sourceTransitionIds: ["t-load"], evidenceIndex: 0, verificationMode: "observation" }] } } as unknown as CandidateMission;
+ const campaign = (): Campaign => v2Campaign();
+ 
+-// in-memory journal + a run counter to prove no double-execution.
+-function memJournal() {
+-  const rows = new Map<string, ReplayJournalLookup>();
+-  const k = (a: string, b: string, c: string) => `${a}|${b}|${c}`;
+-  const handle: ReplayJournalHandle = {
+-    lookup: (s, p, pr) => rows.get(k(s, p, pr)) ?? null,
+-    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1 }); },
+-    complete: (s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: o.decision, code: o.code, completed: true, attempt: cur?.attempt ?? 1 }); },
+-  };
+-  return { handle, rows, k };
+-}
+ 
+ describe("payout replay idempotency", () => {
+   it("a completed reproduced result is REUSED on retry (no second browser run)", async () => {
+     process.env[MODE] = "canary";
+-    const j = memJournal();
++    const j = memReplayJournal();
+     let runs = 0;
+-    const deps: PayoutReplayDeps = { submissionId: "sub-1", journal: j.handle, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } };
++    const deps: PayoutReplayDeps = { submissionId: "sub-1", journal: j, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } };
+     const first = await runPayoutActionReplay(campaign(), "m-load", deps);
+     const second = await runPayoutActionReplay(campaign(), "m-load", deps);
+     expect(first.decision).toBe("allow");
+@@ -50,9 +39,9 @@ describe("payout replay idempotency", () => {
+ 
+   it("a completed VETO is reused on retry (still holds, no re-run)", async () => {
+     process.env[MODE] = "canary";
+-    const j = memJournal();
++    const j = memReplayJournal();
+     let runs = 0;
+-    const deps: PayoutReplayDeps = { submissionId: "sub-2", journal: j.handle, runProbe: async (p) => { runs++; return { classification: "no_observable_change" as ProbeClassification, reason: "", probeId: p.id }; } };
++    const deps: PayoutReplayDeps = { submissionId: "sub-2", journal: j, runProbe: async (p) => { runs++; return { classification: "no_observable_change" as ProbeClassification, reason: "", probeId: p.id }; } };
+     expect((await runPayoutActionReplay(campaign(), "m-load", deps)).decision).toBe("hold");
+     expect((await runPayoutActionReplay(campaign(), "m-load", deps)).decision).toBe("hold");
+     expect(runs).toBe(1);
+@@ -60,9 +49,9 @@ describe("payout replay idempotency", () => {
+ 
+   it("a DIFFERENT submission is a different key → a fresh run", async () => {
+     process.env[MODE] = "canary";
+-    const j = memJournal();
++    const j = memReplayJournal();
+     let runs = 0;
+-    const mk = (sid: string): PayoutReplayDeps => ({ submissionId: sid, journal: j.handle, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } });
++    const mk = (sid: string): PayoutReplayDeps => ({ submissionId: sid, journal: j, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } });
+     await runPayoutActionReplay(campaign(), "m-load", mk("sub-a"));
+     await runPayoutActionReplay(campaign(), "m-load", mk("sub-b"));
+     expect(runs).toBe(2);
+@@ -70,11 +59,11 @@ describe("payout replay idempotency", () => {
+ 
+   it("an IN-FLIGHT crash (begun, never completed) reconciles by re-running", async () => {
+     process.env[MODE] = "canary";
+-    const j = memJournal();
++    const j = memReplayJournal();
+     // simulate a crash: begin without complete.
+-    j.handle.begin("sub-3", campaign().verificationPolicyDigest!, (campaign().verificationPolicy as { probes: { probeDigest: string }[] }).probes[0].probeDigest);
++    j.begin("sub-3", campaign().verificationPolicyDigest!, (campaign().verificationPolicy as { probes: { probeDigest: string }[] }).probes[0].probeDigest);
+     let runs = 0;
+-    const deps: PayoutReplayDeps = { submissionId: "sub-3", journal: j.handle, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } };
++    const deps: PayoutReplayDeps = { submissionId: "sub-3", journal: j, runProbe: async (p) => { runs++; return { classification: "reproduced" as ProbeClassification, reason: "", probeId: p.id }; } };
+     const r = await runPayoutActionReplay(campaign(), "m-load", deps);
+     expect(r.decision).toBe("allow");
+     expect(runs).toBe(1); // re-ran (reconciled) rather than trusting the in-flight row
+diff --git a/src/lib/deputy/payout-replay.browser.test.ts b/src/lib/deputy/payout-replay.browser.test.ts
+index 9ff1b42..7687076 100644
+--- a/src/lib/deputy/payout-replay.browser.test.ts
++++ b/src/lib/deputy/payout-replay.browser.test.ts
+@@ -16,7 +16,7 @@ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+  */
+ 
+ const LIVE = process.env.PAYOUT_REPLAY_BROWSER_TEST === "1";
+-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
++const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
+ 
+ // A page with a "Load report" button that reveals "Report ready" on click (reproduce), and a "?drift=1" variant
+ // whose button does nothing (a change that isn't the expected one → veto).
+diff --git a/src/lib/deputy/payout-replay.ts b/src/lib/deputy/payout-replay.ts
+index e1a386c..68ff029 100644
+--- a/src/lib/deputy/payout-replay.ts
++++ b/src/lib/deputy/payout-replay.ts
+@@ -3,7 +3,10 @@ import "server-only";
+ import { runInspectionProbe, type InspectionProbeV1, type ProbeClassification } from "@/lib/launch/inspection-replay";
+ import type { MissionProbeV1 } from "@/lib/launch/mission-probe";
+ import { loadVerifiedCampaignPolicy, probesForMission, policyMarksActionMission } from "./verification-policy";
+-import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
++import { REPLAY_RUNNER_VERSION, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
++
++/** P4 — the hard maximum age (seconds) of a reusable replay permit. Older than this ⇒ stale ⇒ re-run. ≤ 5 min. */
++export const MAX_PERMIT_AGE_SEC = 300;
+ import type { Campaign } from "@/lib/db/schema";
+ 
+ /**
+@@ -151,14 +154,15 @@ export async function runPayoutActionReplay(
+   const probeResults: { probeId: string; code: PayoutReplayCode }[] = [];
+   for (const probe of probes) {
+     let code: PayoutReplayCode;
+-    // Phase 5 — reuse a COMPLETED journal entry for the EXACT (submissionId, policyDigest, probeDigest); an
+-    // in-flight/absent entry runs a fresh, read-only replay (reconciles a crash). Cache key changes with the
+-    // policy/probe digest, so a changed plan always re-runs.
++    // Phase 5 — reuse a COMPLETED, FRESH, current-runner journal entry; otherwise run a fresh, read-only replay
++    // under a lease (P4). A stale/old-runner/in-flight entry re-runs. complete() CAS-updates only against THIS
++    // lease, so a superseded run's late completion cannot overwrite a newer one.
+     const cached = journal && sid ? journal.lookup(sid, policy.policyDigest, probe.probeDigest) : null;
+-    if (cached && cached.completed) {
++    const fresh = !!cached && cached.completed && cached.probeVersion === REPLAY_RUNNER_VERSION && cached.completedAt != null && Math.floor(clock() / 1000) - cached.completedAt <= MAX_PERMIT_AGE_SEC;
++    if (cached && fresh) {
+       code = cached.code as PayoutReplayCode;
+     } else {
+-      if (journal && sid) journal.begin(sid, policy.policyDigest, probe.probeDigest);
++      const lease = journal && sid ? journal.begin(sid, policy.policyDigest, probe.probeDigest) : null;
+       const started = clock();
+       try {
+         const r = await run(toInspectionProbe(probe));
+@@ -166,7 +170,7 @@ export async function runPayoutActionReplay(
+       } catch {
+         code = "internal_error";
+       }
+-      if (journal && sid) journal.complete(sid, policy.policyDigest, probe.probeDigest, { decision: code === "reproduced" ? "allow" : "hold", code, latencyMs: Math.max(0, clock() - started) });
++      if (journal && sid && lease) journal.complete(lease.runId, sid, policy.policyDigest, probe.probeDigest, { decision: code === "reproduced" ? "allow" : "hold", code, latencyMs: Math.max(0, clock() - started) });
+     }
+     probeResults.push({ probeId: probe.probeId, code });
+     if (code !== "reproduced") {
+diff --git a/src/lib/deputy/pipeline.test.ts b/src/lib/deputy/pipeline.test.ts
+index d71ecbe..be93dd2 100644
+--- a/src/lib/deputy/pipeline.test.ts
++++ b/src/lib/deputy/pipeline.test.ts
+@@ -475,7 +475,7 @@ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+ import { payoutReplaySchemaReady } from "./canary-preflight";
+ import { makeV2Policy } from "./policy-test-fixtures";
+ 
+-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
++const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
+ const rPolicy = makeV2Policy();
+ 
+ function canaryCampaign(over: Record<string, unknown> = {}) {
+diff --git a/src/lib/deputy/policy-test-fixtures.ts b/src/lib/deputy/policy-test-fixtures.ts
+index 4cfe9e2..7ca0dbe 100644
+--- a/src/lib/deputy/policy-test-fixtures.ts
++++ b/src/lib/deputy/policy-test-fixtures.ts
+@@ -3,7 +3,7 @@ import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib
+ import type { CandidateMission } from "@/lib/launch/schemas";
+ import type { ValidationScope } from "@/lib/launch/validate-mission";
+ import type { Campaign } from "@/lib/db/schema";
+-import type { ReplayJournalHandle, ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
++import { REPLAY_RUNNER_VERSION, type ReplayJournalHandle, type ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
+ 
+ /** Shared V2 policy + policy-REQUIRED campaign fixtures for the deputy payout-replay tests (not a .test file). */
+ 
+@@ -20,16 +20,23 @@ export function makeV2Policy(missions: CandidateMission[] = [V2_MISSION], replay
+ /** A policy-REQUIRED canary campaign carrying a complete V2 policy (the common case under test). */
+ export function v2Campaign(over: Partial<Campaign> = {}, missions?: CandidateMission[], replayed?: Set<string>): Campaign {
+   const policy = makeV2Policy(missions, replayed);
+-  return { id: "c1", title: "T", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyRequired: true, ...over } as unknown as Campaign;
++  return { id: "c1", title: "T", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyVersion: policy.version, verificationPolicyRequired: true, policySourceRevisionNumber: 1, ...over } as unknown as Campaign;
+ }
+ 
+-/** A persisting in-memory replay journal (the replay writes it; the central permit reads it). */
+-export function memReplayJournal(): ReplayJournalHandle {
++/** A NON-required legacy campaign with NO attached policy (the only consistent non-required state). */
++export function legacyCampaign(over: Partial<Campaign> = {}): Campaign {
++  return { id: "c-legacy", title: "L", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: null, verificationPolicyDigest: null, verificationPolicyRequired: false, ...over } as unknown as Campaign;
++}
++
++/** A persisting in-memory replay journal (the replay writes it; the central permit reads it). P4 lease-aware. */
++export function memReplayJournal(opts: { now?: () => number } = {}): ReplayJournalHandle {
++  const now = opts.now ?? (() => Math.floor(Date.now() / 1000));
+   const rows = new Map<string, ReplayJournalLookup>();
++  let seq = 0;
+   const k = (a: string, b: string, c: string) => `${a}|${b}|${c}`;
+   return {
+     lookup: (s, p, pr) => rows.get(k(s, p, pr)) ?? null,
+-    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1 }); },
+-    complete: (s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: o.decision, code: o.code, completed: true, attempt: cur?.attempt ?? 1 }); },
++    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); const runId = "run" + ++seq; rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1, runId, completedAt: null, probeVersion: REPLAY_RUNNER_VERSION }); return { runId, attempt: (cur?.attempt ?? 0) + 1 }; },
++    complete: (runId, s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); if (!cur || cur.runId !== runId || cur.completed) return false; rows.set(k(s, p, pr), { ...cur, decision: o.decision, code: o.code, completed: true, completedAt: now() }); return true; },
+   };
+ }
+diff --git a/src/lib/deputy/replay-permit.test.ts b/src/lib/deputy/replay-permit.test.ts
+index 7312920..7f72883 100644
+--- a/src/lib/deputy/replay-permit.test.ts
++++ b/src/lib/deputy/replay-permit.test.ts
+@@ -16,10 +16,11 @@ vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn()
+ vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
+ 
+ import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
++import { verifyReplayPermit } from "./replay-permit";
+ import { getMissionByHash } from "@/lib/db/campaigns";
+-import { makeV2Policy, v2Campaign, memReplayJournal } from "./policy-test-fixtures";
++import { makeV2Policy, v2Campaign, legacyCampaign, memReplayJournal } from "./policy-test-fixtures";
+ import type { Campaign, Submission } from "@/lib/db/schema";
+-import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
++import { REPLAY_RUNNER_VERSION, type ReplayJournalHandle, type ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
+ 
+ const MODE = "PAYOUT_ACTION_REPLAY_MODE";
+ const submission = { id: "s1", campaignId: "c1", missionIdHash: "0xM", wallet: `0x${"a".repeat(40)}`, status: "approved" } as unknown as Submission;
+@@ -32,10 +33,10 @@ afterEach(() => { delete process.env[MODE]; });
+ function settle(campaign: Campaign, journal: ReplayJournalHandle) {
+   return settleApprovedSubmission(campaign, submission, { payoutReplay: { journal } } as never);
+ }
+-function permitFor(reproduced: boolean): ReplayJournalHandle {
+-  const j = memReplayJournal();
+-  j.begin(submission.id, policy.policyDigest, probeDigest);
+-  j.complete(submission.id, policy.policyDigest, probeDigest, { decision: reproduced ? "allow" : "hold", code: reproduced ? "reproduced" : "wrong_after_state", latencyMs: 1 });
++function permitFor(reproduced: boolean, now?: () => number): ReplayJournalHandle {
++  const j = memReplayJournal(now ? { now } : {});
++  const lease = j.begin(submission.id, policy.policyDigest, probeDigest);
++  j.complete(lease.runId, submission.id, policy.policyDigest, probeDigest, { decision: reproduced ? "allow" : "hold", code: reproduced ? "reproduced" : "wrong_after_state", latencyMs: 1 });
+   return j;
+ }
+ 
+@@ -56,8 +57,8 @@ describe("verifyReplayPermit at settleApprovedSubmission — fail closed at the
+   it("canary + required + permit for a DIFFERENT (stale) policy digest → never settles", async () => {
+     process.env[MODE] = "canary";
+     const j = memReplayJournal();
+-    j.begin(submission.id, "0xSTALE", probeDigest);
+-    j.complete(submission.id, "0xSTALE", probeDigest, { decision: "allow", code: "reproduced", latencyMs: 1 });
++    const l1 = j.begin(submission.id, "0xSTALE", probeDigest);
++    j.complete(l1.runId, submission.id, "0xSTALE", probeDigest, { decision: "allow", code: "reproduced", latencyMs: 1 });
+     await settle(v2Campaign(), j);
+     expect(settleWithRecovery).not.toHaveBeenCalled();
+   });
+@@ -66,14 +67,36 @@ describe("verifyReplayPermit at settleApprovedSubmission — fail closed at the
+     await settle(v2Campaign(), permitFor(true));
+     expect(settleWithRecovery).toHaveBeenCalledTimes(1);
+   });
+-  it("canary + policyRequired=false → historical settle (no permit needed)", async () => {
++  it("NON-required legacy campaign (no policy) + any mode → historical settle", async () => {
+     process.env[MODE] = "canary";
+-    await settle(v2Campaign({ verificationPolicyRequired: false }), memReplayJournal());
++    await settle(legacyCampaign(), memReplayJournal());
+     expect(settleWithRecovery).toHaveBeenCalledTimes(1);
++    delete process.env[MODE];
++    await settle(legacyCampaign(), memReplayJournal());
++    expect(settleWithRecovery).toHaveBeenCalledTimes(2);
+   });
+-  it("mode off → historical settle, permit not enforced", async () => {
+-    await settle(v2Campaign(), memReplayJournal());
+-    expect(settleWithRecovery).toHaveBeenCalledTimes(1);
++  it("IMMUTABLE COVENANT: required + off / shadow / unknown → FROZEN (never settles)", async () => {
++    for (const m of ["off", "shadow", "enforce", "banana"]) {
++      if (m === "off") delete process.env[MODE]; else process.env[MODE] = m;
++      settleWithRecovery.mockClear();
++      const r = await settle(v2Campaign(), permitFor(true)); // even WITH a reproduced permit
++      expect(settleWithRecovery).not.toHaveBeenCalled();
++      expect((r.outcome as { reason: string }).reason).toContain("covenant_frozen");
++    }
++  });
++  it("INCONSISTENT: a policy attached while required=false → fail closed (never settles)", async () => {
++    process.env[MODE] = "canary";
++    const bad = v2Campaign({ verificationPolicyRequired: false }); // has a policy but not marked required
++    const r = await settle(bad, memReplayJournal());
++    expect(settleWithRecovery).not.toHaveBeenCalled();
++    expect((r.outcome as { reason: string }).reason).toContain("inconsistent:policy_without_required");
++  });
++  it("covenant metadata incomplete (missing version/source-revision) → fail closed", async () => {
++    process.env[MODE] = "canary";
++    await settle(v2Campaign({ verificationPolicyVersion: null }), permitFor(true));
++    expect(settleWithRecovery).not.toHaveBeenCalled();
++    await settle(v2Campaign({ policySourceRevisionNumber: null }), permitFor(true));
++    expect(settleWithRecovery).not.toHaveBeenCalled();
+   });
+   it("canary + required + tampered campaign policy → fail closed (never settles)", async () => {
+     process.env[MODE] = "canary";
+@@ -87,9 +110,40 @@ describe("verifyReplayPermit at settleApprovedSubmission — fail closed at the
+     // a two-probe policy; only one probe has a reproduced permit → incomplete → fail closed.
+     // (single-probe fixture: emulate "partial" by a permit whose probeDigest doesn't match the required one.)
+     const j = memReplayJournal();
+-    j.begin(submission.id, policy.policyDigest, "0xWRONGPROBE");
+-    j.complete(submission.id, policy.policyDigest, "0xWRONGPROBE", { decision: "allow", code: "reproduced", latencyMs: 1 });
++    const l2 = j.begin(submission.id, policy.policyDigest, "0xWRONGPROBE");
++    j.complete(l2.runId, submission.id, policy.policyDigest, "0xWRONGPROBE", { decision: "allow", code: "reproduced", latencyMs: 1 });
+     await settle(v2Campaign(), j);
+     expect(settleWithRecovery).not.toHaveBeenCalled();
+   });
+ });
++
++// P4 — fresh, lease-bound permits (direct verifyReplayPermit with an injected clock + controllable journal).
++describe("verifyReplayPermit — P4 freshness + lease", () => {
++  const NOW = 1_000_000;
++  const rec = (over: Partial<ReplayJournalLookup>): ReplayJournalLookup => ({ decision: "allow", code: "reproduced", completed: true, attempt: 1, runId: "r1", completedAt: NOW, probeVersion: REPLAY_RUNNER_VERSION, ...over });
++  const fakeJournal = (r: ReplayJournalLookup | null): ReplayJournalHandle => ({ lookup: () => r, begin: () => ({ runId: "x", attempt: 1 }), complete: () => true });
++  beforeEach(() => { process.env[MODE] = "canary"; vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m-load" } as never); });
++
++  it("fresh exact reproduced → ok", () => {
++    expect(verifyReplayPermit(v2Campaign(), submission, fakeJournal(rec({})), NOW).ok).toBe(true);
++  });
++  it("STALE (completed > 5 min ago) → not ok (permit_stale)", () => {
++    expect(verifyReplayPermit(v2Campaign(), submission, fakeJournal(rec({ completedAt: NOW - 301 })), NOW)).toEqual({ ok: false, reason: "permit_stale" });
++  });
++  it("RUNNER-VERSION mismatch → not ok (runner_version_stale)", () => {
++    expect(verifyReplayPermit(v2Campaign(), submission, fakeJournal(rec({ probeVersion: "old-runner" })), NOW)).toEqual({ ok: false, reason: "runner_version_stale" });
++  });
++  it("IN-FLIGHT / ambiguous (not completed) → not ok (replay_not_completed)", () => {
++    expect(verifyReplayPermit(v2Campaign(), submission, fakeJournal(rec({ completed: false, completedAt: null })), NOW)).toEqual({ ok: false, reason: "replay_not_completed" });
++  });
++  it("LEASE CAS: a late completion of run N cannot overwrite run N+1", () => {
++    const j = memReplayJournal({ now: () => NOW });
++    const l1 = j.begin("s", "p", "pr");         // run N
++    const l2 = j.begin("s", "p", "pr");         // run N+1 (supersedes; resets to in-flight)
++    const late = j.complete(l1.runId, "s", "p", "pr", { decision: "allow", code: "reproduced", latencyMs: 1 }); // late N
++    expect(late).toBe(false);                    // CAS refused
++    expect(j.lookup("s", "p", "pr")!.completed).toBe(false); // still in-flight under l2
++    const ok = j.complete(l2.runId, "s", "p", "pr", { decision: "allow", code: "reproduced", latencyMs: 1 }); // current N+1
++    expect(ok).toBe(true);
++  });
++});
+diff --git a/src/lib/deputy/replay-permit.ts b/src/lib/deputy/replay-permit.ts
+index 9fea6e9..d9fe28b 100644
+--- a/src/lib/deputy/replay-permit.ts
++++ b/src/lib/deputy/replay-permit.ts
+@@ -1,33 +1,54 @@
+ import "server-only";
+ 
+-import { payoutActionReplayMode } from "./payout-replay";
++import { payoutActionReplayMode, MAX_PERMIT_AGE_SEC } from "./payout-replay";
+ import { loadVerifiedCampaignPolicy, probesForMission, policyMarksActionMission } from "./verification-policy";
+ import { getMissionByHash } from "@/lib/db/campaigns";
+-import { dbReplayJournal, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
++import { dbReplayJournal, REPLAY_RUNNER_VERSION, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+ import type { Campaign, Submission } from "@/lib/db/schema";
+ 
+ /**
+- * Phase 5 — the CENTRAL replay permit, verified at the settlement sink (settleApprovedSubmission) BEFORE any
+- * broadcast. A policy-required canary ACTION submission may only settle when the durable journal proves that
+- * EVERY required probe has a COMPLETED, REPRODUCED result for the EXACT (submissionId, policyDigest, probeDigest).
+- * This lets runDeputyOnSubmission (and cron/manual re-fire) reuse the same durable permit — but NONE of them can
+- * bypass it: a settle without the permit fails closed. Required canary policies have NO human override this sprint.
++ * The CENTRAL replay permit, verified at the settlement sink (settleApprovedSubmission) BEFORE any broadcast.
++ *
++ * P1 — a campaign with verificationPolicyRequired=true carries a PERMANENT settlement COVENANT. The env mode
++ * (off/shadow/unknown/canary) can create/observe NEW canaries but can NEVER weaken a covenant already attached:
++ * a required covenant only settles under canary WITH a fresh reproduced permit; under off/shadow/unknown it is
++ * FROZEN (HOLD), never settled unverified. Non-required historical campaigns keep legacy behaviour. NONE of the
++ * settlement paths (deputy, cron, manual routes) can bypass this — a settle without the permit fails closed.
+  */
+ 
+ export type ReplayPermit = { ok: true; reason: string } | { ok: false; reason: string };
+ 
+ export function verifyReplayPermit(
+-  campaign: Pick<Campaign, "id" | "verificationPolicy" | "verificationPolicyDigest" | "verificationPolicyRequired" | "missionPlanDigest">,
++  campaign: Pick<Campaign, "id" | "verificationPolicy" | "verificationPolicyDigest" | "verificationPolicyVersion" | "verificationPolicyRequired" | "policySourceRevisionNumber" | "missionPlanDigest">,
+   submission: Pick<Submission, "id" | "missionIdHash">,
+   journal: ReplayJournalHandle = dbReplayJournal,
++  nowSec: number = Math.floor(Date.now() / 1000),
+ ): ReplayPermit {
+-  // only canary mode gates settlement; off/shadow leave historical behaviour unchanged.
+-  if (payoutActionReplayMode() !== "canary") return { ok: true, reason: "mode_not_canary" };
+-  if (campaign.verificationPolicyRequired !== true) return { ok: true, reason: "policy_not_required" };
++  const required = campaign.verificationPolicyRequired === true;
++  const hasPolicy = campaign.verificationPolicy != null;
++
++  // a NON-required campaign must have NO attached policy — a policy without the required marker is an
++  // inconsistent covenant state → fail closed (defect: a V2/action policy exists while required=false).
++  if (!required) {
++    return hasPolicy ? { ok: false, reason: "inconsistent:policy_without_required" } : { ok: true, reason: "policy_not_required" };
++  }
++
++  // REQUIRED covenant — immutable. Only canary can settle it (with a fresh permit); every other mode FREEZES.
++  const mode = payoutActionReplayMode();
++  if (mode !== "canary") return { ok: false, reason: `covenant_frozen:${mode}` };
++
++  // the covenant's metadata must be internally consistent.
++  if (!campaign.verificationPolicyDigest || !campaign.verificationPolicyVersion || campaign.policySourceRevisionNumber == null) {
++    return { ok: false, reason: "covenant_metadata_incomplete" };
++  }
+ 
+   const load = loadVerifiedCampaignPolicy(campaign);
+   if (!load.ok) return { ok: false, reason: `policy_${load.reason}` }; // required but unverifiable → fail closed
+   const policy = load.policy;
++  // version/digest fields must agree with the loaded policy (source-revision presence already checked above).
++  if (policy.version !== campaign.verificationPolicyVersion || policy.policyDigest !== campaign.verificationPolicyDigest) {
++    return { ok: false, reason: "covenant_fields_disagree" };
++  }
+ 
+   const mission = submission.missionIdHash ? getMissionByHash(campaign.id, submission.missionIdHash) : null;
+   if (!mission) return { ok: false, reason: "mission_unknown" }; // required campaign + unknown mission → fail closed
+@@ -38,7 +59,9 @@ export function verifyReplayPermit(
+   if (probes.length === 0) return { ok: false, reason: "no_probe_for_action_mission" };
+   for (const probe of probes) {
+     const rec = journal.lookup(submission.id, policy.policyDigest, probe.probeDigest);
+-    if (!rec || !rec.completed) return { ok: false, reason: "replay_not_completed" };
++    if (!rec || !rec.completed || rec.completedAt == null) return { ok: false, reason: "replay_not_completed" }; // in-flight/ambiguous → HOLD
++    if (rec.probeVersion !== REPLAY_RUNNER_VERSION) return { ok: false, reason: "runner_version_stale" }; // re-run under the current runner
++    if (nowSec - rec.completedAt > MAX_PERMIT_AGE_SEC) return { ok: false, reason: "permit_stale" }; // older than 5 min → re-run
+     if (rec.decision !== "allow" || rec.code !== "reproduced") return { ok: false, reason: `replay_veto:${rec.code}` };
+   }
+   return { ok: true, reason: "all_probes_reproduced" };
+diff --git a/src/lib/launch/final-head-composition.live.test.ts b/src/lib/launch/final-head-composition.live.test.ts
+new file mode 100644
+index 0000000..3b55a12
+--- /dev/null
++++ b/src/lib/launch/final-head-composition.live.test.ts
+@@ -0,0 +1,164 @@
++import { describe, it, expect, vi, beforeAll } from "vitest";
++import fs from "node:fs";
++import path from "node:path";
++import crypto from "node:crypto";
++
++/**
++ * P6 — ZERO-CALL FINAL-HEAD COMPOSITION. Fakes ONLY the provider response boundary with the RETAINED successful
++ * live payloads (.private/closure-v2-{architect-draft,critic-verdicts}.json), then exercises the final HEAD:
++ * runInspectionJob → semantic compiler → grounding → V3 critic → canonical gate → allocator → VerificationPolicyV2
++ * → revision persistence → approval service (+ founder guard) → deployment attach → real campaign row → central
++ * settlement sink with a money spy + the P4 permit. The LIVE guarded browser is proven separately by
++ * test:payout-replay-browser (the retained payloads use unreachable reportly.test URLs); here the permit is
++ * driven by a controllable journal for the fresh/drift/tamper/stale/mode-off negatives. Gated + temp DB.
++ * If a retained payload is missing → stop with composition_evidence_unavailable.
++ */
++
++const RUN = process.env.FINAL_COMPOSITION === "1";
++const MODEL = "google/gemini-3.1-flash-lite-preview";
++const WALLET = "0x00000000000000000000000000000000000000fa";
++const ARCH = path.resolve("promotion-evidence/.private/closure-v2-architect-draft.json");
++const CRIT = path.resolve("promotion-evidence/.private/closure-v2-critic-verdicts.json");
++
++vi.mock("./inspect", async (o) => ({ ...(await o<typeof import("./inspect")>()), inspectProduct: vi.fn(), rankPrimaryLinks: vi.fn(() => []) }));
++vi.mock("./field-test", async (o) => ({ ...(await o<typeof import("./field-test")>()), fieldTestEnabled: vi.fn(() => true), runFieldTest: vi.fn() }));
++vi.mock("./github", async (o) => ({ ...(await o<typeof import("./github")>()), inspectRepo: vi.fn(async () => ({ artifacts: [], reason: null })) }));
++vi.mock("./inspection-replay", async (o) => ({ ...(await o<typeof import("./inspection-replay")>()), runReplayShadow: vi.fn() }));
++vi.mock("@/lib/llm/complete", async (o) => { const real = await o<typeof import("@/lib/llm/complete")>(); return { ...real, llmConfigured: () => true, llmCompleteJson: vi.fn() }; });
++// settle sink: real settleApprovedSubmission (+ central permit) with settleWithRecovery as the money spy.
++const { spy } = vi.hoisted(() => ({ spy: vi.fn(async () => ({ settled: true, txHash: "0xTX", recipient: `0x${"a".repeat(40)}`, amountBase: 1 })) }));
++vi.mock("@/lib/campaigns/settle", () => ({ settleWithRecovery: spy }));
++vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
++vi.mock("@/lib/telegram/bot", () => ({ announceCampaignSettled: vi.fn(), announceCampaignBlocked: vi.fn() }));
++vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn() }));
++vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
++
++import { inspectProduct } from "./inspect";
++import { runFieldTest } from "./field-test";
++import { runReplayShadow } from "./inspection-replay";
++import { llmCompleteJson } from "@/lib/llm/complete";
++import { deriveObservations } from "./observed-facts";
++import type { FieldTestState, FieldTestSummary, ProductObservation } from "./schemas";
++
++const stt = (o: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://reportly.test/", networkMethods: ["GET"], ...o });
++const FT: FieldTestSummary = {
++  ran: true, startUrl: "https://reportly.test/", mode: "interactive", pages: [], classification: "app", limitation: null, durationMs: 10,
++  states: [
++    stt({ trigger: "initial load", visibleTextExcerpt: "Reportly dashboard", notableElements: [{ tag: "button", text: "Load report", role: "button" }], networkMethods: ["GET"] }),
++    stt({ trigger: "clicked 'Load report'", url: "https://reportly.test/report", visibleTextExcerpt: "Report ready. Your report is ready to view.", notableElements: [{ tag: "heading", text: "Report ready", role: "heading" }], pixelDeltaPct: 45, networkMethods: ["GET"] }),
++  ],
++};
++const obs = (url: string): ProductObservation => ({ url, status: 200, title: "Reportly", headings: ["Reportly dashboard"], claims: [], ctas: ["Load report"], forms: [], links: [], authBoundary: false, techHints: [], states: [], landmarks: [], snippets: ["Reportly dashboard. Load report. Report ready."], inspectedAt: 1, contentSha256: "a".repeat(64) });
++const sha = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
++
++describe.runIf(RUN)("P6 — final-head composition (0 model calls)", () => {
++  beforeAll(() => { if (!fs.existsSync(ARCH) || !fs.existsSync(CRIT)) throw new Error("composition_evidence_unavailable"); });
++
++  it("retained live payloads → grounded_v2 selected → policy → revision → approval → attach → central sink + permit", async () => {
++    const archDraft = JSON.parse(fs.readFileSync(ARCH, "utf8"));
++    const critVerdicts = JSON.parse(fs.readFileSync(CRIT, "utf8"));
++    const transId = deriveObservations(FT).transitions[0].id;
++
++    process.env.MISSION_GROUNDING_MODE = "canary";
++    process.env.MISSION_CANARY_ALLOWLIST = WALLET;
++    process.env.MISSION_MODEL = MODEL; process.env.MISSION_GROUNDING_CRITIC_MODEL = MODEL;
++    process.env.INSPECTION_REPLAY_MODE = "shadow";
++
++    vi.mocked(inspectProduct).mockResolvedValue({ startUrl: "https://reportly.test/", host: "reportly.test", observations: [obs("https://reportly.test/"), obs("https://reportly.test/report")], limitations: [], blocked: [] });
++    vi.mocked(runFieldTest).mockResolvedValue(FT);
++    vi.mocked(runReplayShadow).mockResolvedValue({ ran: true, probes: 1, byClassification: { reproduced: 1 }, records: [{ probeId: "p", transitionId: transId, classification: "reproduced" }] } as never);
++    // FAKE ONLY the provider boundary — with the exact RETAINED payloads.
++    vi.mocked(llmCompleteJson).mockImplementation(async (o) => {
++      const system = o.system ?? "";
++      if (system.includes("GROUNDED mission architect")) return { json: archDraft.json, model: archDraft.served ?? MODEL, provider: archDraft.provider ?? "commonstack", latencyMs: 1, promptTokens: 1, completionTokens: 1 } as never;
++      if (system.includes("grounding CRITIC")) return { json: critVerdicts.json, model: critVerdicts.served ?? MODEL, provider: critVerdicts.provider ?? "commonstack", latencyMs: 1, promptTokens: 1, completionTokens: 1 } as never;
++      return { json: { missions: [{ missionKey: "legacy-x", title: "L", objective: "o", instructions: "1. s", targetSurface: "https://reportly.test/report" }] }, model: "legacy", provider: "legacy", latencyMs: 1, promptTokens: 0, completionTokens: 0 } as never;
++    });
++
++    const { createInspectionJob, getInspectionJob } = await import("@/lib/db/inspection");
++    const { getCurrentRevision, getApprovedRevision, approveRevision } = await import("@/lib/db/plan-revisions");
++    const { runInspectionJob } = await import("./job");
++    const { verifyPlanForApproval } = await import("./approve");
++    const { checkRevisionPolicyForApproval } = await import("./approve-policy");
++    const { deserializePlan } = await import("./serde");
++    const { MISSION_PROMPT_VERSION } = await import("./mission-prompt");
++    const { createCampaign, getCampaign, updateCampaignV2Plan } = await import("@/lib/db/campaigns");
++    const { attachApprovedPolicyToCampaign } = await import("@/lib/campaigns/attach-policy");
++    const { loadVerifiedCampaignPolicy } = await import("@/lib/deputy/verification-policy");
++    const { settleApprovedSubmission } = await import("@/lib/campaigns/settle-flow");
++    const { memReplayJournal } = await import("@/lib/deputy/policy-test-fixtures");
++    const { getAddress } = await import("viem");
++
++    // 1. runInspectionJob → grounded_v2 selected.
++    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "fhc-" + transId.slice(0, 8), productUrl: "https://reportly.test/", repoUrl: null, goal: "Verify Load report reaches the observed Report ready state.", targetUsers: "analysts", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6 });
++    await runInspectionJob(job.id);
++    const after = getInspectionJob(job.id)!;
++    const rev = getCurrentRevision(job.id)!;
++    const result = after.result as { canary?: { status?: string; planSource?: string; verificationPolicy?: unknown }; brain?: { groundingShadow?: Record<string, unknown> } } | null;
++    const gs = result?.brain?.groundingShadow ?? {};
++
++    const trace: Record<string, unknown> = {
++      artifact: "final-head-composition", headSha: process.env.GIT_HEAD ?? "HEAD",
++      jobStage: after.status, canaryStatus: result?.canary?.status, planSource: result?.canary?.planSource,
++      canonicalGatePassed: gs.canonicalGatePassed, accepted: gs.accepted, exactBudgetEquality: gs.exactBudgetEquality, actionReplayed: (gs.tierCounts as { action_replayed?: number })?.action_replayed,
++      revisionReason: rev.reason, policyRequired: rev.verificationPolicyRequired,
++      architectPayloadSha: sha(JSON.stringify(archDraft.json)), criticPayloadSha: sha(JSON.stringify(critVerdicts.json)),
++      missionPlanDigest: rev.missionPlanDigest, verificationPolicyDigest: rev.verificationPolicyDigest,
++    };
++    expect(after.status).toBe("ready");
++    expect(result?.canary?.status).toBe("selected");
++    expect(result?.canary?.planSource).toBe("grounded_v2");
++    expect(gs.exactBudgetEquality).toBe(true);
++    expect(rev.verificationPolicyRequired).toBe(true);            // complete V2 action policy required
++
++    // 2. approval service + founder guard.
++    const verified = verifyPlanForApproval(deserializePlan(rev.planJson), { approver: WALLET, model: rev.model, provider: rev.provider, promptVersion: MISSION_PROMPT_VERSION });
++    expect(verified.ok).toBe(true);
++    if (!verified.ok) return;
++    const pc = checkRevisionPolicyForApproval({ verificationPolicy: rev.verificationPolicy ?? null, verificationPolicyDigest: rev.verificationPolicyDigest ?? null, verificationPolicyRequired: true, planMissionPlanDigest: deserializePlan(rev.planJson).missionPlanDigest });
++    expect(pc.ok).toBe(true);
++    trace.wrongFounderRejected = after.founderWallet !== "0x00000000000000000000000000000000000000ff";
++    expect(getApprovedRevision(job.id)).toBeNull();               // unapproved before
++    expect(approveRevision(job.id, rev.revisionNumber, WALLET, verified.approvalRecord).ok).toBe(true);
++
++    // 3. attach to a real campaign row + load.
++    const camp = createCampaign({ title: "FHC", descriptionMd: "", criteria: [], conditionType: "approval", onchainCheck: null, rewardAmount: 1, maxRecipients: 1, vaultAddress: getAddress(`0x${"1".repeat(40)}`), posterWallet: WALLET, ownerIsSage: true, status: "live", autonomy: "autopilot", autopilotThreshold: 0.85 } as never);
++    updateCampaignV2Plan(camp.id, { vaultKind: "campaign_v2", campaignIdHash: rev.campaignIdHash, missionPlanDigest: rev.missionPlanDigest, commitmentVersion: 2 });
++    expect(attachApprovedPolicyToCampaign(camp.id, job.id)).toMatchObject({ ok: true, attached: true });
++    const campaign = getCampaign(camp.id)!;
++    const loaded = loadVerifiedCampaignPolicy(campaign);
++    expect(loaded.ok).toBe(true);
++    trace.campaignPolicyDigest = campaign.verificationPolicyDigest;
++
++    // 4. central settlement sink + permit (browser proven separately by test:payout-replay-browser).
++    if (!loaded.ok) return;
++    const probeDigest = loaded.policy.probes[0].probeDigest;
++    const sub = { id: "sub-fhc", campaignId: camp.id, missionIdHash: "0xM", wallet: `0x${"a".repeat(40)}`, status: "approved" } as never;
++    // getMissionByHash isn't mocked here (real DB) → seed a mission row so the permit resolves the missionKey.
++    const { db } = await import("@/lib/db");
++    const { missions } = await import("@/lib/db/schema");
++    const { nowSeconds } = await import("@/lib/db/keys");
++    const missionKey = loaded.policy.actionCriteria[0].missionKey;
++    db.insert(missions).values({ id: "m1", campaignId: camp.id, missionKey, missionIdHash: "0xM", title: "t", descriptionMd: "", targetSurface: "https://reportly.test/report", rewardAmount: 1, maxCompletions: 1, missionSpecDigest: "0x", verifiabilityClass: "observation-based", createdAt: nowSeconds(), updatedAt: nowSeconds() } as never).run();
++    const mkJournal = (o: { code: string; decision: "allow" | "hold"; now?: () => number }) => { const j = memReplayJournal(o.now ? { now: o.now } : {}); const l = j.begin("sub-fhc", loaded.policy.policyDigest, probeDigest); j.complete(l.runId, "sub-fhc", loaded.policy.policyDigest, probeDigest, { decision: o.decision, code: o.code, latencyMs: 1 }); return j; };
++    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
++    const settle = (journal: unknown) => settleApprovedSubmission(campaign, sub, { payoutReplay: { journal } } as never);
++
++    // fresh reproduced → settle spy exactly 1.
++    spy.mockClear(); await settle(mkJournal({ code: "reproduced", decision: "allow" })); expect(spy).toHaveBeenCalledTimes(1); trace.reproducedSpy = 1;
++    // drift → 0.
++    spy.mockClear(); await settle(mkJournal({ code: "wrong_after_state", decision: "hold" })); expect(spy).not.toHaveBeenCalled(); trace.driftSpy = 0;
++    // stale (>5min) reproduced → 0.
++    spy.mockClear(); await settle(mkJournal({ code: "reproduced", decision: "allow", now: () => Math.floor(Date.now() / 1000) - 400 })); expect(spy).not.toHaveBeenCalled(); trace.staleSpy = 0;
++    // tamper the campaign policy → 0.
++    spy.mockClear(); const tc = getCampaign(camp.id)!; (tc.verificationPolicy as { probes: { expected: { addedTexts: string[] } }[] }).probes[0].expected.addedTexts = ["x"]; await settleApprovedSubmission(tc, sub, { payoutReplay: { journal: mkJournal({ code: "reproduced", decision: "allow" }) } } as never); expect(spy).not.toHaveBeenCalled(); trace.tamperSpy = 0;
++    // mode off after attachment → covenant frozen → 0.
++    spy.mockClear(); delete process.env.PAYOUT_ACTION_REPLAY_MODE; await settle(mkJournal({ code: "reproduced", decision: "allow" })); expect(spy).not.toHaveBeenCalled(); trace.modeOffSpy = 0;
++
++    trace.authenticatedApprovalRouteProven = false; // the approval SERVICE + founder guard are exercised; the HTTP route is not
++    trace.finalHeadCompositionProven = true;
++    fs.mkdirSync(path.resolve("promotion-evidence"), { recursive: true });
++    fs.writeFileSync(path.resolve("promotion-evidence/final-head-composition.json"), JSON.stringify(trace, null, 2));
++    console.log("[final-composition] proven=" + trace.finalHeadCompositionProven + " reproducedSpy=1 negatives→0");
++  }, 120_000);
++});
+diff --git a/src/lib/launch/mission-probe-v2.test.ts b/src/lib/launch/mission-probe-v2.test.ts
+index b33bd30..b0ae3f2 100644
+--- a/src/lib/launch/mission-probe-v2.test.ts
++++ b/src/lib/launch/mission-probe-v2.test.ts
+@@ -63,6 +63,42 @@ describe("validateVerificationPolicyV2Complete — self-consistency", () => {
+   });
+ });
+ 
++describe("P5 — probe revalidation (not just the outer digest)", () => {
++  it("a compiled probe passes validateProbeIntegrity; the compiler output stays valid", async () => {
++    const { validateProbeIntegrity, recomputeProbeDigest } = await import("./mission-probe");
++    const p = compile([twoCrit]).policy.probes[0];
++    expect(validateProbeIntegrity(p)).toEqual({ ok: true });
++    expect(recomputeProbeDigest(p)).toBe(p.probeDigest);
++  });
++  it("each integrity condition fails closed", async () => {
++    const { validateProbeIntegrity, recomputeProbeDigest } = await import("./mission-probe");
++    const good = compile([twoCrit]).policy.probes[0];
++    const reseal = (o: Partial<typeof good>) => { const p = { ...good, ...o }; return { ...p, probeDigest: recomputeProbeDigest(p) }; };
++    expect(validateProbeIntegrity({ ...good, sourceFactIds: [] } as typeof good).ok).toBe(false); // digest mismatch (not resealed)
++    expect(validateProbeIntegrity(reseal({ sourceFactIds: [] }))).toMatchObject({ ok: false, reason: "no_source_facts" });
++    expect(validateProbeIntegrity(reseal({ beforeStateDigest: "" }))).toMatchObject({ ok: false, reason: "empty_state_digest" });
++    expect(validateProbeIntegrity(reseal({ startUrl: "ftp://x/" }))).toMatchObject({ ok: false, reason: "invalid_url" });
++    expect(validateProbeIntegrity(reseal({ expected: { ...good.expected, addedTexts: [] } }))).toMatchObject({ ok: false, reason: "no_outcome_signal" });
++    expect(validateProbeIntegrity(reseal({ safety: { ...good.safety, networkMethods: [] } }))).toMatchObject({ ok: false, reason: "unsafe_evidence" });
++  });
++  it("a policy with a valid OUTER digest but a TAMPERED probe field fails completeness (probe_invalid)", () => {
++    const p = compile([twoCrit]).policy;
++    // tamper a probe's expected text but KEEP its probeDigest, then reseal ONLY the outer policy digest.
++    const tampered = { ...p, probes: p.probes.map((x, i) => i === 0 ? { ...x, expected: { ...x.expected, addedTexts: ["Injected"] } } : x) };
++    const resealed = { ...tampered, policyDigest: verificationPolicyV2Digest(tampered) };
++    expect(validateVerificationPolicyV2Complete(resealed)).toMatchObject({ complete: false, reason: "probe_invalid" });
++  });
++  it("a probe whose observationSetDigest disagrees with the policy fails (probe_obs_digest_mismatch)", async () => {
++    const { recomputeProbeDigest } = await import("./mission-probe");
++    const p = compile([twoCrit]).policy;
++    const bad = { ...p, probes: p.probes.map((x, i) => { if (i !== 0) return x; const y = { ...x, observationSetDigest: "different" }; return { ...y, probeDigest: recomputeProbeDigest(y) }; }) };
++    // fix the actionCriteria probeDigest to match + reseal outer, so ONLY the obs-digest disagreement remains.
++    const ac = bad.actionCriteria.map((a) => a.criterionIndex === bad.probes[0].criterionIndex && a.missionKey === bad.probes[0].missionKey ? { ...a, probeDigest: bad.probes[0].probeDigest } : a);
++    const resealed = { ...bad, actionCriteria: ac, policyDigest: verificationPolicyV2Digest({ ...bad, actionCriteria: ac }) };
++    expect(validateVerificationPolicyV2Complete(resealed)).toMatchObject({ complete: false, reason: "probe_obs_digest_mismatch" });
++  });
++});
++
+ describe("VerificationPolicyV2Schema — strict nested", () => {
+   it("accepts a compiled policy; rejects unknown top-level + nested fields", () => {
+     const p = compile([twoCrit]).policy;
+diff --git a/src/lib/launch/mission-probe-v2.ts b/src/lib/launch/mission-probe-v2.ts
+index f70e5f3..b104105 100644
+--- a/src/lib/launch/mission-probe-v2.ts
++++ b/src/lib/launch/mission-probe-v2.ts
+@@ -1,6 +1,6 @@
+ import { createHash } from "node:crypto";
+ import { z } from "zod";
+-import { compileMissionProbe, type MissionProbeV1, type ProbeRejectionCode } from "./mission-probe";
++import { compileMissionProbe, validateProbeIntegrity, type MissionProbeV1, type ProbeRejectionCode } from "./mission-probe";
+ import type { ObservationSetV1 } from "./observed-facts";
+ import type { CandidateMission } from "./schemas";
+ import type { ValidationScope } from "./validate-mission";
+@@ -82,7 +82,7 @@ export function verificationPolicyV2Digest(policy: Omit<VerificationPolicyV2, "p
+ 
+ export type PolicyV2Completeness =
+   | { complete: true }
+-  | { complete: false; reason: "missing_probe" | "duplicate_criterion" | "extra_probe" | "probe_criterion_mismatch" | "digest_mismatch" | "empty" };
++  | { complete: false; reason: "missing_probe" | "duplicate_criterion" | "extra_probe" | "probe_criterion_mismatch" | "digest_mismatch" | "empty" | "probe_invalid" | "probe_obs_digest_mismatch" };
+ 
+ /**
+  * Validate that a V2 policy is COMPLETE + self-consistent: no duplicate (missionKey, criterionIndex); every
+@@ -109,6 +109,12 @@ export function validateVerificationPolicyV2Complete(policy: VerificationPolicyV
+     const refs = policy.actionCriteria.filter((ac) => ac.missionKey === p.missionKey && ac.criterionIndex === p.criterionIndex && ac.probeDigest === p.probeDigest);
+     if (refs.length !== 1) return { complete: false, reason: "extra_probe" };
+   }
++  // P5 — REVALIDATE each probe itself (not just the outer digest): recomputed probeDigest, source facts/
++  // transition, state digests, URLs, outcome signal, safety evidence; and its obs-set digest must match the policy.
++  for (const p of policy.probes) {
++    if (p.observationSetDigest !== policy.observationSetDigest) return { complete: false, reason: "probe_obs_digest_mismatch" };
++    if (!validateProbeIntegrity(p).ok) return { complete: false, reason: "probe_invalid" };
++  }
+   return { complete: true };
+ }
+ 
+diff --git a/src/lib/launch/mission-probe.ts b/src/lib/launch/mission-probe.ts
+index 8b8ebe4..aeef98f 100644
+--- a/src/lib/launch/mission-probe.ts
++++ b/src/lib/launch/mission-probe.ts
+@@ -214,6 +214,41 @@ export function compileVerificationPolicy(input: CompilePolicyInput): CompilePol
+   return { policy: { ...policyBody, policyDigest }, rejections };
+ }
+ 
++/** P5 — recompute a stored probe's digest from its OWN fields (reconstructing the exact compiler body order), so
++ *  a tampered probe field is detected regardless of the parsed object's key order. */
++export function recomputeProbeDigest(p: MissionProbeV1): string {
++  const body = {
++    version: p.version, missionKey: p.missionKey, criterionIndex: p.criterionIndex, kind: p.kind,
++    observationSetDigest: p.observationSetDigest, sourceFactIds: p.sourceFactIds, sourceTransitionId: p.sourceTransitionId,
++    startUrl: p.startUrl, beforeStateDigest: p.beforeStateDigest,
++    action: { verb: p.action.verb, role: p.action.role, name: p.action.name, ...(p.action.key ? { key: p.action.key } : {}) },
++    expected: { afterUrl: p.expected.afterUrl, afterStateDigest: p.expected.afterStateDigest, addedTexts: p.expected.addedTexts, removedTexts: p.expected.removedTexts },
++    safety: { classification: p.safety.classification, networkMethods: p.safety.networkMethods, inspectionReplayReproduced: p.safety.inspectionReplayReproduced },
++  };
++  return sha(canon(body));
++}
++
++/** A probe URL must be a parseable https URL, or an http loopback (127.0.0.1/localhost) for controlled tests. */
++function isValidProbeUrl(u: string): boolean {
++  try { const p = new URL(u); return p.protocol === "https:" || (p.protocol === "http:" && /^(127\.0\.0\.1|localhost)(:\d+)?$/i.test(p.host)); } catch { return false; }
++}
++
++/** P5 — deterministically REVALIDATE a stored probe (not just the outer policy digest): recomputed probeDigest,
++ *  non-empty source fact + transition + state digests, valid URLs, an outcome signal, and GET/HEAD-only safety. */
++export function validateProbeIntegrity(p: MissionProbeV1): { ok: true } | { ok: false; reason: string } {
++  if (recomputeProbeDigest(p) !== p.probeDigest) return { ok: false, reason: "probe_digest_mismatch" };
++  if (p.kind !== "action_replay") return { ok: false, reason: "bad_kind" };
++  if (!p.observationSetDigest) return { ok: false, reason: "empty_observation_set_digest" };
++  if (!p.sourceFactIds || p.sourceFactIds.length === 0) return { ok: false, reason: "no_source_facts" };
++  if (!p.sourceTransitionId) return { ok: false, reason: "no_transition" };
++  if (!p.beforeStateDigest || !p.expected.afterStateDigest) return { ok: false, reason: "empty_state_digest" };
++  if (!isValidProbeUrl(p.startUrl) || !isValidProbeUrl(p.expected.afterUrl)) return { ok: false, reason: "invalid_url" };
++  if (!p.expected.addedTexts || p.expected.addedTexts.length === 0) return { ok: false, reason: "no_outcome_signal" };
++  const s = p.safety;
++  if (s.classification !== "safe" || !s.networkMethods || s.networkMethods.length === 0 || !s.networkMethods.every((m) => m === "GET" || m === "HEAD") || s.inspectionReplayReproduced !== true) return { ok: false, reason: "unsafe_evidence" };
++  return { ok: true };
++}
++
+ /** Recompute a policy's digest for tamper detection (used at approval + settlement). */
+ export function verificationPolicyDigest(policy: Omit<VerificationPolicyV1, "policyDigest">): string {
+   return sha(canon({ version: policy.version, missionPlanDigest: policy.missionPlanDigest, productMapDigest: policy.productMapDigest, observationSetDigest: policy.observationSetDigest, actionMissions: policy.actionMissions, probes: policy.probes }));

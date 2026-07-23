@@ -1,0 +1,40 @@
+{
+  "artifact": "final-head-release",
+  "note": "APPEND-ONLY. Immutable-covenant + final-HEAD composition closure. Prior evidence untouched. No model calls; nothing deployed/pushed/funded/settled.",
+  "baseSha": "5184894",
+  "headSha": "c34a41a",
+  "retainedPayloadHashes": {
+    "closure-v2-architect-draft.json": "13b006779f741ea80d2ac4fbd834cd729d2abfc7d7059ea236def92edbd2b32c",
+    "closure-v2-critic-verdicts.json": "fae641752c3db39d77647af9db6ff0774ba2d84a2ade783bfaff5c4d2f5a9845"
+  },
+  "finalDigests": {
+    "missionPlanDigest": "0x61ee5bc02edd98ea4ccab2b5e60ea61ab2799573d8054119152c82e98e4e86b5",
+    "verificationPolicyDigest": "908e425776273a778972de1348e32c84f0b91e06ad77b4f9e43c86db31ab8fab"
+  },
+  "boundaries": {
+    "real": ["runInspectionJob + semantic compiler + grounding + canonical gate + allocator", "VerificationPolicyV2 compile + revalidation", "plan-revision + campaign DB", "approval SERVICE (verifyPlanForApproval + checkRevisionPolicyForApproval + approveRevision + founder guard)", "attach service", "settleApprovedSubmission + central permit", "guarded browser (test:payout-replay-browser)"],
+    "mocked": ["provider LLM boundary (retained payloads only)", "settleWithRecovery (money spy)", "chain reads", "inspect/field-test/replay external effects", "replay journal in the composition negatives (controllable)"]
+  },
+  "results": {
+    "activationFailClosed": "required_but_missing / malformed / incomplete → 409, never markLive",
+    "approvalRoute": "SERVICE + founder guard exercised; HTTP route with real SIWE session NOT exercised",
+    "replayPermit": "lease-bound CAS + 300s freshness + runner-version; stale/late/in-flight → HOLD",
+    "settlementSpy": { "freshReproduced": 1, "drift": 0, "stale": 0, "tamper": 0, "modeOff": 0, "wrongBinding": 0, "failedJudge": 0 }
+  },
+  "status": {
+    "liveModelCanonicalGateProven": true,
+    "finalHeadCompositionProven": true,
+    "authenticatedApprovalRouteProven": false,
+    "activationFailClosedProven": true,
+    "immutableReplayCovenantProven": true,
+    "freshLeaseBoundPermitProven": true,
+    "completePolicyBindingProven": true,
+    "centralSettlementEnforcementProven": true,
+    "guardedBrowserReplayProven": true,
+    "founderCanaryReady": false,
+    "productionDeployed": false
+  },
+  "founderCanaryReadyReason": "authenticatedApprovalRouteProven=false — the actual approval HTTP route with a genuinely-verified SIWE session was not exercised (only the approval service + founder guard). Per the sprint gate, founderCanaryReady stays FALSE until that is proven.",
+  "commands": ["npm run test", "npm run e2e:money-boundary", "npm run composition:final", "npm run test:payout-replay-browser", "npm run test:inspection-replay", "npm run canary:preflight"],
+  "totals": { "typecheck": "pass", "lint": "0 errors (warnings only)", "deterministicSuite": "1488 passed / 64 skipped", "composition": "1 passed", "e2eAttach": "2 passed", "migration": "4 passed", "permit": "10 + 5 passed", "browser": "payout 2 / inspection 9" }
+}

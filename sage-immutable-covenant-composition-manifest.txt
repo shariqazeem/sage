@@ -1,0 +1,36 @@
+SAGE V2 — Immutable Replay Covenant + Final-HEAD Composition Closure
+====================================================================
+Patch: sage-immutable-covenant-composition.patch  (base 5184894 → HEAD c34a41a, 8 commits)
+
+Zero paid model calls. founderCanaryReady=false (authenticated approval ROUTE not exercised).
+
+COMMITS
+  4fdb246 P0  final-head truth amendment (corrected the authenticated-approval overclaim)
+  de0a099 P1  IMMUTABLE covenant at the settle sink (required + off/shadow → FROZEN, not bypass)
+  9f658f8 P2  fail-closed policy attach at deployment activation (required_but_missing → {ok:false})
+  8bf855a P3  unified 0026-0029 schema verifier (deputy + CLI; SELF_CANARY + OBSERVE refuse)
+  19522ae P4  fresh, lease-bound replay permits (run_id CAS, 300s freshness, runner version; mig 0030)
+  34ee95a P5  revalidate each stored probe (recomputed digest, source/URL/safety, 1:1 binding)
+  c34a41a P6  zero-call final-HEAD composition proof (retained payloads → sink + permit)
+
+KEY FILES
+  new: final-head-composition.live.test.ts, canary-preflight.test.ts
+  mod: replay-permit.ts (covenant + freshness), payout-replay-journal.ts (lease CAS + run_id),
+       attach-policy.ts + attach route (fail-closed activation), canary-preflight.ts (unified verifier),
+       mission-probe.ts (recomputeProbeDigest + validateProbeIntegrity), mission-probe-v2.ts (probe revalidation),
+       payout-replay.ts (freshness reuse), canary-release-preflight.mjs (mirror spec + OBSERVE refuse),
+       schema.ts + drizzle/0030
+  evidence: final-head-truth-amendment.json, final-head-composition.json, final-head-release.json
+
+RUN
+  npm run test                       # 1488 passed / 64 skipped
+  npm run composition:final          # zero-call final-HEAD composition (temp DB)
+  npm run e2e:money-boundary         # real-DB attach→load + activation fail-closed
+  npm run canary:preflight           # unified schema + release gates
+  npm run test:payout-replay-browser # real guarded-browser replay (chromium)
+
+STATUS: immutableReplayCovenant / freshLeaseBoundPermit / completePolicyBinding / centralSettlementEnforcement /
+  activationFailClosed / guardedBrowserReplay / finalHeadComposition = PROVEN. authenticatedApprovalRoute = FALSE
+  → founderCanaryReady = FALSE. productionDeployed = FALSE.
+
+NOT DONE (policy): no deploy, push, funding, prod migration, settlement, or LLM call.
