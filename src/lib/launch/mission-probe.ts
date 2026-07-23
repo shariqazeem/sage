@@ -30,6 +30,8 @@ export interface MissionProbeV1 {
   sourceFactIds: string[];
   sourceTransitionId: string;
   startUrl: string;
+  /** the digest of the state BEFORE the action (carried from the transition; NEVER blanked). */
+  beforeStateDigest: string;
   action: { verb: "click" | "press"; role: string; name: string; key?: string };
   expected: { afterUrl: string; afterStateDigest: string; addedTexts: string[]; removedTexts: string[] };
   safety: { classification: "safe"; networkMethods: ("GET" | "HEAD")[]; inspectionReplayReproduced: true };
@@ -154,6 +156,7 @@ export function compileMissionProbe(input: CompileProbeInput): { probe: MissionP
     sourceFactIds,
     sourceTransitionId: transition.id,
     startUrl: transition.startUrl,
+    beforeStateDigest: transition.beforeStateDigest,
     action: { verb: transition.verb, role, name, ...(key ? { key } : {}) },
     expected: { afterUrl: transition.afterUrl, afterStateDigest: transition.afterStateDigest, addedTexts: expectedAddedTexts, removedTexts },
     // get_observed guarantees GET/HEAD-only; canonicalize to ["GET"] as the safe-methods marker.

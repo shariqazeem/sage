@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { runPayoutActionReplay } from "./payout-replay";
-import { compileVerificationPolicy } from "@/lib/launch/mission-probe";
+import { compileVerificationPolicyV2 } from "@/lib/launch/mission-probe-v2";
 import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib/launch/observed-facts";
 import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
@@ -40,8 +40,8 @@ function policyFor(path: string) {
   const trans: ActionTransitionV1 = { version: "action-transition-v1", id: "t-load", startUrl: url, beforeStateDigest: "b", verb: "click", locator: { role: "button", accessibleName: "Load report" }, afterUrl: url, afterStateDigest: AFTER, addedTexts: ["Report ready"], removedTexts: [], observableChange: true, networkMethodSummary: "get_observed", safeClassification: "safe", provenance: { fromStateIndex: 0, toStateIndex: 1 } };
   const set: ObservationSetV1 = { version: "obs-set-v1" as ObservationSetV1["version"], facts: [fact], transitions: [trans], captureVersion: 1, digest: "setdig" };
   const mission: CandidateMission = { missionKey: "m-load", criteria: ["c"], evidenceRequirements: ["e"], groundingV1: { version: "mission-grounding-v1", observationSetDigest: "setdig", criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", sourceFactIds: ["f-after"], sourceTransitionIds: ["t-load"], evidenceIndex: 0, verificationMode: "observation" }] } } as unknown as CandidateMission;
-  const policy = compileVerificationPolicy({ missionPlanDigest: "0xplan", productMapDigest: "0xmap", set, missions: [mission], replayReproduced: new Set(["t-load"]), scope }).policy;
-  return { verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, missionPlanDigest: "0xplan" } as Campaign;
+  const policy = compileVerificationPolicyV2({ missionPlanDigest: "0xplan", productMapDigest: "0xmap", set, missions: [mission], replayReproduced: new Set(["t-load"]), scope }).policy;
+  return { verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyRequired: true, missionPlanDigest: "0xplan" } as Campaign;
 }
 const hooks = () => ({ allowLoopback: new Set([`127.0.0.1:${fx.port}`]), egressAllowedPorts: new Set([80, 443, fx.port]), journal: noopJournal, submissionId: "sub-browser" });
 

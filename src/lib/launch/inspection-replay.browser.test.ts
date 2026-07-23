@@ -34,6 +34,25 @@ describe.runIf(LIVE)("inspection replay — real browser, controlled products", 
   beforeAll(async () => { fx = await fixture(html("<h1>hi</h1>")); }, 60_000);
   afterAll(async () => { await fx?.close(); });
 
+  it("P6: correct text at a WRONG URL → NOT reproduced (product_drift), never a false reproduced", async () => {
+    // clicking NAVIGATES to /wrong (which repeats the expected text) — the after-state URL differs from expected.
+    fx.setHandler((q, res) => {
+      res.writeHead(200, { "content-type": "text/html" });
+      if ((q.url ?? "").startsWith("/wrong")) res.end(`<!doctype html><html><body><div>Talk to Yara</div></body></html>`);
+      else res.end(`<!doctype html><html><body><button id="s">Start</button><script>document.getElementById('s').onclick=()=>{location.href='/wrong';};</script></body></html>`);
+    });
+    const r = await runInspectionProbe(probe({ expectedAfterUrl: fx.origin + "/" }), hooks());
+    expect(r.classification).toBe("product_drift");
+    expect(r.events.map((e) => e.event)).not.toContain("replay_reproduced");
+  });
+
+  it("P6: correct URL + WRONG text → product_drift (same-page, expected text absent)", async () => {
+    fx.setHandler(html(`<button id="s">Start</button><div id="o"></div><script>document.getElementById('s').onclick=()=>document.getElementById('o').textContent='Something else';</script>`));
+    const r = await runInspectionProbe(probe({}), hooks());
+    expect(r.classification).toBe("product_drift");
+    expect(r.events.map((e) => e.event)).not.toContain("replay_reproduced");
+  });
+
   it("a click→text transition REPRODUCES (event emitted only after the browser verified it)", async () => {
     fx.setHandler(html(`<button id="s">Start</button><div id="o"></div><script>document.getElementById('s').onclick=()=>document.getElementById('o').textContent='Talk to Yara';</script>`));
     const r = await runInspectionProbe(probe({}), hooks());

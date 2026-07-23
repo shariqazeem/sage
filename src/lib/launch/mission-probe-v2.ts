@@ -53,6 +53,7 @@ const ProbeSchema = z
     sourceFactIds: z.array(z.string()),
     sourceTransitionId: z.string().min(1),
     startUrl: z.string().min(1),
+    beforeStateDigest: z.string(),
     action: z.object({ verb: z.enum(["click", "press"]), role: z.string(), name: z.string().min(1), key: z.string().optional() }).strict(),
     expected: z.object({ afterUrl: z.string(), afterStateDigest: z.string(), addedTexts: z.array(z.string()), removedTexts: z.array(z.string()) }).strict(),
     safety: z.object({ classification: z.literal("safe"), networkMethods: z.array(z.enum(["GET", "HEAD"])), inspectionReplayReproduced: z.literal(true) }).strict(),

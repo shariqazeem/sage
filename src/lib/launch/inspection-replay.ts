@@ -82,6 +82,10 @@ export interface ProbeResult {
 }
 
 const sha16 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
+/** Compare final vs expected URL up to a trailing slash + lowercased host; ignores query/hash noise. */
+export function normalizeReplayUrl(u: string): string {
+  try { const p = new URL(u); return `${p.protocol}//${p.host.toLowerCase()}${p.pathname.replace(/\/$/, "")}`; } catch { return u.replace(/\/$/, ""); }
+}
 const REPLAY_VERBS = new Set<SafeVerb>(["click", "press", "scroll"]);
 
 /**
@@ -208,15 +212,20 @@ export async function runInspectionProbe(probe: InspectionProbeV1, deps: ReplayD
 
     const after = await page.evaluate(() => (document.body?.innerText || "").replace(/\s+/g, " ").trim()).catch(() => "");
     emit({ event: "replay_observed", probeId: probe.id });
-    const observedChange = after !== before || page.url() !== probe.startUrl;
+    const finalUrl = page.url();
+    const observedChange = after !== before || finalUrl !== probe.startUrl;
     if (!observedChange) return done("no_observable_change", "no visible change after the action", false);
 
-    const reproduced = probe.expectedAddedTexts.length > 0 && probe.expectedAddedTexts.every((t) => after.includes(t));
-    if (reproduced) {
-      emit({ event: "replay_reproduced", probeId: probe.id, detail: `${probe.expectedAddedTexts.length} expected texts present` });
+    // reproduced requires BOTH the expected texts AND (when bound) the expected final URL — a different page
+    // that merely repeats the same text is NOT a reproduction (defect #7).
+    const textOk = probe.expectedAddedTexts.length > 0 && probe.expectedAddedTexts.every((t) => after.includes(t));
+    const urlOk = !probe.expectedAfterUrl || normalizeReplayUrl(finalUrl) === normalizeReplayUrl(probe.expectedAfterUrl);
+    if (textOk && urlOk) {
+      emit({ event: "replay_reproduced", probeId: probe.id, detail: `${probe.expectedAddedTexts.length} expected texts present @ expected URL` });
       return { classification: "reproduced", probeId: probe.id, events, reason: "expected change reproduced", observedChange: true };
     }
-    return done("product_drift", "a change occurred but not the expected one", true);
+    // text present but at the wrong URL, or the wrong text — either way the after-state is not the expected one.
+    return done("product_drift", "a change occurred but not the expected one (text/url mismatch)", true);
   } catch {
     return done(timedOut ? "probe_flake" : "infrastructure_failure", "unexpected error", false);
   } finally {

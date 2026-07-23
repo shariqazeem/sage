@@ -61,7 +61,7 @@ function toInspectionProbe(p: MissionProbeV1): InspectionProbeV1 {
     version: "inspection-probe-v1" as InspectionProbeV1["version"],
     id: p.probeId,
     startUrl: p.startUrl,
-    beforeStateDigest: "",
+    beforeStateDigest: p.beforeStateDigest,
     verb: p.action.verb,
     locator: { ...(p.action.role ? { role: p.action.role } : {}), accessibleName: p.action.name },
     ...(p.action.key ? { key: p.action.key } : {}),
