@@ -314,9 +314,9 @@ async function runAgentTurn(
   // unchanged; the shadow never alters tool execution, the reply, ids, approval, or money.
   const shadowMode = conciergeTaskRunMode() === "shadow";
   const memory = shadowMode ? readMemory(loadChatMessages(ref)) : null;
-  const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now()) : null;
+  const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now(), surface) : null;
   if (shadow?.task?.state === "awaiting_approval" && /\b(approve|yes|go ahead|launch it|do it|confirm|ship it)\b/i.test(userText)) {
-    shadow.observeFounder(userText, true);
+    shadow.observeFounder(userText, true, shadow.task.planId); // approval bound to the plan the run is awaiting
   }
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt(ref, surface, pageContext) },

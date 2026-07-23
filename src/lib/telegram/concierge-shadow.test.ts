@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mapConciergeTool, extractIntent, ConciergeTaskShadow, conciergeTaskRunMode, readMemory } from "./concierge-shadow";
+import { mapConciergeTool, lifecycleOutcome, extractIntent, ConciergeTaskShadow, conciergeTaskRunMode, readMemory } from "./concierge-shadow";
 import type { ConversationMemoryV2 } from "./task-run";
 
 const emptyMemory = (): ConversationMemoryV2 => ({ version: 2, messages: [], summary: "", activeTask: null, recentTools: [] });
@@ -62,6 +62,60 @@ describe("concierge task shadow — maps REAL tool results to controller outcome
     s2.observeTool("sage_fund_and_launch", JSON.stringify({ ok: true, campaignId: "camp1" }));
     expect(s2.task?.campaignId).toBe("camp1"); // authoritative id from the fund tool
     expect(s2.task?.state).toBe("active");
+  });
+
+  it("STRICT money decoder: a fund result with NO campaignId → ambiguous (verify), NEVER active", () => {
+    const start = () => new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+    for (const bad of ["{}", '{"ok":true}', '{"ok":true,"message":"launched!"}', "launched successfully", '{"campaignId":""}', '{"error":"boom"}']) {
+      const shadow = start();
+      shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+      shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready" }));
+      shadow.observeFounder("approve", true);
+      shadow.observeTool("sage_fund_and_launch", bad);
+      expect(shadow.task?.state, `bad result: ${bad}`).not.toBe("active"); // never active without a real id
+      expect(shadow.task?.campaignId).toBeUndefined();
+    }
+  });
+
+  it("mapConciergeTool strict decoders + lifecycleOutcome labels", () => {
+    expect(mapConciergeTool("sage_start_inspection", "{}")).toEqual({ tool: "inspect", ok: false, reason: "no_inspection_id" });
+    expect(mapConciergeTool("sage_fund_and_launch", "not json")).toMatchObject({ tool: "fund_and_launch", ok: false, ambiguousTimeout: true });
+    expect(lifecycleOutcome({ tool: "fund_and_launch", ok: false, reason: "needsFunding" })).toBe("needs_funding");
+    expect(lifecycleOutcome({ tool: "fund_and_launch", ok: false, ambiguousTimeout: true })).toBe("ambiguous");
+    expect(lifecycleOutcome({ tool: "inspect", ok: true, data: {} })).toBe("success");
+  });
+
+  it("SURFACE-AWARE: on web, a fund_and_launch result is never observed (no money authorization there)", () => {
+    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1, "web");
+    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready" }));
+    shadow.observeFounder("approve", true);
+    shadow.observeTool("sage_fund_and_launch", JSON.stringify({ ok: true, campaignId: "camp1" })); // ignored on web
+    expect(shadow.task?.campaignId).toBeUndefined();
+  });
+
+  it("LOOP DETECTION: the same tool with no progress repeatedly → blocked", () => {
+    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+    for (let i = 0; i < 5; i++) shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "pending" }));
+    expect(shadow.task?.state).toBe("blocked");
+    expect(shadow.steps.some((s) => s.loop)).toBe(true);
+  });
+
+  it("ShadowStep records the REAL outcome (not a blanket ok:true)", () => {
+    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+    shadow.observeTool("sage_start_inspection", JSON.stringify({ error: "nope" }));
+    expect(shadow.steps.at(-1)?.outcome).toBe("failed");
+  });
+
+  it("STALE approval: a 'yes' for a plan that changed is not honored", () => {
+    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1" }));
+    shadow.observeFounder("approve", true, "plan-OLD"); // references a different (stale) plan
+    expect(shadow.task?.state).toBe("awaiting_approval"); // not deployed
+    shadow.observeFounder("approve", true, "plan1"); // the current plan → honored
+    expect(shadow.task?.state).toBe("deploying");
   });
 
   it("an ambiguous fund timeout is observed as verify (never a re-spend)", () => {

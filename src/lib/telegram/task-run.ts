@@ -54,8 +54,6 @@ export interface TaskRunV1 {
   /** the exact action awaiting the founder's approval, if any. */
   pendingApproval?: string;
   lastSuccessfulTool?: string;
-  /** the (tool,args) signature of the last call, for loop detection. */
-  lastCallSig?: string;
   retries: Record<string, number>;
   blockers: string[];
   createdAt: number;
@@ -152,10 +150,6 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
   const o = event.outcome;
   events.push({ event: "tool_result", state: run.state, detail: `${o.tool}:${o.ok ? "ok" : o.reason ?? "fail"}` });
 
-  // loop detection — the same tool+args signature repeating means we're stuck.
-  const sig = `${o.tool}:${JSON.stringify(o.data ?? {})}`;
-  // (the caller sets lastCallSig before the call; here we only detect a stuck NON-progressing repeat below.)
-
   if (MONEY_TOOLS.has(o.tool)) {
     if (o.ambiguousTimeout) {
       // NEVER re-spend on an ambiguous timeout — verify the deployment state instead.
@@ -202,7 +196,6 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
       }
       // not ready → bounded poll.
       if (bump(run, "poll_inspection") > MAX_POLL_RETRIES) return blocked("inspection_timeout");
-      void sig;
       return { run, next: { kind: "call_tool", tool: "poll_inspection", args: { inspectionId: run.inspectionId }, readOnly: true }, events };
     }
     case "verify_deployment": {
