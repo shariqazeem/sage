@@ -48,6 +48,13 @@ export interface TaskRunV1 {
   /** authoritative ids — set ONLY from successful tool results. */
   inspectionId?: string;
   planId?: string;
+  /** the digest of the exact plan/missions the founder is being asked to approve. */
+  planDigest?: string;
+  /** the composite token (plan id + digest + budget + currency + revision) the current approval is bound
+   *  to; a "yes" is honored only when the run STILL matches it. */
+  pendingApprovalToken?: string;
+  /** bumps every time a new plan is presented — part of the approval token. */
+  approvalRevision?: number;
   deploymentId?: string;
   campaignId?: string;
   campaignUrl?: string;
@@ -108,6 +115,13 @@ const MONEY_TOOLS = new Set(["fund_and_launch"]);
 function bump(run: TaskRunV1, key: string): number {
   run.retries[key] = (run.retries[key] ?? 0) + 1;
   return run.retries[key];
+}
+
+/** The composite approval token — plan id + digest + budget text + approval revision. Any change to the
+ *  plan the founder is shown (a re-inspection, a new digest, a different budget) changes this, so a stale
+ *  "yes" from an earlier turn cannot authorize the changed plan. */
+export function approvalToken(run: Pick<TaskRunV1, "planId" | "planDigest" | "budgetText" | "approvalRevision">): string {
+  return [run.planId ?? "", run.planDigest ?? "", run.budgetText ?? "", run.approvalRevision ?? 0].join("|");
 }
 
 export function newTaskRun(args: { runId: string; goal: string; productUrl: string; budgetText: string; now: number }): TaskRunV1 {
@@ -188,8 +202,13 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
     case "poll_inspection": {
       if (o.data?.ready === true) {
         if (typeof o.data?.planId === "string") run.planId = o.data.planId;
+        if (typeof o.data?.planDigest === "string") run.planDigest = o.data.planDigest;
         to("presenting_plan", "inspection ready");
         run.pendingApproval = "approve_plan";
+        run.approvalRevision = (run.approvalRevision ?? 0) + 1;
+        // bind the approval to the EXACT plan the founder is being shown: plan id + digest + budget +
+        // revision. Any change to those invalidates a later "yes".
+        run.pendingApprovalToken = approvalToken(run);
         to("awaiting_approval");
         events.push({ event: "awaiting_approval", state: "awaiting_approval", detail: "approve_plan" });
         return { run, next: { kind: "await_approval", pending: "approve_plan" }, events };

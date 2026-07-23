@@ -108,13 +108,18 @@ describe("concierge task shadow — maps REAL tool results to controller outcome
     expect(shadow.steps.at(-1)?.outcome).toBe("failed");
   });
 
-  it("STALE approval: a 'yes' for a plan that changed is not honored", () => {
+  it("STALE approval: a 'yes' after the bound plan changed is not honored", () => {
     const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
     shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
-    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1" }));
-    shadow.observeFounder("approve", true, "plan-OLD"); // references a different (stale) plan
-    expect(shadow.task?.state).toBe("awaiting_approval"); // not deployed
-    shadow.observeFounder("approve", true, "plan1"); // the current plan → honored
+    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1", planDigest: "d1" }));
+    // simulate the plan changing out from under the founder (a re-inspection) — the awaited token no
+    // longer matches the run, so a "yes" must NOT deploy.
+    shadow.task!.planDigest = "d2";
+    shadow.observeFounder("approve", true);
+    expect(shadow.task?.state).toBe("awaiting_approval"); // stale token → not deployed
+    // restoring the bound plan digest → the "yes" is now valid.
+    shadow.task!.planDigest = "d1";
+    shadow.observeFounder("approve", true);
     expect(shadow.task?.state).toBe("deploying");
   });
 

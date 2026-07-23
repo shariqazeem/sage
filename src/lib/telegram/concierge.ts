@@ -172,8 +172,16 @@ function loadHistory(chatId: string): ChatMessage[] {
  * run, and two interleaved writers can drop at most a message, never the authoritative task state. Writes
  * a V2 envelope whenever a task exists; otherwise a legacy array (byte-identical to off-mode today).
  */
-function persistHistory(chatId: string, msgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
-  saveChatMessages(chatId, mergeMemory(loadChatMessages(chatId), msgs, opts, MAX_HISTORY));
+/**
+ * ATOMIC APPEND. Re-reads the CURRENT stored history and appends `newMsgs` to it (rather than overwriting
+ * with a start-of-turn snapshot), preserving the activeTask. Because better-sqlite3 load+save here is
+ * SYNCHRONOUS with no await between them, a concurrent user turn and background notification cannot
+ * interleave — each append is applied whole, so neither a message nor the task is lost.
+ */
+function appendHistory(chatId: string, newMsgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
+  const raw = loadChatMessages(chatId);
+  const current = readMemory(raw).messages as ChatMessage[];
+  saveChatMessages(chatId, mergeMemory(raw, [...current, ...newMsgs], opts, MAX_HISTORY));
 }
 
 const usdFrom = (base: string): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
@@ -189,8 +197,7 @@ function safeHost(url: string): string {
 /** Append an assistant line to a chat's memory, so the model knows what it already told the founder
  *  (e.g. the "your plan is ready" it sent proactively) on the founder's next turn. */
 function pushAssistant(chatId: string, content: string): void {
-  const next: ChatMessage[] = [...loadHistory(chatId), { role: "assistant", content }];
-  persistHistory(chatId, next); // preserves the activeTask — a background notice never clobbers a run
+  appendHistory(chatId, [{ role: "assistant", content }]); // atomic append — preserves messages + task
 }
 
 /** The plain-text follow-up for a finished inspection — ready plan, needs-input, or failure. */
@@ -316,7 +323,7 @@ async function runAgentTurn(
   const memory = shadowMode ? readMemory(loadChatMessages(ref)) : null;
   const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now(), surface) : null;
   if (shadow?.task?.state === "awaiting_approval" && /\b(approve|yes|go ahead|launch it|do it|confirm|ship it)\b/i.test(userText)) {
-    shadow.observeFounder(userText, true, shadow.task.planId); // approval bound to the plan the run is awaiting
+    shadow.observeFounder(userText, true); // approval is validated against the bound plan token internally
   }
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt(ref, surface, pageContext) },
@@ -435,16 +442,12 @@ async function runAgentTurn(
 
   if (!reply) reply = "I wasn't able to finish that one — try rephrasing?";
 
-  // Persist only the clean user + final-assistant text (tool scaffolding isn't replayed).
-  const next: ChatMessage[] = [
-    ...history,
-    { role: "user", content: userText },
-    { role: "assistant", content: reply },
-  ];
-  // Persist through the one codec: in shadow mode the shadow's task is the authoritative activeTask (it
-  // survives restarts); off mode preserves whatever task already existed (usually none → legacy array).
-  if (shadow) persistHistory(ref, next, { activeTask: shadow.task, summary: memory?.summary });
-  else persistHistory(ref, next);
+  // Persist through the ATOMIC append: re-read current + append only THIS turn's user+assistant, so a
+  // background notification that landed mid-turn is not overwritten. In shadow mode the shadow's task is
+  // the authoritative activeTask (survives restarts).
+  const turnMsgs: ChatMessage[] = [{ role: "user", content: userText }, { role: "assistant", content: reply }];
+  if (shadow) appendHistory(ref, turnMsgs, { activeTask: shadow.task, summary: memory?.summary });
+  else appendHistory(ref, turnMsgs);
   return reply;
 }
 

@@ -1,4 +1,4 @@
-import { advance, newTaskRun, readMemory, currentAction, type TaskRunV1, type ToolOutcome, type NextAction, type ConversationMemoryV2 } from "./task-run";
+import { advance, newTaskRun, readMemory, currentAction, approvalToken, type TaskRunV1, type ToolOutcome, type NextAction, type ConversationMemoryV2 } from "./task-run";
 
 /**
  * Concierge task-run SHADOW (Priority S3) — observes the REAL concierge tool loop and drives the resumable
@@ -50,7 +50,7 @@ export function mapConciergeTool(name: string, resultText: string): ToolOutcome 
     case "sage_get_inspection": {
       if (!o) return { tool: "poll_inspection", ok: false, reason: "malformed_result" };
       const ready = o.status === "ready" || o.ready === true;
-      return { tool: "poll_inspection", ok: true, data: { ready, planId: strField(o, "planId") ?? strField(o, "revision") } };
+      return { tool: "poll_inspection", ok: true, data: { ready, planId: strField(o, "planId") ?? strField(o, "revision"), planDigest: strField(o, "planDigest") ?? strField(o, "digest") } };
     }
     case "sage_fund_and_launch": {
       // MONEY tool — fail closed. Malformed/absent output is AMBIGUOUS (verify), not a failure to blindly
@@ -132,10 +132,13 @@ export class ConciergeTaskShadow {
 
   /** Feed a founder approval/message. Approval is bound to the SPECIFIC plan the run is awaiting — a
    *  generic "yes" after the plan changed (a different planId) must NOT authorize the changed plan. */
-  observeFounder(text: string, approve: boolean, planId?: string): void {
+  observeFounder(text: string, approve: boolean): void {
     if (!this.task) return;
-    if (approve && this.task.state === "awaiting_approval" && this.task.planId && planId && planId !== this.task.planId) {
-      return; // stale approval: the plan revision changed since it was presented — re-present, do not deploy
+    // approval is bound to the EXACT plan token (id + digest + budget + revision) presented. If the run no
+    // longer matches the token it was awaiting (a re-inspection changed the plan/budget), the "yes" is
+    // stale — re-present, never deploy the changed plan.
+    if (approve && this.task.state === "awaiting_approval" && this.task.pendingApprovalToken && approvalToken(this.task) !== this.task.pendingApprovalToken) {
+      return;
     }
     const { run } = advance(this.task, { kind: "founder", text, approve }, this.clock++);
     this.task = run;
