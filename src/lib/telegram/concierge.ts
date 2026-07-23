@@ -5,6 +5,7 @@ import { opGetInspection, type InspectionView } from "@/lib/agent-api/operations
 import { sendTelegram } from "@/lib/telegram/bot";
 import { privyConfigured } from "@/lib/privy/client";
 import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
+import { conciergeTaskRunMode, ConciergeTaskShadow, readMemory } from "./concierge-shadow";
 import {
   AGENT_WALLET_TOOLS,
   isAgentWalletTool,
@@ -302,6 +303,15 @@ async function runAgentTurn(
   }
 
   const history = loadHistory(ref);
+  // CONCIERGE TASK-RUN SHADOW (off by default) — observe this turn's real tool results + drive the
+  // resumable controller from them, comparing what it WOULD do to the legacy loop. Authoritative loop is
+  // unchanged; the shadow never alters tool execution, the reply, ids, approval, or money.
+  const shadowMode = conciergeTaskRunMode() === "shadow";
+  const memory = shadowMode ? readMemory(loadChatMessages(ref)) : null;
+  const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now()) : null;
+  if (shadow?.task?.state === "awaiting_approval" && /\b(approve|yes|go ahead|launch it|do it|confirm|ship it)\b/i.test(userText)) {
+    shadow.observeFounder(userText, true);
+  }
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt(ref, surface, pageContext) },
     ...history,
@@ -404,6 +414,7 @@ async function runAgentTurn(
           }
 
           messages.push({ role: "tool", tool_call_id: tc.id, content: text });
+          if (shadow) shadow.observeTool(tc.function.name, text); // shadow: advance the controller from the REAL tool result
         }
         continue; // let the model read the tool results and continue
       }
@@ -424,7 +435,10 @@ async function runAgentTurn(
     { role: "user", content: userText },
     { role: "assistant", content: reply },
   ];
-  saveHistory(ref, next);
+  // In shadow mode persist the V2 envelope (activeTask survives restarts); otherwise the legacy array
+  // (byte-identical to before). readMemory reads either format on the next turn.
+  if (shadow && memory) saveChatMessages(ref, shadow.toEnvelope(next.slice(-MAX_HISTORY), memory.summary));
+  else saveHistory(ref, next);
   return reply;
 }
 
