@@ -12,6 +12,10 @@ import { llmCompleteJson } from "@/lib/llm/complete";
 import { deriveObservations, decisiveFacts } from "./observed-facts";
 import type { ObservationSetV1 } from "./observed-facts";
 import { scopeFromObservations } from "./product-map";
+import { evaluateCanarySelection, bindCanaryApproval, deterministicGroundedPlanDigest, type CanaryIdentity } from "./mission-canary";
+import { allocateBudget } from "./budget";
+import { compilePlan } from "./plan";
+import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import type { FieldTestState, FieldTestSummary, ProductMapV1, ProductObservation } from "./schemas";
 
 const stt = (o: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...o });
@@ -73,7 +77,7 @@ const support = (_missionKey: string, criterionIndex: number, _factRefs?: string
 const decide = (decisionId: string, verdict: string) => ({ decisionId, verdict });
 
 beforeEach(() => { vi.clearAllMocks(); });
-afterEach(() => { delete process.env.MISSION_GROUNDING_MODE; });
+afterEach(() => { delete process.env.MISSION_GROUNDING_MODE; delete process.env.MISSION_CANARY_ALLOWLIST; });
 
 describe("semantic-draft grounded architect — through the REAL runMissionBrain entrypoint", () => {
   it("OFF mode makes NO V2 architect call and attaches no shadow", async () => {
@@ -332,6 +336,38 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
     expect(gs.criticSupported).toBe(0);
     expect(gs.groundedCandidatePlan ?? null).toBeNull();
+  });
+
+  it("P5: selection completes end-to-end — a strictSelectable plan is SELECTED, compiled, and approval-bound (no paid calls)", async () => {
+    // The zero-paid deterministic proof of the FULL canary selection tail (the Phase 6 live smoke proved the
+    // model stages — architect strict-valid, draft compiled, action_replayed grounding, V3 critic supported;
+    // this proves gate-pass -> exact allocation -> V2 selected -> deterministic digest -> approval waits).
+    process.env.MISSION_GROUNDING_MODE = "canary";
+    process.env.MISSION_CANARY_ALLOWLIST = "0xallowedfounder";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    const plan = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.groundedCandidatePlan!;
+    expect(plan.strictSelectable).toBe(true);
+
+    const identity: CanaryIdentity = { wallet: "0xAllowedFounder", optedIn: true, source: "server_session" };
+    const decision = evaluateCanarySelection({ mode: "canary", identity, plan });
+    expect(decision.status).toBe("selected");
+    if (decision.status !== "selected") return;
+
+    // compile the GROUNDED missions through the SAME allocator + compiler the pipeline uses.
+    const allocation = allocateBudget(decision.plan.missions.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })), input.totalBudgetBase);
+    expect(allocation.ok).toBe(true);
+    const compiled = compilePlan({ publicCampaignId: "sel-test", productMapDigest: makeMap().digest, missions: decision.plan.missions, allocation, tokenDecimals: input.tokenDecimals, modelVersion: "arch-model", promptVersion: MISSION_PROMPT_VERSION, revision: 1 });
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    // exact base-unit budget equality is MANDATORY, and the approval token binds the exact plan.
+    expect(compiled.plan.allocatedBase).toBe(input.totalBudgetBase);
+    const approval = bindCanaryApproval({ planDigest: compiled.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: compiled.plan.totalBudgetBase.toString(), revision: compiled.plan.revision });
+    expect(approval.token).toHaveLength(64);
+    expect(approval.planDigest).toBe(compiled.plan.missionPlanDigest);
+    expect(decision.groundedDigest).toBe(deterministicGroundedPlanDigest(plan));
+    // the plan is a DRAFT that waits for founder approval — selection never auto-approves/launches/pays.
+    expect(compiled.plan.status).not.toBe("approved");
   });
 
   // ── test 21 — off/enforce/unknown make zero V2 calls ──

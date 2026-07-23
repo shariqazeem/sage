@@ -1,0 +1,31 @@
+{
+  "artifact": "grounding-canary-smoke",
+  "note": "Phase 6 canary smoke — grounded plan selection with the winning canary model. NOT funded/deployed/launched/paid.",
+  "canaryModel": "google/gemini-3.1-flash-lite-preview",
+  "architectStatus": "ok",
+  "architectModel": null,
+  "architectProvider": null,
+  "criticStatus": "ok",
+  "criticModel": null,
+  "criticProvider": null,
+  "draftMissionCount": 1,
+  "compiledMissionCount": 1,
+  "compilerRejectedCount": 0,
+  "groundingValid": 1,
+  "tierCounts": {
+    "action_replayed": 1,
+    "action_observed": 0,
+    "state_seen": 0,
+    "inferred_only": 0,
+    "ungrounded": 0
+  },
+  "criticSupported": 1,
+  "canonicalGatePassed": 0,
+  "accepted": 0,
+  "exactBudgetEquality": false,
+  "signals": null,
+  "strictSelectable": false,
+  "decisionStatus": "blocked",
+  "decisionReason": "no_grounded_plan",
+  "result": "canary_not_selected:blocked"
+}

@@ -1,0 +1,25 @@
+{
+  "artifact": "grounding-canary-smoke-amendment",
+  "amends": "grounding-canary-smoke.json",
+  "note": "APPEND-ONLY amendment. The paid evidence (grounding-canary-smoke.json) is preserved byte-for-byte; this file records the honest interpretation of that run. No paid calls were made to produce this amendment.",
+  "timestamp": "2026-07-23T15:59:00Z",
+  "paidCallsInSmoke": 2,
+  "cumulativePaidAgainstCap6": 5,
+  "whatThePaidRunProved": [
+    "The winning canary model (google/gemini-3.1-flash-lite-preview) ran as the REAL architect AND the REAL V3 critic.",
+    "architectStatus=ok, draftMissionCount=1, compiledMissionCount=1, compilerRejectedCount=0 — the model produced a strict-valid semantic draft that the deterministic compiler accepted.",
+    "tierCounts.action_replayed=1 — the 'Load report -> Report ready' criterion grounded on a SAFE, REPRODUCED transition (action_replayed), exactly the target grounding tier.",
+    "criticStatus=ok, criticSupported=1 — the V3 critic (decisionId-bound, model authors no provenance) SUPPORTED the criterion.",
+    "So every MODEL-dependent stage of the canary chain passed live: architect strict-valid -> draft compiled -> action_replayed grounding -> V3 critic supported."
+  ],
+  "whyItBlocked": {
+    "stage": "canonical_gate",
+    "observed": "canonicalGatePassed=0, accepted=0, therefore no groundedCandidatePlan -> evaluateCanarySelection returned blocked:no_grounded_plan",
+    "rootCause": "HARNESS DEFECT, not a model/canary/product failure: the first paid run passed an EMPTY ValidationScope (scopeFromObservations([], [])). With no in-scope surfaces, validatePlanMissions rejects the mission's reportly.test URLs as out-of-scope. The real pipeline always builds the scope from the inspection's observed surfaces.",
+    "confirmation": "The Phase 5 deterministic entrypoint test 'P5: a fully-supported grounded run attaches a strictSelectable groundedCandidatePlan' runs the IDENTICAL map + observations through the REAL canonical gate + REAL allocator with a proper scope and yields canonicalGatePassed=1, accepted=1, strictSelectable=true. Same inputs, correct scope -> selectable."
+  },
+  "resolution": "The harness scope was corrected in mission-canary-smoke.live.test.ts (documented in-file) but NOT re-run: cumulative paid calls are 5/6 and a second smoke would need 2 more (=7), breaching the hard six-call cap. Per the STOP conditions, no re-run. The selection tail beyond the canonical gate (gate pass -> exact allocation -> V2 selected -> deterministic digest -> approval-token-bound -> plan waits for founder approval) is proven with ZERO paid calls by the deterministic test 'selection completes end-to-end' (mission-grounding-shadow.entrypoint.test.ts), which drives the REAL evaluateCanarySelection -> allocateBudget -> compilePlan -> bindCanaryApproval on a gate-passing grounded plan.",
+  "stagesProvenLive": ["architect_strict_valid", "semantic_draft_compiled", "action_replayed_grounding", "v3_critic_supported"],
+  "stagesProvenDeterministically_noPaid": ["canonical_gate_passed", "exact_allocation", "v2_selected_as_canary", "deterministic_plan_digest", "approval_bound", "plan_waits_for_founder_approval"],
+  "noSideEffects": "Nothing was funded, deployed, launched, or paid. No model was globally approved."
+}

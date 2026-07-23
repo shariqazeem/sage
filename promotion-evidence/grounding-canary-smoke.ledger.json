@@ -1,0 +1,20 @@
+{
+  "evaluationId": "grounding-canary-smoke",
+  "cap": 6,
+  "priorPaidCalls": 3,
+  "calls": [
+    {
+      "seq": 1,
+      "role": "architect",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "at": "2026-07-23T15:55:50.084Z"
+    },
+    {
+      "seq": 2,
+      "role": "critic",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "at": "2026-07-23T15:55:53.819Z"
+    }
+  ],
+  "runningTotalAgainstCap6": 5
+}
