@@ -729,3 +729,34 @@ export const pendingWithdrawals = sqliteTable("pending_withdrawals", {
 });
 
 export type PendingWithdrawalRow = typeof pendingWithdrawals.$inferSelect;
+
+/**
+ * Phase 5 — payout ACTION-REPLAY journal. One row per (submissionId, policyDigest, probeDigest): the
+ * idempotency key. A COMPLETED row (completedAt set) is reused on a payout retry with the SAME digests; a
+ * changed policy/probe is a different key → a fresh replay; an in-flight row (completedAt null) is an
+ * ambiguous crash that must be reconciled (re-run — replay is read-only) before any settlement retry. Stores
+ * only identifiers/digests + bounded outcome + timings — NEVER raw page text, screenshots, cookies, or prompts.
+ * Replay never settles, so it can never cause a duplicate payout; the vault intentHash/CAS still guard money.
+ */
+export const payoutReplayJournal = sqliteTable(
+  "payout_replay_journal",
+  {
+    id: text("id").primaryKey(),
+    submissionId: text("submission_id").notNull(),
+    policyDigest: text("policy_digest").notNull(),
+    probeDigest: text("probe_digest").notNull(),
+    /** "allow" | "hold" (the settlement-facing decision for this probe), or null while in-flight. */
+    decision: text("decision"),
+    /** bounded PayoutReplayCode; null while in-flight. */
+    outcomeCode: text("outcome_code"),
+    startedAt: integer("started_at").notNull(),
+    completedAt: integer("completed_at"),
+    latencyMs: integer("latency_ms"),
+    attempt: integer("attempt").notNull().default(1),
+    /** the probe/browser runner version (for cache invalidation across runner changes). */
+    probeVersion: text("probe_version").notNull().default("mission-probe-v1"),
+  },
+  (t) => [uniqueIndex("prj_key_unq").on(t.submissionId, t.policyDigest, t.probeDigest)],
+);
+
+export type PayoutReplayJournalRow = typeof payoutReplayJournal.$inferSelect;

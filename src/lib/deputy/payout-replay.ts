@@ -3,6 +3,7 @@ import "server-only";
 import { runInspectionProbe, type InspectionProbeV1, type ProbeClassification } from "@/lib/launch/inspection-replay";
 import type { MissionProbeV1 } from "@/lib/launch/mission-probe";
 import { loadVerifiedCampaignPolicy, probesForMission } from "./verification-policy";
+import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 import type { Campaign } from "@/lib/db/schema";
 
 /**
@@ -89,6 +90,12 @@ export interface PayoutReplayDeps {
   allowLoopback?: ReadonlySet<string>;
   egressAllowedPorts?: ReadonlySet<number>;
   chromiumLauncher?: () => Promise<typeof import("playwright").chromium>;
+  /** Phase 5 — idempotency journal keyed by (submissionId, policyDigest, probeDigest). Undefined ⇒ no caching. */
+  journal?: ReplayJournalHandle;
+  /** the submission being settled — the journal key (required for caching). */
+  submissionId?: string;
+  /** deterministic clock for the journal latency (tests). */
+  now?: () => number;
 }
 
 /**
@@ -134,14 +141,28 @@ export async function runPayoutActionReplay(
     return { classification: r.classification, reason: r.reason, probeId: r.probeId };
   });
 
+  const journal = deps.journal;
+  const sid = deps.submissionId;
+  const clock = deps.now ?? (() => Date.now());
   const probeResults: { probeId: string; code: PayoutReplayCode }[] = [];
   for (const probe of probes) {
     let code: PayoutReplayCode;
-    try {
-      const r = await run(toInspectionProbe(probe));
-      code = classifyReplay(r.classification, r.reason);
-    } catch {
-      code = "internal_error";
+    // Phase 5 — reuse a COMPLETED journal entry for the EXACT (submissionId, policyDigest, probeDigest); an
+    // in-flight/absent entry runs a fresh, read-only replay (reconciles a crash). Cache key changes with the
+    // policy/probe digest, so a changed plan always re-runs.
+    const cached = journal && sid ? journal.lookup(sid, policy.policyDigest, probe.probeDigest) : null;
+    if (cached && cached.completed) {
+      code = cached.code as PayoutReplayCode;
+    } else {
+      if (journal && sid) journal.begin(sid, policy.policyDigest, probe.probeDigest);
+      const started = clock();
+      try {
+        const r = await run(toInspectionProbe(probe));
+        code = classifyReplay(r.classification, r.reason);
+      } catch {
+        code = "internal_error";
+      }
+      if (journal && sid) journal.complete(sid, policy.policyDigest, probe.probeDigest, { decision: code === "reproduced" ? "allow" : "hold", code, latencyMs: Math.max(0, clock() - started) });
     }
     probeResults.push({ probeId: probe.probeId, code });
     if (code !== "reproduced") {

@@ -45,6 +45,7 @@ import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
 import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
+import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
@@ -523,7 +524,8 @@ export async function runDeputyOnSubmission(
   // broadcast) or is journaled in shadow (settlement unchanged). Runs AFTER all evidence/judge qualification +
   // Sybil/cap, BEFORE preflight/CAS/settle. off (default) → skip → byte-identical existing behavior.
   if (payoutActionReplayMode() !== "off" && mission) {
-    const replay = await runPayoutActionReplay(campaign, mission.missionKey, deps.payoutReplay ?? {});
+    const replayDeps = deps.payoutReplay ?? {};
+    const replay = await runPayoutActionReplay(campaign, mission.missionKey, { journal: dbReplayJournal, submissionId, ...replayDeps });
     agentLog(cid, "payout_replay", { mode: replay.mode, decision: replay.decision, code: replay.code, isAction: replay.isActionMission, probes: replay.probeResults });
     if (replay.decision === "hold") {
       const reason = `action_replay_veto:${replay.code}`;
