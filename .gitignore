@@ -70,3 +70,4 @@ next-env.d.ts
 
 # transient smoke checkpoint (never committed; evidence artifact IS committed)
 promotion-evidence/*.checkpoint.json
+promotion-evidence/.private/
