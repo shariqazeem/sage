@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { advance, newTaskRun, readMemory, currentAction, CONVERSATION_MEMORY_VERSION, type TaskRunV1, type ToolOutcome } from "./task-run";
+import { advance, newTaskRun, readMemory, mergeMemory, currentAction, CONVERSATION_MEMORY_VERSION, type TaskRunV1, type ToolOutcome } from "./task-run";
 
 let clock = 1000;
 const tool = (o: ToolOutcome) => ({ kind: "tool" as const, outcome: o });
@@ -90,6 +90,29 @@ describe("Concierge task controller — scenarios", () => {
     const { run: r2, next } = advance(run, tool({ tool: "fund_and_launch", ok: false, reason: "needsFunding" }), clock++);
     expect(r2.state).toBe("blocked");
     expect(next).toEqual({ kind: "blocked", reason: "needsFunding" });
+  });
+
+  it("mergeMemory PRESERVES the activeTask when a writer only updates messages (no clobber)", () => {
+    // a turn established an active run...
+    let run = start();
+    ({ run } = advance(run, tool({ tool: "inspect", ok: true, data: { inspectionId: "insp1" } }), clock++));
+    const withTask = JSON.stringify({ version: 2, messages: [{ role: "user", content: "go" }], summary: "s", activeTask: run, recentTools: [] });
+    // ...then a BACKGROUND writer appends an assistant line with NO activeTask override.
+    const merged = mergeMemory(withTask, [{ role: "user", content: "go" }, { role: "assistant", content: "your plan is ready" }], {});
+    const mem = readMemory(merged);
+    expect(mem.activeTask?.inspectionId).toBe("insp1"); // task survived the background write
+    expect(mem.messages).toHaveLength(2);
+  });
+
+  it("mergeMemory writes a legacy ARRAY when there is no active run (byte-identical off-mode)", () => {
+    const out = mergeMemory("[]", [{ role: "user", content: "hi" }], {});
+    expect(JSON.parse(out)).toEqual([{ role: "user", content: "hi" }]); // a bare array, not an envelope
+  });
+
+  it("mergeMemory can explicitly CLEAR the task (activeTask: null) → reverts to a legacy array", () => {
+    const withTask = JSON.stringify({ version: 2, messages: [], summary: "", activeTask: { version: "task-run-v1", state: "active" }, recentTools: [] });
+    const out = mergeMemory(withTask, [{ role: "user", content: "done" }], { activeTask: null });
+    expect(Array.isArray(JSON.parse(out))).toBe(true);
   });
 
   it("readMemory upgrades legacy V1 (bare array) + reads V2, ignoring a stale-version task", () => {

@@ -251,6 +251,29 @@ function currentArgs(run: TaskRunV1, tool: string): Record<string, unknown> {
   return a.kind === "call_tool" && a.tool === tool ? a.args : {};
 }
 
+/**
+ * The single memory WRITE codec (pure). Given the CURRENT stored raw, the new messages, and optional
+ * overrides, it PRESERVES the existing activeTask + summary + recentTools unless explicitly overridden —
+ * so no writer (a background notification included) can silently drop an active run. Emits a V2 envelope
+ * when a task exists, else a legacy bare array (byte-identical to pre-V2 storage). `"activeTask" in opts`
+ * lets a caller explicitly clear it (opts.activeTask === null).
+ */
+export function mergeMemory(
+  existingRaw: string | null | undefined,
+  messages: unknown[],
+  opts: { activeTask?: TaskRunV1 | null; summary?: string; recentTools?: ConversationMemoryV2["recentTools"] } = {},
+  maxHistory = 12,
+): string {
+  const existing = readMemory(existingRaw);
+  const activeTask = "activeTask" in opts ? opts.activeTask ?? null : existing.activeTask;
+  const summary = opts.summary ?? existing.summary;
+  const recentTools = opts.recentTools ?? existing.recentTools;
+  const trimmed = messages.slice(-maxHistory);
+  return activeTask
+    ? JSON.stringify({ version: CONVERSATION_MEMORY_VERSION, messages: trimmed, summary, activeTask, recentTools } satisfies ConversationMemoryV2)
+    : JSON.stringify(trimmed);
+}
+
 /** Read the memory envelope from stored JSON, upgrading a bare V1 message array in place (no migration). */
 export function readMemory(stored: string | null | undefined): ConversationMemoryV2 {
   if (!stored) return { version: CONVERSATION_MEMORY_VERSION, messages: [], summary: "", activeTask: null, recentTools: [] };

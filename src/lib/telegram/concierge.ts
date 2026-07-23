@@ -6,6 +6,7 @@ import { sendTelegram } from "@/lib/telegram/bot";
 import { privyConfigured } from "@/lib/privy/client";
 import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
 import { conciergeTaskRunMode, ConciergeTaskShadow, readMemory } from "./concierge-shadow";
+import { mergeMemory, type ConversationMemoryV2 } from "./task-run";
 import {
   AGENT_WALLET_TOOLS,
   isAgentWalletTool,
@@ -157,17 +158,22 @@ const TG_TOOLS = [...MCP_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
 /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system
- *  message is prepended fresh each turn, never stored). */
-function loadHistory(chatId: string): ChatMessage[] {
-  try {
-    const parsed: unknown = JSON.parse(loadChatMessages(chatId));
-    return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
-  } catch {
-    return [];
-  }
+ *  message is prepended fresh each turn, never stored). ONE versioned codec (readMemory) handles both the
+ *  legacy Message[] and the V2 envelope, so no reader/writer can silently drop the activeTask. */
+function loadMemory(chatId: string): ConversationMemoryV2 {
+  return readMemory(loadChatMessages(chatId));
 }
-function saveHistory(chatId: string, msgs: ChatMessage[]): void {
-  saveChatMessages(chatId, JSON.stringify(msgs.slice(-MAX_HISTORY)));
+function loadHistory(chatId: string): ChatMessage[] {
+  return loadMemory(chatId).messages as ChatMessage[];
+}
+/**
+ * The single history WRITER. It re-reads the current envelope and PRESERVES the activeTask + summary
+ * unless explicitly overridden — so a background notification (pushAssistant) can never clobber an active
+ * run, and two interleaved writers can drop at most a message, never the authoritative task state. Writes
+ * a V2 envelope whenever a task exists; otherwise a legacy array (byte-identical to off-mode today).
+ */
+function persistHistory(chatId: string, msgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
+  saveChatMessages(chatId, mergeMemory(loadChatMessages(chatId), msgs, opts, MAX_HISTORY));
 }
 
 const usdFrom = (base: string): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
@@ -184,7 +190,7 @@ function safeHost(url: string): string {
  *  (e.g. the "your plan is ready" it sent proactively) on the founder's next turn. */
 function pushAssistant(chatId: string, content: string): void {
   const next: ChatMessage[] = [...loadHistory(chatId), { role: "assistant", content }];
-  saveHistory(chatId, next);
+  persistHistory(chatId, next); // preserves the activeTask — a background notice never clobbers a run
 }
 
 /** The plain-text follow-up for a finished inspection — ready plan, needs-input, or failure. */
@@ -435,10 +441,10 @@ async function runAgentTurn(
     { role: "user", content: userText },
     { role: "assistant", content: reply },
   ];
-  // In shadow mode persist the V2 envelope (activeTask survives restarts); otherwise the legacy array
-  // (byte-identical to before). readMemory reads either format on the next turn.
-  if (shadow && memory) saveChatMessages(ref, shadow.toEnvelope(next.slice(-MAX_HISTORY), memory.summary));
-  else saveHistory(ref, next);
+  // Persist through the one codec: in shadow mode the shadow's task is the authoritative activeTask (it
+  // survives restarts); off mode preserves whatever task already existed (usually none → legacy array).
+  if (shadow) persistHistory(ref, next, { activeTask: shadow.task, summary: memory?.summary });
+  else persistHistory(ref, next);
   return reply;
 }
 
