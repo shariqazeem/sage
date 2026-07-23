@@ -1,0 +1,59 @@
+SAGE V2 — DETERMINISTICALLY BOUND CRITIC + FOUNDER CANARY
+=========================================================
+Sprint patch: sage-critic-canary-sprint.patch   (base b7cd7fb → HEAD ae05ebd)
+
+COMMITS (atomic, one per phase)
+  7da0713  P0  docs: append-only corpus-v1 amendment (goal_alignment_confound; telemetry split; term fixes)
+  7370fc2  P1  feat: critic contract V3 — model decides ONLY the verdict; Sage binds provenance deterministically
+  1ee761e  P2  feat: frozen corpus-v2 (no goal confound) + decision-bound scorer
+  9ca375f  P3  test: deterministic proof V3 provenance is never model-authored
+  c3b1201  P4  test: V3 two-model blind critic calibration on corpus-v2 (3 paid calls)
+  2e62ece  P5  feat: MISSION_GROUNDING_MODE=canary — server-gated grounded-plan selection
+  50437d2  P6  test: live canary smoke (2 paid) + zero-paid end-to-end selection proof
+  ae05ebd      chore: sprint-state P6 done + ledger 5/6
+
+FILES
+  Contract / brain (Phase 1,3)
+    src/lib/launch/mission-grounding-shadow.ts .............. CRITIC_SYSTEM_V3, CRITIC_TRANSPORT_SCHEMA_V3,
+                                                             CriticV3Schema, decisionId binding, GroundedPlanSignals,
+                                                             GroundedCandidatePlan, canary mode. V2 kept for history.
+    src/lib/launch/critic-v3-contract.proof.test.ts ........ 5 contract proofs (provenance inexpressible)
+  Corpus / scorer (Phase 2)
+    src/lib/launch/grounding-critic-fixtures-v2.ts ......... corpus-v2 (16 paired cases, non-confounded goal)
+    src/lib/launch/grounding-critic-score-v2.ts ............ decision-bound scorer, falseSupported hard-gate
+    src/lib/launch/grounding-critic-score-v2.test.ts ....... 8 scorer tests
+  Calibration (Phase 4)
+    src/lib/launch/grounding-critic-bakeoff-v2.live.test.ts  blind 2-model calibration harness (CALL_CAP_4)
+    promotion-evidence/grounding-critic-semantic-v2.json ... anonymous results + blind reveal + winner
+    promotion-evidence/grounding-critic-semantic-v2.ledger.json  3 calls, recorded before dispatch
+  Canary (Phase 5)
+    src/lib/launch/mission-canary.ts ....................... authority gate + strict plan gate + digest + approval
+    src/lib/launch/mission-canary.test.ts .................. 23 tests (truth table / authority / digest / approval)
+    src/lib/launch/pipeline.ts ............................. canary selection wiring (select/block/legacy)
+    src/lib/launch/job.ts .................................. server-verified CanaryIdentity from founderWallet
+  Smoke (Phase 6)
+    src/lib/launch/mission-canary-smoke.live.test.ts ....... live smoke (CALL_CAP_2) + set builder
+    promotion-evidence/grounding-canary-smoke.json ......... paid-run trace (preserved, never mutated)
+    promotion-evidence/grounding-canary-smoke.ledger.json .. 2 calls, recorded before dispatch
+    promotion-evidence/grounding-canary-smoke-amendment.json  append-only honest read of the block
+  Amendment (Phase 0)
+    promotion-evidence/grounding-critic-semantic-v1-amendment.json  corpus-v1 record correction
+  Shared / wiring
+    src/lib/launch/mission-grounding-shadow.entrypoint.test.ts  V3 critic tests + P5 selectable-plan + selection-completes
+    package.json ........................................... bakeoff:critic2[:dryrun], canary:smoke[:dryrun]
+
+PAID CALLS (cumulative cap 6): 5 used.
+  P4 calibration: 3 (candidate_a rep1+rep2 ok; candidate_b rep1 strict-transport fail → no rep2)
+  P6 canary smoke: 2 (flash-lite architect + flash-lite V3 critic)
+
+CANARY CANDIDATE (NOT a global model approval): google/gemini-3.1-flash-lite-preview
+  Eligible: strict schema valid, exact decision coverage, falseSupported 0, supportedRecall 1.0,
+  all display/goal/action contrasts + injection, paySafe binary 1.0 (both repeats). Caveat: consistent=false
+  (verdict granularity varied 1 case; the money-relevant paySafe binary was identical both reps).
+
+RUN LOCALLY
+  npm run test            # full deterministic suite (live/paid tests skipped)
+  npm run bakeoff:critic2:dryrun   # calibration harness, zero paid calls
+  npm run canary:smoke:dryrun      # smoke set builder, zero paid calls
+
+NOT DONE (by policy): no deploy, no push, no migration, no funding, no launch, no payout, no global model approval.
