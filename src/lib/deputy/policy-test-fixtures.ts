@@ -3,6 +3,7 @@ import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib
 import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
 import type { Campaign } from "@/lib/db/schema";
+import type { ReplayJournalHandle, ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
 
 /** Shared V2 policy + policy-REQUIRED campaign fixtures for the deputy payout-replay tests (not a .test file). */
 
@@ -20,4 +21,15 @@ export function makeV2Policy(missions: CandidateMission[] = [V2_MISSION], replay
 export function v2Campaign(over: Partial<Campaign> = {}, missions?: CandidateMission[], replayed?: Set<string>): Campaign {
   const policy = makeV2Policy(missions, replayed);
   return { id: "c1", title: "T", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyRequired: true, ...over } as unknown as Campaign;
+}
+
+/** A persisting in-memory replay journal (the replay writes it; the central permit reads it). */
+export function memReplayJournal(): ReplayJournalHandle {
+  const rows = new Map<string, ReplayJournalLookup>();
+  const k = (a: string, b: string, c: string) => `${a}|${b}|${c}`;
+  return {
+    lookup: (s, p, pr) => rows.get(k(s, p, pr)) ?? null,
+    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1 }); },
+    complete: (s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: o.decision, code: o.code, completed: true, attempt: cur?.attempt ?? 1 }); },
+  };
 }

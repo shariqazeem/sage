@@ -6,6 +6,7 @@ import { recordEventOnce, updateSubmission } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import type { Campaign, Submission } from "@/lib/db/schema";
+import { verifyReplayPermit } from "@/lib/deputy/replay-permit";
 import { chargeOperatorFee } from "@/lib/x402/fees";
 import { announceCampaignBlocked, announceCampaignSettled } from "@/lib/telegram/bot";
 import { notifyFounderSettled } from "@/lib/telegram/founder-notify";
@@ -32,6 +33,14 @@ export async function settleApprovedSubmission(
   submission: Submission,
   deps: VaultStrategyDeps = {},
 ): Promise<SettleFlowResult> {
+  // Phase 5 — CENTRAL replay permit. This is the sole broadcast sink; a policy-required canary action submission
+  // may only settle when the durable journal proves every required probe reproduced. No path (deputy, cron,
+  // manual decide/settle) can reach settleWithRecovery without the permit. Fail closed — never broadcast.
+  const permit = verifyReplayPermit(campaign, submission, deps.payoutReplay?.journal);
+  if (!permit.ok) {
+    return { outcome: { settled: false, reason: `action_replay_permit_denied:${permit.reason}` } as SettleOutcome, vault: null };
+  }
+
   const outcome = await settleWithRecovery(campaign, submission, deps);
 
   // Vendor adds (Sage-owned AND founder-owned) are journaled from the chain by
