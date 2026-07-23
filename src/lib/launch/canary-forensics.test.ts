@@ -7,6 +7,7 @@ import path from "node:path";
 vi.mock("@/lib/llm/complete", async (o) => ({ ...(await o<typeof import("@/lib/llm/complete")>()), llmConfigured: () => true, llmCompleteJson: vi.fn() }));
 
 import { runGroundedShadow } from "./mission-grounding-shadow";
+import { llmCompleteJson } from "@/lib/llm/complete";
 import { deriveObservations, decisiveFacts } from "./observed-facts";
 import { scopeFromObservations } from "./product-map";
 import { buildObservationCorpus } from "./validate-mission";
@@ -87,5 +88,32 @@ describe("PHASE 0 — reportly canonical-gate forensic (grounded path, 0 paid)",
     console.log("[forensic] reportly grounded:", JSON.stringify({ compiled: gs.compiledMissionCount, groundingValid: gs.groundingValid, criticSupported: gs.criticSupported, canonicalGatePassed: gs.canonicalGatePassed, canonicalRejectionCodes: gs.canonicalRejectionCodes, accepted: gs.accepted, strictSelectable: forensic.strictSelectable, compilerRejectionCodes: gs.compilerRejectionCodes, error: gs.error }));
     // record whatever the deterministic truth is (no assertion on pass/fail — this is forensic capture).
     expect(gs.architectStatus).toBeDefined();
+  });
+});
+
+/**
+ * PHASE 1 REGRESSION — the FORMERLY-FAILING reportly candidate now passes the full deterministic chain WITH
+ * provenance (through the real architect/critic closures → mocked llmCompleteJson that sets model/provider),
+ * so strictSelectable=true. No gate was weakened; the fixture/candidate is well-formed.
+ */
+describe("PHASE 1 — reportly regression: gate-passing + strictSelectable with provenance (0 paid)", () => {
+  it("compiled≥1, groundingValid≥1, criticSupported≥1, canonicalGatePassed≥1, accepted≥1, exact budget, strictSelectable=true", async () => {
+    process.env.MISSION_GROUNDING_MODE = "canary";
+    vi.mocked(llmCompleteJson).mockImplementation(async ({ system }: { system: string }) => {
+      if (system.includes("GROUNDED mission architect")) return { json: draft, model: "gemini-3.1-flash-lite-preview", provider: "commonstack", latencyMs: 1, promptTokens: 10, completionTokens: 20 } as never;
+      if (system.includes("grounding CRITIC")) return { json: { verdicts: [{ decisionId: "d0", verdict: "supported" }] }, model: "gemini-3.1-flash-lite-preview", provider: "commonstack", latencyMs: 1, promptTokens: 10, completionTokens: 5 } as never;
+      return { json: {}, model: "x", provider: "x", latencyMs: 1, promptTokens: 0, completionTokens: 0 } as never;
+    });
+    // real closures (no deps.architect/critic) → provenance is set from the served model/provider.
+    const gs = await runGroundedShadow(map(), input, scope, corpus, 0, { replayReproduced: new Set([transId]) });
+    expect(gs.compiledMissionCount).toBeGreaterThanOrEqual(1);
+    expect(gs.groundingValid).toBeGreaterThanOrEqual(1);
+    expect(gs.criticSupported).toBeGreaterThanOrEqual(1);
+    expect(gs.canonicalGatePassed).toBeGreaterThanOrEqual(1);
+    expect(gs.accepted).toBeGreaterThanOrEqual(1);
+    expect(gs.tierCounts.action_replayed).toBeGreaterThanOrEqual(1);
+    expect(gs.exactBudgetEquality).toBe(true);
+    expect(gs.groundedCandidatePlan?.strictSelectable).toBe(true);
+    expect(gs.groundedCandidatePlan?.signals.provenancePresent).toBe(true);
   });
 });
