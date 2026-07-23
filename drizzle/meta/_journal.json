@@ -183,6 +183,13 @@
       "when": 1784555342031,
       "tag": "0025_sharp_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784824874752,
+      "tag": "0026_simple_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

@@ -164,6 +164,15 @@ export function updateCampaignV2Plan(
   db.update(campaigns).set(patch).where(eq(campaigns.id, id)).run();
 }
 
+/**
+ * Phase 3 — bind the immutable VerificationPolicyV1 (+ its digest) to a campaign at deploy/attach, so the
+ * deputy can load it by campaign at settlement time. Additive + off-chain: it can only REDUCE settlement
+ * eligibility for action missions. Never mutates the on-chain plan/budget commitment.
+ */
+export function bindCampaignVerificationPolicy(id: string, policy: unknown, policyDigest: string): void {
+  db.update(campaigns).set({ verificationPolicy: policy, verificationPolicyDigest: policyDigest }).where(eq(campaigns.id, id)).run();
+}
+
 /* ────────────────────────────────────────────────────── submissions ───── */
 
 export function listSubmissions(campaignId: string): Submission[] {

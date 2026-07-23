@@ -127,6 +127,15 @@ export const campaigns = sqliteTable("campaigns", {
   settlementToken: text("settlement_token"),
   /** which DecisionCommitment version this campaign settles under (1 = V1, 2 = V2). */
   commitmentVersion: integer("commitment_version").notNull().default(1),
+  /**
+   * Phase 3 — the immutable VerificationPolicyV1 bound to this campaign's approved plan (one MissionProbeV1 per
+   * action mission). NULL on every campaign that has no action-replay policy (byte-identical to before). This
+   * is an ADDITIONAL off-chain restriction the payout action-replay (Phase 4) enforces; it can only REDUCE
+   * settlement eligibility, never expand it. The on-chain budget/mission commitment is unchanged.
+   */
+  verificationPolicy: text("verification_policy", { mode: "json" }).$type<unknown>(),
+  /** Phase 3 — sha256 of the bound policy (tamper check); recomputed at settlement, must match. */
+  verificationPolicyDigest: text("verification_policy_digest"),
   createdAt: integer("created_at").notNull(),
 });
 
