@@ -18,6 +18,8 @@
     "test:inspection-live": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspect-and-plan.integration.test.ts",
     "smoke:grounding:dryrun": "GROUNDING_SMOKE_DRYRUN=1 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
     "smoke:grounding": "GROUNDING_SMOKE=1 GROUNDING_SMOKE_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
+    "smoke:structured:dryrun": "GROUNDING_STRUCTURED_DRYRUN=1 vitest run src/lib/launch/mission-grounding-structured-smoke.live.test.ts --reporter=basic",
+    "smoke:structured": "GROUNDING_STRUCTURED=1 GROUNDING_STRUCTURED_CONFIRM=CALL_CAP_5 vitest run src/lib/launch/mission-grounding-structured-smoke.live.test.ts --reporter=basic",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",

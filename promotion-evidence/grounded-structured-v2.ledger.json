@@ -1,0 +1,117 @@
+{
+  "evaluationId": "grounded-structured-v2",
+  "hardCap": 5,
+  "callsConsumed": 2,
+  "calls": [
+    {
+      "seq": 1,
+      "fixture": "state_claim",
+      "role": "critic",
+      "startedAt": "2026-07-23T13:25:03.865Z",
+      "completedAt": "2026-07-23T13:25:49.439Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed"
+    },
+    {
+      "seq": 2,
+      "fixture": "safe_replay",
+      "role": "architect",
+      "startedAt": "2026-07-23T13:29:59.139Z",
+      "completedAt": "2026-07-23T13:30:08.620Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed"
+    }
+  ],
+  "stepResults": {
+    "state_claim": {
+      "id": "state_claim",
+      "classification": "ok",
+      "metrics": {
+        "architectStatus": "ok",
+        "criticStatus": "ok",
+        "criticErrorCode": null,
+        "architectErrorCode": null,
+        "candidateCount": 1,
+        "groundingValid": 1,
+        "criticSupported": 1,
+        "canonicalGatePassed": 1,
+        "accepted": 1,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 1,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": true,
+        "allocatedBudgetBase": "2000000",
+        "architectContentShape": "bare_object",
+        "criticContentShape": "bare_object",
+        "criticHttpStatus": null,
+        "criticRetryAfterMs": null,
+        "architectModelRequested": "google/gemini-3.1-flash-lite-preview",
+        "architectModelActual": "fake-architect",
+        "architectProvider": "fake",
+        "criticModelRequested": "anthropic/claude-haiku-4-5",
+        "criticModelActual": "claude-haiku-4-5-20251001",
+        "criticProvider": "api.commonstack.ai",
+        "criticResponseSchemaName": "sage_grounded_critic_v2",
+        "architectPromptTokens": 0,
+        "architectCompletionTokens": 0,
+        "architectLatencyMs": 0,
+        "criticPromptTokens": 712,
+        "criticCompletionTokens": 44,
+        "criticLatencyMs": 45574,
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": []
+      }
+    },
+    "safe_replay": {
+      "id": "safe_replay",
+      "classification": "failed",
+      "metrics": {
+        "architectStatus": "schema_invalid",
+        "criticStatus": "not_run",
+        "criticErrorCode": null,
+        "architectErrorCode": null,
+        "candidateCount": 0,
+        "groundingValid": 0,
+        "criticSupported": 0,
+        "canonicalGatePassed": 0,
+        "accepted": 0,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 0,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": false,
+        "allocatedBudgetBase": "0",
+        "architectContentShape": "bare_object",
+        "criticContentShape": null,
+        "criticHttpStatus": null,
+        "criticRetryAfterMs": null,
+        "architectModelRequested": "google/gemini-3.1-flash-lite-preview",
+        "architectModelActual": "gemini-3.1-flash-lite-preview",
+        "architectProvider": "api.commonstack.ai",
+        "criticModelRequested": "anthropic/claude-haiku-4-5",
+        "criticModelActual": null,
+        "criticProvider": null,
+        "criticResponseSchemaName": "sage_grounded_critic_v2",
+        "architectPromptTokens": 1715,
+        "architectCompletionTokens": 668,
+        "architectLatencyMs": 9480,
+        "criticPromptTokens": null,
+        "criticCompletionTokens": null,
+        "criticLatencyMs": null,
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": [
+          "missions.0:custom"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "artifact": "grounded-structured-v2",
+  "note": "structured-output critic closure — NOT model approval, NOT promotion-ready",
+  "timestamp": "2026-07-23T13:30:08.627Z",
+  "callsConsumed": 2,
+  "hardCap": 5,
+  "ledgerPath": "grounded-structured-v2.ledger.json",
+  "requestedModels": {
+    "architect": "google/gemini-3.1-flash-lite-preview",
+    "critic": "anthropic/claude-haiku-4-5"
+  },
+  "responseFormat": "json_schema strict:true",
+  "transportSchemas": {
+    "architect": "sage_grounded_architect_v2",
+    "critic": "sage_grounded_critic_v2"
+  },
+  "modelSubstitution": null,
+  "configurationConclusive": true,
+  "capabilityConclusive": false,
+  "steps": [
+    {
+      "id": "state_claim",
+      "classification": "ok",
+      "metrics": {
+        "architectStatus": "ok",
+        "criticStatus": "ok",
+        "criticErrorCode": null,
+        "architectErrorCode": null,
+        "candidateCount": 1,
+        "groundingValid": 1,
+        "criticSupported": 1,
+        "canonicalGatePassed": 1,
+        "accepted": 1,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 1,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": true,
+        "allocatedBudgetBase": "2000000",
+        "architectContentShape": "bare_object",
+        "criticContentShape": "bare_object",
+        "criticHttpStatus": null,
+        "criticRetryAfterMs": null,
+        "architectModelRequested": "google/gemini-3.1-flash-lite-preview",
+        "architectModelActual": "fake-architect",
+        "architectProvider": "fake",
+        "criticModelRequested": "anthropic/claude-haiku-4-5",
+        "criticModelActual": "claude-haiku-4-5-20251001",
+        "criticProvider": "api.commonstack.ai",
+        "criticResponseSchemaName": "sage_grounded_critic_v2",
+        "architectPromptTokens": 0,
+        "architectCompletionTokens": 0,
+        "architectLatencyMs": 0,
+        "criticPromptTokens": 712,
+        "criticCompletionTokens": 44,
+        "criticLatencyMs": 45574,
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": []
+      }
+    },
+    {
+      "id": "safe_replay",
+      "classification": "failed",
+      "metrics": {
+        "architectStatus": "schema_invalid",
+        "criticStatus": "not_run",
+        "criticErrorCode": null,
+        "architectErrorCode": null,
+        "candidateCount": 0,
+        "groundingValid": 0,
+        "criticSupported": 0,
+        "canonicalGatePassed": 0,
+        "accepted": 0,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 0,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": false,
+        "allocatedBudgetBase": "0",
+        "architectContentShape": "bare_object",
+        "criticContentShape": null,
+        "criticHttpStatus": null,
+        "criticRetryAfterMs": null,
+        "architectModelRequested": "google/gemini-3.1-flash-lite-preview",
+        "architectModelActual": "gemini-3.1-flash-lite-preview",
+        "architectProvider": "api.commonstack.ai",
+        "criticModelRequested": "anthropic/claude-haiku-4-5",
+        "criticModelActual": null,
+        "criticProvider": null,
+        "criticResponseSchemaName": "sage_grounded_critic_v2",
+        "architectPromptTokens": 1715,
+        "architectCompletionTokens": 668,
+        "architectLatencyMs": 9480,
+        "criticPromptTokens": null,
+        "criticCompletionTokens": null,
+        "criticLatencyMs": null,
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": [
+          "missions.0:custom"
+        ]
+      }
+    }
+  ],
+  "recommendation": "inconclusive",
+  "hypothesis": "Did json_schema (vs json_object) let the strict parser accept the Haiku critic's output?",
+  "criticClosureConfirmed": true,
+  "criticClosureEvidence": "Step 1 (state_claim, fake architect, REAL Haiku critic via sage_grounded_critic_v2 json_schema): criticStatus=ok, criticContentShape=bare_object, criticSupported=1, canonicalGatePassed=1, state_seen=1, exactBudgetEquality=true. The prior sprint's json_object strict-parse failure (llm_strict_not_object) is RESOLVED by json_schema — NO model switch, NO parser loosening.",
+  "hypothesisAnswer": "YES — json_schema (schema-constrained generation), not json_object, is what let the Haiku critic emit a bare object the strict parser accepts.",
+  "architectFinding": "Step 2 (safe_replay, REAL Gemini architect): json_schema ALSO fixed the architect's structural conformance (architectContentShape=bare_object, no schema-shape errors), but the mission failed a Zod cross-field grounding invariant (architectSchemaErrorPaths=[\"missions.0:custom\"] — the mission-level superRefine: exactly-one-grounding-mapping-per-criterion / evidenceIndex-in-range) that json_schema structurally cannot enforce. This is a separate architect grounding-DESIGN issue, not a critic/structured-output issue.",
+  "budgetNote": "2 of 5 paid calls used (step1 critic ok; step2 architect schema_invalid). The failed step 2 was NOT retried — the append-only ledger is never reset and resume only re-runs unfinished work.",
+  "recommendationScope": "inconclusive applies to the FULL three-stage smoke (step 2 architect-grounding miss prevented green). The sprint's core objective — the structured-output CRITIC closure — is CONFIRMED (see criticClosureConfirmed)."
+}
