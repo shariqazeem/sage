@@ -1,0 +1,25 @@
+{
+  "artifact": "grounding-critic-semantic-v1-amendment",
+  "note": "APPEND-ONLY amendment. grounding-critic-semantic-v1.json and its ledger are immutable and unchanged.",
+  "amends": "grounding-critic-semantic-v1.json",
+  "timestamp": "amended-2026-07-23",
+  "corrections": {
+    "configurationConclusive": "false — candidate C (gemini-3.1-pro) repeat 2 failed transport (llm_strict_not_object), so the configuration/transport dimension did NOT complete cleanly for all candidates.",
+    "eligibilityMeasuredUnderContract": "critic-contract-v2 (model echoed factRefs). Eligibility was scored against model-returned provenance, which this sprint replaces with deterministic binding (v3).",
+    "corpusV1Defect": "goal_alignment_confound — the single batch goal 'test report loading + accuracy' did not clearly make 'displayed_claim_supported' (a homepage marketing phrase) MATERIAL to the goal, so a critic could correctly withhold support on goal grounds while still recognizing the displayed text.",
+    "displayedClaimMateriality": "displayed_claim_supported was not clearly material to the shared report-loading founder goal, confounding the display-vs-truth contrast with goal alignment."
+  },
+  "invalidatedConclusions": [
+    "The claim that Flash-Lite / Pro CONFLATED displayed text with truth is NOT established (the goal confound could explain their rejection of displayed_claim_supported).",
+    "The claim that Haiku had PERFECT semantics is NOT established (measured under contract-v2 with the same confound and a factRef-echo requirement).",
+    "No production model may be selected from corpus-v1."
+  ],
+  "telemetrySeparation": {
+    "eligibilityConclusionConclusive": "distinct from configurationConclusive — whether the SEMANTIC eligibility question was conclusively answered, independent of whether the transport/config completed for every candidate.",
+    "configurationConclusive": "whether the json_schema transport + strict parse completed cleanly for every attempted candidate."
+  },
+  "terminologyCorrections": {
+    "completeCoverage": "should distinguish pairPresenceCoverage (every case has a verdict row) from validDecisionCoverage (every case has a valid, bound decision) — v2 uses exactDecisionCoverage.",
+    "negativePrecision": "the v1 implementation actually computed SUPPORTED/POSITIVE precision (of the 'supported' verdicts, the fraction truly paySafe). v2 renames it supportedPrecision."
+  }
+}
