@@ -182,7 +182,7 @@ export async function runGroundedShadow(
   //    candidates rather than a salvaged plan.
   let candidates: CandidateMission[];
   try {
-    const architect = deps.architect ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: missionModel() }).then((r) => r.json));
+    const architect = deps.architect ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: missionModel(), parsePolicy: "strict" }).then((r) => r.json));
     // The ID→EVIDENCE view: every fact id sits BESIDE its observed content (page/state/texts/role/name)
     // and every transition id beside its verb/before-after/deltas/safety/replay — so the model cites
     // concrete observations, not opaque hashes. The hash lists are gone.
@@ -211,7 +211,7 @@ export async function runGroundedShadow(
   const supportedKeys = new Set<string>();
   let unsupportedCriteria = 0;
   try {
-    const critic = deps.critic ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: missionModel() }).then((r) => r.json));
+    const critic = deps.critic ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: missionModel(), parsePolicy: "strict" }).then((r) => r.json));
     const payload = structurallyValid.map((m) => ({
       missionKey: m.missionKey,
       criteria: m.criteria.map((c, ci) => {

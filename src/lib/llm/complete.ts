@@ -20,12 +20,22 @@ const TIMEOUT_MS = Math.max(20_000, Number(process.env.LLM_TIMEOUT_MS) || 90_000
 export interface LlmComplete {
   /** the parsed JSON object the model returned. */
   json: unknown;
+  /** the model Sage REQUESTED (resolved from override/env). */
   model: string;
   provider: string;
   latencyMs: number;
   promptTokens: number;
   completionTokens: number;
+  /** parse provenance — which policy parsed this response, the provider finish_reason, and whether the
+   *  tolerant repair rung was used. Optional so existing constructors/mocks stay valid. */
+  parsePolicy?: "repair" | "strict";
+  finishReason?: string | null;
+  repaired?: boolean;
+  /** the model the PROVIDER reported using (may differ from the requested `model`); null when absent. */
+  responseModel?: string | null;
 }
+
+export type ParsePolicy = "repair" | "strict";
 
 function hostOf(url: string): string {
   try {
@@ -107,8 +117,41 @@ function repairJson(raw: string): unknown {
 }
 
 interface ChatResponse {
-  choices?: { message?: { content?: string } }[];
+  /** the model the provider actually served (OpenAI-compatible gateways echo this). */
+  model?: string;
+  choices?: {
+    message?: { content?: string; refusal?: string | null; tool_calls?: unknown[] };
+    finish_reason?: string | null;
+  }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+/**
+ * STRICT parse for the grounded-architect boundary — the same discipline the money path uses
+ * (deputy/brain.ts), applied to a non-money generation path. The raw provider response must be a SINGLE,
+ * explicitly-normal ("stop") completion whose trimmed content is a bare JSON object. It NEVER strips
+ * fences, extracts braces from prose, drops trailing commas, appends delimiters, or calls repairJson: a
+ * non-conforming response fails closed so a truncated/mangled/tool-call/refused reply can never be
+ * salvaged into a plan.
+ */
+function parseStrict(data: ChatResponse): { json: unknown; finishReason: string } {
+  const choices = data.choices ?? [];
+  if (choices.length !== 1) throw new Error("llm_strict_choice_count");
+  const choice = choices[0];
+  const finishReason = choice.finish_reason;
+  if (finishReason == null) throw new Error("llm_strict_finish_absent"); // missing → fail closed
+  if (finishReason !== "stop") throw new Error(`llm_strict_finish_${finishReason}`.slice(0, 48)); // length/content_filter/tool_calls/unknown
+  const message = choice.message;
+  if (!message) throw new Error("llm_strict_no_message");
+  if (message.refusal != null && String(message.refusal).trim() !== "") throw new Error("llm_strict_refusal");
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) throw new Error("llm_strict_tool_calls");
+  const content = message.content;
+  if (!content || content.trim() === "") throw new Error("llm_empty");
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // no fences/prose/arrays
+  const json: unknown = JSON.parse(trimmed); // throws on ANY malformation (trailing comma, truncation) — no repair
+  if (json === null || typeof json !== "object" || Array.isArray(json)) throw new Error("llm_strict_not_object");
+  return { json, finishReason };
 }
 
 /**
@@ -121,6 +164,8 @@ export async function llmCompleteJson(opts: {
   maxTokens?: number;
   model?: string;
   temperature?: number;
+  /** "repair" (default — unchanged tolerant parse for legacy callers) | "strict" (fail-closed, no salvage). */
+  parsePolicy?: ParsePolicy;
 }): Promise<LlmComplete> {
   const p = resolveLlm(opts.model);
   if (!p) throw new Error("llm_not_configured");
@@ -145,16 +190,28 @@ export async function llmCompleteJson(opts: {
     });
     if (!res.ok) throw new Error(`llm_status_${res.status}`);
     const data = (await res.json()) as ChatResponse;
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error("llm_empty");
+    const policy: ParsePolicy = opts.parsePolicy ?? "repair";
     let json: unknown;
-    const extracted = extractJson(content);
-    try {
-      json = JSON.parse(extracted);
-    } catch {
-      // recovery rung: bounded structural repair before giving up.
-      json = repairJson(extracted);
-      if (json === null) throw new Error("llm_unparseable");
+    let finishReason: string | null;
+    let repaired = false;
+    if (policy === "strict") {
+      const strict = parseStrict(data); // fail-closed: no fence-strip / brace-extract / trailing-comma / repair
+      json = strict.json;
+      finishReason = strict.finishReason;
+    } else {
+      // DEFAULT "repair" — byte-identical to before: extract → JSON.parse → bounded structural repair.
+      finishReason = data.choices?.[0]?.finish_reason ?? null;
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) throw new Error("llm_empty");
+      const extracted = extractJson(content);
+      try {
+        json = JSON.parse(extracted);
+      } catch {
+        // recovery rung: bounded structural repair before giving up.
+        json = repairJson(extracted);
+        if (json === null) throw new Error("llm_unparseable");
+        repaired = true;
+      }
     }
     return {
       json,
@@ -163,6 +220,10 @@ export async function llmCompleteJson(opts: {
       latencyMs: Date.now() - started,
       promptTokens: data.usage?.prompt_tokens ?? 0,
       completionTokens: data.usage?.completion_tokens ?? 0,
+      parsePolicy: policy,
+      finishReason,
+      repaired,
+      responseModel: typeof data.model === "string" ? data.model : null,
     };
   } finally {
     clearTimeout(timer);
