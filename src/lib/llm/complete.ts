@@ -126,6 +126,67 @@ interface ChatResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+/** The coarse SHAPE of a completion's content — enum only, never the text itself (leak-safe telemetry). */
+export type ContentShape = "bare_object" | "fenced" | "prose_wrapped" | "array" | "empty" | "other" | "unknown";
+export function classifyContentShape(content: string | null | undefined): ContentShape {
+  if (content == null) return "unknown";
+  const t = content.trim();
+  if (t === "") return "empty";
+  if (t.startsWith("```")) return "fenced";
+  if (t.startsWith("[")) return "array";
+  if (t.startsWith("{")) return t.endsWith("}") ? "bare_object" : "other";
+  if (t.includes("{")) return "prose_wrapped";
+  return "other";
+}
+
+export interface LlmCompletionErrorFields {
+  code: string;
+  httpStatus: number | null;
+  provider: string | null;
+  requestedModel: string | null;
+  responseModel: string | null;
+  finishReason: string | null;
+  latencyMs: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  parsePolicy: ParsePolicy | null;
+  responseSchemaName: string | null;
+  contentShape: ContentShape;
+  retryAfterMs: number | null;
+}
+
+/**
+ * A sanitized completion failure. It carries provenance so a failed model can be measured FAIRLY (served
+ * model, usage, latency, finish reason, the response SHAPE) — but it NEVER carries any raw response text.
+ * `message === code`, so existing `.message`-based classification keeps working.
+ */
+export class LlmCompletionError extends Error implements LlmCompletionErrorFields {
+  declare code: string;
+  declare httpStatus: number | null;
+  declare provider: string | null;
+  declare requestedModel: string | null;
+  declare responseModel: string | null;
+  declare finishReason: string | null;
+  declare latencyMs: number | null;
+  declare promptTokens: number | null;
+  declare completionTokens: number | null;
+  declare parsePolicy: ParsePolicy | null;
+  declare responseSchemaName: string | null;
+  declare contentShape: ContentShape;
+  declare retryAfterMs: number | null;
+  constructor(f: LlmCompletionErrorFields) {
+    super(f.code);
+    this.name = "LlmCompletionError";
+    Object.assign(this, f);
+  }
+}
+
+function parseRetryAfterMs(h: string | null): number | null {
+  if (!h) return null;
+  const secs = Number(h.trim());
+  return Number.isFinite(secs) ? Math.round(secs * 1000) : null;
+}
+
 /**
  * STRICT parse for the grounded-architect boundary — the same discipline the money path uses
  * (deputy/brain.ts), applied to a non-money generation path. The raw provider response must be a SINGLE,
@@ -166,10 +227,15 @@ export async function llmCompleteJson(opts: {
   temperature?: number;
   /** "repair" (default — unchanged tolerant parse for legacy callers) | "strict" (fail-closed, no salvage). */
   parsePolicy?: ParsePolicy;
+  /** provider-native structured output. When supplied, sends response_format json_schema (strict:true) so
+   *  the model is CONSTRAINED to the schema during generation. It never weakens Sage's receiving parser. */
+  responseSchema?: { name: string; schema: Record<string, unknown> };
 }): Promise<LlmComplete> {
   const p = resolveLlm(opts.model);
   if (!p) throw new Error("llm_not_configured");
   const started = Date.now();
+  const policy: ParsePolicy = opts.parsePolicy ?? "repair";
+  const schemaName = opts.responseSchema?.name ?? null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -181,23 +247,43 @@ export async function llmCompleteJson(opts: {
         model: p.model,
         temperature: opts.temperature ?? 0.2,
         max_tokens: opts.maxTokens ?? 3500,
-        response_format: { type: "json_object" },
+        response_format: opts.responseSchema
+          ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
+          : { type: "json_object" },
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.user },
         ],
       }),
     });
-    if (!res.ok) throw new Error(`llm_status_${res.status}`);
+    if (!res.ok) {
+      // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.
+      throw new LlmCompletionError({
+        code: `llm_status_${res.status}`, httpStatus: res.status, provider: p.host, requestedModel: p.model,
+        responseModel: null, finishReason: null, latencyMs: Date.now() - started, promptTokens: null, completionTokens: null,
+        parsePolicy: policy, responseSchemaName: schemaName, contentShape: "unknown", retryAfterMs: parseRetryAfterMs(res.headers.get("retry-after")),
+      });
+    }
     const data = (await res.json()) as ChatResponse;
-    const policy: ParsePolicy = opts.parsePolicy ?? "repair";
     let json: unknown;
     let finishReason: string | null;
     let repaired = false;
     if (policy === "strict") {
-      const strict = parseStrict(data); // fail-closed: no fence-strip / brace-extract / trailing-comma / repair
-      json = strict.json;
-      finishReason = strict.finishReason;
+      const choice0 = data.choices?.[0];
+      try {
+        const strict = parseStrict(data); // fail-closed: no fence-strip / brace-extract / trailing-comma / repair
+        json = strict.json;
+        finishReason = strict.finishReason;
+      } catch (e) {
+        // a provider response arrived but strict parse rejected it → retain served-model/usage/latency/shape.
+        throw new LlmCompletionError({
+          code: e instanceof Error ? e.message : "llm_strict_failed", httpStatus: res.status, provider: p.host,
+          requestedModel: p.model, responseModel: typeof data.model === "string" ? data.model : null,
+          finishReason: choice0?.finish_reason ?? null, latencyMs: Date.now() - started,
+          promptTokens: data.usage?.prompt_tokens ?? null, completionTokens: data.usage?.completion_tokens ?? null,
+          parsePolicy: "strict", responseSchemaName: schemaName, contentShape: classifyContentShape(choice0?.message?.content), retryAfterMs: null,
+        });
+      }
     } else {
       // DEFAULT "repair" — byte-identical to before: extract → JSON.parse → bounded structural repair.
       finishReason = data.choices?.[0]?.finish_reason ?? null;

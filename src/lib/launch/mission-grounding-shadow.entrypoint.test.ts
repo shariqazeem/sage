@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Fake ONLY the external provider boundary. runMissionBrain (the real entrypoint) + its architect/critic/
 // gate + runGroundedShadow (strict Zod parse → digest-bound grounding → critic → the SAME canonical gate the
 // legacy plan uses → real allocator) all run for real; llmCompleteJson returns scripted JSON keyed by system.
-vi.mock("@/lib/llm/complete", () => ({ llmConfigured: () => true, llmCompleteJson: vi.fn() }));
+// spread the real module so LlmCompletionError / ContentShape stay defined (the shadow does `instanceof`);
+// only llmConfigured + llmCompleteJson are overridden.
+vi.mock("@/lib/llm/complete", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/llm/complete")>()), llmConfigured: () => true, llmCompleteJson: vi.fn() }));
 
 import { runMissionBrain } from "./mission-brain";
 import { llmCompleteJson } from "@/lib/llm/complete";
@@ -432,5 +434,21 @@ describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBr
     expect(gs.groundingValid).toBe(1);
     expect(gs.criticSupported).toBe(0);
     expect(gs.accepted).toBe(0);
+  });
+
+  it("C1: the shadow passes the correct TRANSPORT SCHEMA (json_schema) + strict policy to each V2 role", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    const calls = vi.mocked(llmCompleteJson).mock.calls.map((c) => c[0] as { system: string; responseSchema?: { name: string }; parsePolicy?: string });
+    const arch = calls.find((o) => o.system.includes("GROUNDED mission architect"));
+    const crit = calls.find((o) => o.system.includes("grounding CRITIC"));
+    expect(arch?.responseSchema?.name).toBe("sage_grounded_architect_v2");
+    expect(arch?.parsePolicy).toBe("strict");
+    expect(crit?.responseSchema?.name).toBe("sage_grounded_critic_v2");
+    expect(crit?.parsePolicy).toBe("strict");
+    // the schema names are also recorded in telemetry for the evidence artifact.
+    expect(gs.architectResponseSchemaName).toBe("sage_grounded_architect_v2");
+    expect(gs.criticResponseSchemaName).toBe("sage_grounded_critic_v2");
   });
 });

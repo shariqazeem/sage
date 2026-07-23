@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { llmCompleteJson } from "@/lib/llm/complete";
+import { llmCompleteJson, LlmCompletionError, type ContentShape } from "@/lib/llm/complete";
 import { missionModel } from "@/lib/llm/mission-model";
 import { compactMapForLlm } from "./mission-brain";
 import { validateMissionGrounding, classifyGroundingTier } from "./mission-grounding";
@@ -118,6 +118,56 @@ const CriticOutputSchema = z
     ),
   })
   .strict();
+
+/* ──────────────── provider-native TRANSPORT JSON Schemas (json_schema strict:true) ────────────────
+ * These CONSTRAIN generation (types, required keys, enums, additionalProperties:false, nullable via type
+ * unions). The Zod contracts above remain the SEMANTIC authority — uniqueness, criterion bijection, exact
+ * fact-set equality, digest binding and every cross-field refinement run AFTER transport parsing. The
+ * architect transport permits {"missions":[]} (the honest result for an unobserved goal). Fine-grained
+ * bounds (min lengths, integer ranges) are deliberately left to Zod so an unsupported schema keyword can
+ * never 400 the request. In OpenAI strict mode every property is listed in `required`; optionals are
+ * expressed as a "null" type-union.                                                                        */
+const strArray = { type: "array", items: { type: "string" } };
+const nullableStrArray = { type: ["array", "null"], items: { type: "string" } };
+const criterionTransport = {
+  type: "object", additionalProperties: false,
+  properties: {
+    criterionIndex: { type: "integer" },
+    criterionKind: { type: "string", enum: ["state", "action_outcome", "content_claim", "visual_quality"] },
+    factRefs: strArray,
+    transitionRef: { type: ["string", "null"] },
+    evidenceIndex: { type: "integer" },
+    evidenceMode: { type: "string", enum: ["deterministic_url", "semantic_url", "observation"] },
+    pageUrl: { type: "string" }, stateId: { type: "string" }, supportRationale: { type: "string" },
+  },
+  required: ["criterionIndex", "criterionKind", "factRefs", "transitionRef", "evidenceIndex", "evidenceMode", "pageUrl", "stateId", "supportRationale"],
+};
+const missionTransport = {
+  type: "object", additionalProperties: false,
+  properties: {
+    missionKey: { type: "string" }, title: { type: "string" }, objective: { type: "string" },
+    instructions: { type: "string" }, targetSurface: { type: "string" },
+    criteria: strArray, evidenceRequirements: strArray, whyItMatters: { type: "string" },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, properties: { kind: { type: "string", enum: ["page", "repo", "founder"] }, ref: { type: "string" }, observation: { type: "string" } }, required: ["kind", "ref", "observation"] } },
+    priority: { type: "string", enum: ["high", "medium", "low"] },
+    riskCategory: { type: "string", enum: [...RISK_CATEGORIES] },
+    effortMinutes: { type: "integer" }, rewardWeight: { type: "integer" }, maxCompletions: { type: "integer" },
+    verificationMethod: { type: "string" }, confidence: { type: "number" },
+    conditions: nullableStrArray, assumptions: nullableStrArray, disallowed: nullableStrArray, anchors: strArray,
+    groundingV1: { type: "object", additionalProperties: false, properties: { observationSetDigest: { type: "string" }, criteria: { type: "array", items: criterionTransport } }, required: ["observationSetDigest", "criteria"] },
+  },
+  required: ["missionKey", "title", "objective", "instructions", "targetSurface", "criteria", "evidenceRequirements", "whyItMatters", "sources", "priority", "riskCategory", "effortMinutes", "rewardWeight", "maxCompletions", "verificationMethod", "confidence", "conditions", "assumptions", "disallowed", "anchors", "groundingV1"],
+};
+/** Architect transport — a missions array that MAY be empty (honest v2_empty) or carry full grounded missions. */
+export const ARCHITECT_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: "sage_grounded_architect_v2",
+  schema: { type: "object", additionalProperties: false, properties: { missions: { type: "array", items: missionTransport } }, required: ["missions"] },
+};
+/** Critic transport — verdicts with REQUIRED factRefs; Zod enforces uniqueness + exact fact-set equality. */
+export const CRITIC_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: "sage_grounded_critic_v2",
+  schema: { type: "object", additionalProperties: false, properties: { verdicts: { type: "array", items: { type: "object", additionalProperties: false, properties: { missionKey: { type: "string" }, criterionIndex: { type: "integer" }, verdict: { type: "string", enum: ["supported", "partially_supported", "unsupported", "contradictory"] }, factRefs: strArray }, required: ["missionKey", "criterionIndex", "verdict", "factRefs"] } } }, required: ["verdicts"] },
+};
 
 /* ─────────────────────────────── bounded, leak-safe execution-status telemetry ───────────────────────────
  * Per-role status so an evaluation runner can DISTINGUISH a transport/quota failure (provider_error, e.g. a
@@ -270,6 +320,16 @@ export interface GroundingShadowResult {
   criticFinishReason: string | null;
   criticParsePolicy: string | null;
   criticRepaired: boolean | null;
+  /** structured-output provenance — the response SHAPE (enum, never text), the http status + retry-after on
+   *  a transport failure, and the transport schema NAME actually requested per role. */
+  architectContentShape: ContentShape | null;
+  architectHttpStatus: number | null;
+  architectRetryAfterMs: number | null;
+  architectResponseSchemaName: string | null;
+  criticContentShape: ContentShape | null;
+  criticHttpStatus: number | null;
+  criticRetryAfterMs: number | null;
+  criticResponseSchemaName: string | null;
   /** counts of the canonical-gate rejection CODES (enums like "unanchored_claim") for critic-supported
    *  candidates that failed the gate — leak-safe (codes only, never mission text). */
   canonicalRejectionCodes: Record<string, number>;
@@ -349,6 +409,8 @@ export async function runGroundedShadow(
     criticModelRequested, criticModelActual: null, criticProvider: null,
     architectStatus: "not_run", architectErrorCode: null, architectLatencyMs: null, architectPromptTokens: null, architectCompletionTokens: null, architectFinishReason: null, architectParsePolicy: null, architectRepaired: null,
     criticStatus: "not_run", criticErrorCode: null, criticLatencyMs: null, criticPromptTokens: null, criticCompletionTokens: null, criticFinishReason: null, criticParsePolicy: null, criticRepaired: null,
+    architectContentShape: null, architectHttpStatus: null, architectRetryAfterMs: null, architectResponseSchemaName: ARCHITECT_TRANSPORT_SCHEMA.name,
+    criticContentShape: null, criticHttpStatus: null, criticRetryAfterMs: null, criticResponseSchemaName: CRITIC_TRANSPORT_SCHEMA.name,
     canonicalRejectionCodes: {}, architectSchemaErrorPaths: [],
     observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
     ...over,
@@ -361,22 +423,30 @@ export async function runGroundedShadow(
   let criticActual: string | null = null, criticProvider: string | null = null, cMeta = emptyMeta();
   let architectStatus: RoleStatus = "not_run", architectErrorCode: string | null = null;
   let criticStatus: RoleStatus = "not_run", criticErrorCode: string | null = null;
+  let architectShape: ContentShape | null = null, architectHttp: number | null = null, architectRetry: number | null = null;
+  let criticShape: ContentShape | null = null, criticHttp: number | null = null, criticRetry: number | null = null;
   const architect = deps.architect ?? (async (system: string, user: string) => {
-    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict" });
-    architectActual = r.responseModel ?? r.model; architectProvider = r.provider;
+    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict", responseSchema: ARCHITECT_TRANSPORT_SCHEMA });
+    architectActual = r.responseModel ?? r.model; architectProvider = r.provider; architectShape = "bare_object";
     aMeta = { latencyMs: r.latencyMs, promptTokens: r.promptTokens, completionTokens: r.completionTokens, finishReason: r.finishReason ?? null, parsePolicy: r.parsePolicy ?? "strict", repaired: r.repaired ?? false };
     return r.json;
   });
   const critic = deps.critic ?? (async (system: string, user: string) => {
-    const r = await llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: criticModelRequested ?? undefined, parsePolicy: "strict" });
-    criticActual = r.responseModel ?? r.model; criticProvider = r.provider;
+    const r = await llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: criticModelRequested ?? undefined, parsePolicy: "strict", responseSchema: CRITIC_TRANSPORT_SCHEMA });
+    criticActual = r.responseModel ?? r.model; criticProvider = r.provider; criticShape = "bare_object";
     cMeta = { latencyMs: r.latencyMs, promptTokens: r.promptTokens, completionTokens: r.completionTokens, finishReason: r.finishReason ?? null, parsePolicy: r.parsePolicy ?? "strict", repaired: r.repaired ?? false };
     return r.json;
   });
+  // capture the sanitized failure provenance so a FAILED model is measured fairly (served model, usage,
+  // latency, finish reason, response SHAPE, http status) — never any raw text.
+  const captureArchErr = (e: unknown) => { if (e instanceof LlmCompletionError) { architectActual = e.responseModel; architectProvider = e.provider; architectShape = e.contentShape; architectHttp = e.httpStatus; architectRetry = e.retryAfterMs; aMeta = { latencyMs: e.latencyMs, promptTokens: e.promptTokens, completionTokens: e.completionTokens, finishReason: e.finishReason, parsePolicy: e.parsePolicy, repaired: false }; } };
+  const captureCriticErr = (e: unknown) => { if (e instanceof LlmCompletionError) { criticActual = e.responseModel; criticProvider = e.provider; criticShape = e.contentShape; criticHttp = e.httpStatus; criticRetry = e.retryAfterMs; cMeta = { latencyMs: e.latencyMs, promptTokens: e.promptTokens, completionTokens: e.completionTokens, finishReason: e.finishReason, parsePolicy: e.parsePolicy, repaired: false }; } };
   const telemetry = () => ({
     architectModelActual: architectActual, architectProvider, criticModelActual: criticActual, criticProvider,
     architectStatus, architectErrorCode, architectLatencyMs: aMeta.latencyMs, architectPromptTokens: aMeta.promptTokens, architectCompletionTokens: aMeta.completionTokens, architectFinishReason: aMeta.finishReason, architectParsePolicy: aMeta.parsePolicy, architectRepaired: aMeta.repaired,
     criticStatus, criticErrorCode, criticLatencyMs: cMeta.latencyMs, criticPromptTokens: cMeta.promptTokens, criticCompletionTokens: cMeta.completionTokens, criticFinishReason: cMeta.finishReason, criticParsePolicy: cMeta.parsePolicy, criticRepaired: cMeta.repaired,
+    architectContentShape: architectShape, architectHttpStatus: architectHttp, architectRetryAfterMs: architectRetry,
+    criticContentShape: criticShape, criticHttpStatus: criticHttp, criticRetryAfterMs: criticRetry,
   });
 
   // 1) V2 ARCHITECT — ONE bounded, strict, fail-closed call. Its output is validated by strict Zod schemas
@@ -403,6 +473,7 @@ export async function runGroundedShadow(
   } catch (e) {
     architectErrorCode = sanitizeErrorCode(e); // bounded llm_* code, never raw response
     architectStatus = classifyRoleError(architectErrorCode);
+    captureArchErr(e);
     return base({ error: architectErrorCode, observationView: viewMeta, ...telemetry() });
   }
   if (candidates.length === 0) { architectStatus = "ok"; return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...telemetry() }); }
@@ -466,6 +537,7 @@ export async function runGroundedShadow(
   } catch (e) {
     criticErrorCode = sanitizeErrorCode(e);
     criticStatus = classifyRoleError(criticErrorCode); // e.g. a 429 → provider_error (distinct from a genuine unsupported verdict)
+    captureCriticErr(e);
     /* supports nothing (fail closed) */
   }
 
