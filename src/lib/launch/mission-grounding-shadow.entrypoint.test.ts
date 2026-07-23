@@ -66,7 +66,11 @@ function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: bool
   });
 }
 const scope = () => scopeFromObservations([obs("https://p.test/"), obs("https://p.test/play")], []);
-const support = (missionKey: string, criterionIndex: number, factRefs: string[]) => ({ missionKey, criterionIndex, verdict: "supported", factRefs });
+// V3 critic verdict — the model returns ONLY {decisionId, verdict}; Sage owns the decisionId→provenance map.
+// decisionId is positional (d0,d1,... across the single fixture mission's criteria), so it == "d"+criterionIndex.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- factRefs kept for V2-shaped call-site compat (V3 ignores it)
+const support = (_missionKey: string, criterionIndex: number, _factRefs?: string[]) => ({ decisionId: `d${criterionIndex}`, verdict: "supported" });
+const decide = (decisionId: string, verdict: string) => ({ decisionId, verdict });
 
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { delete process.env.MISSION_GROUNDING_MODE; });
@@ -171,29 +175,54 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     expect(gs.error).toBe("v2_empty");
   });
 
-  // ── critic ──
-  it("P0.1: critic REORDERED factRefs [b,a] equals cited [a,b] (order-independent) → supported", async () => {
+  // ── V3 critic: the model returns ONLY {decisionId, verdict}; Sage binds provenance deterministically ──
+  it("V3: an UNKNOWN decisionId fails the whole batch closed (contract violation)", async () => {
     process.env.MISSION_GROUNDING_MODE = "shadow";
-    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit({ factRefs: [startFact.id, yaraFact.id] })] })] }, { verdicts: [support("reach-start", 0, [yaraFact.id, startFact.id])] });
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [decide("d99", "supported")] });
     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
-    expect(gs.criticStatus).toBe("ok");
-    expect(gs.criticSupported).toBe(1);
+    expect(gs.criticStatus).toBe("schema_invalid");
+    expect(gs.criticErrorCode).toBe("critic_decisionid_mismatch");
+    expect(gs.criticSupported).toBe(0);
   });
 
-  it("P0.1: critic DUPLICATE factRefs [a,a] vs cited [a,b] fails closed", async () => {
+  it("V3: a DUPLICATE decisionId fails the whole batch closed", async () => {
     process.env.MISSION_GROUNDING_MODE = "shadow";
-    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit({ factRefs: [startFact.id, yaraFact.id] })] })] }, { verdicts: [support("reach-start", 0, [startFact.id, startFact.id])] });
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [decide("d0", "supported"), decide("d0", "supported")] });
     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
     expect(gs.criticStatus).toBe("schema_invalid");
     expect(gs.criticSupported).toBe(0);
   });
 
-  it("critic MISSING factRefs supports nothing; UNRELATED factRefs supports nothing", async () => {
+  it("V3: a MISSING decisionId (one criterion unjudged) fails the whole batch closed", async () => {
     process.env.MISSION_GROUNDING_MODE = "shadow";
-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
-    expect((await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.criticSupported).toBe(0);
-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, ["deadbeefdeadbeefdeadbeef"])] });
-    expect((await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.criticSupported).toBe(0);
+    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit(), actionCrit()] })] }, { verdicts: [decide("d0", "supported")] }); // d1 missing
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("schema_invalid");
+    expect(gs.criticSupported).toBe(0);
+  });
+
+  it("V3: an EXTRA output key (e.g. a model-authored factRefs) fails strict Zod → schema_invalid", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ decisionId: "d0", verdict: "supported", factRefs: ["x"] }] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("schema_invalid");
+    expect(gs.criticSupported).toBe(0);
+  });
+
+  it("V3: a reordered verdict list still binds to canonical provenance (order-independent)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit(), actionCrit()] })] }, { verdicts: [decide("d1", "supported"), decide("d0", "supported")] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("ok");
+    expect(gs.criticSupported).toBe(1); // both criteria supported regardless of row order
+  });
+
+  it("V3: a genuine 'unsupported' verdict → criticStatus ok + not supported", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [decide("d0", "unsupported")] });
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticStatus).toBe("ok");
+    expect(gs.criticSupported).toBe(0);
   });
 
   it("P0.2: a normal supported run reports architectStatus + criticStatus ok; both parsePolicy strict", async () => {
@@ -244,7 +273,7 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     const crit = calls.find((o) => o.system.includes("grounding CRITIC"));
     expect(arch?.responseSchema?.name).toBe("sage_grounded_architect_semantic_draft_v1");
     expect(arch?.parsePolicy).toBe("strict");
-    expect(crit?.responseSchema?.name).toBe("sage_grounded_critic_v2");
+    expect(crit?.responseSchema?.name).toBe("sage_grounded_critic_v3");
     expect(crit?.parsePolicy).toBe("strict");
     expect(gs.architectResponseSchemaName).toBe("sage_grounded_architect_semantic_draft_v1");
   });
