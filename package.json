@@ -37,7 +37,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "closure:v2:dry": "SAGE_DB_PATH=$(mktemp -d)/ccv2.db CANARY_CLOSURE_V2_DRY=1 vitest run src/lib/launch/canary-runtime-closure-v2.live.test.ts --reporter=basic",
-    "closure:v2": "SAGE_DB_PATH=$(mktemp -d)/ccv2.db CANARY_CLOSURE_V2=1 CANARY_CLOSURE_V2_CONFIRM=CALL_CAP_2 vitest run src/lib/launch/canary-runtime-closure-v2.live.test.ts --reporter=basic"
+    "closure:v2": "SAGE_DB_PATH=$(mktemp -d)/ccv2.db CANARY_CLOSURE_V2=1 CANARY_CLOSURE_V2_CONFIRM=CALL_CAP_2 vitest run src/lib/launch/canary-runtime-closure-v2.live.test.ts --reporter=basic",
+    "demo:self-canary": "DEMO_SELF_CANARY=1 vitest run src/lib/deputy/demo-self-canary.test.ts --reporter=basic"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
