@@ -10,6 +10,7 @@ import { getInspectionJob } from "@/lib/db/inspection";
 import { putPendingWithdrawal, consumePendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { getCurrentRevision, approveRevision } from "@/lib/db/plan-revisions";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
+import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
 import { deserializePlan } from "@/lib/launch/serde";
 import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
@@ -68,7 +69,21 @@ function autoApprove(jobId: string, approver: string): boolean {
     promptVersion: MISSION_PROMPT_VERSION,
   });
   if (!verified.ok) return false;
-  return approveRevision(jobId, current.revisionNumber, approver, verified.approvalRecord).ok;
+  // PARITY with the web SIWE approve route (approve/route.ts:60-73) — validate + bind the revision's
+  // VerificationPolicyV2 at approval. A required-but-missing / malformed / stale / mismatched / incomplete policy
+  // fails CLOSED (no approval), and the bound digest is written into the immutable approval record. A non-required
+  // (legacy) revision binds nothing. Without this, a walletless approval skipped the covenant the web door binds.
+  const policyCheck = checkRevisionPolicyForApproval({
+    verificationPolicy: current.verificationPolicy ?? null,
+    verificationPolicyDigest: current.verificationPolicyDigest ?? null,
+    verificationPolicyRequired: current.verificationPolicyRequired === true,
+    planMissionPlanDigest: deserializePlan(current.planJson).missionPlanDigest,
+  });
+  if (!policyCheck.ok) return false;
+  const approvalRecord: unknown = policyCheck.boundDigest
+    ? { ...(verified.approvalRecord as Record<string, unknown>), verificationPolicyDigest: policyCheck.boundDigest, verificationPolicyVersion: policyCheck.version, verificationPolicyRequired: current.verificationPolicyRequired === true }
+    : verified.approvalRecord;
+  return approveRevision(jobId, current.revisionNumber, approver, approvalRecord).ok;
 }
 
 export const AGENT_WALLET_TOOLS: McpToolDef[] = [

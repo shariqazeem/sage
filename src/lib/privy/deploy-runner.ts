@@ -10,6 +10,7 @@ import {
 } from "@/lib/launch/deployment-service";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
+import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { executeSequenceViaPrivy } from "./executor";
 
@@ -102,6 +103,16 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
   );
   if (!attach.ok) {
     throw new Error(`the vault deployed + funded, but recording it failed (${attach.stage}): ${attach.errors.join(", ")}`);
+  }
+
+  // PARITY with the web deploy (attach/route.ts:159) — the approved revision's VerificationPolicyV2 MUST bind to
+  // the new campaign, fail-closed, so a covenant-required (canary/action-replay) plan launched walletlessly gets
+  // the SAME frozen/reproduced-permit covenant the SIWE web path enforces. A non-required (legacy) revision is a
+  // legitimate no-op. Without this, the campaign row keeps verificationPolicyRequired=false and settlement would
+  // silently pay under legacy rules — the exact Telegram↔web divergence this closes.
+  const policyAttach = attachApprovedPolicyToCampaign(attach.campaignId, jobId);
+  if (!policyAttach.ok) {
+    throw new Error(`the vault deployed + funded, but the verification covenant could not attach (${policyAttach.reason}) — retry recording`);
   }
 
   return {
