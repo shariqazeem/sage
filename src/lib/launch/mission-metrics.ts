@@ -78,6 +78,9 @@ export function computeGroundingMetrics(
     promotionClean: false,
   };
   metrics.promotionClean =
+    accepted.length > 0 && // never promotion-clean with zero accepted candidates...
+    withGrounding.length > 0 && // ...or when NO candidate carried a grounding map (nothing was proven)
+    accepted.every((m) => m.groundingV1 && m.groundingV1.criteria.length >= m.criteria.length) && // every accepted criterion mapped
     metrics.anchorIntegrity === 1 &&
     metrics.factReferenceIntegrity === 1 &&
     metrics.criterionEvidenceMapping === 1 &&

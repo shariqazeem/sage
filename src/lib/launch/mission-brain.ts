@@ -19,6 +19,7 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
+import { missionGroundingMode, runGroundedShadow, type GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
 import { norm } from "./schemas";
@@ -80,7 +81,7 @@ function extractMissionArray(json: unknown): unknown[] {
 }
 
 /** Coerce a raw model object into a well-typed CandidateMission (or null if unusable). */
-function coerceMission(raw: unknown, i: number): CandidateMission | null {
+export function coerceMission(raw: unknown, i: number): CandidateMission | null {
   const o = (raw ?? {}) as Record<string, unknown>;
   const title = asStr(o.title, 140);
   const objective = asStr(o.objective, 600);
@@ -136,6 +137,14 @@ export interface MissionBrainResult {
   provider: string;
   promptVersion: string;
   latencyMs: number;
+  /** S2 grounded-architect shadow telemetry (present only when MISSION_GROUNDING_MODE ≠ off). Advisory;
+   *  it never changes `accepted` / the legacy plan. */
+  groundingShadow?: GroundingShadowResult;
+}
+
+/** The set of transition ids the shadow replay reproduced, from the inspection's leak-safe record. */
+function replayReproducedSet(map: ProductMapV1): ReadonlySet<string> {
+  return new Set((map.replayShadow?.results ?? []).filter((r) => r.classification === "reproduced").map((r) => r.transitionId));
 }
 
 const EMPTY = (reason: string): MissionBrainResult => ({
@@ -145,7 +154,7 @@ const EMPTY = (reason: string): MissionBrainResult => ({
 
 /** A tight map summary for the LLM — exact URLs (valid targets/citations) + surfaces,
  *  without the verbose sources/snippets that overwhelm the model on content-heavy sites. */
-function compactMapForLlm(map: ProductMapV1): string {
+export function compactMapForLlm(map: ProductMapV1): string {
   const vals = (f: { value: string }[], n = 12) => f.slice(0, n).map((x) => x.value);
   const inspectedUrls = [...new Set(map.routes.flatMap((r) => r.sources.map((s) => s.ref)))].slice(0, 14);
   return JSON.stringify({
@@ -364,6 +373,16 @@ export async function runMissionBrain(
     for (const q of sufficiencyQuestions(map)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   }
 
+  // GROUNDED ARCHITECT SHADOW (S2) — MISSION_GROUNDING_MODE=off|shadow|enforce (default off). In
+  // shadow/enforce it runs the V2 grounded architect + deterministic grounding validation + critic
+  // ALONGSIDE the legacy plan and records bounded telemetry. The legacy `r.accepted` selection below is
+  // NEVER changed by it; a V2 failure is fully caught and cannot fail the legacy job.
+  let groundingShadow: import("./mission-grounding-shadow").GroundingShadowResult | undefined;
+  if (missionGroundingMode() !== "off") {
+    try { groundingShadow = await runGroundedShadow(map, founder, r.accepted.length, { replayReproduced: replayReproducedSet(map) }); }
+    catch { /* shadow is best-effort; the legacy plan stands */ }
+  }
+
   return {
     ok: r.accepted.length > 0,
     reason: r.accepted.length > 0 ? null : "no_missions_passed_validation",
@@ -371,6 +390,7 @@ export async function runMissionBrain(
     critiques: r.critiques,
     accepted: r.accepted,
     reports: r.reports,
+    ...(groundingShadow ? { groundingShadow } : {}),
     needsInputQuestions,
     model: arch.model,
     provider: arch.provider,
