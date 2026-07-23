@@ -1,0 +1,22 @@
+{
+  "artifact": "canary-truth-amendment",
+  "amends": "grounding-canary-smoke.json + grounding-canary-smoke-amendment.json",
+  "note": "APPEND-ONLY. Prior evidence preserved byte-for-byte. Corrects the honest canary status at the start of the Real-Canary-Closure sprint and records the source fixes. No paid calls produced this amendment.",
+  "timestamp": "2026-07-23T16:20:00Z",
+  "canaryStatus": {
+    "criticCandidateSelected": true,
+    "modelDependentStagesLive": true,
+    "canonicalSelectionLive": false,
+    "runtimeJobPersistenceLive": false,
+    "founderApprovalLive": false,
+    "canaryReady": false,
+    "reason": "the paid smoke used an empty ValidationScope and blocked at the canonical gate before selection; job->revision->approval persistence was never exercised live"
+  },
+  "sourceFixes": {
+    "A_operatorAuthorizationVsFounderConsent": "CanaryIdentity.optedIn renamed to operatorAuthorized (allowlisting is an OPERATOR signal, not founder consent). Added isValidFounderWallet (0x+40hex, rejects anonymous/empty/malformed/prose); resolveCanaryAuthority now rejects invalid_wallet and not_operator_authorized. job.ts builds the identity ONLY from a valid SIWE-verified founderWallet. The actual founder decision remains the separate SIWE approval of the revision.",
+    "B_approvalAuthority": "bindCanaryApproval renamed canaryPlanCommitment; returns { commitment } not { token }; documented as provenance ONLY, never authorization. The authoritative approval path is unchanged: createRevision(selected plan) -> SIWE approve endpoint -> server recomputes hashes+budget -> approveRevision(current).",
+    "C_selectedPlanProvenance": "A grounded-selected plan now persists grounded provenance (architect+critic requested/served model, providers, contract versions, observationSetDigest, grounded plan digest, planSource=grounded_v2) on the job result; job columns model/provider + the revision use the grounded architect, not brain.model; the revision reason is generated_grounded_v2.",
+    "D_evalConclusiveness": "Calibration harness bug fixed: configurationConclusive is now `!stop` (a quota/auth/transport STOP is INCONCLUSIVE, never configuration-conclusive)."
+  },
+  "noSideEffects": "Nothing deployed, funded, launched, settled, or globally enabled. Default MISSION_GROUNDING_MODE remains off."
+}

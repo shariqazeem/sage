@@ -12,7 +12,7 @@ import { llmCompleteJson } from "@/lib/llm/complete";
 import { deriveObservations, decisiveFacts } from "./observed-facts";
 import type { ObservationSetV1 } from "./observed-facts";
 import { scopeFromObservations } from "./product-map";
-import { evaluateCanarySelection, bindCanaryApproval, deterministicGroundedPlanDigest, type CanaryIdentity } from "./mission-canary";
+import { evaluateCanarySelection, canaryPlanCommitment, deterministicGroundedPlanDigest, type CanaryIdentity } from "./mission-canary";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -343,12 +343,12 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     // model stages — architect strict-valid, draft compiled, action_replayed grounding, V3 critic supported;
     // this proves gate-pass -> exact allocation -> V2 selected -> deterministic digest -> approval waits).
     process.env.MISSION_GROUNDING_MODE = "canary";
-    process.env.MISSION_CANARY_ALLOWLIST = "0xallowedfounder";
+    process.env.MISSION_CANARY_ALLOWLIST = "0x1111111111111111111111111111111111111111";
     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
     const plan = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.groundedCandidatePlan!;
     expect(plan.strictSelectable).toBe(true);
 
-    const identity: CanaryIdentity = { wallet: "0xAllowedFounder", optedIn: true, source: "server_session" };
+    const identity: CanaryIdentity = { wallet: "0x1111111111111111111111111111111111111111", operatorAuthorized: true, source: "server_session" };
     const decision = evaluateCanarySelection({ mode: "canary", identity, plan });
     expect(decision.status).toBe("selected");
     if (decision.status !== "selected") return;
@@ -362,9 +362,9 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
 
     // exact base-unit budget equality is MANDATORY, and the approval token binds the exact plan.
     expect(compiled.plan.allocatedBase).toBe(input.totalBudgetBase);
-    const approval = bindCanaryApproval({ planDigest: compiled.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: compiled.plan.totalBudgetBase.toString(), revision: compiled.plan.revision });
-    expect(approval.token).toHaveLength(64);
-    expect(approval.planDigest).toBe(compiled.plan.missionPlanDigest);
+    const commitment = canaryPlanCommitment({ planDigest: compiled.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: compiled.plan.totalBudgetBase.toString(), revision: compiled.plan.revision });
+    expect(commitment.commitment).toHaveLength(64);
+    expect(commitment.planDigest).toBe(compiled.plan.missionPlanDigest);
     expect(decision.groundedDigest).toBe(deterministicGroundedPlanDigest(plan));
     // the plan is a DRAFT that waits for founder approval — selection never auto-approves/launches/pays.
     expect(compiled.plan.status).not.toBe("approved");

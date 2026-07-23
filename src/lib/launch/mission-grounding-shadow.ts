@@ -165,8 +165,10 @@ export interface GroundedCandidatePlan {
   allocatedBudgetBase: string;
   architectModel: string | null;
   architectProvider: string | null;
+  architectContractVersion: string;
   criticModel: string | null;
   criticProvider: string | null;
+  criticContractVersion: string;
   observationSetDigest: string;
   signals: GroundedPlanSignals;
   /** true ⇔ every signal is true AND missions.length > 0 (all strict conditions met). */
@@ -553,7 +555,9 @@ export async function runGroundedShadow(
   const strictSelectable = accepted.length > 0 && Object.values(signals).every(Boolean);
   const groundedCandidatePlan: GroundedCandidatePlan | null = missionGroundingMode() !== "off" && accepted.length > 0
     ? { missions: accepted, suppliedBudgetBase: input.totalBudgetBase.toString(), allocatedBudgetBase: allocatedBase.toString(),
-        architectModel: architectActual, architectProvider, criticModel: criticActual, criticProvider, observationSetDigest: digest, signals, strictSelectable }
+        architectModel: architectActual, architectProvider, architectContractVersion: GROUNDED_ARCHITECT_CONTRACT_VERSION,
+        criticModel: criticActual, criticProvider, criticContractVersion: CRITIC_CONTRACT_VERSION,
+        observationSetDigest: digest, signals, strictSelectable }
     : null;
 
   return base({

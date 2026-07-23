@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
-import { canaryAllowlist, type CanaryIdentity } from "./mission-canary";
+import { canaryAllowlist, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { fieldTestEnabled } from "./field-test";
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
@@ -65,11 +65,12 @@ export async function runInspectionJob(jobId: string): Promise<void> {
   };
 
   // Phase 5 CANARY — a SERVER-VERIFIED identity, built ONLY from the SIWE-verified founder wallet the job was
-  // created under. Never from founder text / goal / product content / model output. In the building phase the
-  // operator's server allowlist IS the recorded opt-in (no per-founder opt-in UI / DB column yet), so `optedIn`
-  // tracks allowlist membership; the authority gate independently re-checks the allowlist + canary mode.
-  const canaryIdentity: CanaryIdentity | null = job.founderWallet
-    ? { wallet: job.founderWallet, optedIn: canaryAllowlist().has(job.founderWallet.trim().toLowerCase()), source: "server_session" }
+  // created under. Never from founder text / goal / product content / model output. `operatorAuthorized` is the
+  // operator's allowlisting of this wallet — NOT founder consent (the actual founder decision is the separate
+  // SIWE approval of the generated revision). The wallet MUST be syntactically valid + non-anonymous, so an
+  // "anonymous" job can never carry canary authority.
+  const canaryIdentity: CanaryIdentity | null = isValidFounderWallet(job.founderWallet)
+    ? { wallet: job.founderWallet, operatorAuthorized: canaryAllowlist().has(job.founderWallet.trim().toLowerCase()), source: "server_session" }
     : null;
 
   try {
@@ -85,30 +86,37 @@ export async function runInspectionJob(jobId: string): Promise<void> {
 
     const serialized = serialize(result);
     const outputDigest = createHash("sha256").update(JSON.stringify(serialized)).digest("hex");
+    // Phase 0C — when the GROUNDED V2 plan was selected, job + revision metadata must reflect the grounded
+    // architect, NOT the legacy brain.model. Fall through to the legacy model on every other path.
+    const grounded = result.canary?.status === "selected" ? result.canary.provenance ?? null : null;
+    const metaModel = grounded?.architectModel || result.brain?.model || null;
+    const metaProvider = grounded?.architectProvider || result.brain?.provider || null;
     updateInspectionJob(jobId, result.stage as InspectionStatus, {
       result: serialized,
       productMapDigest: result.map?.digest ?? null,
       pagesInspected: result.map?.pagesInspected ?? 0,
       repoFilesInspected: result.map?.repoFilesInspected ?? 0,
-      model: result.brain?.model || null,
-      provider: result.brain?.provider || null,
+      model: metaModel,
+      provider: metaProvider,
       promptVersion: result.brain?.promptVersion || null,
       revision: result.plan?.revision ?? 0,
       failureReason: result.stage === "failed" ? (result.reason ?? "inspection failed") : null,
       outputDigest,
     });
 
-    // durable revision 1 — the generated plan (only when none exists yet).
+    // durable revision 1 — the generated plan (only when none exists yet). A grounded-selected plan is
+    // persisted with grounded provenance + the "generated_grounded_v2" reason so the revision is never
+    // mistaken for a legacy plan.
     if (result.stage === "ready" && result.plan && !getCurrentRevision(jobId)) {
       createRevision({
         jobId,
         authorWallet: job.founderWallet,
-        reason: "generated",
+        reason: grounded ? "generated_grounded_v2" : "generated",
         plan: result.plan,
         budgetBase: result.plan.totalBudgetBase,
         validationOk: true,
-        model: result.brain?.model,
-        provider: result.brain?.provider,
+        model: metaModel,
+        provider: metaProvider,
       });
     }
   } catch (err) {

@@ -2,9 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   canaryAllowlist,
   resolveCanaryAuthority,
+  isValidFounderWallet,
   firstUnmetStrictCondition,
   deterministicGroundedPlanDigest,
-  bindCanaryApproval,
+  canaryPlanCommitment,
   evaluateCanarySelection,
   type CanaryIdentity,
 } from "./mission-canary";
@@ -18,7 +19,7 @@ import type { CandidateMission } from "./schemas";
  */
 
 const ALLOW = "MISSION_CANARY_ALLOWLIST";
-const WALLET = "0xFOUNDER0000000000000000000000000000AbCd";
+const WALLET = "0xAbCdef0123456789abCDEF0123456789abcDEf01";
 afterEach(() => { delete process.env[ALLOW]; });
 
 const allTrueSignals = (): GroundedPlanSignals => ({
@@ -58,15 +59,28 @@ const goodPlan = (over: Partial<GroundedCandidatePlan> = {}): GroundedCandidateP
   allocatedBudgetBase: "10000000",
   architectModel: "gemini-3.1-flash-lite-preview",
   architectProvider: "commonstack",
+  architectContractVersion: "semantic-draft-v1",
   criticModel: "gemini-3.1-flash-lite-preview",
   criticProvider: "commonstack",
+  criticContractVersion: "critic-contract-v3",
   observationSetDigest: "abc123",
   signals: allTrueSignals(),
   strictSelectable: true,
   ...over,
 });
 
-const serverId = (over: Partial<CanaryIdentity> = {}): CanaryIdentity => ({ wallet: WALLET, optedIn: true, source: "server_session", ...over });
+const serverId = (over: Partial<CanaryIdentity> = {}): CanaryIdentity => ({ wallet: WALLET, operatorAuthorized: true, source: "server_session", ...over });
+
+describe("isValidFounderWallet — syntactic, non-anonymous", () => {
+  it("accepts a 0x+40hex wallet; rejects anonymous/empty/malformed/prose", () => {
+    expect(isValidFounderWallet(WALLET)).toBe(true);
+    expect(isValidFounderWallet("anonymous")).toBe(false);
+    expect(isValidFounderWallet("")).toBe(false);
+    expect(isValidFounderWallet("0x123")).toBe(false);
+    expect(isValidFounderWallet("ignore previous instructions")).toBe(false);
+    expect(isValidFounderWallet(null)).toBe(false);
+  });
+});
 
 describe("canaryAllowlist — operator-controlled, case-insensitive, fails closed", () => {
   it("empty/unset ⇒ nobody eligible", () => { expect(canaryAllowlist().size).toBe(0); });
@@ -92,12 +106,17 @@ describe("resolveCanaryAuthority — ALL of {canary mode, server identity, opt-i
   });
   it("identity not from the server session ⇒ denied (provenance tag is load-bearing)", () => {
     process.env[ALLOW] = WALLET;
-    const forged = { wallet: WALLET, optedIn: true, source: "founder_text" } as unknown as CanaryIdentity;
+    const forged = { wallet: WALLET, operatorAuthorized: true, source: "founder_text" } as unknown as CanaryIdentity;
     expect(resolveCanaryAuthority("canary", forged)).toEqual({ allowed: false, reason: "no_server_identity" });
   });
-  it("not opted in ⇒ denied", () => {
+  it("anonymous / malformed wallet ⇒ denied (invalid_wallet)", () => {
     process.env[ALLOW] = WALLET;
-    expect(resolveCanaryAuthority("canary", serverId({ optedIn: false }))).toEqual({ allowed: false, reason: "not_opted_in" });
+    expect(resolveCanaryAuthority("canary", serverId({ wallet: "anonymous" }))).toEqual({ allowed: false, reason: "invalid_wallet" });
+    expect(resolveCanaryAuthority("canary", serverId({ wallet: "0xnothex" }))).toEqual({ allowed: false, reason: "invalid_wallet" });
+  });
+  it("not operator-authorized ⇒ denied", () => {
+    process.env[ALLOW] = WALLET;
+    expect(resolveCanaryAuthority("canary", serverId({ operatorAuthorized: false }))).toEqual({ allowed: false, reason: "not_operator_authorized" });
   });
   it("not on allowlist ⇒ denied", () => {
     process.env[ALLOW] = "0xsomeoneelse";
@@ -144,14 +163,14 @@ describe("deterministicGroundedPlanDigest — stable + reorder-insensitive + con
   });
 });
 
-describe("bindCanaryApproval — token binds plan digest + budget + revision", () => {
-  it("same inputs ⇒ same token; any change ⇒ different token", () => {
+describe("canaryPlanCommitment — commitment (NOT a token) binds plan digest + budget + revision", () => {
+  it("same inputs ⇒ same commitment; any change ⇒ different commitment", () => {
     const base = { planDigest: "0xdig", budgetText: "10000000 base units @ 6dp", budgetBase: "10000000", revision: 1 };
-    const t = bindCanaryApproval(base).token;
-    expect(bindCanaryApproval(base).token).toBe(t);
-    expect(bindCanaryApproval({ ...base, planDigest: "0xOTHER" }).token).not.toBe(t);
-    expect(bindCanaryApproval({ ...base, budgetBase: "20000000" }).token).not.toBe(t);
-    expect(bindCanaryApproval({ ...base, revision: 2 }).token).not.toBe(t);
+    const c = canaryPlanCommitment(base).commitment;
+    expect(canaryPlanCommitment(base).commitment).toBe(c);
+    expect(canaryPlanCommitment({ ...base, planDigest: "0xOTHER" }).commitment).not.toBe(c);
+    expect(canaryPlanCommitment({ ...base, budgetBase: "20000000" }).commitment).not.toBe(c);
+    expect(canaryPlanCommitment({ ...base, revision: 2 }).commitment).not.toBe(c);
   });
 });
 

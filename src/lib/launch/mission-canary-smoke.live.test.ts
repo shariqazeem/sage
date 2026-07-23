@@ -5,7 +5,7 @@ import { deriveObservations, decisiveFacts, type ObservationSetV1 } from "./obse
 import { scopeFromObservations } from "./product-map";
 import type { ProductObservation } from "./schemas";
 import { runGroundedShadow, type ShadowDeps } from "./mission-grounding-shadow";
-import { evaluateCanarySelection, bindCanaryApproval, deterministicGroundedPlanDigest, type CanaryIdentity } from "./mission-canary";
+import { evaluateCanarySelection, canaryPlanCommitment, deterministicGroundedPlanDigest, type CanaryIdentity } from "./mission-canary";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -18,7 +18,7 @@ import type { FieldTestState, FieldTestSummary, ProductMapV1, FounderLaunchInput
  * Phase 6 — ONE real CANARY SMOKE. Exercises the winning canary model (google/gemini-3.1-flash-lite-preview)
  * as the REAL architect + REAL V3 critic on a pre-seeded "Load report → Report ready" reproduced observation
  * set, then drives the EXACT selection primitives the pipeline uses (evaluateCanarySelection → allocateBudget
- * → compilePlan → bindCanaryApproval). Proves the full trace:
+ * → compilePlan → canaryPlanCommitment). Proves the full trace:
  *   architect strict-valid → semantic draft compiled → action_replayed grounding → V3 critic supported →
  *   canonical gate → exact allocation → V2 SELECTED as canary → deterministic digest → approval waits.
  *
@@ -30,7 +30,7 @@ import type { FieldTestState, FieldTestSummary, ProductMapV1, FounderLaunchInput
 const PAID = process.env.GROUNDING_CANARY_SMOKE === "1";
 const DRYRUN = process.env.GROUNDING_CANARY_SMOKE_DRYRUN === "1";
 const CANARY_MODEL = "google/gemini-3.1-flash-lite-preview";
-const WALLET = "0xCanaryFounder000000000000000000000000A1";
+const WALLET = "0x2222222222222222222222222222222222222222";
 const PRIOR_PAID = 3; // P4 calibration already consumed 3 of the cumulative 6.
 const CAP = 6;
 const LEDGER = path.resolve("promotion-evidence/grounding-canary-smoke.ledger.json");
@@ -116,7 +116,7 @@ describe.runIf(PAID)("Phase 6 — CANARY SMOKE (LIVE, ≤2 paid calls)", () => {
     const gs = await runGroundedShadow(map, INPUT, scope, CORPUS, 0, { architect, critic, replayReproduced });
 
     // Selection trace — the EXACT primitives the pipeline uses.
-    const identity: CanaryIdentity = { wallet: WALLET, optedIn: true, source: "server_session" };
+    const identity: CanaryIdentity = { wallet: WALLET, operatorAuthorized: true, source: "server_session" };
     const decision = evaluateCanarySelection({ mode: "canary", identity, plan: gs.groundedCandidatePlan });
 
     const trace: Record<string, unknown> = {
@@ -141,13 +141,13 @@ describe.runIf(PAID)("Phase 6 — CANARY SMOKE (LIVE, ≤2 paid calls)", () => {
         trace.compiledOk = compiled.ok;
         if (compiled.ok) {
           const exactEqual = compiled.plan.allocatedBase === INPUT.totalBudgetBase;
-          const approval = bindCanaryApproval({ planDigest: compiled.plan.missionPlanDigest, budgetText: `${INPUT.totalBudgetBase} base units @ ${INPUT.tokenDecimals}dp`, budgetBase: compiled.plan.totalBudgetBase.toString(), revision: compiled.plan.revision });
+          const commitment = canaryPlanCommitment({ planDigest: compiled.plan.missionPlanDigest, budgetText: `${INPUT.totalBudgetBase} base units @ ${INPUT.tokenDecimals}dp`, budgetBase: compiled.plan.totalBudgetBase.toString(), revision: compiled.plan.revision });
           trace.groundedPlanDigest = deterministicGroundedPlanDigest(decision.plan);
           trace.missionPlanDigest = compiled.plan.missionPlanDigest;
           trace.suppliedBudgetBase = INPUT.totalBudgetBase.toString();
           trace.allocatedBase = compiled.plan.allocatedBase.toString();
           trace.exactBudgetEquality = exactEqual;
-          trace.approvalToken = approval.token;
+          trace.planCommitment = commitment.commitment;
           trace.planStatus = compiled.plan.status; // waits for founder approval — NOT auto-approved/launched
           trace.missionKeys = missions.map((m) => m.missionKey);
           trace.result = exactEqual ? "canary_selected_awaiting_approval" : "canary_budget_not_exact";

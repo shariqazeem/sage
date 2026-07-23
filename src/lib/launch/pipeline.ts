@@ -17,7 +17,7 @@ import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
 import { missionGroundingMode } from "./mission-grounding-shadow";
-import { bindCanaryApproval, evaluateCanarySelection, type CanaryIdentity } from "./mission-canary";
+import { canaryPlanCommitment, evaluateCanarySelection, type CanaryIdentity } from "./mission-canary";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -46,9 +46,24 @@ export interface LaunchResult {
   /** stage transitions observed (for durable progress + observability). */
   trail: { stage: LaunchStage; at: number }[];
   /** Phase 5 CANARY — the grounded-plan selection outcome for this launch (absent when the canary path never
-   *  engaged). `selected` ⇒ `plan` is the grounded V2 plan bound by `approvalToken`; `blocked` ⇒ `plan` is null
-   *  and legacy was preserved for comparison but NOT launched (manual handling required). */
+   *  engaged). `selected` ⇒ `plan` is the grounded V2 plan committed by `planCommitment`; `blocked` ⇒ `plan` is
+   *  null and legacy was preserved for comparison but NOT launched (manual handling required). */
   canary?: CanaryPipelineOutcome | null;
+}
+
+/** Bounded, leak-safe provenance for a SELECTED grounded plan — persisted on the job result so job + revision
+ *  metadata reflect the grounded path, never the legacy brain.model. */
+export interface GroundedSelectionProvenance {
+  planSource: "grounded_v2";
+  architectModel: string | null;
+  architectProvider: string | null;
+  architectContractVersion: string;
+  criticModel: string | null;
+  criticProvider: string | null;
+  criticContractVersion: string;
+  observationSetDigest: string;
+  groundedPlanDigest: string;
+  missionPlanDigest: string;
 }
 
 export interface CanaryPipelineOutcome {
@@ -61,10 +76,13 @@ export interface CanaryPipelineOutcome {
   /** the authoritative on-chain missionPlanDigest of the compiled plan that was selected (or, on block, the
    *  legacy comparison plan's digest). */
   planDigest?: string;
-  /** the approval token binding an approval to {planDigest, budget, revision} (selected only). */
-  approvalToken?: string;
-  /** the server-verified allowlisted wallet the canary was authorized for (selected only). */
+  /** a deterministic COMMITMENT over {planDigest, budget, revision} — provenance only, NOT authorization. The
+   *  founder's SIWE approval of the revision remains the sole authorization. (selected only) */
+  planCommitment?: string;
+  /** the operator-allowlisted wallet the canary was authorized for (selected only). */
   wallet?: string;
+  /** grounded provenance carried into job + revision metadata (selected only). */
+  provenance?: GroundedSelectionProvenance;
 }
 
 /**
@@ -211,10 +229,16 @@ export async function inspectAndPlan(
     const g = compileMissions(canaryDecision.plan.missions);
     if (!g.ok || !g.plan) return out("failed", `canary_compile_failed:${(g as { error?: string }).error ?? g.allocation.reason ?? "unknown"}`, { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "compile_failed", planSource: "none" } });
     if (g.plan.allocatedBase !== input.totalBudgetBase) return out("failed", "canary_budget_not_exact", { map, brain, allocation: g.allocation, canary: { status: "blocked", reason: "budget_not_exact", planSource: "none" } });
-    const approval = bindCanaryApproval({ planDigest: g.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: g.plan.totalBudgetBase.toString(), revision: g.plan.revision });
+    const commitment = canaryPlanCommitment({ planDigest: g.plan.missionPlanDigest, budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`, budgetBase: g.plan.totalBudgetBase.toString(), revision: g.plan.revision });
+    const gp = canaryDecision.plan;
+    const provenance: GroundedSelectionProvenance = {
+      planSource: "grounded_v2", architectModel: gp.architectModel, architectProvider: gp.architectProvider, architectContractVersion: gp.architectContractVersion,
+      criticModel: gp.criticModel, criticProvider: gp.criticProvider, criticContractVersion: gp.criticContractVersion,
+      observationSetDigest: gp.observationSetDigest, groundedPlanDigest: canaryDecision.groundedDigest, missionPlanDigest: g.plan.missionPlanDigest,
+    };
     stamp("ready");
     return out("ready", null, { map, brain, allocation: g.allocation, plan: g.plan, questions: brain.needsInputQuestions,
-      canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, approvalToken: approval.token, wallet: canaryDecision.wallet } });
+      canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, planCommitment: commitment.commitment, wallet: canaryDecision.wallet, provenance } });
   }
 
   // 6. LEGACY compile (also the comparison artifact when an authorized canary is blocked).

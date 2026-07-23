@@ -20,10 +20,21 @@ import type { MissionGroundingMode, GroundedCandidatePlan } from "./mission-grou
 export interface CanaryIdentity {
   /** the SIWE-verified founder wallet the job was created under (lowercased by the resolver). */
   wallet: string;
-  /** the founder's explicit opt-in to the experimental grounded path, recorded server-side. */
-  optedIn: boolean;
+  /** OPERATOR authorization (the operator allowlisted this wallet) — NOT founder consent. This is one
+   *  operator-controlled signal; the actual founder decision is the separate SIWE approval of the revision.
+   *  Named honestly so nothing downstream mistakes allowlisting for the founder having opted in. */
+  operatorAuthorized: boolean;
   /** provenance tag — must be exactly "server_session" for the identity to carry any authority. */
   source: "server_session";
+}
+
+/** A syntactically valid, non-anonymous EVM wallet: 0x + 40 hex. Rejects "anonymous", empty, malformed, and
+ *  anything that could have originated from request/model/product text (those never match this shape). */
+export function isValidFounderWallet(w: string | null | undefined): boolean {
+  if (!w || typeof w !== "string") return false;
+  const t = w.trim().toLowerCase();
+  if (t === "anonymous") return false;
+  return /^0x[0-9a-f]{40}$/.test(t);
 }
 
 /** The operator-controlled server allowlist of founder wallets eligible for the canary (comma/space separated,
@@ -47,9 +58,9 @@ export type CanaryAuthority =
 export function resolveCanaryAuthority(mode: MissionGroundingMode, identity: CanaryIdentity | null): CanaryAuthority {
   if (mode !== "canary") return { allowed: false, reason: "mode_not_canary" };
   if (!identity || identity.source !== "server_session") return { allowed: false, reason: "no_server_identity" };
+  if (!isValidFounderWallet(identity.wallet)) return { allowed: false, reason: "invalid_wallet" };
   const wallet = identity.wallet.trim().toLowerCase();
-  if (!wallet) return { allowed: false, reason: "empty_identity" };
-  if (!identity.optedIn) return { allowed: false, reason: "not_opted_in" };
+  if (!identity.operatorAuthorized) return { allowed: false, reason: "not_operator_authorized" };
   if (!canaryAllowlist().has(wallet)) return { allowed: false, reason: "not_allowlisted" };
   return { allowed: true, wallet };
 }
@@ -106,21 +117,23 @@ export function deterministicGroundedPlanDigest(plan: GroundedCandidatePlan): st
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
-/** An approval token that binds an operator/founder approval to an EXACT plan digest + budget + revision. The
- *  token changes if any bound field changes, so an approval can never be replayed against a different plan or
- *  budget. `planDigest` here is the on-chain missionPlanDigest of the COMPILED plan (the authoritative digest). */
-export interface CanaryApproval {
-  token: string;
+/** A deterministic COMMITMENT digest over an EXACT (plan digest, budget, revision). It is NOT an authorization
+ *  token and grants nothing: the ONLY authorization is the founder's SIWE approval of the revision through the
+ *  approve endpoint, which independently recomputes hashes + budget. This commitment is provenance only — it
+ *  lets an approval record pin exactly which grounded plan+budget+revision was selected, so a later reader can
+ *  detect a changed plan. It changes if any bound field changes. */
+export interface CanaryPlanCommitment {
+  commitment: string;
   planDigest: string;
   budgetText: string;
   budgetBase: string;
   revision: number;
 }
-export function bindCanaryApproval(input: { planDigest: string; budgetText: string; budgetBase: string; revision: number }): CanaryApproval {
-  const token = createHash("sha256")
-    .update(JSON.stringify({ v: "canary-approval-v1", planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision }))
+export function canaryPlanCommitment(input: { planDigest: string; budgetText: string; budgetBase: string; revision: number }): CanaryPlanCommitment {
+  const commitment = createHash("sha256")
+    .update(JSON.stringify({ v: "canary-plan-commitment-v1", planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision }))
     .digest("hex");
-  return { token, planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision };
+  return { commitment, planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision };
 }
 
 export type CanaryDecision =
