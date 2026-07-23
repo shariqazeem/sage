@@ -25,7 +25,7 @@ const CriterionGroundingSchema = z
     criterionIndex: z.number().int().min(0),
     criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
     factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
-    transitionRef: z.string().min(1).optional(),
+    transitionRef: z.string().min(1).nullish(), // null (a common model rendering of "absent") ≡ omitted
     evidenceIndex: z.number().int().min(0),
     evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
     pageUrl: z.string().min(1),
@@ -56,9 +56,9 @@ const MissionV2Schema = z
     maxCompletions: z.number().int().min(1).max(50),
     verificationMethod: z.string().min(1).max(800),
     confidence: z.number().min(0).max(1),
-    conditions: z.array(z.string()).max(8).optional().default([]),
-    assumptions: z.array(z.string()).max(6).optional().default([]),
-    disallowed: z.array(z.string()).max(8).optional().default([]),
+    conditions: z.array(z.string()).max(8).nullish(), // absent/null ⇒ [] (non-critical list, mapped below)
+    assumptions: z.array(z.string()).max(6).nullish(),
+    disallowed: z.array(z.string()).max(8).nullish(),
     anchors: z.array(z.string().min(1)).min(1).max(12), // ≥1 verbatim observed substring (anti-hallucination gate)
     groundingV1: GroundingV1Schema,
   })
@@ -91,9 +91,9 @@ function toCandidateMission(m: MissionV2): CandidateMission {
     missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions,
     targetSurface: m.targetSurface, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
     whyItMatters: m.whyItMatters, sources: m.sources as SourceRef[], priority: m.priority as MissionPriority,
-    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions,
+    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions ?? [],
     rewardWeight: m.rewardWeight, maxCompletions: m.maxCompletions, verificationMethod: m.verificationMethod,
-    confidence: m.confidence, assumptions: m.assumptions, disallowed: m.disallowed, anchors: m.anchors,
+    confidence: m.confidence, assumptions: m.assumptions ?? [], disallowed: m.disallowed ?? [], anchors: m.anchors,
     groundingV1: { version: "mission-grounding-v1", observationSetDigest: m.groundingV1.observationSetDigest, criteria },
   };
 }
@@ -181,11 +181,14 @@ RULES (absolute):
 - Evidence requirements must be realistically capable of proving the criterion.
 - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.
 - Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts, base units, or claim any budget equality — Sage's deterministic allocator converts the weights into exact USDC rewards and guarantees exact budget conservation.
+- effortMinutes is an INTEGER between 3 and 240. confidence is a number between 0 and 1.
+- riskCategory MUST be exactly one of: critical_journey, onboarding, responsive, wallet_payment, claim_validation, error_recovery, accessibility, cross_browser, docs_consistency, trust_safety, regression.
+- Emit ONLY the keys shown in the example below — no extra keys anywhere.
 
-Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality". An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
+Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality", and MUST include an integer evidenceIndex — the 0-based index into this mission's evidenceRequirements that the criterion proves. An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
 
 OUTPUT a SINGLE strict JSON object, no markdown fences, no prose. Example (a valid object):
-{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
+{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","evidenceIndex":0,"pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
 
 /** CRITIC_SYSTEM_V2 — reviews whether the cited observations genuinely support each criterion. It may only
  *  reject/downgrade; it cannot create facts, repair grounding, or override the deterministic gate. */
@@ -270,6 +273,9 @@ export interface GroundingShadowResult {
   /** counts of the canonical-gate rejection CODES (enums like "unanchored_claim") for critic-supported
    *  candidates that failed the gate — leak-safe (codes only, never mission text). */
   canonicalRejectionCodes: Record<string, number>;
+  /** on a schema_invalid architect response: the Zod issue PATHS+codes (e.g. "missions.0.anchors:too_small")
+   *  — leak-safe STRUCTURE only, never the rejected values. Empty otherwise. */
+  architectSchemaErrorPaths: string[];
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -343,7 +349,7 @@ export async function runGroundedShadow(
     criticModelRequested, criticModelActual: null, criticProvider: null,
     architectStatus: "not_run", architectErrorCode: null, architectLatencyMs: null, architectPromptTokens: null, architectCompletionTokens: null, architectFinishReason: null, architectParsePolicy: null, architectRepaired: null,
     criticStatus: "not_run", criticErrorCode: null, criticLatencyMs: null, criticPromptTokens: null, criticCompletionTokens: null, criticFinishReason: null, criticParsePolicy: null, criticRepaired: null,
-    canonicalRejectionCodes: {},
+    canonicalRejectionCodes: {}, architectSchemaErrorPaths: [],
     observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
     ...over,
   });
@@ -387,7 +393,10 @@ export async function runGroundedShadow(
       // distinguish an explicitly-empty plan (an honest "ok" run → v2_empty) from a schema failure.
       const emptyMissions = Array.isArray((json as { missions?: unknown[] })?.missions) && (json as { missions: unknown[] }).missions.length === 0;
       architectStatus = emptyMissions ? "ok" : "schema_invalid";
-      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, ...telemetry() });
+      // leak-safe: capture WHICH schema paths failed (structure + codes only, never the rejected values).
+      const sp = emptyMissions ? null : ArchitectOutputSchema.safeParse(json);
+      const architectSchemaErrorPaths = sp && !sp.success ? sp.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`) : [];
+      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, architectSchemaErrorPaths, ...telemetry() });
     }
     candidates = parsed;
     architectStatus = "ok";

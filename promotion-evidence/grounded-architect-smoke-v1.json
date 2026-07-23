@@ -1,0 +1,104 @@
+{
+  "artifact": "grounded-architect-smoke-v1",
+  "note": "one three-fixture smoke — NOT model approval and NOT promotion-ready",
+  "runId": "smoke-1784811238439",
+  "timestamp": "2026-07-23T12:54:07.391Z",
+  "callsConsumed": 2,
+  "hardCap": 6,
+  "v2ParsePolicyStrict": true,
+  "stopReason": "critic:strict_parse_error:llm_strict_not_object",
+  "selectedFixtures": [
+    "state_claim"
+  ],
+  "ranAllFixtures": false,
+  "selectedAllPassed": false,
+  "requestedModels": {
+    "architect": "google/gemini-3.1-flash-lite-preview",
+    "critic": "anthropic/claude-haiku-4-5"
+  },
+  "versions": {
+    "parser": "strict-v1",
+    "architectPrompt": "ARCHITECT_SYSTEM_V2",
+    "criticPrompt": "CRITIC_SYSTEM_V2",
+    "schema": "grounding-shadow-v1"
+  },
+  "roleTotals": {
+    "architect": {
+      "promptTokens": 1577,
+      "completionTokens": 410,
+      "latencyMs": 4020
+    },
+    "critic": {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "latencyMs": 0
+    }
+  },
+  "fixtures": [
+    {
+      "id": "state_claim",
+      "goal": "Validate that the public 'Trusted by 5,000 teams' claim is reachable and accurately reported.",
+      "fixtureDigest": "ed52febc907256c71a0b1529",
+      "pass": false,
+      "reasons": [
+        "critic not ok",
+        "critic supported none",
+        "canonical gate passed none",
+        "budget not exact"
+      ],
+      "metrics": {
+        "architectStatus": "ok",
+        "criticStatus": "strict_parse_error",
+        "architectErrorCode": null,
+        "criticErrorCode": "llm_strict_not_object",
+        "candidateCount": 1,
+        "groundingValid": 1,
+        "criticSupported": 0,
+        "canonicalGatePassed": 0,
+        "accepted": 0,
+        "tierCounts": {
+          "action_replayed": 0,
+          "action_observed": 0,
+          "state_seen": 1,
+          "inferred_only": 0,
+          "ungrounded": 0
+        },
+        "unsafeTransitionCount": 0,
+        "exactBudgetEquality": false,
+        "allocatedBudgetBase": "0",
+        "canonicalRejectionCodes": {},
+        "architectSchemaErrorPaths": [],
+        "error": null,
+        "architectModelRequested": "google/gemini-3.1-flash-lite-preview",
+        "architectModelActual": "gemini-3.1-flash-lite-preview",
+        "architectProvider": "api.commonstack.ai",
+        "criticModelRequested": "anthropic/claude-haiku-4-5",
+        "criticModelActual": null,
+        "criticProvider": null,
+        "architectLatencyMs": 4020,
+        "architectPromptTokens": 1577,
+        "architectCompletionTokens": 410,
+        "criticLatencyMs": null,
+        "criticPromptTokens": null,
+        "criticCompletionTokens": null,
+        "ghostMentionedByArchitect": false
+      }
+    }
+  ],
+  "conclusive": true,
+  "recommendation": "smoke_failed",
+  "exerciseTotalPaidCalls": 5,
+  "hardCapAcrossExercise": 6,
+  "budgetNote": "5 of 6 paid calls used across 4 checkpointed sessions (1+1+1+2); the 6th was deliberately withheld to stay within the hard cap. This JSON is the FINAL session — architect verified end-to-end, critic blocked on strict parse.",
+  "iterationHistory": [
+    { "session": 1, "fixtures": "all", "calls": 1, "result": "architect schema_invalid", "schemaErrorPaths": ["missions.0.riskCategory:invalid_value", "missions.0.effortMinutes:too_small", "missions.0.groundingV1.criteria.0.evidenceIndex:invalid_type"] },
+    { "session": 2, "fixtures": "all", "calls": 1, "result": "architect schema_invalid (added leak-safe schema-error-path capture)" },
+    { "session": 3, "fixtures": "state_claim,safe_replay", "calls": 1, "result": "architect schema_invalid", "schemaErrorPaths": ["missions.0.groundingV1.criteria.0.transitionRef:invalid_type (model emitted null)"] },
+    { "session": 4, "fixtures": "state_claim", "calls": 2, "result": "architect OK (candidateCount 1, groundingValid 1, state_seen 1); critic strict_parse_error (llm_strict_not_object)" }
+  ],
+  "keyFindings": [
+    "The grounded architect (gemini-3.1-flash-lite) produces strict-valid, digest-grounded, state_seen missions live once the prompt teaches the exact contract. Four prompt/schema-consistency defects were found and fixed: the example JSON omitted the required evidenceIndex; the riskCategory enum and effortMinutes range were unstated; optional fields (transitionRef, conditions/assumptions/disallowed) were emitted as null and were not null-tolerant.",
+    "The strict raw parser + Zod correctly REJECTED every non-conforming output (4 architect misses across sessions 1-3, 1 critic miss in session 4). The reject-never-repair safety machinery works exactly as designed.",
+    "The critic (claude-haiku-4-5 via CommonStack) returned a non-bare-object (fenced/prose) that the STRICT critic parse refuses to salvage (llm_strict_not_object). Bare-JSON output is not honored for this model through the gateway, unlike gemini. Resolving this (bare-JSON enforcement at the gateway, a different critic model, or a critic-parse-policy decision) is DEFERRED — not this sprint, and NOT a model approval."
+  ]
+}

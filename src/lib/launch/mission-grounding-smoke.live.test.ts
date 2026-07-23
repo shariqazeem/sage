@@ -79,11 +79,15 @@ const ghostObs = [obs("https://taskly.example/app", { title: "Taskly", headings:
 const input = (goal: string, url: string): FounderLaunchInput => ({ productUrl: url, goal, targetUsers: "u", totalBudgetBase: BigInt(2_000_000), tokenDecimals: 6 } as unknown as FounderLaunchInput);
 
 interface Fixture { id: string; goal: string; map: () => ProductMapV1; observations: ProductObservation[]; fieldTest: FieldTestSummary; url: string }
-const FIXTURES: Fixture[] = [
+const ALL_FIXTURES: Fixture[] = [
   { id: "state_claim", goal: "Validate that the public 'Trusted by 5,000 teams' claim is reachable and accurately reported.", map: () => buildMap(claimFT), observations: claimObs, fieldTest: claimFT, url: claimFT.startUrl },
   { id: "safe_replay", goal: "Test that clicking Load report reliably reaches the observed report outcome.", map: () => buildMap(replayFT, replayTransId), observations: replayObs, fieldTest: replayFT, url: replayFT.startUrl },
   { id: "ghost_export", goal: "Test the Export CSV workflow: download all of my tasks as a CSV file.", map: () => buildMap(ghostFT), observations: ghostObs, fieldTest: ghostFT, url: ghostFT.startUrl },
 ];
+// Optional subset selector (GROUNDING_SMOKE_ONLY=state_claim,safe_replay) so a run can respect a running
+// paid-call budget across sessions. Unset → all three fixtures (the full smoke).
+const ONLY = process.env.GROUNDING_SMOKE_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
+const FIXTURES: Fixture[] = ONLY?.length ? ALL_FIXTURES.filter((f) => ONLY.includes(f.id)) : ALL_FIXTURES;
 
 /* ─────────────────────────────── checkpoint + 6-call cap dispatcher ─────────────────────────────── */
 type Checkpoint = { runId: string; callsConsumed: number; capMax: number; completedFixtures: string[]; currentFixture: string | null; stage: string; startedAt: string };
@@ -120,7 +124,7 @@ function gradeFixture(fx: Fixture, gs: GroundingShadowResult | undefined): Grade
     architectStatus: m.architectStatus, criticStatus: m.criticStatus, architectErrorCode: m.architectErrorCode, criticErrorCode: m.criticErrorCode,
     candidateCount: m.candidateCount, groundingValid: m.groundingValid, criticSupported: m.criticSupported, canonicalGatePassed: m.canonicalGatePassed,
     accepted: m.accepted, tierCounts: m.tierCounts, unsafeTransitionCount: m.unsafeTransitionCount, exactBudgetEquality: m.exactBudgetEquality,
-    allocatedBudgetBase: m.allocatedBudgetBase, canonicalRejectionCodes: m.canonicalRejectionCodes, error: m.error,
+    allocatedBudgetBase: m.allocatedBudgetBase, canonicalRejectionCodes: m.canonicalRejectionCodes, architectSchemaErrorPaths: m.architectSchemaErrorPaths, error: m.error,
     architectModelRequested: m.architectModelRequested, architectModelActual: m.architectModelActual, architectProvider: m.architectProvider,
     criticModelRequested: m.criticModelRequested, criticModelActual: m.criticModelActual, criticProvider: m.criticProvider,
     architectLatencyMs: m.architectLatencyMs, architectPromptTokens: m.architectPromptTokens, architectCompletionTokens: m.architectCompletionTokens,
@@ -220,11 +224,11 @@ describe.runIf(DRYRUN || PAID)("grounded architect — six-call live smoke", () 
       if (stopReason) break; // STOP the whole eval on a provider/parse/schema failure
     }
 
-    const green = ckpt.callsConsumed <= CAP && v2ParsePolicyStrict && !stopReason && grades.length === 3 &&
-      grades.find((g) => g.id === "state_claim")?.pass === true &&
-      grades.find((g) => g.id === "safe_replay")?.pass === true &&
-      grades.find((g) => g.id === "ghost_export")?.pass === true;
-    const quotaBlocked = stopReason?.includes("provider_error") && ckpt.callsConsumed <= 1;
+    const ranAll = FIXTURES.length === ALL_FIXTURES.length;
+    const selectedAllPassed = grades.length > 0 && grades.every((g) => g.pass);
+    const green = ranAll && ckpt.callsConsumed <= CAP && v2ParsePolicyStrict && !stopReason && selectedAllPassed;
+    const quotaBlocked = !!stopReason?.includes("provider_error") && ckpt.callsConsumed <= 1;
+    // green needs ALL THREE; a deliberate subset (budget-respecting) can be at best inconclusive.
     const recommendation = green ? "smoke_green" : quotaBlocked ? "quota_blocked" : stopReason ? "smoke_failed" : "inconclusive";
 
     const roleTotals = (role: "architect" | "critic") => grades.reduce((a, g) => { const md = g.metrics as Record<string, number>; a.promptTokens += Number(md[`${role}PromptTokens`] ?? 0); a.completionTokens += Number(md[`${role}CompletionTokens`] ?? 0); a.latencyMs += Number(md[`${role}LatencyMs`] ?? 0); return a; }, { promptTokens: 0, completionTokens: 0, latencyMs: 0 });
@@ -233,6 +237,7 @@ describe.runIf(DRYRUN || PAID)("grounded architect — six-call live smoke", () 
       artifact: "grounded-architect-smoke-v1", note: "one three-fixture smoke — NOT model approval and NOT promotion-ready",
       runId: ckpt.runId, timestamp: new Date().toISOString(),
       callsConsumed: ckpt.callsConsumed, hardCap: CAP, v2ParsePolicyStrict, stopReason,
+      selectedFixtures: FIXTURES.map((f) => f.id), ranAllFixtures: ranAll, selectedAllPassed,
       requestedModels: { architect: ARCH_MODEL, critic: CRITIC_MODEL },
       versions: { parser: "strict-v1", architectPrompt: "ARCHITECT_SYSTEM_V2", criticPrompt: "CRITIC_SYSTEM_V2", schema: "grounding-shadow-v1" },
       roleTotals: { architect: roleTotals("architect"), critic: roleTotals("critic") },
