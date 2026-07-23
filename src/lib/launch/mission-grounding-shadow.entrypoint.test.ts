@@ -44,10 +44,11 @@ const v2Mission = (over: Record<string, unknown> = {}) => ({
 });
 
 let architectV2Calls = 0;
+let capturedV2User = "";
 function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: boolean } = {}) {
-  architectV2Calls = 0;
-  vi.mocked(llmCompleteJson).mockImplementation(async ({ system }: { system: string }) => {
-    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; if (opts.v2Throws) throw new Error("v2 boom"); return { json: v2, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 }; }
+  architectV2Calls = 0; capturedV2User = "";
+  vi.mocked(llmCompleteJson).mockImplementation(async ({ system, user }: { system: string; user: string }) => {
+    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error("v2 boom"); return { json: v2, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 }; }
     if (system.includes("grounding CRITIC")) return { json: verdicts, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 };
     // legacy architect → a coercible mission so arch.ok is true and runMissionBrain reaches the shadow
     // block (the legacy gate may still reject it; the shadow runs regardless and must not change it).
@@ -65,6 +66,18 @@ describe("grounded architect shadow — through the REAL runMissionBrain entrypo
     const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
     expect(architectV2Calls).toBe(0);
     expect(r.groundingShadow).toBeUndefined();
+  });
+
+  it("the V2 user prompt shows each fact ID BESIDE its real content (not opaque hashes)", async () => {
+    process.env.MISSION_GROUNDING_MODE = "shadow";
+    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported", factRefs: [startId] }] });
+    await runMissionBrain(makeMap(), input, scope(), "corpus");
+    const view = JSON.parse(capturedV2User.slice(capturedV2User.indexOf("{", capturedV2User.indexOf("OBSERVATIONS"))));
+    const startFact = view.facts.find((f: { id: string }) => f.id === startId);
+    expect(startFact.elementName).toBe("Start"); // the id sits next to its observed control
+    const trans = view.transitions.find((t: { verb: string }) => t.verb === "click");
+    expect(trans.addedTexts.join(" ")).toMatch(/garden world/); // transition id → click Start → added "…garden world"
+    expect(capturedV2User).toContain(startId);
   });
 
   it("A: SHADOW runs V2, validates a grounded mission, and the critic supports it", async () => {

@@ -342,9 +342,14 @@ export interface CandidateMission {
  *  public page, or the tester's judged written account against Sage's private observation corpus. */
 export type VerificationMode = "deterministic_url" | "semantic_url" | "observation";
 
+/** what a criterion asserts — drives the V2 grounding rules (action_outcome REQUIRES a transition). */
+export type CriterionKind = "state" | "action_outcome" | "content_claim" | "visual_quality";
+
 /** The design-time evidence mapping for ONE criterion (see CandidateMission.groundingV1). */
 export interface CriterionGroundingV1 {
   criterionIndex: number;
+  /** what the criterion asserts (V2). Absent on legacy groundingV1. */
+  criterionKind?: CriterionKind;
   /** observed-fact ids (from ProductMapV1.observations) that support this criterion (a.k.a. factRefs). */
   sourceFactIds: string[];
   /** action-transition ids where the criterion is about a state change (a.k.a. transitionRef). */
