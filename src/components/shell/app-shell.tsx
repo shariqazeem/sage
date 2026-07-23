@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { House, Sparkles } from "lucide-react";
 import { AppRail } from "./app-rail";
 import { NetworkChip } from "@/components/app/network-chip";
-import { useSiwe } from "@/lib/auth/use-siwe";
+import { GOAT_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 import "./app-shell.css";
 
 /**
@@ -41,10 +41,13 @@ function ModePill({ pathname }: { pathname: string }) {
 }
 
 function ContextPills() {
-  const siwe = useSiwe();
+  // Always name the production settlement network (GOAT Mainnet), NOT the browser
+  // wallet's incidental chain — a founder whose wallet sits on a testnet must never
+  // see a real-money product mislabelled. The wallet's own chain is surfaced during
+  // the on-chain deploy steps in the launch wizard, where it actually matters.
   return (
     <div className="ctx-pills">
-      <NetworkChip chainId={siwe.chainId ?? 2345} />
+      <NetworkChip chainId={GOAT_MAINNET_CHAIN_ID} />
     </div>
   );
 }
