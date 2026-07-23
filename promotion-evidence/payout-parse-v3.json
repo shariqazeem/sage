@@ -1,0 +1,43 @@
+{
+  "artifact": "payout-policy-promotion-evidence",
+  "candidateIdentity": {
+    "provider": "api.commonstack.ai",
+    "model": "google/gemini-3.1-flash-lite-preview",
+    "promptVersion": "payout-v1",
+    "parserVersion": "payout-parse-v3",
+    "evalSuiteDigest": "8961e2a9890850b0"
+  },
+  "recommendation": "inconclusive",
+  "recommendationReason": "1 of the required >=3 conclusive P-JUDGE runs is on record for this exact identity; 2 more are owed. CommonStack is intermittently throttled (429), so the 3x run could not be completed this sprint. No ApprovalRecord added; the production approved registry stays empty and url-verifiable autopay safely holds for manual review.",
+  "pJudge": {
+    "target": "judge",
+    "fixtureCount": 17,
+    "conclusiveRunsOnRecord": 1,
+    "conclusiveRunsRequired": 3,
+    "lastConclusiveRun": {
+      "validResponses": 19,
+      "totalCalls": 19,
+      "wrongAutopayTotal": 0,
+      "unexpectedWrongAutopays": 0,
+      "providerFailures": 0,
+      "conclusive": true,
+      "note": "overnight sprint run on this exact committed identity (strict parse + explicit normal-termination); zero wrong-autopay."
+    },
+    "attemptsThisSprint": [
+      { "runsRequested": 3, "status": "quota_blocked", "validResponses": 0, "note": "429 on the first request; resumable runner stopped honestly (not promotion evidence)." }
+    ]
+  },
+  "pEntail": {
+    "target": "entail",
+    "rootCause": "The old harness ADAPTED the payout judge fixtures: it gave only criterion 0 a blind 60-char evidence slice as its quote and left every other criterion's quote null, producing malformed multi-criterion inputs the checker could not verify. Every haiku output then failed the strict per-criterion validation (invalid_output), so the 0/15 was a HARNESS defect, not a model-quality result.",
+    "fix": "A dedicated entailment corpus (src/lib/deputy/entailment-fixtures.ts): 13 single-criterion fixtures, each a verbatim quote of its bounded evidence, tagged by trap category (direct/partial/wrong-criterion/generic/negation/numeric/actor/temporal/stale/adjacent/multilingual x2/injection), each with the verdict a correct checker must return. The live harness now uses it. A deterministic test (entailment-corpus.test.ts, 21 cases) proves the corpus is well-formed and the veto vetoes every non-entailing trap + fails closed on malformed/abnormal output.",
+    "liveStatus": "not_run",
+    "liveBlocker": "CommonStack quota throttled (429). A live P-ENTAIL over the dedicated corpus is owed when quota is unthrottled; promotion targets: zero false 'entailed' on non-entailing fixtures, zero malformed accepted, the quote-non-entailing trap vetoed every run."
+  },
+  "flags": {
+    "note": "Nothing here approves the identity. Approval remains a later, explicit founder/registry decision after a clean >=3x conclusive run.",
+    "OBSERVATION_AUTOPAY": "off",
+    "DEPUTY_AUTOPILOT_MAINNET": "off",
+    "productionApprovedIdentities": "empty"
+  }
+}
