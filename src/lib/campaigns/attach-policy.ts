@@ -23,8 +23,11 @@ export function attachApprovedPolicyToCampaign(campaignId: string, jobId: string
   if (!current || current.id !== approved.id) return { ok: false, reason: "approved_not_current" };
   const rawPolicy = approved.verificationPolicy ?? null;
   if (rawPolicy == null) {
-    // no policy on the approved revision → nothing to attach (non-canary campaign).
-    return { ok: true, attached: false, reason: approved.verificationPolicyRequired ? "required_but_missing" : "no_policy" };
+    // a required revision with no bound policy is a HARD failure (defect #5) — never an accepted no-op. A
+    // non-required revision genuinely has nothing to attach (non-canary campaign).
+    return approved.verificationPolicyRequired
+      ? { ok: false, reason: "required_but_missing" }
+      : { ok: true, attached: false, reason: "no_policy" };
   }
   // re-verify the policy against the approved plan before binding (defense in depth).
   const check = checkRevisionPolicyForApproval({

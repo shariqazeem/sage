@@ -6,6 +6,10 @@ import { loadDeploymentForSession, deploymentView } from "@/lib/launch/deploymen
 import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/lib/db/deployments";
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
 import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
+import { getApprovedRevision } from "@/lib/db/plan-revisions";
+import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
+import { payoutReplaySchemaReady } from "@/lib/deputy/canary-preflight";
+import { deserializePlan } from "@/lib/launch/serde";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
@@ -53,6 +57,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   const active = await verifyActivate(deployment, loaded.plan, settings, verifier);
   if (!active.ok) {
     return NextResponse.json({ ok: false, error: `The vault is not active (${active.reason}).` }, { status: 409 });
+  }
+
+  // Phase 2 — EARLY activation preflight (before the DB attach): if the approved revision carries a REQUIRED
+  // VerificationPolicyV2, it must be schema-supported + complete + bound to this plan. Refuse up front rather
+  // than creating a campaign that could never enforce its covenant. A non-required revision passes through.
+  const approvedForPreflight = getApprovedRevision(deployment.jobId);
+  if (approvedForPreflight?.verificationPolicyRequired) {
+    if (!payoutReplaySchemaReady().ok) {
+      return NextResponse.json({ ok: false, error: "Verification-policy schema is not present; cannot activate a required-policy campaign." }, { status: 409 });
+    }
+    const check = checkRevisionPolicyForApproval({
+      verificationPolicy: approvedForPreflight.verificationPolicy ?? null,
+      verificationPolicyDigest: approvedForPreflight.verificationPolicyDigest ?? null,
+      verificationPolicyRequired: true,
+      planMissionPlanDigest: deserializePlan(approvedForPreflight.planJson).missionPlanDigest,
+    });
+    if (!check.ok) {
+      return NextResponse.json({ ok: false, error: `The approved plan's verification policy is not activatable (${check.reason}).` }, { status: 409 });
+    }
   }
 
   if (deployment.state === "active") beginAttach(deploymentId);
@@ -129,10 +152,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     );
   }
 
-  // Phase 3 — attach the APPROVED revision's VerificationPolicyV2 to the new campaign (write-once, atomic). A
-  // non-canary campaign is a no-op; a canary campaign gets its complete policy bound once. A failure degrades
-  // SAFELY: a required-but-missing policy leaves the deputy fail-closed (holds), never an unprotected payout.
-  attachApprovedPolicyToCampaign(result.campaignId, deployment.jobId);
+  // Phase 2 — activation FAILS CLOSED. The approved revision's VerificationPolicyV2 MUST attach to the new
+  // campaign (write-once, atomic) BEFORE the deployment is marked live. A required-but-missing / malformed /
+  // incomplete / stale / conflicting policy → recovery_required + a bounded non-success; the deployment is
+  // NEVER marked live with an unenforceable covenant. A non-required (non-canary) revision attaches nothing.
+  const policyAttach = attachApprovedPolicyToCampaign(result.campaignId, deployment.jobId);
+  if (!policyAttach.ok) {
+    markRecoveryRequired(deploymentId, `attach_policy:${policyAttach.reason}`.slice(0, 280));
+    return NextResponse.json(
+      { ok: false, error: `Verification policy could not be attached (${policyAttach.reason}). Your vault is safe; retry attaching.`, stage: "policy_attach", deployment: deploymentView(getDeployment(deploymentId)!, tokenDecimals) },
+      { status: 409 },
+    );
+  }
 
   const live = markLive(deploymentId, result.campaignId);
   return NextResponse.json({ ok: true, campaignId: result.campaignId, deployment: deploymentView(live.deployment ?? getDeployment(deploymentId)!, tokenDecimals) });
