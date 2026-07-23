@@ -1,0 +1,97 @@
+{
+  "artifact": "final-head-release-v2",
+  "note": "APPEND-ONLY. Authenticated approval-route closure. Prior evidence (incl. final-head-release.json) untouched. No paid model calls; nothing deployed/pushed/funded/settled/migrated on prod.",
+  "supersedes": "final-head-release.json (which recorded authenticatedApprovalRouteProven=false — the one open gate; this artifact closes it)",
+  "baseSha": "c34a41a",
+  "headSha": "d587d404a1b61c812b105392ad053f2c37c59712",
+  "authAndSessionImplementation": {
+    "nonce": "issueNonce → httpOnly sage_nonce cookie (server-minted, single-use window)",
+    "siweMessage": "buildSiweMessage({address, nonce, issuedAt}) — fixed multi-line template (src/lib/auth/message.ts)",
+    "signatureVerification": "viem verifyMessage over the exact SIWE message; nonce read from the cookie is the server's source of truth, not the request body",
+    "sessionIssuance": "mintSession → HMAC-signed sage_session cookie (b64url(addr.issued).hmac), SAGE_SESSION_SECRET",
+    "sessionRead": "getSessionAddress() — HMAC verify + SESSION_TTL_MS(7d); returns null on missing/tampered/expired; DEV bypass only when NODE_ENV=development && DEV_SESSION_WALLET (neither set here)",
+    "routeGuard": "POST /api/launch/[id]/approve — 401 no/forged session on a real-founder job, 403 different wallet, then current-revision + expectedRevision + verifyPlanForApproval + checkRevisionPolicyForApproval + approveRevision"
+  },
+  "ephemeralWallet": "0x4b941a0c7c5830bef699c647c5ff113ef57efbc8",
+  "authRouteMatrixStatusCodes": {
+    "valid_founder_current_complete": 200,
+    "no_session": 401,
+    "forged_session": 401,
+    "wrong_wallet": 403,
+    "stale_revision": 409,
+    "changed_plan_digest": 409,
+    "changed_policy_digest": 409,
+    "required_policy_missing": 409,
+    "incomplete_policy": 409,
+    "superseded": 409,
+    "body_override_ignored": 200,
+    "replay_idempotent": 200
+  },
+  "immutableApprovalRecord": {
+    "approvedRevision": 1,
+    "approvedCount": 1,
+    "note": "exactly one revision ever approved across the whole matrix (replay is idempotent, never approves another); the bound record carries founder wallet, revision, missionPlanDigest, productMapDigest, totalBudgetBase/missionCount/totalCompletions, model+provider provenance, and verificationPolicyDigest/version/required",
+    "missionPlanDigest": "0x48ebdbb8c45de13621fc9c511ac4b0aadc71559564c064dadaaa8a52fad800d6",
+    "verificationPolicyDigest": "83ee9d8855a9235b53cc06108de72bfc8812b98f4e44c6da59332ff85bcd7428"
+  },
+  "sessionCannotOverride": "text/body values for founder, revision, budget, plan digest, and policy digest are ignored — the founder comes from the verified session, the revision/digests/budget are recomputed from the current revision's own plan; body_override_ignored → 200 approving the SERVER-derived revision, not the attacker's",
+  "routeToMoneyComposition": {
+    "path": "authenticated-approved revision → attachApprovedPolicyToCampaign(uses the approved revision) → real campaign row → loadVerifiedCampaignPolicy → fresh lease-bound reproduced permit → settleApprovedSubmission → central settlement sink",
+    "moneySpyCounts": { "freshReproduced": 1, "drift": 0, "stale": 0, "tamper": 0, "covenantFrozen": 0 },
+    "meaning": "the money sink fires exactly once for a fresh reproduced permit off the authenticated approval; after-state drift (HOLD), stale permit (>300s), post-approval policy tamper, and the immutable covenant with replay-mode off all keep the spy at zero"
+  },
+  "boundaries": {
+    "real": [
+      "issueNonce + buildSiweMessage + viem verifyMessage + mintSession + getSessionAddress (genuine SIWE, no auth logic mocked)",
+      "POST /api/launch/[id]/approve handler (the actual route module, called directly)",
+      "runInspectionJob + semantic compiler + grounding + canonical gate + allocator (seeds a real current revision)",
+      "VerificationPolicyV2 compile + revalidation + digest binding",
+      "plan-revision + campaign DB (temp SAGE_DB_PATH)",
+      "attachApprovedPolicyToCampaign + loadVerifiedCampaignPolicy",
+      "settleApprovedSubmission + verifyReplayPermit (lease-bound CAS + 300s freshness + runner version) + immutable covenant"
+    ],
+    "mocked": [
+      "next/headers cookies() — an in-memory jar ONLY (auth INFRASTRUCTURE, not auth LOGIC: the real cookies still carry the real nonce + real HMAC session)",
+      "provider LLM boundary — retained payloads only (closure-v2 architect-draft + critic-verdicts); ZERO paid inference",
+      "settleWithRecovery — money spy (no chain write)",
+      "reconcile / telegram / founder-notify / x402 fee — side-effect stubs",
+      "inspect / field-test / github / inspection-replay external effects",
+      "the replay journal in the money negatives (controllable, to drive stale/drift deterministically)"
+    ]
+  },
+  "status": {
+    "liveModelCanonicalGateProven": true,
+    "finalHeadCompositionProven": true,
+    "authenticatedApprovalRouteProven": true,
+    "activationFailClosedProven": true,
+    "immutableReplayCovenantProven": true,
+    "freshLeaseBoundPermitProven": true,
+    "completePolicyBindingProven": true,
+    "centralSettlementEnforcementProven": true,
+    "guardedBrowserReplayProven": true,
+    "founderCanaryReady": true,
+    "productionDeployed": false
+  },
+  "founderCanaryReadyReason": "all 9 proof fields are true — including authenticatedApprovalRouteProven, the one gate that was FALSE in final-head-release.json. The actual approval HTTP route now passes its full matrix under a genuinely-verified SIWE session (real nonce → real signature → real HMAC session → real getSessionAddress), and that authenticated approval composes deterministically to the money sink firing exactly once with every negative at zero. productionDeployed stays FALSE by sprint stop-condition: no deploy/push/prod-migration/funding/settlement was performed.",
+  "zeroModelCalls": true,
+  "secretsRecorded": "none — no private key, session secret, signature, raw cookie, retained model payload, or private evidence is written to any artifact (only the derived public ephemeral address + public digests)",
+  "commands": [
+    "npm run test:auth-route",
+    "npm run composition:final",
+    "npm run e2e:money-boundary",
+    "npm run test:payout-replay-browser",
+    "npm run test:inspection-replay",
+    "npm run test"
+  ],
+  "totals": {
+    "typecheck": "pass",
+    "lint": "0 errors (warnings only)",
+    "deterministicSuite": "1488 passed / 65 skipped",
+    "authRoute": "1 passed (genuine SIWE matrix + route→money)",
+    "composition": "1 passed",
+    "moneyBoundary": "2 passed",
+    "migration": "4 passed",
+    "permit": "15 passed",
+    "browser": "payout 2 / inspection 9"
+  }
+}
