@@ -16,6 +16,7 @@
     "test:inspection-replay": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspection-replay.browser.test.ts",
     "test:payout-replay-browser": "PAYOUT_REPLAY_BROWSER_TEST=1 vitest run src/lib/deputy/payout-replay.browser.test.ts",
     "demo:agentic-v2": "DEMO_AGENTIC=1 vitest run src/lib/launch/demo-agentic-v2.test.ts --reporter=basic",
+    "demo:payout-replay": "DEMO_PAYOUT_REPLAY=1 vitest run src/lib/deputy/demo-payout-replay.test.ts --reporter=basic",
     "test:inspection-live": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspect-and-plan.integration.test.ts",
     "smoke:grounding:dryrun": "GROUNDING_SMOKE_DRYRUN=1 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
     "smoke:grounding": "GROUNDING_SMOKE=1 GROUNDING_SMOKE_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
