@@ -126,7 +126,7 @@ You may ONLY judge. Do NOT invent, copy, repair, or return any provenance — NO
 OUTPUT a single strict JSON object, no fences: {"verdicts":[{"decisionId":"d0","verdict":"supported"}]}. verdict ∈ supported | partially_supported | unsupported | contradictory.`;
 
 export const CRITIC_CONTRACT_VERSION = "critic-contract-v3";
-const CriticV3Schema = z
+export const CriticV3Schema = z
   .object({ verdicts: z.array(z.object({ decisionId: z.string().min(1), verdict: z.enum(["supported", "partially_supported", "unsupported", "contradictory"]) }).strict()) })
   .strict();
 /** V3 transport — the model returns ONLY decisionId + verdict; Sage owns all provenance. */
