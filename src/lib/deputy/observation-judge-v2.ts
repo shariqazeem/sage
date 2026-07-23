@@ -109,13 +109,18 @@ export function judgeObservationV2(account: string | null | undefined, set: Obse
   const seenNames = new Set(seen.map((f) => (f.elementName ? norm(f.elementName) : "")).filter(Boolean));
   const contradictions = quoted.filter((q) => !seenNames.has(q) && !stateTexts.has(q) && /button|control|panel|tab|menu|option|toggle/.test(q)).length;
 
+  const hasTransitions = set.transitions.length > 0;
   const reasonCodes: string[] = [];
   if (actionMatches > 0) reasonCodes.push("action_present"); else reasonCodes.push("no_action");
   if (stateSpecificMatches > 0) reasonCodes.push("state_specific"); else reasonCodes.push("generic_no_state");
   if (coherentPairs > 0) reasonCodes.push("coherent_action_outcome"); else reasonCodes.push("no_coherent_pair");
   if (contradictions > 0) reasonCodes.push("contradiction");
+  if (!hasTransitions) reasonCodes.push("no_transitions"); // reconstructed-from-corpus set (no action lane)
 
-  const pass = actionMatches > 0 && stateSpecificMatches >= V2_MIN_DISTINCT && coherentPairs > 0 && contradictions === 0;
+  // With transitions, the full action→outcome bar; without (a corpus reconstruction that carries only
+  // seen state/page texts), the state-specific + no-contradiction bar — which still discriminates a
+  // generic account ("I clicked start") from a genuine one, since the discriminator is state-specificity.
+  const pass = stateSpecificMatches >= V2_MIN_DISTINCT && contradictions === 0 && (!hasTransitions || (actionMatches > 0 && coherentPairs > 0));
   return {
     version: "obs-judge-v2", ran: true, pass, reasonCodes,
     actionMatches, stateSpecificMatches, coherentPairs, distinctSourceFacts: matchedFactIds.size, contradictions,
@@ -139,4 +144,58 @@ export function compareV2ToLegacy(v2Pass: boolean, legacyPass: boolean): Disagre
   if (v2Pass && legacyPass) return "agree_pass";
   if (!v2Pass && !legacyPass) return "agree_fail";
   return legacyPass && !v2Pass ? "v2_stricter" : "v2_looser";
+}
+
+/**
+ * Reconstruct a minimal observation set from the EXISTING private corpus (the {source,text}[] the legacy
+ * observation judge already carries) — READ-ONLY, no migration, no change to the legacy corpus. It yields
+ * `seen` state/page facts (no transitions; the flat corpus has none), so V2 runs in its state-specific
+ * mode. `source` is "state:<i>"/"page:<i>"; a distinct source is a distinct stateId, keeping cross-state
+ * facts distinguishable.
+ */
+export function reconstructSetFromCorpus(observations: { source: string; text: string }[] | null | undefined): ObservationSetV1 {
+  const facts = (observations ?? []).filter((o) => o.text && o.text.trim()).map((o) => {
+    const digest = sha16(`${o.source}|${norm(o.text)}`);
+    return {
+      version: "obs-fact-v1" as const, id: digest, source: (o.source.startsWith("page") ? "dom" : "field_transition") as "dom" | "field_transition",
+      grounding: "seen" as const, decisive: true, pageUrl: "", stateId: o.source, visibleTexts: [o.text.trim()], provenanceDigest: digest,
+    };
+  });
+  const digest = sha16(facts.map((f) => f.id).sort().join(","));
+  return { version: "obs-set-v1", facts, transitions: [], captureVersion: 1, digest };
+}
+
+export interface ObservationV2Shadow {
+  version: "obs-judge-v2-shadow";
+  ran: boolean;
+  disagreement: DisagreementCategory | null;
+  v2Pass: boolean;
+  legacyPass: boolean;
+  reasonCodes: string[];
+  stateSpecificMatches: number;
+  distinctSourceFacts: number;
+  contradictions: number;
+  corpusDigest: string;
+  inputDigest: string;
+  /** flagged when the deterministic shadow can't corroborate a non-English account (see P5). */
+  multilingualCorroborationMissing: boolean;
+}
+
+/**
+ * Run the V2 SHADOW against a submission's account + the campaign's existing corpus, compared to the
+ * legacy money verdict. Returns a LEAK-SAFE record (counts + codes + digests, never corpus text) for
+ * journaling. NEVER changes payout — the caller uses this only for telemetry.
+ */
+export function observationV2Shadow(account: string | null | undefined, corpus: { source: string; text: string }[] | null | undefined, legacyPass: boolean): ObservationV2Shadow {
+  const set = reconstructSetFromCorpus(corpus);
+  const r = judgeObservationV2(account, set);
+  // multilingual heuristic: an account with substantial non-ASCII word content that scored zero state
+  // matches is a likely real-recall limitation, not a guess — flagged, never auto-passed.
+  const nonAscii = /[^\x00-\x7f]/.test(account ?? "");
+  return {
+    version: "obs-judge-v2-shadow", ran: r.ran, disagreement: r.ran ? compareV2ToLegacy(r.pass, legacyPass) : null,
+    v2Pass: r.pass, legacyPass, reasonCodes: r.reasonCodes, stateSpecificMatches: r.stateSpecificMatches,
+    distinctSourceFacts: r.distinctSourceFacts, contradictions: r.contradictions, corpusDigest: r.corpusDigest, inputDigest: r.inputDigest,
+    multilingualCorroborationMissing: r.ran && r.stateSpecificMatches === 0 && nonAscii,
+  };
 }

@@ -20,6 +20,7 @@ import {
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
+import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
 import { OBS_MAX_ATTEMPTS, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
@@ -348,10 +349,16 @@ export async function runDeputyOnSubmission(
     }).catch(() => null);
     const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
     if (decision) {
-      setObservationShadow(
-        submissionId,
-        toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>,
-      );
+      const shadow = toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>;
+      // OBS JUDGE V2 SHADOW — an action/state-grounded verdict on the SAME submission (reconstructed from
+      // the existing private corpus), compared to the legacy bar. Off by default; it NEVER affects `autopay`
+      // or settlement — it only adds a leak-safe telemetry key to the shadow journal.
+      if (obsJudgeV2Mode() === "shadow") {
+        const v2 = observationV2Shadow(submission.note, campaign.privateCorpus, decision.bar.pass);
+        shadow.v2 = v2;
+        agentLog(cid, "observation_v2", { disagreement: v2.disagreement, v2Pass: v2.v2Pass, legacyPass: v2.legacyPass, stateSpecific: v2.stateSpecificMatches });
+      }
+      setObservationShadow(submissionId, shadow);
     }
     agentLog(cid, "observation", {
       barPass: decision?.bar.pass ?? false,

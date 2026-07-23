@@ -255,6 +255,46 @@ describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety 
   });
 });
 
+describe("OBS JUDGE V2 shadow — wired into the real payout pipeline (never changes settlement)", () => {
+  const corpusCampaign = { ...campaign, privateCorpus: [{ source: "state:1", text: "You reach the garden world." }, { source: "state:1", text: "Talk to Yara" }], privateCorpusSources: 2, privateCorpusDigest: "0xd" };
+  const setupObs = (note: string, barPass: boolean) => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION", note } as never);
+    vi.mocked(getCampaign).mockReturnValue(corpusCampaign as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: ["reach the world"] } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: barPass, reasons: [] } } as never);
+    vi.mocked(observationAutopayEnabled).mockReturnValue(false); // keep money off; V2 must not change this
+  };
+  afterEach(() => { delete process.env.OBS_JUDGE_V2_MODE; });
+
+  it("mode OFF → V2 is NOT attached to the shadow journal", async () => {
+    setupObs("I reached the garden world and talked to Yara.", false);
+    await runDeputyOnSubmission("s1");
+    const shadow = vi.mocked(setObservationShadow).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(shadow?.v2).toBeUndefined();
+  });
+
+  it("SHADOW → V2 is journaled, settlement is UNCHANGED (still held, autopay off)", async () => {
+    process.env.OBS_JUDGE_V2_MODE = "shadow";
+    setupObs("I reached the garden world and talked to Yara.", true); // legacy bar passes...
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held"); // ...but autopay is off → held, exactly as without V2
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+    const shadow = vi.mocked(setObservationShadow).mock.calls.at(-1)?.[1] as { v2?: Record<string, unknown> };
+    expect(shadow.v2?.ran).toBe(true);
+    expect(shadow.v2?.v2Pass).toBe(true); // genuine account corroborates the reconstructed state facts
+  });
+
+  it("a GENERIC account with a passing legacy bar → v2_stricter (disagreement journaled, no leak)", async () => {
+    process.env.OBS_JUDGE_V2_MODE = "shadow";
+    setupObs("done nice good work pay me thanks 5 stars", true); // legacy bar (mocked) passes; V2 should not
+    await runDeputyOnSubmission("s1");
+    const shadow = vi.mocked(setObservationShadow).mock.calls.at(-1)?.[1] as { v2?: Record<string, unknown> };
+    expect(shadow.v2?.v2Pass).toBe(false);
+    expect(shadow.v2?.disagreement).toBe("v2_stricter");
+    expect(JSON.stringify(shadow.v2)).not.toMatch(/garden world/); // leak-safe: no corpus text
+  });
+});
+
 describe("P16 fix — observation missions are decided BEFORE the url-lane gate (the evidence_mismatch bug)", () => {
   // The production bug: a genuine observation account makes the url-verifiable brain flag
   // `evidence_mismatch` (high) — the lived experience simply isn't in the static fetch. In the old
