@@ -1,0 +1,24 @@
+{
+  "artifact": "final-head-truth-amendment",
+  "note": "APPEND-ONLY. Prior evidence untouched. Establishes source truth on the final HEAD (branch order: sage-canary-release-candidate → sage-money-boundary-closure).",
+  "timestamp": "2026-07-24T00:00:00Z",
+  "headSha": "5184894",
+  "branchOrder": ["sage-canary-release-candidate", "sage-money-boundary-closure"],
+  "status": {
+    "liveModelCanonicalGateProven": true,
+    "liveModelRevisionPersistenceProven": true,
+    "authenticatedApprovalRouteProven": false,
+    "finalHeadCompositionProven": false,
+    "founderCanaryReady": false,
+    "productionDeployed": false
+  },
+  "correction": {
+    "claim": "The prior canary-runtime-closure-v2 live harness was described as exercising founder approval.",
+    "reality": "It called the approval SERVICE directly (verifyPlanForApproval + approveRevision) and only COMPARED the wrong-founder address (after.founderWallet !== wrongWallet); it did NOT exercise the authenticated approval ROUTE with a real verified session/signature. authenticatedApprovalRouteProven is therefore FALSE until P6 tests it (and if only the service can be tested, it stays false)."
+  },
+  "gates_to_flip_founderCanaryReady": [
+    "liveModelCanonicalGateProven", "finalHeadCompositionProven", "authenticatedApprovalRouteProven",
+    "activationFailClosedProven", "immutableReplayCovenantProven", "freshLeaseBoundPermitProven",
+    "completePolicyBindingProven", "centralSettlementEnforcementProven", "guardedBrowserReplayProven"
+  ]
+}
