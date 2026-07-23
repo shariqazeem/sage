@@ -5,6 +5,7 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { loadDeploymentForSession, deploymentView } from "@/lib/launch/deployment-access";
 import { beginAttach, markLive, markRecoveryRequired, getDeployment } from "@/lib/db/deployments";
 import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
+import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
@@ -127,6 +128,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       { status: 409 },
     );
   }
+
+  // Phase 3 — attach the APPROVED revision's VerificationPolicyV2 to the new campaign (write-once, atomic). A
+  // non-canary campaign is a no-op; a canary campaign gets its complete policy bound once. A failure degrades
+  // SAFELY: a required-but-missing policy leaves the deputy fail-closed (holds), never an unprotected payout.
+  attachApprovedPolicyToCampaign(result.campaignId, deployment.jobId);
 
   const live = markLive(deploymentId, result.campaignId);
   return NextResponse.json({ ok: true, campaignId: result.campaignId, deployment: deploymentView(live.deployment ?? getDeployment(deploymentId)!, tokenDecimals) });

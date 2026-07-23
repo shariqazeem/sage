@@ -136,6 +136,11 @@ export const campaigns = sqliteTable("campaigns", {
   verificationPolicy: text("verification_policy", { mode: "json" }).$type<unknown>(),
   /** Phase 3 — sha256 of the bound policy (tamper check); recomputed at settlement, must match. */
   verificationPolicyDigest: text("verification_policy_digest"),
+  /** Phase 3 (v2) — the attached policy version, the "autonomous payout requires coverage" marker, and the
+   *  approved plan revision that supplied it. Write-once: only an approved current revision may attach, once. */
+  verificationPolicyVersion: text("verification_policy_version"),
+  verificationPolicyRequired: integer("verification_policy_required", { mode: "boolean" }).notNull().default(false),
+  policySourceRevisionNumber: integer("policy_source_revision_number"),
   createdAt: integer("created_at").notNull(),
 });
 

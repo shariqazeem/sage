@@ -2,7 +2,7 @@ import "server-only";
 
 import { runInspectionProbe, type InspectionProbeV1, type ProbeClassification } from "@/lib/launch/inspection-replay";
 import type { MissionProbeV1 } from "@/lib/launch/mission-probe";
-import { loadVerifiedCampaignPolicy, probesForMission } from "./verification-policy";
+import { loadVerifiedCampaignPolicy, probesForMission, policyMarksActionMission } from "./verification-policy";
 import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 import type { Campaign } from "@/lib/db/schema";
 
@@ -110,30 +110,34 @@ export interface PayoutReplayDeps {
  *  - canary + policy fail-closed → hold (policy_missing / policy_digest_mismatch / ...)
  */
 export async function runPayoutActionReplay(
-  campaign: Pick<Campaign, "verificationPolicy" | "verificationPolicyDigest" | "missionPlanDigest">,
+  campaign: Pick<Campaign, "verificationPolicy" | "verificationPolicyDigest" | "verificationPolicyRequired" | "missionPlanDigest">,
   missionKey: string,
   deps: PayoutReplayDeps = {},
 ): Promise<PayoutReplayResult> {
   const mode = payoutActionReplayMode();
   const base = { mode, probeResults: [] as { probeId: string; code: PayoutReplayCode }[], isActionMission: false };
   if (mode === "off") return { ...base, decision: "skip", code: null };
-  // a campaign with NO bound policy column is not a canary campaign → replay does not apply.
-  if (campaign.verificationPolicy == null) return { ...base, decision: "skip", code: null };
+  // Phase 4 — only a policy-REQUIRED campaign is gated. policyRequired=false → skip (historical behaviour).
+  const required = campaign.verificationPolicyRequired === true;
+  if (!required) return { ...base, decision: "skip", code: null };
 
+  // required=true from here: fail CLOSED. A missing/malformed/incomplete/mismatched policy HOLDS (canary) —
+  // never skips (defect #2). shadow journals the code but leaves settlement unchanged.
+  const hold = (code: PayoutReplayCode, isAction = true): PayoutReplayResult => ({ ...base, isActionMission: isAction, decision: mode === "canary" ? "hold" : "allow", code });
   const load = loadVerifiedCampaignPolicy(campaign);
   if (!load.ok) {
-    // a canary campaign whose policy is broken/tampered → fail closed (hold) in canary; shadow journals only.
     const code: PayoutReplayCode = load.reason === "policy_missing" ? "policy_missing" : "policy_digest_mismatch";
-    return { ...base, decision: mode === "canary" ? "hold" : "allow", code, isActionMission: true };
+    return hold(code);
   }
   const policy = load.policy;
-  const isActionMission = policy.actionMissions.includes(missionKey);
-  if (!isActionMission) return { ...base, decision: "skip", code: null };
+  // the loaded policy is COMPLETE (loadVerifiedCampaignPolicy requires it), so absence from actionCriteria
+  // PROVES this mission has no action criteria → safe to skip (we never infer non-action from an incomplete policy).
+  if (!policyMarksActionMission(policy, missionKey)) return { ...base, decision: "skip", code: null };
 
   const probes = probesForMission(policy, missionKey);
   if (probes.length === 0) {
     // an action mission with no valid probe is NOT autonomous-payout eligible.
-    return { ...base, isActionMission: true, decision: mode === "canary" ? "hold" : "allow", code: "probe_not_applicable" };
+    return hold("probe_not_applicable");
   }
 
   const run = deps.runProbe ?? (async (probe: InspectionProbeV1) => {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNotNull, lt, lte, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
 import {
@@ -165,12 +165,42 @@ export function updateCampaignV2Plan(
 }
 
 /**
- * Phase 3 — bind the immutable VerificationPolicyV1 (+ its digest) to a campaign at deploy/attach, so the
- * deputy can load it by campaign at settlement time. Additive + off-chain: it can only REDUCE settlement
- * eligibility for action missions. Never mutates the on-chain plan/budget commitment.
+ * Phase 3 — ATOMIC, WRITE-ONCE attach of an approved revision's VerificationPolicyV2 to a campaign. Enforces
+ * every guard in a single transaction (CAS on the null policy):
+ *  - the campaign's missionPlanDigest MUST equal the supplied revision missionPlanDigest;
+ *  - null policy column → attach the exact approved policy ONCE;
+ *  - re-attaching the SAME digest is idempotent (no-op ok);
+ *  - a DIFFERENT digest is rejected (an active campaign's policy is never overwritten);
+ * The caller must have already verified the revision is APPROVED + CURRENT + the policy is complete-if-required.
  */
-export function bindCampaignVerificationPolicy(id: string, policy: unknown, policyDigest: string): void {
-  db.update(campaigns).set({ verificationPolicy: policy, verificationPolicyDigest: policyDigest }).where(eq(campaigns.id, id)).run();
+export type AttachPolicyResult = { ok: true; idempotent: boolean } | { ok: false; reason: "plan_mismatch" | "digest_conflict" | "no_campaign" };
+export function attachVerificationPolicyToCampaign(input: {
+  campaignId: string;
+  policy: unknown;
+  policyDigest: string;
+  policyVersion: string;
+  policyRequired: boolean;
+  sourceRevisionNumber: number;
+  revisionMissionPlanDigest: string;
+}): AttachPolicyResult {
+  let result: AttachPolicyResult = { ok: false, reason: "no_campaign" };
+  db.transaction((t) => {
+    const row = t.select().from(campaigns).where(eq(campaigns.id, input.campaignId)).get();
+    if (!row) { result = { ok: false, reason: "no_campaign" }; return; }
+    if (row.missionPlanDigest && row.missionPlanDigest !== input.revisionMissionPlanDigest) { result = { ok: false, reason: "plan_mismatch" }; return; }
+    if (row.verificationPolicyDigest) {
+      // already attached — only an EXACT-same-digest re-attach is allowed (idempotent); a different one conflicts.
+      result = row.verificationPolicyDigest === input.policyDigest ? { ok: true, idempotent: true } : { ok: false, reason: "digest_conflict" };
+      return;
+    }
+    // CAS: write only while the policy column is still null (write-once).
+    const res = t.update(campaigns)
+      .set({ verificationPolicy: input.policy, verificationPolicyDigest: input.policyDigest, verificationPolicyVersion: input.policyVersion, verificationPolicyRequired: input.policyRequired, policySourceRevisionNumber: input.sourceRevisionNumber })
+      .where(and(eq(campaigns.id, input.campaignId), isNull(campaigns.verificationPolicyDigest)))
+      .run();
+    result = res.changes === 1 ? { ok: true, idempotent: false } : { ok: false, reason: "digest_conflict" };
+  });
+  return result;
 }
 
 /* ────────────────────────────────────────────────────── submissions ───── */

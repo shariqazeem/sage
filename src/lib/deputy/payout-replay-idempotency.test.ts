@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { runPayoutActionReplay, type PayoutReplayDeps } from "./payout-replay";
 import type { ReplayJournalHandle, ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
-import { compileVerificationPolicy } from "@/lib/launch/mission-probe";
+import { v2Campaign } from "./policy-test-fixtures";
 import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib/launch/observed-facts";
 import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
@@ -21,7 +21,7 @@ const fact: ObservedFactV1 = { version: "obs-fact-v1", id: "f-after", source: "f
 const trans: ActionTransitionV1 = { version: "action-transition-v1", id: "t-load", startUrl: "https://app.test/", beforeStateDigest: "b", verb: "click", locator: { role: "button", accessibleName: "Load report" }, afterUrl: "https://app.test/report", afterStateDigest: AFTER, addedTexts: ["Report ready"], removedTexts: [], observableChange: true, networkMethodSummary: "get_observed", safeClassification: "safe", provenance: { fromStateIndex: 0, toStateIndex: 1 } };
 const set: ObservationSetV1 = { version: "obs-set-v1" as ObservationSetV1["version"], facts: [fact], transitions: [trans], captureVersion: 1, digest: "setdig" };
 const mission: CandidateMission = { missionKey: "m-load", criteria: ["c"], evidenceRequirements: ["e"], groundingV1: { version: "mission-grounding-v1", observationSetDigest: "setdig", criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", sourceFactIds: ["f-after"], sourceTransitionIds: ["t-load"], evidenceIndex: 0, verificationMode: "observation" }] } } as unknown as CandidateMission;
-const campaign = (): Campaign => { const p = compileVerificationPolicy({ missionPlanDigest: "0xplan", productMapDigest: "0xmap", set, missions: [mission], replayReproduced: new Set(["t-load"]), scope }).policy; return { verificationPolicy: p, verificationPolicyDigest: p.policyDigest, missionPlanDigest: "0xplan" } as Campaign; };
+const campaign = (): Campaign => v2Campaign();
 
 // in-memory journal + a run counter to prove no double-execution.
 function memJournal() {
