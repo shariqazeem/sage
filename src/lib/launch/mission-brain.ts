@@ -359,7 +359,7 @@ export async function runMissionBrain(
   const computeShadow = async (legacyCount: number): Promise<GroundingShadowResult | undefined> => {
     try {
       const s = await import("./mission-grounding-shadow");
-      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
+      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
     } catch { return undefined; }
   };
 

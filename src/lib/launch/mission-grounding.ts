@@ -176,10 +176,15 @@ export function classifyGroundingTier(
   replayReproduced: ReadonlySet<string> = new Set(),
 ): GroundingTier {
   const idx = factIndex(set);
-  const transitions = (gc.sourceTransitionIds ?? []).map((id: string) => idx.transitions.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.transitions.get>>[];
-  const safeTransitions = transitions.filter((t) => t.safeClassification === "safe");
-  if (safeTransitions.some((t) => replayReproduced.has(t.id))) return "action_replayed";
-  if (safeTransitions.length > 0) return "action_observed";
+  // Action tiers apply ONLY to an action_outcome criterion. A state/content/visual criterion is fact-derived
+  // even if it also cites a transition (its truth is a state, not the action), and an unsafe/unverified
+  // transition never raises a tier (only positively-`safe` transitions count).
+  if (gc.criterionKind === "action_outcome") {
+    const transitions = (gc.sourceTransitionIds ?? []).map((id: string) => idx.transitions.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.transitions.get>>[];
+    const safeTransitions = transitions.filter((t) => t.safeClassification === "safe");
+    if (safeTransitions.some((t) => replayReproduced.has(t.id))) return "action_replayed";
+    if (safeTransitions.length > 0) return "action_observed";
+  }
   const facts = gc.sourceFactIds.map((id: string) => idx.facts.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.facts.get>>[];
   if (facts.some((f) => f.grounding === "seen" && f.decisive)) return "state_seen";
   if (facts.some((f) => f.grounding === "inferred")) return "inferred_only";

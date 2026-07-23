@@ -1,48 +1,123 @@
 import "server-only";
 
+import { z } from "zod";
 import { llmCompleteJson } from "@/lib/llm/complete";
 import { missionModel } from "@/lib/llm/mission-model";
-import { compactMapForLlm, coerceMission } from "./mission-brain";
+import { compactMapForLlm } from "./mission-brain";
 import { validateMissionGrounding, classifyGroundingTier } from "./mission-grounding";
+import { validatePlanMissions, type ValidationScope } from "./validate-mission";
 import { factIndex } from "./observed-facts";
 import { allocateBudget } from "./budget";
-import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, VerificationMode, CriterionKind } from "./schemas";
+import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, MissionRiskCategory, MissionPriority, SourceRef, CriterionGroundingV1 } from "./schemas";
 
-/** Coerce a raw V2 mission (base fields via coerceMission) + parse its groundingV1 (factRefs→sourceFactIds,
- *  transitionRef→sourceTransitionIds, evidenceMode→verificationMode). Fail-closed: a bad base → null. */
-function coerceMissionForShadow(raw: unknown, i: number): CandidateMission | null {
-  const base = coerceMission(raw, i);
-  if (!base) return null;
-  const o = (raw ?? {}) as Record<string, unknown>;
-  const g = o.groundingV1 as Record<string, unknown> | undefined;
-  // STRICT V2: reject rather than repair. A V2 mission MUST carry a groundingV1 with a digest and
-  // well-formed criterion mappings (an explicit numeric evidenceIndex, a valid evidenceMode, non-empty
-  // factRefs, an integer rewardWeight/cap). coerceMission clamps rewardWeight/cap — for V2 we re-check the
-  // RAW values and reject on invalidity rather than accept a clamped default.
-  if (!g || !Array.isArray(g.criteria) || typeof g.observationSetDigest !== "string" || !g.observationSetDigest) return null;
-  if (!Number.isInteger(o.rewardWeight) || !Number.isInteger(o.maxCompletions)) return null;
-  const criteria: import("./schemas").CriterionGroundingV1[] = [];
-  for (const c of g.criteria as Record<string, unknown>[]) {
-    if (!Number.isInteger(c.criterionIndex)) return null;
-    if (!Number.isInteger(c.evidenceIndex)) return null;
-    if (!["deterministic_url", "semantic_url", "observation"].includes(c.evidenceMode as string)) return null;
-    const factRefs = Array.isArray(c.factRefs) ? (c.factRefs.filter((x) => typeof x === "string") as string[]) : [];
-    if (factRefs.length === 0) return null; // empty factRefs → reject (never repaired)
-    criteria.push({
-      criterionIndex: c.criterionIndex as number,
-      criterionKind: (["state", "action_outcome", "content_claim", "visual_quality"].includes(c.criterionKind as string) ? c.criterionKind : undefined) as CriterionKind | undefined,
-      sourceFactIds: factRefs,
-      sourceTransitionIds: typeof c.transitionRef === "string" ? [c.transitionRef] : undefined,
-      evidenceIndex: c.evidenceIndex as number,
-      verificationMode: c.evidenceMode as VerificationMode,
-      pageUrl: typeof c.pageUrl === "string" && c.pageUrl ? c.pageUrl : undefined,
-      stateId: typeof c.stateId === "string" && c.stateId ? c.stateId : undefined,
-      supportRationale: typeof c.supportRationale === "string" ? c.supportRationale.slice(0, 200) : undefined,
-    });
-  }
-  base.groundingV1 = { version: "mission-grounding-v1", observationSetDigest: g.observationSetDigest, criteria };
-  return base;
+/* ───────────────────── strict V2 architect + critic schemas (Zod, reject-never-repair) ─────────────────
+ * A V2 architect response is validated by STRICT schemas — unknown keys rejected, every validation-critical
+ * field required + range-checked, no clamp/default/salvage. A single invalid mission (or member) rejects the
+ * WHOLE response (→ schema_invalid). The ONLY defaulted fields are the three non-validation-critical
+ * OPTIONAL list fields (conditions/assumptions/disallowed): absent ⇒ [] (their canonical "none" meaning),
+ * never a rescue of malformed data. The legacy coerceMission (which clamps/defaults) is NOT used here.        */
+
+const RISK_CATEGORIES = ["critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation", "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression"] as const;
+const uniqueStrings = (arr: readonly string[]) => new Set(arr).size === arr.length;
+
+const CriterionGroundingSchema = z
+  .object({
+    criterionIndex: z.number().int().min(0),
+    criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
+    factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
+    transitionRef: z.string().min(1).optional(),
+    evidenceIndex: z.number().int().min(0),
+    evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
+    pageUrl: z.string().min(1),
+    stateId: z.string().min(1),
+    supportRationale: z.string().min(1).max(200),
+  })
+  .strict()
+  .refine((c) => c.criterionKind !== "action_outcome" || !!c.transitionRef, "action_outcome criterion requires a transitionRef");
+
+const GroundingV1Schema = z.object({ observationSetDigest: z.string().min(1), criteria: z.array(CriterionGroundingSchema).min(1) }).strict();
+const SourceRefSchema = z.object({ kind: z.enum(["page", "repo", "founder"]), ref: z.string().min(1), observation: z.string() }).strict();
+
+const MissionV2Schema = z
+  .object({
+    missionKey: z.string().min(1).max(48),
+    title: z.string().min(1).max(140),
+    objective: z.string().min(1).max(600),
+    instructions: z.string().min(1).max(6000),
+    targetSurface: z.string().min(1).max(600),
+    criteria: z.array(z.string().min(1)).min(1).max(12),
+    evidenceRequirements: z.array(z.string().min(1)).min(1).max(12),
+    whyItMatters: z.string().min(1).max(800),
+    sources: z.array(SourceRefSchema).min(1),
+    priority: z.enum(["high", "medium", "low"]),
+    riskCategory: z.enum(RISK_CATEGORIES),
+    effortMinutes: z.number().int().min(3).max(240),
+    rewardWeight: z.number().int().min(1).max(10),
+    maxCompletions: z.number().int().min(1).max(50),
+    verificationMethod: z.string().min(1).max(800),
+    confidence: z.number().min(0).max(1),
+    conditions: z.array(z.string()).max(8).optional().default([]),
+    assumptions: z.array(z.string()).max(6).optional().default([]),
+    disallowed: z.array(z.string()).max(8).optional().default([]),
+    anchors: z.array(z.string().min(1)).min(1).max(12), // ≥1 verbatim observed substring (anti-hallucination gate)
+    groundingV1: GroundingV1Schema,
+  })
+  .strict()
+  .superRefine((m, ctx) => {
+    // exactly one grounding mapping per criterion index — a bijection onto 0..criteria.length-1.
+    const indices = m.groundingV1.criteria.map((c) => c.criterionIndex).sort((a, b) => a - b);
+    const expected = m.criteria.map((_c, i) => i);
+    if (indices.length !== expected.length || indices.some((v, i) => v !== expected[i]))
+      ctx.addIssue({ code: "custom", message: "each criterion needs exactly one grounding mapping (0..n-1)" });
+    for (const c of m.groundingV1.criteria) if (c.evidenceIndex >= m.evidenceRequirements.length) ctx.addIssue({ code: "custom", message: `evidenceIndex ${c.evidenceIndex} out of range` });
+  });
+
+const ArchitectOutputSchema = z
+  .object({ missions: z.array(MissionV2Schema).min(1) })
+  .strict()
+  .superRefine((o, ctx) => { if (!uniqueStrings(o.missions.map((m) => m.missionKey))) ctx.addIssue({ code: "custom", message: "missionKey values must be unique" }); });
+
+type MissionV2 = z.infer<typeof MissionV2Schema>;
+
+/** Map a schema-validated V2 mission → CandidateMission (NO legacy coerce, NO clamp/default/salvage — every
+ *  value is already validated). groundingV1 is display-only metadata stripped at canonical compilation. */
+function toCandidateMission(m: MissionV2): CandidateMission {
+  const criteria: CriterionGroundingV1[] = m.groundingV1.criteria.map((c) => ({
+    criterionIndex: c.criterionIndex, criterionKind: c.criterionKind, sourceFactIds: c.factRefs,
+    sourceTransitionIds: c.transitionRef ? [c.transitionRef] : undefined, evidenceIndex: c.evidenceIndex,
+    verificationMode: c.evidenceMode, pageUrl: c.pageUrl, stateId: c.stateId, supportRationale: c.supportRationale,
+  }));
+  return {
+    missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions,
+    targetSurface: m.targetSurface, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
+    whyItMatters: m.whyItMatters, sources: m.sources as SourceRef[], priority: m.priority as MissionPriority,
+    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions,
+    rewardWeight: m.rewardWeight, maxCompletions: m.maxCompletions, verificationMethod: m.verificationMethod,
+    confidence: m.confidence, assumptions: m.assumptions, disallowed: m.disallowed, anchors: m.anchors,
+    groundingV1: { version: "mission-grounding-v1", observationSetDigest: m.groundingV1.observationSetDigest, criteria },
+  };
 }
+
+/** STRICT parse of the architect response → candidates, or null (schema_invalid — the WHOLE response is
+ *  rejected on any invalid mission/member; there is no per-mission salvage or filtering). */
+function parseArchitectOutput(json: unknown): CandidateMission[] | null {
+  const parsed = ArchitectOutputSchema.safeParse(json);
+  return parsed.success ? parsed.data.missions.map(toCandidateMission) : null;
+}
+
+/** STRICT critic schema — factRefs is REQUIRED and non-empty; malformed output supports nothing. */
+const CriticOutputSchema = z
+  .object({
+    verdicts: z.array(
+      z.object({
+        missionKey: z.string().min(1),
+        criterionIndex: z.number().int().min(0),
+        verdict: z.enum(["supported", "partially_supported", "unsupported", "contradictory"]),
+        factRefs: z.array(z.string().min(1)).min(1),
+      }).strict(),
+    ),
+  })
+  .strict();
 
 /**
  * Grounded architect SHADOW (S2). Runs ARCHITECT_SYSTEM_V2 + the deterministic grounding validation + a
@@ -67,6 +142,13 @@ export function missionGroundingModeReason(): string | null {
   return null;
 }
 
+/** Optional critic-model route for the grounding shadow. Defaults to missionModel() so nothing flips today
+ *  (both the architect and the critic use missionModel() until a model is chosen after evaluation). Returns
+ *  undefined when neither is set (→ resolveLlm falls through the shared LLM_MODEL→DEPUTY_MODEL→default chain). */
+export function missionGroundingCriticModel(): string | undefined {
+  return process.env.MISSION_GROUNDING_CRITIC_MODEL?.trim() || missionModel();
+}
+
 /** ARCHITECT_SYSTEM_V2 — grounded, strict-structured. The model may design missions ONLY around observed
  *  capabilities and must cite concrete observation ids per criterion; it never invents controls/pages. */
 export const ARCHITECT_SYSTEM_V2 = `You are Sage's GROUNDED mission architect. You are given a product map, an OBSERVATION SET (typed facts Sage actually saw + safe action transitions it performed), that set's digest, the founder goal, the inspected scope, and the exact campaign budget.
@@ -76,14 +158,15 @@ RULES (absolute):
 - Every criterion MUST cite concrete observed-fact ids (factRefs) from the set.
 - An action/outcome criterion MUST cite the transitionRef that produced the outcome.
 - Inferred vision facts may GUIDE design but can NEVER be the only decisive support — a decisive criterion needs a seen DOM/field fact or a safe transition.
+- Every mission MUST include "anchors": VERBATIM substrings of what Sage observed (element text, a heading, a state excerpt). The deterministic anti-hallucination gate rejects any mission whose anchors were never observed.
 - Evidence requirements must be realistically capable of proving the criterion.
 - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.
-- reward × maxCompletions across all missions MUST stay within the exact supplied budget.
+- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts, base units, or claim any budget equality — Sage's deterministic allocator converts the weights into exact USDC rewards and guarantees exact budget conservation.
 
 Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality". An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
 
 OUTPUT a SINGLE strict JSON object, no markdown fences, no prose. Example (a valid object):
-{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"assumptions":[],"disallowed":[],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
+{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
 
 /** CRITIC_SYSTEM_V2 — reviews whether the cited observations genuinely support each criterion. It may only
  *  reject/downgrade; it cannot create facts, repair grounding, or override the deterministic gate. */
@@ -97,8 +180,19 @@ export interface GroundingShadowResult {
   mode: MissionGroundingMode;
   observationSetDigest: string;
   candidateCount: number;
+  /** candidates that passed the deterministic digest-bound grounding validation. */
+  groundingValid: number;
+  /** @deprecated alias of groundingValid (kept for existing consumers). */
   structurallyValid: number;
+  /** grounding-valid candidates the critic fully supported. */
   criticSupported: number;
+  /** critic-supported candidates that ALSO passed the SAME canonical mission gate the legacy plan uses. */
+  canonicalGatePassed: number;
+  /** budget successfully compiled by the real allocator over the canonical-gate-passing candidates. */
+  budgetCompiled: boolean;
+  /** what `accepted` means here — canonical-gate-passed, NOT merely critic-supported. */
+  acceptanceScope: "canonical_gate";
+  /** accepted === canonicalGatePassed (the missions that would survive the real pipeline). */
   accepted: number;
   groundingCoverage: number; // fraction of criteria that have a grounding entry
   distinctStateCoverage: number;
@@ -120,6 +214,17 @@ export interface GroundingShadowResult {
   error: string | null;
   /** set when the configured mode was not off|shadow (fell closed to off). */
   modeReason?: string | null;
+  /** model-routing TRUTH — requested vs the model/provider actually served (null on the fake test seam or
+   *  when the call never ran). Requested is null when unset (→ the shared LLM_MODEL→DEPUTY_MODEL→default
+   *  chain resolves it); today both routes are missionModel() (the critic via its optional override). */
+  architectModelRequested: string | null;
+  architectModelActual: string | null;
+  architectProvider: string | null;
+  criticModelRequested: string | null;
+  criticModelActual: string | null;
+  criticProvider: string | null;
+  /** observation-view completeness (how much of the set the architect actually saw). */
+  observationView: ObservationViewMeta;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -150,8 +255,17 @@ export function buildArchitectObservationView(set: import("./observed-facts").Ob
     if (view.transitions.length > 0) view = { ...view, transitions: view.transitions.slice(0, -1) };
     else view = { ...view, facts: view.facts.slice(0, -1) };
   }
-  return view;
+  const meta = {
+    totalFacts: set.facts.length,
+    includedFacts: view.facts.length,
+    totalTransitions: set.transitions.length,
+    includedTransitions: view.transitions.length,
+    truncated: view.facts.length < set.facts.length || view.transitions.length < set.transitions.length,
+  };
+  return { view, meta };
 }
+
+export type ObservationViewMeta = ReturnType<typeof buildArchitectObservationView>["meta"];
 
 /** Provider seam — overridable in tests (a scripted fake). Returns parsed JSON or throws. */
 export interface ShadowDeps {
@@ -163,38 +277,64 @@ export interface ShadowDeps {
 export async function runGroundedShadow(
   map: ProductMapV1,
   input: FounderLaunchInput,
+  scope: ValidationScope,
+  corpus: string | undefined,
   legacyAcceptedCount: number,
   deps: ShadowDeps = {},
 ): Promise<GroundingShadowResult> {
   const set = map.observations ?? null;
   const digest = set?.digest ?? "none";
+  const architectModelRequested = missionModel() ?? null;
+  const criticModelRequested = missionGroundingCriticModel() ?? null;
   const base = (over: Partial<GroundingShadowResult>): GroundingShadowResult => ({
     version: "grounding-shadow-v1", ran: false, mode: missionGroundingMode(), observationSetDigest: digest,
-    candidateCount: 0, structurallyValid: 0, criticSupported: 0, accepted: 0, groundingCoverage: 0, distinctStateCoverage: 0,
+    candidateCount: 0, groundingValid: 0, structurallyValid: 0, criticSupported: 0, canonicalGatePassed: 0,
+    budgetCompiled: false, acceptanceScope: "canonical_gate", accepted: 0, groundingCoverage: 0, distinctStateCoverage: 0,
     tierCounts: emptyTiers(), unsupportedCriteria: 0, unsafeTransitionCount: 0, duplicateRate: 0,
     allocationOk: false, suppliedBudgetBase: input.totalBudgetBase.toString(), allocatedBudgetBase: "0", exactBudgetEquality: false,
     fundedMissionCount: 0, droppedMissionCount: 0, allocationFailureReason: null, budgetConsistent: false,
-    disagreement: "agree", error: null, modeReason: missionGroundingModeReason(), ...over,
+    disagreement: "agree", error: null, modeReason: missionGroundingModeReason(),
+    architectModelRequested, architectModelActual: null, architectProvider: null,
+    criticModelRequested, criticModelActual: null, criticProvider: null,
+    observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
+    ...over,
   });
   if (!set || set.facts.length === 0) return base({ error: "no_observation_set" });
 
-  // 1) V2 ARCHITECT — strict structured output, FAIL CLOSED (no repair). A malformed response yields no
-  //    candidates rather than a salvaged plan.
+  // Provider seams (ONE bounded architect call + ONE bounded critic call). The fake deps seam returns json
+  // only (actual model/provider unknown in tests); the REAL path records the model+provider actually served.
+  let architectActual: string | null = null, architectProvider: string | null = null;
+  let criticActual: string | null = null, criticProvider: string | null = null;
+  const architect = deps.architect ?? (async (system: string, user: string) => {
+    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict" });
+    architectActual = r.responseModel ?? r.model; architectProvider = r.provider; return r.json;
+  });
+  const critic = deps.critic ?? (async (system: string, user: string) => {
+    const r = await llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: criticModelRequested ?? undefined, parsePolicy: "strict" });
+    criticActual = r.responseModel ?? r.model; criticProvider = r.provider; return r.json;
+  });
+  const routing = () => ({ architectModelActual: architectActual, architectProvider, criticModelActual: criticActual, criticProvider });
+
+  // 1) V2 ARCHITECT — ONE bounded, strict, fail-closed call. Its output is validated by strict Zod schemas
+  //    (reject-never-repair, unknown keys rejected). A single invalid mission rejects the WHOLE response.
+  //    The ID→EVIDENCE view puts every fact id BESIDE its observed content (page/state/texts/role/name) and
+  //    every transition id beside its verb/before-after/deltas/safety/replay — the model cites facts, not hashes.
+  const { view: observationView, meta: viewMeta } = buildArchitectObservationView(set, deps.replayReproduced);
   let candidates: CandidateMission[];
   try {
-    const architect = deps.architect ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: missionModel(), parsePolicy: "strict" }).then((r) => r.json));
-    // The ID→EVIDENCE view: every fact id sits BESIDE its observed content (page/state/texts/role/name)
-    // and every transition id beside its verb/before-after/deltas/safety/replay — so the model cites
-    // concrete observations, not opaque hashes. The hash lists are gone.
-    const observationView = buildArchitectObservationView(set, deps.replayReproduced);
     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
     const json = await architect(ARCHITECT_SYSTEM_V2, user);
-    const arr = Array.isArray((json as { missions?: unknown[] })?.missions) ? (json as { missions: unknown[] }).missions : [];
-    candidates = arr.map((m, i) => coerceMissionForShadow(m, i)).filter((m): m is CandidateMission => m !== null);
+    const parsed = parseArchitectOutput(json);
+    if (parsed === null) {
+      // distinguish an explicitly-empty plan (v2_empty) from a schema failure (schema_invalid).
+      const emptyMissions = Array.isArray((json as { missions?: unknown[] })?.missions) && (json as { missions: unknown[] }).missions.length === 0;
+      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, ...routing() });
+    }
+    candidates = parsed;
   } catch (e) {
-    return base({ error: e instanceof Error ? e.message.slice(0, 60) : "architect_failed" });
+    return base({ error: e instanceof Error ? e.message.slice(0, 60) : "architect_failed", observationView: viewMeta, ...routing() });
   }
-  if (candidates.length === 0) return base({ ran: true, error: "v2_empty", disagreement: "v2_empty" });
+  if (candidates.length === 0) return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...routing() });
 
   // 2) deterministic grounding validation per candidate (digest-bound + replay-aware).
   const idxValid = candidates.map((m) => validateMissionGrounding(m, set, { expectedDigest: digest, replayReproduced: deps.replayReproduced }).length === 0);
@@ -211,7 +351,6 @@ export async function runGroundedShadow(
   const supportedKeys = new Set<string>();
   let unsupportedCriteria = 0;
   try {
-    const critic = deps.critic ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: missionModel(), parsePolicy: "strict" }).then((r) => r.json));
     const payload = structurallyValid.map((m) => ({
       missionKey: m.missionKey,
       criteria: m.criteria.map((c, ci) => {
@@ -220,29 +359,37 @@ export async function runGroundedShadow(
       }),
     }));
     const cj = await critic(CRITIC_SYSTEM_V2, JSON.stringify({ missions: payload }));
-    const verdicts = Array.isArray((cj as { verdicts?: unknown[] })?.verdicts) ? (cj as { verdicts: { missionKey?: string; criterionIndex?: number; verdict?: string; factRefs?: string[] }[] }).verdicts : [];
-    // strict: exactly one verdict per expected pair, literal enums, factRefs match the cited input refs.
-    const VALID = new Set(["supported", "partially_supported", "unsupported", "contradictory"]);
+    // STRICT critic schema — verdict enum + REQUIRED non-empty factRefs; a malformed response supports nothing.
+    const parsedCritic = CriticOutputSchema.safeParse(cj);
+    const verdicts = parsedCritic.success ? parsedCritic.data.verdicts : [];
+    let structurallyBad = !parsedCritic.success;
     const seen = new Map<string, number>();
-    let structurallyBad = false;
     for (const v of verdicts) {
       const key = `${v.missionKey}#${v.criterionIndex}`;
-      if (!expectedPairs.includes(key) || !VALID.has(v.verdict ?? "")) { structurallyBad = true; continue; }
+      if (!expectedPairs.includes(key)) { structurallyBad = true; continue; } // unknown/extra pair
       seen.set(key, (seen.get(key) ?? 0) + 1);
       const m = structurallyValid.find((x) => x.missionKey === v.missionKey);
       const gc = m?.groundingV1?.criteria.find((g) => g.criterionIndex === v.criterionIndex);
       const cited = new Set(gc?.sourceFactIds ?? []);
-      if (v.factRefs && (v.factRefs.length !== cited.size || !v.factRefs.every((f) => cited.has(f)))) { structurallyBad = true; continue; }
+      // exact set equality with the cited factRefs (schema guarantees factRefs present + non-empty).
+      if (v.factRefs.length !== cited.size || !v.factRefs.every((f) => cited.has(f))) { structurallyBad = true; continue; }
       if (v.verdict === "supported") supportedPairs.add(key);
       else unsupportedCriteria++;
     }
+    // exactly ONE verdict per expected pair (no missing, no duplicate) AND nothing structurally bad.
     const complete = !structurallyBad && expectedPairs.every((p) => seen.get(p) === 1);
     if (complete) for (const m of structurallyValid) if (m.criteria.every((_c, ci) => supportedPairs.has(`${m.missionKey}#${ci}`))) supportedKeys.add(m.missionKey);
   } catch {
     /* critic failure → nothing critic-supported (fail closed) */
   }
 
-  const accepted = structurallyValid.filter((m) => supportedKeys.has(m.missionKey));
+  const criticSupportedList = structurallyValid.filter((m) => supportedKeys.has(m.missionKey));
+
+  // 3b) CANONICAL GATE REHEARSAL — the critic-supported candidates now traverse the SAME deterministic gate
+  //     (validatePlanMissions: anchor + scope + safety + injection + worth-paying + grounding + cross-mission
+  //     uniqueness) the legacy plan uses. `accepted` means canonical-gate-passed — NOT merely critic-supported.
+  const canonReports = validatePlanMissions(criticSupportedList, scope, corpus, set);
+  const accepted = criticSupportedList.filter((_m, i) => canonReports[i]?.ok);
 
   // 4) bounded metrics.
   const tierCounts = emptyTiers();
@@ -263,9 +410,9 @@ export async function runGroundedShadow(
       }
     }
   }
-  // BUDGET — run the REAL production allocateBudget over the critic-supported candidates (base units, NOT
-  // reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total equals
-  // the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
+  // 4) BUDGET — run the REAL production allocateBudget over ONLY the canonical-gate-passing candidates (base
+  // units, NOT reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total
+  // equals the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
   const alloc = accepted.length > 0
     ? allocateBudget(accepted.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })), input.totalBudgetBase)
     : { ok: false, reason: "no_accepted_candidates" as string, missions: [] as { rewardBase: bigint; maxCompletions: bigint }[] };
@@ -275,8 +422,11 @@ export async function runGroundedShadow(
   return base({
     ran: true,
     candidateCount: candidates.length,
+    groundingValid: structurallyValid.length,
     structurallyValid: structurallyValid.length,
     criticSupported: supportedKeys.size,
+    canonicalGatePassed: accepted.length,
+    budgetCompiled: alloc.ok,
     accepted: accepted.length,
     groundingCoverage: totalCriteria === 0 ? 0 : mappedCriteria / totalCriteria,
     distinctStateCoverage: coveredStates.size,
@@ -292,5 +442,7 @@ export async function runGroundedShadow(
     allocationFailureReason: alloc.ok ? null : (alloc as { reason?: string }).reason ?? "allocation_failed",
     budgetConsistent: exactBudgetEquality,
     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
+    observationView: viewMeta,
+    ...routing(),
   });
 }
