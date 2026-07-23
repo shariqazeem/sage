@@ -1,0 +1,83 @@
+{
+  "evaluationId": "grounding-critic-semantic-v1",
+  "hardCap": 6,
+  "callsConsumed": 6,
+  "seed": 20260723,
+  "corpusVersion": "grounding-critic-corpus-v1",
+  "corpusDigest": "a6ff33034d894d0c65b6b56b",
+  "calls": [
+    {
+      "seq": 1,
+      "label": "candidate_a",
+      "repeat": 1,
+      "startedAt": "2026-07-23T14:40:18.442Z",
+      "completedAt": "2026-07-23T14:40:21.815Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 2532,
+      "completionTokens": 455,
+      "latencyMs": 3372
+    },
+    {
+      "seq": 2,
+      "label": "candidate_a",
+      "repeat": 2,
+      "startedAt": "2026-07-23T14:40:21.828Z",
+      "completedAt": "2026-07-23T14:40:26.053Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 2532,
+      "completionTokens": 911,
+      "latencyMs": 4224
+    },
+    {
+      "seq": 3,
+      "label": "candidate_b",
+      "repeat": 1,
+      "startedAt": "2026-07-23T14:40:26.055Z",
+      "completedAt": "2026-07-23T14:40:51.946Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 3204,
+      "completionTokens": 567,
+      "latencyMs": 25890
+    },
+    {
+      "seq": 4,
+      "label": "candidate_b",
+      "repeat": 2,
+      "startedAt": "2026-07-23T14:40:51.948Z",
+      "completedAt": "2026-07-23T14:41:09.510Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 3204,
+      "completionTokens": 567,
+      "latencyMs": 17560
+    },
+    {
+      "seq": 5,
+      "label": "candidate_c",
+      "repeat": 1,
+      "startedAt": "2026-07-23T14:41:09.516Z",
+      "completedAt": "2026-07-23T14:41:32.065Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 2744,
+      "completionTokens": 2907,
+      "latencyMs": 22546
+    },
+    {
+      "seq": 6,
+      "label": "candidate_c",
+      "repeat": 2,
+      "startedAt": "2026-07-23T14:41:32.065Z",
+      "completedAt": "2026-07-23T14:42:09.063Z",
+      "outcomeCode": "llm_strict_not_object",
+      "terminalState": "failed",
+      "promptTokens": 2532,
+      "completionTokens": 4635,
+      "latencyMs": 36994
+    }
+  ],
+  "done": []
+}
