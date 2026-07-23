@@ -19,7 +19,7 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
-import { missionGroundingMode, runGroundedShadow, type GroundingShadowResult } from "./mission-grounding-shadow";
+import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
 import { norm } from "./schemas";
@@ -377,11 +377,15 @@ export async function runMissionBrain(
   // shadow/enforce it runs the V2 grounded architect + deterministic grounding validation + critic
   // ALONGSIDE the legacy plan and records bounded telemetry. The legacy `r.accepted` selection below is
   // NEVER changed by it; a V2 failure is fully caught and cannot fail the legacy job.
-  let groundingShadow: import("./mission-grounding-shadow").GroundingShadowResult | undefined;
-  if (missionGroundingMode() !== "off") {
-    try { groundingShadow = await runGroundedShadow(map, founder, r.accepted.length, { replayReproduced: replayReproducedSet(map) }); }
-    catch { /* shadow is best-effort; the legacy plan stands */ }
-  }
+  let groundingShadow: GroundingShadowResult | undefined;
+  try {
+    // dynamic import breaks the mission-brain ↔ mission-grounding-shadow cycle (which under CJS transpile
+    // would capture the binding as undefined at load time).
+    const shadow = await import("./mission-grounding-shadow");
+    if (shadow.missionGroundingMode() !== "off") {
+      groundingShadow = await shadow.runGroundedShadow(map, founder, r.accepted.length, { replayReproduced: replayReproducedSet(map) });
+    }
+  } catch { /* shadow is best-effort; the legacy plan stands */ }
 
   return {
     ok: r.accepted.length > 0,
