@@ -211,6 +211,13 @@
       "when": 1784830406394,
       "tag": "0029_salty_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1784835579703,
+      "tag": "0030_charming_nekra",
+      "breakpoints": true
     }
   ]
 }

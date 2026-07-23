@@ -770,6 +770,9 @@ export const payoutReplayJournal = sqliteTable(
     attempt: integer("attempt").notNull().default(1),
     /** the probe/browser runner version (for cache invalidation across runner changes). */
     probeVersion: text("probe_version").notNull().default("mission-probe-v1"),
+    /** P4 — the ACTIVE lease id. begin() mints a fresh runId; complete() CAS-updates only while it matches, so
+     *  a superseded/late completion of an older run can never overwrite the current one. */
+    runId: text("run_id"),
   },
   (t) => [uniqueIndex("prj_key_unq").on(t.submissionId, t.policyDigest, t.probeDigest)],
 );

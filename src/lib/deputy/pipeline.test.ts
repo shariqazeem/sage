@@ -475,7 +475,7 @@ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 import { payoutReplaySchemaReady } from "./canary-preflight";
 import { makeV2Policy } from "./policy-test-fixtures";
 
-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
+const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
 const rPolicy = makeV2Policy();
 
 function canaryCampaign(over: Record<string, unknown> = {}) {

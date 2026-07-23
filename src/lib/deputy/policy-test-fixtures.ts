@@ -3,7 +3,7 @@ import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "@/lib
 import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
 import type { Campaign } from "@/lib/db/schema";
-import type { ReplayJournalHandle, ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
+import { REPLAY_RUNNER_VERSION, type ReplayJournalHandle, type ReplayJournalLookup } from "@/lib/db/payout-replay-journal";
 
 /** Shared V2 policy + policy-REQUIRED campaign fixtures for the deputy payout-replay tests (not a .test file). */
 
@@ -28,13 +28,15 @@ export function legacyCampaign(over: Partial<Campaign> = {}): Campaign {
   return { id: "c-legacy", title: "L", rewardAmount: 500_000, vaultAddress: `0x${"1".repeat(40)}`, ownerIsSage: true, autonomy: "autopilot", autopilotThreshold: 0.85, perWalletPayoutCap: 1, missionPlanDigest: "0xplan", verificationPolicy: null, verificationPolicyDigest: null, verificationPolicyRequired: false, ...over } as unknown as Campaign;
 }
 
-/** A persisting in-memory replay journal (the replay writes it; the central permit reads it). */
-export function memReplayJournal(): ReplayJournalHandle {
+/** A persisting in-memory replay journal (the replay writes it; the central permit reads it). P4 lease-aware. */
+export function memReplayJournal(opts: { now?: () => number } = {}): ReplayJournalHandle {
+  const now = opts.now ?? (() => Math.floor(Date.now() / 1000));
   const rows = new Map<string, ReplayJournalLookup>();
+  let seq = 0;
   const k = (a: string, b: string, c: string) => `${a}|${b}|${c}`;
   return {
     lookup: (s, p, pr) => rows.get(k(s, p, pr)) ?? null,
-    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1 }); },
-    complete: (s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); rows.set(k(s, p, pr), { decision: o.decision, code: o.code, completed: true, attempt: cur?.attempt ?? 1 }); },
+    begin: (s, p, pr) => { const cur = rows.get(k(s, p, pr)); const runId = "run" + ++seq; rows.set(k(s, p, pr), { decision: "hold", code: "internal_error", completed: false, attempt: (cur?.attempt ?? 0) + 1, runId, completedAt: null, probeVersion: REPLAY_RUNNER_VERSION }); return { runId, attempt: (cur?.attempt ?? 0) + 1 }; },
+    complete: (runId, s, p, pr, o) => { const cur = rows.get(k(s, p, pr)); if (!cur || cur.runId !== runId || cur.completed) return false; rows.set(k(s, p, pr), { ...cur, decision: o.decision, code: o.code, completed: true, completedAt: now() }); return true; },
   };
 }

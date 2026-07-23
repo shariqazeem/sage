@@ -1,0 +1,1 @@
+ALTER TABLE `payout_replay_journal` ADD `run_id` text;

@@ -45,7 +45,7 @@ import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
 import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 
-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
+const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
 let fx: { port: number; close: () => Promise<void> };
 const PAGE = (drift: boolean) => `<!doctype html><title>Reportly</title><main><button id="b">Load report</button><div id="o"></div></main><script>document.getElementById('b').addEventListener('click',function(){document.getElementById('o').textContent=${drift ? "'Loading failed'" : "'Report ready'"};});</script>`;
 beforeAll(async () => {

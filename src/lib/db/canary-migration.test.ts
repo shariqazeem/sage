@@ -57,7 +57,7 @@ describe("migrations 0026/0027 — previous schema → upgrade", () => {
     const db = new Database(":memory:");
     applyUpTo(db, "0025");
     expect(schemaReady(db).ok).toBe(false);
-    for (const f of ["0026", "0027", "0028", "0029"]) {
+    for (const f of ["0026", "0027", "0028", "0029", "0030"]) {
       const file = files.find((x) => x.startsWith(f))!;
       for (const stmt of fs.readFileSync(path.join(DRIZZLE, file), "utf8").split("--> statement-breakpoint")) { const s = stmt.trim(); if (s) db.exec(s); }
     }

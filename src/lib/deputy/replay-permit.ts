@@ -1,9 +1,9 @@
 import "server-only";
 
-import { payoutActionReplayMode } from "./payout-replay";
+import { payoutActionReplayMode, MAX_PERMIT_AGE_SEC } from "./payout-replay";
 import { loadVerifiedCampaignPolicy, probesForMission, policyMarksActionMission } from "./verification-policy";
 import { getMissionByHash } from "@/lib/db/campaigns";
-import { dbReplayJournal, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+import { dbReplayJournal, REPLAY_RUNNER_VERSION, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
 import type { Campaign, Submission } from "@/lib/db/schema";
 
 /**
@@ -22,6 +22,7 @@ export function verifyReplayPermit(
   campaign: Pick<Campaign, "id" | "verificationPolicy" | "verificationPolicyDigest" | "verificationPolicyVersion" | "verificationPolicyRequired" | "policySourceRevisionNumber" | "missionPlanDigest">,
   submission: Pick<Submission, "id" | "missionIdHash">,
   journal: ReplayJournalHandle = dbReplayJournal,
+  nowSec: number = Math.floor(Date.now() / 1000),
 ): ReplayPermit {
   const required = campaign.verificationPolicyRequired === true;
   const hasPolicy = campaign.verificationPolicy != null;
@@ -58,7 +59,9 @@ export function verifyReplayPermit(
   if (probes.length === 0) return { ok: false, reason: "no_probe_for_action_mission" };
   for (const probe of probes) {
     const rec = journal.lookup(submission.id, policy.policyDigest, probe.probeDigest);
-    if (!rec || !rec.completed) return { ok: false, reason: "replay_not_completed" };
+    if (!rec || !rec.completed || rec.completedAt == null) return { ok: false, reason: "replay_not_completed" }; // in-flight/ambiguous → HOLD
+    if (rec.probeVersion !== REPLAY_RUNNER_VERSION) return { ok: false, reason: "runner_version_stale" }; // re-run under the current runner
+    if (nowSec - rec.completedAt > MAX_PERMIT_AGE_SEC) return { ok: false, reason: "permit_stale" }; // older than 5 min → re-run
     if (rec.decision !== "allow" || rec.code !== "reproduced") return { ok: false, reason: `replay_veto:${rec.code}` };
   }
   return { ok: true, reason: "all_probes_reproduced" };

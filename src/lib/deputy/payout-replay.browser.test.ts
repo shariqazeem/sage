@@ -16,7 +16,7 @@ import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
  */
 
 const LIVE = process.env.PAYOUT_REPLAY_BROWSER_TEST === "1";
-const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
+const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => ({ runId: "r", attempt: 1 }), complete: () => true };
 
 // A page with a "Load report" button that reveals "Report ready" on click (reproduce), and a "?drift=1" variant
 // whose button does nothing (a change that isn't the expected one → veto).

@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 export const REQUIRED_SCHEMA = {
   campaigns: ["verification_policy", "verification_policy_digest", "verification_policy_version", "verification_policy_required", "policy_source_revision_number"],
   plan_revisions: ["verification_policy", "verification_policy_digest", "verification_policy_required", "grounded_provenance"],
-  payout_replay_journal: { columns: ["probe_version", "submission_id", "policy_digest", "probe_digest", "completed_at"], uniqueIndex: "prj_key_unq" },
+  payout_replay_journal: { columns: ["probe_version", "run_id", "submission_id", "policy_digest", "probe_digest", "completed_at"], uniqueIndex: "prj_key_unq" },
 } as const;
 
 type SchemaProbe = { all: (q: string) => unknown[] };

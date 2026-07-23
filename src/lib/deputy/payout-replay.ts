@@ -3,7 +3,10 @@ import "server-only";
 import { runInspectionProbe, type InspectionProbeV1, type ProbeClassification } from "@/lib/launch/inspection-replay";
 import type { MissionProbeV1 } from "@/lib/launch/mission-probe";
 import { loadVerifiedCampaignPolicy, probesForMission, policyMarksActionMission } from "./verification-policy";
-import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+import { REPLAY_RUNNER_VERSION, type ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+
+/** P4 — the hard maximum age (seconds) of a reusable replay permit. Older than this ⇒ stale ⇒ re-run. ≤ 5 min. */
+export const MAX_PERMIT_AGE_SEC = 300;
 import type { Campaign } from "@/lib/db/schema";
 
 /**
@@ -151,14 +154,15 @@ export async function runPayoutActionReplay(
   const probeResults: { probeId: string; code: PayoutReplayCode }[] = [];
   for (const probe of probes) {
     let code: PayoutReplayCode;
-    // Phase 5 — reuse a COMPLETED journal entry for the EXACT (submissionId, policyDigest, probeDigest); an
-    // in-flight/absent entry runs a fresh, read-only replay (reconciles a crash). Cache key changes with the
-    // policy/probe digest, so a changed plan always re-runs.
+    // Phase 5 — reuse a COMPLETED, FRESH, current-runner journal entry; otherwise run a fresh, read-only replay
+    // under a lease (P4). A stale/old-runner/in-flight entry re-runs. complete() CAS-updates only against THIS
+    // lease, so a superseded run's late completion cannot overwrite a newer one.
     const cached = journal && sid ? journal.lookup(sid, policy.policyDigest, probe.probeDigest) : null;
-    if (cached && cached.completed) {
+    const fresh = !!cached && cached.completed && cached.probeVersion === REPLAY_RUNNER_VERSION && cached.completedAt != null && Math.floor(clock() / 1000) - cached.completedAt <= MAX_PERMIT_AGE_SEC;
+    if (cached && fresh) {
       code = cached.code as PayoutReplayCode;
     } else {
-      if (journal && sid) journal.begin(sid, policy.policyDigest, probe.probeDigest);
+      const lease = journal && sid ? journal.begin(sid, policy.policyDigest, probe.probeDigest) : null;
       const started = clock();
       try {
         const r = await run(toInspectionProbe(probe));
@@ -166,7 +170,7 @@ export async function runPayoutActionReplay(
       } catch {
         code = "internal_error";
       }
-      if (journal && sid) journal.complete(sid, policy.policyDigest, probe.probeDigest, { decision: code === "reproduced" ? "allow" : "hold", code, latencyMs: Math.max(0, clock() - started) });
+      if (journal && sid && lease) journal.complete(lease.runId, sid, policy.policyDigest, probe.probeDigest, { decision: code === "reproduced" ? "allow" : "hold", code, latencyMs: Math.max(0, clock() - started) });
     }
     probeResults.push({ probeId: probe.probeId, code });
     if (code !== "reproduced") {
