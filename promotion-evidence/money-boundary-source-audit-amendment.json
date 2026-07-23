@@ -1,0 +1,24 @@
+{
+  "artifact": "money-boundary-source-audit-amendment",
+  "amends": "self-canary-release-gates.json",
+  "note": "APPEND-ONLY. Prior evidence preserved byte-for-byte. Corrects overclaimed money-boundary status: the payout-replay browser + decision logic are real, but policy ATTACHMENT to campaigns was never wired to production and multiple settlement paths bypass the replay. founderCanaryReady must be FALSE until the money boundary is genuinely closed.",
+  "timestamp": "2026-07-23T00:00:00Z",
+  "correctedStatus": {
+    "payoutReplayBrowserProven": true,
+    "payoutReplayDecisionLogicProven": true,
+    "campaignPolicyAttachmentProven": false,
+    "payoutReplayRuntimeReachable": false,
+    "centralSettlementEnforcementProven": false,
+    "founderCanaryReady": false
+  },
+  "defects": [
+    { "id": 1, "defect": "bindCampaignVerificationPolicy has NO production caller — a policy is never attached to a real campaign; the deputy always loads a null policy in production.", "where": "src/lib/db/campaigns.ts bindCampaignVerificationPolicy (called only in tests)" },
+    { "id": 2, "defect": "null policy currently SKIPS the replay — for a policy-required campaign this is a bypass, not fail-closed.", "where": "src/lib/deputy/payout-replay.ts runPayoutActionReplay (campaign.verificationPolicy == null -> decision skip)" },
+    { "id": 3, "defect": "partial action-criterion probe coverage can ALLOW — a policy with fewer probes than action criteria is treated as complete for the missions that DO have probes.", "where": "compileVerificationPolicy + probesForMission (no coverage assertion)" },
+    { "id": 4, "defect": "approval policy comes from job.result (mutable) rather than the current plan revision.", "where": "src/app/api/launch/[id]/approve/route.ts (reads job.result.canary.verificationPolicy)" },
+    { "id": 5, "defect": "campaign policy binding is OVERWRITEABLE — bindCampaignVerificationPolicy is a plain UPDATE with no write-once / approved-revision / digest-equality guard.", "where": "src/lib/db/campaigns.ts bindCampaignVerificationPolicy" },
+    { "id": 6, "defect": "the sweep matured-approval loop (partly gated this repair), the campaign decide/approve route, and the manual settle route call settleApprovedSubmission WITHOUT a replay requirement — an approved policy-required action submission can settle through them.", "where": "sweep/route.ts (timelock loop), campaigns/[id]/submissions/[sid]/decide/route.ts, .../settle/route.ts" },
+    { "id": 7, "defect": "runInspectionProbe ignores expectedAfterUrl and passes an empty beforeStateDigest — a different page repeating the same text is accepted as reproduced.", "where": "src/lib/launch/inspection-replay.ts runInspectionProbe" },
+    { "id": 8, "defect": "the live-call ledger cannot distinguish a reservation from a provider dispatch — the prior canary-closure ledger's 3rd entry cannot be proven a billed call from the ledger alone.", "where": "prior canary-closure.ledger.json append-before-dispatch pattern" }
+  ]
+}
