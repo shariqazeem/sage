@@ -1,0 +1,32 @@
+{
+  "artifact": "ledger-reconciliation",
+  "note": "Phase 7 — honest reconciliation of the prior canary-closure live-call ledgers. Zero paid calls this sprint. The append-BEFORE-dispatch pattern reserved a slot before each provider call, so a reserved-but-failed dispatch is indistinguishable from a billed call using the ledger alone.",
+  "corrected_semantics": {
+    "rule": "Check the cap BEFORE reserving. A blocked-cap attempt is NOT a provider call. callsConsumed counts ONLY confirmed provider dispatches; refused runs go to a separate blockedAttempts list. Each paid-call record carries seq, role, requested/served model, status, reservedAt, completedAt, HTTP/strict outcome, prompt/completion tokens, latency.",
+    "applies_to": "future live harnesses (canary-runtime-closure-v2 already records reservedAt via append-before-dispatch; the reservation-vs-dispatch distinction is documented here and enforced going forward)."
+  },
+  "prior_ledgers": [
+    {
+      "ledger": "promotion-evidence/canary-closure.ledger.json",
+      "entries": 3,
+      "reconciliation": [
+        { "seq": 1, "role": "architect", "model": "google/gemini-3.1-flash-lite-preview", "status": "dispatched_completed", "evidence": "run 1 architect; a critic dispatch (seq 2) followed in the same run, which only happens after a completed architect response" },
+        { "seq": 2, "role": "critic", "model": "google/gemini-3.1-flash-lite-preview", "status": "dispatched_completed", "evidence": "run 1 critic; the run produced a grounded shadow result" },
+        { "seq": 3, "role": "architect", "model": "google/gemini-3.1-flash-lite-preview", "status": "UNKNOWN", "evidence": "a second architect reservation ~2 minutes later (pre-fix harness iteration). No critic followed, so it is NOT provable from the ledger whether the provider actually dispatched+billed this reservation or it was reserved-then-aborted. Provider billing/logs were not captured. Marked UNKNOWN — not paid, not unpaid." }
+      ],
+      "callsConsumed_provable": 2,
+      "callsReserved": 3,
+      "unknown": 1
+    },
+    {
+      "ledger": "promotion-evidence/canary-runtime-closure-v2.ledger.json",
+      "entries": 2,
+      "reconciliation": [
+        { "seq": 1, "role": "architect", "status": "dispatched_completed" },
+        { "seq": 2, "role": "critic", "status": "dispatched_completed" }
+      ],
+      "callsConsumed_provable": 2,
+      "note": "The successful outcome-A closure — a clean 2-dispatch run (architect + critic), both completed."
+    }
+  ]
+}

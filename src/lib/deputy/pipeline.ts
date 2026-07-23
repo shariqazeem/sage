@@ -284,9 +284,9 @@ export async function runDeputyOnSubmission(
     status: submission.status,
   });
 
-  // PAYOUT-REPLAY PREFLIGHT (Phase 2) — canary mode REQUIRES the migration-0026/0027 schema. If it is missing,
-  // REFUSE before any decision/gate/CAS/settle (fail closed), never after a PAY. off/shadow are unaffected.
-  if (payoutActionReplayMode() === "canary" && !payoutReplaySchemaReady().ok) {
+  // PAYOUT-REPLAY PREFLIGHT — canary AND shadow REQUIRE the migration-0026/0027 schema (shadow reads/writes the
+  // journal too). If it is missing, REFUSE before any decision/gate/CAS/settle (fail closed), never after a PAY.
+  if (payoutActionReplayMode() !== "off" && !payoutReplaySchemaReady().ok) {
     const reason = "action_replay_preflight_failed:missing_schema";
     agentLog(cid, "payout_replay_preflight", { ok: false, missing: payoutReplaySchemaReady().missing });
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {

@@ -53,15 +53,35 @@ describe("migrations 0026/0027 — previous schema → upgrade", () => {
     db.close();
   });
 
-  it("UPGRADE (0025 → apply 0026+0027): columns/table appear + campaigns policy columns accept JSON", () => {
+  it("UPGRADE (0025 → apply 0026-0029): all policy/journal/revision columns appear + accept data", () => {
     const db = new Database(":memory:");
     applyUpTo(db, "0025");
     expect(schemaReady(db).ok).toBe(false);
-    for (const f of ["0026", "0027"]) {
+    for (const f of ["0026", "0027", "0028", "0029"]) {
       const file = files.find((x) => x.startsWith(f))!;
       for (const stmt of fs.readFileSync(path.join(DRIZZLE, file), "utf8").split("--> statement-breakpoint")) { const s = stmt.trim(); if (s) db.exec(s); }
     }
     expect(schemaReady(db).ok).toBe(true);
+    // 0028 plan_revisions policy binding columns.
+    const revCols = new Set((db.pragma("table_info(plan_revisions)") as { name: string }[]).map((c) => c.name));
+    for (const c of ["verification_policy", "verification_policy_digest", "verification_policy_required", "grounded_provenance"]) expect(revCols.has(c)).toBe(true);
+    // 0029 campaigns attach columns.
+    const camCols = new Set((db.pragma("table_info(campaigns)") as { name: string }[]).map((c) => c.name));
+    for (const c of ["verification_policy_version", "verification_policy_required", "policy_source_revision_number"]) expect(camCols.has(c)).toBe(true);
+    db.close();
+  });
+
+  it("journal begin is CONCURRENCY-SAFE: INSERT … ON CONFLICT keeps one row + bumps attempt", () => {
+    const db = new Database(":memory:");
+    applyUpTo(db, "9999");
+    const upsert = (attempt = 1) => db.prepare(
+      "INSERT INTO payout_replay_journal (id, submission_id, policy_digest, probe_digest, started_at, attempt, probe_version) VALUES (?,?,?,?,?,?,?) " +
+      "ON CONFLICT(submission_id, policy_digest, probe_digest) DO UPDATE SET started_at=excluded.started_at, completed_at=NULL, attempt=attempt+1",
+    ).run("id" + attempt, "sub", "pol", "prb", attempt, 1, "v");
+    upsert(1); upsert(2); upsert(3);
+    const rows = db.prepare("SELECT attempt FROM payout_replay_journal WHERE submission_id='sub' AND policy_digest='pol' AND probe_digest='prb'").all() as { attempt: number }[];
+    expect(rows).toHaveLength(1);         // exactly ONE row despite three racing begins
+    expect(rows[0].attempt).toBe(3);      // attempt bumped on each conflict
     db.close();
   });
 });
