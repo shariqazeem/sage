@@ -1,0 +1,89 @@
+{
+  "artifact": "canary-forensics",
+  "note": "PHASE 0 — reportly grounded canonical-gate outcome (0 paid). Reconstructed draft; prior live parsed draft NOT retained (harness defect). Sanitized: codes/counts only.",
+  "ledgerReconciliation": {
+    "source": "promotion-evidence/canary-closure.ledger.json",
+    "callsConsumed": 3,
+    "dispatches": [
+      {
+        "seq": 1,
+        "role": "architect"
+      },
+      {
+        "seq": 2,
+        "role": "critic"
+      },
+      {
+        "seq": 3,
+        "role": "architect",
+        "note": "pre-fix harness iteration"
+      }
+    ],
+    "requestedServedModel": "google/gemini-3.1-flash-lite-preview",
+    "priorTwoCallCapBreached": true,
+    "afterHarnessFix": false
+  },
+  "rootCause": "unknown_with_evidence",
+  "rootCauseEvidence": "The reconstructed reportly grounded candidate PASSES the full deterministic chain (compiler → grounding → V3 critic → REAL canonical gate → exact allocator): canonicalGatePassed=1, accepted=1, exactBudgetEquality=true, 0 rejection codes. Therefore scope/fixture/compiler/grounding/gate/allocator are SOUND. The prior live block is NOT attributable to those; the live parsed architect draft was NOT retained (harness defect), so the exact live cause is unprovable. Leading hypothesis: architect_semantic_defect (the live Flash-Lite draft differed from a well-formed one).",
+  "strictSelectableFalseReason": "ONLY provenancePresent is false — a fake-dep artifact (deps.architect/critic set no served model/provider); a real provider run makes this true",
+  "harnessDefect": "The prior live run did not retain the parsed semantic draft; Phase 3's new harness MUST retain a private local canonical parsed result for deterministic replay (public evidence stays sanitized).",
+  "wrongBindingSemantics": {
+    "skipAllowed": [
+      "mode off",
+      "non-action mission",
+      "non-canary campaign (no bound policy)"
+    ],
+    "mustHold": [
+      "canary action mission with missing/wrong campaign, mission, revision, policy, or probe binding",
+      "policy digest mismatch",
+      "action mission without a valid probe",
+      "ambiguous in-flight replay"
+    ],
+    "settlementSpyOnHold": 0
+  },
+  "scope": {
+    "hosts": [
+      "reportly.test"
+    ],
+    "observationSetDigest": "37c30748503336acc3739445",
+    "facts": 4,
+    "transitions": 1,
+    "corpusChars": 336,
+    "reportFactId": "ca09fa86cecc027a232244f6",
+    "transitionId": "bd65f51c7994a55997322b2b"
+  },
+  "architectStatus": "ok",
+  "draftMissionCount": 1,
+  "compiledMissionCount": 1,
+  "compilerRejectedCount": 0,
+  "compilerRejectionCodes": {},
+  "groundingValid": 1,
+  "tierCounts": {
+    "action_replayed": 1,
+    "action_observed": 0,
+    "state_seen": 0,
+    "inferred_only": 0,
+    "ungrounded": 0
+  },
+  "criticStatus": "ok",
+  "criticSupported": 1,
+  "canonicalGatePassed": 1,
+  "canonicalRejectionCodes": {},
+  "accepted": 1,
+  "unsafeTransitionCount": 0,
+  "allocationOk": true,
+  "exactBudgetEquality": true,
+  "strictSelectable": false,
+  "signals": {
+    "architectStrictValid": true,
+    "compilerProducedMissions": true,
+    "everyCriterionCriticSupported": true,
+    "allDecisiveGrounded": true,
+    "noInferredOnlyDecisive": true,
+    "safeTransitionsEstablished": true,
+    "canonicalGatePassed": true,
+    "allocationExactEqual": true,
+    "provenancePresent": false
+  },
+  "error": null
+}
