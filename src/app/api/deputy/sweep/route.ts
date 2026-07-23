@@ -3,6 +3,7 @@ import {
   acquireLock,
   getCampaign,
   getDecisionBySubmission,
+  getMissionByHash,
   listApprovedSubmissions,
   listPendingAutopilotSubmissionIds,
   releaseLock,
@@ -13,6 +14,8 @@ import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
 import { ensureDecision } from "@/lib/deputy/decisions";
 import { hasLlm } from "@/lib/deputy/brain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
+import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
 
 export const runtime = "nodejs";
@@ -62,10 +65,20 @@ async function runSweep() {
     else summary.autopilot.skipped += 1;
   }
 
-  // (i) re-fire settle for approved submissions whose vendor timelock matured.
+  // (i) re-fire settle for approved submissions whose vendor timelock matured. PAYOUT ACTION REPLAY (Phase 4)
+  // dominates THIS automated broadcast sink too: for a canary action mission, Sage re-performs the action in a
+  // fresh guarded browser (product drift between approval and timelock maturity is exactly this risk) and HOLDS
+  // on any non-reproduced result BEFORE settleApprovedSubmission. Subtractive; off by default → no-op.
   for (const sub of listApprovedSubmissions()) {
     const campaign = getCampaign(sub.campaignId);
     if (!campaign) continue;
+    if (payoutActionReplayMode() !== "off" && sub.missionIdHash) {
+      const mission = getMissionByHash(campaign.id, sub.missionIdHash);
+      if (mission) {
+        const replay = await runPayoutActionReplay(campaign, mission.missionKey, { journal: dbReplayJournal, submissionId: sub.id }).catch(() => ({ decision: "hold" as const, code: "internal_error" as const }));
+        if (replay.decision === "hold") { summary.timelock.other += 1; continue; } // veto → never broadcast
+      }
+    }
     try {
       const { outcome } = await settleApprovedSubmission(campaign, sub);
       if (outcome.settled) summary.timelock.settled += 1;

@@ -44,6 +44,7 @@ vi.mock("@/lib/campaigns/settle-flow", () => ({
   settleApprovedSubmission: vi.fn(),
 }));
 vi.mock("./decisions", () => ({ ensureDecision: vi.fn() }));
+vi.mock("./canary-preflight", () => ({ payoutReplaySchemaReady: vi.fn(() => ({ ok: true, missing: [] })) }));
 vi.mock("./notify", () => ({ notifyTelegram: vi.fn() }));
 vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn() }));
 vi.mock("./agent-log", () => ({
@@ -475,6 +476,7 @@ import type { CandidateMission } from "@/lib/launch/schemas";
 import type { ValidationScope } from "@/lib/launch/validate-mission";
 import type { ProbeClassification } from "@/lib/launch/inspection-replay";
 import type { ReplayJournalHandle } from "@/lib/db/payout-replay-journal";
+import { payoutReplaySchemaReady } from "./canary-preflight";
 
 const noopJournal: ReplayJournalHandle = { lookup: () => null, begin: () => {}, complete: () => {} };
 const RSCOPE: ValidationScope = { hosts: new Set(["app.test"]) } as ValidationScope;
@@ -489,6 +491,24 @@ function canaryCampaign(over: Record<string, unknown> = {}) {
 }
 const urlActionMission = { missionKey: "m-load", verifiabilityClass: "url-verifiable" };
 const fakeReplay = (classification: ProbeClassification, reason = "") => ({ payoutReplay: { journal: noopJournal, runProbe: async (p: { id: string }) => ({ classification, reason, probeId: p.id }) } });
+
+describe("Phase 2 — payout-replay preflight refusal (fail closed BEFORE any decision)", () => {
+  afterEach(() => { delete process.env.PAYOUT_ACTION_REPLAY_MODE; vi.mocked(payoutReplaySchemaReady).mockReturnValue({ ok: true, missing: [] }); });
+  it("canary mode + missing migration schema → HELD, no decision, broadcast spy ZERO", async () => {
+    process.env.PAYOUT_ACTION_REPLAY_MODE = "canary";
+    vi.mocked(payoutReplaySchemaReady).mockReturnValue({ ok: false, missing: ["payout_replay_journal"] });
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("action_replay_preflight_failed:missing_schema");
+    expect(ensureDecision).not.toHaveBeenCalled();       // refused BEFORE any decision
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+  it("off mode + missing schema → unaffected (byte-identical), settles", async () => {
+    vi.mocked(payoutReplaySchemaReady).mockReturnValue({ ok: false, missing: ["payout_replay_journal"] });
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
+  });
+});
 
 describe("Phase 6C — payout action replay at the real pre-broadcast gate", () => {
   beforeEach(() => { vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never); });

@@ -46,6 +46,7 @@ import { ensureDecision } from "./decisions";
 import { gateFromBrief } from "./autopilot";
 import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
+import { payoutReplaySchemaReady } from "./canary-preflight";
 import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
@@ -282,6 +283,18 @@ export async function runDeputyOnSubmission(
     autonomy: campaign.autonomy,
     status: submission.status,
   });
+
+  // PAYOUT-REPLAY PREFLIGHT (Phase 2) — canary mode REQUIRES the migration-0026/0027 schema. If it is missing,
+  // REFUSE before any decision/gate/CAS/settle (fail closed), never after a PAY. off/shadow are unaffected.
+  if (payoutActionReplayMode() === "canary" && !payoutReplaySchemaReady().ok) {
+    const reason = "action_replay_preflight_failed:missing_schema";
+    agentLog(cid, "payout_replay_preflight", { ok: false, missing: payoutReplaySchemaReady().missing });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
+  }
 
   const brief = await ensureDecision(submissionId, { cid }).catch(() => null);
   if (!brief) {
