@@ -108,6 +108,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     // persisted with grounded provenance + the "generated_grounded_v2" reason so the revision is never
     // mistaken for a legacy plan.
     if (result.stage === "ready" && result.plan && !getCurrentRevision(jobId)) {
+      const canary = result.canary?.status === "selected" ? result.canary : null;
       createRevision({
         jobId,
         authorWallet: job.founderWallet,
@@ -117,6 +118,11 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         validationOk: true,
         model: metaModel,
         provider: metaProvider,
+        // Phase 2 — the VerificationPolicyV2 is bound to THIS revision (never sourced from job.result at approval).
+        verificationPolicy: canary?.verificationPolicy ?? null,
+        verificationPolicyDigest: canary?.verificationPolicyDigest ?? null,
+        verificationPolicyRequired: canary?.verificationPolicyRequired ?? false,
+        groundedProvenance: grounded ?? null,
       });
     }
   } catch (err) {

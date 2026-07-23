@@ -6,7 +6,7 @@ import { approveRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { jobToView } from "@/lib/launch/job";
 import { deserializePlan } from "@/lib/launch/serde";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
-import { verificationPolicyDigest } from "@/lib/launch/mission-probe";
+import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
 import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 
 export const runtime = "nodejs";
@@ -47,17 +47,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ ok: false, error: verified.error, mismatches: verified.mismatches }, { status: 409 });
   }
 
-  // Phase 3 — if the selected (grounded) plan carries a VerificationPolicyV1, RECOMPUTE + VERIFY its digest as
-  // part of approval, and bind it into the immutable approval record. A tampered policy fails closed here.
-  let approvalRecord: unknown = verified.approvalRecord;
-  const policy = (job.result as { canary?: { verificationPolicy?: { policyDigest?: string } | null } } | null)?.canary?.verificationPolicy ?? null;
-  if (policy && typeof policy === "object") {
-    const recomputed = verificationPolicyDigest(policy as Parameters<typeof verificationPolicyDigest>[0]);
-    if (recomputed !== policy.policyDigest) {
-      return NextResponse.json({ ok: false, error: "verification policy digest mismatch — refusing approval." }, { status: 409 });
-    }
-    approvalRecord = { ...(verified.approvalRecord as Record<string, unknown>), verificationPolicyDigest: recomputed, verificationPolicy: policy };
+  // Phase 2 — the approval-critical policy comes from the CURRENT REVISION (not mutable job.result). Strictly
+  // parse VerificationPolicyV2, recompute its digest, require its missionPlanDigest == the current plan, require
+  // COMPLETE action-criterion coverage when the revision marks it required, and bind the digest into the
+  // immutable approval record. A required-but-missing / stale / mismatched / incomplete policy fails closed.
+  const policyCheck = checkRevisionPolicyForApproval({
+    verificationPolicy: current.verificationPolicy ?? null,
+    verificationPolicyDigest: current.verificationPolicyDigest ?? null,
+    verificationPolicyRequired: current.verificationPolicyRequired === true,
+    planMissionPlanDigest: deserializePlan(current.planJson).missionPlanDigest,
+  });
+  if (!policyCheck.ok) {
+    return NextResponse.json({ ok: false, error: `verification policy rejected (${policyCheck.reason}).` }, { status: 409 });
   }
+  const approvalRecord: unknown = policyCheck.boundDigest
+    ? { ...(verified.approvalRecord as Record<string, unknown>), verificationPolicyDigest: policyCheck.boundDigest, verificationPolicyVersion: policyCheck.version, verificationPolicyRequired: current.verificationPolicyRequired === true }
+    : verified.approvalRecord;
 
   const approved = approveRevision(id, current.revisionNumber, founder, approvalRecord);
   if (!approved.ok) return NextResponse.json({ ok: false, error: approved.reason }, { status: 409 });

@@ -54,6 +54,14 @@ export interface CreateRevisionInput {
   validationOk: boolean;
   model?: string | null;
   provider?: string | null;
+  /** Phase 2 — the VerificationPolicyV2 (+ digest) bound to THIS revision. Its missionPlanDigest MUST equal
+   *  plan.missionPlanDigest or createRevision throws (no cross-plan policy binding). */
+  verificationPolicy?: unknown;
+  verificationPolicyDigest?: string | null;
+  /** explicit marker that autonomous payout requires complete replay coverage for this plan. */
+  verificationPolicyRequired?: boolean;
+  /** bounded grounded provenance bound to the revision. */
+  groundedProvenance?: unknown;
 }
 
 /**
@@ -63,6 +71,13 @@ export interface CreateRevisionInput {
  */
 export function createRevision(input: CreateRevisionInput): PlanRevision {
   const now = nowSeconds();
+  // Phase 2 — a bound policy MUST belong to THIS plan (no cross-plan binding). Fail loudly before persisting.
+  if (input.verificationPolicy != null) {
+    const pol = input.verificationPolicy as { missionPlanDigest?: string };
+    if (pol.missionPlanDigest !== input.plan.missionPlanDigest) {
+      throw new Error(`verification policy missionPlanDigest (${pol.missionPlanDigest ?? "none"}) != plan (${input.plan.missionPlanDigest})`);
+    }
+  }
   const prev = getCurrentRevision(input.jobId);
   const revisionNumber = (prev?.revisionNumber ?? 0) + 1;
   const id = nanoid(14);
@@ -86,6 +101,10 @@ export function createRevision(input: CreateRevisionInput): PlanRevision {
         missionPlanDigest: input.plan.missionPlanDigest,
         model: input.model ?? null,
         provider: input.provider ?? null,
+        verificationPolicy: input.verificationPolicy ?? null,
+        verificationPolicyDigest: input.verificationPolicyDigest ?? null,
+        verificationPolicyRequired: input.verificationPolicyRequired ?? false,
+        groundedProvenance: input.groundedProvenance ?? null,
         createdAt: now,
       })
       .run();

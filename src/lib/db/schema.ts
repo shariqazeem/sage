@@ -594,6 +594,16 @@ export const planRevisions = sqliteTable(
     approverWallet: text("approver_wallet"),
     /** the immutable approval record (canonical hashes + provenance), JSON, when approved. */
     approvalRecord: text("approval_record", { mode: "json" }).$type<unknown>(),
+    /**
+     * Phase 2 — the VerificationPolicyV2 bound to THIS revision (not sourced from mutable job.result at
+     * approval). NULL when the plan has no action-replay policy. `verificationPolicyRequired` is the explicit
+     * marker that autonomous payout MUST have complete replay coverage for this plan.
+     */
+    verificationPolicy: text("verification_policy", { mode: "json" }).$type<unknown>(),
+    verificationPolicyDigest: text("verification_policy_digest"),
+    verificationPolicyRequired: integer("verification_policy_required", { mode: "boolean" }).notNull().default(false),
+    /** bounded grounded provenance bound to the revision (architect/critic models+providers+contract versions). */
+    groundedProvenance: text("grounded_provenance", { mode: "json" }).$type<unknown>(),
     /** unix seconds this revision was superseded by a newer one, or null. */
     supersededAt: integer("superseded_at"),
     createdAt: integer("created_at").notNull(),

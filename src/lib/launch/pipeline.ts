@@ -18,7 +18,7 @@ import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
 import { missionGroundingMode } from "./mission-grounding-shadow";
 import { canaryPlanCommitment, evaluateCanarySelection, type CanaryIdentity } from "./mission-canary";
-import { compileVerificationPolicy, type VerificationPolicyV1 } from "./mission-probe";
+import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -84,9 +84,11 @@ export interface CanaryPipelineOutcome {
   wallet?: string;
   /** grounded provenance carried into job + revision metadata (selected only). */
   provenance?: GroundedSelectionProvenance;
-  /** Phase 3 — the immutable VerificationPolicyV1 compiled for the selected grounded plan (one MissionProbeV1
-   *  per compilable action mission). Persisted beside the plan + bound to the campaign at deploy. (selected only) */
-  verificationPolicy?: VerificationPolicyV1 | null;
+  /** the immutable VerificationPolicyV2 compiled for the selected grounded plan (selected only). */
+  verificationPolicy?: unknown | null;
+  verificationPolicyDigest?: string | null;
+  /** true when the plan has ≥1 action criterion → autonomous payout requires complete replay coverage. */
+  verificationPolicyRequired?: boolean;
 }
 
 /**
@@ -234,16 +236,23 @@ export async function inspectAndPlan(
       criticModel: gp.criticModel, criticProvider: gp.criticProvider, criticContractVersion: gp.criticContractVersion,
       observationSetDigest: gp.observationSetDigest, groundedPlanDigest: canaryDecision.groundedDigest, missionPlanDigest: g.plan.missionPlanDigest,
     };
-    // Phase 3 — compile the immutable VerificationPolicyV1 for the selected grounded plan: one MissionProbeV1
-    // per compilable action mission, bound to this plan's digests + the reproduced replay set. Deterministic;
-    // the deputy loads it by campaign+mission and it can only SUBTRACT settlement eligibility (Phase 4).
+    // compile the VerificationPolicyV2 for the selected grounded plan. `policyRequired` = the plan has ≥1
+    // action criterion (autonomous payout then needs COMPLETE replay coverage). An incomplete required policy
+    // BLOCKS autonomous selection: the grounded plan may be shown, but a self-canary plan is never selectable
+    // for autonomous payout unless coverage is exact (defect #3).
     const replayReproduced = new Set((map.replayShadow?.results ?? []).filter((r) => r.classification === "reproduced").map((r) => r.transitionId));
-    const verificationPolicy = map.observations
-      ? compileVerificationPolicy({ missionPlanDigest: g.plan.missionPlanDigest, productMapDigest: map.digest, set: map.observations, missions: canaryDecision.plan.missions, replayReproduced, scope }).policy
+    const compiled = map.observations
+      ? compileVerificationPolicyV2({ missionPlanDigest: g.plan.missionPlanDigest, productMapDigest: map.digest, set: map.observations, missions: canaryDecision.plan.missions, replayReproduced, scope })
       : null;
+    const policyRequired = !!compiled && compiled.policy.actionCriteria.length > 0;
+    if (policyRequired && compiled && !compiled.complete) {
+      return out("failed", "canary_blocked:incomplete_action_policy", { map, brain, allocation: g.allocation,
+        canary: { status: "blocked", reason: "incomplete_action_policy", planSource: "none", planDigest: g.plan.missionPlanDigest } });
+    }
     stamp("ready");
     return out("ready", null, { map, brain, allocation: g.allocation, plan: g.plan, questions: brain.needsInputQuestions,
-      canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, planCommitment: commitment.commitment, wallet: canaryDecision.wallet, provenance, verificationPolicy } });
+      canary: { status: "selected", reason: null, planSource: "grounded_v2", groundedDigest: canaryDecision.groundedDigest, planDigest: g.plan.missionPlanDigest, planCommitment: commitment.commitment, wallet: canaryDecision.wallet, provenance,
+        verificationPolicy: compiled?.policy ?? null, verificationPolicyDigest: compiled?.policy.policyDigest ?? null, verificationPolicyRequired: policyRequired } });
   }
 
   // canary not selected → the LEGACY plan governs. A legacy generation failure is retryable (provider/parse)
