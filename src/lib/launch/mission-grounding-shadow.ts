@@ -8,7 +8,8 @@ import { validateMissionGrounding, classifyGroundingTier } from "./mission-groun
 import { validatePlanMissions, type ValidationScope } from "./validate-mission";
 import { factIndex } from "./observed-facts";
 import { allocateBudget } from "./budget";
-import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, MissionRiskCategory, MissionPriority, SourceRef, CriterionGroundingV1 } from "./schemas";
+import { parseAndCompileArchitectDraft, ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA, GROUNDED_ARCHITECT_CONTRACT_VERSION, type DraftCompileOutcome } from "./mission-draft-compiler";
+import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier } from "./schemas";
 
 /* ───────────────────── strict V2 architect + critic schemas (Zod, reject-never-repair) ─────────────────
  * A V2 architect response is validated by STRICT schemas — unknown keys rejected, every validation-critical
@@ -17,93 +18,8 @@ import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier,
  * OPTIONAL list fields (conditions/assumptions/disallowed): absent ⇒ [] (their canonical "none" meaning),
  * never a rescue of malformed data. The legacy coerceMission (which clamps/defaults) is NOT used here.        */
 
-const RISK_CATEGORIES = ["critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation", "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression"] as const;
 const uniqueStrings = (arr: readonly string[]) => new Set(arr).size === arr.length;
 
-const CriterionGroundingSchema = z
-  .object({
-    criterionIndex: z.number().int().min(0),
-    criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
-    factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
-    transitionRef: z.string().min(1).nullish(), // null (a common model rendering of "absent") ≡ omitted
-    evidenceIndex: z.number().int().min(0),
-    evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
-    pageUrl: z.string().min(1),
-    stateId: z.string().min(1),
-    supportRationale: z.string().min(1).max(200),
-  })
-  .strict()
-  .refine((c) => c.criterionKind !== "action_outcome" || !!c.transitionRef, "action_outcome criterion requires a transitionRef");
-
-const GroundingV1Schema = z.object({ observationSetDigest: z.string().min(1), criteria: z.array(CriterionGroundingSchema).min(1) }).strict();
-const SourceRefSchema = z.object({ kind: z.enum(["page", "repo", "founder"]), ref: z.string().min(1), observation: z.string() }).strict();
-
-const MissionV2Schema = z
-  .object({
-    missionKey: z.string().min(1).max(48),
-    title: z.string().min(1).max(140),
-    objective: z.string().min(1).max(600),
-    instructions: z.string().min(1).max(6000),
-    targetSurface: z.string().min(1).max(600),
-    criteria: z.array(z.string().min(1)).min(1).max(12),
-    evidenceRequirements: z.array(z.string().min(1)).min(1).max(12),
-    whyItMatters: z.string().min(1).max(800),
-    sources: z.array(SourceRefSchema).min(1),
-    priority: z.enum(["high", "medium", "low"]),
-    riskCategory: z.enum(RISK_CATEGORIES),
-    effortMinutes: z.number().int().min(3).max(240),
-    rewardWeight: z.number().int().min(1).max(10),
-    maxCompletions: z.number().int().min(1).max(50),
-    verificationMethod: z.string().min(1).max(800),
-    confidence: z.number().min(0).max(1),
-    conditions: z.array(z.string()).max(8).nullish(), // absent/null ⇒ [] (non-critical list, mapped below)
-    assumptions: z.array(z.string()).max(6).nullish(),
-    disallowed: z.array(z.string()).max(8).nullish(),
-    anchors: z.array(z.string().min(1)).min(1).max(12), // ≥1 verbatim observed substring (anti-hallucination gate)
-    groundingV1: GroundingV1Schema,
-  })
-  .strict()
-  .superRefine((m, ctx) => {
-    // exactly one grounding mapping per criterion index — a bijection onto 0..criteria.length-1.
-    const indices = m.groundingV1.criteria.map((c) => c.criterionIndex).sort((a, b) => a - b);
-    const expected = m.criteria.map((_c, i) => i);
-    if (indices.length !== expected.length || indices.some((v, i) => v !== expected[i]))
-      ctx.addIssue({ code: "custom", message: "each criterion needs exactly one grounding mapping (0..n-1)" });
-    for (const c of m.groundingV1.criteria) if (c.evidenceIndex >= m.evidenceRequirements.length) ctx.addIssue({ code: "custom", message: `evidenceIndex ${c.evidenceIndex} out of range` });
-  });
-
-const ArchitectOutputSchema = z
-  .object({ missions: z.array(MissionV2Schema).min(1) })
-  .strict()
-  .superRefine((o, ctx) => { if (!uniqueStrings(o.missions.map((m) => m.missionKey))) ctx.addIssue({ code: "custom", message: "missionKey values must be unique" }); });
-
-type MissionV2 = z.infer<typeof MissionV2Schema>;
-
-/** Map a schema-validated V2 mission → CandidateMission (NO legacy coerce, NO clamp/default/salvage — every
- *  value is already validated). groundingV1 is display-only metadata stripped at canonical compilation. */
-function toCandidateMission(m: MissionV2): CandidateMission {
-  const criteria: CriterionGroundingV1[] = m.groundingV1.criteria.map((c) => ({
-    criterionIndex: c.criterionIndex, criterionKind: c.criterionKind, sourceFactIds: c.factRefs,
-    sourceTransitionIds: c.transitionRef ? [c.transitionRef] : undefined, evidenceIndex: c.evidenceIndex,
-    verificationMode: c.evidenceMode, pageUrl: c.pageUrl, stateId: c.stateId, supportRationale: c.supportRationale,
-  }));
-  return {
-    missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions,
-    targetSurface: m.targetSurface, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
-    whyItMatters: m.whyItMatters, sources: m.sources as SourceRef[], priority: m.priority as MissionPriority,
-    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions ?? [],
-    rewardWeight: m.rewardWeight, maxCompletions: m.maxCompletions, verificationMethod: m.verificationMethod,
-    confidence: m.confidence, assumptions: m.assumptions ?? [], disallowed: m.disallowed ?? [], anchors: m.anchors,
-    groundingV1: { version: "mission-grounding-v1", observationSetDigest: m.groundingV1.observationSetDigest, criteria },
-  };
-}
-
-/** STRICT parse of the architect response → candidates, or null (schema_invalid — the WHOLE response is
- *  rejected on any invalid mission/member; there is no per-mission salvage or filtering). */
-function parseArchitectOutput(json: unknown): CandidateMission[] | null {
-  const parsed = ArchitectOutputSchema.safeParse(json);
-  return parsed.success ? parsed.data.missions.map(toCandidateMission) : null;
-}
 
 /** STRICT critic schema — factRefs is REQUIRED and non-empty; malformed output supports nothing. */
 const CriticOutputSchema = z
@@ -128,41 +44,6 @@ const CriticOutputSchema = z
  * never 400 the request. In OpenAI strict mode every property is listed in `required`; optionals are
  * expressed as a "null" type-union.                                                                        */
 const strArray = { type: "array", items: { type: "string" } };
-const nullableStrArray = { type: ["array", "null"], items: { type: "string" } };
-const criterionTransport = {
-  type: "object", additionalProperties: false,
-  properties: {
-    criterionIndex: { type: "integer" },
-    criterionKind: { type: "string", enum: ["state", "action_outcome", "content_claim", "visual_quality"] },
-    factRefs: strArray,
-    transitionRef: { type: ["string", "null"] },
-    evidenceIndex: { type: "integer" },
-    evidenceMode: { type: "string", enum: ["deterministic_url", "semantic_url", "observation"] },
-    pageUrl: { type: "string" }, stateId: { type: "string" }, supportRationale: { type: "string" },
-  },
-  required: ["criterionIndex", "criterionKind", "factRefs", "transitionRef", "evidenceIndex", "evidenceMode", "pageUrl", "stateId", "supportRationale"],
-};
-const missionTransport = {
-  type: "object", additionalProperties: false,
-  properties: {
-    missionKey: { type: "string" }, title: { type: "string" }, objective: { type: "string" },
-    instructions: { type: "string" }, targetSurface: { type: "string" },
-    criteria: strArray, evidenceRequirements: strArray, whyItMatters: { type: "string" },
-    sources: { type: "array", items: { type: "object", additionalProperties: false, properties: { kind: { type: "string", enum: ["page", "repo", "founder"] }, ref: { type: "string" }, observation: { type: "string" } }, required: ["kind", "ref", "observation"] } },
-    priority: { type: "string", enum: ["high", "medium", "low"] },
-    riskCategory: { type: "string", enum: [...RISK_CATEGORIES] },
-    effortMinutes: { type: "integer" }, rewardWeight: { type: "integer" }, maxCompletions: { type: "integer" },
-    verificationMethod: { type: "string" }, confidence: { type: "number" },
-    conditions: nullableStrArray, assumptions: nullableStrArray, disallowed: nullableStrArray, anchors: strArray,
-    groundingV1: { type: "object", additionalProperties: false, properties: { observationSetDigest: { type: "string" }, criteria: { type: "array", items: criterionTransport } }, required: ["observationSetDigest", "criteria"] },
-  },
-  required: ["missionKey", "title", "objective", "instructions", "targetSurface", "criteria", "evidenceRequirements", "whyItMatters", "sources", "priority", "riskCategory", "effortMinutes", "rewardWeight", "maxCompletions", "verificationMethod", "confidence", "conditions", "assumptions", "disallowed", "anchors", "groundingV1"],
-};
-/** Architect transport — a missions array that MAY be empty (honest v2_empty) or carry full grounded missions. */
-export const ARCHITECT_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
-  name: "sage_grounded_architect_v2",
-  schema: { type: "object", additionalProperties: false, properties: { missions: { type: "array", items: missionTransport } }, required: ["missions"] },
-};
 /** Critic transport — verdicts with REQUIRED factRefs; Zod enforces uniqueness + exact fact-set equality. */
 export const CRITIC_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
   name: "sage_grounded_critic_v2",
@@ -223,22 +104,19 @@ export const ARCHITECT_SYSTEM_V2 = `You are Sage's GROUNDED mission architect. Y
 
 RULES (absolute):
 - Design missions ONLY around capabilities Sage ACTUALLY OBSERVED. Never invent a control, page, feature, or outcome.
-- If the founder's requested capability/goal was NOT observed in the set, return {"missions":[]} — do NOT invent it, and do NOT substitute unrelated work just to produce output.
-- Every criterion MUST cite concrete observed-fact ids (factRefs) from the set.
-- An action/outcome criterion MUST cite the transitionRef that produced the outcome.
+- If the founder's requested capability/goal was NOT observed in the OBSERVATIONS, return {"missions":[]} — do NOT invent it, and do NOT substitute unrelated work just to produce output.
+- Cite ONLY the exact fact ids (factRefs) and transition ids (transitionRef) shown in the OBSERVATIONS below. A citation to any id NOT shown there is rejected.
+- Express each criterion EXACTLY ONCE — one object with: text, evidenceRequirement, criterionKind, factRefs, transitionRef, evidenceMode, supportRationale. Do NOT number, index, or repeat anything.
+- An "action_outcome" criterion MUST set transitionRef to a real transition id and cite at least one factRef from that transition's AFTER state. Every other criterionKind sets transitionRef to null.
 - Inferred vision facts may GUIDE design but can NEVER be the only decisive support — a decisive criterion needs a seen DOM/field fact or a safe transition.
-- Every mission MUST include "anchors": VERBATIM substrings of what Sage observed (element text, a heading, a state excerpt). The deterministic anti-hallucination gate rejects any mission whose anchors were never observed.
-- Evidence requirements must be realistically capable of proving the criterion.
 - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.
-- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts, base units, or claim any budget equality — Sage's deterministic allocator converts the weights into exact USDC rewards and guarantees exact budget conservation.
-- effortMinutes is an INTEGER between 3 and 240. confidence is a number between 0 and 1.
-- riskCategory MUST be exactly one of: critical_journey, onboarding, responsive, wallet_payment, claim_validation, error_recovery, accessibility, cross_browser, docs_consistency, trust_safety, regression.
-- Emit ONLY the keys shown in the example below — no extra keys anywhere.
+- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts — Sage's deterministic allocator converts weights into exact USDC rewards.
+- effortMinutes is an INTEGER 3-240; confidence is a number 0-1; riskCategory MUST be exactly one of: critical_journey, onboarding, responsive, wallet_payment, claim_validation, error_recovery, accessibility, cross_browser, docs_consistency, trust_safety, regression.
 
-Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality", and MUST include an integer evidenceIndex — the 0-based index into this mission's evidenceRequirements that the criterion proves. An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
+SAGE DERIVES THE REST from the ids you cite — do NOT emit criterionIndex, evidenceIndex, criteria/evidenceRequirements as separate arrays, groundingV1, pageUrl, stateId, targetSurface, sources, anchors or verificationMethod. Emit ONLY the keys shown in the example.
 
 OUTPUT a SINGLE strict JSON object, no markdown fences, no prose. Example (a valid object):
-{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","evidenceIndex":0,"pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
+{"missions":[{"missionKey":"test-report-loading","title":"...","objective":"...","instructions":"...","whyItMatters":"...","priority":"high","riskCategory":"critical_journey","effortMinutes":5,"rewardWeight":5,"maxCompletions":3,"confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"criteria":[{"text":"Loading the report reaches the observed report state","evidenceRequirement":"Describe the report state reached","criterionKind":"action_outcome","factRefs":["<observed after-state fact id>"],"transitionRef":"<observed transition id>","evidenceMode":"observation","supportRationale":"The reproduced transition produced this state"}]}]}`;
 
 /** CRITIC_SYSTEM_V2 — reviews whether the cited observations genuinely support each criterion. It may only
  *  reject/downgrade; it cannot create facts, repair grounding, or override the deterministic gate. */
@@ -333,9 +211,19 @@ export interface GroundingShadowResult {
   /** counts of the canonical-gate rejection CODES (enums like "unanchored_claim") for critic-supported
    *  candidates that failed the gate — leak-safe (codes only, never mission text). */
   canonicalRejectionCodes: Record<string, number>;
-  /** on a schema_invalid architect response: the Zod issue PATHS+codes (e.g. "missions.0.anchors:too_small")
+  /** on a schema_invalid architect response: the Zod issue PATHS+codes (e.g. "missions.0.criteria.0:invalid_type")
    *  — leak-safe STRUCTURE only, never the rejected values. Empty otherwise. */
   architectSchemaErrorPaths: string[];
+  /** semantic-draft compiler telemetry — bounded counts + enum codes only, never raw mission/observed text. */
+  architectContractVersion: string;
+  draftMissionCount: number;
+  draftCriterionCount: number;
+  compiledMissionCount: number;
+  compilerRejectedCount: number;
+  compilerRejectionCodes: Record<string, number>;
+  derivedAnchorCount: number;
+  derivedSourceCount: number;
+  derivedTargetSurfaceCount: number;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -409,9 +297,11 @@ export async function runGroundedShadow(
     criticModelRequested, criticModelActual: null, criticProvider: null,
     architectStatus: "not_run", architectErrorCode: null, architectLatencyMs: null, architectPromptTokens: null, architectCompletionTokens: null, architectFinishReason: null, architectParsePolicy: null, architectRepaired: null,
     criticStatus: "not_run", criticErrorCode: null, criticLatencyMs: null, criticPromptTokens: null, criticCompletionTokens: null, criticFinishReason: null, criticParsePolicy: null, criticRepaired: null,
-    architectContentShape: null, architectHttpStatus: null, architectRetryAfterMs: null, architectResponseSchemaName: ARCHITECT_TRANSPORT_SCHEMA.name,
+    architectContentShape: null, architectHttpStatus: null, architectRetryAfterMs: null, architectResponseSchemaName: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA.name,
     criticContentShape: null, criticHttpStatus: null, criticRetryAfterMs: null, criticResponseSchemaName: CRITIC_TRANSPORT_SCHEMA.name,
     canonicalRejectionCodes: {}, architectSchemaErrorPaths: [],
+    architectContractVersion: GROUNDED_ARCHITECT_CONTRACT_VERSION, draftMissionCount: 0, draftCriterionCount: 0, compiledMissionCount: 0,
+    compilerRejectedCount: 0, compilerRejectionCodes: {}, derivedAnchorCount: 0, derivedSourceCount: 0, derivedTargetSurfaceCount: 0,
     observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
     ...over,
   });
@@ -426,7 +316,7 @@ export async function runGroundedShadow(
   let architectShape: ContentShape | null = null, architectHttp: number | null = null, architectRetry: number | null = null;
   let criticShape: ContentShape | null = null, criticHttp: number | null = null, criticRetry: number | null = null;
   const architect = deps.architect ?? (async (system: string, user: string) => {
-    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict", responseSchema: ARCHITECT_TRANSPORT_SCHEMA });
+    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict", responseSchema: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA });
     architectActual = r.responseModel ?? r.model; architectProvider = r.provider; architectShape = "bare_object";
     aMeta = { latencyMs: r.latencyMs, promptTokens: r.promptTokens, completionTokens: r.completionTokens, finishReason: r.finishReason ?? null, parsePolicy: r.parsePolicy ?? "strict", repaired: r.repaired ?? false };
     return r.json;
@@ -454,29 +344,34 @@ export async function runGroundedShadow(
   //    The ID→EVIDENCE view puts every fact id BESIDE its observed content (page/state/texts/role/name) and
   //    every transition id beside its verb/before-after/deltas/safety/replay — the model cites facts, not hashes.
   const { view: observationView, meta: viewMeta } = buildArchitectObservationView(set, deps.replayReproduced);
+  // the bounded ids ACTUALLY presented to the architect — the compiler binds every citation to these.
+  const presentedView = { factIds: new Set(observationView.facts.map((f) => f.id)), transitionIds: new Set(observationView.transitions.map((t) => t.id)) };
   let candidates: CandidateMission[];
+  let compileOutcome: DraftCompileOutcome | null = null;
+  const draftTelemetry = () => (compileOutcome ? {
+    draftMissionCount: compileOutcome.draftMissionCount, draftCriterionCount: compileOutcome.draftCriterionCount, compiledMissionCount: compileOutcome.compiledMissionCount,
+    compilerRejectedCount: compileOutcome.compilerRejectedCount, compilerRejectionCodes: compileOutcome.compilerRejectionCodes,
+    derivedAnchorCount: compileOutcome.derivedAnchorCount, derivedSourceCount: compileOutcome.derivedSourceCount, derivedTargetSurfaceCount: compileOutcome.derivedTargetSurfaceCount,
+  } : {});
   try {
     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
     const json = await architect(ARCHITECT_SYSTEM_V2, user);
-    const parsed = parseArchitectOutput(json);
-    if (parsed === null) {
-      // distinguish an explicitly-empty plan (an honest "ok" run → v2_empty) from a schema failure.
-      const emptyMissions = Array.isArray((json as { missions?: unknown[] })?.missions) && (json as { missions: unknown[] }).missions.length === 0;
-      architectStatus = emptyMissions ? "ok" : "schema_invalid";
-      // leak-safe: capture WHICH schema paths failed (structure + codes only, never the rejected values).
-      const sp = emptyMissions ? null : ArchitectOutputSchema.safeParse(json);
-      const architectSchemaErrorPaths = sp && !sp.success ? sp.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`) : [];
-      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, architectSchemaErrorPaths, ...telemetry() });
-    }
-    candidates = parsed;
+    // strict semantic-draft Zod → deterministic compiler (derives indexes/urls/anchors/sources/targetSurface).
+    compileOutcome = parseAndCompileArchitectDraft(json, set, presentedView);
+    if (compileOutcome.kind === "empty") { architectStatus = "ok"; return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...draftTelemetry(), ...telemetry() }); }
+    if (compileOutcome.kind === "schema_invalid") { architectStatus = "schema_invalid"; return base({ ran: true, error: "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, architectSchemaErrorPaths: compileOutcome.schemaErrorPaths, ...draftTelemetry(), ...telemetry() }); }
+    candidates = compileOutcome.candidates;
     architectStatus = "ok";
   } catch (e) {
     architectErrorCode = sanitizeErrorCode(e); // bounded llm_* code, never raw response
     architectStatus = classifyRoleError(architectErrorCode);
     captureArchErr(e);
-    return base({ error: architectErrorCode, observationView: viewMeta, ...telemetry() });
+    return base({ error: architectErrorCode, observationView: viewMeta, ...draftTelemetry(), ...telemetry() });
   }
-  if (candidates.length === 0) { architectStatus = "ok"; return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...telemetry() }); }
+  if (candidates.length === 0) {
+    architectStatus = "ok"; // the model proposed missions but the compiler rejected every one (bounded codes in telemetry)
+    return base({ ran: true, error: compileOutcome && compileOutcome.compilerRejectedCount > 0 ? "compiler_rejected" : "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...draftTelemetry(), ...telemetry() });
+  }
 
   // 2) deterministic grounding validation per candidate (digest-bound + replay-aware).
   const idxValid = candidates.map((m) => validateMissionGrounding(m, set, { expectedDigest: digest, replayReproduced: deps.replayReproduced }).length === 0);
@@ -604,6 +499,7 @@ export async function runGroundedShadow(
     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
     observationView: viewMeta,
     canonicalRejectionCodes,
+    ...draftTelemetry(),
     ...telemetry(),
   });
 }
