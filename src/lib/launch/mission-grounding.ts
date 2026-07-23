@@ -53,11 +53,21 @@ export function validateMissionGrounding(
     for (const fid of gc.sourceFactIds) {
       if (!idx.facts.has(fid)) issues.push({ code: "ungrounded_fact_ref", field: `criteria[${i}]`, detail: `fact ${fid} not in the observation set` });
     }
+    // an action/outcome criterion MUST cite a transition.
+    if (gc.criterionKind === "action_outcome" && (gc.sourceTransitionIds?.length ?? 0) === 0) {
+      issues.push({ code: "criterion_evidence_unmapped", field: `criteria[${i}]`, detail: "action_outcome criterion cites no transition" });
+    }
     for (const tid of gc.sourceTransitionIds ?? []) {
       const t = idx.transitions.get(tid);
       if (!t) { issues.push({ code: "ungrounded_fact_ref", field: `criteria[${i}]`, detail: `transition ${tid} not in the observation set` }); continue; }
-      // a cited transition's after-state must correspond to at least one cited fact (the outcome it claims).
-      if (gc.sourceFactIds.length > 0 && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.stateId === t.afterStateDigest || idx.facts.get(fid)?.stateId === t.beforeStateDigest)) {
+      // a cited transition must be POSITIVELY safe to back a criterion (unverified/state-changing/unsafe → no).
+      if (t.safeClassification !== "safe") {
+        issues.push({ code: "unsafe_transition_support", field: `criteria[${i}]`, detail: `transition ${tid} is ${t.safeClassification}, cannot back a criterion` });
+      }
+      // an action/outcome criterion must cite at least one fact from the transition's AFTER state (the outcome).
+      if (gc.criterionKind === "action_outcome" && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.stateId === t.afterStateDigest)) {
+        issues.push({ code: "page_state_mismatch", field: `criteria[${i}]`, detail: "action_outcome cites no fact from the transition's after-state" });
+      } else if (gc.sourceFactIds.length > 0 && !gc.sourceFactIds.some((fid) => idx.facts.get(fid)?.stateId === t.afterStateDigest || idx.facts.get(fid)?.stateId === t.beforeStateDigest)) {
         issues.push({ code: "page_state_mismatch", field: `criteria[${i}]`, detail: "cited transition's before/after state does not match any cited fact" });
       }
     }

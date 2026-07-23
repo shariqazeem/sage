@@ -352,7 +352,21 @@ export async function runMissionBrain(
   };
 
   let arch = await architect(map, founder);
-  if (!arch.ok) return { ...EMPTY(arch.error), needsInputQuestions };
+  // The grounded-architect shadow (S2) is INDEPENDENT measurement: it runs whenever mode≠off and the
+  // observations are sufficient, EVEN when the legacy architect returns empty / fails / produces zero
+  // survivors — so its result is still recorded. It never changes the legacy externally-visible result;
+  // a V2 failure is fully caught. dynamic import breaks the mission-brain ↔ shadow require cycle.
+  const computeShadow = async (legacyCount: number): Promise<GroundingShadowResult | undefined> => {
+    try {
+      const s = await import("./mission-grounding-shadow");
+      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
+    } catch { return undefined; }
+  };
+
+  if (!arch.ok) {
+    const gs = await computeShadow(0); // legacy architect failed → V2 shadow still measured
+    return { ...EMPTY(arch.error), needsInputQuestions, ...(gs ? { groundingShadow: gs } : {}) };
+  }
   let r = await run(arch);
 
   // CORRECTIVE ROUND: if the deterministic gate rejected everything, feed the exact
@@ -373,19 +387,7 @@ export async function runMissionBrain(
     for (const q of sufficiencyQuestions(map)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   }
 
-  // GROUNDED ARCHITECT SHADOW (S2) — MISSION_GROUNDING_MODE=off|shadow|enforce (default off). In
-  // shadow/enforce it runs the V2 grounded architect + deterministic grounding validation + critic
-  // ALONGSIDE the legacy plan and records bounded telemetry. The legacy `r.accepted` selection below is
-  // NEVER changed by it; a V2 failure is fully caught and cannot fail the legacy job.
-  let groundingShadow: GroundingShadowResult | undefined;
-  try {
-    // dynamic import breaks the mission-brain ↔ mission-grounding-shadow cycle (which under CJS transpile
-    // would capture the binding as undefined at load time).
-    const shadow = await import("./mission-grounding-shadow");
-    if (shadow.missionGroundingMode() !== "off") {
-      groundingShadow = await shadow.runGroundedShadow(map, founder, r.accepted.length, { replayReproduced: replayReproducedSet(map) });
-    }
-  } catch { /* shadow is best-effort; the legacy plan stands */ }
+  const groundingShadow = await computeShadow(r.accepted.length);
 
   return {
     ok: r.accepted.length > 0,

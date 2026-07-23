@@ -5,6 +5,7 @@ import { missionModel } from "@/lib/llm/mission-model";
 import { compactMapForLlm, coerceMission } from "./mission-brain";
 import { validateMissionGrounding, classifyGroundingTier } from "./mission-grounding";
 import { factIndex } from "./observed-facts";
+import { allocateBudget } from "./budget";
 import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, VerificationMode, CriterionKind } from "./schemas";
 
 /** Coerce a raw V2 mission (base fields via coerceMission) + parse its groundingV1 (factRefs→sourceFactIds,
@@ -12,37 +13,58 @@ import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier,
 function coerceMissionForShadow(raw: unknown, i: number): CandidateMission | null {
   const base = coerceMission(raw, i);
   if (!base) return null;
-  const g = ((raw ?? {}) as Record<string, unknown>).groundingV1 as Record<string, unknown> | undefined;
-  if (g && Array.isArray(g.criteria)) {
-    base.groundingV1 = {
-      version: "mission-grounding-v1",
-      observationSetDigest: typeof g.observationSetDigest === "string" ? g.observationSetDigest : undefined,
-      criteria: (g.criteria as Record<string, unknown>[]).map((c) => ({
-        criterionIndex: Number.isFinite(Number(c.criterionIndex)) ? Number(c.criterionIndex) : -1,
-        criterionKind: (["state", "action_outcome", "content_claim", "visual_quality"].includes(c.criterionKind as string) ? c.criterionKind : undefined) as CriterionKind | undefined,
-        sourceFactIds: Array.isArray(c.factRefs) ? (c.factRefs.filter((x) => typeof x === "string") as string[]) : [],
-        sourceTransitionIds: typeof c.transitionRef === "string" ? [c.transitionRef] : undefined,
-        evidenceIndex: Number.isFinite(Number(c.evidenceIndex)) ? Number(c.evidenceIndex) : 0,
-        verificationMode: (["deterministic_url", "semantic_url", "observation"].includes(c.evidenceMode as string) ? c.evidenceMode : "observation") as VerificationMode,
-        pageUrl: typeof c.pageUrl === "string" && c.pageUrl ? c.pageUrl : undefined,
-        stateId: typeof c.stateId === "string" && c.stateId ? c.stateId : undefined,
-        supportRationale: typeof c.supportRationale === "string" ? c.supportRationale.slice(0, 200) : undefined,
-      })),
-    };
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const g = o.groundingV1 as Record<string, unknown> | undefined;
+  // STRICT V2: reject rather than repair. A V2 mission MUST carry a groundingV1 with a digest and
+  // well-formed criterion mappings (an explicit numeric evidenceIndex, a valid evidenceMode, non-empty
+  // factRefs, an integer rewardWeight/cap). coerceMission clamps rewardWeight/cap — for V2 we re-check the
+  // RAW values and reject on invalidity rather than accept a clamped default.
+  if (!g || !Array.isArray(g.criteria) || typeof g.observationSetDigest !== "string" || !g.observationSetDigest) return null;
+  if (!Number.isInteger(o.rewardWeight) || !Number.isInteger(o.maxCompletions)) return null;
+  const criteria: import("./schemas").CriterionGroundingV1[] = [];
+  for (const c of g.criteria as Record<string, unknown>[]) {
+    if (!Number.isInteger(c.criterionIndex)) return null;
+    if (!Number.isInteger(c.evidenceIndex)) return null;
+    if (!["deterministic_url", "semantic_url", "observation"].includes(c.evidenceMode as string)) return null;
+    const factRefs = Array.isArray(c.factRefs) ? (c.factRefs.filter((x) => typeof x === "string") as string[]) : [];
+    if (factRefs.length === 0) return null; // empty factRefs → reject (never repaired)
+    criteria.push({
+      criterionIndex: c.criterionIndex as number,
+      criterionKind: (["state", "action_outcome", "content_claim", "visual_quality"].includes(c.criterionKind as string) ? c.criterionKind : undefined) as CriterionKind | undefined,
+      sourceFactIds: factRefs,
+      sourceTransitionIds: typeof c.transitionRef === "string" ? [c.transitionRef] : undefined,
+      evidenceIndex: c.evidenceIndex as number,
+      verificationMode: c.evidenceMode as VerificationMode,
+      pageUrl: typeof c.pageUrl === "string" && c.pageUrl ? c.pageUrl : undefined,
+      stateId: typeof c.stateId === "string" && c.stateId ? c.stateId : undefined,
+      supportRationale: typeof c.supportRationale === "string" ? c.supportRationale.slice(0, 200) : undefined,
+    });
   }
+  base.groundingV1 = { version: "mission-grounding-v1", observationSetDigest: g.observationSetDigest, criteria };
   return base;
 }
 
 /**
  * Grounded architect SHADOW (S2). Runs ARCHITECT_SYSTEM_V2 + the deterministic grounding validation + a
  * grounding-aware critic, entirely alongside the legacy plan — the legacy selected plan and budget are
- * NEVER changed. `MISSION_GROUNDING_MODE=off|shadow|enforce` (default off; unknown → off; enforce is
- * implemented + tested but never enabled here). Records only bounded counts/enums/ids — no raw corpus.
+ * NEVER changed. `MISSION_GROUNDING_MODE=off|shadow` ONLY (default off). Enforce is NOT implemented: any
+ * other value (including "enforce") falls closed to off, with the reason exposed via
+ * {@link missionGroundingModeReason}. Records only bounded counts/enums/ids — never raw corpus.
  */
-export type MissionGroundingMode = "off" | "shadow" | "enforce";
+export type MissionGroundingMode = "off" | "shadow";
+/**
+ * Only off | shadow are supported. ENFORCE IS NOT IMPLEMENTED — V2 candidates never replace the legacy
+ * selection nor traverse the canonical gates, so `enforce` (or any unknown value) fails closed to off,
+ * with the reason exposed via {@link missionGroundingModeReason}. Shadow is advisory only.
+ */
 export function missionGroundingMode(): MissionGroundingMode {
+  return process.env.MISSION_GROUNDING_MODE?.trim().toLowerCase() === "shadow" ? "shadow" : "off";
+}
+export function missionGroundingModeReason(): string | null {
   const v = process.env.MISSION_GROUNDING_MODE?.trim().toLowerCase();
-  return v === "shadow" ? "shadow" : v === "enforce" ? "enforce" : "off";
+  if (v === "enforce") return "enforce_not_implemented (fell closed to off)";
+  if (v && v !== "off" && v !== "shadow") return `unknown_mode:${v} (fell closed to off)`;
+  return null;
 }
 
 /** ARCHITECT_SYSTEM_V2 — grounded, strict-structured. The model may design missions ONLY around observed
@@ -84,11 +106,20 @@ export interface GroundingShadowResult {
   unsupportedCriteria: number;
   unsafeTransitionCount: number;
   duplicateRate: number;
-  plannedBudgetBase: string;
+  /** budget from the REAL allocateBudget over the critic-supported candidates (base units, not weights). */
+  allocationOk: boolean;
   suppliedBudgetBase: string;
+  allocatedBudgetBase: string;
+  exactBudgetEquality: boolean;
+  fundedMissionCount: number;
+  droppedMissionCount: number;
+  allocationFailureReason: string | null;
+  /** true ONLY when allocation succeeds AND allocatedBase === suppliedBudgetBase exactly. */
   budgetConsistent: boolean;
   disagreement: "agree" | "v2_fewer" | "v2_more" | "v2_empty";
   error: string | null;
+  /** set when the configured mode was not off|shadow (fell closed to off). */
+  modeReason?: string | null;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -141,7 +172,9 @@ export async function runGroundedShadow(
     version: "grounding-shadow-v1", ran: false, mode: missionGroundingMode(), observationSetDigest: digest,
     candidateCount: 0, structurallyValid: 0, criticSupported: 0, accepted: 0, groundingCoverage: 0, distinctStateCoverage: 0,
     tierCounts: emptyTiers(), unsupportedCriteria: 0, unsafeTransitionCount: 0, duplicateRate: 0,
-    plannedBudgetBase: "0", suppliedBudgetBase: input.totalBudgetBase.toString(), budgetConsistent: true, disagreement: "agree", error: null, ...over,
+    allocationOk: false, suppliedBudgetBase: input.totalBudgetBase.toString(), allocatedBudgetBase: "0", exactBudgetEquality: false,
+    fundedMissionCount: 0, droppedMissionCount: 0, allocationFailureReason: null, budgetConsistent: false,
+    disagreement: "agree", error: null, modeReason: missionGroundingModeReason(), ...over,
   });
   if (!set || set.facts.length === 0) return base({ error: "no_observation_set" });
 
@@ -230,9 +263,14 @@ export async function runGroundedShadow(
       }
     }
   }
-  const plannedBudget = candidates.reduce((s, m) => s + BigInt(Math.max(0, m.rewardWeight)) * BigInt(Math.max(0, m.maxCompletions)), BigInt(0));
-  // reward WEIGHTS are relative (the compiler derives base units); here we flag only whether the candidate
-  // set is plausibly within budget by comparing accepted mission count's implied minimum, not exact base.
+  // BUDGET — run the REAL production allocateBudget over the critic-supported candidates (base units, NOT
+  // reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total equals
+  // the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
+  const alloc = accepted.length > 0
+    ? allocateBudget(accepted.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })), input.totalBudgetBase)
+    : { ok: false, reason: "no_accepted_candidates" as string, missions: [] as { rewardBase: bigint; maxCompletions: bigint }[] };
+  const allocatedBase = alloc.ok ? alloc.missions.reduce((s, x) => s + x.rewardBase * x.maxCompletions, BigInt(0)) : BigInt(0);
+  const exactBudgetEquality = alloc.ok && allocatedBase === input.totalBudgetBase;
   const objectives = new Set(candidates.map((m) => m.objective.trim().toLowerCase()));
   return base({
     ran: true,
@@ -246,8 +284,13 @@ export async function runGroundedShadow(
     unsupportedCriteria,
     unsafeTransitionCount,
     duplicateRate: candidates.length === 0 ? 0 : 1 - objectives.size / candidates.length,
-    plannedBudgetBase: plannedBudget.toString(),
-    budgetConsistent: unsafeTransitionCount === 0, // structural: no unsafe support used
+    allocationOk: alloc.ok,
+    allocatedBudgetBase: allocatedBase.toString(),
+    exactBudgetEquality,
+    fundedMissionCount: alloc.ok ? alloc.missions.length : 0,
+    droppedMissionCount: accepted.length - (alloc.ok ? alloc.missions.length : 0),
+    allocationFailureReason: alloc.ok ? null : (alloc as { reason?: string }).reason ?? "allocation_failed",
+    budgetConsistent: exactBudgetEquality,
     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
   });
 }

@@ -39,7 +39,7 @@ const v2Mission = (over: Record<string, unknown> = {}) => ({
   targetSurface: "https://p.test/play", criteria: ["Reach the world after clicking Start"], evidenceRequirements: ["Describe the world state"],
   whyItMatters: "core", sources: [{ kind: "page", ref: "https://p.test/play", observation: "world" }], priority: "high", riskCategory: "critical_journey",
   effortMinutes: 3, rewardWeight: 5, maxCompletions: 3, verificationMethod: "account", confidence: 0.8, assumptions: [], disallowed: [],
-  groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, factRefs: [startId], evidenceMode: "observation", supportRationale: "start seen" }] },
+  groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "state", factRefs: [startId], evidenceIndex: 0, evidenceMode: "observation", supportRationale: "start seen" }] },
   ...over,
 });
 
