@@ -67,3 +67,6 @@ next-env.d.ts
 
 # Field Test screenshots — generated at runtime, never committed.
 /public/field-tests/
+
+# transient smoke checkpoint (never committed; evidence artifact IS committed)
+promotion-evidence/*.checkpoint.json

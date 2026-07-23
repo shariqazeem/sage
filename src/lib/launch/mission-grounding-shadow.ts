@@ -267,6 +267,9 @@ export interface GroundingShadowResult {
   criticFinishReason: string | null;
   criticParsePolicy: string | null;
   criticRepaired: boolean | null;
+  /** counts of the canonical-gate rejection CODES (enums like "unanchored_claim") for critic-supported
+   *  candidates that failed the gate — leak-safe (codes only, never mission text). */
+  canonicalRejectionCodes: Record<string, number>;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
@@ -340,6 +343,7 @@ export async function runGroundedShadow(
     criticModelRequested, criticModelActual: null, criticProvider: null,
     architectStatus: "not_run", architectErrorCode: null, architectLatencyMs: null, architectPromptTokens: null, architectCompletionTokens: null, architectFinishReason: null, architectParsePolicy: null, architectRepaired: null,
     criticStatus: "not_run", criticErrorCode: null, criticLatencyMs: null, criticPromptTokens: null, criticCompletionTokens: null, criticFinishReason: null, criticParsePolicy: null, criticRepaired: null,
+    canonicalRejectionCodes: {},
     observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
     ...over,
   });
@@ -463,6 +467,8 @@ export async function runGroundedShadow(
   //     uniqueness) the legacy plan uses. `accepted` means canonical-gate-passed — NOT merely critic-supported.
   const canonReports = validatePlanMissions(criticSupportedList, scope, corpus, set);
   const accepted = criticSupportedList.filter((_m, i) => canonReports[i]?.ok);
+  const canonicalRejectionCodes: Record<string, number> = {};
+  for (const rep of canonReports) if (!rep.ok) for (const iss of rep.issues) canonicalRejectionCodes[iss.code] = (canonicalRejectionCodes[iss.code] ?? 0) + 1;
 
   // 4) bounded metrics.
   const tierCounts = emptyTiers();
@@ -516,6 +522,7 @@ export async function runGroundedShadow(
     budgetConsistent: exactBudgetEquality,
     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
     observationView: viewMeta,
+    canonicalRejectionCodes,
     ...telemetry(),
   });
 }
