@@ -237,6 +237,8 @@ export interface ReplayShadowSummary {
   probes: number;
   byClassification: Record<string, number>;
   results: ProbeResult[];
+  /** leak-safe per-probe records (ids + classification only) — safe to persist on the inspection artifact. */
+  records: { probeId: string; transitionId: string; classification: string }[];
 }
 
 /**
@@ -250,16 +252,18 @@ export async function runReplayShadow(
   deps: ReplayDeps & { maxProbes?: number } = {},
 ): Promise<ReplayShadowSummary> {
   const mode = inspectionReplayMode();
-  if (mode !== "shadow") return { ran: false, mode, probes: 0, byClassification: {}, results: [] };
+  if (mode !== "shadow") return { ran: false, mode, probes: 0, byClassification: {}, results: [], records: [] };
   const probes = buildProbes(set).slice(0, deps.maxProbes ?? 6);
   const results: ProbeResult[] = [];
+  const records: { probeId: string; transitionId: string; classification: string }[] = [];
   const byClassification: Record<string, number> = {};
   for (const p of probes) {
     const r = await runInspectionProbe(p, { ...deps, log: (e) => { logReplayEvent(cid, e); deps.log?.(e); } });
     results.push(r);
+    records.push({ probeId: p.id, transitionId: p.sourceTransitionId, classification: r.classification }); // leak-safe: ids + code only
     byClassification[r.classification] = (byClassification[r.classification] ?? 0) + 1;
   }
-  return { ran: probes.length > 0, mode, probes: probes.length, byClassification, results };
+  return { ran: probes.length > 0, mode, probes: probes.length, byClassification, results, records };
 }
 
 function normalizeKey(key: string | undefined): string {

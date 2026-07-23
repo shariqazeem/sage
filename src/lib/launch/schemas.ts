@@ -253,6 +253,22 @@ export interface ProductMapV1 {
    * that lack it remain readable. Populated after the digest is computed.
    */
   observations?: import("./observed-facts").ObservationSetV1 | null;
+  /**
+   * Eyes V2 — a leak-safe record of the SHADOW inspection replay (INSPECTION_REPLAY_MODE=shadow), when it
+   * ran. Result codes + transition ids + digests ONLY — never page content. Also excluded from `digest`
+   * (attached post-digest), advisory design-time confidence only; it can NEVER affect payout or mission
+   * acceptance, and its absence leaves the serialized map byte-identical.
+   */
+  replayShadow?: ReplayShadowRecordV1 | null;
+}
+
+/** Leak-safe summary of a shadow replay pass — codes + ids + digests, no observed content. */
+export interface ReplayShadowRecordV1 {
+  version: "replay-shadow-v1";
+  mode: "shadow";
+  probes: number;
+  byClassification: Record<string, number>;
+  results: { probeId: string; transitionId: string; classification: string }[];
 }
 
 /* ────────────────────────────────────────────── candidate mission ───────── */

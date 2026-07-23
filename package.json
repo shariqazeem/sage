@@ -15,6 +15,7 @@
     "test:field-egress": "FIELD_TEST_ENABLED=1 vitest run src/lib/launch/field-test.test.ts",
     "test:inspection-replay": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspection-replay.browser.test.ts",
     "demo:agentic-v2": "DEMO_AGENTIC=1 vitest run src/lib/launch/demo-agentic-v2.test.ts --reporter=basic",
+    "test:inspection-live": "INSPECTION_REPLAY_TEST=1 vitest run src/lib/launch/inspect-and-plan.integration.test.ts",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",

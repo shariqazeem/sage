@@ -15,6 +15,7 @@ import { inspectRepo } from "./github";
 import { buildProductMap, hasUsableInspection, scopeFromObservations } from "./product-map";
 import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
+import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
 import { allocateBudget } from "./budget";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -54,7 +55,7 @@ export async function inspectAndPlan(
   publicCampaignId: string,
   onStage: (stage: LaunchStage) => void = () => {},
   now = 0,
-  opts: { inspectionId?: string } = {},
+  opts: { inspectionId?: string; replayDeps?: { allowLoopback?: ReadonlySet<string>; egressAllowedPorts?: ReadonlySet<number> } } = {},
 ): Promise<LaunchResult> {
   const trail: { stage: LaunchStage; at: number }[] = [];
   const stamp = (stage: LaunchStage) => {
@@ -124,6 +125,20 @@ export async function inspectAndPlan(
   // `hasUsableInspection` is the shared predicate the mission brain gate uses too, so they can't drift.
   if (!hasUsableInspection(map)) {
     return out("needs_input", "no_inspected_pages", { map, questions: map.openQuestions });
+  }
+
+  // 3b. Eyes V2 — OPTIONAL shadow replay of a safe observed transition (INSPECTION_REPLAY_MODE=shadow;
+  // default off → this whole block is a no-op and the artifact is byte-identical). Re-performs an action
+  // Sage already saw, through the C4 guarded egress boundary, and attaches leak-safe result codes to the
+  // inspection artifact. It NEVER affects payout or mission acceptance; a replay failure never fails the
+  // inspection (best-effort, fully caught).
+  if (map.observations && inspectionReplayMode() === "shadow") {
+    try {
+      const replay = await runReplayShadow(map.observations, opts.inspectionId ?? "inspection", { maxProbes: 2, ...opts.replayDeps });
+      if (replay.ran) map.replayShadow = { version: "replay-shadow-v1", mode: "shadow", probes: replay.probes, byClassification: replay.byClassification, results: replay.records };
+    } catch {
+      /* replay is best-effort telemetry; it can never fail the inspection */
+    }
   }
 
   // 4. real LLM mission brain (architect → critic → deterministic gate).
