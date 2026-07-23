@@ -1,0 +1,124 @@
+{
+  "artifact": "grounding-critic-semantic-v2",
+  "note": "V3 critic calibration on corpus-v2 — NOT model approval, NOT promotion-ready",
+  "timestamp": "2026-07-23T15:37:30.459Z",
+  "contract": "critic-contract-v3",
+  "corpusVersion": "grounding-critic-corpus-v2",
+  "corpusDigest": "0d8af177d317392c4928b0fd",
+  "shuffleSeed": 20260724,
+  "fixtureOrder": [
+    "action_without_causal_support",
+    "grounded_and_aligned",
+    "displayed_claim_supported",
+    "underlying_claim_unproven",
+    "generic_action_language",
+    "replayed_action_supported",
+    "observed_report_state_supported",
+    "unrelated_state_fact",
+    "different_action_same_state",
+    "grounded_but_unrelated",
+    "exact_after_state",
+    "injection_inside_fact",
+    "ghost_export_with_unrelated_fact",
+    "contradictory_state",
+    "inferred_visual_only",
+    "one_half_supported"
+  ],
+  "callsConsumed": 3,
+  "hardCap": 4,
+  "stop": null,
+  "modelSubstitution": null,
+  "anonymousResults": [
+    {
+      "label": "candidate_a",
+      "eligible": true,
+      "ineligibleReason": null,
+      "servedOk": true,
+      "avgRecall": 1,
+      "avgExact": 0.90625,
+      "totTokens": 5131,
+      "medLat": 9997,
+      "consistent": false,
+      "falseSupportedCaseIds": [],
+      "falseRejectedCaseIds": [],
+      "scores": [
+        {
+          "strictSchemaValid": true,
+          "exactDecisionCoverage": true,
+          "duplicateDecisionCount": 0,
+          "falseSupported": 0,
+          "falseRejected": 0,
+          "exactVerdictAccuracy": 0.9375,
+          "paySafeBinaryAccuracy": 1,
+          "supportedRecall": 1,
+          "supportedPrecision": 1,
+          "pairedContrastCorrect": 5,
+          "totalPairs": 5,
+          "displayVsTruthCorrect": true,
+          "goalAlignmentCorrect": true,
+          "actionCausalityCorrect": true,
+          "injectionCaseCorrect": true,
+          "falseSupportedCaseIds": [],
+          "falseRejectedCaseIds": [],
+          "answered": 16,
+          "total": 16
+        },
+        {
+          "strictSchemaValid": true,
+          "exactDecisionCoverage": true,
+          "duplicateDecisionCount": 0,
+          "falseSupported": 0,
+          "falseRejected": 0,
+          "exactVerdictAccuracy": 0.875,
+          "paySafeBinaryAccuracy": 1,
+          "supportedRecall": 1,
+          "supportedPrecision": 1,
+          "pairedContrastCorrect": 5,
+          "totalPairs": 5,
+          "displayVsTruthCorrect": true,
+          "goalAlignmentCorrect": true,
+          "actionCausalityCorrect": true,
+          "injectionCaseCorrect": true,
+          "falseSupportedCaseIds": [],
+          "falseRejectedCaseIds": [],
+          "answered": 16,
+          "total": 16
+        }
+      ]
+    },
+    {
+      "label": "candidate_b",
+      "eligible": false,
+      "ineligibleReason": "llm_strict_not_object",
+      "servedOk": true,
+      "avgRecall": 0,
+      "avgExact": 0,
+      "totTokens": 0,
+      "medLat": null,
+      "consistent": false,
+      "falseSupportedCaseIds": [],
+      "falseRejectedCaseIds": [],
+      "scores": []
+    }
+  ],
+  "revealedModels": {
+    "candidate_a": {
+      "requested": "google/gemini-3.1-flash-lite-preview",
+      "served": [
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3.1-flash-lite-preview"
+      ]
+    },
+    "candidate_b": {
+      "requested": "anthropic/claude-haiku-4-5",
+      "served": [
+        "claude-haiku-4-5-20251001"
+      ]
+    }
+  },
+  "winnerLabel": "candidate_a",
+  "grounding_critic_canary_candidate": "google/gemini-3.1-flash-lite-preview",
+  "recommendation": "critic_candidate_selected",
+  "configurationConclusive": true,
+  "eligibilityConclusionConclusive": true
+}

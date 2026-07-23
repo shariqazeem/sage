@@ -1,0 +1,47 @@
+{
+  "evaluationId": "grounding-critic-semantic-v2",
+  "hardCap": 4,
+  "callsConsumed": 3,
+  "seed": 20260724,
+  "corpusVersion": "grounding-critic-corpus-v2",
+  "corpusDigest": "0d8af177d317392c4928b0fd",
+  "contract": "critic-contract-v3",
+  "calls": [
+    {
+      "seq": 1,
+      "label": "candidate_a",
+      "repeat": 1,
+      "startedAt": "2026-07-23T15:37:09.856Z",
+      "completedAt": "2026-07-23T15:37:19.854Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 2367,
+      "completionTokens": 199,
+      "latencyMs": 9997
+    },
+    {
+      "seq": 2,
+      "label": "candidate_a",
+      "repeat": 2,
+      "startedAt": "2026-07-23T15:37:19.856Z",
+      "completedAt": "2026-07-23T15:37:22.121Z",
+      "outcomeCode": "ok",
+      "terminalState": "completed",
+      "promptTokens": 2367,
+      "completionTokens": 198,
+      "latencyMs": 2264
+    },
+    {
+      "seq": 3,
+      "label": "candidate_b",
+      "repeat": 1,
+      "startedAt": "2026-07-23T15:37:22.123Z",
+      "completedAt": "2026-07-23T15:37:30.458Z",
+      "outcomeCode": "llm_strict_not_object",
+      "terminalState": "failed",
+      "promptTokens": 2510,
+      "completionTokens": 211,
+      "latencyMs": 8334
+    }
+  ]
+}

@@ -24,6 +24,8 @@
     "smoke:semantic": "GROUNDING_SEMANTIC=1 GROUNDING_SEMANTIC_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/mission-grounding-semantic-smoke.live.test.ts --reporter=basic",
     "bakeoff:critic:dryrun": "GROUNDING_CRITIC_DRYRUN=1 vitest run src/lib/launch/grounding-critic-bakeoff.live.test.ts --reporter=basic",
     "bakeoff:critic": "GROUNDING_CRITIC_BAKEOFF=1 GROUNDING_CRITIC_BAKEOFF_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/grounding-critic-bakeoff.live.test.ts --reporter=basic",
+    "bakeoff:critic2:dryrun": "GROUNDING_CRITIC2_DRYRUN=1 vitest run src/lib/launch/grounding-critic-bakeoff-v2.live.test.ts --reporter=basic",
+    "bakeoff:critic2": "GROUNDING_CRITIC2=1 GROUNDING_CRITIC_BAKEOFF2_CONFIRM=CALL_CAP_4 vitest run src/lib/launch/grounding-critic-bakeoff-v2.live.test.ts --reporter=basic",
     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
     "format": "prettier --write .",
