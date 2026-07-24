@@ -270,6 +270,28 @@ describe("#2/#3 an onboarding occurrence cannot satisfy an in-world requirement"
     }
   });
 
+  it("the SEND step never also completes the RECEIVE checkpoint (distinct evidence)", () => {
+    const bound = bindJourneyToContext(journey(), ctx()).journey;
+    const j = evaluateJourney(
+      bound,
+      RUN.map((_, i) =>
+        // production-realistic: the submitted message APPEARS in the chat, so the send state has a delta
+        stepFor(
+          i,
+          i === 6
+            ? { addedText: "Hello — I am testing this product interaction." }
+            : {},
+        ),
+      ),
+    );
+    const send = j.checkpoints[3];
+    const receive = j.checkpoints[4];
+    expect(send.status).toBe("observed");
+    expect(receive.status).toBe("observed");
+    // different states → different evidence: an echo of what was sent can never prove a reply
+    expect(receive.evidence.factIds).not.toEqual(send.evidence.factIds);
+  });
+
   it("the full run completes every checkpoint, in phase, with evidence", () => {
     const bound = bindJourneyToContext(journey(), ctx()).journey;
     const j = evaluateJourney(

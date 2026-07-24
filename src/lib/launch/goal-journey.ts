@@ -683,6 +683,10 @@ export function evaluateJourney(
         transitionIds: step.transitionId ? [step.transitionId] : [],
       };
       cursor++;
+      // SENDING IS NOT RECEIVING: the step that supplies an input can never also be the step that shows
+      // the result (a product echoes the sent message immediately, which is not a response). The outcome
+      // must be proven by a LATER state, with its own evidence.
+      if (cp.kind === "input") break;
     }
   }
   return { ...journey, checkpoints };
