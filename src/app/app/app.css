@@ -1530,3 +1530,10 @@
   background: var(--warn-soft);
   border: 1px solid var(--warn-border);
 }
+
+/* completed campaign — console header chip (green, all rewards paid) */
+.sage-app .cw-status-done {
+  color: var(--ok);
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-border);
+}

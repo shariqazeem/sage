@@ -17,10 +17,12 @@ function usd(base: number): string {
 }
 
 type Group = "running" | "stopped" | "done";
-function statusMeta(status: string): { group: Group; label: string } {
-  const s = status.toLowerCase();
+function statusMeta(c: CampaignCard): { group: Group; label: string } {
+  const s = c.status.toLowerCase();
   if (s === "cancelled" || s === "stopped") return { group: "stopped", label: "Stopped" };
   if (s === "completed" || s === "closed") return { group: "done", label: "Completed" };
+  // Economically done: every mission slot paid → no work or budget left. Show as Completed.
+  if (c.totalCompletions > 0 && c.paid >= c.totalCompletions) return { group: "done", label: "Completed" };
   if (s === "paused") return { group: "running", label: "Paused" };
   if (s === "draft") return { group: "running", label: "Draft" };
   return { group: "running", label: "Live" };
@@ -83,7 +85,7 @@ export function DashboardClient({
 
   const grouped = GROUP_ORDER.map((g) => ({
     ...g,
-    items: campaigns.filter((c) => statusMeta(c.status).group === g.key),
+    items: campaigns.filter((c) => statusMeta(c).group === g.key),
   })).filter((g) => g.items.length > 0);
 
   return (
@@ -168,7 +170,7 @@ export function DashboardClient({
             </div>
             <div className="sb-dash-cards sage-stagger">
               {g.items.map((c) => {
-                const meta = statusMeta(c.status);
+                const meta = statusMeta(c);
                 return (
                   <Link
                     key={c.id}

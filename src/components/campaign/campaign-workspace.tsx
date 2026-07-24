@@ -136,11 +136,12 @@ function Console({ data }: { data: WorkspaceData }) {
   const [showTech, setShowTech] = useState(false);
   const pct = data.fundedBase > 0 ? Math.round((data.paidBase / data.fundedBase) * 100) : 0;
   const status = data.status.toLowerCase();
-  const isLive = status === "live" || status === "active";
   const isStopped = status === "cancelled" || status === "stopped";
-  const isDone = status === "completed" || status === "closed";
-  const statusLabel = isLive ? "Live" : isStopped ? "Stopped" : isDone ? "Completed" : data.status;
-  const statusClass = isStopped ? "cw-status-stopped" : isLive || isDone ? "cw-status-live" : "cw-status-off";
+  // Economically complete: every mission slot paid → all rewards released, budget spent.
+  const allPaid = data.totalCompletions > 0 && data.paidCompletions >= data.totalCompletions;
+  const isDone = !isStopped && (status === "completed" || status === "closed" || allPaid);
+  const statusLabel = isStopped ? "Stopped" : isDone ? "Completed" : status === "paused" ? "Paused" : "Live";
+  const statusClass = isStopped ? "cw-status-stopped" : isDone ? "cw-status-done" : "cw-status-live";
   const autopilot = data.autonomy === "autopilot";
 
   return (
@@ -159,6 +160,11 @@ function Console({ data }: { data: WorkspaceData }) {
         {isStopped && (
           <p style={{ fontSize: 13.5, color: "var(--warn)", margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
             This campaign is stopped — the remaining funds were returned to your wallet.
+          </p>
+        )}
+        {isDone && (
+          <p style={{ fontSize: 13.5, color: "var(--ok)", margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
+            All missions completed — every reward has been paid.
           </p>
         )}
         {data.description && (

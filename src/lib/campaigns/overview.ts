@@ -5,6 +5,7 @@ import {
   listPosterEvents,
   listSubmissions,
 } from "@/lib/db/campaigns";
+import { v2Economics } from "./v2-economics";
 import { toJournalEntries, type JournalEntry } from "./journal";
 import { buildIntentHashMap, type IntentRef } from "./labels";
 
@@ -16,6 +17,8 @@ export interface CampaignCard {
   chainId: number;
   rewardBase: number;
   maxRecipients: number;
+  /** total mission completion slots (V2: Σ mission caps; V1: maxRecipients). paid ≥ this ⇒ completed. */
+  totalCompletions: number;
   submissions: number;
   pending: number;
   paid: number;
@@ -119,6 +122,7 @@ export function getDeputyOverview(wallet: string | null): DeputyOverview {
     totalPending += pending;
     totalPaid += paid;
     paidAmountBase += paid * c.rewardAmount;
+    const totalCompletions = c.vaultKind === "campaign_v2" ? v2Economics(c).totalCompletions : c.maxRecipients;
     return {
       id: c.id,
       title: c.title,
@@ -126,6 +130,7 @@ export function getDeputyOverview(wallet: string | null): DeputyOverview {
       chainId: c.chainId,
       rewardBase: c.rewardAmount,
       maxRecipients: c.maxRecipients,
+      totalCompletions,
       submissions: subs.length,
       pending,
       paid,
