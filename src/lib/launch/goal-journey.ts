@@ -7,7 +7,6 @@ import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
 import {
   instancesOf,
   phaseAtLeast,
-  reachedPhase,
   type ExperiencePhase,
   type ProductContextV1,
 } from "./product-context";
