@@ -18,7 +18,7 @@ import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
 import { GOAT_USDC } from "@/lib/deputy/networks";
-import { getCampaign, getSubmission } from "@/lib/db/campaigns";
+import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import {
   listHeldSubmissions,
   releaseSubmission,
@@ -371,6 +371,7 @@ export async function callAgentWalletTool(
         const recoverable = await usdcBalanceBase(vault);
         try {
           const res = await stopCampaignViaPrivy(b, vault);
+          setCampaignStatus(campaign.id, "cancelled"); // catalogue it as stopped so it leaves the running list
           return ok({
             ok: true,
             campaignId: campaign.id,

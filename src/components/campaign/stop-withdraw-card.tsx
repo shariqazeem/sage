@@ -26,10 +26,12 @@ const VAULT_ABI = [
 const STATE_REVOKED = 4;
 
 export function StopWithdrawCard({
+  campaignId,
   vaultAddress,
   chainId,
   explorerUrl,
 }: {
+  campaignId: string;
   vaultAddress: string;
   chainId: number;
   explorerUrl?: string;
@@ -95,6 +97,8 @@ export function StopWithdrawCard({
         const tx = await wc.writeContract({ address: vault, abi: VAULT_ABI, functionName: "revoke", args: [], account: acct, chain });
         await pub.waitForTransactionReceipt({ hash: tx });
       }
+      // the vault is now stopped on-chain — catalogue it as cancelled (owner-gated server-side).
+      void fetch(`/api/campaigns/${campaignId}/stop`, { method: "POST" }).catch(() => {});
 
       // 2) withdrawRemaining → returns the whole balance to the owner (the connected founder wallet).
       const token = (await pub.readContract({ address: vault, abi: VAULT_ABI, functionName: "getToken" })) as `0x${string}`;
@@ -122,7 +126,7 @@ export function StopWithdrawCard({
       else if (/NotAuthorized|onlyOwner/i.test(msg)) setError("Only the vault owner can do this — connect the owner wallet.");
       else setError(`Couldn't complete it: ${msg.slice(0, 160)}`);
     }
-  }, [wallet, chainId, vaultAddress, refresh]);
+  }, [wallet, chainId, vaultAddress, campaignId, refresh]);
 
   const busyLabel = busy === "revoke" ? "Stopping campaign…" : busy === "withdraw" ? "Returning your USDC…" : null;
 

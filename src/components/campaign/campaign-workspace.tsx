@@ -304,7 +304,7 @@ function Console({ data }: { data: WorkspaceData }) {
         </div>
       )}
 
-      <StopWithdrawCard vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+      <StopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
 
       <footer className="sage-hint" style={{ padding: "22px 2px 60px" }}>
         You own the campaign vault; Sage is the bounded operator. It reviews each submission and

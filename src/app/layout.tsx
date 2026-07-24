@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
 import { AppShell } from "@/components/shell/app-shell";
+import { geist } from "@/components/landing/fonts";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,7 +32,7 @@ export default function RootLayout({
     // Font CSS variables live on <html> because globals.css applies `font-sans`
     // to <html>; defining them on <body> would leave the root font-family
     // unresolved and fall back to the browser default serif.
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${geist.variable}`}>
       <body className="antialiased">
         {children}
         <AppShell />
