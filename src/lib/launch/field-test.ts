@@ -1461,11 +1461,14 @@ async function exploreInteractive(ctx: {
       const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
       let modelCalls = 0;
       let stall = 0;
+      // Budget MEANINGFUL states (real progress), not raw actions — the spec allows up to 30 actions but
+      // only 25 retained states, so animation frames / no-progress fumbles don't burn the state budget.
+      let meaningful = 1; // the initial state counts
       let prevWordSig = wordSignature(
         states[states.length - 1]?.visibleTextExcerpt ?? "",
       );
       let prevUrl = page.url();
-      while (canInteract() && states.length < MAX_STATES) {
+      while (canInteract() && meaningful < MAX_STATES) {
         const cur = states[states.length - 1];
         if (!cur) break;
         const digest = stateDigest(cur);
@@ -1534,6 +1537,7 @@ async function exploreInteractive(ctx: {
         const realChange = page.url() !== prevUrl || newWordSig !== prevWordSig;
         history.push({ action: trigger, changed: realChange, note: progress });
         if (realChange) {
+          meaningful++;
           deadLabels.clear();
           ineffective.clear();
           stall = 0;
