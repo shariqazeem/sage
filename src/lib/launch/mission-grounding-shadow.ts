@@ -448,10 +448,17 @@ const MAX_FACTS = 60,
 export function buildArchitectObservationView(
   set: import("./observed-facts").ObservationSetV1,
   replayReproduced: ReadonlySet<string> = new Set(),
+  /** fact ids that MUST be presented (the founder journey's checkpoint evidence): a criterion may only
+   *  cite what it was shown, so these sort first and the size cap never drops them. */
+  pinnedFactIds: ReadonlySet<string> = new Set(),
 ) {
   const clip = (s: string) => s.slice(0, MAX_TEXT);
   const facts = [...set.facts]
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => {
+      const pa = pinnedFactIds.has(a.id) ? 0 : 1;
+      const pb = pinnedFactIds.has(b.id) ? 0 : 1;
+      return pa !== pb ? pa - pb : a.id.localeCompare(b.id);
+    })
     .slice(0, MAX_FACTS)
     .map((f) => ({
       id: f.id,
@@ -781,8 +788,11 @@ export async function runGroundedShadow(
   //    (reject-never-repair, unknown keys rejected). A single invalid mission rejects the WHOLE response.
   //    The ID→EVIDENCE view puts every fact id BESIDE its observed content (page/state/texts/role/name) and
   //    every transition id beside its verb/before-after/deltas/safety/replay — the model cites facts, not hashes.
+  const journeyPins = new Set(
+    (map.goalJourney?.checkpoints ?? []).flatMap((c) => c.evidence.factIds),
+  );
   const { view: observationView, meta: viewMeta } =
-    buildArchitectObservationView(set, deps.replayReproduced);
+    buildArchitectObservationView(set, deps.replayReproduced, journeyPins);
   // the bounded ids ACTUALLY presented to the architect — the compiler binds every citation to these.
   const presentedView = {
     factIds: new Set(observationView.facts.map((f) => f.id)),
@@ -804,8 +814,23 @@ export async function runGroundedShadow(
         }
       : {};
   try {
-    const journeyBlock = map.goalJourney
-      ? `\n\nFOUNDER JOURNEY (ordered required checkpoints — your plan MUST cover every observed one, especially the final outcome):\n${JSON.stringify(journeyForPrompt(map.goalJourney))}`
+    // advertise ONLY evidence ids the architect was actually SHOWN — it may never cite an omitted id.
+    const journeyView = map.goalJourney
+      ? (() => {
+          const v = journeyForPrompt(map.goalJourney);
+          return {
+            ...v,
+            checkpoints: v.checkpoints.map((c) => ({
+              ...c,
+              evidenceFactIds: c.evidenceFactIds.filter((f) =>
+                presentedView.factIds.has(f),
+              ),
+            })),
+          };
+        })()
+      : null;
+    const journeyBlock = journeyView
+      ? `\n\nFOUNDER JOURNEY (ordered required checkpoints — your plan MUST cover every observed one, especially the final outcome):\n${JSON.stringify(journeyView)}`
       : "";
     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}${journeyBlock}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
     const json = await architect(ARCHITECT_SYSTEM_V2, user);
