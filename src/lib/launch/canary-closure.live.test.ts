@@ -93,7 +93,7 @@ async function runClosure(opts: { live: boolean }) {
   const { runInspectionJob } = await import("./job");
 
   const publicCampaignId = (opts.live ? "cc-live-" : "cc-det-") + transId.slice(0, 8);
-  const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId, productUrl: "https://yara.test/", repoUrl: null, goal: "Verify the homepage's primary call-to-action label.", targetUsers: "players", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6 });
+  const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId, productUrl: "https://yara.test/", repoUrl: null, goal: "Verify the homepage's primary call-to-action label.", targetUsers: "players", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6, planningRequestId: `prid:test:cc-${publicCampaignId}`, surface: "test" });
   await runInspectionJob(job.id);
 
   const after = getInspectionJob(job.id)!;

@@ -6,7 +6,7 @@ import {
   validateText,
   validateOptionalText,
 } from "@/lib/campaigns/validate";
-import { createInspectionJob } from "@/lib/db/inspection";
+import { createInspectionJob, RequestIdentityMismatchError } from "@/lib/db/inspection";
 
 type InspectionJob = ReturnType<typeof createInspectionJob>["job"];
 
@@ -20,6 +20,14 @@ export interface StartInspectionInput {
    *  "clawup:<clientRef>" for an agent-started one. The real owner is established later
    *  when the founder claims the plan at /launch/<id> with their own wallet. */
   founder: string;
+  /** The server-minted, never-LLM-authored request id (one per founder turn). REQUIRED — a
+   *  new turn is a new request even when url+goal+budget are identical, so a stale ready plan
+   *  is never silently reused. */
+  planningRequestId: string;
+  /** Trusted surface ("web" | "telegram" | "agent-api" | …) folded into the commitment. */
+  surface?: string;
+  /** Trusted actor identity folded into the commitment (default: the founder namespace). */
+  actor?: string;
 }
 
 export type StartInspectionResult =
@@ -72,15 +80,24 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
     }
   })();
 
-  const { job, created } = createInspectionJob({
-    founderWallet: input.founder,
-    publicCampaignId: `launch-${slug(host)}-${rand()}`,
-    productUrl: url.value,
-    repoUrl: repo.value || null,
-    goal: goal.value,
-    targetUsers: targetUsers.value,
-    totalBudgetBase: BigInt(budget.value),
-    tokenDecimals: 6,
-  });
-  return { ok: true, job, created };
+  try {
+    const { job, created } = createInspectionJob({
+      founderWallet: input.founder,
+      publicCampaignId: `launch-${slug(host)}-${rand()}`,
+      productUrl: url.value,
+      repoUrl: repo.value || null,
+      goal: goal.value,
+      targetUsers: targetUsers.value,
+      totalBudgetBase: BigInt(budget.value),
+      tokenDecimals: 6,
+      planningRequestId: input.planningRequestId,
+      surface: input.surface,
+      actor: input.actor ?? input.founder,
+    });
+    return { ok: true, job, created };
+  } catch (e) {
+    // A request id reused with a different payload — fail closed, never answer the wrong ask.
+    if (e instanceof RequestIdentityMismatchError) return { ok: false, error: "request_identity_mismatch" };
+    throw e;
+  }
 }

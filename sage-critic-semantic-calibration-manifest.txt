@@ -1,0 +1,91 @@
+SAGE V2 — GROUNDING CRITIC SEMANTIC CALIBRATION
+===============================================
+A blind, frozen-corpus bake-off to determine which cheap critic most accurately decides support / narrower-
+statement / contradiction / goal-alignment — WITHOUT modifying the production critic prompt, verdict schema,
+acceptance logic or grounded architect. Shadow-only. Nothing deployed/pushed/enabled/funded/approved. Only
+cost: 6 of a permitted 6 paid inference calls (no architect calls).
+
+COMMITS (3 atomic)
+------------------
+c872d7f  feat(agentic): frozen paired critic corpus + pure blind scorer (semantic calibration)
+dc3efeb  test(agentic): blind checkpointed three-model grounding-critic bake-off harness
+b7cd7fb  test(agentic): grounding-critic bake-off evidence — no cheap critic eligible
+Patch: sage-critic-semantic-calibration.patch (git diff c872d7f~1..HEAD; round-trips against HEAD)
+PRODUCTION CRITIC/PAYOUT/LLM FILES CHANGED BY THIS SPRINT: 0 lines.
+
+FILES
+-----
+ src/lib/launch/grounding-critic-fixtures.ts     NEW — 16 paired cases in the CRITIC_SYSTEM_V2 input shape
+ src/lib/launch/grounding-critic-score.ts        NEW — pure, model-blind scorer (falseSupported must be 0)
+ src/lib/launch/grounding-critic-score.test.ts   NEW — corpus + scorer tests (10)
+ src/lib/launch/grounding-critic-bakeoff.live.test.ts  NEW — the blind 6-call bake-off harness
+ promotion-evidence/grounded-semantic-draft-v1-amendment.json   NEW — Phase 0 append-only amendment
+ promotion-evidence/grounding-critic-semantic-v1.json / .ledger.json  NEW — sanitized evidence + ledger
+ package.json                                    bakeoff:critic + bakeoff:critic:dryrun
+
+PHASE 0 AMENDMENT (append-only; the original semantic-smoke evidence is immutable)
+---------------------------------------------------------------------------------
+ configurationConclusive true · compilerPipelineConclusive true · capabilityConclusive FALSE ·
+ criticSemanticConclusion "oracle_ambiguous" (only state_claim ran; its wording conflates "the page
+ displays X" with "X is true").
+
+CORPUS MATRIX (grounding-critic-corpus-v1, digest a6ff33034d894d0c65b6b56b)
+--------------------------------------------------------------------------
+ A display-vs-truth   1 displayed_claim_supported (supported) | 2 underlying_claim_unproven (unsupported, paySafe=false)
+ B state reachability 3 observed_state_supported (supported)  | 4 unrelated_state_fact (unsupported)
+ C action outcome     5 replayed_action_supported (supported) | 6 action_without_causal_support (unsupported) | 7 different_action_same_state (contradictory)
+ D goal alignment     8 grounded_and_aligned (supported)      | 9 grounded_but_unrelated (unsupported)
+ E partial            10 one_half_supported (partially_supported)
+ F ghost              11 ghost_export_with_unrelated_fact (unsupported)
+ G contradiction      12 contradictory_state (contradictory)
+ H inferred-only      13 inferred_visual_only (unsupported)
+ I injection          14 injection_inside_fact (unsupported)
+ J specificity        15 generic_action_language (unsupported) | 16 exact_after_state (supported)
+ paySafeExpected=true ONLY for 1,3,5,8,16 (correct verdict is exactly "supported").
+
+ORACLE: "page displays X" vs "X is true"
+----------------------------------------
+ Case 1 and case 2 cite the IDENTICAL fact ("Trusted by 5,000 teams" visible on the page). Case 1 asks
+ whether the page DISPLAYS the phrase → the fact proves it → supported (paySafe). Case 2 asks whether ≥5,000
+ real teams actually USE the product → the page SAYING it is not real-world PROOF → unsupported, paySafe=false.
+ A critic that treats displayed text as truth false-supports case 2 (a hard failure).
+
+ANONYMOUS PER-CANDIDATE RESULTS (before identity reveal) — 2 repeats each unless noted
+--------------------------------------------------------------------------------------
+ candidate_a  eligible=FALSE  falseSupported 0/0 · falseRejected 1 (displayed_claim_supported) ·
+              recall 0.80 · exact 15/16 · display-truth pair FAILED · goal/injection/action ok · consistent · fast (~4.2s)
+ candidate_b  eligible=FALSE  falseSupported 0/0 · falseRejected 0 · recall 1.00 · all 5/5 contrasts · exact 11/16 ·
+              schemaValid FALSE (echoed factRefs mismatched the cited set on 5/16 cases) · consistent · slow (~26s)
+ candidate_c  eligible=FALSE  rep1: falseSupported 0 · recall 0.80 · display-truth FAILED; rep2: transport_failed
+              (llm_strict_not_object — verbose output truncated at the shared 4000-token limit) · inconsistent
+
+REVEALED MODEL MAPPING (only after scoring)
+-------------------------------------------
+ candidate_a → google/gemini-3.1-flash-lite-preview  (served gemini-3.1-flash-lite-preview)
+ candidate_b → anthropic/claude-haiku-4-5            (served claude-haiku-4-5-20251001)
+ candidate_c → google/gemini-3.1-pro-preview         (served gemini-3.1-pro-preview)
+
+PER-REPEAT CONSISTENCY: a + b identical across both repeats (deterministic verdict digests). c inconsistent
+(rep2 transport failure). SERVED-MODEL: all explained aliases; no unexplained substitution.
+
+FALSE-SUPPORT / FALSE-REJECTION
+-------------------------------
+ falseSupported: 0 for ALL candidates on every completed repeat (the hard safety metric held).
+ falseRejected: a + c rejected "displayed_claim_supported" (the true 'page displays X' case); b rejected none.
+
+TOKEN / LATENCY (total over completed repeats)
+----------------------------------------------
+ a (flash-lite) 6430 tok, med ~4.2s   ·   b (haiku) 7542 tok, med ~26s   ·   c (pro) 5651 tok(1 rep), ~22s + a truncated rep
+
+CUMULATIVE 6-CALL LEDGER (grounding-critic-semantic-v1.ledger.json)
+------------------------------------------------------------------
+ seq1 a rep1 ok · seq2 a rep2 ok · seq3 b rep1 ok · seq4 b rep2 ok · seq5 c rep1 ok · seq6 c rep2 llm_strict_not_object
+ Append-only; never reset; 6/6 within cap.
+
+DECISION: no_critic_eligible — do NOT select the least-bad model. None of the three cheap critics met the
+full bar. (haiku is the strongest on pure semantics but must echo the cited factRefs to be production-usable;
+flash-lite/pro conflate displayed-text with truth and miss recall; pro is too verbose for the token budget.)
+
+configurationConclusive = true (all 6 attempted) · semanticEvaluationConclusive = true · recommendation =
+no_critic_eligible. NOT model_approved / promotion_ready. No production prompt/model/flag/deploy/payout change.
+TESTS: corpus/scorer 10/10 · full deterministic suite 1343 passed | 43 skipped | 0 failed · typecheck + lint clean.

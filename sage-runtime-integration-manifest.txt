@@ -1,0 +1,31 @@
+SAGE — Autonomous Runtime Integration Sprint — review manifest
+==============================================================
+BASE (overnight head): 3d02c35
+HEAD:                  15e7c87f12b0f0b180731e5cb9e830903a2db46f
+Patch: sage-runtime-integration.patch  (git am-able; 5 commits, 15 files, no secrets, reverse-checks OK)
+
+COMMITS (oldest -> newest):
+  37584d4  feat(agentic): wire grounded observations into live inspection      [S1]
+  0004f6c  feat(agentic): wire observation judgment v2 into payout shadow      [S4]
+  477d3c4  feat(concierge): wire autonomous task runs into live loop           [S3]
+  fe073ae  test(agentic): add dedicated entailment promotion corpus           [S5]
+  15e7c87  test(agentic): record payout policy promotion evidence             [S5]
+
+WHAT BECAME RUNTIME-REACHABLE (production entrypoint → feature):
+  S1  inspectAndPlan (inspection job) → buildProductMap now yields Eyes-V2 facts + observationSetDigest;
+      runReplayShadow wired after the map behind INSPECTION_REPLAY_MODE=off|shadow.
+  S4  runDeputyOnSubmission (payout pipeline) observation lane → observationV2Shadow behind
+      OBS_JUDGE_V2_MODE=off|shadow (reconstructed from the existing private corpus; never changes payout).
+  S3  runConcierge loop → ConciergeTaskShadow behind CONCIERGE_TASK_RUN_MODE=off|shadow (advances the
+      TaskRunV1 controller from REAL tool results; persists a backward-compatible V2 envelope).
+  S5  promotion-eval.live P-ENTAIL → dedicated entailment corpus (fixes the 0/15 harness defect).
+
+NEW FLAGS (all default OFF/shadow; enforce reserved + not honored):
+  INSPECTION_REPLAY_MODE=off|shadow   OBS_JUDGE_V2_MODE=off|shadow   CONCIERGE_TASK_RUN_MODE=off|shadow|enforce
+
+RUN COMMANDS:
+  npm run typecheck ; npm run lint ; npm run test        # 1234 passed / 35 skipped
+  npm run test:inspection-live                           # real-browser inspection through inspectAndPlan
+  PROMOTION_EVAL=1 PROMO_TARGET=entail ... promotion-eval.live   # live P-ENTAIL over the dedicated corpus
+
+Nothing deployed/pushed/enforced/approved/migrated. Secrets: none (source + tests + one JSON evidence file).

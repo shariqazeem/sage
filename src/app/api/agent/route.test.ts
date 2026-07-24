@@ -83,24 +83,26 @@ describe("POST /api/agent — message validation", () => {
 describe("POST /api/agent — page context sanitation", () => {
   it("passes a well-formed campaign context through verbatim", async () => {
     await post({ text: "status?", pageContext: { kind: "campaign", id: "camp_1" } });
-    const arg = runConciergeWeb.mock.calls[0][3];
+    // arg[3] is the server-minted per-turn request id; arg[4] is the sanitized page context.
+    expect(runConciergeWeb.mock.calls[0][3]).toMatch(/^prid:agent:/);
+    const arg = runConciergeWeb.mock.calls[0][4];
     expect(arg).toEqual({ kind: "campaign", id: "camp_1", label: undefined });
   });
 
   it("drops an unknown kind", async () => {
     await post({ text: "hi", pageContext: { kind: "evil", id: "camp_1" } });
-    expect(runConciergeWeb.mock.calls[0][3]).toBeUndefined();
+    expect(runConciergeWeb.mock.calls[0][4]).toBeUndefined();
   });
 
   it("drops an id with injection/whitespace (fails the id charset)", async () => {
     await post({ text: "hi", pageContext: { kind: "campaign", id: "camp 1; DROP TABLE" } });
-    expect(runConciergeWeb.mock.calls[0][3]).toBeUndefined();
+    expect(runConciergeWeb.mock.calls[0][4]).toBeUndefined();
   });
 
   it("keeps a label but caps its length (untrusted text is still just data)", async () => {
     const label = "A".repeat(400);
     await post({ text: "hi", pageContext: { kind: "proof", id: "0xabc", label } });
-    const arg = runConciergeWeb.mock.calls[0][3] as { label: string };
+    const arg = runConciergeWeb.mock.calls[0][4] as { label: string };
     expect(arg.label.length).toBe(120);
   });
 });

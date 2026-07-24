@@ -1,0 +1,38 @@
+SAGE — Overnight Agentic Sprint — review manifest
+=================================================
+BASE (Gate-C head): 9d2d340
+HEAD:               3d02c3502a97d1ace4aac900baff22192a03411c
+Patch: sage-overnight-agentic.patch  (git am-able; 7 commits, 19 files, no secrets)
+
+COMMITS (oldest → newest):
+  ea35ada  feat(agentic): add action-grounded inspection facts
+  cc9d94a  feat(agentic): replay safe inspection transitions
+  2107f43  feat(agentic): ground missions in observed product facts
+  c467861  test(agentic): measure mission grounding and coverage
+  c4985c2  feat(concierge): add resumable autonomous task runs
+  5eb2f72  feat(agentic): add action-grounded observation judgment shadow
+  3d02c35  test(agentic): prove autonomous grounded campaign flow
+
+CHANGED FILES BY CAPABILITY:
+  P1 Eyes V2 (action-grounded facts):
+    src/lib/launch/observed-facts.ts (+test), src/lib/launch/schemas.ts, src/lib/launch/product-map.ts
+  P2 Safe inspection replay:
+    src/lib/launch/inspection-replay.ts (+test, +browser.test), package.json
+  P3 Mission Brain V2 grounding + metrics:
+    src/lib/launch/mission-grounding.ts (+test), src/lib/launch/mission-metrics.ts (+test),
+    src/lib/launch/validate-mission.ts, src/lib/launch/mission-brain.ts, src/lib/launch/schemas.ts
+  P4 Concierge resumable task runs:
+    src/lib/telegram/task-run.ts (+test)
+  P5 Observation Judge V2 (shadow):
+    src/lib/deputy/observation-judge-v2.ts (+test)
+  P6 Vertical-slice demo:
+    src/lib/launch/demo-agentic-v2.test.ts, package.json
+
+RUN COMMANDS:
+  npm run typecheck ; npm run lint ; npm run test        # 1199 passed / 34 skipped
+  npm run demo:agentic-v2                                # the labeled fixture vertical slice
+  npm run test:inspection-replay                         # real-browser replay (needs chromium)
+  DEMO_AGENTIC=1 / INSPECTION_REPLAY_TEST=1 / OBS_JUDGE_V2_MODE / INSPECTION_REPLAY_MODE gate the new paths.
+
+ALL NEW RUNTIME BEHAVIOR IS OFF/SHADOW BY DEFAULT. No deploy, no push, no mainnet/autopay, no DB
+migration, no approved identity, no money-path change. Secrets: none (source + tests only).

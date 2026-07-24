@@ -1,0 +1,1164 @@
+diff --git a/src/lib/launch/mission-brain.ts b/src/lib/launch/mission-brain.ts
+index 78d42e4..66c81de 100644
+--- a/src/lib/launch/mission-brain.ts
++++ b/src/lib/launch/mission-brain.ts
+@@ -359,7 +359,7 @@ export async function runMissionBrain(
+   const computeShadow = async (legacyCount: number): Promise<GroundingShadowResult | undefined> => {
+     try {
+       const s = await import("./mission-grounding-shadow");
+-      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
++      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
+     } catch { return undefined; }
+   };
+ 
+diff --git a/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts b/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
+index ce9e318..6a3d2dd 100644
+--- a/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
++++ b/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
+@@ -1,7 +1,8 @@
+ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+ 
+ // Fake ONLY the external provider boundary. runMissionBrain (the real entrypoint) + its architect/critic/
+-// gate + runGroundedShadow all run for real; llmCompleteJson returns scripted JSON keyed by system prompt.
++// gate + runGroundedShadow (strict Zod parse → digest-bound grounding → critic → the SAME canonical gate the
++// legacy plan uses → real allocator) all run for real; llmCompleteJson returns scripted JSON keyed by system.
+ vi.mock("@/lib/llm/complete", () => ({ llmConfigured: () => true, llmCompleteJson: vi.fn() }));
+ 
+ import { runMissionBrain } from "./mission-brain";
+@@ -20,6 +21,8 @@ const FT: FieldTestSummary = {
+   ],
+ };
+ const SET: ObservationSetV1 = deriveObservations(FT);
++// the corpus is normalized (lowercased) exactly as the real pipeline builds it, so verbatim anchors match.
++const CORPUS = "welcome start you reach the garden world talk to yara";
+ const obs = (url: string): ProductObservation => ({ url, status: 200, title: "P", headings: ["Welcome"], claims: [], ctas: ["Start"], forms: [], links: [], authBoundary: false, techHints: [], states: [], landmarks: [], snippets: ["Welcome"], inspectedAt: 1, contentSha256: "a".repeat(64) });
+ function makeMap(): ProductMapV1 {
+   const finding = (v: string) => ({ value: v, confidence: 0.9, sources: [{ kind: "page" as const, ref: "https://p.test/", observation: v }], browserConfirmed: true });
+@@ -30,250 +33,314 @@ function makeMap(): ProductMapV1 {
+     digest: "0x00", fieldTest: FT, observations: SET,
+   } as unknown as ProductMapV1;
+ }
++const mapWithReplay = () => { const m = makeMap(); (m as { replayShadow?: unknown }).replayShadow = { version: "replay-shadow-v1", mode: "shadow", probes: 1, byClassification: { reproduced: 1 }, results: [{ probeId: "p", transitionId: transId, classification: "reproduced" }] }; return m; };
++
+ const input = { productUrl: "https://p.test/", goal: "explore", targetUsers: "u", totalBudgetBase: BigInt(2_000_000), tokenDecimals: 6 };
+-const startId = decisiveFacts(SET).find((f) => f.elementName === "Start")!.id;
++const startFact = decisiveFacts(SET).find((f) => f.elementName === "Start")!;
++const yaraFact = decisiveFacts(SET).find((f) => f.elementName === "Talk to Yara")!;
++const transId = SET.transitions[0].id;
++
++/** a valid RAW architect grounding criterion (full V2 fields) — overridable per case. */
++const stateCriterion = (over: Record<string, unknown> = {}) => ({ criterionIndex: 0, criterionKind: "state", factRefs: [startFact.id], evidenceIndex: 0, evidenceMode: "observation", pageUrl: startFact.pageUrl, stateId: startFact.stateId, supportRationale: "the Start control was seen", ...over });
++const actionCriterion = (over: Record<string, unknown> = {}) => ({ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [yaraFact.id], transitionRef: transId, evidenceIndex: 0, evidenceMode: "observation", pageUrl: yaraFact.pageUrl, stateId: yaraFact.stateId, supportRationale: "reached the garden world", ...over });
+ 
+-/** a V2 architect mission citing a real fact + the exact digest. */
++/** a fully-valid RAW V2 architect mission (passes Zod + grounding + canonical gate). */
+ const v2Mission = (over: Record<string, unknown> = {}) => ({
+-  missionKey: "reach-start", title: "Click Start", objective: "Click Start to reach the world", instructions: "1. Click Start.",
+-  targetSurface: "https://p.test/play", criteria: ["Reach the world after clicking Start"], evidenceRequirements: ["Describe the world state"],
+-  whyItMatters: "core", sources: [{ kind: "page", ref: "https://p.test/play", observation: "world" }], priority: "high", riskCategory: "critical_journey",
+-  effortMinutes: 3, rewardWeight: 5, maxCompletions: 3, verificationMethod: "account", confidence: 0.8, assumptions: [], disallowed: [],
+-  groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "state", factRefs: [startId], evidenceIndex: 0, evidenceMode: "observation", supportRationale: "start seen" }] },
++  missionKey: "reach-start", title: "Click Start", objective: "Click Start to reach the world",
++  instructions: "1. Open the page. 2. Click the Start button. 3. Observe the world you reach.",
++  targetSurface: "https://p.test/play", criteria: ["Reach the world after clicking Start"],
++  evidenceRequirements: ["Describe the world state you reached after clicking Start"],
++  whyItMatters: "core onboarding", sources: [{ kind: "page", ref: "https://p.test/play", observation: "world" }],
++  priority: "high", riskCategory: "critical_journey", effortMinutes: 3, rewardWeight: 5, maxCompletions: 3,
++  verificationMethod: "account", confidence: 0.8, conditions: [], assumptions: [], disallowed: [], anchors: ["Start"],
++  groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion()] },
+   ...over,
+ });
++const actionMission = (over: Record<string, unknown> = {}) => v2Mission({
++  missionKey: "do-action", title: "Reach the garden", objective: "Click Start and reach the garden world",
++  criteria: ["The garden world appears after clicking Start"], evidenceRequirements: ["Describe the garden world you reached"],
++  anchors: ["garden world"], groundingV1: { observationSetDigest: SET.digest, criteria: [actionCriterion()] }, ...over,
++});
+ 
+ let architectV2Calls = 0;
+ let capturedV2User = "";
++type Reply = { json: unknown; model: string; provider: string; latencyMs: number; promptTokens: number; completionTokens: number };
++const reply = (json: unknown, model: string, provider: string): Reply => ({ json, model, provider, latencyMs: 1, promptTokens: 0, completionTokens: 0 });
+ function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: boolean } = {}) {
+   architectV2Calls = 0; capturedV2User = "";
+   vi.mocked(llmCompleteJson).mockImplementation(async ({ system, user }: { system: string; user: string }) => {
+-    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error("v2 boom"); return { json: v2, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 }; }
+-    if (system.includes("grounding CRITIC")) return { json: verdicts, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 };
+-    // legacy architect → a coercible mission so arch.ok is true and runMissionBrain reaches the shadow
+-    // block (the legacy gate may still reject it; the shadow runs regardless and must not change it).
+-    return { json: { missions: [{ missionKey: "legacy", title: "Legacy mission", objective: "do the legacy thing", instructions: "1. step", targetSurface: "https://p.test/" }] }, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 };
++    if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error("v2 boom"); return reply(v2, "arch-model", "arch-prov"); }
++    if (system.includes("grounding CRITIC")) return reply(verdicts, "critic-model", "critic-prov");
++    // legacy architect/critic → a coercible mission so runMissionBrain reaches the shadow block regardless.
++    return reply({ missions: [{ missionKey: "legacy", title: "Legacy mission", objective: "do the legacy thing", instructions: "1. step", targetSurface: "https://p.test/" }] }, "legacy-model", "legacy-prov");
+   });
+ }
+ const scope = () => scopeFromObservations([obs("https://p.test/"), obs("https://p.test/play")], []);
++const support = (missionKey: string, criterionIndex: number, factRefs: string[]) => ({ missionKey, criterionIndex, verdict: "supported", factRefs });
+ 
+ beforeEach(() => { vi.clearAllMocks(); });
+ afterEach(() => { delete process.env.MISSION_GROUNDING_MODE; });
+ 
+-describe("grounded architect shadow — through the REAL runMissionBrain entrypoint", () => {
+-  it("M: OFF mode makes NO V2 architect call and attaches no shadow", async () => {
++describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBrain entrypoint", () => {
++  it("S: OFF mode makes NO V2 architect call and attaches no shadow", async () => {
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
++    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+     expect(architectV2Calls).toBe(0);
+     expect(r.groundingShadow).toBeUndefined();
+   });
+ 
+   it("the V2 user prompt shows each fact ID BESIDE its real content (not opaque hashes)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported", factRefs: [startId] }] });
+-    await runMissionBrain(makeMap(), input, scope(), "corpus");
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    await runMissionBrain(makeMap(), input, scope(), CORPUS);
+     const view = JSON.parse(capturedV2User.slice(capturedV2User.indexOf("{", capturedV2User.indexOf("OBSERVATIONS"))));
+-    const startFact = view.facts.find((f: { id: string }) => f.id === startId);
+-    expect(startFact.elementName).toBe("Start"); // the id sits next to its observed control
++    const sf = view.facts.find((f: { id: string }) => f.id === startFact.id);
++    expect(sf.elementName).toBe("Start"); // the id sits next to its observed control
+     const trans = view.transitions.find((t: { verb: string }) => t.verb === "click");
+     expect(trans.addedTexts.join(" ")).toMatch(/garden world/); // transition id → click Start → added "…garden world"
+-    expect(capturedV2User).toContain(startId);
+   });
+ 
+-  it("A: SHADOW runs V2, validates a grounded mission, and the critic supports it", async () => {
++  it("A: a grounded mission passes ALL stages — grounding, critic, the canonical gate, and the allocator", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    const gs = r.groundingShadow!;
+     expect(architectV2Calls).toBe(1);
+-    expect(r.groundingShadow?.ran).toBe(true);
+-    expect(r.groundingShadow?.candidateCount).toBe(1);
+-    expect(r.groundingShadow?.structurallyValid).toBe(1);
+-    expect(r.groundingShadow?.criticSupported).toBe(1);
+-    expect(r.groundingShadow?.accepted).toBe(1);
+-    expect(r.groundingShadow?.tierCounts.state_seen).toBeGreaterThan(0);
++    expect(gs.candidateCount).toBe(1);
++    expect(gs.groundingValid).toBe(1);
++    expect(gs.criticSupported).toBe(1);
++    expect(gs.canonicalGatePassed).toBe(1);
++    expect(gs.accepted).toBe(1);
++    expect(gs.acceptanceScope).toBe("canonical_gate");
++    expect(gs.tierCounts.state_seen).toBeGreaterThan(0);
+   });
+ 
+-  it("D: a GHOST-feature mission (cites a non-existent fact) is not structurally valid", async () => {
++  it("O: the real allocator over canonical-gate-passing candidates equals the supplied budget EXACTLY", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, factRefs: ["deadbeefdeadbeefdeadbeef"], evidenceMode: "observation" }] } })] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(0);
+-    expect(r.groundingShadow?.accepted).toBe(0);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.budgetCompiled).toBe(true);
++    expect(gs.allocationOk).toBe(true);
++    expect(gs.exactBudgetEquality).toBe(true);
++    expect(gs.budgetConsistent).toBe(true);
++    expect(gs.allocatedBudgetBase).toBe("2000000");
+   });
+ 
+-  it("G: a WRONG observationSetDigest is rejected deterministically", async () => {
++  it("positive MULTI-criterion mission passes all stages (each criterion its own in-range evidenceIndex)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: "0xWRONG", criteria: [{ criterionIndex: 0, factRefs: [startId], evidenceMode: "observation" }] } })] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(0);
++    const multi = v2Mission({
++      missionKey: "multi", criteria: ["Reach the world after clicking Start", "See Yara in the garden world"],
++      evidenceRequirements: ["Describe the world you reached", "Quote what Yara says to you"], anchors: ["start", "garden world"],
++      groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ criterionIndex: 0 }), { criterionIndex: 1, criterionKind: "state", factRefs: [yaraFact.id], evidenceIndex: 1, evidenceMode: "observation", pageUrl: yaraFact.pageUrl, stateId: yaraFact.stateId, supportRationale: "Yara seen in the world" }] },
++    });
++    scriptProviders({ missions: [multi] }, { verdicts: [support("multi", 0, [startFact.id]), support("multi", 1, [yaraFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.groundingValid).toBe(1);
++    expect(gs.criticSupported).toBe(1);
++    expect(gs.accepted).toBe(1);
+   });
+ 
+-  it("L: SHADOW ISOLATION — the V2 path throwing does not change the legacy plan or fail the job", async () => {
++  it("B: a safe REPRODUCED transition → action_replayed tier (and passes the canonical gate)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    // baseline legacy result with the shadow OFF...
+-    delete process.env.MISSION_GROUNDING_MODE;
+-    scriptProviders({ missions: [] }, { verdicts: [] });
+-    const legacy = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    // ...now shadow ON but the V2 architect throws.
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [] }, { verdicts: [] }, { v2Throws: true });
+-    const withShadow = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(withShadow.accepted.length).toBe(legacy.accepted.length); // legacy plan unchanged
+-    expect(withShadow.reason).toBe(legacy.reason);
+-    // a thrown V2 architect is caught inside runGroundedShadow → an error result, never an exception.
+-    expect(withShadow.groundingShadow === undefined || withShadow.groundingShadow.error !== null).toBe(true);
++    scriptProviders({ missions: [actionMission()] }, { verdicts: [support("do-action", 0, [yaraFact.id])] });
++    const gs = (await runMissionBrain(mapWithReplay(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.tierCounts.action_replayed).toBeGreaterThan(0);
++    expect(gs.accepted).toBe(1);
+   });
+ 
+-  it("empty V2 output (no candidates) is recorded honestly as v2_empty", async () => {
++  it("C: a safe UNREPRODUCED transition → action_observed, never falsely replayed", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.error).toBe("v2_empty");
++    scriptProviders({ missions: [actionMission()] }, { verdicts: [support("do-action", 0, [yaraFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.tierCounts.action_observed).toBeGreaterThan(0);
++    expect(gs.tierCounts.action_replayed).toBe(0);
+   });
+ 
+-  const transId = SET.transitions[0].id;
+-  const afterFactId = decisiveFacts(SET).find((f) => f.elementName === "Talk to Yara")!.id;
+-  const actionMission = () => v2Mission({ missionKey: "do-action", groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [afterFactId], transitionRef: transId, evidenceIndex: 0, evidenceMode: "observation" }] } });
+-  const mapWithReplay = () => { const m = makeMap(); (m as { replayShadow?: unknown }).replayShadow = { version: "replay-shadow-v1", mode: "shadow", probes: 1, byClassification: { reproduced: 1 }, results: [{ probeId: "p", transitionId: transId, classification: "reproduced" }] }; return m; };
+-
+-  it("B: a safe REPRODUCED transition → action_replayed tier", async () => {
++  it("TIER: a STATE criterion that also cites a safe transition stays state_seen (not action_observed)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [actionMission()] }, { verdicts: [{ missionKey: "do-action", criterionIndex: 0, verdict: "supported", factRefs: [afterFactId] }] });
+-    const r = await runMissionBrain(mapWithReplay(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.tierCounts.action_replayed).toBeGreaterThan(0);
++    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ transitionRef: transId })] } })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.tierCounts.state_seen).toBeGreaterThan(0);
++    expect(gs.tierCounts.action_observed).toBe(0);
+   });
+ 
+-  it("C: a safe UNREPRODUCED transition → action_observed tier (never falsely replayed)", async () => {
++  it("CANONICAL-GATE REJECTION: a grounded, critic-supported mission out of scope is NOT accepted or budgeted", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [actionMission()] }, { verdicts: [{ missionKey: "do-action", criterionIndex: 0, verdict: "supported", factRefs: [afterFactId] }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus"); // no replay record
+-    expect(r.groundingShadow?.tierCounts.action_observed).toBeGreaterThan(0);
+-    expect(r.groundingShadow?.tierCounts.action_replayed).toBe(0);
++    scriptProviders({ missions: [v2Mission({ targetSurface: "https://elsewhere.test/x" })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.groundingValid).toBe(1); // grounding + critic both pass...
++    expect(gs.criticSupported).toBe(1);
++    expect(gs.canonicalGatePassed).toBe(0); // ...but the canonical gate rejects the out-of-scope surface
++    expect(gs.accepted).toBe(0);
++    expect(gs.budgetCompiled).toBe(false);
+   });
+ 
+-  it("F: a mission with EMPTY factRefs is rejected (never repaired)", async () => {
++  it("D: a GHOST-feature mission (Zod-valid, cites a non-existent fact) fails grounding", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "state", factRefs: [], evidenceIndex: 0, evidenceMode: "observation" }] } })] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.error).toBe("v2_empty"); // coercion dropped it → no candidates
++    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: ["deadbeefdeadbeefdeadbeef"] })] } })] }, { verdicts: [] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.candidateCount).toBe(1); // Zod accepted the shape...
++    expect(gs.groundingValid).toBe(0); // ...but the cited fact does not exist in the set
++    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("M: malformed (non-object) V2 output is NOT repaired", async () => {
++  it("WRONG observationSetDigest fails deterministic grounding", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders("```json\n{\"missions\":[]}\n```" as unknown, { verdicts: [] }); // a fenced string, not an object
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.error).toBe("v2_empty");
++    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: "0xWRONGWRONG", criteria: [stateCriterion()] } })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.groundingValid).toBe(0);
++    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("O: budget allocation equals the supplied budget EXACTLY for accepted candidates", async () => {
++  it("H: an UNVERIFIED/state-changing (POST) transition can never back a criterion", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported", factRefs: [startId] }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.allocationOk).toBe(true);
+-    expect(r.groundingShadow?.exactBudgetEquality).toBe(true);
+-    expect(r.groundingShadow?.budgetConsistent).toBe(true);
+-    expect(r.groundingShadow?.allocatedBudgetBase).toBe(input.totalBudgetBase.toString());
++    const ftPost: FieldTestSummary = { ...FT, states: [
++      stt({ trigger: "initial load", visibleTextExcerpt: "Store", notableElements: [{ tag: "button", text: "Buy", role: "button" }] }),
++      stt({ trigger: "clicked 'Buy'", url: "https://p.test/bought", visibleTextExcerpt: "Purchase complete.", notableElements: [{ tag: "button", text: "View receipt", role: "button" }], pixelDeltaPct: 30, networkMethods: ["POST"] }),
++    ] };
++    const setPost = deriveObservations(ftPost);
++    const postTrans = setPost.transitions[0];
++    const afterFact = setPost.facts.find((f) => f.stateId === postTrans.afterStateDigest)!;
++    const mapPost = () => { const m = makeMap(); (m as { observations?: unknown }).observations = setPost; (m as { fieldTest?: unknown }).fieldTest = ftPost; return m; };
++    const buyMission = v2Mission({ missionKey: "buy", anchors: ["buy"], targetSurface: "https://p.test/", sources: [{ kind: "page", ref: "https://p.test/", observation: "store" }], groundingV1: { observationSetDigest: setPost.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [afterFact.id], transitionRef: postTrans.id, evidenceIndex: 0, evidenceMode: "observation", pageUrl: afterFact.pageUrl, stateId: afterFact.stateId, supportRationale: "receipt shown" }] } });
++    scriptProviders({ missions: [buyMission] }, { verdicts: [] });
++    const gs = (await runMissionBrain(mapPost(), input, scope(), CORPUS)).groundingShadow!;
++    expect(postTrans.safeClassification).not.toBe("safe");
++    expect(gs.groundingValid).toBe(0);
++    expect(gs.unsafeTransitionCount).toBeGreaterThan(0);
+   });
+ 
+-  it("P: MISSION_GROUNDING_MODE=enforce does NOT pretend to enforce (falls closed to off)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "enforce";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(architectV2Calls).toBe(0); // no V2 call — enforce is not implemented
+-    expect(r.groundingShadow).toBeUndefined();
++  it("model-routing TRUTH: requested (null, unset) vs the actual model+provider served for BOTH calls", async () => {
++    process.env.MISSION_GROUNDING_MODE = "shadow";
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.architectModelRequested).toBeNull(); // MISSION_MODEL unset → resolveLlm default chain
++    expect(gs.criticModelRequested).toBeNull();
++    expect(gs.architectModelActual).toBe("arch-model");
++    expect(gs.architectProvider).toBe("arch-prov");
++    expect(gs.criticModelActual).toBe("critic-model");
++    expect(gs.criticProvider).toBe("critic-prov");
+   });
+ 
+-  it("Q: a legacy architect FAILURE still records an independent V2 shadow", async () => {
++  it("observation-view completeness metadata is recorded", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    // legacy architect returns junk (no missions) → arch.ok false → EMPTY, but the V2 shadow still runs.
+-    vi.mocked(llmCompleteJson).mockImplementation(async ({ system, user }: { system: string; user: string }) => {
+-      if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; return { json: { missions: [v2Mission()] }, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 }; }
+-      if (system.includes("grounding CRITIC")) return { json: { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported", factRefs: [startId] }] }, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 };
+-      return { json: { notMissions: true }, model: "m", provider: "p", latencyMs: 1, promptTokens: 0, completionTokens: 0 }; // legacy → 0
+-    });
+-    architectV2Calls = 0;
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.ok).toBe(false); // legacy failed
+-    expect(r.groundingShadow?.ran).toBe(true); // ...but V2 was measured independently
+-    expect(r.groundingShadow?.accepted).toBe(1);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.observationView.totalFacts).toBeGreaterThan(0);
++    expect(gs.observationView.includedFacts).toBeGreaterThan(0);
++    expect(gs.observationView.truncated).toBe(false); // the tiny set fits under the cap
+   });
+ 
+-  it("D/E: a mission with NO groundingV1, and one with a MISSING digest, are BOTH dropped (never repaired)", async () => {
++  // ── strict Zod ARCHITECT schema — one invalid mission/member rejects the WHOLE response (schema_invalid) ──
++  const schemaRejects: Array<[string, Record<string, unknown>]> = [
++    ["rewardWeight 0", { rewardWeight: 0 }],
++    ["rewardWeight 11", { rewardWeight: 11 }],
++    ["maxCompletions 0", { maxCompletions: 0 }],
++    ["maxCompletions 51", { maxCompletions: 51 }],
++    ["empty criteria", { criteria: [] }],
++    ["empty evidenceRequirements", { evidenceRequirements: [] }],
++    ["missing anchors", { anchors: [] }],
++    ["invalid criterionKind", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ criterionKind: "bogus" })] } }],
++    ["missing criterionKind", { groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, factRefs: [startFact.id], evidenceIndex: 0, evidenceMode: "observation", pageUrl: startFact.pageUrl, stateId: startFact.stateId, supportRationale: "x" }] } }],
++    ["duplicate factRefs", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, startFact.id] })] } }],
++    ["mixed-invalid factRefs member", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, 123] })] } }],
++    ["empty factRefs", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [] })] } }],
++    ["missing observationSetDigest", { groundingV1: { criteria: [stateCriterion()] } }],
++    ["action_outcome without transitionRef", { groundingV1: { observationSetDigest: SET.digest, criteria: [actionCriterion({ transitionRef: undefined })] } }],
++    ["unknown top-level key", { extraKey: "x" }],
++    ["evidenceIndex out of range", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ evidenceIndex: 5 })] } }],
++  ];
++  for (const [name, over] of schemaRejects) {
++    it(`schema REJECTS the whole response (never repaired): ${name}`, async () => {
++      process.env.MISSION_GROUNDING_MODE = "shadow";
++      scriptProviders({ missions: [v2Mission(over)] }, { verdicts: [] });
++      const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++      expect(gs.error).toBe("schema_invalid");
++      expect(gs.candidateCount).toBe(0);
++      expect(gs.accepted).toBe(0);
++    });
++  }
++
++  it("DUPLICATE mission keys reject the whole response", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    const noGrounding = v2Mission({ missionKey: "no-grounding" });
+-    delete (noGrounding as { groundingV1?: unknown }).groundingV1;
+-    const noDigest = v2Mission({ missionKey: "no-digest", groundingV1: { criteria: [{ criterionIndex: 0, criterionKind: "state", factRefs: [startId], evidenceIndex: 0, evidenceMode: "observation" }] } });
+-    scriptProviders({ missions: [noGrounding, noDigest] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.error).toBe("v2_empty"); // both coerced to null → zero candidates
++    scriptProviders({ missions: [v2Mission({ missionKey: "dup" }), v2Mission({ missionKey: "dup", title: "Other" })] }, { verdicts: [] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.error).toBe("schema_invalid");
+   });
+ 
+-  it("G: an action_outcome criterion with NO transition citation is rejected", async () => {
++  it("malformed (non-object) V2 output is NOT repaired → schema_invalid", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ missionKey: "do-action", groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [afterFactId], evidenceIndex: 0, evidenceMode: "observation" }] } })] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(0); // criterion_evidence_unmapped (action_outcome cites no transition)
++    scriptProviders("```json\n{\"missions\":[]}\n```" as unknown, { verdicts: [] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.error).toBe("schema_invalid");
+   });
+ 
+-  it("H: an UNVERIFIED/state-changing transition can never back a criterion (unsafe_transition_support)", async () => {
++  it("an explicitly-empty plan (missions: []) is recorded honestly as v2_empty", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    const ftPost: FieldTestSummary = { ...FT, states: [
+-      stt({ trigger: "initial load", visibleTextExcerpt: "Store", notableElements: [{ tag: "button", text: "Buy", role: "button" }] }),
+-      stt({ trigger: "clicked 'Buy'", url: "https://p.test/bought", visibleTextExcerpt: "Purchase complete.", notableElements: [{ tag: "button", text: "View receipt", role: "button" }], pixelDeltaPct: 30, networkMethods: ["POST"] }),
+-    ] };
+-    const setPost = deriveObservations(ftPost);
+-    const postTrans = setPost.transitions[0];
+-    const afterFact = setPost.facts.find((f) => f.stateId === postTrans.afterStateDigest)!.id;
+-    const mapPost = () => { const m = makeMap(); (m as { observations?: unknown }).observations = setPost; (m as { fieldTest?: unknown }).fieldTest = ftPost; return m; };
+-    scriptProviders({ missions: [v2Mission({ missionKey: "buy", groundingV1: { observationSetDigest: setPost.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [afterFact], transitionRef: postTrans.id, evidenceIndex: 0, evidenceMode: "observation" }] } })] }, { verdicts: [] });
+-    const r = await runMissionBrain(mapPost(), input, scope(), "corpus");
+-    expect(postTrans.safeClassification).not.toBe("safe"); // POST → state_changing
+-    expect(r.groundingShadow?.structurallyValid).toBe(0);
+-    expect(r.groundingShadow?.unsafeTransitionCount).toBeGreaterThan(0);
++    scriptProviders({ missions: [] }, { verdicts: [] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.error).toBe("v2_empty");
+   });
+ 
+-  it("I: an action_outcome citing only the BEFORE-state fact (not the outcome) is rejected", async () => {
++  // ── strict CRITIC schema ──
++  it("critic MISSING factRefs supports nothing (schema requires factRefs)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    // cites startId (the pre-click state) with the click transition — the after-state fact is the real outcome.
+-    scriptProviders({ missions: [v2Mission({ missionKey: "do-action", groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [startId], transitionRef: transId, evidenceIndex: 0, evidenceMode: "observation" }] } })] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(0); // page_state_mismatch (cites no after-state fact)
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.groundingValid).toBe(1);
++    expect(gs.criticSupported).toBe(0);
++    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("J: a critic citing an UNRELATED fact (factRefs ≠ cited) supports nothing (fail closed)", async () => {
++  it("critic factRefs NOT matching the cited set supports nothing (fail closed)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported", factRefs: ["deadbeefdeadbeefdeadbeef"] }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(1); // the mission itself is grounded
+-    expect(r.groundingShadow?.criticSupported).toBe(0); // ...but the critic's mismatched citation is rejected
+-    expect(r.groundingShadow?.accepted).toBe(0);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, ["deadbeefdeadbeefdeadbeef"])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.groundingValid).toBe(1);
++    expect(gs.criticSupported).toBe(0);
++    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("K: DUPLICATE critic verdicts for one criterion are rejected (exactly one per pair)", async () => {
++  it("DUPLICATE critic verdicts for one criterion support nothing (exactly one per pair)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }, { missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.criticSupported).toBe(0); // seen===2 → not complete → nothing supported
+-    expect(r.groundingShadow?.accepted).toBe(0);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id]), support("reach-start", 0, [startFact.id])] });
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.criticSupported).toBe(0);
++    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("N: a MULTI-criterion mission maps each criterion to its own in-range evidenceIndex", async () => {
++  // ── independence + honest modes ──
++  it("Q: a legacy-architect FAILURE still records an independent V2 shadow that accepts", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    const multi = v2Mission({
+-      missionKey: "multi",
+-      criteria: ["Reach the world", "See Yara greet you"],
+-      evidenceRequirements: ["Describe the world", "Quote Yara's greeting"],
+-      groundingV1: { observationSetDigest: SET.digest, criteria: [
+-        { criterionIndex: 0, criterionKind: "state", factRefs: [startId], evidenceIndex: 0, evidenceMode: "observation" },
+-        { criterionIndex: 1, criterionKind: "state", factRefs: [afterFactId], evidenceIndex: 1, evidenceMode: "observation" },
+-      ] },
++    vi.mocked(llmCompleteJson).mockImplementation(async ({ system }: { system: string; user: string }) => {
++      if (system.includes("GROUNDED mission architect")) { architectV2Calls++; return reply({ missions: [v2Mission()] }, "arch-model", "arch-prov"); }
++      if (system.includes("grounding CRITIC")) return reply({ verdicts: [support("reach-start", 0, [startFact.id])] }, "critic-model", "critic-prov");
++      return reply({ notMissions: true }, "legacy-model", "legacy-prov"); // legacy → 0 missions → arch.ok false
+     });
+-    scriptProviders({ missions: [multi] }, { verdicts: [
+-      { missionKey: "multi", criterionIndex: 0, verdict: "supported" },
+-      { missionKey: "multi", criterionIndex: 1, verdict: "supported" },
+-    ] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), "corpus");
+-    expect(r.groundingShadow?.structurallyValid).toBe(1);
++    architectV2Calls = 0;
++    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    expect(r.ok).toBe(false); // legacy failed
++    expect(r.groundingShadow?.ran).toBe(true); // ...but V2 was measured independently
+     expect(r.groundingShadow?.accepted).toBe(1);
+   });
++
++  it("R: a V2 architect throw NEVER changes the legacy plan (and is caught, never thrown)", async () => {
++    delete process.env.MISSION_GROUNDING_MODE;
++    scriptProviders({ missions: [] }, { verdicts: [] });
++    const legacy = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    process.env.MISSION_GROUNDING_MODE = "shadow";
++    scriptProviders({ missions: [] }, { verdicts: [] }, { v2Throws: true });
++    const withShadow = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    expect(withShadow.accepted.length).toBe(legacy.accepted.length);
++    expect(withShadow.reason).toBe(legacy.reason);
++    expect(withShadow.groundingShadow === undefined || withShadow.groundingShadow.error !== null).toBe(true);
++  });
++
++  it("P: MISSION_GROUNDING_MODE=enforce makes NO V2 call and attaches no shadow (never pretends)", async () => {
++    process.env.MISSION_GROUNDING_MODE = "enforce";
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
++    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    expect(architectV2Calls).toBe(0);
++    expect(r.groundingShadow).toBeUndefined();
++  });
+ });
+diff --git a/src/lib/launch/mission-grounding-shadow.ts b/src/lib/launch/mission-grounding-shadow.ts
+index dad8d53..80af6f2 100644
+--- a/src/lib/launch/mission-grounding-shadow.ts
++++ b/src/lib/launch/mission-grounding-shadow.ts
+@@ -1,49 +1,124 @@
+ import "server-only";
+ 
++import { z } from "zod";
+ import { llmCompleteJson } from "@/lib/llm/complete";
+ import { missionModel } from "@/lib/llm/mission-model";
+-import { compactMapForLlm, coerceMission } from "./mission-brain";
++import { compactMapForLlm } from "./mission-brain";
+ import { validateMissionGrounding, classifyGroundingTier } from "./mission-grounding";
++import { validatePlanMissions, type ValidationScope } from "./validate-mission";
+ import { factIndex } from "./observed-facts";
+ import { allocateBudget } from "./budget";
+-import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, VerificationMode, CriterionKind } from "./schemas";
+-
+-/** Coerce a raw V2 mission (base fields via coerceMission) + parse its groundingV1 (factRefs→sourceFactIds,
+- *  transitionRef→sourceTransitionIds, evidenceMode→verificationMode). Fail-closed: a bad base → null. */
+-function coerceMissionForShadow(raw: unknown, i: number): CandidateMission | null {
+-  const base = coerceMission(raw, i);
+-  if (!base) return null;
+-  const o = (raw ?? {}) as Record<string, unknown>;
+-  const g = o.groundingV1 as Record<string, unknown> | undefined;
+-  // STRICT V2: reject rather than repair. A V2 mission MUST carry a groundingV1 with a digest and
+-  // well-formed criterion mappings (an explicit numeric evidenceIndex, a valid evidenceMode, non-empty
+-  // factRefs, an integer rewardWeight/cap). coerceMission clamps rewardWeight/cap — for V2 we re-check the
+-  // RAW values and reject on invalidity rather than accept a clamped default.
+-  if (!g || !Array.isArray(g.criteria) || typeof g.observationSetDigest !== "string" || !g.observationSetDigest) return null;
+-  if (!Number.isInteger(o.rewardWeight) || !Number.isInteger(o.maxCompletions)) return null;
+-  const criteria: import("./schemas").CriterionGroundingV1[] = [];
+-  for (const c of g.criteria as Record<string, unknown>[]) {
+-    if (!Number.isInteger(c.criterionIndex)) return null;
+-    if (!Number.isInteger(c.evidenceIndex)) return null;
+-    if (!["deterministic_url", "semantic_url", "observation"].includes(c.evidenceMode as string)) return null;
+-    const factRefs = Array.isArray(c.factRefs) ? (c.factRefs.filter((x) => typeof x === "string") as string[]) : [];
+-    if (factRefs.length === 0) return null; // empty factRefs → reject (never repaired)
+-    criteria.push({
+-      criterionIndex: c.criterionIndex as number,
+-      criterionKind: (["state", "action_outcome", "content_claim", "visual_quality"].includes(c.criterionKind as string) ? c.criterionKind : undefined) as CriterionKind | undefined,
+-      sourceFactIds: factRefs,
+-      sourceTransitionIds: typeof c.transitionRef === "string" ? [c.transitionRef] : undefined,
+-      evidenceIndex: c.evidenceIndex as number,
+-      verificationMode: c.evidenceMode as VerificationMode,
+-      pageUrl: typeof c.pageUrl === "string" && c.pageUrl ? c.pageUrl : undefined,
+-      stateId: typeof c.stateId === "string" && c.stateId ? c.stateId : undefined,
+-      supportRationale: typeof c.supportRationale === "string" ? c.supportRationale.slice(0, 200) : undefined,
+-    });
+-  }
+-  base.groundingV1 = { version: "mission-grounding-v1", observationSetDigest: g.observationSetDigest, criteria };
+-  return base;
++import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, MissionRiskCategory, MissionPriority, SourceRef, CriterionGroundingV1 } from "./schemas";
++
++/* ───────────────────── strict V2 architect + critic schemas (Zod, reject-never-repair) ─────────────────
++ * A V2 architect response is validated by STRICT schemas — unknown keys rejected, every validation-critical
++ * field required + range-checked, no clamp/default/salvage. A single invalid mission (or member) rejects the
++ * WHOLE response (→ schema_invalid). The ONLY defaulted fields are the three non-validation-critical
++ * OPTIONAL list fields (conditions/assumptions/disallowed): absent ⇒ [] (their canonical "none" meaning),
++ * never a rescue of malformed data. The legacy coerceMission (which clamps/defaults) is NOT used here.        */
++
++const RISK_CATEGORIES = ["critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation", "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression"] as const;
++const uniqueStrings = (arr: readonly string[]) => new Set(arr).size === arr.length;
++
++const CriterionGroundingSchema = z
++  .object({
++    criterionIndex: z.number().int().min(0),
++    criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
++    factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
++    transitionRef: z.string().min(1).optional(),
++    evidenceIndex: z.number().int().min(0),
++    evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
++    pageUrl: z.string().min(1),
++    stateId: z.string().min(1),
++    supportRationale: z.string().min(1).max(200),
++  })
++  .strict()
++  .refine((c) => c.criterionKind !== "action_outcome" || !!c.transitionRef, "action_outcome criterion requires a transitionRef");
++
++const GroundingV1Schema = z.object({ observationSetDigest: z.string().min(1), criteria: z.array(CriterionGroundingSchema).min(1) }).strict();
++const SourceRefSchema = z.object({ kind: z.enum(["page", "repo", "founder"]), ref: z.string().min(1), observation: z.string() }).strict();
++
++const MissionV2Schema = z
++  .object({
++    missionKey: z.string().min(1).max(48),
++    title: z.string().min(1).max(140),
++    objective: z.string().min(1).max(600),
++    instructions: z.string().min(1).max(6000),
++    targetSurface: z.string().min(1).max(600),
++    criteria: z.array(z.string().min(1)).min(1).max(12),
++    evidenceRequirements: z.array(z.string().min(1)).min(1).max(12),
++    whyItMatters: z.string().min(1).max(800),
++    sources: z.array(SourceRefSchema).min(1),
++    priority: z.enum(["high", "medium", "low"]),
++    riskCategory: z.enum(RISK_CATEGORIES),
++    effortMinutes: z.number().int().min(3).max(240),
++    rewardWeight: z.number().int().min(1).max(10),
++    maxCompletions: z.number().int().min(1).max(50),
++    verificationMethod: z.string().min(1).max(800),
++    confidence: z.number().min(0).max(1),
++    conditions: z.array(z.string()).max(8).optional().default([]),
++    assumptions: z.array(z.string()).max(6).optional().default([]),
++    disallowed: z.array(z.string()).max(8).optional().default([]),
++    anchors: z.array(z.string().min(1)).min(1).max(12), // ≥1 verbatim observed substring (anti-hallucination gate)
++    groundingV1: GroundingV1Schema,
++  })
++  .strict()
++  .superRefine((m, ctx) => {
++    // exactly one grounding mapping per criterion index — a bijection onto 0..criteria.length-1.
++    const indices = m.groundingV1.criteria.map((c) => c.criterionIndex).sort((a, b) => a - b);
++    const expected = m.criteria.map((_c, i) => i);
++    if (indices.length !== expected.length || indices.some((v, i) => v !== expected[i]))
++      ctx.addIssue({ code: "custom", message: "each criterion needs exactly one grounding mapping (0..n-1)" });
++    for (const c of m.groundingV1.criteria) if (c.evidenceIndex >= m.evidenceRequirements.length) ctx.addIssue({ code: "custom", message: `evidenceIndex ${c.evidenceIndex} out of range` });
++  });
++
++const ArchitectOutputSchema = z
++  .object({ missions: z.array(MissionV2Schema).min(1) })
++  .strict()
++  .superRefine((o, ctx) => { if (!uniqueStrings(o.missions.map((m) => m.missionKey))) ctx.addIssue({ code: "custom", message: "missionKey values must be unique" }); });
++
++type MissionV2 = z.infer<typeof MissionV2Schema>;
++
++/** Map a schema-validated V2 mission → CandidateMission (NO legacy coerce, NO clamp/default/salvage — every
++ *  value is already validated). groundingV1 is display-only metadata stripped at canonical compilation. */
++function toCandidateMission(m: MissionV2): CandidateMission {
++  const criteria: CriterionGroundingV1[] = m.groundingV1.criteria.map((c) => ({
++    criterionIndex: c.criterionIndex, criterionKind: c.criterionKind, sourceFactIds: c.factRefs,
++    sourceTransitionIds: c.transitionRef ? [c.transitionRef] : undefined, evidenceIndex: c.evidenceIndex,
++    verificationMode: c.evidenceMode, pageUrl: c.pageUrl, stateId: c.stateId, supportRationale: c.supportRationale,
++  }));
++  return {
++    missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions,
++    targetSurface: m.targetSurface, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
++    whyItMatters: m.whyItMatters, sources: m.sources as SourceRef[], priority: m.priority as MissionPriority,
++    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions,
++    rewardWeight: m.rewardWeight, maxCompletions: m.maxCompletions, verificationMethod: m.verificationMethod,
++    confidence: m.confidence, assumptions: m.assumptions, disallowed: m.disallowed, anchors: m.anchors,
++    groundingV1: { version: "mission-grounding-v1", observationSetDigest: m.groundingV1.observationSetDigest, criteria },
++  };
+ }
+ 
++/** STRICT parse of the architect response → candidates, or null (schema_invalid — the WHOLE response is
++ *  rejected on any invalid mission/member; there is no per-mission salvage or filtering). */
++function parseArchitectOutput(json: unknown): CandidateMission[] | null {
++  const parsed = ArchitectOutputSchema.safeParse(json);
++  return parsed.success ? parsed.data.missions.map(toCandidateMission) : null;
++}
++
++/** STRICT critic schema — factRefs is REQUIRED and non-empty; malformed output supports nothing. */
++const CriticOutputSchema = z
++  .object({
++    verdicts: z.array(
++      z.object({
++        missionKey: z.string().min(1),
++        criterionIndex: z.number().int().min(0),
++        verdict: z.enum(["supported", "partially_supported", "unsupported", "contradictory"]),
++        factRefs: z.array(z.string().min(1)).min(1),
++      }).strict(),
++    ),
++  })
++  .strict();
++
+ /**
+  * Grounded architect SHADOW (S2). Runs ARCHITECT_SYSTEM_V2 + the deterministic grounding validation + a
+  * grounding-aware critic, entirely alongside the legacy plan — the legacy selected plan and budget are
+@@ -67,6 +142,13 @@ export function missionGroundingModeReason(): string | null {
+   return null;
+ }
+ 
++/** Optional critic-model route for the grounding shadow. Defaults to missionModel() so nothing flips today
++ *  (both the architect and the critic use missionModel() until a model is chosen after evaluation). Returns
++ *  undefined when neither is set (→ resolveLlm falls through the shared LLM_MODEL→DEPUTY_MODEL→default chain). */
++export function missionGroundingCriticModel(): string | undefined {
++  return process.env.MISSION_GROUNDING_CRITIC_MODEL?.trim() || missionModel();
++}
++
+ /** ARCHITECT_SYSTEM_V2 — grounded, strict-structured. The model may design missions ONLY around observed
+  *  capabilities and must cite concrete observation ids per criterion; it never invents controls/pages. */
+ export const ARCHITECT_SYSTEM_V2 = `You are Sage's GROUNDED mission architect. You are given a product map, an OBSERVATION SET (typed facts Sage actually saw + safe action transitions it performed), that set's digest, the founder goal, the inspected scope, and the exact campaign budget.
+@@ -76,14 +158,15 @@ RULES (absolute):
+ - Every criterion MUST cite concrete observed-fact ids (factRefs) from the set.
+ - An action/outcome criterion MUST cite the transitionRef that produced the outcome.
+ - Inferred vision facts may GUIDE design but can NEVER be the only decisive support — a decisive criterion needs a seen DOM/field fact or a safe transition.
++- Every mission MUST include "anchors": VERBATIM substrings of what Sage observed (element text, a heading, a state excerpt). The deterministic anti-hallucination gate rejects any mission whose anchors were never observed.
+ - Evidence requirements must be realistically capable of proving the criterion.
+ - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.
+-- reward × maxCompletions across all missions MUST stay within the exact supplied budget.
++- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts, base units, or claim any budget equality — Sage's deterministic allocator converts the weights into exact USDC rewards and guarantees exact budget conservation.
+ 
+ Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality". An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
+ 
+ OUTPUT a SINGLE strict JSON object, no markdown fences, no prose. Example (a valid object):
+-{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"assumptions":[],"disallowed":[],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
++{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
+ 
+ /** CRITIC_SYSTEM_V2 — reviews whether the cited observations genuinely support each criterion. It may only
+  *  reject/downgrade; it cannot create facts, repair grounding, or override the deterministic gate. */
+@@ -97,8 +180,19 @@ export interface GroundingShadowResult {
+   mode: MissionGroundingMode;
+   observationSetDigest: string;
+   candidateCount: number;
++  /** candidates that passed the deterministic digest-bound grounding validation. */
++  groundingValid: number;
++  /** @deprecated alias of groundingValid (kept for existing consumers). */
+   structurallyValid: number;
++  /** grounding-valid candidates the critic fully supported. */
+   criticSupported: number;
++  /** critic-supported candidates that ALSO passed the SAME canonical mission gate the legacy plan uses. */
++  canonicalGatePassed: number;
++  /** budget successfully compiled by the real allocator over the canonical-gate-passing candidates. */
++  budgetCompiled: boolean;
++  /** what `accepted` means here — canonical-gate-passed, NOT merely critic-supported. */
++  acceptanceScope: "canonical_gate";
++  /** accepted === canonicalGatePassed (the missions that would survive the real pipeline). */
+   accepted: number;
+   groundingCoverage: number; // fraction of criteria that have a grounding entry
+   distinctStateCoverage: number;
+@@ -120,6 +214,17 @@ export interface GroundingShadowResult {
+   error: string | null;
+   /** set when the configured mode was not off|shadow (fell closed to off). */
+   modeReason?: string | null;
++  /** model-routing TRUTH — requested vs the model/provider actually served (null on the fake test seam or
++   *  when the call never ran). Requested is null when unset (→ the shared LLM_MODEL→DEPUTY_MODEL→default
++   *  chain resolves it); today both routes are missionModel() (the critic via its optional override). */
++  architectModelRequested: string | null;
++  architectModelActual: string | null;
++  architectProvider: string | null;
++  criticModelRequested: string | null;
++  criticModelActual: string | null;
++  criticProvider: string | null;
++  /** observation-view completeness (how much of the set the architect actually saw). */
++  observationView: ObservationViewMeta;
+ }
+ 
+ const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
+@@ -150,9 +255,18 @@ export function buildArchitectObservationView(set: import("./observed-facts").Ob
+     if (view.transitions.length > 0) view = { ...view, transitions: view.transitions.slice(0, -1) };
+     else view = { ...view, facts: view.facts.slice(0, -1) };
+   }
+-  return view;
++  const meta = {
++    totalFacts: set.facts.length,
++    includedFacts: view.facts.length,
++    totalTransitions: set.transitions.length,
++    includedTransitions: view.transitions.length,
++    truncated: view.facts.length < set.facts.length || view.transitions.length < set.transitions.length,
++  };
++  return { view, meta };
+ }
+ 
++export type ObservationViewMeta = ReturnType<typeof buildArchitectObservationView>["meta"];
++
+ /** Provider seam — overridable in tests (a scripted fake). Returns parsed JSON or throws. */
+ export interface ShadowDeps {
+   architect?: (system: string, user: string) => Promise<unknown>;
+@@ -163,38 +277,64 @@ export interface ShadowDeps {
+ export async function runGroundedShadow(
+   map: ProductMapV1,
+   input: FounderLaunchInput,
++  scope: ValidationScope,
++  corpus: string | undefined,
+   legacyAcceptedCount: number,
+   deps: ShadowDeps = {},
+ ): Promise<GroundingShadowResult> {
+   const set = map.observations ?? null;
+   const digest = set?.digest ?? "none";
++  const architectModelRequested = missionModel() ?? null;
++  const criticModelRequested = missionGroundingCriticModel() ?? null;
+   const base = (over: Partial<GroundingShadowResult>): GroundingShadowResult => ({
+     version: "grounding-shadow-v1", ran: false, mode: missionGroundingMode(), observationSetDigest: digest,
+-    candidateCount: 0, structurallyValid: 0, criticSupported: 0, accepted: 0, groundingCoverage: 0, distinctStateCoverage: 0,
++    candidateCount: 0, groundingValid: 0, structurallyValid: 0, criticSupported: 0, canonicalGatePassed: 0,
++    budgetCompiled: false, acceptanceScope: "canonical_gate", accepted: 0, groundingCoverage: 0, distinctStateCoverage: 0,
+     tierCounts: emptyTiers(), unsupportedCriteria: 0, unsafeTransitionCount: 0, duplicateRate: 0,
+     allocationOk: false, suppliedBudgetBase: input.totalBudgetBase.toString(), allocatedBudgetBase: "0", exactBudgetEquality: false,
+     fundedMissionCount: 0, droppedMissionCount: 0, allocationFailureReason: null, budgetConsistent: false,
+-    disagreement: "agree", error: null, modeReason: missionGroundingModeReason(), ...over,
++    disagreement: "agree", error: null, modeReason: missionGroundingModeReason(),
++    architectModelRequested, architectModelActual: null, architectProvider: null,
++    criticModelRequested, criticModelActual: null, criticProvider: null,
++    observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
++    ...over,
+   });
+   if (!set || set.facts.length === 0) return base({ error: "no_observation_set" });
+ 
+-  // 1) V2 ARCHITECT — strict structured output, FAIL CLOSED (no repair). A malformed response yields no
+-  //    candidates rather than a salvaged plan.
++  // Provider seams (ONE bounded architect call + ONE bounded critic call). The fake deps seam returns json
++  // only (actual model/provider unknown in tests); the REAL path records the model+provider actually served.
++  let architectActual: string | null = null, architectProvider: string | null = null;
++  let criticActual: string | null = null, criticProvider: string | null = null;
++  const architect = deps.architect ?? (async (system: string, user: string) => {
++    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict" });
++    architectActual = r.responseModel ?? r.model; architectProvider = r.provider; return r.json;
++  });
++  const critic = deps.critic ?? (async (system: string, user: string) => {
++    const r = await llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: criticModelRequested ?? undefined, parsePolicy: "strict" });
++    criticActual = r.responseModel ?? r.model; criticProvider = r.provider; return r.json;
++  });
++  const routing = () => ({ architectModelActual: architectActual, architectProvider, criticModelActual: criticActual, criticProvider });
++
++  // 1) V2 ARCHITECT — ONE bounded, strict, fail-closed call. Its output is validated by strict Zod schemas
++  //    (reject-never-repair, unknown keys rejected). A single invalid mission rejects the WHOLE response.
++  //    The ID→EVIDENCE view puts every fact id BESIDE its observed content (page/state/texts/role/name) and
++  //    every transition id beside its verb/before-after/deltas/safety/replay — the model cites facts, not hashes.
++  const { view: observationView, meta: viewMeta } = buildArchitectObservationView(set, deps.replayReproduced);
+   let candidates: CandidateMission[];
+   try {
+-    const architect = deps.architect ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: missionModel() }).then((r) => r.json));
+-    // The ID→EVIDENCE view: every fact id sits BESIDE its observed content (page/state/texts/role/name)
+-    // and every transition id beside its verb/before-after/deltas/safety/replay — so the model cites
+-    // concrete observations, not opaque hashes. The hash lists are gone.
+-    const observationView = buildArchitectObservationView(set, deps.replayReproduced);
+     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
+     const json = await architect(ARCHITECT_SYSTEM_V2, user);
+-    const arr = Array.isArray((json as { missions?: unknown[] })?.missions) ? (json as { missions: unknown[] }).missions : [];
+-    candidates = arr.map((m, i) => coerceMissionForShadow(m, i)).filter((m): m is CandidateMission => m !== null);
++    const parsed = parseArchitectOutput(json);
++    if (parsed === null) {
++      // distinguish an explicitly-empty plan (v2_empty) from a schema failure (schema_invalid).
++      const emptyMissions = Array.isArray((json as { missions?: unknown[] })?.missions) && (json as { missions: unknown[] }).missions.length === 0;
++      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, ...routing() });
++    }
++    candidates = parsed;
+   } catch (e) {
+-    return base({ error: e instanceof Error ? e.message.slice(0, 60) : "architect_failed" });
++    return base({ error: e instanceof Error ? e.message.slice(0, 60) : "architect_failed", observationView: viewMeta, ...routing() });
+   }
+-  if (candidates.length === 0) return base({ ran: true, error: "v2_empty", disagreement: "v2_empty" });
++  if (candidates.length === 0) return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...routing() });
+ 
+   // 2) deterministic grounding validation per candidate (digest-bound + replay-aware).
+   const idxValid = candidates.map((m) => validateMissionGrounding(m, set, { expectedDigest: digest, replayReproduced: deps.replayReproduced }).length === 0);
+@@ -211,7 +351,6 @@ export async function runGroundedShadow(
+   const supportedKeys = new Set<string>();
+   let unsupportedCriteria = 0;
+   try {
+-    const critic = deps.critic ?? ((system: string, user: string) => llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0, model: missionModel() }).then((r) => r.json));
+     const payload = structurallyValid.map((m) => ({
+       missionKey: m.missionKey,
+       criteria: m.criteria.map((c, ci) => {
+@@ -220,29 +359,37 @@ export async function runGroundedShadow(
+       }),
+     }));
+     const cj = await critic(CRITIC_SYSTEM_V2, JSON.stringify({ missions: payload }));
+-    const verdicts = Array.isArray((cj as { verdicts?: unknown[] })?.verdicts) ? (cj as { verdicts: { missionKey?: string; criterionIndex?: number; verdict?: string; factRefs?: string[] }[] }).verdicts : [];
+-    // strict: exactly one verdict per expected pair, literal enums, factRefs match the cited input refs.
+-    const VALID = new Set(["supported", "partially_supported", "unsupported", "contradictory"]);
++    // STRICT critic schema — verdict enum + REQUIRED non-empty factRefs; a malformed response supports nothing.
++    const parsedCritic = CriticOutputSchema.safeParse(cj);
++    const verdicts = parsedCritic.success ? parsedCritic.data.verdicts : [];
++    let structurallyBad = !parsedCritic.success;
+     const seen = new Map<string, number>();
+-    let structurallyBad = false;
+     for (const v of verdicts) {
+       const key = `${v.missionKey}#${v.criterionIndex}`;
+-      if (!expectedPairs.includes(key) || !VALID.has(v.verdict ?? "")) { structurallyBad = true; continue; }
++      if (!expectedPairs.includes(key)) { structurallyBad = true; continue; } // unknown/extra pair
+       seen.set(key, (seen.get(key) ?? 0) + 1);
+       const m = structurallyValid.find((x) => x.missionKey === v.missionKey);
+       const gc = m?.groundingV1?.criteria.find((g) => g.criterionIndex === v.criterionIndex);
+       const cited = new Set(gc?.sourceFactIds ?? []);
+-      if (v.factRefs && (v.factRefs.length !== cited.size || !v.factRefs.every((f) => cited.has(f)))) { structurallyBad = true; continue; }
++      // exact set equality with the cited factRefs (schema guarantees factRefs present + non-empty).
++      if (v.factRefs.length !== cited.size || !v.factRefs.every((f) => cited.has(f))) { structurallyBad = true; continue; }
+       if (v.verdict === "supported") supportedPairs.add(key);
+       else unsupportedCriteria++;
+     }
++    // exactly ONE verdict per expected pair (no missing, no duplicate) AND nothing structurally bad.
+     const complete = !structurallyBad && expectedPairs.every((p) => seen.get(p) === 1);
+     if (complete) for (const m of structurallyValid) if (m.criteria.every((_c, ci) => supportedPairs.has(`${m.missionKey}#${ci}`))) supportedKeys.add(m.missionKey);
+   } catch {
+     /* critic failure → nothing critic-supported (fail closed) */
+   }
+ 
+-  const accepted = structurallyValid.filter((m) => supportedKeys.has(m.missionKey));
++  const criticSupportedList = structurallyValid.filter((m) => supportedKeys.has(m.missionKey));
++
++  // 3b) CANONICAL GATE REHEARSAL — the critic-supported candidates now traverse the SAME deterministic gate
++  //     (validatePlanMissions: anchor + scope + safety + injection + worth-paying + grounding + cross-mission
++  //     uniqueness) the legacy plan uses. `accepted` means canonical-gate-passed — NOT merely critic-supported.
++  const canonReports = validatePlanMissions(criticSupportedList, scope, corpus, set);
++  const accepted = criticSupportedList.filter((_m, i) => canonReports[i]?.ok);
+ 
+   // 4) bounded metrics.
+   const tierCounts = emptyTiers();
+@@ -263,9 +410,9 @@ export async function runGroundedShadow(
+       }
+     }
+   }
+-  // BUDGET — run the REAL production allocateBudget over the critic-supported candidates (base units, NOT
+-  // reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total equals
+-  // the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
++  // 4) BUDGET — run the REAL production allocateBudget over ONLY the canonical-gate-passing candidates (base
++  // units, NOT reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total
++  // equals the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
+   const alloc = accepted.length > 0
+     ? allocateBudget(accepted.map((m) => ({ missionKey: m.missionKey, weight: m.rewardWeight, suggestedMaxCompletions: m.maxCompletions, priority: m.priority, effortMinutes: m.effortMinutes })), input.totalBudgetBase)
+     : { ok: false, reason: "no_accepted_candidates" as string, missions: [] as { rewardBase: bigint; maxCompletions: bigint }[] };
+@@ -275,8 +422,11 @@ export async function runGroundedShadow(
+   return base({
+     ran: true,
+     candidateCount: candidates.length,
++    groundingValid: structurallyValid.length,
+     structurallyValid: structurallyValid.length,
+     criticSupported: supportedKeys.size,
++    canonicalGatePassed: accepted.length,
++    budgetCompiled: alloc.ok,
+     accepted: accepted.length,
+     groundingCoverage: totalCriteria === 0 ? 0 : mappedCriteria / totalCriteria,
+     distinctStateCoverage: coveredStates.size,
+@@ -292,5 +442,7 @@ export async function runGroundedShadow(
+     allocationFailureReason: alloc.ok ? null : (alloc as { reason?: string }).reason ?? "allocation_failed",
+     budgetConsistent: exactBudgetEquality,
+     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
++    observationView: viewMeta,
++    ...routing(),
+   });
+ }
+diff --git a/src/lib/launch/mission-grounding.ts b/src/lib/launch/mission-grounding.ts
+index 68c68b2..9955a28 100644
+--- a/src/lib/launch/mission-grounding.ts
++++ b/src/lib/launch/mission-grounding.ts
+@@ -176,10 +176,15 @@ export function classifyGroundingTier(
+   replayReproduced: ReadonlySet<string> = new Set(),
+ ): GroundingTier {
+   const idx = factIndex(set);
+-  const transitions = (gc.sourceTransitionIds ?? []).map((id: string) => idx.transitions.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.transitions.get>>[];
+-  const safeTransitions = transitions.filter((t) => t.safeClassification === "safe");
+-  if (safeTransitions.some((t) => replayReproduced.has(t.id))) return "action_replayed";
+-  if (safeTransitions.length > 0) return "action_observed";
++  // Action tiers apply ONLY to an action_outcome criterion. A state/content/visual criterion is fact-derived
++  // even if it also cites a transition (its truth is a state, not the action), and an unsafe/unverified
++  // transition never raises a tier (only positively-`safe` transitions count).
++  if (gc.criterionKind === "action_outcome") {
++    const transitions = (gc.sourceTransitionIds ?? []).map((id: string) => idx.transitions.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.transitions.get>>[];
++    const safeTransitions = transitions.filter((t) => t.safeClassification === "safe");
++    if (safeTransitions.some((t) => replayReproduced.has(t.id))) return "action_replayed";
++    if (safeTransitions.length > 0) return "action_observed";
++  }
+   const facts = gc.sourceFactIds.map((id: string) => idx.facts.get(id)).filter(Boolean) as NonNullable<ReturnType<typeof idx.facts.get>>[];
+   if (facts.some((f) => f.grounding === "seen" && f.decisive)) return "state_seen";
+   if (facts.some((f) => f.grounding === "inferred")) return "inferred_only";
+diff --git a/src/lib/llm/complete.strict.test.ts b/src/lib/llm/complete.strict.test.ts
+new file mode 100644
+index 0000000..d3b1aa3
+--- /dev/null
++++ b/src/lib/llm/complete.strict.test.ts
+@@ -0,0 +1,74 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { llmCompleteJson } from "./complete";
++
++// STRICT raw-completion boundary — tested at the REAL llmCompleteJson by mocking the fetch/raw provider
++// response, NOT by mocking llmCompleteJson. Proves the strict policy fails closed on anything a tolerant
++// parser would salvage, and that the DEFAULT repair policy is unchanged for every legacy caller.
++
++const realFetch = global.fetch;
++const okResponse = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as unknown as Response;
++function providerResponse(content: string, finish_reason: string | null = "stop", message: Record<string, unknown> = {}) {
++  return { model: "prov/model-x", choices: [{ message: { content, ...message }, finish_reason }], usage: { prompt_tokens: 3, completion_tokens: 5 } };
++}
++const mockFetch = (body: unknown) => { global.fetch = vi.fn(async () => okResponse(body)) as unknown as typeof fetch; };
++
++describe("llmCompleteJson — strict raw-completion boundary (fetch mocked, not llmCompleteJson)", () => {
++  beforeEach(() => { process.env.LLM_API_KEY = "test-key"; process.env.LLM_BASE_URL = "https://prov.test/v1"; });
++  afterEach(() => { global.fetch = realFetch; delete process.env.LLM_API_KEY; delete process.env.LLM_BASE_URL; vi.restoreAllMocks(); });
++
++  it("clean JSON + finish_reason stop → PASSES with strict provenance (repaired=false)", async () => {
++    mockFetch(providerResponse('{"missions":[{"k":1}]}', "stop"));
++    const r = await llmCompleteJson({ system: "s", user: "u", parsePolicy: "strict" });
++    expect(r.json).toEqual({ missions: [{ k: 1 }] });
++    expect(r.parsePolicy).toBe("strict");
++    expect(r.repaired).toBe(false);
++    expect(r.finishReason).toBe("stop");
++    expect(r.responseModel).toBe("prov/model-x"); // actual provider model recorded
++  });
++
++  // Everything a tolerant parser would rescue must FAIL under strict.
++  const rejects: Array<[string, unknown]> = [
++    ["fenced JSON", providerResponse('```json\n{"a":1}\n```', "stop")],
++    ["prose-wrapped JSON", providerResponse('Here is my answer: {"a":1}', "stop")],
++    ["trailing comma", providerResponse('{"a":1,}', "stop")],
++    ["truncated JSON (no closing brace)", providerResponse('{"a":1', "stop")],
++    ["repairable unterminated tail", providerResponse('{"a":[1,2', "stop")],
++    ["array output", providerResponse('[{"a":1}]', "stop")],
++    ["empty content", providerResponse("", "stop")],
++    ["missing finish_reason", providerResponse('{"a":1}', null)],
++    ["finish_reason length", providerResponse('{"a":1}', "length")],
++    ["finish_reason max_tokens", providerResponse('{"a":1}', "max_tokens")],
++    ["finish_reason content_filter", providerResponse('{"a":1}', "content_filter")],
++    ["finish_reason tool_calls", providerResponse('{"a":1}', "tool_calls")],
++    ["finish_reason unknown", providerResponse('{"a":1}', "banana")],
++    ["message.refusal present", providerResponse('{"a":1}', "stop", { refusal: "I can't help with that" })],
++    ["message.tool_calls present", providerResponse('{"a":1}', "stop", { tool_calls: [{ id: "call_1" }] })],
++    ["two choices (not exactly one)", { model: "m", choices: [{ message: { content: '{"a":1}' }, finish_reason: "stop" }, { message: { content: "{}" }, finish_reason: "stop" }] }],
++  ];
++  for (const [name, body] of rejects) {
++    it(`strict REJECTS: ${name}`, async () => {
++      mockFetch(body);
++      await expect(llmCompleteJson({ system: "s", user: "u", parsePolicy: "strict" })).rejects.toThrow();
++    });
++  }
++
++  it("DEFAULT policy (no parsePolicy) is UNCHANGED — fenced JSON still parses via repair", async () => {
++    mockFetch(providerResponse('```json\n{"a":1}\n```', "stop"));
++    const r = await llmCompleteJson({ system: "s", user: "u" });
++    expect(r.json).toEqual({ a: 1 });
++    expect(r.parsePolicy).toBe("repair");
++  });
++
++  it("DEFAULT policy (no parsePolicy) STILL salvages a truncated tail (repaired=true)", async () => {
++    mockFetch(providerResponse('{"a":[1,2', "stop"));
++    const r = await llmCompleteJson({ system: "s", user: "u" });
++    expect(r.json).toEqual({ a: [1, 2] });
++    expect(r.repaired).toBe(true);
++  });
++
++  it("DEFAULT policy ignores finish_reason (a legacy caller with finish length still parses)", async () => {
++    mockFetch(providerResponse('{"a":1}', "length"));
++    const r = await llmCompleteJson({ system: "s", user: "u" });
++    expect(r.json).toEqual({ a: 1 }); // repair path never consulted finish_reason — behavior preserved
++  });
++});
+diff --git a/src/lib/llm/complete.ts b/src/lib/llm/complete.ts
+index 483211e..7b4629c 100644
+--- a/src/lib/llm/complete.ts
++++ b/src/lib/llm/complete.ts
+@@ -20,13 +20,23 @@ const TIMEOUT_MS = Math.max(20_000, Number(process.env.LLM_TIMEOUT_MS) || 90_000
+ export interface LlmComplete {
+   /** the parsed JSON object the model returned. */
+   json: unknown;
++  /** the model Sage REQUESTED (resolved from override/env). */
+   model: string;
+   provider: string;
+   latencyMs: number;
+   promptTokens: number;
+   completionTokens: number;
++  /** parse provenance — which policy parsed this response, the provider finish_reason, and whether the
++   *  tolerant repair rung was used. Optional so existing constructors/mocks stay valid. */
++  parsePolicy?: "repair" | "strict";
++  finishReason?: string | null;
++  repaired?: boolean;
++  /** the model the PROVIDER reported using (may differ from the requested `model`); null when absent. */
++  responseModel?: string | null;
+ }
+ 
++export type ParsePolicy = "repair" | "strict";
++
+ function hostOf(url: string): string {
+   try {
+     return new URL(url).host;
+@@ -107,10 +117,43 @@ function repairJson(raw: string): unknown {
+ }
+ 
+ interface ChatResponse {
+-  choices?: { message?: { content?: string } }[];
++  /** the model the provider actually served (OpenAI-compatible gateways echo this). */
++  model?: string;
++  choices?: {
++    message?: { content?: string; refusal?: string | null; tool_calls?: unknown[] };
++    finish_reason?: string | null;
++  }[];
+   usage?: { prompt_tokens?: number; completion_tokens?: number };
+ }
+ 
++/**
++ * STRICT parse for the grounded-architect boundary — the same discipline the money path uses
++ * (deputy/brain.ts), applied to a non-money generation path. The raw provider response must be a SINGLE,
++ * explicitly-normal ("stop") completion whose trimmed content is a bare JSON object. It NEVER strips
++ * fences, extracts braces from prose, drops trailing commas, appends delimiters, or calls repairJson: a
++ * non-conforming response fails closed so a truncated/mangled/tool-call/refused reply can never be
++ * salvaged into a plan.
++ */
++function parseStrict(data: ChatResponse): { json: unknown; finishReason: string } {
++  const choices = data.choices ?? [];
++  if (choices.length !== 1) throw new Error("llm_strict_choice_count");
++  const choice = choices[0];
++  const finishReason = choice.finish_reason;
++  if (finishReason == null) throw new Error("llm_strict_finish_absent"); // missing → fail closed
++  if (finishReason !== "stop") throw new Error(`llm_strict_finish_${finishReason}`.slice(0, 48)); // length/content_filter/tool_calls/unknown
++  const message = choice.message;
++  if (!message) throw new Error("llm_strict_no_message");
++  if (message.refusal != null && String(message.refusal).trim() !== "") throw new Error("llm_strict_refusal");
++  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) throw new Error("llm_strict_tool_calls");
++  const content = message.content;
++  if (!content || content.trim() === "") throw new Error("llm_empty");
++  const trimmed = content.trim();
++  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // no fences/prose/arrays
++  const json: unknown = JSON.parse(trimmed); // throws on ANY malformation (trailing comma, truncation) — no repair
++  if (json === null || typeof json !== "object" || Array.isArray(json)) throw new Error("llm_strict_not_object");
++  return { json, finishReason };
++}
++
+ /**
+  * ONE JSON completion. Throws on any failure (bad status, empty, unparseable). The
+  * caller owns retry / fallback / honest degradation — this never fabricates output.
+@@ -121,6 +164,8 @@ export async function llmCompleteJson(opts: {
+   maxTokens?: number;
+   model?: string;
+   temperature?: number;
++  /** "repair" (default — unchanged tolerant parse for legacy callers) | "strict" (fail-closed, no salvage). */
++  parsePolicy?: ParsePolicy;
+ }): Promise<LlmComplete> {
+   const p = resolveLlm(opts.model);
+   if (!p) throw new Error("llm_not_configured");
+@@ -145,16 +190,28 @@ export async function llmCompleteJson(opts: {
+     });
+     if (!res.ok) throw new Error(`llm_status_${res.status}`);
+     const data = (await res.json()) as ChatResponse;
+-    const content = data.choices?.[0]?.message?.content;
+-    if (!content) throw new Error("llm_empty");
++    const policy: ParsePolicy = opts.parsePolicy ?? "repair";
+     let json: unknown;
+-    const extracted = extractJson(content);
+-    try {
+-      json = JSON.parse(extracted);
+-    } catch {
+-      // recovery rung: bounded structural repair before giving up.
+-      json = repairJson(extracted);
+-      if (json === null) throw new Error("llm_unparseable");
++    let finishReason: string | null;
++    let repaired = false;
++    if (policy === "strict") {
++      const strict = parseStrict(data); // fail-closed: no fence-strip / brace-extract / trailing-comma / repair
++      json = strict.json;
++      finishReason = strict.finishReason;
++    } else {
++      // DEFAULT "repair" — byte-identical to before: extract → JSON.parse → bounded structural repair.
++      finishReason = data.choices?.[0]?.finish_reason ?? null;
++      const content = data.choices?.[0]?.message?.content;
++      if (!content) throw new Error("llm_empty");
++      const extracted = extractJson(content);
++      try {
++        json = JSON.parse(extracted);
++      } catch {
++        // recovery rung: bounded structural repair before giving up.
++        json = repairJson(extracted);
++        if (json === null) throw new Error("llm_unparseable");
++        repaired = true;
++      }
+     }
+     return {
+       json,
+@@ -163,6 +220,10 @@ export async function llmCompleteJson(opts: {
+       latencyMs: Date.now() - started,
+       promptTokens: data.usage?.prompt_tokens ?? 0,
+       completionTokens: data.usage?.completion_tokens ?? 0,
++      parsePolicy: policy,
++      finishReason,
++      repaired,
++      responseModel: typeof data.model === "string" ? data.model : null,
+     };
+   } finally {
+     clearTimeout(timer);

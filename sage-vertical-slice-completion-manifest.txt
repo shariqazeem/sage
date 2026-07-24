@@ -1,0 +1,31 @@
+SAGE — Vertical-Slice Completion Sprint — review manifest
+=========================================================
+BASE (prior sprint head): 15e7c87
+HEAD:                      d492ca415511f0f3ff712319d7eac780081713cf
+
+PATCHES (both required for independent review):
+  sage-gates-a-c-cumulative.patch      (16 commits; base 6ab4e6e -> Gate-C head 9d2d340; git am-able)
+  sage-vertical-slice-completion.patch (3 commits; base 15e7c87 -> HEAD; this sprint; reverse-checks OK)
+
+COMMITS (this sprint, oldest -> newest; base 15e7c87 -> head ea24155):
+  7c160a5  fix(concierge): preserve V2 memory across every history writer      [P0.1]
+  519c66f  fix(concierge): make lifecycle tool outcomes strict and authoritative [P0.2]
+  d492ca4  fix(agentic): make inspection replay positively safe and faithful   [P0.3]
+  ea24155  fix(concierge): atomic history append + full approval-token binding  [P0 closure]
+
+P0 DEFECTS CORRECTED:
+  P0.1  pushAssistant / background notifications clobbered the V2 envelope's activeTask -> one versioned
+        codec (mergeMemory) all writers use; a background write can no longer drop an active run.
+  P0.2  mapConciergeTool was permissive -> strict per-tool decoders; a fund_and_launch with no
+        campaignId / empty / prose / malformed / timeout becomes AMBIGUOUS (verify), never active;
+        honest ShadowStep outcomes; loop detector; surface-aware; approval bound to the awaited plan.
+  P0.3  transitions marked "safe" when network was not_captured -> safety must be positively established
+        (field test captures methods per transition; only GET/HEAD-only -> safe -> replayable); locator
+        from the BEFORE state; key allowlist with no Enter fallback.
+
+VERIFICATION: typecheck clean; lint clean; full suite 1246 passed / 35 skipped.
+Nothing deployed/pushed/enforced/approved/migrated. Secrets: none.
+
+REMAINING (not done this sprint, honestly reported): P1 (vision typed claims; grounded architect S2 wiring;
+obs-judge V2 honesty rename; P-ENTAIL multi-criterion + semantic scoring) and P2 (S6 runtime demo; S7
+learning brain). Context budget was exhausted after P0.

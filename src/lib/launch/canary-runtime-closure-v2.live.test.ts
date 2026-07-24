@@ -103,7 +103,7 @@ describe.runIf(PAID)("PHASE 3 — canary-runtime-closure-v2 LIVE (≤2 paid)", (
     const { getCurrentRevision, getApprovedRevision, approveRevision } = await import("@/lib/db/plan-revisions");
     const { runInspectionJob } = await import("./job");
 
-    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "ccv2-" + transId.slice(0, 8), productUrl: "https://reportly.test/", repoUrl: null, goal: GOAL, targetUsers: "analysts", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6 });
+    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "ccv2-" + transId.slice(0, 8), productUrl: "https://reportly.test/", repoUrl: null, goal: GOAL, targetUsers: "analysts", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6, planningRequestId: `prid:test:ccv2-${transId.slice(0, 12)}`, surface: "test" });
     await runInspectionJob(job.id);
 
     const after = getInspectionJob(job.id)!;

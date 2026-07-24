@@ -65,8 +65,10 @@ export function BudgetBar({
 
   return (
     <section className="lx-card pad-lg" aria-label="Budget and approval" style={{ marginTop: 22 }}>
-      {locked && (
-        <div className="lx-ready-banner"><span aria-hidden>✓</span> Mission plan approved · ready to fund</div>
+      {locked ? (
+        <div className="lx-ready-banner"><span aria-hidden>✓</span> You approved this plan · ready to fund</div>
+      ) : (
+        <div className="lx-ready-banner lx-review-banner"><span aria-hidden>›</span> Sage&rsquo;s plan passed its checks · ready for your review</div>
       )}
 
       <div className="lx-kicker" style={{ margin: "8px 0 14px" }}>Budget</div>

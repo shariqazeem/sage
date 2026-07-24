@@ -1,0 +1,1028 @@
+From 7c160a5d1748b30971a444c61a4ef0599980f613 Mon Sep 17 00:00:00 2001
+From: Sage Builder <bc230212964ssh@vu.edu.pk>
+Date: Thu, 23 Jul 2026 14:25:51 +0500
+Subject: [PATCH 1/4] fix(concierge): preserve V2 memory across every history
+ writer
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fixes a runtime-integration defect: pushAssistant (used by background inspection notifications) called
+loadHistory → saveHistory, which parsed the stored JSON as a bare Message[] and wrote a bare array —
+silently CLOBBERING the V2 envelope's activeTask. A proactive "your plan is ready" DM during an active
+run erased the run state.
+
+  - mergeMemory() (task-run.ts) is the single, pure WRITE codec: given the current stored raw + new
+    messages, it PRESERVES the existing activeTask + summary + recentTools unless explicitly overridden
+    (opts.activeTask === null clears it). It emits a V2 envelope when a task exists, else a legacy bare
+    array (byte-identical to pre-V2 storage). readMemory is the matching read codec (both formats).
+  - concierge.ts now routes EVERY writer through one persistHistory() = saveChatMessages(mergeMemory(...)):
+    saveHistory, pushAssistant (background notices), and the turn-end shadow persist. A background write
+    can no longer drop an active run, and two interleaved writers can lose at most a message, never the
+    authoritative task state (each re-reads + preserves the task).
+
+Tests: mergeMemory preserves the activeTask when a background writer only appends messages; writes a
+legacy array when there is no run (byte-identical off-mode); and can explicitly clear the task. Off mode
+stays behaviorally identical; the full telegram suite (78) is green.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ src/lib/telegram/concierge.ts     | 34 ++++++++++++++++++-------------
+ src/lib/telegram/task-run.test.ts | 25 ++++++++++++++++++++++-
+ src/lib/telegram/task-run.ts      | 23 +++++++++++++++++++++
+ 3 files changed, 67 insertions(+), 15 deletions(-)
+
+diff --git a/src/lib/telegram/concierge.ts b/src/lib/telegram/concierge.ts
+index 8c1acb7..4f564e7 100644
+--- a/src/lib/telegram/concierge.ts
++++ b/src/lib/telegram/concierge.ts
+@@ -6,6 +6,7 @@ import { sendTelegram } from "@/lib/telegram/bot";
+ import { privyConfigured } from "@/lib/privy/client";
+ import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
+ import { conciergeTaskRunMode, ConciergeTaskShadow, readMemory } from "./concierge-shadow";
++import { mergeMemory, type ConversationMemoryV2 } from "./task-run";
+ import {
+   AGENT_WALLET_TOOLS,
+   isAgentWalletTool,
+@@ -157,17 +158,22 @@ const TG_TOOLS = [...MCP_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])
+ const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
+ 
+ /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system
+- *  message is prepended fresh each turn, never stored). */
++ *  message is prepended fresh each turn, never stored). ONE versioned codec (readMemory) handles both the
++ *  legacy Message[] and the V2 envelope, so no reader/writer can silently drop the activeTask. */
++function loadMemory(chatId: string): ConversationMemoryV2 {
++  return readMemory(loadChatMessages(chatId));
++}
+ function loadHistory(chatId: string): ChatMessage[] {
+-  try {
+-    const parsed: unknown = JSON.parse(loadChatMessages(chatId));
+-    return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
+-  } catch {
+-    return [];
+-  }
++  return loadMemory(chatId).messages as ChatMessage[];
+ }
+-function saveHistory(chatId: string, msgs: ChatMessage[]): void {
+-  saveChatMessages(chatId, JSON.stringify(msgs.slice(-MAX_HISTORY)));
++/**
++ * The single history WRITER. It re-reads the current envelope and PRESERVES the activeTask + summary
++ * unless explicitly overridden — so a background notification (pushAssistant) can never clobber an active
++ * run, and two interleaved writers can drop at most a message, never the authoritative task state. Writes
++ * a V2 envelope whenever a task exists; otherwise a legacy array (byte-identical to off-mode today).
++ */
++function persistHistory(chatId: string, msgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
++  saveChatMessages(chatId, mergeMemory(loadChatMessages(chatId), msgs, opts, MAX_HISTORY));
+ }
+ 
+ const usdFrom = (base: string): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
+@@ -184,7 +190,7 @@ function safeHost(url: string): string {
+  *  (e.g. the "your plan is ready" it sent proactively) on the founder's next turn. */
+ function pushAssistant(chatId: string, content: string): void {
+   const next: ChatMessage[] = [...loadHistory(chatId), { role: "assistant", content }];
+-  saveHistory(chatId, next);
++  persistHistory(chatId, next); // preserves the activeTask — a background notice never clobbers a run
+ }
+ 
+ /** The plain-text follow-up for a finished inspection — ready plan, needs-input, or failure. */
+@@ -435,10 +441,10 @@ async function runAgentTurn(
+     { role: "user", content: userText },
+     { role: "assistant", content: reply },
+   ];
+-  // In shadow mode persist the V2 envelope (activeTask survives restarts); otherwise the legacy array
+-  // (byte-identical to before). readMemory reads either format on the next turn.
+-  if (shadow && memory) saveChatMessages(ref, shadow.toEnvelope(next.slice(-MAX_HISTORY), memory.summary));
+-  else saveHistory(ref, next);
++  // Persist through the one codec: in shadow mode the shadow's task is the authoritative activeTask (it
++  // survives restarts); off mode preserves whatever task already existed (usually none → legacy array).
++  if (shadow) persistHistory(ref, next, { activeTask: shadow.task, summary: memory?.summary });
++  else persistHistory(ref, next);
+   return reply;
+ }
+ 
+diff --git a/src/lib/telegram/task-run.test.ts b/src/lib/telegram/task-run.test.ts
+index 91463da..6a0b63c 100644
+--- a/src/lib/telegram/task-run.test.ts
++++ b/src/lib/telegram/task-run.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, it, expect } from "vitest";
+-import { advance, newTaskRun, readMemory, currentAction, CONVERSATION_MEMORY_VERSION, type TaskRunV1, type ToolOutcome } from "./task-run";
++import { advance, newTaskRun, readMemory, mergeMemory, currentAction, CONVERSATION_MEMORY_VERSION, type TaskRunV1, type ToolOutcome } from "./task-run";
+ 
+ let clock = 1000;
+ const tool = (o: ToolOutcome) => ({ kind: "tool" as const, outcome: o });
+@@ -92,6 +92,29 @@ describe("Concierge task controller — scenarios", () => {
+     expect(next).toEqual({ kind: "blocked", reason: "needsFunding" });
+   });
+ 
++  it("mergeMemory PRESERVES the activeTask when a writer only updates messages (no clobber)", () => {
++    // a turn established an active run...
++    let run = start();
++    ({ run } = advance(run, tool({ tool: "inspect", ok: true, data: { inspectionId: "insp1" } }), clock++));
++    const withTask = JSON.stringify({ version: 2, messages: [{ role: "user", content: "go" }], summary: "s", activeTask: run, recentTools: [] });
++    // ...then a BACKGROUND writer appends an assistant line with NO activeTask override.
++    const merged = mergeMemory(withTask, [{ role: "user", content: "go" }, { role: "assistant", content: "your plan is ready" }], {});
++    const mem = readMemory(merged);
++    expect(mem.activeTask?.inspectionId).toBe("insp1"); // task survived the background write
++    expect(mem.messages).toHaveLength(2);
++  });
++
++  it("mergeMemory writes a legacy ARRAY when there is no active run (byte-identical off-mode)", () => {
++    const out = mergeMemory("[]", [{ role: "user", content: "hi" }], {});
++    expect(JSON.parse(out)).toEqual([{ role: "user", content: "hi" }]); // a bare array, not an envelope
++  });
++
++  it("mergeMemory can explicitly CLEAR the task (activeTask: null) → reverts to a legacy array", () => {
++    const withTask = JSON.stringify({ version: 2, messages: [], summary: "", activeTask: { version: "task-run-v1", state: "active" }, recentTools: [] });
++    const out = mergeMemory(withTask, [{ role: "user", content: "done" }], { activeTask: null });
++    expect(Array.isArray(JSON.parse(out))).toBe(true);
++  });
++
+   it("readMemory upgrades legacy V1 (bare array) + reads V2, ignoring a stale-version task", () => {
+     expect(readMemory("[]").version).toBe(CONVERSATION_MEMORY_VERSION);
+     const v1 = readMemory(JSON.stringify([{ role: "user", content: "hi" }]));
+diff --git a/src/lib/telegram/task-run.ts b/src/lib/telegram/task-run.ts
+index 3dd7488..7a6d53b 100644
+--- a/src/lib/telegram/task-run.ts
++++ b/src/lib/telegram/task-run.ts
+@@ -251,6 +251,29 @@ function currentArgs(run: TaskRunV1, tool: string): Record<string, unknown> {
+   return a.kind === "call_tool" && a.tool === tool ? a.args : {};
+ }
+ 
++/**
++ * The single memory WRITE codec (pure). Given the CURRENT stored raw, the new messages, and optional
++ * overrides, it PRESERVES the existing activeTask + summary + recentTools unless explicitly overridden —
++ * so no writer (a background notification included) can silently drop an active run. Emits a V2 envelope
++ * when a task exists, else a legacy bare array (byte-identical to pre-V2 storage). `"activeTask" in opts`
++ * lets a caller explicitly clear it (opts.activeTask === null).
++ */
++export function mergeMemory(
++  existingRaw: string | null | undefined,
++  messages: unknown[],
++  opts: { activeTask?: TaskRunV1 | null; summary?: string; recentTools?: ConversationMemoryV2["recentTools"] } = {},
++  maxHistory = 12,
++): string {
++  const existing = readMemory(existingRaw);
++  const activeTask = "activeTask" in opts ? opts.activeTask ?? null : existing.activeTask;
++  const summary = opts.summary ?? existing.summary;
++  const recentTools = opts.recentTools ?? existing.recentTools;
++  const trimmed = messages.slice(-maxHistory);
++  return activeTask
++    ? JSON.stringify({ version: CONVERSATION_MEMORY_VERSION, messages: trimmed, summary, activeTask, recentTools } satisfies ConversationMemoryV2)
++    : JSON.stringify(trimmed);
++}
++
+ /** Read the memory envelope from stored JSON, upgrading a bare V1 message array in place (no migration). */
+ export function readMemory(stored: string | null | undefined): ConversationMemoryV2 {
+   if (!stored) return { version: CONVERSATION_MEMORY_VERSION, messages: [], summary: "", activeTask: null, recentTools: [] };
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 519c66f2886164b017eb782bb0afc961460a0b33 Mon Sep 17 00:00:00 2001
+From: Sage Builder <bc230212964ssh@vu.edu.pk>
+Date: Thu, 23 Jul 2026 14:31:50 +0500
+Subject: [PATCH 2/4] fix(concierge): make lifecycle tool outcomes strict and
+ authoritative
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Replaces the permissive `data.ok !== false && !data.error` parsing in mapConciergeTool with STRICT
+per-tool decoders, so a payout-critical tool can never reach "success" on a guess.
+
+  - sage_fund_and_launch fails closed: a missing campaignId, empty output, prose, malformed JSON,
+    error payload, or timeout becomes AMBIGUOUS (ok:false + ambiguousTimeout → the controller runs the
+    read-only verify flow before any second spend) — NEVER a transition to active. An id is never
+    inferred from prose. Explicit business stops map to hard reasons (needsFunding/needsGas/overCap).
+  - lifecycleOutcome() labels each decoded result success|failed|ambiguous|needs_funding|needs_gas|
+    over_cap; ShadowStep now records that real outcome, and recentTools no longer serialize every call
+    as ok:true.
+  - Loop detection: the same tool firing >=3x with no state progress blocks the run (steps flagged
+    loop). The unused lastCallSig state/claim on TaskRunV1 is removed.
+  - Surface-aware: on web (no money tools) a fund_and_launch result is never observed as a lifecycle
+    event — web-chat telemetry can't pretend to authorize Telegram-only funding.
+  - Approval is bound to the plan the run is awaiting: a "yes" that references a changed/stale plan id
+    is not honored (re-present instead of deploying a different plan).
+
+Tests: a fund result with no id (6 malformed/empty/prose variants) never reaches active; strict decoder
++ outcome labels; web skips money; loop→blocked; ShadowStep records the real outcome; stale approval not
+honored. Full telegram suite green.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ src/lib/telegram/concierge-shadow.test.ts | 56 ++++++++++++-
+ src/lib/telegram/concierge-shadow.ts      | 96 ++++++++++++++++++-----
+ src/lib/telegram/concierge.ts             |  4 +-
+ src/lib/telegram/task-run.ts              |  7 --
+ 4 files changed, 132 insertions(+), 31 deletions(-)
+
+diff --git a/src/lib/telegram/concierge-shadow.test.ts b/src/lib/telegram/concierge-shadow.test.ts
+index 938f563..6b6bd65 100644
+--- a/src/lib/telegram/concierge-shadow.test.ts
++++ b/src/lib/telegram/concierge-shadow.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, it, expect, afterEach } from "vitest";
+-import { mapConciergeTool, extractIntent, ConciergeTaskShadow, conciergeTaskRunMode, readMemory } from "./concierge-shadow";
++import { mapConciergeTool, lifecycleOutcome, extractIntent, ConciergeTaskShadow, conciergeTaskRunMode, readMemory } from "./concierge-shadow";
+ import type { ConversationMemoryV2 } from "./task-run";
+ 
+ const emptyMemory = (): ConversationMemoryV2 => ({ version: 2, messages: [], summary: "", activeTask: null, recentTools: [] });
+@@ -64,6 +64,60 @@ describe("concierge task shadow — maps REAL tool results to controller outcome
+     expect(s2.task?.state).toBe("active");
+   });
+ 
++  it("STRICT money decoder: a fund result with NO campaignId → ambiguous (verify), NEVER active", () => {
++    const start = () => new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
++    for (const bad of ["{}", '{"ok":true}', '{"ok":true,"message":"launched!"}', "launched successfully", '{"campaignId":""}', '{"error":"boom"}']) {
++      const shadow = start();
++      shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
++      shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready" }));
++      shadow.observeFounder("approve", true);
++      shadow.observeTool("sage_fund_and_launch", bad);
++      expect(shadow.task?.state, `bad result: ${bad}`).not.toBe("active"); // never active without a real id
++      expect(shadow.task?.campaignId).toBeUndefined();
++    }
++  });
++
++  it("mapConciergeTool strict decoders + lifecycleOutcome labels", () => {
++    expect(mapConciergeTool("sage_start_inspection", "{}")).toEqual({ tool: "inspect", ok: false, reason: "no_inspection_id" });
++    expect(mapConciergeTool("sage_fund_and_launch", "not json")).toMatchObject({ tool: "fund_and_launch", ok: false, ambiguousTimeout: true });
++    expect(lifecycleOutcome({ tool: "fund_and_launch", ok: false, reason: "needsFunding" })).toBe("needs_funding");
++    expect(lifecycleOutcome({ tool: "fund_and_launch", ok: false, ambiguousTimeout: true })).toBe("ambiguous");
++    expect(lifecycleOutcome({ tool: "inspect", ok: true, data: {} })).toBe("success");
++  });
++
++  it("SURFACE-AWARE: on web, a fund_and_launch result is never observed (no money authorization there)", () => {
++    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1, "web");
++    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
++    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready" }));
++    shadow.observeFounder("approve", true);
++    shadow.observeTool("sage_fund_and_launch", JSON.stringify({ ok: true, campaignId: "camp1" })); // ignored on web
++    expect(shadow.task?.campaignId).toBeUndefined();
++  });
++
++  it("LOOP DETECTION: the same tool with no progress repeatedly → blocked", () => {
++    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
++    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
++    for (let i = 0; i < 5; i++) shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "pending" }));
++    expect(shadow.task?.state).toBe("blocked");
++    expect(shadow.steps.some((s) => s.loop)).toBe(true);
++  });
++
++  it("ShadowStep records the REAL outcome (not a blanket ok:true)", () => {
++    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
++    shadow.observeTool("sage_start_inspection", JSON.stringify({ error: "nope" }));
++    expect(shadow.steps.at(-1)?.outcome).toBe("failed");
++  });
++
++  it("STALE approval: a 'yes' for a plan that changed is not honored", () => {
++    const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
++    shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
++    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1" }));
++    shadow.observeFounder("approve", true, "plan-OLD"); // references a different (stale) plan
++    expect(shadow.task?.state).toBe("awaiting_approval"); // not deployed
++    shadow.observeFounder("approve", true, "plan1"); // the current plan → honored
++    expect(shadow.task?.state).toBe("deploying");
++  });
++
+   it("an ambiguous fund timeout is observed as verify (never a re-spend)", () => {
+     const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+     shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+diff --git a/src/lib/telegram/concierge-shadow.ts b/src/lib/telegram/concierge-shadow.ts
+index fed12b5..e81375c 100644
+--- a/src/lib/telegram/concierge-shadow.ts
++++ b/src/lib/telegram/concierge-shadow.ts
+@@ -22,47 +22,88 @@ export function extractIntent(text: string): { productUrl: string; goal: string;
+   return { productUrl: url, goal: text.slice(0, 200), budgetText: budget };
+ }
+ 
++/** Explicit lifecycle outcome — a payout-critical tool NEVER reaches "success" on a permissive guess. */
++export type LifecycleOutcome = "success" | "failed" | "ambiguous" | "needs_funding" | "needs_gas" | "over_cap";
++
++const parseObj = (text: string): Record<string, unknown> | null => {
++  try { const v = JSON.parse(text) as unknown; return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null; }
++  catch { return null; }
++};
++const strField = (o: Record<string, unknown>, k: string): string | undefined => (typeof o[k] === "string" && (o[k] as string).trim() ? (o[k] as string) : undefined);
++
+ /**
+- * Map a concierge tool name + its JSON result text to a controller ToolOutcome — extracting AUTHORITATIVE
+- * ids only from the tool result (never the model). Returns null for tools outside the task lifecycle.
++ * STRICT per-tool decoder. A lifecycle action SUCCEEDS only when the JSON is a valid object, the tool
++ * explicitly reports success, and every required authoritative id is present + well-formed. For the money
++ * tool (fund_and_launch), a missing campaignId / empty / prose / malformed / timeout result becomes
++ * AMBIGUOUS (→ the controller verifies before any second spend) — NEVER a transition to active. An id is
++ * never inferred from prose. Returns null for tools outside the lifecycle.
+  */
+ export function mapConciergeTool(name: string, resultText: string): ToolOutcome | null {
+-  let data: Record<string, unknown> = {};
+-  try { data = JSON.parse(resultText) as Record<string, unknown>; } catch { /* non-JSON tool text */ }
+-  const ok = data.ok !== false && !data.error;
+-  const str = (k: string) => (typeof data[k] === "string" ? (data[k] as string) : undefined);
++  const o = parseObj(resultText);
+   switch (name) {
+-    case "sage_start_inspection":
+-      return { tool: "inspect", ok, data: { inspectionId: str("inspectionId") ?? str("id") } };
+-    case "sage_get_inspection":
+-      return { tool: "poll_inspection", ok, data: { ready: data.status === "ready" || data.ready === true, planId: str("planId") } };
++    case "sage_start_inspection": {
++      if (!o) return { tool: "inspect", ok: false, reason: "malformed_result" };
++      const id = strField(o, "inspectionId") ?? strField(o, "id");
++      if (o.ok === false || o.error || !id) return { tool: "inspect", ok: false, reason: o.error ? "tool_error" : "no_inspection_id" };
++      return { tool: "inspect", ok: true, data: { inspectionId: id } };
++    }
++    case "sage_get_inspection": {
++      if (!o) return { tool: "poll_inspection", ok: false, reason: "malformed_result" };
++      const ready = o.status === "ready" || o.ready === true;
++      return { tool: "poll_inspection", ok: true, data: { ready, planId: strField(o, "planId") ?? strField(o, "revision") } };
++    }
+     case "sage_fund_and_launch": {
+-      if (data.overCap) return { tool: "fund_and_launch", ok: false, reason: "overCap" };
+-      if (data.needsFunding) return { tool: "fund_and_launch", ok: false, reason: "needsFunding" };
+-      if (data.needsGas) return { tool: "fund_and_launch", ok: false, reason: "needsGas" };
+-      return { tool: "fund_and_launch", ok, data: { campaignId: str("campaignId") ?? str("id"), campaignUrl: str("campaignUrl") } };
++      // MONEY tool — fail closed. Malformed/absent output is AMBIGUOUS (verify), not a failure to blindly
++      // retry and never a success. Explicit business stops map to hard reasons.
++      if (!o) return { tool: "fund_and_launch", ok: false, ambiguousTimeout: true, reason: "malformed_result" };
++      if (o.overCap) return { tool: "fund_and_launch", ok: false, reason: "overCap" };
++      if (o.needsFunding) return { tool: "fund_and_launch", ok: false, reason: "needsFunding" };
++      if (o.needsGas) return { tool: "fund_and_launch", ok: false, reason: "needsGas" };
++      if (o.timeout || o.ambiguous) return { tool: "fund_and_launch", ok: false, ambiguousTimeout: true, reason: "ambiguous_timeout" };
++      if (o.error) return { tool: "fund_and_launch", ok: false, reason: "tool_error" };
++      const camp = strField(o, "campaignId") ?? strField(o, "id");
++      // success CLAIMED but no id, or ok!==true → we don't KNOW it deployed → verify, never active.
++      if (!camp || o.ok === false) return { tool: "fund_and_launch", ok: false, ambiguousTimeout: true, reason: "no_campaign_id" };
++      return { tool: "fund_and_launch", ok: true, data: { campaignId: camp, campaignUrl: strField(o, "campaignUrl") } };
+     }
+     default:
+       return null; // wallet-status / my-campaigns / proof reads are not lifecycle transitions
+   }
+ }
+ 
++/** The explicit lifecycle outcome label for an OK/failed/ambiguous decoded result (for ShadowStep). */
++export function lifecycleOutcome(o: ToolOutcome): LifecycleOutcome {
++  if (o.ok) return "success";
++  if (o.ambiguousTimeout) return "ambiguous";
++  if (o.reason === "needsFunding") return "needs_funding";
++  if (o.reason === "needsGas") return "needs_gas";
++  if (o.reason === "overCap") return "over_cap";
++  return "failed";
++}
++
+ export interface ShadowStep {
+   tool: string;
+   controllerNext: NextAction;
+   state: TaskRunV1["state"];
+-  /** disagreement: did the controller's proposed action differ in KIND from the legacy loop's next move? */
+-  note?: string;
++  /** the explicit lifecycle outcome of this tool (never a blanket ok:true). */
++  outcome: LifecycleOutcome;
++  /** set when this tool call was a loop (same tool + no state progress). */
++  loop?: boolean;
+ }
+ 
++const LOOP_THRESHOLD = 3; // the same tool firing this many times with NO state progress = a loop
++
+ /** A live shadow session over one concierge turn — observe tool results, advance the controller, record. */
+ export class ConciergeTaskShadow {
+   task: TaskRunV1 | null;
+   steps: ShadowStep[] = [];
+   private clock: number;
++  private surface: "telegram" | "web";
++  private repeat = { sig: "", count: 0 };
+ 
+-  constructor(memory: ConversationMemoryV2, founderText: string, now: number) {
++  constructor(memory: ConversationMemoryV2, founderText: string, now: number, surface: "telegram" | "web" = "telegram") {
+     this.clock = now;
++    this.surface = surface;
+     this.task = memory.activeTask;
+     if (!this.task) {
+       const intent = extractIntent(founderText);
+@@ -73,16 +114,29 @@ export class ConciergeTaskShadow {
+   /** Feed a real tool result; advance the controller if this tool is a lifecycle transition. */
+   observeTool(name: string, resultText: string): void {
+     if (!this.task) return;
++    // SURFACE-AWARE: the web surface has no money tools — a fund_and_launch here would be telemetry
++    // pretending it can authorize Telegram-only funding, so it is never observed as a lifecycle event.
++    if (this.surface === "web" && name === "sage_fund_and_launch") return;
+     const outcome = mapConciergeTool(name, resultText);
+     if (!outcome) return;
++    const before = this.task.state;
+     const { run, next } = advance(this.task, { kind: "tool", outcome }, this.clock++);
++    // LOOP DETECTION — the same tool firing repeatedly with no state progress.
++    const sig = `${name}:${before}`;
++    this.repeat = this.repeat.sig === sig && run.state === before ? { sig, count: this.repeat.count + 1 } : { sig, count: 1 };
++    const loop = this.repeat.count >= LOOP_THRESHOLD;
++    if (loop && run.state !== "blocked") run.state = "blocked";
+     this.task = run;
+-    this.steps.push({ tool: name, controllerNext: next, state: run.state });
++    this.steps.push({ tool: name, controllerNext: next, state: run.state, outcome: lifecycleOutcome(outcome), ...(loop ? { loop: true } : {}) });
+   }
+ 
+-  /** Feed a founder approval/message (only approval advances state). */
+-  observeFounder(text: string, approve: boolean): void {
++  /** Feed a founder approval/message. Approval is bound to the SPECIFIC plan the run is awaiting — a
++   *  generic "yes" after the plan changed (a different planId) must NOT authorize the changed plan. */
++  observeFounder(text: string, approve: boolean, planId?: string): void {
+     if (!this.task) return;
++    if (approve && this.task.state === "awaiting_approval" && this.task.planId && planId && planId !== this.task.planId) {
++      return; // stale approval: the plan revision changed since it was presented — re-present, do not deploy
++    }
+     const { run } = advance(this.task, { kind: "founder", text, approve }, this.clock++);
+     this.task = run;
+   }
+@@ -94,7 +148,7 @@ export class ConciergeTaskShadow {
+ 
+   /** Persist the shadow task into a backward-compatible V2 envelope over the existing message array. */
+   toEnvelope(messages: unknown[], summary: string): string {
+-    const env: ConversationMemoryV2 = { version: 2, messages, summary, activeTask: this.task, recentTools: this.steps.slice(-5).map((s) => ({ tool: s.tool, ok: true })) };
++    const env: ConversationMemoryV2 = { version: 2, messages, summary, activeTask: this.task, recentTools: this.steps.slice(-5).map((s) => ({ tool: s.tool, ok: s.outcome === "success", reason: s.outcome === "success" ? undefined : s.outcome })) };
+     return JSON.stringify(env);
+   }
+ }
+diff --git a/src/lib/telegram/concierge.ts b/src/lib/telegram/concierge.ts
+index 4f564e7..57e65e0 100644
+--- a/src/lib/telegram/concierge.ts
++++ b/src/lib/telegram/concierge.ts
+@@ -314,9 +314,9 @@ async function runAgentTurn(
+   // unchanged; the shadow never alters tool execution, the reply, ids, approval, or money.
+   const shadowMode = conciergeTaskRunMode() === "shadow";
+   const memory = shadowMode ? readMemory(loadChatMessages(ref)) : null;
+-  const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now()) : null;
++  const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now(), surface) : null;
+   if (shadow?.task?.state === "awaiting_approval" && /\b(approve|yes|go ahead|launch it|do it|confirm|ship it)\b/i.test(userText)) {
+-    shadow.observeFounder(userText, true);
++    shadow.observeFounder(userText, true, shadow.task.planId); // approval bound to the plan the run is awaiting
+   }
+   const messages: ChatMessage[] = [
+     { role: "system", content: systemPrompt(ref, surface, pageContext) },
+diff --git a/src/lib/telegram/task-run.ts b/src/lib/telegram/task-run.ts
+index 7a6d53b..88bdf58 100644
+--- a/src/lib/telegram/task-run.ts
++++ b/src/lib/telegram/task-run.ts
+@@ -54,8 +54,6 @@ export interface TaskRunV1 {
+   /** the exact action awaiting the founder's approval, if any. */
+   pendingApproval?: string;
+   lastSuccessfulTool?: string;
+-  /** the (tool,args) signature of the last call, for loop detection. */
+-  lastCallSig?: string;
+   retries: Record<string, number>;
+   blockers: string[];
+   createdAt: number;
+@@ -152,10 +150,6 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
+   const o = event.outcome;
+   events.push({ event: "tool_result", state: run.state, detail: `${o.tool}:${o.ok ? "ok" : o.reason ?? "fail"}` });
+ 
+-  // loop detection — the same tool+args signature repeating means we're stuck.
+-  const sig = `${o.tool}:${JSON.stringify(o.data ?? {})}`;
+-  // (the caller sets lastCallSig before the call; here we only detect a stuck NON-progressing repeat below.)
+-
+   if (MONEY_TOOLS.has(o.tool)) {
+     if (o.ambiguousTimeout) {
+       // NEVER re-spend on an ambiguous timeout — verify the deployment state instead.
+@@ -202,7 +196,6 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
+       }
+       // not ready → bounded poll.
+       if (bump(run, "poll_inspection") > MAX_POLL_RETRIES) return blocked("inspection_timeout");
+-      void sig;
+       return { run, next: { kind: "call_tool", tool: "poll_inspection", args: { inspectionId: run.inspectionId }, readOnly: true }, events };
+     }
+     case "verify_deployment": {
+-- 
+2.50.1 (Apple Git-155)
+
+
+From d492ca415511f0f3ff712319d7eac780081713cf Mon Sep 17 00:00:00 2001
+From: Sage Builder <bc230212964ssh@vu.edu.pk>
+Date: Thu, 23 Jul 2026 14:45:16 +0500
+Subject: [PATCH 3/4] fix(agentic): make inspection replay positively safe and
+ faithful
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A transition was marked safeClassification="safe" even when its network behavior was "not_captured", so
+an unverified action could be replayed. Now safety must be POSITIVELY established.
+
+  - The field test's request interceptor records the HTTP methods per transition (a shared buffer drained
+    by capture() into FieldTestState.networkMethods — additive, digest-neutral). deriveObservations maps
+    them: GET/HEAD-only → get_observed → `safe`; a mutating method → state_changing; nothing recorded →
+    `not_captured` → `unverified`. buildProbe replays ONLY `safe` transitions, so an unverified or
+    state-changing transition is refused (fail-safe when no network was captured).
+  - The replay locator is built from the BEFORE-state target element (the control that was acted on), not
+    the after-state notable elements (which are the RESULT of the action).
+  - Key actions use an explicit ALLOWLIST (allowedKey): Space/Enter/Escape/Tab/Arrows/single char. An
+    unknown key returns null and the probe is rejected — there is NO Enter fallback that would synthesize
+    an action Sage never observed. buildProbe rejects a press whose key isn't allowlisted.
+
+Tests: an unverified transition is rejected; a press with an off-allowlist key is rejected; allowedKey
+is a strict allowlist (unknown → null). The real-browser replay suite (7) stays green; fixtures across
+the observation/mission/demo suites carry networkMethods so their transitions are positively safe.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ src/lib/deputy/observation-judge-v2.test.ts |  2 +-
+ src/lib/launch/demo-agentic-v2.test.ts      |  2 +-
+ src/lib/launch/field-test.ts                | 11 +++++++-
+ src/lib/launch/inspection-replay.test.ts    | 25 ++++++++++++++++--
+ src/lib/launch/inspection-replay.ts         | 28 +++++++++++++++------
+ src/lib/launch/mission-grounding.test.ts    |  2 +-
+ src/lib/launch/mission-metrics.test.ts      |  2 +-
+ src/lib/launch/observed-facts.test.ts       |  2 +-
+ src/lib/launch/observed-facts.ts            | 25 ++++++++++++------
+ src/lib/launch/schemas.ts                   |  3 +++
+ 10 files changed, 80 insertions(+), 22 deletions(-)
+
+diff --git a/src/lib/deputy/observation-judge-v2.test.ts b/src/lib/deputy/observation-judge-v2.test.ts
+index d0180a8..62498a2 100644
+--- a/src/lib/deputy/observation-judge-v2.test.ts
++++ b/src/lib/deputy/observation-judge-v2.test.ts
+@@ -4,7 +4,7 @@ import { deriveObservations } from "@/lib/launch/observed-facts";
+ import type { ObservationSetV1 } from "@/lib/launch/observed-facts";
+ import type { FieldTestState, FieldTestSummary } from "@/lib/launch/schemas";
+ 
+-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.test/", ...over });
++const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.test/", networkMethods: ["GET"], ...over });
+ /** load → click Start → "garden world" + Talk to Yara → click Talk to Yara → "Yara says: hello traveler". */
+ function yara(): ObservationSetV1 {
+   const ft: FieldTestSummary = {
+diff --git a/src/lib/launch/demo-agentic-v2.test.ts b/src/lib/launch/demo-agentic-v2.test.ts
+index 7ff2602..b081cd7 100644
+--- a/src/lib/launch/demo-agentic-v2.test.ts
++++ b/src/lib/launch/demo-agentic-v2.test.ts
+@@ -25,7 +25,7 @@ const RUN = process.env.DEMO_AGENTIC === "1";
+ const log = (s: string) => console.log(s);
+ 
+ /** The fixture product's inspected state log — as if Sage field-tested a small narrative game. */
+-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.fixture/", ...over });
++const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://yara.fixture/", networkMethods: ["GET"], ...over });
+ const FIELD_TEST: FieldTestSummary = {
+   ran: true, startUrl: "https://yara.fixture/", mode: "interactive", pages: [], classification: "Interactive app · 3 states", limitation: null, durationMs: 4200,
+   states: [
+diff --git a/src/lib/launch/field-test.ts b/src/lib/launch/field-test.ts
+index bc0d610..f597a14 100644
+--- a/src/lib/launch/field-test.ts
++++ b/src/lib/launch/field-test.ts
+@@ -397,6 +397,10 @@ export async function runFieldTest(
+     .slice(0, MAX_PAGES);
+ 
+   const artifactDir = path.join(publicDir, "field-tests", opts.inspectionId);
++  // Per-transition egress methods — the request interceptor records each allowed request's method, and
++  // capture() drains them into the state, so a transition's safety can be POSITIVELY established
++  // (GET/HEAD-only → safe; a mutating method → state_changing; nothing recorded → unverified).
++  const methodsSinceCapture: string[] = [];
+   // AUTHORITATIVE egress boundary — every browser request exits through this local proxy, which resolves +
+   // validates + pins each destination (defeats DNS-rebinding/TOCTOU). Production allowlists nothing.
+   const proxy = await startEgressProxy({
+@@ -451,6 +455,7 @@ export async function runFieldTest(
+         return void route.abort().catch(() => {});
+       }
+       if (!(await publicHostCached(h))) return void route.abort().catch(() => {});
++      methodsSinceCapture.push(route.request().method().toUpperCase()); // record egress methods per transition
+       return void route.continue().catch(() => {});
+     });
+ 
+@@ -491,6 +496,7 @@ export async function runFieldTest(
+         startUrl: opts.startUrl,
+         inspectionId: opts.inspectionId,
+         artifactDir,
++        methodsSinceCapture,
+         host: opts.host,
+         started,
+         signals: signals as ProductSignals,
+@@ -784,8 +790,10 @@ async function exploreInteractive(ctx: {
+   started: number;
+   signals: ProductSignals;
+   entryErrors: string[];
++  /** shared buffer the request interceptor fills with egress methods; capture() drains it per state. */
++  methodsSinceCapture: string[];
+ }): Promise<FieldTestSummary> {
+-  const { page, inspectionId, artifactDir, host } = ctx;
++  const { page, inspectionId, artifactDir, host, methodsSinceCapture } = ctx;
+   const deadline = ctx.started + EXPLORE_MS;
+   const states: FieldTestState[] = [];
+   let prevFp: StateFingerprint | null = null;
+@@ -819,6 +827,7 @@ async function exploreInteractive(ctx: {
+       notableElements: await notableElements(page),
+       pixelDeltaPct: delta,
+       url: page.url(),
++      networkMethods: methodsSinceCapture.splice(0), // the methods observed since the previous capture
+     });
+     return delta;
+   };
+diff --git a/src/lib/launch/inspection-replay.test.ts b/src/lib/launch/inspection-replay.test.ts
+index 556cea5..6b3efd7 100644
+--- a/src/lib/launch/inspection-replay.test.ts
++++ b/src/lib/launch/inspection-replay.test.ts
+@@ -1,11 +1,11 @@
+ import { describe, it, expect, afterEach } from "vitest";
+-import { buildProbe, buildProbes, inspectionReplayMode } from "./inspection-replay";
++import { buildProbe, buildProbes, inspectionReplayMode, allowedKey } from "./inspection-replay";
+ import { deriveObservations } from "./observed-facts";
+ import type { ActionTransitionV1, ObservationSetV1 } from "./observed-facts";
+ import type { FieldTestState, FieldTestSummary } from "./schemas";
+ 
+ const state = (over: Partial<FieldTestState>): FieldTestState => ({
+-  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over,
++  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over,
+ });
+ /** a realistic set: load → click 'Start' → "Talk to Yara" appears. */
+ function yaraSet(): ObservationSetV1 {
+@@ -80,4 +80,25 @@ describe("inspection replay — deterministic safety gate", () => {
+     expect(probes.length).toBe(1);
+     expect(probes[0].verb).toBe("click");
+   });
++
++  it("REJECTS an UNVERIFIED transition (network not captured → not positively safe)", () => {
++    const set = yaraSet();
++    const t: ActionTransitionV1 = { ...transitionOf(set), safeClassification: "unverified", networkMethodSummary: "not_captured" };
++    expect(buildProbe(t, set)).toEqual({ rejected: "unsafe_transition" });
++  });
++
++  it("REJECTS a press whose key is not on the allowlist (no synthesized Enter)", () => {
++    const set = yaraSet();
++    const t: ActionTransitionV1 = { ...transitionOf(set), verb: "press", locator: { accessibleName: "F13" } };
++    expect(buildProbe(t, set)).toEqual({ rejected: "key_not_allowlisted:F13" });
++  });
++
++  it("allowedKey is a strict allowlist — unknown keys return null (never Enter)", () => {
++    expect(allowedKey("Space")).toBe("Space");
++    expect(allowedKey("ArrowLeft")).toBe("ArrowLeft");
++    expect(allowedKey("a")).toBe("a");
++    expect(allowedKey("F13")).toBeNull();
++    expect(allowedKey("PageDown")).toBeNull();
++    expect(allowedKey(undefined)).toBeNull();
++  });
+ });
+diff --git a/src/lib/launch/inspection-replay.ts b/src/lib/launch/inspection-replay.ts
+index 7264336..6b8d198 100644
+--- a/src/lib/launch/inspection-replay.ts
++++ b/src/lib/launch/inspection-replay.ts
+@@ -106,6 +106,8 @@ export function buildProbe(transition: ActionTransitionV1, set: ObservationSetV1
+   }
+ 
+   const key = transition.verb === "press" ? loc.accessibleName || loc.raw : undefined;
++  // a press probe must resolve to an ALLOWLISTED key — never a synthesized Enter fallback.
++  if (transition.verb === "press" && !allowedKey(key)) return { rejected: `key_not_allowlisted:${key ?? "none"}` };
+   const probe: InspectionProbeV1 = {
+     version: INSPECTION_PROBE_VERSION,
+     id: sha16(JSON.stringify([transition.id, transition.verb, loc, expectedAddedTexts])),
+@@ -194,8 +196,11 @@ export async function runInspectionProbe(probe: InspectionProbeV1, deps: ReplayD
+     emit({ event: "replay_action", probeId: probe.id, detail: probe.verb });
+     try {
+       if (probe.verb === "click") await locator!.click({ timeout: ACTION_MS });
+-      else if (probe.verb === "press") await page.keyboard.press(normalizeKey(probe.key));
+-      else await page.mouse.wheel(0, 800);
++      else if (probe.verb === "press") {
++        const key = allowedKey(probe.key);
++        if (!key) return done("unsafe_rejected", `key not on allowlist: ${probe.key ?? "none"}`, false);
++        await page.keyboard.press(key); // page-level key; the field test's press was a global key event
++      } else await page.mouse.wheel(0, 800);
+     } catch {
+       return done(timedOut ? "probe_flake" : "product_drift", "action could not be performed", false);
+     }
+@@ -266,11 +271,20 @@ export async function runReplayShadow(
+   return { ran: probes.length > 0, mode, probes: probes.length, byClassification, results, records };
+ }
+ 
+-function normalizeKey(key: string | undefined): string {
+-  if (!key) return "Enter";
++/**
++ * Explicit key ALLOWLIST — an observed key is normalized to a canonical Playwright key ONLY if it is on
++ * the list; an unknown key returns null and the probe is rejected. There is NO Enter fallback (that would
++ * synthesize an action Sage never observed).
++ */
++export function allowedKey(key: string | undefined): string | null {
++  if (!key) return null;
+   const k = key.trim();
+-  if (/^space$/i.test(k) || k === " ") return "Space";
++  if (/^(space| )$/i.test(k)) return "Space";
+   if (/^enter$/i.test(k)) return "Enter";
+-  if (/^arrow(left|right|up|down)$/i.test(k)) return k.replace(/^arrow/i, "Arrow").replace(/(left|right|up|down)/i, (m) => m[0].toUpperCase() + m.slice(1).toLowerCase());
+-  return k.length === 1 ? k : "Enter";
++  if (/^(escape|esc)$/i.test(k)) return "Escape";
++  if (/^tab$/i.test(k)) return "Tab";
++  const arrow = /^arrow(left|right|up|down)$/i.exec(k);
++  if (arrow) return "Arrow" + arrow[1][0].toUpperCase() + arrow[1].slice(1).toLowerCase();
++  if (/^[a-z0-9]$/i.test(k)) return k.toUpperCase().length === 1 ? k : k; // single letter/digit
++  return null; // unknown → not replayable
+ }
+diff --git a/src/lib/launch/mission-grounding.test.ts b/src/lib/launch/mission-grounding.test.ts
+index 5905170..3f58ead 100644
+--- a/src/lib/launch/mission-grounding.test.ts
++++ b/src/lib/launch/mission-grounding.test.ts
+@@ -4,7 +4,7 @@ import { deriveObservations, decisiveFacts } from "./observed-facts";
+ import type { ObservationSetV1 } from "./observed-facts";
+ import type { CandidateMission, FieldTestState, FieldTestSummary, MissionGroundingV1 } from "./schemas";
+ 
+-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over });
++const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over });
+ function set(): ObservationSetV1 {
+   const ft: FieldTestSummary = {
+     ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1,
+diff --git a/src/lib/launch/mission-metrics.test.ts b/src/lib/launch/mission-metrics.test.ts
+index cd19ae7..6330c80 100644
+--- a/src/lib/launch/mission-metrics.test.ts
++++ b/src/lib/launch/mission-metrics.test.ts
+@@ -5,7 +5,7 @@ import { deriveObservations, decisiveFacts } from "./observed-facts";
+ import type { ObservationSetV1 } from "./observed-facts";
+ import type { CandidateMission, MissionValidationCode, MissionValidationReport, FieldTestState, FieldTestSummary, MissionGroundingV1 } from "./schemas";
+ 
+-const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over });
++const st = (over: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over });
+ function obsSet(): ObservationSetV1 {
+   const ft: FieldTestSummary = {
+     ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1,
+diff --git a/src/lib/launch/observed-facts.test.ts b/src/lib/launch/observed-facts.test.ts
+index a345cf6..0d6f9cc 100644
+--- a/src/lib/launch/observed-facts.test.ts
++++ b/src/lib/launch/observed-facts.test.ts
+@@ -3,7 +3,7 @@ import { deriveObservations, decisiveFacts, factIndex, parseTrigger, stateDigest
+ import type { FieldTestSummary, FieldTestState, VisionObservation } from "./schemas";
+ 
+ const state = (over: Partial<FieldTestState>): FieldTestState => ({
+-  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", ...over,
++  trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...over,
+ });
+ const summary = (over: Partial<FieldTestSummary>): FieldTestSummary => ({
+   ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], states: [], classification: null, limitation: null, durationMs: 10, ...over,
+diff --git a/src/lib/launch/observed-facts.ts b/src/lib/launch/observed-facts.ts
+index 5d7dfc8..e15649f 100644
+--- a/src/lib/launch/observed-facts.ts
++++ b/src/lib/launch/observed-facts.ts
+@@ -74,11 +74,13 @@ export interface ActionTransitionV1 {
+   removedTexts: string[];
+   /** true when the after-state observably differs from the before-state (text delta or pixel delta). */
+   observableChange: boolean;
+-  /** what we know about the request methods this transition involved — the field test is read-only, so
+-   *  navigational; per-request methods are not captured, hence "not_captured". */
++  /** the request methods this transition actually involved, from the field test's per-state capture:
++   *  `get_observed` (only GET/HEAD seen), `state_changing` (a mutating method seen), or `not_captured`
++   *  (no per-transition network was recorded — safety is UNVERIFIED, not assumed safe). */
+   networkMethodSummary: "not_captured" | "get_observed" | "state_changing";
+-  /** safe-action classification: the field test only performs read-only nav/keys, so `safe`. */
+-  safeClassification: "safe" | "state_changing" | "unsafe";
++  /** safe-action classification. `safe` ONLY when positively established (get_observed); a mutating
++   *  method → `state_changing`; no capture → `unverified` (NOT replayable). */
++  safeClassification: "safe" | "unverified" | "state_changing" | "unsafe";
+   /** field-test provenance: the indices of the before/after states in fieldTest.states. */
+   provenance: { fromStateIndex: number; toStateIndex: number };
+ }
+@@ -191,14 +193,23 @@ export function deriveObservations(fieldTest: FieldTestSummary | null | undefine
+       const added = [...after].filter((t) => !before.has(t)).sort();
+       const removed = [...before].filter((t) => !after.has(t)).sort();
+       const observableChange = added.length > 0 || removed.length > 0 || s.pixelDeltaPct >= 3;
+-      const nameEl = (s.notableElements ?? []).find((e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase());
++      // network summary + safety from the after-state's captured methods. `safe` ONLY when we positively
++      // observed GET/HEAD-only; a mutating method → state_changing; no capture → unverified (NOT safe).
++      const methods = (s.networkMethods ?? []).map((m) => m.toUpperCase());
++      const summary: ActionTransitionV1["networkMethodSummary"] =
++        methods.length === 0 ? "not_captured" : methods.every((m) => m === "GET" || m === "HEAD") ? "get_observed" : "state_changing";
++      const safeClassification: ActionTransitionV1["safeClassification"] =
++        summary === "get_observed" ? "safe" : summary === "state_changing" ? "state_changing" : "unverified";
++      // the locator is built from the BEFORE state's target element (what was acted on), not the after
++      // state — the after state's elements are the RESULT, not the control that was clicked.
++      const beforeEl = (prev.notableElements ?? []).find((e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase());
+       const canonical = JSON.stringify({ f: stateIds[i - 1], t: stateId, v: verb, n: name ?? "", a: added, r: removed });
+       transitions.push({
+         version: "action-transition-v1", id: sha(canonical).slice(0, 24),
+         startUrl: prev.url, beforeStateDigest: stateIds[i - 1], verb,
+-        locator: { ...(nameEl?.role ? { role: nameEl.role } : {}), ...(name ? { accessibleName: name } : {}), ...(name && !nameEl ? { raw: name } : {}) },
++        locator: { ...(beforeEl?.role ? { role: beforeEl.role } : {}), ...(name ? { accessibleName: name } : {}), ...(name && !beforeEl ? { raw: name } : {}) },
+         afterUrl: s.url, afterStateDigest: stateId, addedTexts: added, removedTexts: removed,
+-        observableChange, networkMethodSummary: "not_captured", safeClassification: "safe",
++        observableChange, networkMethodSummary: summary, safeClassification,
+         provenance: { fromStateIndex: i - 1, toStateIndex: i },
+       });
+     }
+diff --git a/src/lib/launch/schemas.ts b/src/lib/launch/schemas.ts
+index 7cdf5bc..0e1cb37 100644
+--- a/src/lib/launch/schemas.ts
++++ b/src/lib/launch/schemas.ts
+@@ -186,6 +186,9 @@ export interface FieldTestState {
+   /** approximate visual change vs the previous captured state, 0..100 (a change signal, best-effort). */
+   pixelDeltaPct: number;
+   url: string;
++  /** HTTP methods observed BETWEEN the previous state and this one (from the field test's request
++   *  interceptor). Absent/empty = not captured → the transition into this state is safety-UNVERIFIED. */
++  networkMethods?: string[];
+ }
+ 
+ export interface FieldTestSummary {
+-- 
+2.50.1 (Apple Git-155)
+
+
+From ea2415549481f31d6cd45b08b42b15faa678f98f Mon Sep 17 00:00:00 2001
+From: Sage Builder <bc230212964ssh@vu.edu.pk>
+Date: Thu, 23 Jul 2026 15:12:47 +0500
+Subject: [PATCH 4/4] fix(concierge): atomic history append + full
+ approval-token binding
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Closes the two P0 gaps the review flagged.
+
+  - CONCURRENCY: the turn-end write and pushAssistant now go through an ATOMIC appendHistory() that
+    re-reads the current stored history and appends only the new messages. Because better-sqlite3
+    load+save here is synchronous with no await between them, a concurrent user turn and background
+    notification cannot interleave — each append lands whole, so neither a message NOR the activeTask is
+    lost (the prior code overwrote with a start-of-turn snapshot, dropping a mid-turn background message).
+  - APPROVAL BINDING: a "yes" is now bound to the EXACT plan token — plan id + plan digest + budget text +
+    approval revision (approvalToken). Entering awaiting_approval stamps the token and bumps the revision;
+    observeFounder honors the approval only when the run STILL matches that token, so a re-inspection that
+    changes the plan or budget invalidates a stale approval. The get_inspection decoder now threads
+    planDigest through.
+
+Tests: the stale-approval case (plan digest changed out from under the founder → "yes" not honored;
+restored → honored); mergeMemory preserve-both still green. Full telegram suite (84) passes; off mode
+byte-identical.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ src/lib/telegram/concierge-shadow.test.ts | 15 +++++++----
+ src/lib/telegram/concierge-shadow.ts      | 13 +++++----
+ src/lib/telegram/concierge.ts             | 33 ++++++++++++-----------
+ src/lib/telegram/task-run.ts              | 19 +++++++++++++
+ 4 files changed, 55 insertions(+), 25 deletions(-)
+
+diff --git a/src/lib/telegram/concierge-shadow.test.ts b/src/lib/telegram/concierge-shadow.test.ts
+index 6b6bd65..87cac05 100644
+--- a/src/lib/telegram/concierge-shadow.test.ts
++++ b/src/lib/telegram/concierge-shadow.test.ts
+@@ -108,13 +108,18 @@ describe("concierge task shadow — maps REAL tool results to controller outcome
+     expect(shadow.steps.at(-1)?.outcome).toBe("failed");
+   });
+ 
+-  it("STALE approval: a 'yes' for a plan that changed is not honored", () => {
++  it("STALE approval: a 'yes' after the bound plan changed is not honored", () => {
+     const shadow = new ConciergeTaskShadow(emptyMemory(), "go https://p.test $5", 1);
+     shadow.observeTool("sage_start_inspection", JSON.stringify({ ok: true, inspectionId: "insp1" }));
+-    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1" }));
+-    shadow.observeFounder("approve", true, "plan-OLD"); // references a different (stale) plan
+-    expect(shadow.task?.state).toBe("awaiting_approval"); // not deployed
+-    shadow.observeFounder("approve", true, "plan1"); // the current plan → honored
++    shadow.observeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1", planDigest: "d1" }));
++    // simulate the plan changing out from under the founder (a re-inspection) — the awaited token no
++    // longer matches the run, so a "yes" must NOT deploy.
++    shadow.task!.planDigest = "d2";
++    shadow.observeFounder("approve", true);
++    expect(shadow.task?.state).toBe("awaiting_approval"); // stale token → not deployed
++    // restoring the bound plan digest → the "yes" is now valid.
++    shadow.task!.planDigest = "d1";
++    shadow.observeFounder("approve", true);
+     expect(shadow.task?.state).toBe("deploying");
+   });
+ 
+diff --git a/src/lib/telegram/concierge-shadow.ts b/src/lib/telegram/concierge-shadow.ts
+index e81375c..aea2b32 100644
+--- a/src/lib/telegram/concierge-shadow.ts
++++ b/src/lib/telegram/concierge-shadow.ts
+@@ -1,4 +1,4 @@
+-import { advance, newTaskRun, readMemory, currentAction, type TaskRunV1, type ToolOutcome, type NextAction, type ConversationMemoryV2 } from "./task-run";
++import { advance, newTaskRun, readMemory, currentAction, approvalToken, type TaskRunV1, type ToolOutcome, type NextAction, type ConversationMemoryV2 } from "./task-run";
+ 
+ /**
+  * Concierge task-run SHADOW (Priority S3) — observes the REAL concierge tool loop and drives the resumable
+@@ -50,7 +50,7 @@ export function mapConciergeTool(name: string, resultText: string): ToolOutcome
+     case "sage_get_inspection": {
+       if (!o) return { tool: "poll_inspection", ok: false, reason: "malformed_result" };
+       const ready = o.status === "ready" || o.ready === true;
+-      return { tool: "poll_inspection", ok: true, data: { ready, planId: strField(o, "planId") ?? strField(o, "revision") } };
++      return { tool: "poll_inspection", ok: true, data: { ready, planId: strField(o, "planId") ?? strField(o, "revision"), planDigest: strField(o, "planDigest") ?? strField(o, "digest") } };
+     }
+     case "sage_fund_and_launch": {
+       // MONEY tool — fail closed. Malformed/absent output is AMBIGUOUS (verify), not a failure to blindly
+@@ -132,10 +132,13 @@ export class ConciergeTaskShadow {
+ 
+   /** Feed a founder approval/message. Approval is bound to the SPECIFIC plan the run is awaiting — a
+    *  generic "yes" after the plan changed (a different planId) must NOT authorize the changed plan. */
+-  observeFounder(text: string, approve: boolean, planId?: string): void {
++  observeFounder(text: string, approve: boolean): void {
+     if (!this.task) return;
+-    if (approve && this.task.state === "awaiting_approval" && this.task.planId && planId && planId !== this.task.planId) {
+-      return; // stale approval: the plan revision changed since it was presented — re-present, do not deploy
++    // approval is bound to the EXACT plan token (id + digest + budget + revision) presented. If the run no
++    // longer matches the token it was awaiting (a re-inspection changed the plan/budget), the "yes" is
++    // stale — re-present, never deploy the changed plan.
++    if (approve && this.task.state === "awaiting_approval" && this.task.pendingApprovalToken && approvalToken(this.task) !== this.task.pendingApprovalToken) {
++      return;
+     }
+     const { run } = advance(this.task, { kind: "founder", text, approve }, this.clock++);
+     this.task = run;
+diff --git a/src/lib/telegram/concierge.ts b/src/lib/telegram/concierge.ts
+index 57e65e0..99033dd 100644
+--- a/src/lib/telegram/concierge.ts
++++ b/src/lib/telegram/concierge.ts
+@@ -172,8 +172,16 @@ function loadHistory(chatId: string): ChatMessage[] {
+  * run, and two interleaved writers can drop at most a message, never the authoritative task state. Writes
+  * a V2 envelope whenever a task exists; otherwise a legacy array (byte-identical to off-mode today).
+  */
+-function persistHistory(chatId: string, msgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
+-  saveChatMessages(chatId, mergeMemory(loadChatMessages(chatId), msgs, opts, MAX_HISTORY));
++/**
++ * ATOMIC APPEND. Re-reads the CURRENT stored history and appends `newMsgs` to it (rather than overwriting
++ * with a start-of-turn snapshot), preserving the activeTask. Because better-sqlite3 load+save here is
++ * SYNCHRONOUS with no await between them, a concurrent user turn and background notification cannot
++ * interleave — each append is applied whole, so neither a message nor the task is lost.
++ */
++function appendHistory(chatId: string, newMsgs: ChatMessage[], opts: { activeTask?: ConversationMemoryV2["activeTask"]; summary?: string } = {}): void {
++  const raw = loadChatMessages(chatId);
++  const current = readMemory(raw).messages as ChatMessage[];
++  saveChatMessages(chatId, mergeMemory(raw, [...current, ...newMsgs], opts, MAX_HISTORY));
+ }
+ 
+ const usdFrom = (base: string): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
+@@ -189,8 +197,7 @@ function safeHost(url: string): string {
+ /** Append an assistant line to a chat's memory, so the model knows what it already told the founder
+  *  (e.g. the "your plan is ready" it sent proactively) on the founder's next turn. */
+ function pushAssistant(chatId: string, content: string): void {
+-  const next: ChatMessage[] = [...loadHistory(chatId), { role: "assistant", content }];
+-  persistHistory(chatId, next); // preserves the activeTask — a background notice never clobbers a run
++  appendHistory(chatId, [{ role: "assistant", content }]); // atomic append — preserves messages + task
+ }
+ 
+ /** The plain-text follow-up for a finished inspection — ready plan, needs-input, or failure. */
+@@ -316,7 +323,7 @@ async function runAgentTurn(
+   const memory = shadowMode ? readMemory(loadChatMessages(ref)) : null;
+   const shadow = memory ? new ConciergeTaskShadow(memory, userText, Date.now(), surface) : null;
+   if (shadow?.task?.state === "awaiting_approval" && /\b(approve|yes|go ahead|launch it|do it|confirm|ship it)\b/i.test(userText)) {
+-    shadow.observeFounder(userText, true, shadow.task.planId); // approval bound to the plan the run is awaiting
++    shadow.observeFounder(userText, true); // approval is validated against the bound plan token internally
+   }
+   const messages: ChatMessage[] = [
+     { role: "system", content: systemPrompt(ref, surface, pageContext) },
+@@ -435,16 +442,12 @@ async function runAgentTurn(
+ 
+   if (!reply) reply = "I wasn't able to finish that one — try rephrasing?";
+ 
+-  // Persist only the clean user + final-assistant text (tool scaffolding isn't replayed).
+-  const next: ChatMessage[] = [
+-    ...history,
+-    { role: "user", content: userText },
+-    { role: "assistant", content: reply },
+-  ];
+-  // Persist through the one codec: in shadow mode the shadow's task is the authoritative activeTask (it
+-  // survives restarts); off mode preserves whatever task already existed (usually none → legacy array).
+-  if (shadow) persistHistory(ref, next, { activeTask: shadow.task, summary: memory?.summary });
+-  else persistHistory(ref, next);
++  // Persist through the ATOMIC append: re-read current + append only THIS turn's user+assistant, so a
++  // background notification that landed mid-turn is not overwritten. In shadow mode the shadow's task is
++  // the authoritative activeTask (survives restarts).
++  const turnMsgs: ChatMessage[] = [{ role: "user", content: userText }, { role: "assistant", content: reply }];
++  if (shadow) appendHistory(ref, turnMsgs, { activeTask: shadow.task, summary: memory?.summary });
++  else appendHistory(ref, turnMsgs);
+   return reply;
+ }
+ 
+diff --git a/src/lib/telegram/task-run.ts b/src/lib/telegram/task-run.ts
+index 88bdf58..8f97cd2 100644
+--- a/src/lib/telegram/task-run.ts
++++ b/src/lib/telegram/task-run.ts
+@@ -48,6 +48,13 @@ export interface TaskRunV1 {
+   /** authoritative ids — set ONLY from successful tool results. */
+   inspectionId?: string;
+   planId?: string;
++  /** the digest of the exact plan/missions the founder is being asked to approve. */
++  planDigest?: string;
++  /** the composite token (plan id + digest + budget + currency + revision) the current approval is bound
++   *  to; a "yes" is honored only when the run STILL matches it. */
++  pendingApprovalToken?: string;
++  /** bumps every time a new plan is presented — part of the approval token. */
++  approvalRevision?: number;
+   deploymentId?: string;
+   campaignId?: string;
+   campaignUrl?: string;
+@@ -110,6 +117,13 @@ function bump(run: TaskRunV1, key: string): number {
+   return run.retries[key];
+ }
+ 
++/** The composite approval token — plan id + digest + budget text + approval revision. Any change to the
++ *  plan the founder is shown (a re-inspection, a new digest, a different budget) changes this, so a stale
++ *  "yes" from an earlier turn cannot authorize the changed plan. */
++export function approvalToken(run: Pick<TaskRunV1, "planId" | "planDigest" | "budgetText" | "approvalRevision">): string {
++  return [run.planId ?? "", run.planDigest ?? "", run.budgetText ?? "", run.approvalRevision ?? 0].join("|");
++}
++
+ export function newTaskRun(args: { runId: string; goal: string; productUrl: string; budgetText: string; now: number }): TaskRunV1 {
+   return {
+     version: TASK_RUN_VERSION, runId: args.runId, goal: args.goal, productUrl: args.productUrl, budgetText: args.budgetText,
+@@ -188,8 +202,13 @@ export function advance(prev: TaskRunV1, event: ControllerEvent, now: number): {
+     case "poll_inspection": {
+       if (o.data?.ready === true) {
+         if (typeof o.data?.planId === "string") run.planId = o.data.planId;
++        if (typeof o.data?.planDigest === "string") run.planDigest = o.data.planDigest;
+         to("presenting_plan", "inspection ready");
+         run.pendingApproval = "approve_plan";
++        run.approvalRevision = (run.approvalRevision ?? 0) + 1;
++        // bind the approval to the EXACT plan the founder is being shown: plan id + digest + budget +
++        // revision. Any change to those invalidates a later "yes".
++        run.pendingApprovalToken = approvalToken(run);
+         to("awaiting_approval");
+         events.push({ event: "awaiting_approval", state: "awaiting_approval", detail: "approve_plan" });
+         return { run, next: { kind: "await_approval", pending: "approve_plan" }, events };
+-- 
+2.50.1 (Apple Git-155)
+

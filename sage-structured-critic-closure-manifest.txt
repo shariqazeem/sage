@@ -1,0 +1,81 @@
+SAGE V2 — STRUCTURED-OUTPUT CRITIC CLOSURE
+==========================================
+Tests whether the prior Haiku-critic strict-parse failure was caused by json_object rather than
+CommonStack's json_schema contract — WITHOUT switching models or loosening the strict parser. Shadow-only;
+nothing deployed/pushed/enabled/funded/migrated/approved. Only cost: 2 of a permitted 5 paid calls.
+
+COMMITS
+-------
+070d6cf  feat(agentic): provider-native json_schema structured output + sanitized failure provenance
+1ae8cec  test(agentic): cumulative 5-call structured-output critic smoke — critic closure CONFIRMED
+Patch: sage-structured-critic-closure.patch (git diff 070d6cf~1..HEAD; round-trips exactly against HEAD)
+
+FILES (8)
+---------
+ src/lib/llm/complete.ts                 responseSchema→json_schema(strict:true); LlmCompletionError + contentShape
+ src/lib/llm/complete.strict.test.ts     +10 structured-output boundary tests
+ src/lib/launch/mission-grounding-shadow.ts   transport schemas; failure-provenance threading; schema-name telemetry
+ src/lib/launch/mission-grounding-shadow.entrypoint.test.ts   mock-spread fix + transport-schema wiring test
+ src/lib/launch/mission-grounding-structured-smoke.live.test.ts   the ≤5-call ledgered live harness (new)
+ promotion-evidence/grounded-structured-v2.json          sanitized evidence (new)
+ promotion-evidence/grounded-structured-v2.ledger.json   append-only cumulative call ledger (new)
+ package.json                            smoke:structured + smoke:structured:dryrun
+
+OUTGOING response_format PER ROLE
+---------------------------------
+ architect (ARCHITECT_SYSTEM_V2)  { type:"json_schema", json_schema:{ name:"sage_grounded_architect_v2", strict:true, schema:{…} } }
+ critic    (CRITIC_SYSTEM_V2)     { type:"json_schema", json_schema:{ name:"sage_grounded_critic_v2",    strict:true, schema:{…} } }
+ legacy callers (no responseSchema)  { type:"json_object" }   (byte-identical, unchanged)
+
+FAILURE-METADATA TRUTH TABLE (LlmCompletionError — never any raw text)
+---------------------------------------------------------------------
+ trigger                     code             httpStatus  contentShape   retryAfterMs  served/usage/latency
+ HTTP 429                    llm_status_429   429         unknown        from header   n/a (pre-body)
+ HTTP 400 (schema incompat)  llm_status_400   400         unknown        from header   n/a
+ strict parse of a fenced    llm_strict_not_  200         fenced         null          RETAINED (served model,
+   provider reply               object                                                   usage, latency)
+ truncated / prose            llm_strict_*    200         other/prose_…  null          RETAINED
+ (proven: no raw content in error.message or any field)
+
+CUMULATIVE LEDGER (proves ≤5 across sessions)
+---------------------------------------------
+ evaluationId grounded-structured-v2 · hardCap 5 · callsConsumed 2
+   seq 1  state_claim  critic     → ok  completed   (session 1)
+   seq 2  safe_replay  architect  → ok  completed   (session 2, resume — step 1 reused, not recalled)
+ Append-only; never reset; the failed step 2 was NOT retried.
+
+ONE ROW PER ATTEMPTED FIXTURE
+-----------------------------
+ state_claim (critic-only)  step1=ok   archStatus ok(fake) · criticStatus OK · criticShape bare_object ·
+                            criticSupported 1 · canonicalGatePassed 1 · state_seen 1 · exactBudget true
+ safe_replay                step2=failed  archStatus schema_invalid · archShape bare_object ·
+                            architectSchemaErrorPaths ["missions.0:custom"] · criticStatus not_run
+ ghost_export               NOT RUN (stopped after step 2's architect grounding miss)
+
+REQUESTED vs SERVED MODEL/PROVIDER (incl. failures)
+---------------------------------------------------
+ critic     req anthropic/claude-haiku-4-5           → served claude-haiku-4-5-20251001 (api.commonstack.ai)   [alias, explained]
+ architect  req google/gemini-3.1-flash-lite-preview → served gemini-3.1-flash-lite-preview (api.commonstack.ai) [alias, explained]
+
+TOKENS / LATENCY (incl. rejected)
+---------------------------------
+ critic (step1)     prompt 712  completion 44   latency ~45.6 s
+ architect (step2)  recorded on the shadow result (bare_object; rejected by Zod cross-field, not by shape)
+
+CONCLUSIVENESS
+--------------
+ configurationConclusive = TRUE  — the json_schema structured contract WORKS for both roles (both returned
+   bare_object; the prior json_object llm_strict_not_object failure is resolved).
+ capabilityConclusive    = FALSE — the full 3-stage pipeline did not complete green (step 2 architect
+   grounding miss), so the critic's end-to-end semantic capability across all fixtures is not fully proven.
+ criticClosureConfirmed  = TRUE  — the sprint's core objective (does json_schema fix the critic?) → YES.
+
+RECOMMENDATION: inconclusive (FULL smoke) — the CRITIC closure is CONFIRMED; incompleteness is a separate
+architect grounding-DESIGN miss (a Zod cross-field invariant json_schema cannot enforce), deferred.
+Not switching critic models. Not a model approval. Enforce still unimplemented.
+
+CONFIRMATIONS
+-------------
+ · Strict parsing was NOT weakened — structured output only constrains generation; the receiver is byte-identical.
+ · Nothing deployed, pushed, enabled, funded, migrated, or approved. Only 2 bounded API inference calls.
+ · typecheck CLEAN · eslint CLEAN · full deterministic suite 1325 passed / 39 skipped / 0 failed.

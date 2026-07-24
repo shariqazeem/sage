@@ -1,0 +1,16 @@
+SAGE — Grounded Architect Runtime Sprint — manifest
+===================================================
+BASE: ea24155   HEAD: 8ace28e
+Patch: sage-grounded-architect.patch  (3 commits, 6 files, reverse-checks OK, no secrets)
+
+COMMITS:
+  61de233  feat(agentic): define grounded architect v2 contract
+  d8252c8  feat(agentic): wire grounded architect shadow into mission generation
+  8ace28e  test(agentic): prove grounded mission generation through runtime entrypoint
+
+REAL ENTRYPOINT NOW REACHING V2: inspectAndPlan → runMissionBrain → (MISSION_GROUNDING_MODE≠off) →
+  runGroundedShadow(ARCHITECT_SYSTEM_V2 → deterministic grounding validation → CRITIC_SYSTEM_V2) →
+  bounded GroundingShadowResult on MissionBrainResult.groundingShadow. Legacy plan never changed.
+
+FLAGS: MISSION_GROUNDING_MODE=off|shadow|enforce (default off; unknown→off; enforce implemented, NOT enabled).
+Verification: typecheck clean, lint clean, 1252 passed / 35 skipped. No CommonStack calls.

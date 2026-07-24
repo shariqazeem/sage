@@ -1,0 +1,1641 @@
+diff --git a/package.json b/package.json
+index a4b5085..d4faf95 100644
+--- a/package.json
++++ b/package.json
+@@ -20,6 +20,8 @@
+     "smoke:grounding": "GROUNDING_SMOKE=1 GROUNDING_SMOKE_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/mission-grounding-smoke.live.test.ts --reporter=basic",
+     "smoke:structured:dryrun": "GROUNDING_STRUCTURED_DRYRUN=1 vitest run src/lib/launch/mission-grounding-structured-smoke.live.test.ts --reporter=basic",
+     "smoke:structured": "GROUNDING_STRUCTURED=1 GROUNDING_STRUCTURED_CONFIRM=CALL_CAP_5 vitest run src/lib/launch/mission-grounding-structured-smoke.live.test.ts --reporter=basic",
++    "smoke:semantic:dryrun": "GROUNDING_SEMANTIC_DRYRUN=1 vitest run src/lib/launch/mission-grounding-semantic-smoke.live.test.ts --reporter=basic",
++    "smoke:semantic": "GROUNDING_SEMANTIC=1 GROUNDING_SEMANTIC_CONFIRM=CALL_CAP_6 vitest run src/lib/launch/mission-grounding-semantic-smoke.live.test.ts --reporter=basic",
+     "deputy:watch": "node --env-file-if-exists=.env scripts/deputy-watch.mjs",
+     "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
+     "format": "prettier --write .",
+diff --git a/promotion-evidence/grounded-semantic-draft-v1.json b/promotion-evidence/grounded-semantic-draft-v1.json
+new file mode 100644
+index 0000000..5c5d076
+--- /dev/null
++++ b/promotion-evidence/grounded-semantic-draft-v1.json
+@@ -0,0 +1,85 @@
++{
++  "artifact": "grounded-semantic-draft-v1",
++  "note": "semantic mission-draft closure — NOT model approval, NOT promotion-ready",
++  "timestamp": "2026-07-23T14:16:48.359Z",
++  "callsConsumed": 3,
++  "hardCap": 6,
++  "ledgerPath": "grounded-semantic-draft-v1.ledger.json",
++  "modelSubstitution": null,
++  "requestedModels": {
++    "architect": "google/gemini-3.1-flash-lite-preview",
++    "critic": "anthropic/claude-haiku-4-5"
++  },
++  "architectContractVersion": "semantic-draft-v1",
++  "transportSchemas": {
++    "architect": "sage_grounded_architect_semantic_draft_v1",
++    "critic": "sage_grounded_critic_v2"
++  },
++  "configurationConclusive": true,
++  "capabilityConclusive": true,
++  "steps": [
++    {
++      "id": "state_claim",
++      "classification": "critic_semantic_failed",
++      "metrics": {
++        "architectStatus": "ok",
++        "criticStatus": "ok",
++        "architectErrorCode": null,
++        "criticErrorCode": null,
++        "architectContractVersion": "semantic-draft-v1",
++        "draftMissionCount": 1,
++        "draftCriterionCount": 1,
++        "compiledMissionCount": 1,
++        "compilerRejectedCount": 0,
++        "compilerRejectionCodes": {},
++        "derivedAnchorCount": 1,
++        "derivedSourceCount": 1,
++        "derivedTargetSurfaceCount": 1,
++        "groundingValid": 1,
++        "criticSupported": 0,
++        "canonicalGatePassed": 0,
++        "accepted": 0,
++        "tierCounts": {
++          "action_replayed": 0,
++          "action_observed": 0,
++          "state_seen": 1,
++          "inferred_only": 0,
++          "ungrounded": 0
++        },
++        "unsafeTransitionCount": 0,
++        "exactBudgetEquality": false,
++        "allocatedBudgetBase": "0",
++        "architectContentShape": "bare_object",
++        "criticContentShape": "bare_object",
++        "canonicalRejectionCodes": {},
++        "architectSchemaErrorPaths": [],
++        "error": null,
++        "architectModelActual": "gemini-3.1-flash-lite-preview",
++        "criticModelActual": "claude-haiku-4-5-20251001",
++        "architectProvider": "api.commonstack.ai",
++        "criticProvider": "api.commonstack.ai",
++        "architectPromptTokens": 1518,
++        "architectCompletionTokens": 246,
++        "architectLatencyMs": 2926,
++        "criticPromptTokens": 857,
++        "criticCompletionTokens": 53,
++        "criticLatencyMs": 36494,
++        "ghostArchitectMentioned": false
++      }
++    }
++  ],
++  "recommendation": "critic_semantic_failed",
++  "compilerPipelineProven": true,
++  "compilerPipelineEvidence": "state_claim, REAL Gemini architect: architectStatus=ok, archShape=bare_object, draftMissionCount=1, compiledMissionCount=1, compilerRejectedCount=0. Sage DERIVED anchors(1)/sources(1)/targetSurface(1) — the model authored none. groundingValid=1, tier state_seen=1. The prior structured-v2 blocker (architect cross-field grounding miss \"missions.0:custom\") is RESOLVED: the model no longer authors indexes/urls/anchors, so it cannot get them wrong.",
++  "terminalState": "critic_semantic_failed — the REAL Haiku critic returned a bare_object (criticShape=bare_object, criticStatus=ok) via json_schema but judged the mission unsupported (criticSupported=0). Transport, semantic-draft Zod, the deterministic compiler and the grounding validator ALL worked; only the critic's semantic decision withheld support. Per the sprint this is terminal — stop and preserve the frozen fixture for a later semantic bake-off.",
++  "iterationNote": "2 architect calls: session-1 architectStatus=schema_invalid (architectSchemaErrorPaths [\"missions.0.criteria.0.criterionKind:invalid_value\"] — the prompt did not list the criterionKind/evidenceMode enum values; json_schema did not enforce the enum for Gemini via CommonStack). Prompt fixed to list both enums; stepResults cleared for a deliberate re-attempt (callsConsumed kept cumulative — the 6-cap held). session-2 architect ok. Total 3 of 6 paid calls.",
++  "confirmations": {
++    "noModelChoseIndexes": true,
++    "noModelChosePageState": true,
++    "noModelChoseSources": true,
++    "noModelChoseAnchors": true,
++    "noModelChoseTargetSurface": true,
++    "noModelChoseVerificationClass": true,
++    "noModelChosePayoutAmount": true
++  }
++}
+\ No newline at end of file
+diff --git a/promotion-evidence/grounded-semantic-draft-v1.ledger.json b/promotion-evidence/grounded-semantic-draft-v1.ledger.json
+new file mode 100644
+index 0000000..8052f76
+--- /dev/null
++++ b/promotion-evidence/grounded-semantic-draft-v1.ledger.json
+@@ -0,0 +1,94 @@
++{
++  "evaluationId": "grounded-semantic-draft-v1",
++  "hardCap": 6,
++  "callsConsumed": 3,
++  "calls": [
++    {
++      "seq": 1,
++      "fixture": "state_claim",
++      "role": "architect",
++      "startedAt": "2026-07-23T14:14:45.547Z",
++      "completedAt": "2026-07-23T14:14:48.416Z",
++      "outcomeCode": "ok",
++      "terminalState": "completed"
++    },
++    {
++      "seq": 1,
++      "fixture": "—",
++      "role": "—",
++      "startedAt": "2026-07-23T14:16:07.425Z",
++      "completedAt": "2026-07-23T14:16:07.425Z",
++      "outcomeCode": "note:stepResults cleared for re-attempt after prompt enum fix; callsConsumed kept",
++      "terminalState": "note"
++    },
++    {
++      "seq": 2,
++      "fixture": "state_claim",
++      "role": "architect",
++      "startedAt": "2026-07-23T14:16:08.930Z",
++      "completedAt": "2026-07-23T14:16:11.856Z",
++      "outcomeCode": "ok",
++      "terminalState": "completed"
++    },
++    {
++      "seq": 3,
++      "fixture": "state_claim",
++      "role": "critic",
++      "startedAt": "2026-07-23T14:16:11.860Z",
++      "completedAt": "2026-07-23T14:16:48.354Z",
++      "outcomeCode": "ok",
++      "terminalState": "completed"
++    }
++  ],
++  "stepResults": {
++    "state_claim": {
++      "id": "state_claim",
++      "classification": "critic_semantic_failed",
++      "metrics": {
++        "architectStatus": "ok",
++        "criticStatus": "ok",
++        "architectErrorCode": null,
++        "criticErrorCode": null,
++        "architectContractVersion": "semantic-draft-v1",
++        "draftMissionCount": 1,
++        "draftCriterionCount": 1,
++        "compiledMissionCount": 1,
++        "compilerRejectedCount": 0,
++        "compilerRejectionCodes": {},
++        "derivedAnchorCount": 1,
++        "derivedSourceCount": 1,
++        "derivedTargetSurfaceCount": 1,
++        "groundingValid": 1,
++        "criticSupported": 0,
++        "canonicalGatePassed": 0,
++        "accepted": 0,
++        "tierCounts": {
++          "action_replayed": 0,
++          "action_observed": 0,
++          "state_seen": 1,
++          "inferred_only": 0,
++          "ungrounded": 0
++        },
++        "unsafeTransitionCount": 0,
++        "exactBudgetEquality": false,
++        "allocatedBudgetBase": "0",
++        "architectContentShape": "bare_object",
++        "criticContentShape": "bare_object",
++        "canonicalRejectionCodes": {},
++        "architectSchemaErrorPaths": [],
++        "error": null,
++        "architectModelActual": "gemini-3.1-flash-lite-preview",
++        "criticModelActual": "claude-haiku-4-5-20251001",
++        "architectProvider": "api.commonstack.ai",
++        "criticProvider": "api.commonstack.ai",
++        "architectPromptTokens": 1518,
++        "architectCompletionTokens": 246,
++        "architectLatencyMs": 2926,
++        "criticPromptTokens": 857,
++        "criticCompletionTokens": 53,
++        "criticLatencyMs": 36494,
++        "ghostArchitectMentioned": false
++      }
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/src/lib/launch/mission-draft-compiler.test.ts b/src/lib/launch/mission-draft-compiler.test.ts
+new file mode 100644
+index 0000000..8f8ccf0
+--- /dev/null
++++ b/src/lib/launch/mission-draft-compiler.test.ts
+@@ -0,0 +1,162 @@
++import { describe, it, expect } from "vitest";
++import { SemanticDraftSchema, DraftCriterionSchema, DraftMissionSchema, GROUNDED_ARCHITECT_CONTRACT_VERSION, ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA, compileGroundedMissionDraft, parseAndCompileArchitectDraft, type PresentedView } from "./mission-draft-compiler";
++import { deriveObservations, decisiveFacts } from "./observed-facts";
++import { validateMissionGrounding, classifyGroundingTier } from "./mission-grounding";
++import type { FieldTestState, FieldTestSummary } from "./schemas";
++
++const criterion = (over: Record<string, unknown> = {}) => ({ text: "Reach the report state", evidenceRequirement: "Describe the report state reached", criterionKind: "action_outcome", factRefs: ["fact-after"], transitionRef: "trans-1", evidenceMode: "observation", supportRationale: "the transition produced this state", ...over });
++const mission = (over: Record<string, unknown> = {}) => ({ missionKey: "test-report-loading", title: "Test report loading", objective: "Load the report", instructions: "1. Click load", whyItMatters: "core", priority: "high", riskCategory: "critical_journey", effortMinutes: 5, rewardWeight: 5, maxCompletions: 3, confidence: 0.8, conditions: [], assumptions: [], disallowed: [], criteria: [criterion()], ...over });
++
++describe("semantic-draft contract (COMMIT 1)", () => {
++  it("the contract version + transport schema name are pinned", () => {
++    expect(GROUNDED_ARCHITECT_CONTRACT_VERSION).toBe("semantic-draft-v1");
++    expect(ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA.name).toBe("sage_grounded_architect_semantic_draft_v1");
++  });
++
++  it("a valid single-source draft parses", () => {
++    expect(SemanticDraftSchema.safeParse({ missions: [mission()] }).success).toBe(true);
++  });
++
++  it("the transport schema is strict object with additionalProperties:false throughout", () => {
++    const s = ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA.schema as Record<string, unknown>;
++    expect(s.additionalProperties).toBe(false);
++    const item = ((s.properties as Record<string, { items?: Record<string, unknown> }>).missions.items) as Record<string, unknown>;
++    expect(item.additionalProperties).toBe(false);
++    const critItem = ((item.properties as Record<string, { items?: Record<string, unknown> }>).criteria.items) as Record<string, unknown>;
++    expect(critItem.additionalProperties).toBe(false);
++  });
++
++  for (const forbidden of ["criterionIndex", "evidenceIndex", "groundingV1", "pageUrl", "stateId", "targetSurface", "sources", "anchors", "verificationMethod", "evidenceRequirements"]) {
++    it(`REJECTS a mission carrying the derived/forbidden key "${forbidden}" (additionalProperties:false)`, () => {
++      expect(SemanticDraftSchema.safeParse({ missions: [mission({ [forbidden]: forbidden === "criteria" ? [] : "x" })] }).success).toBe(false);
++    });
++  }
++
++  it("REJECTS a criterion carrying a forbidden index key", () => {
++    expect(DraftCriterionSchema.safeParse(criterion({ criterionIndex: 0 })).success).toBe(false);
++    expect(DraftCriterionSchema.safeParse(criterion({ evidenceIndex: 0 })).success).toBe(false);
++  });
++
++  it("an action_outcome criterion REQUIRES a transitionRef; other kinds may use null", () => {
++    expect(DraftCriterionSchema.safeParse(criterion({ criterionKind: "action_outcome", transitionRef: null })).success).toBe(false);
++    expect(DraftCriterionSchema.safeParse(criterion({ criterionKind: "state", transitionRef: null, factRefs: ["f1"] })).success).toBe(true);
++  });
++
++  it("factRefs must be non-empty and unique", () => {
++    expect(DraftCriterionSchema.safeParse(criterion({ factRefs: [] })).success).toBe(false);
++    expect(DraftCriterionSchema.safeParse(criterion({ factRefs: ["a", "a"] })).success).toBe(false);
++  });
++
++  it("missions:[] fails the Zod min(1) (the shadow treats it as the honest v2_empty case separately)", () => {
++    expect(SemanticDraftSchema.safeParse({ missions: [] }).success).toBe(false);
++  });
++});
++
++/* ─────────────────── deterministic COMPILER matrix (tests 1-17,19) ─────────────────── */
++const stt = (o: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://p.test/", networkMethods: ["GET"], ...o });
++const FT: FieldTestSummary = { ran: true, startUrl: "https://p.test/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1, states: [
++  stt({ url: "https://p.test/", visibleTextExcerpt: "Welcome", notableElements: [{ tag: "button", text: "Start", role: "button" }] }),
++  stt({ trigger: "clicked 'Start'", url: "https://p.test/play", visibleTextExcerpt: "You reach the garden world.", notableElements: [{ tag: "button", text: "Talk to Yara", role: "button" }], pixelDeltaPct: 40, networkMethods: ["GET"] }),
++] };
++const SET = deriveObservations(FT);
++const startFact = decisiveFacts(SET).find((f) => f.elementName === "Start")!;
++const yaraFact = decisiveFacts(SET).find((f) => f.elementName === "Talk to Yara")!;
++const transId = SET.transitions[0].id;
++const allPresented: PresentedView = { factIds: new Set(SET.facts.map((f) => f.id)), transitionIds: new Set(SET.transitions.map((t) => t.id)) };
++
++// an UNSAFE (POST) transition set for tests 12.
++const ftPost: FieldTestSummary = { ...FT, states: [
++  stt({ url: "https://p.test/", visibleTextExcerpt: "Store", notableElements: [{ tag: "button", text: "Buy", role: "button" }] }),
++  stt({ trigger: "clicked 'Buy'", url: "https://p.test/bought", visibleTextExcerpt: "Purchase complete.", notableElements: [{ tag: "button", text: "View receipt", role: "button" }], pixelDeltaPct: 30, networkMethods: ["POST"] }),
++] };
++const SET_POST = deriveObservations(ftPost);
++const postTrans = SET_POST.transitions[0];
++const postAfterFact = SET_POST.facts.find((f) => f.stateId === postTrans.afterStateDigest)!;
++const postPresented: PresentedView = { factIds: new Set(SET_POST.facts.map((f) => f.id)), transitionIds: new Set(SET_POST.transitions.map((t) => t.id)) };
++
++const stateCrit = (over = {}) => ({ text: "The Start control is present on the homepage", evidenceRequirement: "Quote the observed Start control", criterionKind: "state", factRefs: [startFact.id], transitionRef: null, evidenceMode: "observation", supportRationale: "the Start control was seen", ...over });
++const actionCrit = (over = {}) => ({ text: "Clicking Start reaches the garden world", evidenceRequirement: "Describe the garden world reached", criterionKind: "action_outcome", factRefs: [yaraFact.id], transitionRef: transId, evidenceMode: "observation", supportRationale: "the reproduced transition produced this state", ...over });
++const draftMission = (criteria: unknown[], over = {}) => ({ missionKey: "m1", title: "T", objective: "O", instructions: "1. step", whyItMatters: "core", priority: "high", riskCategory: "critical_journey", effortMinutes: 5, rewardWeight: 5, maxCompletions: 3, confidence: 0.8, conditions: [], assumptions: [], disallowed: [], criteria, ...over });
++const compile = (m: unknown, set = SET, view = allPresented) => compileGroundedMissionDraft(DraftMissionSchema.parse(m), set, view);
++
++describe("deterministic draft compiler matrix", () => {
++  it("1. two semantic criteria compile to derived criterionIndex 0 and 1", () => {
++    const r = compile(draftMission([stateCrit(), stateCrit({ text: "second" })]));
++    expect(r.ok).toBe(true);
++    if (r.ok) expect(r.value.groundingV1!.criteria.map((c) => c.criterionIndex)).toEqual([0, 1]);
++  });
++  it("2. evidenceIndex always equals its generated criterion index", () => {
++    const r = compile(draftMission([actionCrit(), stateCrit()]));
++    if (r.ok) for (const c of r.value.groundingV1!.criteria) expect(c.evidenceIndex).toBe(c.criterionIndex);
++  });
++  it("3. the model cannot author an index (Zod rejects criterionIndex/evidenceIndex keys)", () => {
++    expect(DraftCriterionSchema.safeParse(stateCrit({ criterionIndex: 0 })).success).toBe(false);
++    expect(DraftCriterionSchema.safeParse(stateCrit({ evidenceIndex: 0 })).success).toBe(false);
++  });
++  it("4. pageUrl/stateId derive from the cited facts (state: first fact; action: after-state fact)", () => {
++    const s = compile(draftMission([stateCrit()]));
++    if (s.ok) { expect(s.value.groundingV1!.criteria[0].pageUrl).toBe(startFact.pageUrl); expect(s.value.groundingV1!.criteria[0].stateId).toBe(startFact.stateId); }
++    const a = compile(draftMission([actionCrit()]));
++    if (a.ok) { expect(a.value.groundingV1!.criteria[0].pageUrl).toBe(yaraFact.pageUrl); expect(a.value.groundingV1!.criteria[0].stateId).toBe(yaraFact.stateId); }
++  });
++  it("5. an action targetSurface derives from transition.startUrl", () => {
++    const r = compile(draftMission([actionCrit()]));
++    if (r.ok) expect(r.value.targetSurface).toBe(SET.transitions[0].startUrl);
++  });
++  it("6. a state targetSurface derives from the cited fact's pageUrl", () => {
++    const r = compile(draftMission([stateCrit()]));
++    if (r.ok) expect(r.value.targetSurface).toBe(startFact.pageUrl);
++  });
++  it("7. sources derive only from observed evidence (cited facts/transitions), never model text", () => {
++    const r = compile(draftMission([stateCrit()]));
++    if (r.ok) { expect(r.value.sources.length).toBeGreaterThan(0); for (const s of r.value.sources) expect(s.ref).toBe(startFact.pageUrl); }
++  });
++  it("8. anchors derive only from exact observed strings (the cited fact's elementName)", () => {
++    const r = compile(draftMission([stateCrit()]));
++    if (r.ok) expect(r.value.anchors).toEqual(["Start"]);
++  });
++  it("9. duplicate derived anchors deduplicate deterministically", () => {
++    const r = compile(draftMission([stateCrit(), stateCrit({ text: "again" })])); // both cite startFact → anchor "Start"
++    if (r.ok) expect(r.value.anchors).toEqual(["Start"]);
++  });
++  it("10. a fact not in the presented view fails architect_fact_not_presented", () => {
++    const view: PresentedView = { factIds: new Set([yaraFact.id]), transitionIds: allPresented.transitionIds }; // startFact omitted
++    const r = compile(draftMission([stateCrit()]), SET, view);
++    expect(r.ok).toBe(false); if (!r.ok) expect(r.code).toBe("architect_fact_not_presented");
++  });
++  it("11. a transition not in the presented view fails architect_transition_not_presented", () => {
++    const view: PresentedView = { factIds: allPresented.factIds, transitionIds: new Set() };
++    const r = compile(draftMission([actionCrit()]), SET, view);
++    expect(r.ok).toBe(false); if (!r.ok) expect(r.code).toBe("architect_transition_not_presented");
++  });
++  it("12. an unsafe/state-changing (POST) transition fails transition_not_safe", () => {
++    const crit = { text: "buy", evidenceRequirement: "describe the receipt", criterionKind: "action_outcome", factRefs: [postAfterFact.id], transitionRef: postTrans.id, evidenceMode: "observation", supportRationale: "receipt shown" };
++    const r = compile(draftMission([crit]), SET_POST, postPresented);
++    expect(r.ok).toBe(false); if (!r.ok) expect(r.code).toBe("transition_not_safe");
++  });
++  it("13. an action criterion citing no after-state fact fails action_missing_after_state_fact", () => {
++    const r = compile(draftMission([actionCrit({ factRefs: [startFact.id] })])); // startFact is the BEFORE state
++    expect(r.ok).toBe(false); if (!r.ok) expect(r.code).toBe("action_missing_after_state_fact");
++  });
++  it("14. a state criterion that also cites a transition stays state_seen (not action_observed)", () => {
++    const r = compile(draftMission([stateCrit({ transitionRef: transId })]));
++    expect(r.ok).toBe(true);
++    if (r.ok) expect(classifyGroundingTier(r.value.groundingV1!.criteria[0], SET)).toBe("state_seen");
++  });
++  it("15. missions:[] compiles to the honest empty outcome", () => {
++    expect(parseAndCompileArchitectDraft({ missions: [] }, SET, allPresented).kind).toBe("empty");
++  });
++  it("16. a forbidden derived key in the model output fails the strict transport (Zod) → schema_invalid", () => {
++    expect(parseAndCompileArchitectDraft({ missions: [draftMission([stateCrit()], { anchors: ["x"] })] }, SET, allPresented).kind).toBe("schema_invalid");
++    expect(parseAndCompileArchitectDraft({ missions: [draftMission([stateCrit()], { groundingV1: {} })] }, SET, allPresented).kind).toBe("schema_invalid");
++  });
++  it("17. a compiled mission passes the existing grounding validator", () => {
++    const r = compile(draftMission([actionCrit()]));
++    expect(r.ok).toBe(true);
++    if (r.ok) expect(validateMissionGrounding(r.value, SET, { expectedDigest: SET.digest })).toEqual([]);
++  });
++  it("19. a ghost feature (cites an unobserved fact id) cannot acquire derived anchors/sources", () => {
++    const r = compile(draftMission([stateCrit({ factRefs: ["deadbeefdeadbeefdeadbeef"] })]));
++    expect(r.ok).toBe(false); // rejected before any anchor/source is derived
++  });
++});
+diff --git a/src/lib/launch/mission-draft-compiler.ts b/src/lib/launch/mission-draft-compiler.ts
+new file mode 100644
+index 0000000..32c00c2
+--- /dev/null
++++ b/src/lib/launch/mission-draft-compiler.ts
+@@ -0,0 +1,246 @@
++import "server-only";
++
++import { z } from "zod";
++import { factIndex } from "./observed-facts";
++import type { ObservationSetV1, ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
++import type { CandidateMission, CriterionGroundingV1, SourceRef, MissionPriority, MissionRiskCategory, CriterionKind, VerificationMode } from "./schemas";
++
++/**
++ * SEMANTIC MISSION DRAFT CONTRACT (grounded architect).
++ *
++ * The architect describes each criterion EXACTLY ONCE (text + evidence requirement + kind + cited ids +
++ * rationale). It never emits parallel arrays, indexes, urls, anchors, sources or a groundingV1 map — Sage's
++ * deterministic compiler (COMMIT 2) derives every one of those from the cited observations. This removes the
++ * whole class of cross-field grounding failures (bijection / evidenceIndex-range) that a model cannot be
++ * relied on to satisfy, and it guarantees anchors/urls/sources are VERBATIM observed values, not model text.
++ *
++ * The receiving strict parser is unchanged; this is provider-native json_schema (strict:true) transport plus
++ * a strict Zod contract. Zod remains the semantic authority (uniqueness, kind rules, cross-field refinements).
++ */
++export const GROUNDED_ARCHITECT_CONTRACT_VERSION = "semantic-draft-v1";
++
++const RISK_CATEGORIES = ["critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation", "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression"] as const;
++const uniqueStrings = (arr: readonly string[]) => new Set(arr).size === arr.length;
++
++/** ONE semantic criterion — described once. Sage derives criterionIndex, evidenceIndex, pageUrl, stateId. */
++export const DraftCriterionSchema = z
++  .object({
++    text: z.string().min(1).max(400),
++    evidenceRequirement: z.string().min(1).max(400),
++    criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
++    factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
++    transitionRef: z.string().min(1).nullish(), // null (a common model rendering of "absent") for non-action kinds
++    evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
++    supportRationale: z.string().min(1).max(400),
++  })
++  .strict()
++  .refine((c) => c.criterionKind !== "action_outcome" || !!c.transitionRef, "action_outcome criterion requires a transitionRef");
++
++/** ONE draft mission — no criteria/evidenceRequirements arrays, no groundingV1, no derived fields. */
++export const DraftMissionSchema = z
++  .object({
++    missionKey: z.string().min(1).max(48),
++    title: z.string().min(1).max(140),
++    objective: z.string().min(1).max(600),
++    instructions: z.string().min(1).max(6000),
++    whyItMatters: z.string().min(1).max(800),
++    priority: z.enum(["high", "medium", "low"]),
++    riskCategory: z.enum(RISK_CATEGORIES),
++    effortMinutes: z.number().int().min(3).max(240),
++    rewardWeight: z.number().int().min(1).max(10),
++    maxCompletions: z.number().int().min(1).max(50),
++    confidence: z.number().min(0).max(1),
++    conditions: z.array(z.string()).max(8).nullish(),
++    assumptions: z.array(z.string()).max(6).nullish(),
++    disallowed: z.array(z.string()).max(8).nullish(),
++    criteria: z.array(DraftCriterionSchema).min(1).max(12),
++  })
++  .strict();
++
++export const SemanticDraftSchema = z
++  .object({ missions: z.array(DraftMissionSchema).min(1) })
++  .strict()
++  .superRefine((o, ctx) => { if (!uniqueStrings(o.missions.map((m) => m.missionKey))) ctx.addIssue({ code: "custom", message: "missionKey values must be unique" }); });
++
++export type SemanticDraftMission = z.infer<typeof DraftMissionSchema>;
++export type SemanticDraftCriterion = z.infer<typeof DraftCriterionSchema>;
++
++/* ─────────── provider-native TRANSPORT JSON Schema (json_schema strict:true) ─────────── */
++const strArray = { type: "array", items: { type: "string" } };
++const nullableStrArray = { type: ["array", "null"], items: { type: "string" } };
++const draftCriterionTransport = {
++  type: "object", additionalProperties: false,
++  properties: {
++    text: { type: "string" },
++    evidenceRequirement: { type: "string" },
++    criterionKind: { type: "string", enum: ["state", "action_outcome", "content_claim", "visual_quality"] },
++    factRefs: strArray,
++    transitionRef: { type: ["string", "null"] },
++    evidenceMode: { type: "string", enum: ["deterministic_url", "semantic_url", "observation"] },
++    supportRationale: { type: "string" },
++  },
++  required: ["text", "evidenceRequirement", "criterionKind", "factRefs", "transitionRef", "evidenceMode", "supportRationale"],
++};
++const draftMissionTransport = {
++  type: "object", additionalProperties: false,
++  properties: {
++    missionKey: { type: "string" }, title: { type: "string" }, objective: { type: "string" }, instructions: { type: "string" },
++    whyItMatters: { type: "string" }, priority: { type: "string", enum: ["high", "medium", "low"] }, riskCategory: { type: "string", enum: [...RISK_CATEGORIES] },
++    effortMinutes: { type: "integer" }, rewardWeight: { type: "integer" }, maxCompletions: { type: "integer" }, confidence: { type: "number" },
++    conditions: nullableStrArray, assumptions: nullableStrArray, disallowed: nullableStrArray,
++    criteria: { type: "array", items: draftCriterionTransport },
++  },
++  required: ["missionKey", "title", "objective", "instructions", "whyItMatters", "priority", "riskCategory", "effortMinutes", "rewardWeight", "maxCompletions", "confidence", "conditions", "assumptions", "disallowed", "criteria"],
++};
++/** Architect transport — a missions array that MAY be empty (honest v2_empty) or carry semantic-draft missions. */
++export const ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
++  name: "sage_grounded_architect_semantic_draft_v1",
++  schema: { type: "object", additionalProperties: false, properties: { missions: { type: "array", items: draftMissionTransport } }, required: ["missions"] },
++};
++
++/* ─────────────────────────── PURE deterministic compiler (COMMIT 2) ───────────────────────────
++ * Turns a schema-valid semantic draft into a canonical CandidateMission, DERIVING every field the model was
++ * forbidden to author. It imports canonical types only and copies NO gate logic — validateMissionGrounding
++ * and validatePlanMissions still run independently afterward. A model can never choose an index, a page/
++ * state value, a source, an anchor, a target surface or a verification classification.                     */
++export type CompilerRejectionCode =
++  | "architect_fact_not_presented"
++  | "architect_transition_not_presented"
++  | "transition_not_safe"
++  | "action_missing_after_state_fact"
++  | "derived_anchor_unavailable";
++export type CompileResult<T> = { ok: true; value: T } | { ok: false; code: CompilerRejectionCode };
++/** the bounded set of ids ACTUALLY SHOWN to the architect (from the observation view) — a citation must be
++ *  present here, not merely somewhere in the full set, so a model can't cite omitted/truncated evidence. */
++export interface PresentedView { factIds: ReadonlySet<string>; transitionIds: ReadonlySet<string> }
++
++const normLen = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, "").length;
++/** ONE stable verbatim anchor from the cited facts: a ≥3-char elementName, else a ≥3-char visibleText. */
++function deriveAnchor(facts: ObservedFactV1[]): string | null {
++  for (const f of facts) if (f.elementName && normLen(f.elementName) >= 3) return f.elementName;
++  for (const f of facts) for (const t of f.visibleTexts) if (t && normLen(t) >= 3) return t;
++  return null;
++}
++const boundedFactObs = (f: ObservedFactV1) => (f.elementName || f.visibleTexts[0] || "observed").slice(0, 120);
++const boundedTransObs = (t: ActionTransitionV1) => (t.addedTexts[0] || t.locator.accessibleName || t.verb).slice(0, 120);
++function deriveVerificationMethod(modes: Set<VerificationMode>): string {
++  const parts: string[] = [];
++  if (modes.has("deterministic_url")) parts.push("public URL + exact quoted text");
++  if (modes.has("semantic_url")) parts.push("public URL + a semantically supporting quote");
++  if (modes.has("observation")) parts.push("the observed state/action outcome described by the tester");
++  return parts.join("; ") || "the observed state/action outcome described by the tester";
++}
++
++export function compileGroundedMissionDraft(draft: SemanticDraftMission, set: ObservationSetV1, view: PresentedView): CompileResult<CandidateMission> {
++  const idx = factIndex(set);
++  const criteria: string[] = [];
++  const evidenceRequirements: string[] = [];
++  const grounding: CriterionGroundingV1[] = [];
++  const anchors: string[] = [];
++  const sourceByRef = new Map<string, SourceRef>();
++  const modes = new Set<VerificationMode>();
++
++  for (let i = 0; i < draft.criteria.length; i++) {
++    const c = draft.criteria[i];
++    // rule 1 — presented-evidence binding: every cited id must be in the bounded view shown to the architect.
++    for (const fid of c.factRefs) if (!view.factIds.has(fid)) return { ok: false, code: "architect_fact_not_presented" };
++    if (c.transitionRef && !view.transitionIds.has(c.transitionRef)) return { ok: false, code: "architect_transition_not_presented" };
++    const citedFacts = c.factRefs.map((fid) => idx.facts.get(fid)).filter(Boolean) as ObservedFactV1[];
++    if (citedFacts.length !== c.factRefs.length) return { ok: false, code: "architect_fact_not_presented" };
++
++    // rule 2 — pageUrl/stateId derivation (never model-authored).
++    let pageUrl: string;
++    let stateId: string | undefined;
++    if (c.criterionKind === "action_outcome") {
++      const t = c.transitionRef ? idx.transitions.get(c.transitionRef) : undefined;
++      if (!t) return { ok: false, code: "architect_transition_not_presented" };
++      if (t.safeClassification !== "safe") return { ok: false, code: "transition_not_safe" };
++      const afterFact = citedFacts.find((f) => f.stateId != null && f.stateId === t.afterStateDigest);
++      if (!afterFact) return { ok: false, code: "action_missing_after_state_fact" };
++      pageUrl = afterFact.pageUrl; stateId = afterFact.stateId ?? undefined;
++    } else {
++      const f0 = citedFacts[0];
++      pageUrl = f0.pageUrl; stateId = f0.stateId ?? undefined;
++    }
++
++    // rule 5 — one derived verbatim anchor per criterion.
++    const anchor = deriveAnchor(citedFacts);
++    if (!anchor) return { ok: false, code: "derived_anchor_unavailable" };
++    anchors.push(anchor);
++
++    // rule 4 — sources derived from cited evidence only (bounded ACTUAL observed text).
++    for (const f of citedFacts) if (!sourceByRef.has(f.pageUrl)) sourceByRef.set(f.pageUrl, { kind: "page", ref: f.pageUrl, observation: boundedFactObs(f) });
++    if (c.transitionRef) { const t = idx.transitions.get(c.transitionRef); if (t && !sourceByRef.has(t.afterUrl)) sourceByRef.set(t.afterUrl, { kind: "page", ref: t.afterUrl, observation: boundedTransObs(t) }); }
++
++    modes.add(c.evidenceMode as VerificationMode);
++    criteria.push(c.text);
++    evidenceRequirements.push(c.evidenceRequirement);
++    grounding.push({
++      criterionIndex: i, // DERIVED — the model never authors an index
++      criterionKind: c.criterionKind as CriterionKind,
++      sourceFactIds: c.factRefs,
++      sourceTransitionIds: c.transitionRef ? [c.transitionRef] : undefined,
++      evidenceIndex: i, // DERIVED — always equals the generated criterion index
++      verificationMode: c.evidenceMode as VerificationMode,
++      pageUrl, stateId, supportRationale: c.supportRationale,
++    });
++  }
++
++  // rule 3 — targetSurface derived once per mission.
++  const first = draft.criteria[0];
++  let targetSurface: string;
++  if (first.criterionKind === "action_outcome" && first.transitionRef) {
++    const t = idx.transitions.get(first.transitionRef);
++    targetSurface = t ? t.startUrl : grounding[0].pageUrl!;
++  } else {
++    targetSurface = grounding[0].pageUrl!;
++  }
++
++  const mission: CandidateMission = {
++    missionKey: draft.missionKey, title: draft.title, objective: draft.objective, instructions: draft.instructions,
++    targetSurface, criteria, evidenceRequirements, whyItMatters: draft.whyItMatters,
++    sources: [...sourceByRef.values()], priority: draft.priority as MissionPriority, riskCategory: draft.riskCategory as MissionRiskCategory,
++    effortMinutes: draft.effortMinutes, conditions: draft.conditions ?? [], rewardWeight: draft.rewardWeight, maxCompletions: draft.maxCompletions,
++    verificationMethod: deriveVerificationMethod(modes), confidence: draft.confidence, assumptions: draft.assumptions ?? [], disallowed: draft.disallowed ?? [],
++    anchors: [...new Set(anchors)], // rule 5 — deduplicate deterministically
++    groundingV1: { version: "mission-grounding-v1", observationSetDigest: set.digest, criteria: grounding },
++  };
++  return { ok: true, value: mission };
++}
++
++/* ─────────────────────────── shadow entry: parse + compile the whole draft ─────────────────────────── */
++export interface DraftCompileOutcome {
++  kind: "empty" | "schema_invalid" | "compiled";
++  schemaErrorPaths: string[];
++  candidates: CandidateMission[];
++  draftMissionCount: number;
++  draftCriterionCount: number;
++  compiledMissionCount: number;
++  compilerRejectedCount: number;
++  compilerRejectionCodes: Record<string, number>;
++  derivedAnchorCount: number;
++  derivedSourceCount: number;
++  derivedTargetSurfaceCount: number;
++}
++const EMPTY_OUTCOME = (kind: DraftCompileOutcome["kind"], schemaErrorPaths: string[] = []): DraftCompileOutcome => ({ kind, schemaErrorPaths, candidates: [], draftMissionCount: 0, draftCriterionCount: 0, compiledMissionCount: 0, compilerRejectedCount: 0, compilerRejectionCodes: {}, derivedAnchorCount: 0, derivedSourceCount: 0, derivedTargetSurfaceCount: 0 });
++
++/** Strict Zod parse of the semantic draft → deterministic compile of each mission. `empty` (honest v2_empty)
++ *  is distinguished from `schema_invalid`; a per-mission compiler rejection drops that mission (bounded codes
++ *  recorded), never the whole plan. */
++export function parseAndCompileArchitectDraft(json: unknown, set: ObservationSetV1, view: PresentedView): DraftCompileOutcome {
++  const rawMissions = (json as { missions?: unknown[] } | null)?.missions;
++  if (Array.isArray(rawMissions) && rawMissions.length === 0) return EMPTY_OUTCOME("empty");
++  const parsed = SemanticDraftSchema.safeParse(json);
++  if (!parsed.success) return EMPTY_OUTCOME("schema_invalid", parsed.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`));
++
++  const candidates: CandidateMission[] = [];
++  const compilerRejectionCodes: Record<string, number> = {};
++  let compilerRejectedCount = 0, draftCriterionCount = 0, derivedAnchorCount = 0, derivedSourceCount = 0;
++  for (const draft of parsed.data.missions) {
++    draftCriterionCount += draft.criteria.length;
++    const r = compileGroundedMissionDraft(draft, set, view);
++    if (r.ok) { candidates.push(r.value); derivedAnchorCount += r.value.anchors?.length ?? 0; derivedSourceCount += r.value.sources.length; }
++    else { compilerRejectedCount++; compilerRejectionCodes[r.code] = (compilerRejectionCodes[r.code] ?? 0) + 1; }
++  }
++  return { kind: "compiled", schemaErrorPaths: [], candidates, draftMissionCount: parsed.data.missions.length, draftCriterionCount, compiledMissionCount: candidates.length, compilerRejectedCount, compilerRejectionCodes, derivedAnchorCount, derivedSourceCount, derivedTargetSurfaceCount: candidates.length };
++}
+diff --git a/src/lib/launch/mission-grounding-semantic-smoke.live.test.ts b/src/lib/launch/mission-grounding-semantic-smoke.live.test.ts
+new file mode 100644
+index 0000000..11077a6
+--- /dev/null
++++ b/src/lib/launch/mission-grounding-semantic-smoke.live.test.ts
+@@ -0,0 +1,187 @@
++import { describe, it, expect, vi, beforeAll } from "vitest";
++import * as fs from "node:fs";
++import * as path from "node:path";
++
++/**
++ * SEMANTIC MISSION DRAFT live smoke — a fresh evaluation (grounded-semantic-draft-v1) that runs the REAL
++ * Gemini architect (now emitting the compact SEMANTIC DRAFT) + the REAL Haiku critic through the real
++ * runMissionBrain, and verifies the deterministic compiler derives valid grounded missions. Only legacy LLM
++ * calls are faked. Do NOT combine with the structured-v2 evidence/ledger — those are preserved unchanged.
++ *
++ * HARD CAP 6 paid calls across ALL sessions/resumes; the count is persisted BEFORE every call to an
++ * append-only ledger that is NEVER auto-deleted; no retry; no quota probe; refuse dispatch at >= 6.
++ * Guard: GROUNDING_SEMANTIC_CONFIRM=CALL_CAP_6.
++ */
++vi.mock("@/lib/llm/complete", async (importOriginal) => {
++  const actual = await importOriginal<typeof import("@/lib/llm/complete")>();
++  return { ...actual, llmCompleteJson: vi.fn() };
++});
++
++import { llmCompleteJson, LlmCompletionError } from "@/lib/llm/complete";
++import { runMissionBrain } from "./mission-brain";
++import { deriveObservations } from "./observed-facts";
++import { scopeFromObservations } from "./product-map";
++import { buildObservationCorpus } from "./validate-mission";
++import type { GroundingShadowResult } from "./mission-grounding-shadow";
++import type { FieldTestState, FieldTestSummary, ProductMapV1, ProductObservation, FounderLaunchInput } from "./schemas";
++
++const DRYRUN = process.env.GROUNDING_SEMANTIC_DRYRUN === "1";
++const PAID = process.env.GROUNDING_SEMANTIC === "1";
++const CAP = 6;
++const EVAL_ID = "grounded-semantic-draft-v1";
++const ARCH_MODEL = "google/gemini-3.1-flash-lite-preview";
++const CRITIC_MODEL = "anthropic/claude-haiku-4-5";
++const EVIDENCE_DIR = path.resolve("promotion-evidence");
++const LEDGER_PATH = path.join(EVIDENCE_DIR, `${EVAL_ID}.ledger.json`);
++const EVIDENCE_PATH = path.join(EVIDENCE_DIR, `${EVAL_ID}.json`);
++
++/* ─────────── fixtures (self-contained) ─────────── */
++const stt = (o: Partial<FieldTestState>): FieldTestState => ({ trigger: "initial load", screenshot: null, visibleTextExcerpt: "", notableElements: [], pixelDeltaPct: 0, url: "https://x.example/", networkMethods: ["GET"], ...o });
++const obs = (url: string, o: Partial<ProductObservation>): ProductObservation => ({ url, status: 200, title: "", headings: [], claims: [], ctas: [], forms: [], links: [], authBoundary: false, techHints: [], states: [], landmarks: [], snippets: [], inspectedAt: 1, contentSha256: "a".repeat(64), ...o });
++function buildMap(fieldTest: FieldTestSummary, replayTransitionId?: string): ProductMapV1 {
++  const set = deriveObservations(fieldTest);
++  const finding = (v: string) => ({ value: v, confidence: 0.9, sources: [{ kind: "page" as const, ref: fieldTest.startUrl, observation: v }], browserConfirmed: true });
++  const map = { productName: "P", category: "app", valueProp: "v", targetUserHypotheses: [], founderTargetUsers: "u", primaryJourney: [], routes: fieldTest.states.map((s) => finding(s.url)), interactiveSurfaces: [], trustSurfaces: [], claimRisks: [], observedStates: [], repoOnlyCapabilities: [], browserConfirmed: [], limitations: [], openQuestions: [], pagesInspected: fieldTest.states.length, repoFilesInspected: 0, digest: "0x00", fieldTest, observations: set } as unknown as ProductMapV1;
++  if (replayTransitionId) (map as { replayShadow?: unknown }).replayShadow = { version: "replay-shadow-v1", mode: "shadow", probes: 1, byClassification: { reproduced: 1 }, results: [{ probeId: "p", transitionId: replayTransitionId, classification: "reproduced" }] };
++  return map;
++}
++const claimFT: FieldTestSummary = { ran: true, startUrl: "https://acme-metrics.example/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1, states: [stt({ url: "https://acme-metrics.example/", visibleTextExcerpt: "Acme Metrics. See every metric in real time. Trusted by 5,000 teams. Start free trial.", notableElements: [{ tag: "h1", text: "See every metric in real time", role: "heading" }, { tag: "p", text: "Trusted by 5,000 teams", role: "note" }, { tag: "a", text: "Start free trial", role: "link" }] })] };
++const claimObs = [obs("https://acme-metrics.example/", { title: "Acme Metrics", headings: ["See every metric in real time"], claims: ["Trusted by 5,000 teams"], ctas: ["Start free trial"], snippets: ["Trusted by 5,000 teams"] })];
++const replayFT: FieldTestSummary = { ran: true, startUrl: "https://reportly.example/dashboard", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1, states: [stt({ url: "https://reportly.example/dashboard", visibleTextExcerpt: "Reportly dashboard. Click Load report to view this month's revenue.", notableElements: [{ tag: "button", text: "Load report", role: "button" }] }), stt({ trigger: "clicked 'Load report'", url: "https://reportly.example/dashboard/report", visibleTextExcerpt: "Report ready. Revenue this month is 12,400 dollars.", notableElements: [{ tag: "h2", text: "Report ready", role: "heading" }], pixelDeltaPct: 35, networkMethods: ["GET"] })] };
++const replayTransId = deriveObservations(replayFT).transitions[0]?.id;
++const replayObs = [obs("https://reportly.example/dashboard", { title: "Reportly", headings: ["Reportly dashboard"], ctas: ["Load report"], snippets: ["Click Load report to view this month's revenue"] }), obs("https://reportly.example/dashboard/report", { title: "Reportly report", headings: ["Report ready"], snippets: ["Revenue this month is 12,400 dollars"] })];
++const ghostFT: FieldTestSummary = { ran: true, startUrl: "https://taskly.example/", mode: "interactive", pages: [], classification: null, limitation: null, durationMs: 1, states: [stt({ url: "https://taskly.example/app", visibleTextExcerpt: "Taskly. Your tasks for today. Add a task. Mark tasks complete. Invite a teammate.", notableElements: [{ tag: "button", text: "Add a task", role: "button" }, { tag: "button", text: "Mark complete", role: "button" }] })] };
++const ghostObs = [obs("https://taskly.example/app", { title: "Taskly", headings: ["Your tasks for today"], ctas: ["Add a task", "Mark complete", "Invite a teammate"], snippets: ["Add a task", "Mark tasks complete"] })];
++const input = (goal: string, url: string): FounderLaunchInput => ({ productUrl: url, goal, targetUsers: "u", totalBudgetBase: BigInt(2_000_000), tokenDecimals: 6 } as unknown as FounderLaunchInput);
++
++interface Fixture { id: string; goal: string; kind: "positive_state" | "positive_action" | "ghost"; map: () => ProductMapV1; observations: ProductObservation[]; fieldTest: FieldTestSummary; url: string }
++const FIXTURES: Fixture[] = [
++  { id: "state_claim", goal: "Validate that the public 'Trusted by 5,000 teams' claim is reachable and accurately reported.", kind: "positive_state", map: () => buildMap(claimFT), observations: claimObs, fieldTest: claimFT, url: claimFT.startUrl },
++  { id: "safe_replay", goal: "Test that clicking Load report reliably reaches the observed report outcome.", kind: "positive_action", map: () => buildMap(replayFT, replayTransId), observations: replayObs, fieldTest: replayFT, url: replayFT.startUrl },
++  { id: "ghost_export", goal: "Test the Export CSV workflow: download all of my tasks as a CSV file.", kind: "ghost", map: () => buildMap(ghostFT), observations: ghostObs, fieldTest: ghostFT, url: ghostFT.startUrl },
++];
++
++/* ─────────── append-only ledger + 6-call cap ─────────── */
++interface LedgerCall { seq: number; fixture: string; role: string; startedAt: string; completedAt: string | null; outcomeCode: string | null; terminalState: string }
++interface StepResult { id: string; classification: string; metrics: Record<string, unknown> }
++interface Ledger { evaluationId: string; hardCap: number; callsConsumed: number; calls: LedgerCall[]; stepResults: Record<string, StepResult> }
++let ledger: Ledger = { evaluationId: EVAL_ID, hardCap: CAP, callsConsumed: 0, calls: [], stepResults: {} };
++const persistLedger = () => { fs.mkdirSync(EVIDENCE_DIR, { recursive: true }); fs.writeFileSync(LEDGER_PATH, JSON.stringify(ledger, null, 2)); };
++let realComplete: typeof import("@/lib/llm/complete");
++let currentFixture = "";
++let ghostArchitectMentioned = false;
++
++async function dispatcher(opts: { system: string; user: string; parsePolicy?: string }): Promise<unknown> {
++  const isArch = opts.system.includes("GROUNDED mission architect");
++  const isCrit = opts.system.includes("grounding CRITIC");
++  if (!isArch && !isCrit) return { json: { missions: [{ missionKey: "legacy-fixture", title: "Legacy fixture", objective: "placeholder legacy objective", instructions: "1. no-op", targetSurface: "https://x.example/" }] }, model: "legacy-fake", provider: "fake", latencyMs: 0, promptTokens: 0, completionTokens: 0, parsePolicy: "repair", finishReason: "stop", repaired: false, responseModel: "legacy-fake" };
++  if (opts.parsePolicy !== "strict") throw new Error("llm_v2_not_strict");
++  if (ledger.callsConsumed >= CAP) throw new Error("llm_call_cap_reached");
++  const rec: LedgerCall = { seq: ledger.callsConsumed + 1, fixture: currentFixture, role: isArch ? "architect" : "critic", startedAt: new Date().toISOString(), completedAt: null, outcomeCode: null, terminalState: "in_flight" };
++  ledger.calls.push(rec); ledger.callsConsumed += 1; persistLedger();
++  try {
++    const r = await realComplete.llmCompleteJson(opts as never);
++    rec.completedAt = new Date().toISOString(); rec.outcomeCode = "ok"; rec.terminalState = "completed"; persistLedger();
++    if (isArch) { const t = JSON.stringify((r as { json?: unknown }).json ?? "").toLowerCase(); ghostArchitectMentioned = /export|csv|download|spreadsheet|\.xlsx/.test(t); }
++    return r;
++  } catch (e) {
++    rec.completedAt = new Date().toISOString(); rec.outcomeCode = e instanceof LlmCompletionError ? e.code : (e instanceof Error ? e.message.slice(0, 40) : "error"); rec.terminalState = "failed"; persistLedger();
++    throw e;
++  }
++}
++
++const normModel = (m: string | null | undefined) => (m ?? "").replace(/^(google|anthropic|openai|meta|mistral)\//, "").replace(/-\d{6,}$/, "");
++const servedExplained = (requested: string, served: string | null) => !served || normModel(requested) === normModel(served);
++
++function metricsOf(gs: GroundingShadowResult | undefined) {
++  if (!gs) return { error: "no_shadow" };
++  return { architectStatus: gs.architectStatus, criticStatus: gs.criticStatus, architectErrorCode: gs.architectErrorCode, criticErrorCode: gs.criticErrorCode,
++    architectContractVersion: gs.architectContractVersion, draftMissionCount: gs.draftMissionCount, draftCriterionCount: gs.draftCriterionCount,
++    compiledMissionCount: gs.compiledMissionCount, compilerRejectedCount: gs.compilerRejectedCount, compilerRejectionCodes: gs.compilerRejectionCodes,
++    derivedAnchorCount: gs.derivedAnchorCount, derivedSourceCount: gs.derivedSourceCount, derivedTargetSurfaceCount: gs.derivedTargetSurfaceCount,
++    groundingValid: gs.groundingValid, criticSupported: gs.criticSupported, canonicalGatePassed: gs.canonicalGatePassed, accepted: gs.accepted,
++    tierCounts: gs.tierCounts, unsafeTransitionCount: gs.unsafeTransitionCount, exactBudgetEquality: gs.exactBudgetEquality, allocatedBudgetBase: gs.allocatedBudgetBase,
++    architectContentShape: gs.architectContentShape, criticContentShape: gs.criticContentShape, canonicalRejectionCodes: gs.canonicalRejectionCodes, architectSchemaErrorPaths: gs.architectSchemaErrorPaths, error: gs.error,
++    architectModelActual: gs.architectModelActual, criticModelActual: gs.criticModelActual, architectProvider: gs.architectProvider, criticProvider: gs.criticProvider,
++    architectPromptTokens: gs.architectPromptTokens, architectCompletionTokens: gs.architectCompletionTokens, architectLatencyMs: gs.architectLatencyMs,
++    criticPromptTokens: gs.criticPromptTokens, criticCompletionTokens: gs.criticCompletionTokens, criticLatencyMs: gs.criticLatencyMs };
++}
++
++/** classify to the EXACT failing layer — never mislabel one layer as another. */
++function classify(gs: GroundingShadowResult | undefined, kind: Fixture["kind"]): string {
++  if (!gs) return "inconclusive";
++  if (gs.architectErrorCode === "llm_status_429" || gs.criticErrorCode === "llm_status_429") return "quota_blocked";
++  if (gs.architectStatus === "provider_error") return "provider_failed";
++  if (gs.architectStatus === "strict_parse_error") return "strict_transport_failed";
++  if (gs.architectStatus === "schema_invalid") return "semantic_schema_failed";
++  if (kind === "ghost") return (gs.accepted === 0 && gs.criticSupported === 0) ? "ok" : "canonical_gate_failed";
++  if (gs.compiledMissionCount === 0) return "draft_compiler_failed";
++  if (gs.groundingValid === 0) return "grounding_failed";
++  if (gs.criticStatus === "provider_error") return "provider_failed";
++  if (gs.criticStatus === "strict_parse_error") return "strict_transport_failed";
++  if (gs.criticStatus === "schema_invalid") return "semantic_schema_failed";
++  if (gs.criticSupported === 0) return "critic_semantic_failed";
++  if (gs.canonicalGatePassed === 0) return "canonical_gate_failed";
++  if (!gs.budgetCompiled || !gs.exactBudgetEquality) return "budget_compile_failed";
++  if (kind === "positive_state" && gs.tierCounts.state_seen < 1) return "grounding_failed";
++  if (kind === "positive_action" && gs.tierCounts.action_replayed < 1) return "grounding_failed";
++  if (kind === "positive_action" && gs.unsafeTransitionCount > 0) return "grounding_failed";
++  return "ok";
++}
++
++describe.runIf(DRYRUN || PAID)(`grounded architect — semantic-draft live smoke (${EVAL_ID})`, () => {
++  beforeAll(async () => {
++    if (PAID) { try { process.loadEnvFile(path.resolve(".env")); } catch { /* key may already be present */ } }
++    realComplete = (await vi.importActual("@/lib/llm/complete")) as typeof import("@/lib/llm/complete");
++    vi.mocked(llmCompleteJson).mockImplementation(dispatcher as never);
++    process.env.MISSION_MODEL = ARCH_MODEL;
++    process.env.MISSION_GROUNDING_CRITIC_MODEL = CRITIC_MODEL;
++    process.env.MISSION_GROUNDING_MODE = "shadow";
++  });
++
++  it.runIf(DRYRUN)("DRY-RUN — plans the run and makes ZERO provider calls", () => {
++    console.log("[semantic-smoke] DRY-RUN plan:\n" + JSON.stringify({ evaluationId: EVAL_ID, hardCap: CAP, requestedModels: { architect: ARCH_MODEL, critic: CRITIC_MODEL }, transportSchema: "sage_grounded_architect_semantic_draft_v1 (strict)", fixtures: FIXTURES.map((f) => ({ id: f.id, kind: f.kind, digest: deriveObservations(f.fieldTest).digest })), ledgerPath: LEDGER_PATH, evidencePath: EVIDENCE_PATH, confirm: "GROUNDING_SEMANTIC_CONFIRM=CALL_CAP_6", stopConditions: ["429 quota", "provider/strict/schema/compiler failure", "unexplained served-model substitution"] }, null, 2));
++    expect(ledger.callsConsumed).toBe(0);
++    expect(replayTransId).toBeTruthy();
++  });
++
++  it.runIf(PAID)("LIVE — cumulative ≤6 real calls, append-only ledger, semantic-draft architect + critic", async () => {
++    expect(process.env.GROUNDING_SEMANTIC_CONFIRM).toBe("CALL_CAP_6");
++    if (fs.existsSync(LEDGER_PATH)) ledger = JSON.parse(fs.readFileSync(LEDGER_PATH, "utf8"));
++    ledger.stepResults = ledger.stepResults ?? {};
++    persistLedger();
++
++    let modelSubstitution: string | null = null;
++    const checkServed = (gs?: GroundingShadowResult) => { if (!gs) return; if (gs.architectModelActual && !servedExplained(ARCH_MODEL, gs.architectModelActual)) modelSubstitution = `architect ${ARCH_MODEL}→${gs.architectModelActual}`; if (gs.criticModelActual && !servedExplained(CRITIC_MODEL, gs.criticModelActual)) modelSubstitution = `critic ${CRITIC_MODEL}→${gs.criticModelActual}`; };
++    const save = (r: StepResult) => { ledger.stepResults[r.id] = r; persistLedger(); return r; };
++
++    const steps: StepResult[] = [];
++    let stop = false;
++    for (const fx of FIXTURES) {
++      if (stop) break;
++      let r = ledger.stepResults[fx.id];
++      if (!r) {
++        currentFixture = fx.id; ghostArchitectMentioned = false;
++        const gs = ledger.callsConsumed < CAP ? (await runMissionBrain(fx.map(), input(fx.goal, fx.url), scopeFromObservations(fx.observations, []), buildObservationCorpus(fx.observations, fx.fieldTest))).groundingShadow : undefined;
++        checkServed(gs);
++        r = save({ id: fx.id, classification: classify(gs, fx.kind), metrics: { ...metricsOf(gs), ghostArchitectMentioned } });
++      }
++      steps.push(r);
++      if (r.classification !== "ok" || modelSubstitution) stop = true;
++    }
++
++    const anyQuota = steps.some((s) => s.classification === "quota_blocked");
++    const green = !modelSubstitution && !anyQuota && steps.length === FIXTURES.length && steps.every((s) => s.classification === "ok");
++    const firstFail = steps.find((s) => s.classification !== "ok");
++    const recommendation = modelSubstitution ? "inconclusive" : anyQuota ? "quota_blocked" : green ? "semantic_smoke_green" : (firstFail ? firstFail.classification : "inconclusive");
++    const configurationConclusive = !anyQuota && !modelSubstitution && steps.length > 0 && steps[0].classification !== "inconclusive";
++    const capabilityConclusive = green || (firstFail?.classification === "critic_semantic_failed");
++
++    const evidence = { artifact: EVAL_ID, note: "semantic mission-draft closure — NOT model approval, NOT promotion-ready", timestamp: new Date().toISOString(), callsConsumed: ledger.callsConsumed, hardCap: CAP, ledgerPath: path.basename(LEDGER_PATH), modelSubstitution, requestedModels: { architect: ARCH_MODEL, critic: CRITIC_MODEL }, architectContractVersion: "semantic-draft-v1", transportSchemas: { architect: "sage_grounded_architect_semantic_draft_v1", critic: "sage_grounded_critic_v2" }, configurationConclusive, capabilityConclusive, steps, recommendation };
++    fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
++    fs.writeFileSync(EVIDENCE_PATH, JSON.stringify(evidence, null, 2));
++    console.log(`[semantic-smoke] recommendation=${recommendation} callsConsumed=${ledger.callsConsumed} steps=${steps.map((s) => s.id + ":" + s.classification).join(", ")}`);
++
++    expect(ledger.callsConsumed).toBeLessThanOrEqual(CAP);
++  }, 240_000);
++});
+diff --git a/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts b/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
+index be5f8f3..9e1a404 100644
+--- a/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
++++ b/src/lib/launch/mission-grounding-shadow.entrypoint.test.ts
+@@ -1,10 +1,10 @@
+ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+ 
+ // Fake ONLY the external provider boundary. runMissionBrain (the real entrypoint) + its architect/critic/
+-// gate + runGroundedShadow (strict Zod parse → digest-bound grounding → critic → the SAME canonical gate the
+-// legacy plan uses → real allocator) all run for real; llmCompleteJson returns scripted JSON keyed by system.
+-// spread the real module so LlmCompletionError / ContentShape stay defined (the shadow does `instanceof`);
+-// only llmConfigured + llmCompleteJson are overridden.
++// gate + runGroundedShadow (strict semantic-draft Zod → deterministic COMPILER → digest-bound grounding →
++// critic → the SAME canonical gate the legacy plan uses → real allocator) all run for real; llmCompleteJson
++// returns scripted JSON keyed by system prompt. The mock spreads the real module so LlmCompletionError stays
++// defined (the shadow does `instanceof`); only llmConfigured + llmCompleteJson are overridden.
+ vi.mock("@/lib/llm/complete", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/llm/complete")>()), llmConfigured: () => true, llmCompleteJson: vi.fn() }));
+ 
+ import { runMissionBrain } from "./mission-brain";
+@@ -23,8 +23,7 @@ const FT: FieldTestSummary = {
+   ],
+ };
+ const SET: ObservationSetV1 = deriveObservations(FT);
+-// the corpus is normalized (lowercased) exactly as the real pipeline builds it, so verbatim anchors match.
+-const CORPUS = "welcome start you reach the garden world talk to yara";
++const CORPUS = "welcome start you reach the garden world talk to yara"; // normalized exactly as the pipeline builds it
+ const obs = (url: string): ProductObservation => ({ url, status: 200, title: "P", headings: ["Welcome"], claims: [], ctas: ["Start"], forms: [], links: [], authBoundary: false, techHints: [], states: [], landmarks: [], snippets: ["Welcome"], inspectedAt: 1, contentSha256: "a".repeat(64) });
+ function makeMap(): ProductMapV1 {
+   const finding = (v: string) => ({ value: v, confidence: 0.9, sources: [{ kind: "page" as const, ref: "https://p.test/", observation: v }], browserConfirmed: true });
+@@ -42,27 +41,16 @@ const startFact = decisiveFacts(SET).find((f) => f.elementName === "Start")!;
+ const yaraFact = decisiveFacts(SET).find((f) => f.elementName === "Talk to Yara")!;
+ const transId = SET.transitions[0].id;
+ 
+-/** a valid RAW architect grounding criterion (full V2 fields) — overridable per case. */
+-const stateCriterion = (over: Record<string, unknown> = {}) => ({ criterionIndex: 0, criterionKind: "state", factRefs: [startFact.id], evidenceIndex: 0, evidenceMode: "observation", pageUrl: startFact.pageUrl, stateId: startFact.stateId, supportRationale: "the Start control was seen", ...over });
+-const actionCriterion = (over: Record<string, unknown> = {}) => ({ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [yaraFact.id], transitionRef: transId, evidenceIndex: 0, evidenceMode: "observation", pageUrl: yaraFact.pageUrl, stateId: yaraFact.stateId, supportRationale: "reached the garden world", ...over });
+-
+-/** a fully-valid RAW V2 architect mission (passes Zod + grounding + canonical gate). */
++// SEMANTIC-DRAFT fixtures — the model describes each criterion ONCE; NO index/url/anchor/source/groundingV1.
++// (worded to avoid the worthless-presence-check gate — a content claim about the label, not "is present").
++const stateCrit = (over: Record<string, unknown> = {}) => ({ text: "The homepage's primary call-to-action is labeled 'Start'", evidenceRequirement: "Quote the exact label of the primary call-to-action", criterionKind: "content_claim", factRefs: [startFact.id], transitionRef: null, evidenceMode: "observation", supportRationale: "the Start label was observed", ...over });
++const actionCrit = (over: Record<string, unknown> = {}) => ({ text: "Clicking Start reaches the garden world", evidenceRequirement: "Describe the garden world reached", criterionKind: "action_outcome", factRefs: [yaraFact.id], transitionRef: transId, evidenceMode: "observation", supportRationale: "the reproduced transition produced this state", ...over });
+ const v2Mission = (over: Record<string, unknown> = {}) => ({
+-  missionKey: "reach-start", title: "Click Start", objective: "Click Start to reach the world",
+-  instructions: "1. Open the page. 2. Click the Start button. 3. Observe the world you reach.",
+-  targetSurface: "https://p.test/play", criteria: ["Reach the world after clicking Start"],
+-  evidenceRequirements: ["Describe the world state you reached after clicking Start"],
+-  whyItMatters: "core onboarding", sources: [{ kind: "page", ref: "https://p.test/play", observation: "world" }],
+-  priority: "high", riskCategory: "critical_journey", effortMinutes: 3, rewardWeight: 5, maxCompletions: 3,
+-  verificationMethod: "account", confidence: 0.8, conditions: [], assumptions: [], disallowed: [], anchors: ["Start"],
+-  groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion()] },
+-  ...over,
+-});
+-const actionMission = (over: Record<string, unknown> = {}) => v2Mission({
+-  missionKey: "do-action", title: "Reach the garden", objective: "Click Start and reach the garden world",
+-  criteria: ["The garden world appears after clicking Start"], evidenceRequirements: ["Describe the garden world you reached"],
+-  anchors: ["garden world"], groundingV1: { observationSetDigest: SET.digest, criteria: [actionCriterion()] }, ...over,
++  missionKey: "reach-start", title: "Check the Start label", objective: "Verify the homepage's primary call-to-action label", instructions: "1. Open the homepage. 2. Report the exact label of the primary call-to-action.",
++  whyItMatters: "core onboarding", priority: "high", riskCategory: "critical_journey", effortMinutes: 3, rewardWeight: 5, maxCompletions: 3,
++  confidence: 0.8, conditions: [], assumptions: [], disallowed: [], criteria: [stateCrit()], ...over,
+ });
++const actionMission = (over: Record<string, unknown> = {}) => v2Mission({ missionKey: "do-action", title: "Reach the garden", objective: "Click Start and reach the garden world", criteria: [actionCrit()], ...over });
+ 
+ let architectV2Calls = 0;
+ let capturedV2User = "";
+@@ -74,7 +62,6 @@ function scriptProviders(v2: unknown, verdicts: unknown, opts: { v2Throws?: bool
+   vi.mocked(llmCompleteJson).mockImplementation(async ({ system, user }: { system: string; user: string }) => {
+     if (system.includes("GROUNDED mission architect")) { architectV2Calls++; capturedV2User = user; if (opts.v2Throws) throw new Error(typeof opts.v2Throws === "string" ? opts.v2Throws : "v2 boom"); return reply(v2, "arch-model", "arch-prov"); }
+     if (system.includes("grounding CRITIC")) { capturedCriticUser = user; if (opts.criticThrows) throw new Error(opts.criticThrows); return reply(verdicts, "critic-model", "critic-prov"); }
+-    // legacy architect/critic → a coercible mission so runMissionBrain reaches the shadow block regardless.
+     return reply({ missions: [{ missionKey: "legacy", title: "Legacy mission", objective: "do the legacy thing", instructions: "1. step", targetSurface: "https://p.test/" }] }, "legacy-model", "legacy-prov");
+   });
+ }
+@@ -84,66 +71,53 @@ const support = (missionKey: string, criterionIndex: number, factRefs: string[])
+ beforeEach(() => { vi.clearAllMocks(); });
+ afterEach(() => { delete process.env.MISSION_GROUNDING_MODE; });
+ 
+-describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBrain entrypoint", () => {
+-  it("S: OFF mode makes NO V2 architect call and attaches no shadow", async () => {
++describe("semantic-draft grounded architect — through the REAL runMissionBrain entrypoint", () => {
++  it("OFF mode makes NO V2 architect call and attaches no shadow", async () => {
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
+     const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+     expect(architectV2Calls).toBe(0);
+     expect(r.groundingShadow).toBeUndefined();
+   });
+ 
+-  it("the V2 user prompt shows each fact ID BESIDE its real content (not opaque hashes)", async () => {
++  it("the V2 user prompt shows each fact ID beside its real content (cite-by-id)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+     await runMissionBrain(makeMap(), input, scope(), CORPUS);
+     const view = JSON.parse(capturedV2User.slice(capturedV2User.indexOf("{", capturedV2User.indexOf("OBSERVATIONS"))));
+-    const sf = view.facts.find((f: { id: string }) => f.id === startFact.id);
+-    expect(sf.elementName).toBe("Start"); // the id sits next to its observed control
+-    const trans = view.transitions.find((t: { verb: string }) => t.verb === "click");
+-    expect(trans.addedTexts.join(" ")).toMatch(/garden world/); // transition id → click Start → added "…garden world"
++    expect(view.facts.find((f: { id: string }) => f.id === startFact.id).elementName).toBe("Start");
++    expect(capturedV2User).toContain(startFact.id);
+   });
+ 
+-  it("A: a grounded mission passes ALL stages — grounding, critic, the canonical gate, and the allocator", async () => {
++  it("A: a semantic-draft state mission COMPILES, grounds, is critic-supported, passes the gate + allocator", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+-    const gs = r.groundingShadow!;
++    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+     expect(architectV2Calls).toBe(1);
+-    expect(gs.candidateCount).toBe(1);
++    expect(gs.architectContractVersion).toBe("semantic-draft-v1");
++    expect(gs.draftMissionCount).toBe(1);
++    expect(gs.compiledMissionCount).toBe(1);
++    expect(gs.compilerRejectedCount).toBe(0);
+     expect(gs.groundingValid).toBe(1);
+     expect(gs.criticSupported).toBe(1);
+-    expect(gs.canonicalGatePassed).toBe(1);
++    expect(gs.canonicalGatePassed).toBe(1); // test 18 — the COMPILED mission passes the real canonical gate
+     expect(gs.accepted).toBe(1);
+-    expect(gs.acceptanceScope).toBe("canonical_gate");
+     expect(gs.tierCounts.state_seen).toBeGreaterThan(0);
+-  });
+-
+-  it("O: the real allocator over canonical-gate-passing candidates equals the supplied budget EXACTLY", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.budgetCompiled).toBe(true);
+-    expect(gs.allocationOk).toBe(true);
+     expect(gs.exactBudgetEquality).toBe(true);
+-    expect(gs.budgetConsistent).toBe(true);
+-    expect(gs.allocatedBudgetBase).toBe("2000000");
+   });
+ 
+-  it("positive MULTI-criterion mission passes all stages (each criterion its own in-range evidenceIndex)", async () => {
++  it("the model emits NO indexes/urls/anchors, yet Sage DERIVES them (compiler telemetry)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    const multi = v2Mission({
+-      missionKey: "multi", criteria: ["Reach the world after clicking Start", "See Yara in the garden world"],
+-      evidenceRequirements: ["Describe the world you reached", "Quote what Yara says to you"], anchors: ["start", "garden world"],
+-      groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ criterionIndex: 0 }), { criterionIndex: 1, criterionKind: "state", factRefs: [yaraFact.id], evidenceIndex: 1, evidenceMode: "observation", pageUrl: yaraFact.pageUrl, stateId: yaraFact.stateId, supportRationale: "Yara seen in the world" }] },
+-    });
+-    scriptProviders({ missions: [multi] }, { verdicts: [support("multi", 0, [startFact.id]), support("multi", 1, [yaraFact.id])] });
++    // a two-criterion draft — the model never numbers them; Sage derives criterionIndex/evidenceIndex 0,1.
++    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit(), actionCrit()] })] }, { verdicts: [support("reach-start", 0, [startFact.id]), support("reach-start", 1, [yaraFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(gs.compiledMissionCount).toBe(1);
++    expect(gs.derivedAnchorCount).toBeGreaterThan(0);
++    expect(gs.derivedSourceCount).toBeGreaterThan(0);
++    expect(gs.derivedTargetSurfaceCount).toBe(1);
+     expect(gs.groundingValid).toBe(1);
+-    expect(gs.criticSupported).toBe(1);
+-    expect(gs.accepted).toBe(1);
+   });
+ 
+-  it("B: a safe REPRODUCED transition → action_replayed tier (and passes the canonical gate)", async () => {
++  it("B: a safe REPRODUCED transition → action_replayed tier (compiled action mission)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [actionMission()] }, { verdicts: [support("do-action", 0, [yaraFact.id])] });
+     const gs = (await runMissionBrain(mapWithReplay(), input, scope(), CORPUS)).groundingShadow!;
+@@ -159,218 +133,70 @@ describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBr
+     expect(gs.tierCounts.action_replayed).toBe(0);
+   });
+ 
+-  it("TIER: a STATE criterion that also cites a safe transition stays state_seen (not action_observed)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ transitionRef: transId })] } })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.tierCounts.state_seen).toBeGreaterThan(0);
+-    expect(gs.tierCounts.action_observed).toBe(0);
+-  });
+-
+-  it("CANONICAL-GATE REJECTION: a grounded, critic-supported mission out of scope is NOT accepted or budgeted", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ targetSurface: "https://elsewhere.test/x" })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(1); // grounding + critic both pass...
+-    expect(gs.criticSupported).toBe(1);
+-    expect(gs.canonicalGatePassed).toBe(0); // ...but the canonical gate rejects the out-of-scope surface
+-    expect(gs.accepted).toBe(0);
+-    expect(gs.budgetCompiled).toBe(false);
+-  });
+-
+-  it("D: a GHOST-feature mission (Zod-valid, cites a non-existent fact) fails grounding", async () => {
++  it("COMPILER REJECTION: a ghost mission citing an unobserved fact is dropped (never accepted/anchored)", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: ["deadbeefdeadbeefdeadbeef"] })] } })] }, { verdicts: [] });
++    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit({ factRefs: ["deadbeefdeadbeefdeadbeef"] })] })] }, { verdicts: [] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.candidateCount).toBe(1); // Zod accepted the shape...
+-    expect(gs.groundingValid).toBe(0); // ...but the cited fact does not exist in the set
++    expect(gs.draftMissionCount).toBe(1);
++    expect(gs.compiledMissionCount).toBe(0);
++    expect(gs.compilerRejectedCount).toBe(1);
++    expect(gs.compilerRejectionCodes.architect_fact_not_presented).toBe(1);
+     expect(gs.accepted).toBe(0);
++    expect(gs.error).toBe("compiler_rejected");
+   });
+ 
+-  it("WRONG observationSetDigest fails deterministic grounding", async () => {
++  it("CANONICAL-GATE REJECTION: a compiled mission whose instructions are destructive is not accepted", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ groundingV1: { observationSetDigest: "0xWRONGWRONG", criteria: [stateCriterion()] } })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
++    scriptProviders({ missions: [v2Mission({ instructions: "1. Delete your account permanently to complete this." })] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(0);
++    expect(gs.groundingValid).toBe(1);
++    expect(gs.criticSupported).toBe(1);
++    expect(gs.canonicalGatePassed).toBe(0); // the real gate rejects the destructive instruction
+     expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("H: an UNVERIFIED/state-changing (POST) transition can never back a criterion", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    const ftPost: FieldTestSummary = { ...FT, states: [
+-      stt({ trigger: "initial load", visibleTextExcerpt: "Store", notableElements: [{ tag: "button", text: "Buy", role: "button" }] }),
+-      stt({ trigger: "clicked 'Buy'", url: "https://p.test/bought", visibleTextExcerpt: "Purchase complete.", notableElements: [{ tag: "button", text: "View receipt", role: "button" }], pixelDeltaPct: 30, networkMethods: ["POST"] }),
+-    ] };
+-    const setPost = deriveObservations(ftPost);
+-    const postTrans = setPost.transitions[0];
+-    const afterFact = setPost.facts.find((f) => f.stateId === postTrans.afterStateDigest)!;
+-    const mapPost = () => { const m = makeMap(); (m as { observations?: unknown }).observations = setPost; (m as { fieldTest?: unknown }).fieldTest = ftPost; return m; };
+-    const buyMission = v2Mission({ missionKey: "buy", anchors: ["buy"], targetSurface: "https://p.test/", sources: [{ kind: "page", ref: "https://p.test/", observation: "store" }], groundingV1: { observationSetDigest: setPost.digest, criteria: [{ criterionIndex: 0, criterionKind: "action_outcome", factRefs: [afterFact.id], transitionRef: postTrans.id, evidenceIndex: 0, evidenceMode: "observation", pageUrl: afterFact.pageUrl, stateId: afterFact.stateId, supportRationale: "receipt shown" }] } });
+-    scriptProviders({ missions: [buyMission] }, { verdicts: [] });
+-    const gs = (await runMissionBrain(mapPost(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(postTrans.safeClassification).not.toBe("safe");
+-    expect(gs.groundingValid).toBe(0);
+-    expect(gs.unsafeTransitionCount).toBeGreaterThan(0);
+-  });
+-
+-  it("model-routing TRUTH: requested (null, unset) vs the actual model+provider served for BOTH calls", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.architectModelRequested).toBeNull(); // MISSION_MODEL unset → resolveLlm default chain
+-    expect(gs.criticModelRequested).toBeNull();
+-    expect(gs.architectModelActual).toBe("arch-model");
+-    expect(gs.architectProvider).toBe("arch-prov");
+-    expect(gs.criticModelActual).toBe("critic-model");
+-    expect(gs.criticProvider).toBe("critic-prov");
+-  });
+-
+-  it("observation-view completeness metadata is recorded", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.observationView.totalFacts).toBeGreaterThan(0);
+-    expect(gs.observationView.includedFacts).toBeGreaterThan(0);
+-    expect(gs.observationView.truncated).toBe(false); // the tiny set fits under the cap
+-  });
+-
+-  // ── strict Zod ARCHITECT schema — one invalid mission/member rejects the WHOLE response (schema_invalid) ──
+-  const schemaRejects: Array<[string, Record<string, unknown>]> = [
+-    ["rewardWeight 0", { rewardWeight: 0 }],
+-    ["rewardWeight 11", { rewardWeight: 11 }],
+-    ["maxCompletions 0", { maxCompletions: 0 }],
+-    ["maxCompletions 51", { maxCompletions: 51 }],
+-    ["empty criteria", { criteria: [] }],
+-    ["empty evidenceRequirements", { evidenceRequirements: [] }],
+-    ["missing anchors", { anchors: [] }],
+-    ["invalid criterionKind", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ criterionKind: "bogus" })] } }],
+-    ["missing criterionKind", { groundingV1: { observationSetDigest: SET.digest, criteria: [{ criterionIndex: 0, factRefs: [startFact.id], evidenceIndex: 0, evidenceMode: "observation", pageUrl: startFact.pageUrl, stateId: startFact.stateId, supportRationale: "x" }] } }],
+-    ["duplicate factRefs", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, startFact.id] })] } }],
+-    ["mixed-invalid factRefs member", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, 123] })] } }],
+-    ["empty factRefs", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [] })] } }],
+-    ["missing observationSetDigest", { groundingV1: { criteria: [stateCriterion()] } }],
+-    ["action_outcome without transitionRef", { groundingV1: { observationSetDigest: SET.digest, criteria: [actionCriterion({ transitionRef: undefined })] } }],
+-    ["unknown top-level key", { extraKey: "x" }],
+-    ["evidenceIndex out of range", { groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ evidenceIndex: 5 })] } }],
+-  ];
+-  for (const [name, over] of schemaRejects) {
+-    it(`schema REJECTS the whole response (never repaired): ${name}`, async () => {
+-      process.env.MISSION_GROUNDING_MODE = "shadow";
+-      scriptProviders({ missions: [v2Mission(over)] }, { verdicts: [] });
+-      const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-      expect(gs.error).toBe("schema_invalid");
+-      expect(gs.candidateCount).toBe(0);
+-      expect(gs.accepted).toBe(0);
+-    });
+-  }
+-
+-  it("DUPLICATE mission keys reject the whole response", async () => {
++  it("a malformed (parallel-array / forbidden-key) architect output is rejected as schema_invalid", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission({ missionKey: "dup" }), v2Mission({ missionKey: "dup", title: "Other" })] }, { verdicts: [] });
++    // the OLD parallel-array shape (criteria as strings + groundingV1) is now forbidden by the transport Zod.
++    scriptProviders({ missions: [{ ...v2Mission(), criteria: ["a string criterion"], groundingV1: {} }] }, { verdicts: [] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+     expect(gs.error).toBe("schema_invalid");
++    expect(gs.compiledMissionCount).toBe(0);
+   });
+ 
+-  it("malformed (non-object) V2 output is NOT repaired → schema_invalid", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders("```json\n{\"missions\":[]}\n```" as unknown, { verdicts: [] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.error).toBe("schema_invalid");
+-  });
+-
+-  it("an explicitly-empty plan (missions: []) is recorded honestly as v2_empty", async () => {
++  it("an explicitly-empty plan (missions: []) is the honest v2_empty", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [] }, { verdicts: [] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+     expect(gs.error).toBe("v2_empty");
+   });
+ 
+-  // ── strict CRITIC schema ──
+-  it("critic MISSING factRefs supports nothing (schema requires factRefs)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(1);
+-    expect(gs.criticSupported).toBe(0);
+-    expect(gs.accepted).toBe(0);
+-  });
+-
+-  it("critic factRefs NOT matching the cited set supports nothing (fail closed)", async () => {
++  // ── critic ──
++  it("P0.1: critic REORDERED factRefs [b,a] equals cited [a,b] (order-independent) → supported", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, ["deadbeefdeadbeefdeadbeef"])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(1);
+-    expect(gs.criticSupported).toBe(0);
+-    expect(gs.accepted).toBe(0);
+-  });
+-
+-  it("DUPLICATE critic verdicts for one criterion support nothing (exactly one per pair)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id]), support("reach-start", 0, [startFact.id])] });
++    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit({ factRefs: [startFact.id, yaraFact.id] })] })] }, { verdicts: [support("reach-start", 0, [yaraFact.id, startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.criticSupported).toBe(0);
+-    expect(gs.accepted).toBe(0);
+-  });
+-
+-  // ── independence + honest modes ──
+-  it("Q: a legacy-architect FAILURE still records an independent V2 shadow that accepts", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    vi.mocked(llmCompleteJson).mockImplementation(async ({ system }: { system: string; user: string }) => {
+-      if (system.includes("GROUNDED mission architect")) { architectV2Calls++; return reply({ missions: [v2Mission()] }, "arch-model", "arch-prov"); }
+-      if (system.includes("grounding CRITIC")) return reply({ verdicts: [support("reach-start", 0, [startFact.id])] }, "critic-model", "critic-prov");
+-      return reply({ notMissions: true }, "legacy-model", "legacy-prov"); // legacy → 0 missions → arch.ok false
+-    });
+-    architectV2Calls = 0;
+-    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+-    expect(r.ok).toBe(false); // legacy failed
+-    expect(r.groundingShadow?.ran).toBe(true); // ...but V2 was measured independently
+-    expect(r.groundingShadow?.accepted).toBe(1);
+-  });
+-
+-  it("R: a V2 architect throw NEVER changes the legacy plan (and is caught, never thrown)", async () => {
+-    delete process.env.MISSION_GROUNDING_MODE;
+-    scriptProviders({ missions: [] }, { verdicts: [] });
+-    const legacy = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [] }, { verdicts: [] }, { v2Throws: true });
+-    const withShadow = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+-    expect(withShadow.accepted.length).toBe(legacy.accepted.length);
+-    expect(withShadow.reason).toBe(legacy.reason);
+-    expect(withShadow.groundingShadow === undefined || withShadow.groundingShadow.error !== null).toBe(true);
+-  });
+-
+-  it("P: MISSION_GROUNDING_MODE=enforce makes NO V2 call and attaches no shadow (never pretends)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "enforce";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
+-    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+-    expect(architectV2Calls).toBe(0);
+-    expect(r.groundingShadow).toBeUndefined();
++    expect(gs.criticStatus).toBe("ok");
++    expect(gs.criticSupported).toBe(1);
+   });
+ 
+-  // ── P0.1 — critic factRefs canonical (sorted-unique) equality ──
+-  const twoFactMission = () => v2Mission({ groundingV1: { observationSetDigest: SET.digest, criteria: [stateCriterion({ factRefs: [startFact.id, yaraFact.id] })] } });
+-
+-  it("P0.1: critic returning DUPLICATE factRefs [a,a] against cited [a,b] fails closed (schema rejects dups)", async () => {
++  it("P0.1: critic DUPLICATE factRefs [a,a] vs cited [a,b] fails closed", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [twoFactMission()] }, { verdicts: [support("reach-start", 0, [startFact.id, startFact.id])] });
++    scriptProviders({ missions: [v2Mission({ criteria: [stateCrit({ factRefs: [startFact.id, yaraFact.id] })] })] }, { verdicts: [support("reach-start", 0, [startFact.id, startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(1);
+-    expect(gs.criticStatus).toBe("schema_invalid"); // [a,a] violates the uniqueness refine
++    expect(gs.criticStatus).toBe("schema_invalid");
+     expect(gs.criticSupported).toBe(0);
+-    expect(gs.accepted).toBe(0);
+   });
+ 
+-  it("P0.1: critic returning REORDERED factRefs [b,a] equals cited [a,b] (order-independent) → supported", async () => {
++  it("critic MISSING factRefs supports nothing; UNRELATED factRefs supports nothing", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [twoFactMission()] }, { verdicts: [support("reach-start", 0, [yaraFact.id, startFact.id])] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.criticStatus).toBe("ok");
+-    expect(gs.criticSupported).toBe(1);
+-    expect(gs.accepted).toBe(1);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "supported" }] });
++    expect((await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.criticSupported).toBe(0);
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, ["deadbeefdeadbeefdeadbeef"])] });
++    expect((await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.criticSupported).toBe(0);
+   });
+ 
+-  // ── P0.2 — bounded execution-status telemetry (a 429 is distinguishable from a genuine unsupported) ──
+-  it("P0.2: a normal supported run reports architectStatus + criticStatus 'ok' with per-role metadata", async () => {
++  it("P0.2: a normal supported run reports architectStatus + criticStatus ok; both parsePolicy strict", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+@@ -378,77 +204,84 @@ describe("grounded architect LIVE-TRUTH shadow — through the REAL runMissionBr
+     expect(gs.criticStatus).toBe("ok");
+     expect(gs.architectParsePolicy).toBe("strict");
+     expect(gs.criticParsePolicy).toBe("strict");
+-    expect(gs.architectLatencyMs).not.toBeNull();
+   });
+ 
+-  it("P0.2: a critic PROVIDER error (429) → criticStatus provider_error + bounded errorCode (NOT unsupported)", async () => {
++  it("P0.2: a critic 429 → provider_error (distinct from unsupported); an architect 429 → provider_error", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { criticThrows: "llm_status_429" });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.architectStatus).toBe("ok"); // architect succeeded — the probe is distinct from the critic
+-    expect(gs.criticStatus).toBe("provider_error");
+-    expect(gs.criticErrorCode).toBe("llm_status_429");
+-    expect(gs.criticSupported).toBe(0);
+-  });
+-
+-  it("P0.2: a genuine UNSUPPORTED verdict → criticStatus 'ok' + criticSupported 0 (distinct from provider_error)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "unsupported", factRefs: [startFact.id] }] });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.criticStatus).toBe("ok"); // the call succeeded...
+-    expect(gs.criticErrorCode).toBeNull();
+-    expect(gs.criticSupported).toBe(0); // ...it just judged the mission unsupported
+-  });
+-
+-  it("P0.2: an architect PROVIDER error → architectStatus provider_error (bounded code)", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
++    const c = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(c.criticStatus).toBe("provider_error"); expect(c.criticErrorCode).toBe("llm_status_429");
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { v2Throws: "llm_status_429" });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.architectStatus).toBe("provider_error");
+-    expect(gs.architectErrorCode).toBe("llm_status_429");
+-    expect(gs.criticStatus).toBe("not_run"); // never reached the critic
+-  });
+-
+-  it("P0.2: an architect STRICT-PARSE style error is classified strict_parse_error", async () => {
+-    process.env.MISSION_GROUNDING_MODE = "shadow";
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { v2Throws: "llm_strict_finish_length" });
+-    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.architectStatus).toBe("strict_parse_error");
+-    expect(gs.architectErrorCode).toBe("llm_strict_finish_length");
++    const a = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
++    expect(a.architectStatus).toBe("provider_error"); expect(a.criticStatus).toBe("not_run");
+   });
+ 
+-  // ── P0.3 — goal alignment ──
+   it("P0.3: the critic payload contains the founder's goal as bounded untrusted data", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+-    await runMissionBrain(makeMap(), { ...input, goal: "validate the onboarding claim" }, scope(), CORPUS);
++    await runMissionBrain(makeMap(), { ...input, goal: "validate onboarding" }, scope(), CORPUS);
+     expect(capturedCriticUser).toContain("founderGoalUntrusted");
+-    expect(capturedCriticUser).toContain("validate the onboarding claim");
++    expect(capturedCriticUser).toContain("validate onboarding");
+   });
+ 
+-  it("P0.3: a grounded-but-unrelated mission the critic marks unsupported is NOT accepted", async () => {
++  it("model-routing + budget: served models recorded; the allocator equals the supplied budget exactly", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+-    // the mission is fully grounded (groundingValid 1) but the critic judges it does not advance the goal.
+-    scriptProviders({ missions: [v2Mission()] }, { verdicts: [{ missionKey: "reach-start", criterionIndex: 0, verdict: "unsupported", factRefs: [startFact.id] }] });
++    scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+-    expect(gs.groundingValid).toBe(1);
+-    expect(gs.criticSupported).toBe(0);
+-    expect(gs.accepted).toBe(0);
++    expect(gs.architectModelActual).toBe("arch-model");
++    expect(gs.criticModelActual).toBe("critic-model");
++    expect(gs.exactBudgetEquality).toBe(true);
++    expect(gs.allocatedBudgetBase).toBe("2000000");
+   });
+ 
+-  it("C1: the shadow passes the correct TRANSPORT SCHEMA (json_schema) + strict policy to each V2 role", async () => {
++  // ── test 22 — both roles send json_schema (semantic-draft architect + critic) received through strict ──
++  it("22: the shadow wires the semantic-draft transport to the architect + the critic schema, both strict", async () => {
+     process.env.MISSION_GROUNDING_MODE = "shadow";
+     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
+     const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+     const calls = vi.mocked(llmCompleteJson).mock.calls.map((c) => c[0] as { system: string; responseSchema?: { name: string }; parsePolicy?: string });
+     const arch = calls.find((o) => o.system.includes("GROUNDED mission architect"));
+     const crit = calls.find((o) => o.system.includes("grounding CRITIC"));
+-    expect(arch?.responseSchema?.name).toBe("sage_grounded_architect_v2");
++    expect(arch?.responseSchema?.name).toBe("sage_grounded_architect_semantic_draft_v1");
+     expect(arch?.parsePolicy).toBe("strict");
+     expect(crit?.responseSchema?.name).toBe("sage_grounded_critic_v2");
+     expect(crit?.parsePolicy).toBe("strict");
+-    // the schema names are also recorded in telemetry for the evidence artifact.
+-    expect(gs.architectResponseSchemaName).toBe("sage_grounded_architect_v2");
+-    expect(gs.criticResponseSchemaName).toBe("sage_grounded_critic_v2");
++    expect(gs.architectResponseSchemaName).toBe("sage_grounded_architect_semantic_draft_v1");
+   });
++
++  // ── test 20 — legacy plan unchanged if V2 execution fails ──
++  it("20: a V2 architect throw NEVER changes the legacy plan (caught, never thrown)", async () => {
++    delete process.env.MISSION_GROUNDING_MODE;
++    scriptProviders({ missions: [] }, { verdicts: [] });
++    const legacy = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    process.env.MISSION_GROUNDING_MODE = "shadow";
++    scriptProviders({ missions: [] }, { verdicts: [] }, { v2Throws: true });
++    const withShadow = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    expect(withShadow.accepted.length).toBe(legacy.accepted.length);
++    expect(withShadow.reason).toBe(legacy.reason);
++  });
++
++  it("Q: a legacy-architect FAILURE still records an independent V2 shadow that accepts", async () => {
++    process.env.MISSION_GROUNDING_MODE = "shadow";
++    vi.mocked(llmCompleteJson).mockImplementation(async ({ system }: { system: string; user: string }) => {
++      if (system.includes("GROUNDED mission architect")) { architectV2Calls++; return reply({ missions: [v2Mission()] }, "arch-model", "arch-prov"); }
++      if (system.includes("grounding CRITIC")) return reply({ verdicts: [support("reach-start", 0, [startFact.id])] }, "critic-model", "critic-prov");
++      return reply({ notMissions: true }, "legacy-model", "legacy-prov");
++    });
++    architectV2Calls = 0;
++    const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++    expect(r.ok).toBe(false);
++    expect(r.groundingShadow?.accepted).toBe(1);
++  });
++
++  // ── test 21 — off/enforce/unknown make zero V2 calls ──
++  for (const mode of ["enforce", "banana"]) {
++    it(`21: MISSION_GROUNDING_MODE=${mode} makes NO V2 call and attaches no shadow`, async () => {
++      process.env.MISSION_GROUNDING_MODE = mode;
++      scriptProviders({ missions: [v2Mission()] }, { verdicts: [] });
++      const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
++      expect(architectV2Calls).toBe(0);
++      expect(r.groundingShadow).toBeUndefined();
++    });
++  }
+ });
+diff --git a/src/lib/launch/mission-grounding-shadow.ts b/src/lib/launch/mission-grounding-shadow.ts
+index 990d926..2fe7731 100644
+--- a/src/lib/launch/mission-grounding-shadow.ts
++++ b/src/lib/launch/mission-grounding-shadow.ts
+@@ -8,7 +8,8 @@ import { validateMissionGrounding, classifyGroundingTier } from "./mission-groun
+ import { validatePlanMissions, type ValidationScope } from "./validate-mission";
+ import { factIndex } from "./observed-facts";
+ import { allocateBudget } from "./budget";
+-import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier, MissionRiskCategory, MissionPriority, SourceRef, CriterionGroundingV1 } from "./schemas";
++import { parseAndCompileArchitectDraft, ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA, GROUNDED_ARCHITECT_CONTRACT_VERSION, type DraftCompileOutcome } from "./mission-draft-compiler";
++import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier } from "./schemas";
+ 
+ /* ───────────────────── strict V2 architect + critic schemas (Zod, reject-never-repair) ─────────────────
+  * A V2 architect response is validated by STRICT schemas — unknown keys rejected, every validation-critical
+@@ -17,93 +18,8 @@ import type { ProductMapV1, FounderLaunchInput, CandidateMission, GroundingTier,
+  * OPTIONAL list fields (conditions/assumptions/disallowed): absent ⇒ [] (their canonical "none" meaning),
+  * never a rescue of malformed data. The legacy coerceMission (which clamps/defaults) is NOT used here.        */
+ 
+-const RISK_CATEGORIES = ["critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation", "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression"] as const;
+ const uniqueStrings = (arr: readonly string[]) => new Set(arr).size === arr.length;
+ 
+-const CriterionGroundingSchema = z
+-  .object({
+-    criterionIndex: z.number().int().min(0),
+-    criterionKind: z.enum(["state", "action_outcome", "content_claim", "visual_quality"]),
+-    factRefs: z.array(z.string().min(1)).min(1).refine(uniqueStrings, "factRefs must be unique"),
+-    transitionRef: z.string().min(1).nullish(), // null (a common model rendering of "absent") ≡ omitted
+-    evidenceIndex: z.number().int().min(0),
+-    evidenceMode: z.enum(["deterministic_url", "semantic_url", "observation"]),
+-    pageUrl: z.string().min(1),
+-    stateId: z.string().min(1),
+-    supportRationale: z.string().min(1).max(200),
+-  })
+-  .strict()
+-  .refine((c) => c.criterionKind !== "action_outcome" || !!c.transitionRef, "action_outcome criterion requires a transitionRef");
+-
+-const GroundingV1Schema = z.object({ observationSetDigest: z.string().min(1), criteria: z.array(CriterionGroundingSchema).min(1) }).strict();
+-const SourceRefSchema = z.object({ kind: z.enum(["page", "repo", "founder"]), ref: z.string().min(1), observation: z.string() }).strict();
+-
+-const MissionV2Schema = z
+-  .object({
+-    missionKey: z.string().min(1).max(48),
+-    title: z.string().min(1).max(140),
+-    objective: z.string().min(1).max(600),
+-    instructions: z.string().min(1).max(6000),
+-    targetSurface: z.string().min(1).max(600),
+-    criteria: z.array(z.string().min(1)).min(1).max(12),
+-    evidenceRequirements: z.array(z.string().min(1)).min(1).max(12),
+-    whyItMatters: z.string().min(1).max(800),
+-    sources: z.array(SourceRefSchema).min(1),
+-    priority: z.enum(["high", "medium", "low"]),
+-    riskCategory: z.enum(RISK_CATEGORIES),
+-    effortMinutes: z.number().int().min(3).max(240),
+-    rewardWeight: z.number().int().min(1).max(10),
+-    maxCompletions: z.number().int().min(1).max(50),
+-    verificationMethod: z.string().min(1).max(800),
+-    confidence: z.number().min(0).max(1),
+-    conditions: z.array(z.string()).max(8).nullish(), // absent/null ⇒ [] (non-critical list, mapped below)
+-    assumptions: z.array(z.string()).max(6).nullish(),
+-    disallowed: z.array(z.string()).max(8).nullish(),
+-    anchors: z.array(z.string().min(1)).min(1).max(12), // ≥1 verbatim observed substring (anti-hallucination gate)
+-    groundingV1: GroundingV1Schema,
+-  })
+-  .strict()
+-  .superRefine((m, ctx) => {
+-    // exactly one grounding mapping per criterion index — a bijection onto 0..criteria.length-1.
+-    const indices = m.groundingV1.criteria.map((c) => c.criterionIndex).sort((a, b) => a - b);
+-    const expected = m.criteria.map((_c, i) => i);
+-    if (indices.length !== expected.length || indices.some((v, i) => v !== expected[i]))
+-      ctx.addIssue({ code: "custom", message: "each criterion needs exactly one grounding mapping (0..n-1)" });
+-    for (const c of m.groundingV1.criteria) if (c.evidenceIndex >= m.evidenceRequirements.length) ctx.addIssue({ code: "custom", message: `evidenceIndex ${c.evidenceIndex} out of range` });
+-  });
+-
+-const ArchitectOutputSchema = z
+-  .object({ missions: z.array(MissionV2Schema).min(1) })
+-  .strict()
+-  .superRefine((o, ctx) => { if (!uniqueStrings(o.missions.map((m) => m.missionKey))) ctx.addIssue({ code: "custom", message: "missionKey values must be unique" }); });
+-
+-type MissionV2 = z.infer<typeof MissionV2Schema>;
+-
+-/** Map a schema-validated V2 mission → CandidateMission (NO legacy coerce, NO clamp/default/salvage — every
+- *  value is already validated). groundingV1 is display-only metadata stripped at canonical compilation. */
+-function toCandidateMission(m: MissionV2): CandidateMission {
+-  const criteria: CriterionGroundingV1[] = m.groundingV1.criteria.map((c) => ({
+-    criterionIndex: c.criterionIndex, criterionKind: c.criterionKind, sourceFactIds: c.factRefs,
+-    sourceTransitionIds: c.transitionRef ? [c.transitionRef] : undefined, evidenceIndex: c.evidenceIndex,
+-    verificationMode: c.evidenceMode, pageUrl: c.pageUrl, stateId: c.stateId, supportRationale: c.supportRationale,
+-  }));
+-  return {
+-    missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions,
+-    targetSurface: m.targetSurface, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
+-    whyItMatters: m.whyItMatters, sources: m.sources as SourceRef[], priority: m.priority as MissionPriority,
+-    riskCategory: m.riskCategory as MissionRiskCategory, effortMinutes: m.effortMinutes, conditions: m.conditions ?? [],
+-    rewardWeight: m.rewardWeight, maxCompletions: m.maxCompletions, verificationMethod: m.verificationMethod,
+-    confidence: m.confidence, assumptions: m.assumptions ?? [], disallowed: m.disallowed ?? [], anchors: m.anchors,
+-    groundingV1: { version: "mission-grounding-v1", observationSetDigest: m.groundingV1.observationSetDigest, criteria },
+-  };
+-}
+-
+-/** STRICT parse of the architect response → candidates, or null (schema_invalid — the WHOLE response is
+- *  rejected on any invalid mission/member; there is no per-mission salvage or filtering). */
+-function parseArchitectOutput(json: unknown): CandidateMission[] | null {
+-  const parsed = ArchitectOutputSchema.safeParse(json);
+-  return parsed.success ? parsed.data.missions.map(toCandidateMission) : null;
+-}
+ 
+ /** STRICT critic schema — factRefs is REQUIRED and non-empty; malformed output supports nothing. */
+ const CriticOutputSchema = z
+@@ -128,41 +44,6 @@ const CriticOutputSchema = z
+  * never 400 the request. In OpenAI strict mode every property is listed in `required`; optionals are
+  * expressed as a "null" type-union.                                                                        */
+ const strArray = { type: "array", items: { type: "string" } };
+-const nullableStrArray = { type: ["array", "null"], items: { type: "string" } };
+-const criterionTransport = {
+-  type: "object", additionalProperties: false,
+-  properties: {
+-    criterionIndex: { type: "integer" },
+-    criterionKind: { type: "string", enum: ["state", "action_outcome", "content_claim", "visual_quality"] },
+-    factRefs: strArray,
+-    transitionRef: { type: ["string", "null"] },
+-    evidenceIndex: { type: "integer" },
+-    evidenceMode: { type: "string", enum: ["deterministic_url", "semantic_url", "observation"] },
+-    pageUrl: { type: "string" }, stateId: { type: "string" }, supportRationale: { type: "string" },
+-  },
+-  required: ["criterionIndex", "criterionKind", "factRefs", "transitionRef", "evidenceIndex", "evidenceMode", "pageUrl", "stateId", "supportRationale"],
+-};
+-const missionTransport = {
+-  type: "object", additionalProperties: false,
+-  properties: {
+-    missionKey: { type: "string" }, title: { type: "string" }, objective: { type: "string" },
+-    instructions: { type: "string" }, targetSurface: { type: "string" },
+-    criteria: strArray, evidenceRequirements: strArray, whyItMatters: { type: "string" },
+-    sources: { type: "array", items: { type: "object", additionalProperties: false, properties: { kind: { type: "string", enum: ["page", "repo", "founder"] }, ref: { type: "string" }, observation: { type: "string" } }, required: ["kind", "ref", "observation"] } },
+-    priority: { type: "string", enum: ["high", "medium", "low"] },
+-    riskCategory: { type: "string", enum: [...RISK_CATEGORIES] },
+-    effortMinutes: { type: "integer" }, rewardWeight: { type: "integer" }, maxCompletions: { type: "integer" },
+-    verificationMethod: { type: "string" }, confidence: { type: "number" },
+-    conditions: nullableStrArray, assumptions: nullableStrArray, disallowed: nullableStrArray, anchors: strArray,
+-    groundingV1: { type: "object", additionalProperties: false, properties: { observationSetDigest: { type: "string" }, criteria: { type: "array", items: criterionTransport } }, required: ["observationSetDigest", "criteria"] },
+-  },
+-  required: ["missionKey", "title", "objective", "instructions", "targetSurface", "criteria", "evidenceRequirements", "whyItMatters", "sources", "priority", "riskCategory", "effortMinutes", "rewardWeight", "maxCompletions", "verificationMethod", "confidence", "conditions", "assumptions", "disallowed", "anchors", "groundingV1"],
+-};
+-/** Architect transport — a missions array that MAY be empty (honest v2_empty) or carry full grounded missions. */
+-export const ARCHITECT_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+-  name: "sage_grounded_architect_v2",
+-  schema: { type: "object", additionalProperties: false, properties: { missions: { type: "array", items: missionTransport } }, required: ["missions"] },
+-};
+ /** Critic transport — verdicts with REQUIRED factRefs; Zod enforces uniqueness + exact fact-set equality. */
+ export const CRITIC_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+   name: "sage_grounded_critic_v2",
+@@ -223,22 +104,20 @@ export const ARCHITECT_SYSTEM_V2 = `You are Sage's GROUNDED mission architect. Y
+ 
+ RULES (absolute):
+ - Design missions ONLY around capabilities Sage ACTUALLY OBSERVED. Never invent a control, page, feature, or outcome.
+-- If the founder's requested capability/goal was NOT observed in the set, return {"missions":[]} — do NOT invent it, and do NOT substitute unrelated work just to produce output.
+-- Every criterion MUST cite concrete observed-fact ids (factRefs) from the set.
+-- An action/outcome criterion MUST cite the transitionRef that produced the outcome.
++- If the founder's requested capability/goal was NOT observed in the OBSERVATIONS, return {"missions":[]} — do NOT invent it, and do NOT substitute unrelated work just to produce output.
++- Cite ONLY the exact fact ids (factRefs) and transition ids (transitionRef) shown in the OBSERVATIONS below. A citation to any id NOT shown there is rejected.
++- Express each criterion EXACTLY ONCE — one object with: text, evidenceRequirement, criterionKind, factRefs, transitionRef, evidenceMode, supportRationale. Do NOT number, index, or repeat anything.
++- criterionKind MUST be exactly one of: state, action_outcome, content_claim, visual_quality. evidenceMode MUST be exactly one of: deterministic_url, semantic_url, observation.
++- An "action_outcome" criterion MUST set transitionRef to a real transition id and cite at least one factRef from that transition's AFTER state. Every other criterionKind sets transitionRef to null.
+ - Inferred vision facts may GUIDE design but can NEVER be the only decisive support — a decisive criterion needs a seen DOM/field fact or a safe transition.
+-- Every mission MUST include "anchors": VERBATIM substrings of what Sage observed (element text, a heading, a state excerpt). The deterministic anti-hallucination gate rejects any mission whose anchors were never observed.
+-- Evidence requirements must be realistically capable of proving the criterion.
+ - Prefer a DIVERSE set (3-6) covering distinct useful product states. No duplicate missions.
+-- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts, base units, or claim any budget equality — Sage's deterministic allocator converts the weights into exact USDC rewards and guarantees exact budget conservation.
+-- effortMinutes is an INTEGER between 3 and 240. confidence is a number between 0 and 1.
+-- riskCategory MUST be exactly one of: critical_journey, onboarding, responsive, wallet_payment, claim_validation, error_recovery, accessibility, cross_browser, docs_consistency, trust_safety, regression.
+-- Emit ONLY the keys shown in the example below — no extra keys anywhere.
++- Propose rewardWeight (integer 1-10) and maxCompletions (integer 1-50) as RELATIVE priorities only. Do NOT compute money amounts — Sage's deterministic allocator converts weights into exact USDC rewards.
++- effortMinutes is an INTEGER 3-240; confidence is a number 0-1; riskCategory MUST be exactly one of: critical_journey, onboarding, responsive, wallet_payment, claim_validation, error_recovery, accessibility, cross_browser, docs_consistency, trust_safety, regression.
+ 
+-Each criterion's groundingV1 entry declares criterionKind: "state" | "action_outcome" | "content_claim" | "visual_quality", and MUST include an integer evidenceIndex — the 0-based index into this mission's evidenceRequirements that the criterion proves. An "action_outcome" criterion MUST set transitionRef to a real transition id AND cite at least one factRef from that transition's AFTER state.
++SAGE DERIVES THE REST from the ids you cite — do NOT emit criterionIndex, evidenceIndex, criteria/evidenceRequirements as separate arrays, groundingV1, pageUrl, stateId, targetSurface, sources, anchors or verificationMethod. Emit ONLY the keys shown in the example.
+ 
+ OUTPUT a SINGLE strict JSON object, no markdown fences, no prose. Example (a valid object):
+-{"missions":[{"missionKey":"reach-world","title":"...","objective":"...","instructions":"...","targetSurface":"https://...","criteria":["..."],"evidenceRequirements":["..."],"whyItMatters":"...","sources":[{"kind":"page","ref":"https://...","observation":"..."}],"priority":"high","riskCategory":"critical_journey","effortMinutes":3,"rewardWeight":5,"maxCompletions":3,"verificationMethod":"...","confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"anchors":["<a verbatim observed string>"],"groundingV1":{"observationSetDigest":"<the exact digest>","criteria":[{"criterionIndex":0,"criterionKind":"action_outcome","factRefs":["<after-state fact id>"],"transitionRef":"<transition id>","evidenceIndex":0,"pageUrl":"https://...","stateId":"<state id>","evidenceMode":"observation","supportRationale":"one line"}]}}]}`;
++{"missions":[{"missionKey":"test-report-loading","title":"...","objective":"...","instructions":"...","whyItMatters":"...","priority":"high","riskCategory":"critical_journey","effortMinutes":5,"rewardWeight":5,"maxCompletions":3,"confidence":0.8,"conditions":[],"assumptions":[],"disallowed":[],"criteria":[{"text":"Loading the report reaches the observed report state","evidenceRequirement":"Describe the report state reached","criterionKind":"action_outcome","factRefs":["<observed after-state fact id>"],"transitionRef":"<observed transition id>","evidenceMode":"observation","supportRationale":"The reproduced transition produced this state"}]}]}`;
+ 
+ /** CRITIC_SYSTEM_V2 — reviews whether the cited observations genuinely support each criterion. It may only
+  *  reject/downgrade; it cannot create facts, repair grounding, or override the deterministic gate. */
+@@ -333,9 +212,19 @@ export interface GroundingShadowResult {
+   /** counts of the canonical-gate rejection CODES (enums like "unanchored_claim") for critic-supported
+    *  candidates that failed the gate — leak-safe (codes only, never mission text). */
+   canonicalRejectionCodes: Record<string, number>;
+-  /** on a schema_invalid architect response: the Zod issue PATHS+codes (e.g. "missions.0.anchors:too_small")
++  /** on a schema_invalid architect response: the Zod issue PATHS+codes (e.g. "missions.0.criteria.0:invalid_type")
+    *  — leak-safe STRUCTURE only, never the rejected values. Empty otherwise. */
+   architectSchemaErrorPaths: string[];
++  /** semantic-draft compiler telemetry — bounded counts + enum codes only, never raw mission/observed text. */
++  architectContractVersion: string;
++  draftMissionCount: number;
++  draftCriterionCount: number;
++  compiledMissionCount: number;
++  compilerRejectedCount: number;
++  compilerRejectionCodes: Record<string, number>;
++  derivedAnchorCount: number;
++  derivedSourceCount: number;
++  derivedTargetSurfaceCount: number;
+ }
+ 
+ const emptyTiers = (): Record<GroundingTier, number> => ({ action_replayed: 0, action_observed: 0, state_seen: 0, inferred_only: 0, ungrounded: 0 });
+@@ -409,9 +298,11 @@ export async function runGroundedShadow(
+     criticModelRequested, criticModelActual: null, criticProvider: null,
+     architectStatus: "not_run", architectErrorCode: null, architectLatencyMs: null, architectPromptTokens: null, architectCompletionTokens: null, architectFinishReason: null, architectParsePolicy: null, architectRepaired: null,
+     criticStatus: "not_run", criticErrorCode: null, criticLatencyMs: null, criticPromptTokens: null, criticCompletionTokens: null, criticFinishReason: null, criticParsePolicy: null, criticRepaired: null,
+-    architectContentShape: null, architectHttpStatus: null, architectRetryAfterMs: null, architectResponseSchemaName: ARCHITECT_TRANSPORT_SCHEMA.name,
++    architectContentShape: null, architectHttpStatus: null, architectRetryAfterMs: null, architectResponseSchemaName: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA.name,
+     criticContentShape: null, criticHttpStatus: null, criticRetryAfterMs: null, criticResponseSchemaName: CRITIC_TRANSPORT_SCHEMA.name,
+     canonicalRejectionCodes: {}, architectSchemaErrorPaths: [],
++    architectContractVersion: GROUNDED_ARCHITECT_CONTRACT_VERSION, draftMissionCount: 0, draftCriterionCount: 0, compiledMissionCount: 0,
++    compilerRejectedCount: 0, compilerRejectionCodes: {}, derivedAnchorCount: 0, derivedSourceCount: 0, derivedTargetSurfaceCount: 0,
+     observationView: { totalFacts: set?.facts.length ?? 0, includedFacts: 0, totalTransitions: set?.transitions.length ?? 0, includedTransitions: 0, truncated: false },
+     ...over,
+   });
+@@ -426,7 +317,7 @@ export async function runGroundedShadow(
+   let architectShape: ContentShape | null = null, architectHttp: number | null = null, architectRetry: number | null = null;
+   let criticShape: ContentShape | null = null, criticHttp: number | null = null, criticRetry: number | null = null;
+   const architect = deps.architect ?? (async (system: string, user: string) => {
+-    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict", responseSchema: ARCHITECT_TRANSPORT_SCHEMA });
++    const r = await llmCompleteJson({ system, user, maxTokens: 4200, temperature: 0.2, model: architectModelRequested ?? undefined, parsePolicy: "strict", responseSchema: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA });
+     architectActual = r.responseModel ?? r.model; architectProvider = r.provider; architectShape = "bare_object";
+     aMeta = { latencyMs: r.latencyMs, promptTokens: r.promptTokens, completionTokens: r.completionTokens, finishReason: r.finishReason ?? null, parsePolicy: r.parsePolicy ?? "strict", repaired: r.repaired ?? false };
+     return r.json;
+@@ -454,29 +345,34 @@ export async function runGroundedShadow(
+   //    The ID→EVIDENCE view puts every fact id BESIDE its observed content (page/state/texts/role/name) and
+   //    every transition id beside its verb/before-after/deltas/safety/replay — the model cites facts, not hashes.
+   const { view: observationView, meta: viewMeta } = buildArchitectObservationView(set, deps.replayReproduced);
++  // the bounded ids ACTUALLY presented to the architect — the compiler binds every citation to these.
++  const presentedView = { factIds: new Set(observationView.facts.map((f) => f.id)), transitionIds: new Set(observationView.transitions.map((t) => t.id)) };
+   let candidates: CandidateMission[];
++  let compileOutcome: DraftCompileOutcome | null = null;
++  const draftTelemetry = () => (compileOutcome ? {
++    draftMissionCount: compileOutcome.draftMissionCount, draftCriterionCount: compileOutcome.draftCriterionCount, compiledMissionCount: compileOutcome.compiledMissionCount,
++    compilerRejectedCount: compileOutcome.compilerRejectedCount, compilerRejectionCodes: compileOutcome.compilerRejectionCodes,
++    derivedAnchorCount: compileOutcome.derivedAnchorCount, derivedSourceCount: compileOutcome.derivedSourceCount, derivedTargetSurfaceCount: compileOutcome.derivedTargetSurfaceCount,
++  } : {});
+   try {
+     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
+     const json = await architect(ARCHITECT_SYSTEM_V2, user);
+-    const parsed = parseArchitectOutput(json);
+-    if (parsed === null) {
+-      // distinguish an explicitly-empty plan (an honest "ok" run → v2_empty) from a schema failure.
+-      const emptyMissions = Array.isArray((json as { missions?: unknown[] })?.missions) && (json as { missions: unknown[] }).missions.length === 0;
+-      architectStatus = emptyMissions ? "ok" : "schema_invalid";
+-      // leak-safe: capture WHICH schema paths failed (structure + codes only, never the rejected values).
+-      const sp = emptyMissions ? null : ArchitectOutputSchema.safeParse(json);
+-      const architectSchemaErrorPaths = sp && !sp.success ? sp.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`) : [];
+-      return base({ ran: true, error: emptyMissions ? "v2_empty" : "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, architectSchemaErrorPaths, ...telemetry() });
+-    }
+-    candidates = parsed;
++    // strict semantic-draft Zod → deterministic compiler (derives indexes/urls/anchors/sources/targetSurface).
++    compileOutcome = parseAndCompileArchitectDraft(json, set, presentedView);
++    if (compileOutcome.kind === "empty") { architectStatus = "ok"; return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...draftTelemetry(), ...telemetry() }); }
++    if (compileOutcome.kind === "schema_invalid") { architectStatus = "schema_invalid"; return base({ ran: true, error: "schema_invalid", disagreement: "v2_empty", observationView: viewMeta, architectSchemaErrorPaths: compileOutcome.schemaErrorPaths, ...draftTelemetry(), ...telemetry() }); }
++    candidates = compileOutcome.candidates;
+     architectStatus = "ok";
+   } catch (e) {
+     architectErrorCode = sanitizeErrorCode(e); // bounded llm_* code, never raw response
+     architectStatus = classifyRoleError(architectErrorCode);
+     captureArchErr(e);
+-    return base({ error: architectErrorCode, observationView: viewMeta, ...telemetry() });
++    return base({ error: architectErrorCode, observationView: viewMeta, ...draftTelemetry(), ...telemetry() });
++  }
++  if (candidates.length === 0) {
++    architectStatus = "ok"; // the model proposed missions but the compiler rejected every one (bounded codes in telemetry)
++    return base({ ran: true, error: compileOutcome && compileOutcome.compilerRejectedCount > 0 ? "compiler_rejected" : "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...draftTelemetry(), ...telemetry() });
+   }
+-  if (candidates.length === 0) { architectStatus = "ok"; return base({ ran: true, error: "v2_empty", disagreement: "v2_empty", observationView: viewMeta, ...telemetry() }); }
+ 
+   // 2) deterministic grounding validation per candidate (digest-bound + replay-aware).
+   const idxValid = candidates.map((m) => validateMissionGrounding(m, set, { expectedDigest: digest, replayReproduced: deps.replayReproduced }).length === 0);
+@@ -604,6 +500,7 @@ export async function runGroundedShadow(
+     disagreement: accepted.length === legacyAcceptedCount ? "agree" : accepted.length < legacyAcceptedCount ? "v2_fewer" : "v2_more",
+     observationView: viewMeta,
+     canonicalRejectionCodes,
++    ...draftTelemetry(),
+     ...telemetry(),
+   });
+ }

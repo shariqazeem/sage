@@ -1,0 +1,116 @@
+SAGE V2 — GROUNDED ARCHITECT LIVE-TRUTH CLOSURE
+===============================================
+Objective: make "strict, reject-never-repair, production-path grounded generation" literally true from the
+raw CommonStack response through runMissionBrain, then make shadow acceptance traverse Sage's canonical
+deterministic mission gates. Shadow-only (MISSION_GROUNDING_MODE=shadow); the legacy plan + budget are never
+changed. Zero paid LLM calls. Nothing deployed/pushed/migrated/flag-enabled/model-approved. 2 commits.
+
+COMMITS (oldest → newest)
+-------------------------
+080953c  feat(agentic): add a strict fail-closed parse policy to the JSON completion boundary
+98d0790  fix(agentic): strict Zod schemas + canonical-gate rehearsal for the grounded shadow
+
+Patch: sage-grounded-architect-livetruth.patch  (git diff 080953c~1..HEAD; round-trips exactly against HEAD)
+
+FILES (6)
+---------
+ src/lib/llm/complete.ts                 +81  : optional parsePolicy repair|strict; strict fail-closed parse
+ src/lib/llm/complete.strict.test.ts     +74  : strict boundary tested at REAL llmCompleteJson (fetch mocked)
+ src/lib/launch/mission-grounding-shadow.ts   +280 : strict Zod schemas, canonical-gate rehearsal, model
+                                                     routing, view meta, anchors, honest budget prompt
+ src/lib/launch/mission-grounding.ts     +13  : tier gated on criterionKind === action_outcome
+ src/lib/launch/mission-brain.ts         +2   : thread scope + corpus into runGroundedShadow
+ src/lib/launch/mission-grounding-shadow.entrypoint.test.ts  +385 : the live-truth matrix (39 tests)
+
+VERIFICATION (zero paid calls — LLM boundary mocked)
+----------------------------------------------------
+ typecheck (tsc --noEmit, strict)              CLEAN
+ eslint (changed files)                        CLEAN
+ complete.strict.test.ts                       20/20
+ mission-grounding-shadow.entrypoint.test.ts   39/39
+ FULL deterministic suite (npm run test)       1305 passed | 35 skipped | 0 failed (118 files inc. redteam)
+
+MOCKED BOUNDARIES (only the provider edge is faked)
+---------------------------------------------------
+ · complete.strict.test.ts — mocks global.fetch (the raw provider HTTP response). llmCompleteJson itself,
+   resolveLlm, parseStrict, extractJson, repairJson all run for real.
+ · mission-grounding-shadow.entrypoint.test.ts — mocks @/lib/llm/complete (llmConfigured, llmCompleteJson).
+   runMissionBrain + architect + critic + validatePlanMissions gate + runGroundedShadow (Zod, grounding,
+   critic, canonical gate, real allocateBudget) all run for real.
+ No network. No API key used. No paid completion.
+
+RAW-RESPONSE STRICTNESS TRUTH TABLE (parsePolicy)
+-------------------------------------------------
+ raw provider response                         repair (default, legacy)   strict (architect+critic)
+ clean {…} + finish stop                        PASS                       PASS
+ fenced ```json {…} ```                         PASS (fence stripped)      REJECT (not a bare object)
+ prose-wrapped "Here: {…}"                       PASS (brace-extracted)     REJECT
+ trailing comma {"a":1,}                         PASS (comma dropped)       REJECT (JSON.parse throws)
+ truncated {"a":1                                PASS (tail rebalanced)     REJECT (no closing brace)
+ repairable unterminated {"a":[1,2               PASS (repaired)            REJECT
+ array [ … ]                                     PASS                       REJECT (non-object)
+ empty content                                   REJECT                     REJECT
+ finish_reason missing                           PASS (ignored)             REJECT (fail closed)
+ finish_reason length / max_tokens               PASS (ignored)             REJECT
+ finish_reason content_filter                    PASS (ignored)             REJECT
+ finish_reason tool_calls / unknown              PASS (ignored)             REJECT
+ message.refusal present                         PASS (ignored)             REJECT
+ message.tool_calls present                      PASS (ignored)             REJECT
+ >1 choice                                       PASS (choice[0])           REJECT (exactly one)
+ provenance: parsePolicy/finishReason/repaired/responseModel recorded on both paths (repaired=false strict).
+
+ARCHITECT ZOD SCHEMA TRUTH TABLE (one invalid mission/member → schema_invalid; empty plan → v2_empty)
+----------------------------------------------------------------------------------------------------
+ rewardWeight 1..10 int ................... 0 REJECT · 11 REJECT · 5 PASS
+ maxCompletions 1..50 int ................. 0 REJECT · 51 REJECT · 3 PASS
+ effortMinutes 3..240 int, confidence 0..1  out-of-range REJECT
+ criteria / evidenceRequirements .......... empty REJECT
+ anchors .................................. empty REJECT (anti-hallucination gate needs ≥1)
+ unknown top-level key .................... REJECT (.strict)
+ groundingV1 .............................. absent REJECT
+ observationSetDigest ..................... absent/empty REJECT
+ one grounding mapping per criterion index  duplicate/missing/out-of-range index REJECT
+ criterionKind ............................ missing REJECT · "bogus" REJECT · enum PASS
+ evidenceIndex ............................ non-integer REJECT · out-of-range REJECT
+ evidenceMode ............................. missing/invalid REJECT
+ factRefs ................................. empty REJECT · duplicate REJECT · one non-string member REJECT
+ pageUrl / stateId / supportRationale ..... missing/empty REJECT (supportRationale bounded ≤200)
+ action_outcome ........................... without transitionRef REJECT
+ unique missionKey ........................ duplicate keys REJECT
+ (only conditions/assumptions/disallowed are OPTIONAL, default [] — non-validation-critical list fields)
+
+CRITIC ZOD SCHEMA TRUTH TABLE
+-----------------------------
+ factRefs ................................. REQUIRED + non-empty (missing → supports nothing)
+ verdict .................................. enum supported|partially_supported|unsupported|contradictory
+ one verdict per (missionKey, criterionIndex)  duplicate/unknown/missing pair → supports nothing
+ factRefs vs cited set .................... exact set-equality required; mismatch → supports nothing
+ malformed critic output .................. supports nothing (fail closed)
+
+ONE END-TO-END TRACE (a grounded mission that is paid-eligible)
+--------------------------------------------------------------
+ raw completion  → strict parse (parsePolicy strict: one choice, finish stop, bare {…}, JSON.parse) →
+ Zod (ArchitectOutputSchema.safeParse: strict fields + bijection + unique keys) → toCandidateMission →
+ grounding (validateMissionGrounding digest-bound + replay-aware: cited facts/transition exist, safe,
+   after-state, decisive-seen) → critic (CriticOutputSchema + one-verdict-per-pair + exact factRefs equality)
+ → canonical gate (validatePlanMissions: anchor + scope + safety + injection + worth-paying + grounding +
+   cross-mission uniqueness) → allocator (allocateBudget: Σ(rewardBase×maxCompletions) === totalBudgetBase).
+ accepted === canonicalGatePassed; budgetCompiled === allocationOk; exactBudgetEquality proven ("2000000").
+
+MODEL-ROUTING TRUTH TABLE (recorded per shadow run)
+---------------------------------------------------
+ role       requested                         actual (served)        provider
+ architect  missionModel() (null when unset;  r.responseModel ?? r.model   r.provider
+            → resolveLlm LLM_MODEL→DEPUTY_MODEL→default)
+ critic     missionGroundingCriticModel()     r.responseModel ?? r.model   r.provider
+            = MISSION_GROUNDING_CRITIC_MODEL || missionModel()  (defaults to missionModel — nothing flips)
+ No model hardcoded or approved. Both routes are missionModel() today; the critic override exists but is
+ unset, so behavior is identical until a model is chosen after evaluation.
+
+CONFIRMATION
+------------
+ · ZERO paid LLM calls (every provider edge faked; no key, no network).
+ · Nothing deployed, pushed, migrated, flag-enabled, model-approved, or paid.
+ · No changes to Concierge, payout brain, P-ENTAIL, browser security, or CampaignLearning.
+ · Every legacy llmCompleteJson caller keeps the default "repair" policy (byte-identical).
+ · New behavior is MISSION_GROUNDING_MODE=shadow only; enforce/unknown fall closed to off (no V2 call).

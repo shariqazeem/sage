@@ -1,0 +1,76 @@
+SAGE — Gate A + B + C source-level review packet
+=================================================
+Scope: the agentic/payout-safety + browser-egress layer. No deploy, no push, no mode enabled,
+no policy identity approved, no DB migration. All changes are dark.
+
+BASE COMMIT (parent of the first Gate-A commit):
+  6ab4e6e07c260072491bfe5763bf0ba4879f849e
+HEAD COMMIT:
+  9d2d34037fec7dd3fa443f8bac227b6af2433420
+
+APPLY / INSPECT:
+  git apply --stat  sage-gates-a-b.patch
+  git apply --check sage-gates-a-b.patch
+  git am            sage-gates-a-b.patch      # replays all 16 commits with messages
+  (produced by: git format-patch 26502a9^..HEAD --stdout)
+
+COMMIT LIST (oldest -> newest; 16 commits; 44 files):
+  Gate A:
+    26502a9  test(agentic): add production-path payout judge evaluation
+    83afd73  feat(deputy): add shadow-gated rendered evidence capture
+    f93a0fd  fix(deputy): block autopay from unapproved judge models
+    5f3cf50  docs(agentic): correct V2 trust and rollout claims
+  Gate B:
+    b979b1f  test(agentic): correct payout promotion accounting
+    f3264f7  feat(deputy): bind autopay to the evaluated policy identity
+    145dbb2  fix(deputy): reject repaired or incomplete money decisions
+    b8b4950  feat(deputy): add shadow-gated criterion entailment veto
+    e539018  fix(deputy): harden the evidence renderer against redirect SSRF and oversized text
+    0713e0e  test(deputy): exercise rendered evidence in a real browser
+  Gate C:
+    fd47710  fix(deputy): require explicit normal completion for money decisions
+    49c2b36  fix(deputy): keep unevaluated policy identities unapproved
+    02755d4  fix(agentic): enforce guarded browser egress
+    1ed3819  test(agentic): make promotion evaluations resumable
+    8f54295  test: eliminate shared-resource contention
+    9d2d340  docs(agentic): proposed dark/shadow/enforce release configurations
+
+KEY NEW FILES (Gate C):
+  src/lib/net/ip-classify.ts (+test)        allow-only-unicast IP classification (ipaddr.js)
+  src/lib/net/egress-proxy.ts (+test)       guarded local forward/CONNECT proxy (the egress boundary)
+  src/lib/deputy/completion.ts (+test)      completion adapter — explicit normal-termination gate
+  src/lib/deputy/promotion-runner.ts (+test) resumable, rate-limit-honest promotion orchestrator
+  src/lib/deputy/promotion-eval.live.ts     live harness wiring the runner to the real evals
+  docs/egress-boundary.md                   browser network threat model + egress architecture
+  docs/release-candidate.md                 dark / shadow / enforce release configurations
+
+TEST COMMANDS:
+  npm run typecheck                          # tsc --noEmit (strict) — clean
+  npm run lint                               # eslint — clean
+  npm run test                               # vitest run — 1141 passed / 26 skipped
+  npm run test:browser-security              # RENDER_BROWSER_TEST=1: renderer + egress proxy + IP classifier
+  npm run test:field-egress                  # FIELD_TEST_ENABLED=1: the Field Test through the proxy
+  # env-gated live promotion runners (skipped by default; make paid LLM calls):
+  PROMOTION_EVAL=1 PROMO_TARGET=judge  PROMO_MODEL=<m> PROMO_RUNS=3 PROMO_CHECKPOINT=.promo-judge.json \
+    [PROMO_RESUME=1] npx vitest run promotion-eval.live
+  PROMOTION_EVAL=1 PROMO_TARGET=entail PROMO_MODEL=<m> PROMO_RUNS=3 npx vitest run promotion-eval.live
+
+KNOWN FAILURES / LIMITATIONS (as of this packet):
+  1. LIVE evals inconclusive here: P-JUDGE / P-ENTAIL / live red-team are gateway rate-limited
+     (HTTP 429). Every attempt degraded to "inconclusive" (never a false green). A conclusive >=3x
+     run of the resumable runner on unthrottled quota is still owed before any promotion.
+  2. NO production identity is promotion-approved. payout-parse-v3 (strict parse + explicit normal
+     termination) is a CANDIDATE; the production approved registry is EMPTY, so a would-be autopay
+     safely holds for manual review. Deployed code is unchanged (nothing shipped); the configured
+     production MODEL is NOT the same as this parser IDENTITY being approved.
+  3. Browser egress boundary: an authoritative guarded proxy now fronts all Chromium traffic
+     (resolve+validate+pin, closing DNS-rebinding/TOCTOU). Residual: HTTPS method filtering is
+     impossible at a CONNECT proxy (destination guard is the operative defense); WebSocket/EventSource
+     to a *public* host may not function (safe, not a leak). RENDERED_EVIDENCE_MODE stays off and
+     shadow stays prohibited for untrusted URLs until this boundary is reviewed.
+  4. The pipeline-identity flake was a timeout under CPU starvation (deterministic test; forks
+     isolation). Resolved by explicit isolation + a 15s timeout; passes 20x isolated, 3x full suite,
+     3x browser suite.
+  5. Everything is dark: nothing deployed, pushed, enforced, migrated, or approved.
+
+SECRETS: none. Source + tests + docs only; no .env, keys, tokens, addresses, or env values (scanned).

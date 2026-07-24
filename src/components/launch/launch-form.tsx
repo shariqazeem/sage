@@ -36,6 +36,11 @@ export function LaunchForm() {
   const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5" });
+  // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
+  // (one job, not two); a fresh form (new page/reload) is a new turn. The server namespaces it.
+  const [requestId] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [showRepo, setShowRepo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +69,7 @@ export function LaunchForm() {
       const res = await fetch("/api/launch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestId }),
       });
       const data = await res.json();
       if (!data.ok) {

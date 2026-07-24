@@ -27,7 +27,7 @@ describe.runIf(RUN)("money-boundary E2E — approved revision → attach → rea
     expect(policy.probes).toHaveLength(1);
 
     // a real inspection job + a real plan revision carrying the policy (missionPlanDigest MUST match the plan).
-    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "e2e-camp", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1_000_000), tokenDecimals: 6 });
+    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "e2e-camp", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1_000_000), tokenDecimals: 6, planningRequestId: "prid:test:e2e-camp", surface: "test" });
     const plan: Record<string, unknown> = { publicCampaignId: "e2e-camp", status: "draft", revision: 1, productMapDigest: "0xmap", missions: [], totalBudgetBase: BigInt(1_000_000), allocatedBase: BigInt(1_000_000), tokenDecimals: 6, campaignIdHash: "0xcamp", missionPlanDigest: PLAN, openQuestions: [], modelVersion: "m", promptVersion: "p" };
     const rev = createRevision({ jobId: job.id, authorWallet: WALLET, reason: "generated_grounded_v2", plan: plan as never, budgetBase: BigInt(1_000_000), validationOk: true, verificationPolicy: policy, verificationPolicyDigest: policy.policyDigest, verificationPolicyRequired: true });
     // cross-plan binding is refused at createRevision:
@@ -70,7 +70,7 @@ describe.runIf(RUN)("money-boundary E2E — approved revision → attach → rea
     const mkCampaign = (digest: string, hexFill: string) => { const c = createCampaign({ title: hexFill, descriptionMd: "", criteria: [], conditionType: "approval", onchainCheck: null, rewardAmount: 1, maxRecipients: 1, vaultAddress: getAddress(`0x${hexFill.repeat(40)}`), posterWallet: WALLET, ownerIsSage: true, status: "live", autonomy: "autopilot", autopilotThreshold: 0.85 } as never); updateCampaignV2Plan(c.id, { vaultKind: "campaign_v2", campaignIdHash: "0xc", missionPlanDigest: digest, commitmentVersion: 2 }); return c; };
 
     // (a) REQUIRED revision with NO policy → activation must fail closed.
-    const jNoPolicy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-nopolicy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
+    const jNoPolicy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-nopolicy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6, planningRequestId: "prid:test:p-nopolicy", surface: "test" }).job;
     const rNo = createRevision({ jobId: jNoPolicy.id, authorWallet: WALLET, reason: "generated_grounded_v2", plan: mkPlan("0xreq") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicyRequired: true });
     approveRevision(jNoPolicy.id, rNo.revisionNumber, WALLET, { ok: true });
     const cNo = mkCampaign("0xreq", "3");
@@ -78,13 +78,13 @@ describe.runIf(RUN)("money-boundary E2E — approved revision → attach → rea
     expect(getCampaign(cNo.id)!.verificationPolicyDigest).toBeNull(); // nothing bound
 
     // (b) NON-required revision (no policy) → attached:false (activation proceeds).
-    const jLegacy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-legacy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
+    const jLegacy = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-legacy", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6, planningRequestId: "prid:test:p-legacy", surface: "test" }).job;
     const rLeg = createRevision({ jobId: jLegacy.id, authorWallet: WALLET, reason: "generated", plan: mkPlan("0xleg") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicyRequired: false });
     approveRevision(jLegacy.id, rLeg.revisionNumber, WALLET, { ok: true });
     expect(attachApprovedPolicyToCampaign(mkCampaign("0xleg", "4").id, jLegacy.id)).toMatchObject({ ok: true, attached: false });
 
     // (c) required + complete policy → attach ok; re-attach idempotent.
-    const jOk = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-ok", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6 }).job;
+    const jOk = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "p-ok", productUrl: "https://app.test/", repoUrl: null, goal: "g", targetUsers: "u", totalBudgetBase: BigInt(1), tokenDecimals: 6, planningRequestId: "prid:test:p-ok", surface: "test" }).job;
     const pol = compileVerificationPolicyV2({ missionPlanDigest: "0xok", productMapDigest: "0xmap", set: V2_SET, missions: [V2_MISSION], replayReproduced: new Set(["t-load"]), scope: { hosts: new Set(["app.test"]) } as never }).policy;
     const rOk = createRevision({ jobId: jOk.id, authorWallet: WALLET, reason: "generated_grounded_v2", plan: mkPlan("0xok") as never, budgetBase: BigInt(1), validationOk: true, verificationPolicy: pol, verificationPolicyDigest: pol.policyDigest, verificationPolicyRequired: true });
     approveRevision(jOk.id, rOk.revisionNumber, WALLET, { ok: true });

@@ -1,0 +1,102 @@
+SAGE V2 — GROUNDED ARCHITECT SEMANTIC COMPLETION
+================================================
+Objective: turn the wired V2 architect from "a model citing opaque hashes" into a genuinely
+evidence-aware, strictly-validated grounded architect — reachable through the REAL mission
+entrypoint in shadow mode, measured independently, with honest telemetry.
+
+Scope guard honoured: NO changes to Concierge, payout brain, P-ENTAIL, browser security, or
+CampaignLearning. No paid LLM calls (every provider boundary is faked in tests). No deploy, push,
+migration, model approval, or flag enablement. Three focused commits.
+
+COMMITS (oldest → newest)
+-------------------------
+b0fbc4f  feat(agentic): provide bounded evidence views to grounded architect and critic
+beb17b3  fix(agentic): make grounded architect parsing and validation strict
+da9575e  test(agentic): prove semantic grounding through mission entrypoint
+
+Patch: sage-grounded-architect-semantic.patch   (git diff b0fbc4f~1..HEAD)
+
+FILES CHANGED (5)
+-----------------
+ src/lib/launch/mission-grounding-shadow.ts          +187/-... : evidence views, strict coercion,
+                                                                 honest mode, real budget, indep. run
+ src/lib/launch/mission-grounding.ts                 +14      : V2 validation holes closed
+ src/lib/launch/schemas.ts                           +5       : criterionKind, digest, tier, codes
+ src/lib/launch/mission-brain.ts                     +30/-... : computeShadow() runs on BOTH paths
+ src/lib/launch/mission-grounding-shadow.entrypoint.test.ts  +167 : the A–S semantic matrix
+
+VERIFICATION (zero paid calls — LLM boundary mocked)
+----------------------------------------------------
+ typecheck (tsc --noEmit, strict)           CLEAN
+ eslint (changed files)                     CLEAN
+ entrypoint matrix                          21/21 passed
+ grounding + budget + observed-facts + metrics   36/36 passed
+ FULL deterministic suite (npm run test)    1267 passed | 35 skipped | 0 failed (117 files inc. redteam)
+
+REQUIREMENT → EVIDENCE
+----------------------
+1  Architect sees ID→evidence, not hashes .... buildArchitectObservationView() emits {id, source,
+     grounding, decisive, pageUrl, stateId, visibleTexts, elementRole, elementName, transitionId}
+     per fact + typed transition records. Test "the V2 user prompt shows each fact ID BESIDE its
+     real content" parses the exact captured V2 user prompt and asserts fact<startId>→name "Start"
+     and the click transition→added "…garden world".
+2  Critic sees cited evidence, strict contract  per-mission payload carries {criterion,
+     evidenceRequirement, groundingTier, facts(records), transitions(records), supportRationale};
+     verdict validation: VALID enum only, exactly one per (missionKey,criterionIndex), returned
+     factRefs must equal the cited set, any structural failure → unsupported (fail closed). Cases
+     J (unrelated factRefs), K (duplicate verdicts), L (unknown factRefs) prove it.
+3  Strict V2 completion path (reject, not repair)  coerceMissionForShadow: reject on missing
+     groundingV1 / missing digest / non-integer rewardWeight|maxCompletions|criterionIndex|
+     evidenceIndex / invalid evidenceMode / empty factRefs. criterionKind parsed
+     (state|action_outcome|content_claim|visual_quality). Prompt example is valid JSON. Cases
+     D/E/F/M prove rejection.
+4  Deterministic validation holes closed (V2)  validateMissionGrounding(expectedDigest,
+     replayReproduced): digest exact-match, one mapping per criterion (0..n-1 once), factRefs
+     exist, in-range evidenceIndex, action_outcome must cite a real SAFE transition + an after-state
+     fact, non-safe transition → unsafe_transition_support, inferred-only can't anchor. Legacy
+     (no groundingV1) untouched. Cases G/H/I prove it.
+5  Honest mode  missionGroundingMode() returns off|shadow ONLY; enforce/unknown → off with
+     missionGroundingModeReason() = "enforce_not_implemented (fell closed to off)". All "enforce
+     implemented" claims removed from code + comments. Case P proves no V2 call under enforce.
+6  Budget telemetry fixed  real allocateBudget() over critic-accepted candidates; records
+     allocationOk / suppliedBudgetBase / allocatedBudgetBase / exactBudgetEquality /
+     fundedMissionCount / droppedMissionCount / allocationFailureReason. budgetConsistent = TRUE
+     iff allocation succeeds AND allocatedBase === suppliedTotalBudgetBase exactly (NOT tied to
+     unsafeTransitionCount). Case O proves exact base-unit equality.
+7  Independent measurement  computeShadow(legacyCount) is invoked on BOTH the arch-failed
+     early-return path (legacyCount 0) and the normal path — one bounded architect call + one
+     bounded critic call. Legacy visible plan unchanged. Cases Q (legacy failure still records V2)
+     and L (shadow throw leaves legacy plan identical) prove it.
+8  Entrypoint matrix through real runMissionBrain  see A–S below.
+
+A–S MATRIX (all through the REAL runMissionBrain; only @/lib/llm/complete faked)
+--------------------------------------------------------------------------------
+ A  grounded mission validated + critic supports → accepted, state_seen tier      PASS
+ B  safe + replay-REPRODUCED transition → action_replayed tier                    PASS
+ C  safe + UNREPRODUCED transition → action_observed (never falsely replayed)     PASS
+ D  ghost fact (non-existent) → not structurally valid; +no-groundingV1 dropped   PASS
+ E  missing observationSetDigest → dropped (coercion); wrong digest → invalid     PASS
+ F  empty factRefs → dropped                                                      PASS
+ G  action_outcome citing no transition → not structurally valid                  PASS
+ H  UNVERIFIED/state-changing (POST) transition → unsafe_transition_support,      PASS
+      counted in unsafeTransitionCount
+ I  action_outcome citing only the BEFORE-state fact → rejected                   PASS
+ J  critic factRefs ≠ cited set → supports nothing (fail closed)                  PASS
+ K  duplicate critic verdicts for one criterion → nothing supported               PASS
+ L  critic unknown factRefs → rejected; V2-throw isolation leaves legacy plan =   PASS
+ M  malformed/fenced (non-object) V2 output → NOT repaired → v2_empty             PASS
+ N  multi-criterion mission, each criterion its own in-range evidenceIndex        PASS
+ O  real allocateBudget equals supplied budget EXACTLY (budgetConsistent)         PASS
+ P  MISSION_GROUNDING_MODE=enforce → no V2 call, no shadow attached               PASS
+ Q  legacy-architect FAILURE still records an independent V2 shadow               PASS
+ S  off mode → zero V2 calls, no shadow attached                                  PASS
+
+FINAL-REPORT ANSWERS
+--------------------
+ Does the architect see each fact ID beside its meaning?            YES
+ Does the critic see the actual cited evidence (not hashes)?        YES
+ Can a mission with absent grounding / absent digest pass?          NO (dropped at coercion)
+ Can a repaired / truncated / fenced output pass?                   NO (rejected, never repaired)
+ Is enforce implemented?                                            NO (off|shadow only; enforce→off)
+ Does budgetConsistent mean exact base-unit equality?              YES (allocatedBase===suppliedTotal)
+ Which A–S cases pass?                                              ALL of A–Q + S (see matrix)

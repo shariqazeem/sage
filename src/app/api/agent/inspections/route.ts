@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest, after } from "next/server";
 
 import { authenticateAgent, agentError } from "@/lib/agent-api/auth";
 import { opStartInspection } from "@/lib/agent-api/operations";
+import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { runInspectionJob } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return agentError("Invalid JSON body.", 400);
   }
 
+  // Server-minted per POST (never from the caller/LLM). Each request is a new turn — request-scoped.
   const result = opStartInspection(
     {
       productUrl: body.productUrl,
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       budgetUsd: body.budgetUsd,
     },
     body.clientRef,
+    mintApiRequestId(),
   );
   if (!result.ok) return agentError(result.error, result.status);
 

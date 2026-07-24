@@ -1,0 +1,19 @@
+SAGE V2 — Authenticated Approval Route Closure — manifest
+base: e1de736  head: cd11fe5
+
+commits (this sprint only):
+cd11fe5 docs(release): final-head-release-v2 — authenticated approval route proven (P3)
+d587d40 test(auth): route-to-money from the authenticated approved revision (P2)
+6c46a03 feat(auth): prove the approval route with a genuine SIWE session (P0+P1)
+
+files changed:
+ .sprint-state.md                                   |  25 +--
+ package.json                                       |   3 +-
+ .../authenticated-approval-route.json              |  29 +++
+ promotion-evidence/final-head-release-v2.json      |  97 ++++++++++
+ src/app/api/launch/[id]/approve/route.ts           |   6 +
+ src/app/api/launch/approve-route.live.test.ts      | 211 +++++++++++++++++++++
+ 6 files changed, 355 insertions(+), 16 deletions(-)
+
+sha256 of patch:
+80d69f97e1327fa38e42658009ca90c77ef98fa3b571875921c5451633faad46  sage-authenticated-approval-closure.patch

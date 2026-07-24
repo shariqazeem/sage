@@ -4,6 +4,7 @@ import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
 import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
+import { mintTelegramRequestId } from "@/lib/launch/planning-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +70,10 @@ export async function POST(req: Request): Promise<Response> {
         }
         console.log("[telegram] concierge run chat=%s", chatId);
         const jobs: Array<() => void | Promise<void>> = [];
-        const reply = await runConcierge(chatId, msg.text, (fn) => jobs.push(fn));
+        // Mint the per-turn request id from the TRUSTED (actor, chat, update) triple — actor-bound so
+        // two people in one group can't cross-bind, and redelivery-stable so a retried update is idempotent.
+        const planningRequestId = mintTelegramRequestId(msg.actorId, msg.chatId, msg.turnId);
+        const reply = await runConcierge(chatId, msg.text, (fn) => jobs.push(fn), planningRequestId);
         console.log("[telegram] concierge reply chat=%s jobs=%d len=%d", chatId, jobs.length, reply.length);
         if (reply) await sendTelegram(chatId, reply, { html: false });
         for (const job of jobs) {
@@ -102,9 +106,15 @@ export async function POST(req: Request): Promise<Response> {
 interface IncomingMessage {
   chatId: number | string;
   text: string;
+  /** trusted actor (sender) id — the SPECIFIC person, so two actors in one group never cross-bind. */
+  actorId: number | string | null;
+  /** trusted per-turn seed: the update id (falls back to the message id). */
+  turnId: number | string | null;
+  /** "private" | "group" | "supergroup" | "channel" — trusted room kind. */
+  chatType: string | null;
 }
 
-/** Pull the chat id + text from a Telegram Update (message / edit / channel post). */
+/** Pull the chat id + text (+ trusted actor / turn / room kind) from a Telegram Update. */
 function extractMessage(update: unknown): IncomingMessage | null {
   if (typeof update !== "object" || update === null) return null;
   const u = update as Record<string, unknown>;
@@ -121,5 +131,13 @@ function extractMessage(update: unknown): IncomingMessage | null {
   ) {
     return null;
   }
-  return { chatId, text };
+  const from = m.from as Record<string, unknown> | undefined;
+  const actorRaw = from?.id;
+  const actorId = typeof actorRaw === "number" || typeof actorRaw === "string" ? actorRaw : null;
+  const updateId = u.update_id;
+  const messageId = m.message_id;
+  const turnRaw = updateId ?? messageId;
+  const turnId = typeof turnRaw === "number" || typeof turnRaw === "string" ? turnRaw : null;
+  const chatType = typeof chat?.type === "string" ? (chat.type as string) : null;
+  return { chatId, text, actorId, turnId, chatType };
 }

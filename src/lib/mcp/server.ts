@@ -1,6 +1,7 @@
 import "server-only";
 
 import { runInspectionJob } from "@/lib/launch/job";
+import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import {
   opStartInspection,
@@ -115,6 +116,10 @@ export interface McpContext {
    *  Set only on the web concierge when a SIWE wallet is connected; enables sage_my_campaigns. The
    *  public MCP never sets it, so an external agent can't read another founder's campaigns. */
   founderWallet?: string;
+  /** The server-minted per-turn request id, bound SERVER-SIDE (never a tool arg). The concierge
+   *  sets it once per founder turn so a tool-retry within the turn is idempotent; when absent (the
+   *  public MCP) a fresh id is minted per call. Never LLM-authored. */
+  planningRequestId?: string;
 }
 
 export interface ToolResult {
@@ -153,6 +158,8 @@ export async function callSageTool(
           repoUrl: args.repoUrl,
         },
         args.clientRef,
+        // Server-authoritative: the concierge's per-turn id, else a fresh per-call id. NEVER args.*.
+        ctx.planningRequestId ?? mintApiRequestId(),
         typeof args.founderOverride === "string" ? args.founderOverride : undefined,
       );
       if (r.ok && r.created) {

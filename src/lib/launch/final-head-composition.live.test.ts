@@ -90,7 +90,7 @@ describe.runIf(RUN)("P6 — final-head composition (0 model calls)", () => {
     const { getAddress } = await import("viem");
 
     // 1. runInspectionJob → grounded_v2 selected.
-    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "fhc-" + transId.slice(0, 8), productUrl: "https://reportly.test/", repoUrl: null, goal: "Verify Load report reaches the observed Report ready state.", targetUsers: "analysts", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6 });
+    const { job } = createInspectionJob({ founderWallet: WALLET, publicCampaignId: "fhc-" + transId.slice(0, 8), productUrl: "https://reportly.test/", repoUrl: null, goal: "Verify Load report reaches the observed Report ready state.", targetUsers: "analysts", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6, planningRequestId: `prid:test:fhc-${transId.slice(0, 12)}`, surface: "test" });
     await runInspectionJob(job.id);
     const after = getInspectionJob(job.id)!;
     const rev = getCurrentRevision(job.id)!;

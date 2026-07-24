@@ -1,0 +1,92 @@
+SAGE V2 — SEMANTIC MISSION DRAFT COMPILER
+=========================================
+Replaces the grounded architect's brittle parallel-array output with a compact SEMANTIC DRAFT: the model
+describes each criterion ONCE; a pure deterministic compiler derives criterionIndex, evidenceIndex,
+targetSurface, sources, anchors, verificationMethod, pageUrl, stateId and groundingV1. Shadow-only. Nothing
+deployed/pushed/migrated/flag-enabled/funded/approved. Only cost: 3 of a permitted 6 paid calls.
+
+COMMITS (3 atomic)
+------------------
+d845f87  feat(agentic): semantic mission-draft transport + Zod contract (single-source)
+e6dfcdd  feat(agentic): deterministic semantic-draft compiler + wire it into the grounded shadow
+c635b5b  test(agentic): semantic-draft live smoke — the compiler pipeline is PROVEN live
+Patch: sage-semantic-draft-compiler.patch (git diff d845f87~1..HEAD; round-trips exactly against HEAD)
+
+FILES
+-----
+ src/lib/launch/mission-draft-compiler.ts            NEW — contract + transport schema + pure compiler
+ src/lib/launch/mission-draft-compiler.test.ts       NEW — 35-case contract + compiler matrix
+ src/lib/launch/mission-grounding-shadow.ts          wire compiler; remove parallel-array Zod/transport; prompt
+ src/lib/launch/mission-grounding-shadow.entrypoint.test.ts   rewritten to the semantic-draft pipeline
+ src/lib/launch/mission-grounding-semantic-smoke.live.test.ts NEW — the ≤6-call ledgered live smoke
+ promotion-evidence/grounded-semantic-draft-v1.json / .ledger.json  NEW — sanitized evidence + append-only ledger
+ package.json                                        smoke:semantic + smoke:semantic:dryrun
+
+OLD PARALLEL CONTRACT  →  SEMANTIC-DRAFT CONTRACT
+------------------------------------------------
+ model emitted: criteria[] (strings), evidenceRequirements[] (strings), groundingV1{criteria[{criterionIndex,
+   evidenceIndex,criterionKind,factRefs,transitionRef,pageUrl,stateId,evidenceMode,supportRationale}]},
+   targetSurface, sources[], anchors[], verificationMethod   → many chances to mis-align indexes/bijection.
+ model NOW emits: criteria[{text,evidenceRequirement,criterionKind,factRefs,transitionRef,evidenceMode,
+   supportRationale}] — each criterion ONCE; NOTHING indexed or derived.
+
+DETERMINISTIC DERIVATION TABLE (every removed model field)
+----------------------------------------------------------
+ criterionIndex        = i (the criterion's position)
+ evidenceIndex         = i (always equals its criterion index)
+ criteria[i]           = criterion.text
+ evidenceRequirements[i]= criterion.evidenceRequirement
+ pageUrl / stateId     state/content/visual → first cited fact; action_outcome → the cited AFTER-state fact
+                         of a positively-safe transition (else reject)
+ targetSurface         action first criterion → transition.startUrl; else first criterion's derived pageUrl
+ sources[]             unique page refs from cited facts + transitions; observation = bounded ACTUAL observed text
+ anchors[]             one verbatim per criterion (elementName ≥3 chars, else visibleText), deduped
+ verificationMethod    bounded phrase from the criteria's evidence modes
+ groundingV1           assembled from all of the above + the set digest
+
+COMPILER REJECTION-CODE MATRIX (per-mission drop; bounded counts recorded)
+--------------------------------------------------------------------------
+ architect_fact_not_presented        a factRef not in the bounded observation VIEW shown to the architect
+ architect_transition_not_presented  a transitionRef not in that view
+ transition_not_safe                 an action_outcome cites a non-safe (state_changing/unverified) transition
+ action_missing_after_state_fact     an action_outcome cites no fact from the transition's after-state
+ derived_anchor_unavailable          no ≥3-char elementName/visibleText to anchor on
+ (forbidden keys / bad enums / empty factRefs → rejected earlier by the strict transport Zod → schema_invalid)
+
+TESTS / TYPECHECK / LINT
+------------------------
+ typecheck CLEAN · eslint CLEAN · full deterministic suite 1333 passed | 41 skipped | 0 failed
+ compiler matrix 35/35 · entrypoint pipeline matrix 22/22 (incl. tests 18/20/21/22)
+
+CUMULATIVE PAID-CALL LEDGER (grounded-semantic-draft-v1.ledger.json) — 3 of 6
+----------------------------------------------------------------------------
+ seq 1  state_claim architect  → schema_invalid (criterionKind:invalid_value — prompt lacked the enum list)
+   [prompt fixed to list criterionKind/evidenceMode enums; stepResults cleared, callsConsumed KEPT cumulative]
+ seq 2  state_claim architect  → ok  (bare_object semantic draft)
+ seq 3  state_claim critic     → ok  (bare_object; judged unsupported)
+ Append-only; never reset; the 6-cap held across the re-attempt.
+
+ONE TRACE PER ATTEMPTED FIXTURE
+-------------------------------
+ state_claim  architectStatus ok · draftMissionCount 1 · compiledMissionCount 1 · compilerRejected 0 ·
+              derivedAnchors/Sources/TargetSurfaces 1 · groundingValid 1 · state_seen 1 · criticStatus ok
+              (bare_object) · criticSupported 0  →  critic_semantic_failed (terminal per sprint)
+ safe_replay  NOT RUN (stopped on state_claim's terminal critic_semantic_failed)
+ ghost_export NOT RUN
+
+REQUESTED vs SERVED MODEL/PROVIDER (incl. the failed attempt)
+------------------------------------------------------------
+ architect  google/gemini-3.1-flash-lite-preview → gemini-3.1-flash-lite-preview (api.commonstack.ai) [alias, explained]
+ critic     anthropic/claude-haiku-4-5           → claude-haiku-4-5-20251001     (api.commonstack.ai) [alias, explained]
+
+TOKENS / LATENCY (incl. rejected)
+---------------------------------
+ architect  attempt1 1476/250 · attempt2 1518/246   critic  857/53
+
+configurationConclusive = TRUE   capabilityConclusive = TRUE   recommendation = critic_semantic_failed
+compilerPipelineProven  = TRUE   (the sprint's OBJECTIVE — the architect no longer fails cross-field grounding)
+
+CONFIRMATION — NO MODEL CHOSE: an index, page/state, a source, an anchor, a target surface, a verification
+classification, or a payout amount. Sage derives all of them. Strict parsing was NOT weakened (the receiver
+is byte-identical; structured output only constrains generation). Nothing deployed/pushed/enabled/funded/
+approved. Enforce remains unimplemented.

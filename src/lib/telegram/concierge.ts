@@ -204,7 +204,8 @@ function pushAssistant(chatId: string, content: string): void {
 function buildInspectionNotice(v: InspectionView): string {
   const host = safeHost(v.productUrl);
   if (v.ready && v.plan) {
-    const total = v.plan.totalBudgetBase ? `, ${usdFrom(v.plan.totalBudgetBase)} total` : "";
+    const total = v.plan.totalBudgetBase ? usdFrom(v.plan.totalBudgetBase) : "the budget";
+    const ask = v.goal && v.goal.trim() ? `\nWhat you asked: “${v.goal.trim().slice(0, 180)}”` : "";
     const rows = v.plan.missions
       .slice(0, 6)
       .map((m) => `• ${m.title} — ${usdFrom(m.rewardBase)} × ${m.maxCompletions}`)
@@ -220,7 +221,9 @@ function buildInspectionNotice(v: InspectionView): string {
         ? `\n\nThese pay out automatically — I explored the product myself and can verify a tester's firsthand account.`
         : `\n\nHeads up: this product was thin to explore, so I'll bring observation submissions to you to confirm rather than auto-paying.`
       : "";
-    return `Your testing plan for ${host} is ready — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}${total}:\n${rows}\n\nReply "launch" and I'll fund + launch it from your agent wallet.${readyLine}${fieldLine}`;
+    // Request-scoped, honest framing: this plan is READY FOR YOUR REVIEW — nothing is approved or
+    // funded yet. Replying "launch" is how the founder approves + funds it (never done automatically).
+    return `Your plan for ${host} is ready for your review — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}, ${total} total (plan ${v.inspectionId}):${ask}\n${rows}\n\nNothing is approved or funded yet. When you're happy with it, reply "launch" — that approves this exact plan and funds it from your agent wallet, inside its on-chain limits.${readyLine}${fieldLine}`;
   }
   if (v.stage === "needs_input") {
     const qs = (v.needsInput ?? [])
@@ -246,10 +249,12 @@ function maybeNotifyOnInspection(
   scheduleAfter: (fn: () => void | Promise<void>) => void,
 ): void {
   let inspectionId = "";
+  let planningRequestId = "";
   try {
-    const p = JSON.parse(toolText) as { ok?: boolean; inspectionId?: string };
+    const p = JSON.parse(toolText) as { ok?: boolean; inspectionId?: string; planningRequestId?: string };
     if (!p.ok || typeof p.inspectionId !== "string") return;
     inspectionId = p.inspectionId;
+    planningRequestId = typeof p.planningRequestId === "string" ? p.planningRequestId : "";
   } catch {
     return;
   }
@@ -259,6 +264,12 @@ function maybeNotifyOnInspection(
       const r = opGetInspection(inspectionId);
       if (!r.ok) return;
       if (r.ready || r.stage === "needs_input" || r.stage === "failed") {
+        // BINDING: only present a plan whose stored request id still matches the turn that asked for it.
+        // (Same job by construction — this refuses to narrate a plan if that invariant ever breaks.)
+        if (planningRequestId && r.planningRequestId && r.planningRequestId !== planningRequestId) {
+          console.warn("[concierge] inspection %s request-id mismatch — suppressing stale notice", inspectionId);
+          return;
+        }
         const notice = buildInspectionNotice(r);
         console.log("[concierge] inspection %s reached %s -> notifying chat %s (len=%d)", inspectionId, r.stage, chatId, notice.length);
         pushAssistant(chatId, notice);
@@ -306,9 +317,12 @@ async function runAgentTurn(
     surface: Surface;
     scheduleAfter: (fn: () => void | Promise<void>) => void;
     pageContext?: AgentPageContext;
+    /** The server-minted per-turn request id (Telegram: derived from the trusted actor+chat+update;
+     *  web: a fresh UUID per turn). Bound into ctx so a tool-retry in the turn is idempotent. */
+    planningRequestId: string;
   },
 ): Promise<string> {
-  const { surface, scheduleAfter, pageContext } = opts;
+  const { surface, scheduleAfter, pageContext, planningRequestId } = opts;
   if (!key()) {
     return surface === "web"
       ? "My brain isn't switched on yet (no model key configured)."
@@ -336,7 +350,8 @@ async function runAgentTurn(
   // model — so sage_my_campaigns can only ever read the connected founder's own campaigns.
   const founderWallet =
     surface === "web" && ref.startsWith("wallet:") ? ref.slice("wallet:".length) : undefined;
-  const ctx: McpContext = { scheduleAfter, founderWallet };
+  // Bind the per-turn request id SERVER-SIDE (like clientRef/founderWallet) — the model never authors it.
+  const ctx: McpContext = { scheduleAfter, founderWallet, planningRequestId };
 
   let reply = "";
   try {
@@ -451,22 +466,26 @@ async function runAgentTurn(
   return reply;
 }
 
-/** Telegram front door — a chat message → one concierge turn (money tools included when Privy is on). */
+/** Telegram front door — a chat message → one concierge turn (money tools included when Privy is on).
+ *  `planningRequestId` is minted by the webhook from the trusted (actor, chat, update) triple. */
 export async function runConcierge(
   chatId: string,
   userText: string,
   scheduleAfter: (fn: () => void | Promise<void>) => void,
+  planningRequestId: string,
 ): Promise<string> {
-  return runAgentTurn(chatId, userText, { surface: "telegram", scheduleAfter });
+  return runAgentTurn(chatId, userText, { surface: "telegram", scheduleAfter, planningRequestId });
 }
 
 /** P25 web front door — the SAME agent, mounted read-only (no money tools) with a web session ref and
- *  optional untrusted page context. Money is a hand-off, never an action here. */
+ *  optional untrusted page context. Money is a hand-off, never an action here. `planningRequestId` is
+ *  minted per turn by the /api/agent route. */
 export async function runConciergeWeb(
   ref: string,
   userText: string,
   scheduleAfter: (fn: () => void | Promise<void>) => void,
+  planningRequestId: string,
   pageContext?: AgentPageContext,
 ): Promise<string> {
-  return runAgentTurn(ref, userText, { surface: "web", scheduleAfter, pageContext });
+  return runAgentTurn(ref, userText, { surface: "web", scheduleAfter, planningRequestId, pageContext });
 }

@@ -51,6 +51,8 @@ export interface StartInspectionOk {
   statusUrl: string;
   approvalUrl: string;
   note: string;
+  /** The server-minted request id this job is bound to (echoed for the notify/launch gate). */
+  planningRequestId: string;
 }
 
 /** Normalize a caller-supplied idempotency ref into a safe founder-namespace slug. Empty or
@@ -61,13 +63,18 @@ function slugRef(s: unknown): string {
     : "shared";
 }
 
-/** Start a real, SSRF-guarded, idempotent inspection on a founder's behalf. Prepares a plan
- *  only. `clientRef` (e.g. the founder's chat id) namespaces idempotency; junk → "shared". */
+/** Start a real, SSRF-guarded, request-scoped inspection on a founder's behalf. Prepares a plan
+ *  only. `planningRequestId` is the server-minted, never-LLM-authored per-turn identity — one turn
+ *  → one job; a new turn never reuses a stale ready plan. `clientRef` (e.g. the founder's chat id)
+ *  is the founder namespace; junk → "shared". */
 export function opStartInspection(
   body: StartInspectionBody,
   clientRef: unknown,
+  planningRequestId: string,
   founderOverride?: string,
 ): OpResult<StartInspectionOk> {
+  const surface = founderOverride ? "web" : "telegram";
+  const founder = founderOverride ?? `clawup:${slugRef(clientRef)}`;
   const result = startInspection({
     productUrl: body.productUrl,
     repoUrl: body.repoUrl,
@@ -77,13 +84,25 @@ export function opStartInspection(
     // The founder OWNS the inspection (the deploy checks it against the SIWE wallet). On the web the
     // concierge passes the connected wallet here so the founder can approve + fund their own plan;
     // Telegram/MCP fall back to the clientRef namespace (they fund a different way).
-    founder: founderOverride ?? `clawup:${slugRef(clientRef)}`,
+    founder,
+    planningRequestId,
+    surface,
+    actor: founder,
   });
-  if (!result.ok) return { ok: false, error: result.error, status: 400 };
+  if (!result.ok) {
+    // A request id reused with a different payload fails closed — surface it as a conflict.
+    if (result.error === "request_identity_mismatch") return { ok: false, error: "blocked: request_identity_mismatch", status: 409 };
+    return { ok: false, error: result.error, status: 400 };
+  }
 
-  // STALE-INTENT GUARD (defense in depth): the returned job MUST answer the goal the founder just asked.
-  // If idempotency ever hands back a job whose stored goal differs from the request, refuse to present it
-  // — never surface a plan or a fundable approvalUrl for a stale request. (Incident 2026-07-24.)
+  // REQUEST-IDENTITY GUARD (defense in depth): the returned job MUST belong to THIS founder turn.
+  // Idempotency is request-scoped, so the returned job's planningRequestId always matches — this
+  // asserts it, and refuses to present a plan/fundable link if it ever doesn't. (Incident 2026-07-24.)
+  if (result.job.planningRequestId && result.job.planningRequestId !== planningRequestId) {
+    return { ok: false, error: "blocked: request_identity_mismatch", status: 409 };
+  }
+  // And the returned job MUST answer the goal the founder just asked (exact digest, case- and
+  // whitespace-sensitive) — a second, independent binding on the stored commitment.
   if (founderGoalDigest(result.job.goal) !== founderGoalDigest(body.goal)) {
     return { ok: false, error: "blocked: stale_task_result", status: 409 };
   }
@@ -95,6 +114,7 @@ export function opStartInspection(
     created: result.created,
     statusUrl: `${base}/api/agent/inspections/${result.job.id}`,
     approvalUrl: `${base}/launch/${result.job.id}`,
+    planningRequestId,
     note: "Poll statusUrl until stage is 'ready'. Then give the founder approvalUrl — only their own wallet can approve, edit, and fund the campaign in the Sage web app.",
   };
 }
@@ -104,6 +124,8 @@ export interface InspectionView {
   stage: string;
   ready: boolean;
   productUrl: string;
+  /** the exact founder ask this plan answers (echoed so a notice never drifts from the request). */
+  goal: string;
   pagesInspected: number;
   needsInput: string[] | null;
   failure: string | null;
@@ -123,6 +145,8 @@ export interface InspectionView {
   } | null;
   approvalUrl: string;
   approvalNote: string | null;
+  /** the server-minted request id this job is bound to (null on legacy pre-identity rows). */
+  planningRequestId: string | null;
   /** field-test artifacts, present only when Sage actually browsed the product in a real browser. */
   fieldTest: { pages: number; screenshots: number } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
@@ -177,6 +201,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     stage: v.status,
     ready,
     productUrl: v.productUrl,
+    goal: v.goal,
     pagesInspected: v.pagesInspected,
     needsInput: v.status === "needs_input" ? (v.result?.questions ?? []) : null,
     failure: v.status === "failed" ? v.failureReason : null,
@@ -185,6 +210,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     approvalNote: ready
       ? "Send the founder approvalUrl. Only their wallet can approve, edit, and fund the campaign — the agent cannot."
       : null,
+    planningRequestId: job.planningRequestId ?? null,
     fieldTest,
     corpusReadiness: v.corpusReadiness,
   };

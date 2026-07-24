@@ -133,6 +133,9 @@ export function seedApprovedPlan(): { jobId: string; publicCampaignId: string } 
     targetUsers: "testers",
     totalBudgetBase,
     tokenDecimals: 6,
+    // A unique request id per seed — request-scoped, so parallel E2E seeds never dedupe onto one job.
+    planningRequestId: `prid:test:${randomBytes(8).toString("hex")}`,
+    surface: "test",
   });
 
   const finalCompiled = compilePlan({

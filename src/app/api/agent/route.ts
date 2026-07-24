@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { resolveAgentRef } from "@/lib/auth/agent-session";
+import { mintAgentRequestId } from "@/lib/launch/planning-request";
 import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
 import {
   runConciergeWeb,
@@ -91,7 +92,9 @@ export async function POST(req: Request): Promise<Response> {
   // Run one turn; the reply is synchronous. Any background work the turn scheduled (the real inspection
   // pipeline) runs AFTER we respond — the overlay reflects it by polling sage_get_inspection on ask.
   const jobs: Array<() => void | Promise<void>> = [];
-  const reply = await runConciergeWeb(ref, text, (fn) => jobs.push(fn), pageContext);
+  // A fresh request id per web turn (server-minted, never client/LLM). A tool-retry within the turn
+  // reuses it (idempotent); the next message is a new turn.
+  const reply = await runConciergeWeb(ref, text, (fn) => jobs.push(fn), mintAgentRequestId(), pageContext);
   if (jobs.length) {
     after(async () => {
       for (const job of jobs) {

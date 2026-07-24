@@ -526,8 +526,27 @@ export const inspectionJobs = sqliteTable(
     id: text("id").primaryKey(),
     /** the founder/session identity that owns this job. */
     founderWallet: text("founder_wallet").notNull(),
-    /** de-dupes repeated create requests (founder + normalized url + budget hash). */
+    /** The request-scoped idempotency authority: one founder TURN → one job. Holds the
+     *  server-minted `planningRequestId` for new-schema rows (legacy rows hold the old
+     *  content hash). A new turn with byte-identical url+goal+budget still gets a NEW id
+     *  and a NEW job — it can never reuse an already-ready plan. */
     idempotencyKey: text("idempotency_key").notNull(),
+    /** The server-minted, never-LLM-authored request id (named copy of idempotencyKey for
+     *  new-schema rows). Threaded turn → approval so a notification/launch only presents a
+     *  plan whose request id matches the originating founder turn. Nullable on legacy rows. */
+    planningRequestId: text("planning_request_id"),
+    /** Versioned canonical structured digest binding (schemaVersion, surface, actor,
+     *  planningRequestId, url, repo, goalDigest, budgetBase, tokenDecimals). Reusing a
+     *  request id with a DIFFERENT payload fails closed as request_identity_mismatch. */
+    requestCommitment: text("request_commitment"),
+    /** Exact (non-lossy) integrity digest over the stored founder goal — NFC + CRLF→LF +
+     *  boundary-trim only, never lowercased or whitespace-collapsed. `/Room/A` ≠ `/room/a`. */
+    founderGoalDigest: text("founder_goal_digest"),
+    /** The planner/inspector version at request mint time (MISSION_PROMPT_VERSION). */
+    plannerVersion: text("planner_version"),
+    /** Diagnostic-only content fingerprint (founder+url+budget+goal). NOT the idempotency
+     *  authority — kept so "same content, different turn" occurrences are observable. */
+    contentFingerprint: text("content_fingerprint"),
     status: text("status").$type<InspectionStatus>().notNull().default("queued"),
     /** the public campaign id frozen for this plan (the DB id + slug on approval). */
     publicCampaignId: text("public_campaign_id").notNull(),

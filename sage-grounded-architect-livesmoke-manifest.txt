@@ -1,0 +1,75 @@
+SAGE V2 — SIX-CALL GROUNDED ARCHITECT LIVE SMOKE
+================================================
+Phase 0 (three preflight corrections) + Phase 1 (checkpointed ≤6-call paid smoke through runMissionBrain).
+Shadow-only. Nothing deployed/pushed/migrated/flag-enabled/model-approved/funded. Only the bounded API
+inference cost was incurred: 5 of 6 permitted paid calls (architect gemini ×4 attempts, critic haiku ×1).
+
+COMMITS (oldest → newest)
+-------------------------
+c4a1a35  fix(agentic): preflight the grounded shadow — critic equality, execution status, goal alignment
+fe39ff3  test(agentic): checkpointed six-call live smoke harness for the grounded architect
+4429163  fix(agentic): make the grounded architect prompt consistent with the strict schema (live-smoke findings)
+
+Patch: sage-grounded-architect-livesmoke.patch  (git diff c4a1a35~1..HEAD; round-trips exactly against HEAD)
+
+FILES (6)
+---------
+ src/lib/launch/mission-grounding-shadow.ts             critic canonical equality; per-role status telemetry;
+                                                        goal alignment; schema/prompt consistency; nullish
+                                                        optionals; architectSchemaErrorPaths; canonicalRejectionCodes
+ src/lib/launch/mission-grounding-shadow.entrypoint.test.ts   +11 deterministic Phase-0 tests
+ src/lib/launch/mission-grounding-smoke.live.test.ts    the env-gated checkpointed live harness (new)
+ promotion-evidence/grounded-architect-smoke-v1.json    sanitized evidence (new)
+ package.json                                           smoke:grounding + smoke:grounding:dryrun
+ .gitignore                                             ignore the transient *.checkpoint.json
+
+VERIFICATION (deterministic — zero paid calls)
+----------------------------------------------
+ typecheck (tsc --noEmit, strict)      CLEAN
+ eslint (changed files)                CLEAN
+ full suite (npm run test)             1314 passed | 37 skipped | 0 failed (live smoke correctly skipped)
+ entrypoint matrix                     48/48
+
+CALLS CONSUMED (incl. failed) — 5 of 6, across 4 checkpointed sessions
+---------------------------------------------------------------------
+ s1  all fixtures            1 call   architect schema_invalid (riskCategory / effortMinutes / evidenceIndex)
+ s2  all fixtures            1 call   architect schema_invalid (added leak-safe schema-error-path capture)
+ s3  state_claim,safe_replay 1 call   architect schema_invalid (transitionRef:null — optional not null-tolerant)
+ s4  state_claim             2 calls  architect OK; critic strict_parse_error (llm_strict_not_object)
+ The 6th call was deliberately withheld to stay within the hard cap.
+
+FINAL FIXTURE ROW (state_claim, session 4 — the definitive result after the fixes)
+----------------------------------------------------------------------------------
+ raw parse: architect bare-object OK → strict parse OK → Zod OK → grounding-valid (digest-bound) OK →
+ candidateCount 1, groundingValid 1, tier state_seen 1, unsafeTransitionCount 0 →
+ CRITIC: strict_parse_error (llm_strict_not_object — haiku returned non-bare-object) → criticSupported 0 →
+ canonicalGatePassed 0 → allocator not run (exactBudgetEquality false). STOP (critic strict-parse).
+
+MODEL ROUTING (requested vs served)
+-----------------------------------
+ architect  requested google/gemini-3.1-flash-lite-preview → served gemini-3.1-flash-lite-preview
+            (provider api.commonstack.ai; the dropped "google/" prefix is provider canonicalization)
+ critic     requested anthropic/claude-haiku-4-5 → served null (the strict parse threw before a served
+            model was recorded)
+
+TOKEN / LATENCY TOTALS BY ROLE
+------------------------------
+ architect  prompt 1577  completion 410  latency ~4020 ms
+ critic     prompt —     completion —    latency —   (strict parse rejected the response)
+
+RECOMMENDATION: smoke_failed — NOT model approval, NOT promotion-ready (one three-fixture smoke).
+KEY FINDINGS
+------------
+ 1. The grounded architect (gemini-3.1-flash-lite) produces strict-valid, digest-grounded, state_seen
+    missions live once the prompt teaches the exact contract. FOUR prompt/schema-consistency defects were
+    found and fixed (example missing evidenceIndex; unstated riskCategory enum + effortMinutes range;
+    null-rendered optional fields). The strict schema was NOT loosened.
+ 2. The strict parser + Zod correctly REJECTED every non-conforming output (4 architect misses, 1 critic
+    miss). Reject-never-repair works exactly as designed — it is why the smoke found the bugs.
+ 3. The critic (claude-haiku-4-5 via CommonStack) returns a non-bare-object (fenced/prose) that the STRICT
+    critic parse refuses to salvage (llm_strict_not_object) — bare-JSON is not honored for this model
+    through the gateway, unlike gemini. Resolving it (gateway bare-JSON enforcement / a different critic
+    model / a critic-parse decision) is DEFERRED to a later evaluation — not this sprint.
+
+CONFIRMATION: nothing deployed, pushed, enabled, funded, or approved; enforce mode NOT implemented; the
+only cost incurred was 5 bounded API inference calls.

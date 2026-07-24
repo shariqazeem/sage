@@ -97,7 +97,7 @@ describe.runIf(RUN)("authenticated approval route — genuine SIWE", () => {
     let jobSeq = 0;
     // vary the productUrl per call so createInspectionJob's idempotency key differs each time (inspectProduct is
     // mocked to return the same reportly observations regardless of the url, so the plan is identical in shape).
-    const mk = async () => { const n = ++jobSeq; const { job } = createInspectionJob({ founderWallet: wallet, publicCampaignId: "ar-" + n, productUrl: `https://reportly.test/?j=${n}`, repoUrl: null, goal: "Verify Load report reaches Report ready.", targetUsers: "u", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6 }); await runInspectionJob(job.id); return job.id; };
+    const mk = async () => { const n = ++jobSeq; const { job } = createInspectionJob({ founderWallet: wallet, publicCampaignId: "ar-" + n, productUrl: `https://reportly.test/?j=${n}`, repoUrl: null, goal: "Verify Load report reaches Report ready.", targetUsers: "u", totalBudgetBase: BigInt(3_000_000), tokenDecimals: 6, planningRequestId: `prid:test:ar-${n}`, surface: "test" }); await runInspectionJob(job.id); return job.id; };
     const jobId = await mk();
     const rev0 = getCurrentRevision(jobId)!;
     expect(rev0.reason).toBe("generated_grounded_v2");

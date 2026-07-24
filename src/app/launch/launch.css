@@ -122,6 +122,10 @@
 .lx-badge-next { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; background: var(--lx-bg); border: 1px solid var(--lx-line-strong); border-radius: var(--r-sm); padding: 3px 8px; color: var(--lx-muted); }
 
 .lx-ready-banner { display: flex; align-items: center; gap: 10px; background: var(--ok-soft); border: 1px solid var(--ok-border); color: var(--lx-pos); border-radius: var(--r-md); padding: 13px 16px; font-weight: 560; font-size: 15px; margin-bottom: 4px; }
+/* Pre-approval: the plan passed Sage's checks but the founder has NOT approved yet — brand-neutral,
+   never the green money-outcome banner (green is reserved for paid/settled). */
+.lx-review-banner { background: var(--lx-accent-soft); border-color: var(--lx-accent); color: var(--lx-accent-strong, var(--lx-accent)); }
+.lx-review-banner span { font-weight: 700; }
 .lx-question { background: var(--warn-soft); border: 1px solid var(--warn-border); border-radius: var(--r-md); padding: 12px 14px; font-size: 14px; color: var(--warn); line-height: 1.5; margin: 8px 0; }
 
 /* inline editing */

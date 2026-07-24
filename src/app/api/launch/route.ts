@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest, after } from "next/server";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { startInspection } from "@/lib/launch/start";
+import { webRequestIdFrom } from "@/lib/launch/planning-request";
 import { runInspectionJob, jobToView } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
@@ -23,6 +24,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const session = await getSessionAddress();
+  // Request-scoped identity: the browser mints one UUID per launch form (a double-submit reuses
+  // it → one job; a fresh form is a fresh turn). Junk/absent → a server-minted id. Never LLM-sourced.
+  const planningRequestId = webRequestIdFrom(body.requestId);
   const result = startInspection({
     productUrl: body.productUrl,
     repoUrl: body.repoUrl,
@@ -30,8 +34,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     targetUsers: body.targetUsers,
     budgetUsd: body.budgetUsd,
     founder: session ?? "anonymous",
+    planningRequestId,
+    surface: "web",
+    actor: session ?? "anonymous",
   });
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+  if (!result.ok) {
+    const status = result.error === "request_identity_mismatch" ? 409 : 400;
+    return NextResponse.json({ ok: false, error: result.error }, { status });
+  }
 
   // run the REAL pipeline after responding; the founder polls /api/launch/<id>.
   if (result.created) after(() => runInspectionJob(result.job.id));
