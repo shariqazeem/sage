@@ -26,7 +26,6 @@ import {
   compileGoalJourney,
   evaluateJourney,
   buildJourneySteps,
-  journeyTelemetry,
   type GoalJourneyV1,
 } from "./goal-journey";
 import {
