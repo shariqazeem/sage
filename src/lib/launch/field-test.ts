@@ -27,6 +27,7 @@ import {
   chooseForwardAffordance,
   decideNextAction,
   actionSignature,
+  wordSignature,
   resolveSyntheticValue,
   isSensitiveField,
   type ControllerAction,
@@ -1454,19 +1455,27 @@ async function exploreInteractive(ctx: {
     // the new state → dedup (state,action) to prevent loops → stop at the goal, a real boundary, or a budget.
     const runGoalLoop = async (goal: string): Promise<void> => {
       const tried = new Set<string>();
+      const deadLabels = new Set<string>(); // affordances that did nothing in THIS context (cleared on progress)
+      const ineffective = new Map<string, number>();
       const history: ControllerHistoryItem[] = [];
+      const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
       let modelCalls = 0;
       let stall = 0;
+      let prevWordSig = wordSignature(
+        states[states.length - 1]?.visibleTextExcerpt ?? "",
+      );
+      let prevUrl = page.url();
       while (canInteract() && states.length < MAX_STATES) {
         const cur = states[states.length - 1];
         if (!cur) break;
         const digest = stateDigest(cur);
         const elements = await mintInteractiveElements(page);
-        // deterministic forward affordance first (cheap, general — no model call).
+        // deterministic forward affordance first (cheap, general — no model call), skipping dead ones.
         let action: ControllerAction | null = chooseForwardAffordance(
           elements,
           digest,
           tried,
+          deadLabels,
         );
         let progress: ControllerDecision["goalProgress"] = "advancing";
         if (!action) {
@@ -1498,12 +1507,14 @@ async function exploreInteractive(ctx: {
           });
           break; // reached the goal, or an honest boundary (auth / captcha / payment / real person).
         }
-        const sig = actionSignature(digest, action);
-        if (tried.has(sig)) {
-          stall++;
-          if (stall >= 2) break;
-        } else stall = 0;
-        tried.add(sig);
+        tried.add(actionSignature(digest, action));
+        // the label acted on — for context-scoped retirement of a control that does nothing here.
+        const actedLabel =
+          action.kind === "click_element"
+            ? normL(
+                elements.find((e) => e.id === action.elementId)?.label ?? "",
+              )
+            : "";
         const trigger = await executeAction(page, action, elements);
         interactions++;
         await page
@@ -1514,12 +1525,30 @@ async function exploreInteractive(ctx: {
           await page.goBack().catch(() => {});
           await page.waitForTimeout(300);
         }
-        const delta = await capture(trigger);
-        const changed = delta >= 2;
-        history.push({ action: trigger, changed, note: progress });
+        await capture(trigger);
+        // REAL progress = the URL changed or the WORD content changed. Drifting particles / emoji / spinners
+        // move pixels every frame; ignoring them stops the controller re-clicking a control that did nothing.
+        const newWordSig = wordSignature(
+          states[states.length - 1]?.visibleTextExcerpt ?? "",
+        );
+        const realChange = page.url() !== prevUrl || newWordSig !== prevWordSig;
+        history.push({ action: trigger, changed: realChange, note: progress });
+        if (realChange) {
+          deadLabels.clear();
+          ineffective.clear();
+          stall = 0;
+        } else {
+          if (actedLabel) {
+            const n = (ineffective.get(actedLabel) ?? 0) + 1;
+            ineffective.set(actedLabel, n);
+            if (n >= 2) deadLabels.add(actedLabel); // retire it here — pick something else / ask the model
+          }
+          stall++;
+        }
+        prevWordSig = newWordSig;
+        prevUrl = page.url();
         if (progress === "reached") break;
-        stall = changed ? 0 : stall + 1;
-        if (stall >= 3) break; // three no-progress actions in a row → an honest stall, stop.
+        if (stall >= 4) break; // several real-no-progress actions → a genuine stall, stop honestly.
       }
     };
 

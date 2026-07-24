@@ -184,20 +184,31 @@ export function affordanceRank(label: string): number {
   return -1;
 }
 
+/** The stable, animation-proof word signature of a state's visible text — the set of real words (letters
+ *  only, ≥2 chars), so drifting particles / emoji / spinners don't read as "progress". Pure. */
+export function wordSignature(text: string): string {
+  const words = (text.toLowerCase().match(/[a-zà-ÿ]{2,}/g) ?? []).slice(0, 400);
+  return [...new Set(words)].sort().join(" ");
+}
+
 /**
  * Pick the obvious forward affordance to click BEFORE calling the model: the highest-priority
- * clickable element whose (state, action) signature hasn't already been tried. Pure + deterministic —
- * general across products. Returns null when nothing obvious remains (→ hand off to the model).
+ * clickable element whose (state, action) signature hasn't already been tried AND whose label isn't
+ * DEAD in the current context (an affordance that produced no real progress here — e.g. a "Continue"
+ * that needs a choice first). `deadLabels` is cleared by the caller on real progress, so a temporarily
+ * dead control becomes live again once the context changes. Pure + deterministic, general.
  */
 export function chooseForwardAffordance(
   elements: MintedElement[],
   stateDigest: string,
   tried: ReadonlySet<string>,
+  deadLabels: ReadonlySet<string> = new Set(),
 ): ControllerAction | null {
   let best: { el: MintedElement; rank: number } | null = null;
   for (const el of elements) {
     if (el.tag === "input" || el.tag === "textarea" || el.tag === "select")
       continue; // not a forward click
+    if (deadLabels.has(normLabel(el.label))) continue; // ineffective here → try something else
     const rank = affordanceRank(el.label);
     if (rank < 0) continue;
     const sig = actionSignature(stateDigest, {

@@ -5,6 +5,7 @@ import {
   resolveSyntheticValue,
   isSensitiveField,
   actionSignature,
+  wordSignature,
   coerceDecision,
   decideNextAction,
   isolateJson,
@@ -80,6 +81,35 @@ describe("chooseForwardAffordance — pick the goal-advancing control, skip deco
       el({ id: "e0", tag: "input", label: "continue", typable: true }),
     ];
     expect(chooseForwardAffordance(elements, "s", new Set())).toBeNull();
+  });
+  it("skips a DEAD label (a control that did nothing in this context) → tries something else / hands off", () => {
+    const elements = [el({ id: "e0", label: "continue →" })];
+    // "continue →" retired here (needs a choice first) → no other forward affordance → null (model).
+    expect(
+      chooseForwardAffordance(
+        elements,
+        "s",
+        new Set(),
+        new Set(["continue →"]),
+      ),
+    ).toBeNull();
+    // once context changes the caller clears deadLabels, so it's live again:
+    expect(
+      chooseForwardAffordance(elements, "s", new Set(), new Set()),
+    ).toEqual({ kind: "click_element", elementId: "e0" });
+  });
+});
+
+describe("wordSignature — animation-proof progress detection", () => {
+  it("is identical when only emoji/particles/whitespace differ (no real progress)", () => {
+    expect(wordSignature("Yara ✨🍃 tap to step inside")).toBe(
+      wordSignature("Yara 🦋🦋 tap  to step inside 🎈"),
+    );
+  });
+  it("changes when real words change (genuine progress)", () => {
+    expect(wordSignature("what should I call you")).not.toBe(
+      wordSignature("come in and meet Yara"),
+    );
   });
 });
 
