@@ -1130,17 +1130,17 @@ export function journeyForPrompt(journey: GoalJourneyV1): {
     status: CheckpointStatus;
     sourcePhrase: string;
     evidenceFactIds: string[];
-    evidenceTransitionIds: string[];
   }>;
 } {
   return {
     goal: journey.goal,
     note:
       "The founder's request decomposed into ordered checkpoints. Your plan MUST cover EVERY observed checkpoint — " +
-      "especially the final outcome. For each one, write a criterion that asserts exactly that requirement and CITE " +
-      "that checkpoint's own evidenceFactIds (and evidenceTransitionIds when present) in that criterion's factRefs, " +
-      "with an evidenceRequirement that proves it. A criterion about an earlier step, or one citing another state's " +
-      "evidence, does NOT count — a mission about a prerequisite is not an answer to the founder's request.",
+      "especially the final outcome. For each one, write a criterion that asserts exactly that requirement, CITE that " +
+      "checkpoint's own evidenceFactIds in that criterion's factRefs, and give it an evidenceRequirement that proves " +
+      'it. Use criterionKind "state" or "content_claim" for these (only use "action_outcome" when a transition ' +
+      "id from the citable `transitions` list proves it). A criterion about an earlier step, or one citing another " +
+      "state's evidence, does NOT count — a mission about a prerequisite is not an answer to the founder's request.",
     checkpoints: journey.checkpoints.map((c) => ({
       id: c.checkpointId,
       kind: c.kind,
@@ -1151,7 +1151,6 @@ export function journeyForPrompt(journey: GoalJourneyV1): {
       status: c.status,
       sourcePhrase: c.sourcePhrase,
       evidenceFactIds: c.evidence.factIds.slice(0, 6),
-      evidenceTransitionIds: c.evidence.transitionIds.slice(0, 3),
     })),
   };
 }
