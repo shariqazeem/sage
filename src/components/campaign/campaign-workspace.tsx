@@ -15,6 +15,8 @@ import {
 import { reward, networkLabel, short } from "@/lib/format";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
+import { StopWithdrawCard } from "@/components/campaign/stop-withdraw-card";
+import { chainConfig } from "@/lib/deputy/networks";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
 /** One tester submission, already reduced to display truth on the server. */
@@ -302,10 +304,13 @@ function Console({ data }: { data: WorkspaceData }) {
         </div>
       )}
 
+      <StopWithdrawCard vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+
       <footer className="sage-hint" style={{ padding: "22px 2px 60px" }}>
         You own the campaign vault; Sage is the bounded operator. It reviews each submission and
         pays eligible work within your on-chain limits — it can never exceed the budget, the
-        per-mission reward, or the completion caps.
+        per-mission reward, or the completion caps. You can stop the campaign and withdraw the
+        remaining funds at any time.
       </footer>
     </main>
   );
