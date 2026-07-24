@@ -675,18 +675,145 @@ function missionCovers(cp: GoalCheckpointV1, m: MissionCoverageView): boolean {
 /** A looser requirement match: the checkpoint's distinctive words (entity + context + kind verb). */
 function coversByKeywords(hay: string, cp: GoalCheckpointV1): boolean {
   const bits = [cp.targetEntity, cp.requiredContext].filter(Boolean).join(" ");
+  // A checkpoint is expressed in the mission when enough of its DISTINCTIVE words appear (synonym- and
+  // phrasing-robust: "Navigate to the site" covers "Open the product"), or when the mission uses a verb
+  // from that checkpoint's family together with its entity/context. Token coverage first — a fixed verb
+  // list alone is too brittle across products and phrasings.
+  const tokens = distinctiveTokens(`${cp.requirement} ${cp.targetEntity}`);
+  if (tokens.length > 0) {
+    const h = lower(hay);
+    const hit = tokens.filter((t) => h.includes(t)).length;
+    if (hit / tokens.length >= 0.5) return true;
+  }
   const verbs: Record<CheckpointKind, string[]> = {
-    entry: ["open", "visit", "go to", "land"],
-    navigation: ["navigate", "go to", "reach", "enter", "move"],
-    state: ["reach", "see", "arrive", "screen", "state"],
-    interaction: ["open", "click", "select", "start", "tap"],
-    input: ["send", "type", "enter", "message", "submit", "ask"],
-    outcome: ["response", "reply", "answer", "respond", "receive", "result"],
-    experience: ["experience", "explore", "try", "use"],
+    entry: [
+      "open",
+      "visit",
+      "go to",
+      "land",
+      "navigate",
+      "load",
+      "arrive",
+      "browse",
+      "start at",
+    ],
+    navigation: [
+      "navigate",
+      "go to",
+      "reach",
+      "enter",
+      "move",
+      "find",
+      "locate",
+      "get to",
+      "open",
+    ],
+    state: [
+      "reach",
+      "see",
+      "arrive",
+      "screen",
+      "state",
+      "view",
+      "appear",
+      "display",
+    ],
+    interaction: [
+      "open",
+      "click",
+      "select",
+      "start",
+      "tap",
+      "activate",
+      "engage",
+      "interact",
+      "initiate",
+    ],
+    input: [
+      "send",
+      "type",
+      "enter",
+      "message",
+      "submit",
+      "ask",
+      "write",
+      "say",
+      "post",
+      "initiate",
+    ],
+    outcome: [
+      "response",
+      "reply",
+      "answer",
+      "respond",
+      "receive",
+      "result",
+      "back",
+      "returns",
+      "confirms",
+    ],
+    experience: ["experience", "explore", "try", "use", "play", "feel"],
   };
   const verbHit = verbs[cp.kind].some((v) => lower(hay).includes(v));
   const bitsHit = !bits || containsAny(hay, bits);
   return verbHit && bitsHit;
+}
+
+/** Words that carry the checkpoint's meaning (drops filler so matching is phrasing-robust). */
+const REQUIREMENT_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "into",
+  "onto",
+  "that",
+  "this",
+  "their",
+  "there",
+  "her",
+  "his",
+  "its",
+  "your",
+  "you",
+  "she",
+  "him",
+  "who",
+  "was",
+  "are",
+  "can",
+  "will",
+  "would",
+  "should",
+  "must",
+  "user",
+  "users",
+  "tester",
+  "testers",
+  "person",
+  "people",
+  "visitor",
+  "visitors",
+  "first",
+  "time",
+  "product",
+  "site",
+  "website",
+  "page",
+  "app",
+  "screen",
+  "within",
+  "using",
+  "via",
+  "then",
+  "after",
+]);
+function distinctiveTokens(s: string): string[] {
+  const words = lower(s)
+    .split(/[^a-zà-ÿ0-9]+/)
+    .filter((w) => w.length >= 4 && !REQUIREMENT_STOPWORDS.has(w));
+  return [...new Set(words)];
 }
 
 /**
