@@ -189,6 +189,22 @@ export interface FieldTestState {
   /** HTTP methods observed BETWEEN the previous state and this one (from the field test's request
    *  interceptor). Absent/empty = not captured → the transition into this state is safety-UNVERIFIED. */
   networkMethods?: string[];
+  /** WHAT Sage did to produce this state, as a structured kind minted by the controller (never parsed
+   *  from English). The goal-journey evaluator reasons over these, so "sent a message" can never be
+   *  confused with "received a reply". Absent on states captured before this existed. */
+  actionKind?:
+    | "load"
+    | "click"
+    | "key"
+    | "type"
+    | "submit"
+    | "observe_response"
+    | "scroll"
+    | "drag"
+    | "wait"
+    | "back";
+  /** the label/entity Sage acted on, when the action targeted a named affordance. */
+  actedLabel?: string;
 }
 
 export interface FieldTestSummary {
@@ -256,6 +272,13 @@ export interface ProductMapV1 {
    * that lack it remain readable. Populated after the digest is computed.
    */
   observations?: import("./observed-facts").ObservationSetV1 | null;
+  /**
+   * The founder's request compiled into an ORDERED journey of required checkpoints, EVALUATED against
+   * what the browser actually observed (evidence-cited). Also excluded from `digest` (attached
+   * post-digest) and optional, so old artifacts stay readable and hashes are unchanged. The mission gate
+   * uses it so a prerequisite can never be presented as the founder's requested outcome.
+   */
+  goalJourney?: import("./goal-journey").GoalJourneyV1 | null;
   /**
    * Eyes V2 — a leak-safe record of the SHADOW inspection replay (INSPECTION_REPLAY_MODE=shadow), when it
    * ran. Result codes + transition ids + digests ONLY — never page content. Also excluded from `digest`
@@ -340,10 +363,17 @@ export interface CandidateMission {
 
 /** How a criterion can be verified: a deterministic substring of a public page, a semantic read of a
  *  public page, or the tester's judged written account against Sage's private observation corpus. */
-export type VerificationMode = "deterministic_url" | "semantic_url" | "observation";
+export type VerificationMode =
+  | "deterministic_url"
+  | "semantic_url"
+  | "observation";
 
 /** what a criterion asserts — drives the V2 grounding rules (action_outcome REQUIRES a transition). */
-export type CriterionKind = "state" | "action_outcome" | "content_claim" | "visual_quality";
+export type CriterionKind =
+  | "state"
+  | "action_outcome"
+  | "content_claim"
+  | "visual_quality";
 
 /** The design-time evidence mapping for ONE criterion (see CandidateMission.groundingV1). */
 export interface CriterionGroundingV1 {
@@ -374,7 +404,12 @@ export interface MissionGroundingV1 {
 
 /** The deterministic grounding TIER for a criterion — additional design/payout truth, NOT a replacement
  *  for verifiabilityClass. inferred_only/ungrounded can never support a decisive criterion. */
-export type GroundingTier = "action_replayed" | "action_observed" | "state_seen" | "inferred_only" | "ungrounded";
+export type GroundingTier =
+  | "action_replayed"
+  | "action_observed"
+  | "state_seen"
+  | "inferred_only"
+  | "ungrounded";
 
 /* ───────────────────────────────────────────────── critic verdict ───────── */
 
@@ -384,18 +419,23 @@ export type GroundingTier = "action_replayed" | "action_observed" | "state_seen"
  * gate is still the authority (the critic proposes, the gate disposes).
  */
 export type CriticIssueCode =
-  | "hallucinated_source"      // cites a fact/source that was not observed
-  | "unsupported_action"       // asks the tester to do something the product doesn't support / wasn't seen
+  | "hallucinated_source" // cites a fact/source that was not observed
+  | "unsupported_action" // asks the tester to do something the product doesn't support / wasn't seen
   | "criterion_evidence_mismatch" // the evidence can't prove the criterion
-  | "generic_mission"          // not specific to this product's observed reality
-  | "duplicate_coverage"       // another mission already covers this state + objective
-  | "impossible_verification"  // Sage cannot verify the claimed outcome
-  | "unsafe_or_authenticated"  // destructive / wallet-signing / login-required flow
-  | "ambiguous_completion"     // "done" is not clearly defined
-  | "target_scope_violation"   // targets a surface outside the inspected scope
-  | "excessive_assumptions";   // leans on assumptions rather than observed facts
+  | "generic_mission" // not specific to this product's observed reality
+  | "duplicate_coverage" // another mission already covers this state + objective
+  | "impossible_verification" // Sage cannot verify the claimed outcome
+  | "unsafe_or_authenticated" // destructive / wallet-signing / login-required flow
+  | "ambiguous_completion" // "done" is not clearly defined
+  | "target_scope_violation" // targets a surface outside the inspected scope
+  | "excessive_assumptions"; // leans on assumptions rather than observed facts
 
-export type CriticDecision = "accept" | "revise" | "merge" | "reject" | "needs_input";
+export type CriticDecision =
+  | "accept"
+  | "revise"
+  | "merge"
+  | "reject"
+  | "needs_input";
 
 export interface MissionCritique {
   missionKey: string;
@@ -436,14 +476,14 @@ export type MissionValidationCode =
   | "unanchored_claim"
   | "prompt_injection_content"
   // Eyes V2 grounding gate (only fires when a mission carries a design-time grounding map):
-  | "ungrounded_fact_ref"        // a cited observed-fact id does not exist in the inspection's set
-  | "inferred_decisive_source"   // a criterion's decisive source is inferred-only (vision), not seen
-  | "criterion_evidence_unmapped"// a criterion has no grounding entry / no capable evidence mapping
-  | "evidence_mode_incapable"    // the chosen verification mode cannot prove the criterion
-  | "observation_set_mismatch"   // groundingV1.observationSetDigest ≠ the inspection's set
-  | "criterion_index_invalid"    // duplicate / extra / negative / out-of-range criterion index
-  | "unsafe_transition_support"  // a cited transition is unsafe/unverified and cannot back the criterion
-  | "page_state_mismatch";       // cited pageUrl/stateId does not match the referenced facts
+  | "ungrounded_fact_ref" // a cited observed-fact id does not exist in the inspection's set
+  | "inferred_decisive_source" // a criterion's decisive source is inferred-only (vision), not seen
+  | "criterion_evidence_unmapped" // a criterion has no grounding entry / no capable evidence mapping
+  | "evidence_mode_incapable" // the chosen verification mode cannot prove the criterion
+  | "observation_set_mismatch" // groundingV1.observationSetDigest ≠ the inspection's set
+  | "criterion_index_invalid" // duplicate / extra / negative / out-of-range criterion index
+  | "unsafe_transition_support" // a cited transition is unsafe/unverified and cannot back the criterion
+  | "page_state_mismatch"; // cited pageUrl/stateId does not match the referenced facts
 
 export interface MissionValidationIssue {
   code: MissionValidationCode;
@@ -481,10 +521,7 @@ export interface BudgetAllocation {
 
 /* ─────────────────────────────────────────────── mission plan V1 ────────── */
 
-export type MissionPlanStatus =
-  | "draft"
-  | "needs_input"
-  | "deployment_ready";
+export type MissionPlanStatus = "draft" | "needs_input" | "deployment_ready";
 
 /** A single mission, fully compiled with its canonical identity + economics. */
 export interface CompiledMission {

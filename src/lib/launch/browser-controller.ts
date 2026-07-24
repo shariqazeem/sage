@@ -321,10 +321,28 @@ export function goalMatchScore(
 }
 
 /**
- * Pick the affordance that most directly targets the FOUNDER'S GOAL (e.g. a character/entity/interaction
- * named in the goal), skipping ones already tried or dead in this context. This is what lets Sage go to
- * the thing it was asked to reach instead of wandering — general to any visually located target, with no
- * product-specific strings. Returns null when no element matches the goal's terms.
+ * The CURRENT target Sage is pursuing: the next unmet journey checkpoint's entity + the context it must
+ * happen in. Broad goal-wide matching is NOT the authority — a later checkpoint's entity is only pursued
+ * once the earlier checkpoints are observed, so an entity named during onboarding can never pull Sage
+ * "ahead" in the journey.
+ */
+export interface GoalTargetSpec {
+  entity: string;
+  context: string;
+}
+
+/** The terms that identify the CURRENT target: its entity, plus its required context as a fallback. */
+export function targetTerms(target: GoalTargetSpec | null): string[] {
+  if (!target) return [];
+  const src = [target.entity, target.context].filter(Boolean).join(" ");
+  return goalTerms(src);
+}
+
+/**
+ * Pick the affordance that most directly advances the CURRENT checkpoint (its target entity), skipping
+ * ones already tried or dead in this context. This is what lets Sage go to the thing it was asked to
+ * reach instead of wandering — general to any visually located target, with no product-specific strings.
+ * Returns null when nothing on screen matches the current target.
  */
 export function chooseGoalTargetAffordance(
   elements: MintedElement[],

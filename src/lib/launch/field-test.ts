@@ -24,8 +24,15 @@ import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { stateDigest } from "./observed-facts";
 import {
+  evaluateJourney,
+  nextUnmetCheckpoint,
+  buildJourneySteps,
+  type GoalJourneyV1,
+} from "./goal-journey";
+import {
   chooseForwardAffordance,
   chooseGoalTargetAffordance,
+  targetTerms,
   goalTerms,
   goalWantsConversation,
   goalMatchScore,
@@ -456,6 +463,8 @@ export async function runFieldTest(
     host: string;
     candidateLinks: string[];
     goal?: string;
+    /** the founder's compiled ordered journey — drives WHICH target Sage pursues next. */
+    journey?: GoalJourneyV1 | null;
   },
   deps: FieldTestDeps = {},
 ): Promise<FieldTestSummary> {
@@ -637,6 +646,7 @@ export async function runFieldTest(
         signals: signals as ProductSignals,
         entryErrors,
         goal: opts.goal,
+        journey: opts.journey ?? null,
         controllerDeps: deps.controller,
       });
       await entryPage.close().catch(() => {});
@@ -1185,6 +1195,29 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
   });
 }
 
+/** The STRUCTURED kind of a controller action — what the journey evaluator reasons over (never English). */
+function actionKindOf(action: ControllerAction): FieldTestState["actionKind"] {
+  switch (action.kind) {
+    case "click_element":
+    case "click_coords":
+      return "click";
+    case "press_key":
+      return "key";
+    case "type_text":
+      return "type";
+    case "select_option":
+      return "click";
+    case "scroll":
+      return "scroll";
+    case "drag":
+      return "drag";
+    case "go_back":
+      return "back";
+    default:
+      return "wait";
+  }
+}
+
 /** A small JPEG of the current viewport as a data URI, for the multimodal controller. Null on failure. */
 async function screenshotJpegDataUri(page: Page): Promise<string | null> {
   try {
@@ -1399,6 +1432,8 @@ async function exploreInteractive(ctx: {
   methodsSinceCapture: string[];
   /** the founder's exact goal — drives the goal-directed controller when present. */
   goal?: string;
+  /** the founder's compiled ordered journey (checkpoint-driven targeting). */
+  journey?: GoalJourneyV1 | null;
   /** controller deps (scripted decider for fixtures; real multimodal model otherwise). */
   controllerDeps?: DecideDeps;
 }): Promise<FieldTestSummary> {
@@ -1416,7 +1451,10 @@ async function exploreInteractive(ctx: {
     }
   };
 
-  const capture = async (trigger: string): Promise<number> => {
+  const capture = async (
+    trigger: string,
+    action?: { kind: FieldTestState["actionKind"]; label?: string },
+  ): Promise<number> => {
     const fp = await fingerprint(page);
     const delta = fingerprintDelta(prevFp, fp);
     prevFp = fp;
@@ -1440,13 +1478,17 @@ async function exploreInteractive(ctx: {
       pixelDeltaPct: delta,
       url: page.url(),
       networkMethods: methodsSinceCapture.splice(0), // the methods observed since the previous capture
+      // the STRUCTURED action that produced this state (minted here, never parsed from English) — the
+      // goal-journey evaluator reasons over these, so "sent" can never be mistaken for "received".
+      ...(action?.kind ? { actionKind: action.kind } : {}),
+      ...(action?.label ? { actedLabel: action.label.slice(0, 80) } : {}),
     });
     return delta;
   };
 
   try {
     // 1. initial state (loading or not — the honest starting point).
-    await capture("initial load");
+    await capture("initial load", { kind: "load" });
 
     // 2. loading patience — poll until the state settles or the budget runs out.
     if (await isLoading(page)) {
@@ -1510,7 +1552,9 @@ async function exploreInteractive(ctx: {
       interactions++;
       if (/skipped/i.test(typed)) return "none"; // a sensitive field → never type, stay honest
       await page.waitForTimeout(300);
-      await capture("typed the test message into the conversation");
+      await capture("typed the test message into the conversation", {
+        kind: "type",
+      });
       // 2. submit via the OBSERVED send control, else Enter.
       const send = els.find((e) => SEND_RE.test(e.label.trim()));
       const submitted = send
@@ -1541,7 +1585,10 @@ async function exploreInteractive(ctx: {
           break;
         }
       }
-      if (replied) await capture("observed the reply in the conversation");
+      if (replied)
+        await capture("observed the reply in the conversation", {
+          kind: "observe_response",
+        });
       return replied ? "replied" : "sent";
     };
 
@@ -1588,6 +1635,22 @@ async function exploreInteractive(ctx: {
       );
       let prevUrl = page.url();
       let conversationDone = false;
+      // The founder's ordered journey, advanced LIVE from the states captured so far. It decides which
+      // target Sage pursues next; completion is evidence-based (see evaluateJourney), never text alone.
+      let liveJourney = ctx.journey ?? null;
+      const advanceJourney = () => {
+        if (!ctx.journey) return;
+        liveJourney = evaluateJourney(
+          ctx.journey,
+          buildJourneySteps(
+            states,
+            [],
+            [],
+            states.map(() => ""),
+          ),
+        );
+      };
+      advanceJourney();
       // A filled form field changes the state WITHOUT changing any visible text, so the state digest
       // (url + text + elements) stays identical. This salt advances on every successful fill so the
       // now-meaningful control ("Continue", disabled-until-filled) is no longer treated as already-tried.
@@ -1642,9 +1705,19 @@ async function exploreInteractive(ctx: {
             mainReached = true;
             reserveBudget();
           }
+          // The CURRENT checkpoint is the authority (not broad goal-wide matching): pursue only the next
+          // unmet checkpoint's entity, so an entity named during onboarding cannot pull Sage ahead in the
+          // journey. With no journey compiled, fall back to the goal's own terms (previous behavior).
+          const cp = nextUnmetCheckpoint(liveJourney);
+          const currentTerms = cp
+            ? targetTerms({
+                entity: cp.targetEntity,
+                context: cp.requiredContext,
+              })
+            : terms;
           action = chooseGoalTargetAffordance(
             elements,
-            terms,
+            currentTerms,
             digest,
             tried,
             deadLabels,
@@ -1710,7 +1783,16 @@ async function exploreInteractive(ctx: {
           await page.goBack().catch(() => {});
           await page.waitForTimeout(300);
         }
-        await capture(trigger); // recapture after EVERY action, including a movement burst
+        // recapture after EVERY action (including a movement burst), tagged with the STRUCTURED action
+        // kind so the journey evaluator never has to interpret English.
+        await capture(trigger, {
+          kind: actionKindOf(action),
+          label:
+            action.kind === "click_element"
+              ? (elements.find((e) => e.id === action.elementId)?.label ?? "")
+              : "",
+        });
+        advanceJourney(); // evidence-based: only real observations can complete a checkpoint
         // REAL progress = the URL changed or the WORD content changed. Drifting particles / emoji /
         // cosmetic canvas motion move pixels every frame and must never read as progress.
         const newWordSig = wordSignature(

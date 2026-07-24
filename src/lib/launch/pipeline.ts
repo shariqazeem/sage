@@ -21,6 +21,14 @@ import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
 import { missionGroundingMode } from "./mission-grounding-shadow";
+import { stateDigest } from "./observed-facts";
+import {
+  compileGoalJourney,
+  evaluateJourney,
+  buildJourneySteps,
+  journeyTelemetry,
+  type GoalJourneyV1,
+} from "./goal-journey";
 import {
   canaryPlanCommitment,
   evaluateCanarySelection,
@@ -155,6 +163,7 @@ export async function inspectAndPlan(
   //     to an honest limitation and the pipeline proceeds exactly as an HTML-only run would. It
   //     needs an inspectionId to name its screenshot artifacts (only the durable job supplies one).
   let fieldTest: FieldTestSummary | null = null;
+  let goalJourney: GoalJourneyV1 | null = null;
   // Run the browser when static HTML yielded observations, OR when the site RESPONDED but every page
   // was blocked/challenged/empty. Client-rendered SPAs and bot-walled products (commercial stores,
   // news, anything behind a WAF) return ZERO static observations to our read-only UA — the real
@@ -170,6 +179,16 @@ export async function inspectAndPlan(
     // A REAL stage — emitted only when the browser phase actually runs (no fake timers). Off-path
     // this stamp never fires, so the stage sequence stays identical to today.
     stamp("field_test");
+    // ORDERED FOUNDER GOAL — compile the request into required checkpoints BEFORE browsing, so the
+    // controller pursues the next UNMET one (never an entity merely named during onboarding). A null
+    // journey (model unconfigured / unusable output) degrades to the previous behavior exactly.
+    try {
+      goalJourney = await compileGoalJourney(
+        typeof input.goal === "string" ? input.goal : "",
+      );
+    } catch {
+      goalJourney = null;
+    }
     try {
       fieldTest = await runFieldTest({
         inspectionId: opts.inspectionId,
@@ -183,6 +202,7 @@ export async function inspectAndPlan(
         ),
         // the founder's exact goal drives the goal-directed browser controller (reach the goal, not decorations).
         goal: typeof input.goal === "string" ? input.goal : undefined,
+        journey: goalJourney,
       });
     } catch {
       fieldTest = null;
@@ -207,6 +227,23 @@ export async function inspectAndPlan(
     input,
     fieldTest,
   );
+  // EVALUATE the founder's ordered journey against what was ACTUALLY observed — deterministic and
+  // evidence-cited (fact/transition ids), so a checkpoint can never be completed by text similarity.
+  // Attached post-digest like `observations`, so hashes and old artifacts are unchanged.
+  if (goalJourney && fieldTest?.states?.length) {
+    const obs = map.observations ?? null;
+    const stateIds = fieldTest.states.map((s) => stateDigest(s));
+    goalJourney = evaluateJourney(
+      goalJourney,
+      buildJourneySteps(
+        fieldTest.states,
+        obs?.facts ?? [],
+        obs?.transitions ?? [],
+        stateIds,
+      ),
+    );
+    map.goalJourney = goalJourney;
+  }
   // fold the inspector + repo limitations into the map's honest limitations — CONDITION-AWARE: when
   // the Field Test actually explored the live product, the "server-rendered HTML only" caveat is no
   // longer true (a client-side flow WAS observed), so drop it and describe the real boundary instead.
@@ -473,6 +510,48 @@ export async function inspectAndPlan(
         legacy.allocation.reason ??
           "Increase the budget to fund a meaningful plan.",
       ],
+    });
+  }
+
+  // ORDERED FOUNDER GOAL — when the browser did not complete the founder's journey (or the plan covers
+  // only prerequisites), the honest answer is that MORE INSPECTION is needed, not an onboarding mission
+  // presented as the answer to what they actually asked for. Reported with the bounded rejection codes.
+  const journeyGap = brain.groundingShadow as
+    | { journeyCoverageOk?: boolean; journeyRejectionCodes?: string[] }
+    | undefined;
+  if (
+    goalJourney &&
+    journeyGap &&
+    journeyGap.journeyCoverageOk === false &&
+    canaryDecision.status === "blocked"
+  ) {
+    const codes = [...new Set(journeyGap.journeyRejectionCodes ?? [])];
+    const missing = goalJourney.checkpoints.filter(
+      (c) => c.status !== "observed",
+    );
+    return out("needs_input", "founder_goal_incomplete", {
+      map,
+      brain,
+      allocation: legacy.allocation,
+      questions: [
+        ...missing
+          .slice(0, 4)
+          .map(
+            (c) =>
+              `Sage could not complete this part of your request: ${c.requirement}. Is there a path Sage should take (or does it need an account/permission) to reach it?`,
+          ),
+        ...(missing.length === 0
+          ? [
+              "Sage observed your whole journey but could not design a mission that proves the outcome you asked for. Can you describe what a successful result looks like?",
+            ]
+          : []),
+      ],
+      canary: {
+        status: "blocked",
+        reason: `founder_goal_incomplete:${codes.join(",") || "uncovered"}`,
+        planSource: "none",
+        planDigest: legacy.plan.missionPlanDigest,
+      },
     });
   }
 

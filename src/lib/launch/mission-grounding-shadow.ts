@@ -14,6 +14,12 @@ import {
 } from "./mission-grounding";
 import { validatePlanMissions, type ValidationScope } from "./validate-mission";
 import { factIndex } from "./observed-facts";
+import {
+  checkJourneyCoverage,
+  journeyForPrompt,
+  journeyTelemetry,
+  type MissionCoverageView,
+} from "./goal-journey";
 import { allocateBudget } from "./budget";
 import {
   parseAndCompileArchitectDraft,
@@ -774,7 +780,10 @@ export async function runGroundedShadow(
         }
       : {};
   try {
-    const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
+    const journeyBlock = map.goalJourney
+      ? `\n\nFOUNDER JOURNEY (ordered required checkpoints — your plan MUST cover every observed one, especially the final outcome):\n${JSON.stringify(journeyForPrompt(map.goalJourney))}`
+      : "";
+    const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}${journeyBlock}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
     const json = await architect(ARCHITECT_SYSTEM_V2, user);
     // strict semantic-draft Zod → deterministic compiler (derives indexes/urls/anchors/sources/targetSurface).
     compileOutcome = parseAndCompileArchitectDraft(json, set, presentedView);
@@ -1079,10 +1088,31 @@ export async function runGroundedShadow(
     allocationExactEqual: exactBudgetEquality,
     provenancePresent,
   };
+  // ORDERED FOUNDER-GOAL GATE — every founder-required checkpoint the browser OBSERVED must be covered by
+  // a mission criterion that can prove it, and the founder's asked-for OUTCOME must be covered by more than
+  // a prerequisite. A truthful-but-partial plan (e.g. onboarding only) is NOT an answer to the request, so
+  // it never becomes selectable. Absent journey ⇒ unchanged behavior.
+  const journeyCoverage = map.goalJourney
+    ? checkJourneyCoverage(
+        map.goalJourney,
+        accepted.map<MissionCoverageView>((m) => ({
+          missionKey: m.missionKey,
+          title: m.title,
+          objective: m.objective,
+          instructions: m.instructions,
+          criteria: m.criteria ?? [],
+          evidenceRequirements: m.evidenceRequirements ?? [],
+          factIds: [],
+          transitionIds: [],
+          prerequisites: [...(m.conditions ?? []), ...(m.assumptions ?? [])],
+        })),
+      )
+    : null;
+  const journeyOk = !journeyCoverage || journeyCoverage.ok;
   const strictSelectable =
-    accepted.length > 0 && Object.values(signals).every(Boolean);
+    accepted.length > 0 && journeyOk && Object.values(signals).every(Boolean);
   const groundedCandidatePlan: GroundedCandidatePlan | null =
-    missionGroundingMode() !== "off" && accepted.length > 0
+    missionGroundingMode() !== "off" && accepted.length > 0 && journeyOk
       ? {
           missions: accepted,
           suppliedBudgetBase: input.totalBudgetBase.toString(),
@@ -1101,6 +1131,18 @@ export async function runGroundedShadow(
 
   return base({
     ran: true,
+    // ordered founder-goal coverage (bounded codes + counts; never observed product text)
+    ...journeyTelemetry(map.goalJourney),
+    ...(journeyCoverage
+      ? {
+          journeyCoverageOk: journeyCoverage.ok,
+          journeyCheckpointsCovered: journeyCoverage.coveredCount,
+          journeyRejectionCodes: journeyCoverage.rejections.map((r) => r.code),
+          journeyRejectedCheckpoints: journeyCoverage.rejections.map(
+            (r) => r.checkpointId,
+          ),
+        }
+      : {}),
     candidateCount: candidates.length,
     groundingValid: structurallyValid.length,
     structurallyValid: structurallyValid.length,
