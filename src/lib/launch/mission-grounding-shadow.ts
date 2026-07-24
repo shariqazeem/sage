@@ -427,6 +427,8 @@ export interface GroundingShadowResult {
   }>;
   /** the compiler's ONE question when two entity occurrences are behaviourally equivalent. */
   goalCompilerQuestion?: string | null;
+  /** how many missions Sage compiled deterministically (criteria/evidence never model-authored). */
+  compilerAuthoredMissions?: number;
   sampleAdjusted?: boolean;
   sampleReason?: string;
   sampleQuestion?: string | null;
@@ -807,6 +809,8 @@ export async function runGroundedShadow(
   };
   let candidates: CandidateMission[] = [];
   let goalCompilerQuestion: string | null = null;
+  /** mission keys Sage COMPILED deterministically (never model-authored criteria/evidence). */
+  const compilerAuthored = new Set<string>();
   let compileOutcome: DraftCompileOutcome | null = null;
   const draftTelemetry = () =>
     compileOutcome
@@ -869,6 +873,7 @@ export async function runGroundedShadow(
       }
       architectStatus = "ok";
       candidates = [mission];
+      compilerAuthored.add(mission.missionKey);
       compileOutcome = {
         kind: "compiled",
         candidates,
@@ -1094,8 +1099,14 @@ export async function runGroundedShadow(
       /* supports nothing (fail closed) */
     }
 
-  const criticSupportedList = structurallyValid.filter((m) =>
-    supportedKeys.has(m.missionKey),
+  // A COMPILER-AUTHORED mission's criteria are supported BY CONSTRUCTION: Sage derived each criterion
+  // from the exact observed facts that completed its checkpoints (already re-verified by
+  // validateMissionGrounding above). The critic exists to catch a MODEL asserting something the evidence
+  // does not support — there is no model assertion here, so its verdict is recorded but cannot veto
+  // Sage's own deterministic derivation. Model-authored missions still require critic support.
+  const criticSupportedList = structurallyValid.filter(
+    (m) =>
+      supportedKeys.has(m.missionKey) || compilerAuthored.has(m.missionKey),
   );
 
   // 3b) CANONICAL GATE REHEARSAL — the critic-supported candidates now traverse the SAME deterministic gate
@@ -1222,7 +1233,10 @@ export async function runGroundedShadow(
   const everyCriterionCriticSupported =
     criticStatus === "ok" &&
     accepted.length > 0 &&
-    accepted.every((m) => supportedKeys.has(m.missionKey));
+    accepted.every(
+      (m) =>
+        supportedKeys.has(m.missionKey) || compilerAuthored.has(m.missionKey),
+    );
   const provenancePresent = !!(
     architectActual &&
     architectProvider &&
@@ -1292,6 +1306,7 @@ export async function runGroundedShadow(
     // ordered founder-goal coverage (bounded codes + counts; never observed product text)
     ...journeyTelemetry(map.goalJourney),
     goalCompilerQuestion,
+    compilerAuthoredMissions: compilerAuthored.size,
     sampleAdjusted: sample.adjusted,
     sampleReason: sample.reason,
     sampleQuestion: sample.question,

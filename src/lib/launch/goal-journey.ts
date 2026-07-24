@@ -422,7 +422,7 @@ export function bindJourneyToContext(
   context: ProductContextV1,
 ): JourneyBindingResult {
   const rejections: JourneyBindingResult["rejections"] = [];
-  let question: string | null = null;
+  const question: string | null = null; // the compiler owns entity ambiguity now
   const checkpoints = journey.checkpoints.map((cp, i) => {
     const requiredPhase = requiredPhaseFor(cp, i);
     // The ENTRY checkpoint is about arriving at the product itself (its domain), not about any in-world
@@ -450,14 +450,10 @@ export function bindJourneyToContext(
       exact.length > 0 ? exact : interactive.length > 0 ? interactive : inPhase;
     const distinctLabels = new Set(pool.map((e) => lower(e.label)));
     if (distinctLabels.size > 1 && exact.length === 0) {
-      question =
-        question ??
-        `Sage saw more than one thing matching "${cp.targetEntity}" in the product (${[...distinctLabels].slice(0, 3).join(", ")}). Which one did you mean for "${cp.requirement}"?`;
-      rejections.push({
-        code: "goal_entity_instance_mismatch",
-        checkpointId: cp.checkpointId,
-        requirement: cp.requirement,
-      });
+      // Several in-phase occurrences share the word. Do NOT ask here — label overlap is not ambiguity.
+      // The deterministic GoalMissionCompiler ranks these BEHAVIOURALLY (which one actually led to the
+      // founder's observed outcome) and asks only if they are genuinely equivalent. Leaving the instance
+      // unbound simply means no instance guard applies; the phase guard still does.
       return { ...cp, requiredPhase, boundEntityId: null };
     }
     return { ...cp, requiredPhase, boundEntityId: pool[0]?.entityId ?? null };
