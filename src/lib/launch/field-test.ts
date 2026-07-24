@@ -1570,6 +1570,7 @@ async function exploreInteractive(ctx: {
         send
           ? `sent the message — ${submitted}`
           : "pressed Enter to send the message",
+        { kind: "submit", label: send?.label ?? "" },
       );
       const sentSig = wordSignature(
         states[states.length - 1]?.visibleTextExcerpt ?? "",

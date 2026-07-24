@@ -95,7 +95,14 @@ const JOURNEY_SYSTEM = [
   "Each checkpoint: kind (entry|navigation|state|interaction|input|outcome|experience), a one-sentence requirement, the target entity ('' if none), the required context it must happen in ('' if unconstrained), the 1-based indexes of earlier checkpoints it depends on, and sourcePhrase — an EXACT VERBATIM substring of the founder's request that demands this checkpoint (copy it character-for-character; never paraphrase).",
   "Include the implicit steps a real product requires (arriving, passing any onboarding/intro, reaching the main experience) as separate earlier checkpoints, before the explicitly named ones.",
   "If the founder asks to talk/message/ask something, ALWAYS emit both an input checkpoint (send the message) and a separate outcome checkpoint (observe the response).",
-  "Order matters: an entity mentioned early is not reached until its own checkpoint. Output JSON only.",
+  "Order matters: an entity mentioned early is not reached until its own checkpoint.",
+  "These are END-USER journey steps (what a person does in the product), NEVER engineering/build tasks.",
+  'Output JSON ONLY, exactly this shape: {"checkpoints":[{"kind":"entry","requirement":"...","targetEntity":"...","requiredContext":"...","dependsOnIndexes":[],"sourcePhrase":"..."}]}.',
+  'Worked example — request "let people open the dashboard and export a report": {"checkpoints":[' +
+    '{"kind":"entry","requirement":"Open the product","targetEntity":"","requiredContext":"","dependsOnIndexes":[],"sourcePhrase":"open the dashboard"},' +
+    '{"kind":"navigation","requirement":"Reach the dashboard","targetEntity":"dashboard","requiredContext":"","dependsOnIndexes":[1],"sourcePhrase":"open the dashboard"},' +
+    '{"kind":"interaction","requirement":"Start the report export","targetEntity":"report","requiredContext":"dashboard","dependsOnIndexes":[2],"sourcePhrase":"export a report"},' +
+    '{"kind":"outcome","requirement":"The exported report is produced","targetEntity":"report","requiredContext":"","dependsOnIndexes":[3],"sourcePhrase":"export a report"}]}',
 ].join(" ");
 
 /** Provider-native transport schema (strict) — the model fills ONLY semantics; ids/order are minted here. */
@@ -179,29 +186,41 @@ export function compileJourneyFromRaw(
   model: string | null = null,
   provider: string | null = null,
 ): GoalJourneyV1 | null {
-  const list = (raw as { checkpoints?: unknown } | null)?.checkpoints;
+  const list = extractCheckpointList(raw);
   if (!Array.isArray(list) || list.length === 0) return null;
   const goalLower = lower(goal);
   const checkpoints: GoalCheckpointV1[] = [];
   list.slice(0, MAX_CHECKPOINTS).forEach((item, i) => {
     const r = (item ?? {}) as RawCheckpoint;
-    const kind = KINDS.has(r.kind as CheckpointKind)
-      ? (r.kind as CheckpointKind)
-      : "state";
+    const kindRaw = (
+      typeof r.kind === "string"
+        ? r.kind
+        : (item as Record<string, unknown>)?.type
+    ) as CheckpointKind;
+    const kind = KINDS.has(kindRaw) ? kindRaw : "state";
+    const rec = r as unknown as Record<string, unknown>;
     const requirement = norm(
-      typeof r.requirement === "string" ? r.requirement : "",
+      pick(rec, [
+        "requirement",
+        "task",
+        "step",
+        "goal",
+        "title",
+        "description",
+      ]),
     ).slice(0, 200);
     if (!requirement) return;
     // the source phrase must be REAL founder text — an invented justification is dropped, never kept.
     const rawPhrase = norm(
-      typeof r.sourcePhrase === "string" ? r.sourcePhrase : "",
+      pick(rec, ["sourcePhrase", "source", "phrase", "quote"]),
     );
     const sourcePhrase =
       rawPhrase && goalLower.includes(lower(rawPhrase))
         ? rawPhrase.slice(0, 200)
         : "";
     // dependencies: only on strictly EARLIER checkpoints (the model cannot invent a cycle or a forward dep).
-    const deps = Array.isArray(r.dependsOnIndexes) ? r.dependsOnIndexes : [];
+    const depsRaw = rec.dependsOnIndexes ?? rec.dependsOn ?? rec.dependencies;
+    const deps = Array.isArray(depsRaw) ? depsRaw : [];
     const depIds = deps
       .map((d) => (typeof d === "number" ? Math.round(d) : NaN))
       .filter((d) => Number.isFinite(d) && d >= 1 && d <= i) // 1-based, strictly earlier
@@ -215,11 +234,12 @@ export function compileJourneyFromRaw(
       checkpointId: id,
       kind,
       requirement,
-      targetEntity: norm(
-        typeof r.targetEntity === "string" ? r.targetEntity : "",
-      ).slice(0, 80),
+      targetEntity: norm(pick(rec, ["targetEntity", "entity", "target"])).slice(
+        0,
+        80,
+      ),
       requiredContext: norm(
-        typeof r.requiredContext === "string" ? r.requiredContext : "",
+        pick(rec, ["requiredContext", "context", "where"]),
       ).slice(0, 120),
       dependsOn,
       sourcePhrase,
@@ -236,6 +256,36 @@ export function compileJourneyFromRaw(
     model,
     provider,
   };
+}
+
+/**
+ * Find the checkpoint list in a model reply. Providers do not reliably honour a strict json_schema (this
+ * gateway renames keys), so the list is taken from `checkpoints` when present, else from the object's ONLY
+ * array-of-objects property. This tolerance is safe because nothing here is trusted: ids, ordering,
+ * dependencies and the verbatim sourcePhrase are all re-derived deterministically below.
+ */
+function extractCheckpointList(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.checkpoints)) return obj.checkpoints;
+  const arrays = Object.values(obj).filter(
+    (v): v is unknown[] =>
+      Array.isArray(v) &&
+      v.length > 0 &&
+      typeof v[0] === "object" &&
+      v[0] !== null,
+  );
+  return arrays.length === 1 ? arrays[0] : null;
+}
+
+/** Read a field under any of its known spellings (the provider renames keys); "" when absent. */
+function pick(r: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = r[k];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return "";
 }
 
 /** Deterministic checkpoint id — a function of the goal + position, never model-authored. */

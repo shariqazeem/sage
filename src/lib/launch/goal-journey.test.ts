@@ -82,6 +82,28 @@ describe("compileJourneyFromRaw — Sage mints identity + order, never the model
     expect(compileJourneyFromRaw(GOAL, null)).toBeNull();
   });
 
+  it("tolerates a provider that RENAMES the keys (schemas are not reliably enforced)", () => {
+    // observed in production: the gateway ignored the strict json_schema and returned its own shape.
+    const renamed = {
+      project_checkpoints: [
+        { type: "entry", task: "Open the product", entity: "", context: "", dependencies: [], source: "land in example.test" },
+        { type: "outcome", task: "See the reply", entity: "guide", context: "", dependencies: [1], source: "talk to her" },
+      ],
+    };
+    const j = compileJourneyFromRaw(GOAL, renamed, "m", "p")!;
+    expect(j.checkpoints).toHaveLength(2);
+    expect(j.checkpoints[0].requirement).toBe("Open the product");
+    expect(j.checkpoints[0].kind).toBe("entry");
+    expect(j.checkpoints[1].kind).toBe("outcome");
+    expect(j.checkpoints[1].targetEntity).toBe("guide");
+    expect(j.checkpoints[1].sourcePhrase).toBe("talk to her"); // still verified verbatim
+    expect(j.checkpoints[1].dependsOn).toEqual([j.checkpoints[0].checkpointId]); // order still re-derived
+  });
+
+  it("refuses an ambiguous reply (several unrelated arrays) rather than guessing", () => {
+    expect(compileJourneyFromRaw(GOAL, { a: [{ x: 1 }], b: [{ y: 2 }] })).toBeNull();
+  });
+
   it("compileGoalJourney uses the injected model path and returns a compiled journey", async () => {
     const j = await compileGoalJourney(GOAL, { complete: async () => ({ json: RAW, model: "test-model", provider: "test" }) });
     expect(j?.checkpoints).toHaveLength(7);
