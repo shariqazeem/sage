@@ -3,8 +3,10 @@ import "server-only";
 /**
  * GOAT x402 config + live gate — the single source of truth for whether the two
  * x402 rails are active. Real protocol (`goatx402-sdk-server`, facilitator
- * `https://api.x402.goat.network`, GOAT mainnet chain 2345, USDC min 0.1). The
+ * `https://flow-merchant.goat.network`, GOAT mainnet chain 2345, USDC min 0.1). The
  * merchant credentials come from the GOAT merchant portal (Receive Type DIRECT).
+ * (The facilitator moved from the retired `x402-api.goat.network` host to
+ * `flow-merchant.goat.network` — SDK path base `/api/v1/*` — around 2026-07.)
  *
  * HONESTY: `isX402Live()` gates EVERYTHING. When false, the honest "pending
  * merchant approval" chips remain and internal calls bypass the paywall — no code
@@ -23,7 +25,7 @@ export const MIN_USDC = 0.1;
 export const VERIFICATION_FEE_USD = 0.1;
 export const OPERATOR_FEE_USD = 0.1;
 
-const DEFAULT_API_URL = "https://x402-api.goat.network";
+const DEFAULT_API_URL = "https://flow-merchant.goat.network";
 
 export interface X402Env {
   /** Facilitator base URL (defaults to the production endpoint). */
