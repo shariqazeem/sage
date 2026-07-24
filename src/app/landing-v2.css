@@ -1714,9 +1714,23 @@ body:has(.slv2) {
     transform: none !important;
     transition: none !important;
   }
-  /* the workflow IO does not run under reduced-motion → keep every chapter legible */
+  /* the workflow's scroll choreography is disabled under reduced-motion → collapse the
+     pinned stage into the same readable sequential layout the mobile view uses, so every
+     chapter AND its visual is shown at full opacity with no scroll dependency. */
+  .slv2 .wf-grid {
+    grid-template-columns: 1fr;
+  }
+  .slv2 .wf-stage-col {
+    display: none;
+  }
   .slv2 .wf-chapter {
     opacity: 1 !important;
+    min-height: 0 !important;
+    margin-bottom: 40px;
+  }
+  .slv2 .wf-stage-inline {
+    display: block;
+    margin-top: 20px;
   }
   .slv2 .stage-cursor,
   .slv2 .stage-tag,

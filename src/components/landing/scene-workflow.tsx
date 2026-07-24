@@ -40,19 +40,45 @@ export function SceneWorkflow() {
 
   useEffect(() => {
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            const i = refs.current.indexOf(e.target as HTMLDivElement);
-            if (i >= 0) setActive(i);
-          }
+    // Desktop pinning: the active chapter is the one whose HEADING sits nearest an
+    // activation line ~40% down the viewport (the heading is what the reader tracks —
+    // and it is vertically centred in each tall chapter). Deterministic, so the last
+    // chapter (Verify) becomes fully active while its heading + copy are clearly in
+    // view, not only once they have nearly scrolled off the top. Driven by BOTH a
+    // scroll listener (real wheel/trackpad scrolling) and an IntersectionObserver
+    // (reliable across engines + programmatic scroll) so it can never stall.
+    let raf = 0;
+    const recompute = () => {
+      raf = 0;
+      const line = window.innerHeight * 0.4;
+      let best = 0;
+      let bestDist = Infinity;
+      refs.current.forEach((el, i) => {
+        if (!el) return;
+        const heading = el.querySelector("h3") ?? el;
+        const r = heading.getBoundingClientRect();
+        const d = Math.abs(r.top + r.height / 2 - line);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
         }
-      },
-      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
-    );
+      });
+      setActive(best);
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(recompute);
+    };
+    const io = new IntersectionObserver(schedule, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] });
     refs.current.forEach((r) => r && io.observe(r));
-    return () => io.disconnect();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+    recompute();
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
   }, []);
 
   return (
