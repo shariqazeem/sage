@@ -1030,18 +1030,26 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
       const sel =
         "button,[role=button],a[href],[role=link],input,textarea,select,[contenteditable=''],[contenteditable=true],[tabindex],[onclick],[class*='btn' i],[class*='button' i]";
       const set = new Set<Element>(Array.from(document.querySelectorAll(sel)));
-      // ALSO include pointer-cursor leaf controls that only announce themselves via the cursor — immersive
-      // onboarding uses styled <div>s ("tap to step inside", "come in") and clickable scene labels, not
-      // <button>s. Leaf-ish + short-text only, so a huge wrapper is never grabbed. (Mirrors clickAffordance.)
+      // ALSO include controls that only a real user can spot — immersive onboarding uses styled <div>s
+      // ("tap to step inside", "come in") and clickable WORD LABELS ("Yara's Grove", "Yara") made
+      // interactive via a JS click listener, not a <button> or cursor:pointer. So mint: (a) any
+      // pointer-cursor leaf-ish control (icon buttons, "·"/"🔊"), and (b) any LEAF element whose short
+      // text carries real words (a nameable affordance the goal-directed layer can target by id). Emoji-
+      // only leaves are minted only when they carry a pointer cursor, so decoration never floods the list.
       for (const el of Array.from(document.querySelectorAll("body *"))) {
         const he = el as HTMLElement;
         const t = (he.innerText || "").trim();
-        if (t && t.length <= 40 && he.childElementCount <= 1) {
-          try {
-            if (getComputedStyle(he).cursor === "pointer") set.add(el);
-          } catch {
-            /* ignore */
-          }
+        if (!t || t.length > 40) continue;
+        const words = (t.match(/[a-zA-ZÀ-ɏ]{2,}/g) || []).length;
+        try {
+          const pointer = getComputedStyle(he).cursor === "pointer";
+          if (
+            (pointer && he.childElementCount <= 1) ||
+            (he.childElementCount === 0 && words >= 1)
+          )
+            set.add(el);
+        } catch {
+          /* ignore */
         }
       }
       const nodes = Array.from(set);
