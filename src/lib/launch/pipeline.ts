@@ -36,7 +36,8 @@ import {
   type CanaryIdentity,
 } from "./mission-canary";
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
-import { allocateBudget } from "./budget";
+import { allocateBudget, MIN_REWARD_BASE } from "./budget";
+import { applySamplePolicy, splitCompletionsForSample } from "./sample-policy";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import type {
@@ -349,6 +350,28 @@ export async function inspectAndPlan(
       input.totalBudgetBase,
     );
     if (!allocation.ok) return { ok: false as const, allocation, plan: null };
+    // TESTER SAMPLE — a plural, qualitative request buys independent completions rather than one big
+    // payout. The allocator's exactness strategy hands the balancer a single completion worth the whole
+    // remainder; this re-expresses that same pot as N testers (rewardBase × maxCompletions unchanged,
+    // never below the meaningful floor, never a rounding change), so the exact-allocation invariant holds.
+    const sample = applySamplePolicy(
+      missions.map((m) => ({
+        missionKey: m.missionKey,
+        maxCompletions: m.maxCompletions,
+        rewardWeight: m.rewardWeight,
+        qualitative: m.verifiabilityClass !== "url-verifiable",
+      })),
+      {
+        goal: input.goal,
+        totalBudgetBase: input.totalBudgetBase,
+        minRewardBase: MIN_REWARD_BASE,
+      },
+    );
+    allocation.missions = splitCompletionsForSample(
+      allocation.missions,
+      new Map(sample.missions.map((m) => [m.missionKey, m.maxCompletions])),
+      MIN_REWARD_BASE,
+    );
     const compiled = compilePlan({
       publicCampaignId,
       productMapDigest: map.digest,
@@ -535,7 +558,9 @@ export async function inspectAndPlan(
   // presented as the answer to what they actually asked for. Reported with the bounded rejection codes.
   // The founder asked about multiple users but the budget cannot pay a meaningful sample → ASK, rather
   // than silently selecting a single tester.
-  const sampleQuestion = brain.groundingShadow?.sampleQuestion;
+  const sampleQuestion =
+    brain.groundingShadow?.sampleQuestion ??
+    brain.groundingShadow?.goalCompilerQuestion;
   if (sampleQuestion) {
     return out("needs_input", "sample_budget_insufficient", {
       map,

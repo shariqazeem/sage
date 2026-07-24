@@ -13,7 +13,12 @@ import {
   classifyGroundingTier,
 } from "./mission-grounding";
 import { validatePlanMissions, type ValidationScope } from "./validate-mission";
-import { factIndex } from "./observed-facts";
+import { factIndex, stateDigest } from "./observed-facts";
+import {
+  compileGoalMission,
+  applyProseRefinement,
+} from "./goal-mission-compiler";
+import { buildJourneySteps } from "./goal-journey";
 import {
   checkJourneyCoverage,
   journeyForPrompt,
@@ -420,6 +425,8 @@ export interface GroundingShadowResult {
     evidenceIndex: number;
     evidenceMode: string;
   }>;
+  /** the compiler's ONE question when two entity occurrences are behaviourally equivalent. */
+  goalCompilerQuestion?: string | null;
   sampleAdjusted?: boolean;
   sampleReason?: string;
   sampleQuestion?: string | null;
@@ -798,7 +805,8 @@ export async function runGroundedShadow(
     factIds: new Set(observationView.facts.map((f) => f.id)),
     transitionIds: new Set(observationView.transitions.map((t) => t.id)),
   };
-  let candidates: CandidateMission[];
+  let candidates: CandidateMission[] = [];
+  let goalCompilerQuestion: string | null = null;
   let compileOutcome: DraftCompileOutcome | null = null;
   const draftTelemetry = () =>
     compileOutcome
@@ -813,6 +821,71 @@ export async function runGroundedShadow(
           derivedTargetSurfaceCount: compileOutcome.derivedTargetSurfaceCount,
         }
       : {};
+  // ── DETERMINISTIC GOAL→MISSION COMPILATION ────────────────────────────────────────────────────
+  // When the founder's ordered journey was fully observed, SAGE compiles the mission itself: the
+  // criteria, evidence requirements, fact ids, anchors and the checkpoint→criterion→evidence mapping are
+  // derived from what was observed — never chosen by a model. A single architect call may then polish the
+  // human-readable prose only; if it fails, the deterministic copy stands and the skeleton is kept.
+  const journeyForCompile = map.goalJourney;
+  if (
+    journeyForCompile &&
+    journeyForCompile.checkpoints.length > 0 &&
+    journeyForCompile.checkpoints.every((c) => c.status === "observed") &&
+    map.productContext
+  ) {
+    const ftStates = map.fieldTest?.states ?? [];
+    const compiledGoal = compileGoalMission({
+      journey: journeyForCompile,
+      context: map.productContext,
+      steps: buildJourneySteps(
+        ftStates,
+        set.facts,
+        set.transitions,
+        ftStates.map((st) => stateDigest(st)),
+      ).map((st, i) => ({
+        ...st,
+        phase: map.productContext?.statePhases[i],
+      })),
+      facts: set.facts,
+      transitions: set.transitions,
+      productUrl: input.productUrl,
+      totalBudgetBase: input.totalBudgetBase,
+    });
+    if (compiledGoal.ok) {
+      let mission = compiledGoal.compiled.mission;
+      // ONE optional prose-only refinement (title/objective/whyItMatters/instructions).
+      try {
+        const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.\n\nFOUNDER GOAL: ${input.goal}\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
+        const prose = await architect(
+          "You improve the wording of a product-testing mission. You may ONLY rewrite title, objective, whyItMatters and instructions. Never change what is being tested, never add steps, never mention ids. JSON only.",
+          proseUser,
+        );
+        mission = applyProseRefinement(
+          mission,
+          prose as Record<string, unknown>,
+        );
+      } catch {
+        /* prose refinement failed — the deterministic copy stands */
+      }
+      architectStatus = "ok";
+      candidates = [mission];
+      compileOutcome = {
+        kind: "compiled",
+        candidates,
+        draftMissionCount: 1,
+        draftCriterionCount: mission.criteria.length,
+        compiledMissionCount: 1,
+        compilerRejectedCount: 0,
+        compilerRejectionCodes: {},
+        derivedAnchorCount: mission.anchors?.length ?? 0,
+        derivedSourceCount: mission.sources.length,
+        derivedTargetSurfaceCount: 1,
+      } as DraftCompileOutcome;
+    } else if (compiledGoal.question) {
+      goalCompilerQuestion = compiledGoal.question;
+    }
+  }
+
   try {
     // advertise ONLY evidence ids the architect was actually SHOWN — it may never cite an omitted id.
     const journeyView = map.goalJourney
@@ -833,34 +906,38 @@ export async function runGroundedShadow(
       ? `\n\nFOUNDER JOURNEY (ordered required checkpoints — your plan MUST cover every observed one, especially the final outcome):\n${JSON.stringify(journeyView)}`
       : "";
     const user = `PRODUCT MAP (summary):\n${compactMapForLlm(map)}\n\nOBSERVATION_SET_DIGEST: ${digest}\nGOAL: ${input.goal}\nBUDGET_BASE: ${input.totalBudgetBase}${journeyBlock}\n\nOBSERVATIONS (cite these exact ids; each id shows its real content):\n${JSON.stringify(observationView)}`;
-    const json = await architect(ARCHITECT_SYSTEM_V2, user);
-    // strict semantic-draft Zod → deterministic compiler (derives indexes/urls/anchors/sources/targetSurface).
-    compileOutcome = parseAndCompileArchitectDraft(json, set, presentedView);
-    if (compileOutcome.kind === "empty") {
+    if (candidates.length > 0) {
+      // the deterministic compiler already produced the grounded mission — no architect draft needed.
+    } else {
+      const json = await architect(ARCHITECT_SYSTEM_V2, user);
+      // strict semantic-draft Zod → deterministic compiler (derives indexes/urls/anchors/sources/targetSurface).
+      compileOutcome = parseAndCompileArchitectDraft(json, set, presentedView);
+      if (compileOutcome.kind === "empty") {
+        architectStatus = "ok";
+        return base({
+          ran: true,
+          error: "v2_empty",
+          disagreement: "v2_empty",
+          observationView: viewMeta,
+          ...draftTelemetry(),
+          ...telemetry(),
+        });
+      }
+      if (compileOutcome.kind === "schema_invalid") {
+        architectStatus = "schema_invalid";
+        return base({
+          ran: true,
+          error: "schema_invalid",
+          disagreement: "v2_empty",
+          observationView: viewMeta,
+          architectSchemaErrorPaths: compileOutcome.schemaErrorPaths,
+          ...draftTelemetry(),
+          ...telemetry(),
+        });
+      }
+      candidates = compileOutcome.candidates;
       architectStatus = "ok";
-      return base({
-        ran: true,
-        error: "v2_empty",
-        disagreement: "v2_empty",
-        observationView: viewMeta,
-        ...draftTelemetry(),
-        ...telemetry(),
-      });
     }
-    if (compileOutcome.kind === "schema_invalid") {
-      architectStatus = "schema_invalid";
-      return base({
-        ran: true,
-        error: "schema_invalid",
-        disagreement: "v2_empty",
-        observationView: viewMeta,
-        architectSchemaErrorPaths: compileOutcome.schemaErrorPaths,
-        ...draftTelemetry(),
-        ...telemetry(),
-      });
-    }
-    candidates = compileOutcome.candidates;
-    architectStatus = "ok";
   } catch (e) {
     architectErrorCode = sanitizeErrorCode(e); // bounded llm_* code, never raw response
     architectStatus = classifyRoleError(architectErrorCode);
@@ -1214,6 +1291,7 @@ export async function runGroundedShadow(
     ran: true,
     // ordered founder-goal coverage (bounded codes + counts; never observed product text)
     ...journeyTelemetry(map.goalJourney),
+    goalCompilerQuestion,
     sampleAdjusted: sample.adjusted,
     sampleReason: sample.reason,
     sampleQuestion: sample.question,

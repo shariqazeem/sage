@@ -136,3 +136,31 @@ export function applySamplePolicy<T extends SampleMission>(
     reason: budgetLimited ? "budget_limited" : "raised_to_sample",
   };
 }
+
+/**
+ * Split an ALREADY-ALLOCATED mission's pot across the sampled number of testers.
+ *
+ * `allocateBudget` guarantees exactness by giving the balancer mission a single completion worth the
+ * exact remainder — so a one-mission plan always comes back as 1 × the whole budget. This pure transform
+ * re-expresses that same pot as N independent completions: `rewardBase × maxCompletions` is UNCHANGED
+ * (the exact-allocation invariant still holds bit for bit), it only ever splits when the division is
+ * exact and every tester still clears the meaningful floor. Never touches budget math itself.
+ */
+export function splitCompletionsForSample<
+  T extends { missionKey: string; rewardBase: bigint; maxCompletions: bigint },
+>(
+  allocated: T[],
+  targetByKey: ReadonlyMap<string, number>,
+  minRewardBase: bigint,
+): T[] {
+  return allocated.map((m) => {
+    const target = targetByKey.get(m.missionKey);
+    if (!target || target <= Number(m.maxCompletions)) return m;
+    const pot = m.rewardBase * m.maxCompletions;
+    const n = BigInt(target);
+    if (pot % n !== BigInt(0)) return m; // never introduce rounding
+    const reward = pot / n;
+    if (reward < minRewardBase) return m; // never drop a tester below the meaningful floor
+    return { ...m, rewardBase: reward, maxCompletions: n };
+  });
+}
