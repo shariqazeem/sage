@@ -279,6 +279,9 @@ export interface ProductMapV1 {
    * uses it so a prerequisite can never be presented as the founder's requested outcome.
    */
   goalJourney?: import("./goal-journey").GoalJourneyV1 | null;
+  /** WHERE things were observed: a phase per state + every entity OCCURRENCE with a Sage-minted id.
+   *  Also post-digest + optional (hashes unchanged, old artifacts readable). */
+  productContext?: import("./product-context").ProductContextV1 | null;
   /**
    * Eyes V2 — a leak-safe record of the SHADOW inspection replay (INSPECTION_REPLAY_MODE=shadow), when it
    * ran. Result codes + transition ids + digests ONLY — never page content. Also excluded from `digest`

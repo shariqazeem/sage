@@ -20,7 +20,8 @@ import {
   journeyTelemetry,
   type MissionCoverageView,
 } from "./goal-journey";
-import { allocateBudget } from "./budget";
+import { allocateBudget, MIN_REWARD_BASE } from "./budget";
+import { applySamplePolicy } from "./sample-policy";
 import {
   parseAndCompileArchitectDraft,
   ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA,
@@ -399,6 +400,29 @@ export interface GroundingShadowResult {
   /** Phase 5 CANARY — the compiled grounded plan + strict signals, present only when mode ≠ off and the full
    *  grounded chain produced at least one accepted mission. Selection is decided by mission-canary, not here. */
   groundedCandidatePlan?: GroundedCandidatePlan | null;
+  /* ── ordered founder-goal coverage + tester sample (bounded; never observed product text) ── */
+  journeyPresent?: boolean;
+  journeyDigest?: string;
+  checkpointCount?: number;
+  checkpointsObserved?: number;
+  checkpointsUnmet?: number;
+  checkpointsBlocked?: number;
+  journeyModel?: string | null;
+  journeyCoverageOk?: boolean;
+  journeyCheckpointsCovered?: number;
+  journeyRejectionCodes?: string[];
+  journeyRejectedCheckpoints?: string[];
+  /** the explicit checkpoint → criterion → evidence mappings that satisfied the gate. */
+  journeyMappings?: Array<{
+    checkpointId: string;
+    missionKey: string;
+    criterionIndex: number;
+    evidenceIndex: number;
+    evidenceMode: string;
+  }>;
+  sampleAdjusted?: boolean;
+  sampleReason?: string;
+  sampleQuestion?: string | null;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({
@@ -1013,13 +1037,39 @@ export async function runGroundedShadow(
   // 4) BUDGET — run the REAL production allocateBudget over ONLY the canonical-gate-passing candidates (base
   // units, NOT reward weights). budgetConsistent is true ONLY when allocation succeeds AND the compiled total
   // equals the supplied budget exactly (allocateBudget guarantees Σ(rewardBase×maxCompletions) === total).
+  // TESTER SAMPLE POLICY — a plural, qualitative request deserves independent completions, as long as each
+  // tester still earns a meaningful reward. Runs BEFORE budget compilation; allocateBudget still enforces
+  // the exact-allocation invariant. A budget that cannot fund a meaningful sample surfaces a question.
+  const sample = applySamplePolicy(
+    accepted.map((m) => ({
+      missionKey: m.missionKey,
+      maxCompletions: m.maxCompletions,
+      rewardWeight: m.rewardWeight,
+      qualitative: m.verifiabilityClass !== "url-verifiable",
+    })),
+    {
+      goal: input.goal,
+      totalBudgetBase: input.totalBudgetBase,
+      minRewardBase: MIN_REWARD_BASE,
+    },
+  );
+  const sampledCompletions = new Map(
+    sample.missions.map((m) => [m.missionKey, m.maxCompletions]),
+  );
+  // the ACCEPTED missions carry the sampled count too — the pipeline re-compiles the grounded plan from
+  // them, so the tester sample must live on the mission, not only in this allocation call.
+  for (const m of accepted) {
+    const n = sampledCompletions.get(m.missionKey);
+    if (typeof n === "number" && n !== m.maxCompletions) m.maxCompletions = n;
+  }
   const alloc =
     accepted.length > 0
       ? allocateBudget(
           accepted.map((m) => ({
             missionKey: m.missionKey,
             weight: m.rewardWeight,
-            suggestedMaxCompletions: m.maxCompletions,
+            suggestedMaxCompletions:
+              sampledCompletions.get(m.missionKey) ?? m.maxCompletions,
             priority: m.priority,
             effortMinutes: m.effortMinutes,
           })),
@@ -1102,8 +1152,14 @@ export async function runGroundedShadow(
           instructions: m.instructions,
           criteria: m.criteria ?? [],
           evidenceRequirements: m.evidenceRequirements ?? [],
-          factIds: [],
-          transitionIds: [],
+          // the REAL per-criterion grounding — the only thing that can prove a checkpoint.
+          grounding: (m.groundingV1?.criteria ?? []).map((g) => ({
+            criterionIndex: g.criterionIndex,
+            evidenceIndex: g.evidenceIndex,
+            factIds: g.sourceFactIds ?? [],
+            transitionIds: g.sourceTransitionIds ?? [],
+            evidenceMode: g.verificationMode,
+          })),
           prerequisites: [...(m.conditions ?? []), ...(m.assumptions ?? [])],
         })),
       )
@@ -1133,6 +1189,9 @@ export async function runGroundedShadow(
     ran: true,
     // ordered founder-goal coverage (bounded codes + counts; never observed product text)
     ...journeyTelemetry(map.goalJourney),
+    sampleAdjusted: sample.adjusted,
+    sampleReason: sample.reason,
+    sampleQuestion: sample.question,
     ...(journeyCoverage
       ? {
           journeyCoverageOk: journeyCoverage.ok,
@@ -1141,6 +1200,13 @@ export async function runGroundedShadow(
           journeyRejectedCheckpoints: journeyCoverage.rejections.map(
             (r) => r.checkpointId,
           ),
+          journeyMappings: journeyCoverage.mappings.map((m) => ({
+            checkpointId: m.checkpointId,
+            missionKey: m.missionKey,
+            criterionIndex: m.criterionIndex,
+            evidenceIndex: m.evidenceIndex,
+            evidenceMode: m.evidenceMode,
+          })),
         }
       : {}),
     candidateCount: candidates.length,

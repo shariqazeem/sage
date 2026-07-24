@@ -106,8 +106,7 @@ const mission = (
   instructions: "",
   criteria: [],
   evidenceRequirements: [],
-  factIds: ["f1"],
-  transitionIds: [],
+  grounding: [],
   prerequisites: [],
   ...over,
 });
@@ -557,10 +556,22 @@ describe("coverage matching is phrasing-robust but still strict about the outcom
       })!,
       [step({ stateIndex: 0, actionKind: "load", stateText: "the shop" })],
     );
+    const cp = j.checkpoints[0];
     const r = checkJourneyCoverage(j, [
       mission({
         title: "Browse the shop",
         instructions: "Navigate to the shop and look around.",
+        criteria: ["The tester navigates to the shop"],
+        evidenceRequirements: ["Confirm the shop opened"],
+        grounding: [
+          {
+            criterionIndex: 0,
+            evidenceIndex: 0,
+            factIds: cp.evidence.factIds,
+            transitionIds: cp.evidence.transitionIds,
+            evidenceMode: "observation",
+          },
+        ],
       }),
     ]);
     expect(r.ok).toBe(true);
@@ -579,28 +590,42 @@ describe("coverage matching is phrasing-robust but still strict about the outcom
 });
 
 describe("#6 a COMPLETE journey mission passes the gate", () => {
-  it("passes when every observed checkpoint is covered, including the outcome", () => {
-    const complete = mission({
-      title: "Reach the guide in the main area and have a conversation",
-      objective:
-        "Enter the product, pass the intro, reach the main area, locate the guide, open the conversation, send a message and receive the response",
-      instructions:
-        "Open the product, click through the intro until the main area appears, locate the guide character, open the conversation, send a message, and note the response you receive.",
-      criteria: [
-        "The tester reaches the main area",
-        "The tester locates the guide character in the main area",
-        "The tester opens the guide conversation",
-        "The tester sends a message to the guide",
-        "The tester receives a response from the guide",
-      ],
-      evidenceRequirements: [
-        "Describe the guide's response you received in the conversation",
-      ],
-    });
-    const r = checkJourneyCoverage(fullyObserved(), [complete]);
+  it("passes when every observed checkpoint is mapped to a grounded criterion+evidence pair", () => {
+    const j = fullyObserved();
+    // one criterion per checkpoint, each GROUNDED on that checkpoint's own observed evidence.
+    const criteria = j.checkpoints.map(
+      (c) =>
+        `The tester completes: ${c.requirement}${c.targetEntity ? ` (${c.targetEntity})` : ""}`,
+    );
+    const evidenceRequirements = j.checkpoints.map(
+      (c) => `Evidence for: ${c.requirement}`,
+    );
+    const grounding = j.checkpoints.map((c, i) => ({
+      criterionIndex: i,
+      evidenceIndex: i,
+      factIds: c.evidence.factIds,
+      transitionIds: c.evidence.transitionIds,
+      evidenceMode: "observation",
+    }));
+    const r = checkJourneyCoverage(j, [
+      mission({
+        title: "Reach the guide and have a conversation",
+        objective: "Complete the founder's whole journey",
+        instructions: "Walk the full journey and report what happened.",
+        criteria,
+        evidenceRequirements,
+        grounding,
+      }),
+    ]);
     expect(r.ok).toBe(true);
-    expect(r.rejections).toHaveLength(0);
     expect(r.coveredCount).toBe(r.requiredCount);
+    // every checkpoint has an EXPLICIT mapping (checkpoint → mission/criterion/evidence + ids)
+    expect(r.mappings).toHaveLength(j.checkpoints.length);
+    for (const m of r.mappings) {
+      expect(m.criterionIndex).toBeGreaterThanOrEqual(0);
+      expect(m.evidenceIndex).toBeGreaterThanOrEqual(0);
+      expect(m.factIds.length + m.transitionIds.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -732,11 +757,19 @@ describe("#7 unrelated product journeys behave correctly", () => {
         title: "Complete signup and reach the welcome screen",
         instructions:
           "Open the site, fill in the signup form, submit it, and confirm the welcome screen appears.",
-        criteria: [
-          "The tester completes the signup form",
-          "The tester reaches the welcome screen",
-        ],
-        evidenceRequirements: ["Confirm the welcome screen"],
+        criteria: done.checkpoints.map(
+          (c) => `The tester completes: ${c.requirement}`,
+        ),
+        evidenceRequirements: done.checkpoints.map(
+          (c) => `Evidence for: ${c.requirement}`,
+        ),
+        grounding: done.checkpoints.map((c, i) => ({
+          criterionIndex: i,
+          evidenceIndex: i,
+          factIds: c.evidence.factIds,
+          transitionIds: c.evidence.transitionIds,
+          evidenceMode: "observation",
+        })),
       }),
     ]);
     expect(r.ok).toBe(true);

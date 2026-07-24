@@ -25,9 +25,11 @@ import { stateDigest } from "./observed-facts";
 import {
   compileGoalJourney,
   evaluateJourney,
+  bindJourneyToContext,
   buildJourneySteps,
   type GoalJourneyV1,
 } from "./goal-journey";
+import { buildProductContext, derivePhases } from "./product-context";
 import {
   canaryPlanCommitment,
   evaluateCanarySelection,
@@ -163,6 +165,7 @@ export async function inspectAndPlan(
   //     needs an inspectionId to name its screenshot artifacts (only the durable job supplies one).
   let fieldTest: FieldTestSummary | null = null;
   let goalJourney: GoalJourneyV1 | null = null;
+  let goalJourneyQuestion: string | null = null;
   // Run the browser when static HTML yielded observations, OR when the site RESPONDED but every page
   // was blocked/challenged/empty. Client-rendered SPAs and bot-walled products (commercial stores,
   // news, anything behind a WAF) return ZERO static observations to our read-only UA — the real
@@ -232,16 +235,31 @@ export async function inspectAndPlan(
   if (goalJourney && fieldTest?.states?.length) {
     const obs = map.observations ?? null;
     const stateIds = fieldTest.states.map((s) => stateDigest(s));
-    goalJourney = evaluateJourney(
-      goalJourney,
-      buildJourneySteps(
-        fieldTest.states,
-        obs?.facts ?? [],
-        obs?.transitions ?? [],
-        stateIds,
-      ),
-    );
+    // PRODUCT CONTEXT — which phase each state belongs to, and every entity OCCURRENCE with its own id.
+    const productContext = buildProductContext(fieldTest.states, stateIds);
+    const phases = derivePhases(fieldTest.states);
+    // BIND the journey to that context: the phase each requirement must hold in + the specific occurrence
+    // it refers to, so an onboarding mention can never satisfy an in-world requirement.
+    const bound = bindJourneyToContext(goalJourney, productContext);
+    goalJourneyQuestion = bound.question;
+    const steps = buildJourneySteps(
+      fieldTest.states,
+      obs?.facts ?? [],
+      obs?.transitions ?? [],
+      stateIds,
+    ).map((st, i) => ({
+      ...st,
+      phase: phases[i],
+      actedEntityId:
+        productContext.entities.find(
+          (e) =>
+            e.stateIndex === i &&
+            e.label.toLowerCase() === (st.actedLabel ?? "").toLowerCase(),
+        )?.entityId ?? null,
+    }));
+    goalJourney = evaluateJourney(bound.journey, steps);
     map.goalJourney = goalJourney;
+    map.productContext = productContext;
   }
   // fold the inspector + repo limitations into the map's honest limitations — CONDITION-AWARE: when
   // the Field Test actually explored the live product, the "server-rendered HTML only" caveat is no
@@ -515,6 +533,18 @@ export async function inspectAndPlan(
   // ORDERED FOUNDER GOAL — when the browser did not complete the founder's journey (or the plan covers
   // only prerequisites), the honest answer is that MORE INSPECTION is needed, not an onboarding mission
   // presented as the answer to what they actually asked for. Reported with the bounded rejection codes.
+  // The founder asked about multiple users but the budget cannot pay a meaningful sample → ASK, rather
+  // than silently selecting a single tester.
+  const sampleQuestion = brain.groundingShadow?.sampleQuestion;
+  if (sampleQuestion) {
+    return out("needs_input", "sample_budget_insufficient", {
+      map,
+      brain,
+      allocation: legacy.allocation,
+      questions: [sampleQuestion],
+    });
+  }
+
   const journeyGap = brain.groundingShadow as
     | { journeyCoverageOk?: boolean; journeyRejectionCodes?: string[] }
     | undefined;
@@ -533,6 +563,7 @@ export async function inspectAndPlan(
       brain,
       allocation: legacy.allocation,
       questions: [
+        ...(goalJourneyQuestion ? [goalJourneyQuestion] : []),
         ...missing
           .slice(0, 4)
           .map(

@@ -4,6 +4,13 @@ import { createHash } from "node:crypto";
 import { llmCompleteJson } from "@/lib/llm/complete";
 import { missionModel } from "@/lib/llm/mission-model";
 import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
+import {
+  instancesOf,
+  phaseAtLeast,
+  reachedPhase,
+  type ExperiencePhase,
+  type ProductContextV1,
+} from "./product-context";
 
 /**
  * GoalJourneyV1 — the founder's natural-language request compiled into an ORDERED journey of required
@@ -60,6 +67,12 @@ export interface GoalCheckpointV1 {
   status: CheckpointStatus;
   /** bounded reason when blocked. */
   blockedReason?: string;
+  /** the product PHASE this requirement must hold in — an onboarding occurrence can never satisfy a
+   *  main-experience requirement. Derived deterministically from the checkpoint kind + the founder's
+   *  stated action, never model-authored. */
+  requiredPhase?: ExperiencePhase;
+  /** the specific observed entity OCCURRENCE this checkpoint was bound to (null until bound). */
+  boundEntityId?: string | null;
 }
 
 export interface GoalJourneyV1 {
@@ -80,7 +93,11 @@ export type JourneyRejectionCode =
   | "goal_checkpoint_wrong_context" // observed, but not in the context the founder required
   | "goal_checkpoint_uncovered" // observed, but no mission criterion covers it
   | "goal_outcome_uncovered" // the founder's asked-for OUTCOME is not covered by any criterion
-  | "prerequisite_only_plan"; // the plan covers only prerequisites, not the requested outcome
+  | "prerequisite_only_plan" // the plan covers only prerequisites, not the requested outcome
+  | "goal_entity_wrong_phase" // the entity was only seen in an earlier phase (e.g. onboarding, not in-world)
+  | "goal_entity_instance_mismatch" // a different OCCURRENCE of the entity than the founder's context implies
+  | "goal_checkpoint_evidence_unmapped" // no criterion+evidence pair is grounded on this checkpoint's evidence
+  | "goal_outcome_evidence_insufficient"; // the outcome's criterion is not tied to the observed result state
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -358,6 +375,94 @@ export async function compileGoalJourney(
   }
 }
 
+/* ───────────── product-context binding (phase + entity INSTANCE identity) ─── */
+
+/** The phase a checkpoint's requirement must hold in — derived from its kind + whether it names an entity. */
+export function requiredPhaseFor(
+  cp: GoalCheckpointV1,
+  index: number,
+): ExperiencePhase {
+  if (cp.kind === "entry" || index === 0) return "entry";
+  switch (cp.kind) {
+    case "state":
+      return "onboarding";
+    case "navigation":
+    case "interaction":
+    case "experience":
+      // "go to X" / "open X" is about the product's real experience, not the intro that merely mentions X.
+      return cp.targetEntity ? "main_experience" : "onboarding";
+    case "input":
+    case "outcome":
+      return "main_experience";
+    default:
+      return "onboarding";
+  }
+}
+
+export interface JourneyBindingResult {
+  journey: GoalJourneyV1;
+  /** ONE concise founder question when an entity's meaning is genuinely ambiguous (never a silent pick). */
+  question: string | null;
+  /** bounded reasons a checkpoint could not be bound. */
+  rejections: Array<{
+    code: JourneyRejectionCode;
+    checkpointId: string;
+    requirement: string;
+  }>;
+}
+
+/**
+ * Bind each checkpoint to the product context: the phase it must hold in, and the specific observed entity
+ * OCCURRENCE it refers to. Two occurrences of the same label in different phases are different instances —
+ * so an onboarding mention can never be the in-world thing the founder asked for. When several occurrences
+ * are equally plausible IN the required phase, Sage asks ONE question instead of picking the easiest.
+ * Pure + deterministic.
+ */
+export function bindJourneyToContext(
+  journey: GoalJourneyV1,
+  context: ProductContextV1,
+): JourneyBindingResult {
+  const rejections: JourneyBindingResult["rejections"] = [];
+  let question: string | null = null;
+  const checkpoints = journey.checkpoints.map((cp, i) => {
+    const requiredPhase = requiredPhaseFor(cp, i);
+    if (!cp.targetEntity) return { ...cp, requiredPhase, boundEntityId: null };
+    const all = instancesOf(context, cp.targetEntity);
+    const inPhase = all.filter((e) => phaseAtLeast(e.phase, requiredPhase));
+    if (all.length > 0 && inPhase.length === 0) {
+      // seen — but only BEFORE the phase the founder's action requires (e.g. named during onboarding).
+      rejections.push({
+        code: "goal_entity_wrong_phase",
+        checkpointId: cp.checkpointId,
+        requirement: cp.requirement,
+      });
+      return { ...cp, requiredPhase, boundEntityId: null };
+    }
+    if (inPhase.length === 0)
+      return { ...cp, requiredPhase, boundEntityId: null };
+    // prefer an exact label match; else a single candidate; else ask.
+    const wanted = lower(cp.targetEntity);
+    const exact = inPhase.filter((e) => lower(e.label) === wanted);
+    const interactive = inPhase.filter((e) => e.affordances.length > 0);
+    const pool =
+      exact.length > 0 ? exact : interactive.length > 0 ? interactive : inPhase;
+    const distinctLabels = new Set(pool.map((e) => lower(e.label)));
+    if (distinctLabels.size > 1 && exact.length === 0) {
+      question =
+        question ??
+        `Sage saw more than one thing matching "${cp.targetEntity}" in the product (${[...distinctLabels].slice(0, 3).join(", ")}). Which one did you mean for "${cp.requirement}"?`;
+      rejections.push({
+        code: "goal_entity_instance_mismatch",
+        checkpointId: cp.checkpointId,
+        requirement: cp.requirement,
+      });
+      return { ...cp, requiredPhase, boundEntityId: null };
+    }
+    return { ...cp, requiredPhase, boundEntityId: pool[0]?.entityId ?? null };
+  });
+  return { journey: { ...journey, checkpoints }, question, rejections };
+}
+
 /* ─────────────────────── the next unmet checkpoint (browser driver) ────────── */
 
 /** The next checkpoint Sage should pursue: the first `unmet` one whose dependencies are all observed. */
@@ -419,6 +524,10 @@ export interface JourneyStep {
   factIds: string[];
   /** id of the transition that produced this state, when there was one. */
   transitionId: string | null;
+  /** which product phase this state belongs to (from the product context). */
+  phase?: ExperiencePhase;
+  /** the entity OCCURRENCE Sage acted on in this step, when it acted on a named thing. */
+  actedEntityId?: string | null;
 }
 
 const containsAll = (haystack: string, needle: string): boolean => {
@@ -449,6 +558,22 @@ function stepCompletes(
   step: JourneyStep,
   prior: JourneyStep[],
 ): boolean {
+  // PHASE GUARD — a requirement bound to a product phase can only be completed by a state in that phase
+  // (or deeper). This is what stops an onboarding occurrence of an entity satisfying "go to [entity]".
+  if (
+    cp.requiredPhase &&
+    step.phase &&
+    !phaseAtLeast(step.phase, cp.requiredPhase)
+  )
+    return false;
+  // INSTANCE GUARD — when the checkpoint was bound to a specific observed occurrence, acting on a
+  // different occurrence of the same label does not complete it.
+  if (
+    cp.boundEntityId &&
+    step.actedEntityId &&
+    step.actedEntityId !== cp.boundEntityId
+  )
+    return false;
   const entity = cp.targetEntity;
   const ctx = cp.requiredContext;
   // the context, when the founder required one, must be present in the state Sage is in.
@@ -535,17 +660,28 @@ export function evaluateJourney(
     )
       cursor++;
     if (cursor >= checkpoints.length) break;
-    const cp = checkpoints[cursor];
-    const depsOk = cp.dependsOn.every(
-      (d) => byId.get(d)?.status === "observed",
-    );
-    if (!depsOk) continue;
-    if (!stepCompletes(cp, step, steps.slice(0, i))) continue;
-    cp.status = "observed";
-    cp.evidence = {
-      factIds: step.factIds.slice(0, 8),
-      transitionIds: step.transitionId ? [step.transitionId] : [],
-    };
+    // ONE action may legitimately satisfy consecutive checkpoints (clicking a character both LOCATES it
+    // and OPENS it), so keep advancing while this same step independently satisfies the next requirement.
+    // Each checkpoint's own rule must still hold — a click never satisfies "send a message".
+    const prior = steps.slice(0, i);
+    while (cursor < checkpoints.length) {
+      const cp = checkpoints[cursor];
+      if (cp.status === "observed") {
+        cursor++;
+        continue;
+      }
+      const depsOk = cp.dependsOn.every(
+        (d) => byId.get(d)?.status === "observed",
+      );
+      if (!depsOk) break;
+      if (!stepCompletes(cp, step, prior)) break;
+      cp.status = "observed";
+      cp.evidence = {
+        factIds: step.factIds.slice(0, 8),
+        transitionIds: step.transitionId ? [step.transitionId] : [],
+      };
+      cursor++;
+    }
   }
   return { ...journey, checkpoints };
 }
@@ -631,6 +767,8 @@ function inferActionKind(
 
 export interface JourneyCoverageResult {
   ok: boolean;
+  /** the explicit checkpoint → criterion → evidence mappings that satisfied the gate. */
+  mappings: CheckpointEvidenceMapping[];
   /** bounded rejection codes with the checkpoint they refer to. */
   rejections: Array<{
     code: JourneyRejectionCode;
@@ -643,6 +781,18 @@ export interface JourneyCoverageResult {
 }
 
 /** A mission's criteria + evidence text, as the gate sees them (no model involvement). */
+export interface CriterionGroundingView {
+  criterionIndex: number;
+  /** the evidenceRequirements[] index that PROVES this criterion. */
+  evidenceIndex: number;
+  /** observed fact ids this criterion is grounded on. */
+  factIds: string[];
+  /** observed transition ids this criterion is grounded on (when the criterion is about a change). */
+  transitionIds: string[];
+  /** how the criterion can be proven (deterministic_url | semantic_url | observation). */
+  evidenceMode: string;
+}
+
 export interface MissionCoverageView {
   missionKey: string;
   title: string;
@@ -650,35 +800,26 @@ export interface MissionCoverageView {
   instructions: string;
   criteria: string[];
   evidenceRequirements: string[];
-  /** the observation ids this mission's criteria are grounded on. */
-  factIds: string[];
-  transitionIds: string[];
+  /** per-criterion grounding — the ONLY thing that can prove a checkpoint (title/objective text cannot). */
+  grounding: CriterionGroundingView[];
   /** prerequisite text attached to criteria (conditions/assumptions) — may SUPPORT but never SUBSTITUTE. */
   prerequisites: string[];
 }
 
-/** Does this mission text cover the checkpoint's requirement? Entity + action words must both appear. */
-function missionCovers(cp: GoalCheckpointV1, m: MissionCoverageView): boolean {
-  const hay = [
-    m.title,
-    m.objective,
-    m.instructions,
-    ...m.criteria,
-    ...m.evidenceRequirements,
-  ].join(" \n ");
-  const entityOk = !cp.targetEntity || containsAny(hay, cp.targetEntity);
-  const requirementOk =
-    containsAll(hay, cp.requirement) || coversByKeywords(hay, cp);
-  return entityOk && requirementOk;
+/** An explicit checkpoint → criterion → evidence mapping. A checkpoint is only covered when one exists. */
+export interface CheckpointEvidenceMapping {
+  checkpointId: string;
+  missionKey: string;
+  criterionIndex: number;
+  evidenceIndex: number;
+  factIds: string[];
+  transitionIds: string[];
+  evidenceMode: string;
 }
 
-/** A looser requirement match: the checkpoint's distinctive words (entity + context + kind verb). */
+/** A looser requirement match: the checkpoint's distinctive words, else a verb from its kind's family. */
 function coversByKeywords(hay: string, cp: GoalCheckpointV1): boolean {
   const bits = [cp.targetEntity, cp.requiredContext].filter(Boolean).join(" ");
-  // A checkpoint is expressed in the mission when enough of its DISTINCTIVE words appear (synonym- and
-  // phrasing-robust: "Navigate to the site" covers "Open the product"), or when the mission uses a verb
-  // from that checkpoint's family together with its entity/context. Token coverage first — a fixed verb
-  // list alone is too brittle across products and phrasings.
   const tokens = distinctiveTokens(`${cp.requirement} ${cp.targetEntity}`);
   if (tokens.length > 0) {
     const h = lower(hay);
@@ -809,29 +950,103 @@ const REQUIREMENT_STOPWORDS = new Set([
   "then",
   "after",
 ]);
-function distinctiveTokens(s: string): string[] {
-  const words = lower(s)
+function distinctiveTokens(str: string): string[] {
+  const words = lower(str)
     .split(/[^a-zà-ÿ0-9]+/)
     .filter((w) => w.length >= 4 && !REQUIREMENT_STOPWORDS.has(w));
   return [...new Set(words)];
 }
 
 /**
+ * Map ONE checkpoint to the criterion+evidence pair that PROVES it. Coverage is judged per criterion —
+ * never over concatenated title/objective/instructions text — and the criterion must be GROUNDED on the
+ * very evidence the checkpoint was completed by. That is what makes "a name field cannot prove reaching
+ * the in-world character" and "a conversation option cannot prove receiving a reply" structural.
+ */
+export function mapCheckpointEvidence(
+  cp: GoalCheckpointV1,
+  missions: MissionCoverageView[],
+  isOutcome: boolean,
+):
+  | { ok: true; mapping: CheckpointEvidenceMapping }
+  | { ok: false; code: JourneyRejectionCode } {
+  let textualHit = false;
+  for (const m of missions) {
+    for (let i = 0; i < m.criteria.length; i++) {
+      const g = m.grounding.find((x) => x.criterionIndex === i);
+      const evidenceText = g
+        ? (m.evidenceRequirements[g.evidenceIndex] ?? "")
+        : "";
+      // the criterion + the evidence that proves it — nothing else may satisfy the requirement.
+      const pair = `${m.criteria[i]} \n ${evidenceText}`;
+      if (!expressesCheckpoint(pair, cp)) continue;
+      textualHit = true;
+      if (!g) continue; // says the right thing but proves nothing
+      // it must be grounded on THIS checkpoint's observed evidence (same facts/transition), so a criterion
+      // about an earlier state can never stand in for a later requirement.
+      const factHit = g.factIds.some((f) => cp.evidence.factIds.includes(f));
+      const transHit = g.transitionIds.some((t) =>
+        cp.evidence.transitionIds.includes(t),
+      );
+      if (!factHit && !transHit) continue;
+      return {
+        ok: true,
+        mapping: {
+          checkpointId: cp.checkpointId,
+          missionKey: m.missionKey,
+          criterionIndex: i,
+          evidenceIndex: g.evidenceIndex,
+          factIds: g.factIds.filter((f) => cp.evidence.factIds.includes(f)),
+          transitionIds: g.transitionIds.filter((t) =>
+            cp.evidence.transitionIds.includes(t),
+          ),
+          evidenceMode: g.evidenceMode,
+        },
+      };
+    }
+  }
+  if (isOutcome) {
+    // the founder's asked-for RESULT must be tied to the state where the result was actually observed.
+    return {
+      ok: false,
+      code: textualHit
+        ? "goal_outcome_evidence_insufficient"
+        : "goal_outcome_uncovered",
+    };
+  }
+  return {
+    ok: false,
+    code: textualHit
+      ? "goal_checkpoint_evidence_unmapped"
+      : "goal_checkpoint_uncovered",
+  };
+}
+
+/** Does this criterion+evidence pair express the checkpoint's requirement? (token coverage + entity) */
+function expressesCheckpoint(pair: string, cp: GoalCheckpointV1): boolean {
+  const entityOk = !cp.targetEntity || containsAny(pair, cp.targetEntity);
+  if (!entityOk) return false;
+  return containsAll(pair, cp.requirement) || coversByKeywords(pair, cp);
+}
+
+/**
  * The GATE: a grounded plan may only be selected when EVERY founder-required checkpoint is (a) observed in
- * the browser with real evidence and (b) covered by a mission criterion that can prove it. A prerequisite
- * attached to a criterion may support the requested outcome, but a plan made only of prerequisites is
- * rejected — an onboarding mission is not the answer to "go to X and talk to her". Pure + deterministic.
+ * the browser with real evidence and (b) mapped to a mission CRITERION + EVIDENCE pair grounded on that
+ * same evidence. Correct wording in a title or objective can never compensate for a missing criterion.
+ * A plan made only of prerequisites is rejected. Pure + deterministic.
  */
 export function checkJourneyCoverage(
   journey: GoalJourneyV1,
   missions: MissionCoverageView[],
 ): JourneyCoverageResult {
   const rejections: JourneyCoverageResult["rejections"] = [];
+  const mappings: CheckpointEvidenceMapping[] = [];
   const required = requiredCheckpoints(journey);
   const outcomes = outcomeCheckpoints(journey);
   let covered = 0;
 
   for (const cp of required) {
+    const isOutcome = outcomes.some((o) => o.checkpointId === cp.checkpointId);
     if (cp.status === "blocked") {
       rejections.push({
         code: "goal_checkpoint_wrong_context",
@@ -840,18 +1055,10 @@ export function checkJourneyCoverage(
       });
       continue;
     }
-    if (cp.status !== "observed") {
-      rejections.push({
-        code: "goal_checkpoint_unobserved",
-        checkpointId: cp.checkpointId,
-        requirement: cp.requirement,
-      });
-      continue;
-    }
-    // observed, but was it grounded in real evidence? (a checkpoint with no evidence never completed)
     if (
-      cp.evidence.factIds.length === 0 &&
-      cp.evidence.transitionIds.length === 0
+      cp.status !== "observed" ||
+      (cp.evidence.factIds.length === 0 &&
+        cp.evidence.transitionIds.length === 0)
     ) {
       rejections.push({
         code: "goal_checkpoint_unobserved",
@@ -860,31 +1067,31 @@ export function checkJourneyCoverage(
       });
       continue;
     }
-    const covering = missions.some((m) => missionCovers(cp, m));
-    if (!covering) {
-      const isOutcome = outcomes.some(
-        (o) => o.checkpointId === cp.checkpointId,
-      );
+    const m = mapCheckpointEvidence(cp, missions, isOutcome);
+    if (!m.ok) {
       rejections.push({
-        code: isOutcome
-          ? "goal_outcome_uncovered"
-          : "goal_checkpoint_uncovered",
+        code: m.code,
         checkpointId: cp.checkpointId,
         requirement: cp.requirement,
       });
       continue;
     }
+    mappings.push(m.mapping);
     covered++;
   }
 
   // a plan that covers ONLY prerequisites (nothing at/after the founder's outcome) is never the answer.
-  const outcomeCovered = outcomes.every(
-    (o) => o.status === "observed" && missions.some((m) => missionCovers(o, m)),
+  const outcomeMapped = outcomes.every((o) =>
+    mappings.some((x) => x.checkpointId === o.checkpointId),
   );
   if (
-    !outcomeCovered &&
+    !outcomeMapped &&
     missions.length > 0 &&
-    rejections.every((r) => r.code !== "goal_outcome_uncovered")
+    !rejections.some(
+      (r) =>
+        r.code === "goal_outcome_uncovered" ||
+        r.code === "goal_outcome_evidence_insufficient",
+    )
   ) {
     const o = outcomes[0];
     if (o)
@@ -898,6 +1105,7 @@ export function checkJourneyCoverage(
   return {
     ok: rejections.length === 0,
     rejections: rejections.slice(0, 12),
+    mappings,
     observedCount: required.filter((c) => c.status === "observed").length,
     requiredCount: required.length,
     coveredCount: covered,
