@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   affordanceRank,
   chooseForwardAffordance,
+  chooseGoalTargetAffordance,
+  goalTerms,
+  goalWantsConversation,
+  goalMatchScore,
   resolveSyntheticValue,
   isSensitiveField,
   actionSignature,
@@ -97,6 +101,145 @@ describe("chooseForwardAffordance — pick the goal-advancing control, skip deco
     expect(
       chooseForwardAffordance(elements, "s", new Set(), new Set()),
     ).toEqual({ kind: "click_element", elementId: "e0" });
+  });
+});
+
+/* ───────── goal-relative targeting (general: any named target entity) ────── */
+
+describe("goalTerms — the founder goal's target words, product-agnostic", () => {
+  it("keeps the named target, drops filler/budget/role words", () => {
+    const t = goalTerms(
+      "make users land in yara.garden and go to yara character and talk to her, my budget is 1.5$",
+    );
+    expect(t).toContain("yara");
+    expect(t).toContain("character");
+    expect(t).not.toContain("users");
+    expect(t).not.toContain("budget");
+    expect(t).not.toContain("make");
+  });
+  it("works for a completely different product/goal", () => {
+    const t = goalTerms("let users find the pricing page and start a trial");
+    expect(t).toContain("pricing");
+    expect(t).toContain("trial");
+    expect(t).not.toContain("users");
+  });
+});
+
+describe("goalWantsConversation", () => {
+  it("detects a conversation goal in varied phrasing", () => {
+    for (const g of [
+      "talk to her",
+      "chat with the assistant",
+      "send a message to support",
+      "ask the bot a question",
+      "get a reply from Aria",
+    ]) {
+      expect(goalWantsConversation(g), g).toBe(true);
+    }
+  });
+  it("is false for non-conversation goals", () => {
+    for (const g of [
+      "find the pricing page",
+      "complete checkout",
+      "draw a rectangle",
+    ]) {
+      expect(goalWantsConversation(g), g).toBe(false);
+    }
+  });
+});
+
+describe("chooseGoalTargetAffordance — go to what the goal names", () => {
+  const terms = goalTerms("go to yara character and talk to her");
+  it("prefers the goal-matching affordance over unrelated controls", () => {
+    const elements = [
+      el({ id: "e0", label: "Still Pond" }),
+      el({ id: "e1", label: "Meet Yara" }),
+      el({ id: "e2", label: "Fountain Plaza" }),
+    ];
+    expect(chooseGoalTargetAffordance(elements, terms, "s", new Set())).toEqual(
+      { kind: "click_element", elementId: "e1" },
+    );
+  });
+  it("returns null when nothing on screen matches the goal (→ move / ask the model)", () => {
+    const elements = [
+      el({ id: "e0", label: "Still Pond" }),
+      el({ id: "e1", label: "The Hearth" }),
+    ];
+    expect(
+      chooseGoalTargetAffordance(elements, terms, "s", new Set()),
+    ).toBeNull();
+  });
+  it("respects tried + dead sets (no loops)", () => {
+    const elements = [el({ id: "e1", label: "Meet Yara" })];
+    const first = chooseGoalTargetAffordance(elements, terms, "s", new Set())!;
+    expect(
+      chooseGoalTargetAffordance(
+        elements,
+        terms,
+        "s",
+        new Set([actionSignature("s", first)]),
+      ),
+    ).toBeNull();
+    expect(
+      chooseGoalTargetAffordance(
+        elements,
+        terms,
+        "s",
+        new Set(),
+        new Set(["meet yara"]),
+      ),
+    ).toBeNull();
+  });
+  it("is general — matches a different product's named target", () => {
+    const t2 = goalTerms("let users find the pricing page and start a trial");
+    const elements = [
+      el({ id: "e0", label: "Features" }),
+      el({ id: "e1", label: "Pricing" }),
+    ];
+    expect(chooseGoalTargetAffordance(elements, t2, "s", new Set())).toEqual({
+      kind: "click_element",
+      elementId: "e1",
+    });
+  });
+  it("goalMatchScore rises with more matched terms", () => {
+    expect(goalMatchScore("Talk to Yara", terms)).toBeGreaterThan(
+      goalMatchScore("Yara's Grove", terms) - 1,
+    );
+    expect(goalMatchScore("Random Label", terms)).toBe(0);
+  });
+});
+
+describe("press_key burst — bounded movement", () => {
+  const elements = [el({ id: "e0", label: "x" })];
+  const wrapK = (a: unknown) => ({
+    action: a,
+    expectedChange: "",
+    goalProgress: "advancing",
+  });
+  it("accepts a bounded repeat and clamps it to 1..5", () => {
+    expect(
+      coerceDecision(
+        wrapK({ kind: "press_key", key: "ArrowRight", repeat: 3 }),
+        elements,
+      )?.action,
+    ).toEqual({ kind: "press_key", key: "ArrowRight", repeat: 3 });
+    expect(
+      coerceDecision(
+        wrapK({ kind: "press_key", key: "w", repeat: 99 }),
+        elements,
+      )?.action,
+    ).toEqual({ kind: "press_key", key: "w", repeat: 5 });
+    expect(
+      coerceDecision(
+        wrapK({ kind: "press_key", key: "w", repeat: 0 }),
+        elements,
+      )?.action,
+    ).toEqual({ kind: "press_key", key: "w", repeat: 1 });
+  });
+  it("a burst of the same key shares ONE signature (direction retirement, not per-press)", () => {
+    const a = { kind: "press_key", key: "ArrowUp", repeat: 2 } as const;
+    const b = { kind: "press_key", key: "ArrowUp", repeat: 5 } as const;
+    expect(actionSignature("s", a)).toBe(actionSignature("s", b));
   });
 });
 
@@ -231,7 +374,7 @@ describe("coerceDecision — validates every action against the minted state", (
     for (const key of ALLOWED_KEYS)
       expect(
         coerceDecision(wrap({ kind: "press_key", key }), elements)?.action,
-      ).toEqual({ kind: "press_key", key });
+      ).toEqual({ kind: "press_key", key, repeat: 1 }); // absent repeat → a single press
   });
   it("clamps coordinates to 0..100", () => {
     const d = coerceDecision(

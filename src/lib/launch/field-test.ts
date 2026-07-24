@@ -25,6 +25,10 @@ import { describeStatesWithVision } from "./vision";
 import { stateDigest } from "./observed-facts";
 import {
   chooseForwardAffordance,
+  chooseGoalTargetAffordance,
+  goalTerms,
+  goalWantsConversation,
+  goalMatchScore,
   decideNextAction,
   actionSignature,
   wordSignature,
@@ -69,6 +73,15 @@ const MAX_CTAS = 10;
 const MAX_INTERACTIONS = 30; // goal-directed action budget (spec cap: 30 browser actions)
 const MAX_STATES = 25; // retained meaningful states (spec cap)
 const MAX_MODEL_CALLS = 12; // multimodal controller decisions (spec cap)
+// Linear onboarding must not eat the exploration budget. Once the product's MAIN EXPERIENCE is reached,
+// reserve a floor for real exploration, and allow a bounded extension while the controller is making
+// verified goal progress (never an open-ended loop — the 3-minute wall clock still applies).
+const RESERVE_ACTIONS = 8; // actions guaranteed AFTER the main experience is reached
+const RESERVE_STATES = 5; // meaningful states guaranteed after that point
+const RESERVE_MODEL_CALLS = 3; // multimodal decisions guaranteed after that point
+const EXT_MAX_INTERACTIONS = 40; // hard extension ceiling (actions)
+const EXT_MAX_STATES = 32; // hard extension ceiling (meaningful states)
+const EXT_MAX_MODEL_CALLS = 16; // hard extension ceiling (model decisions)
 const EXPLORE_MS = 180_000; // 3 minutes hard cap
 const LOADING_BUDGET_MS = 60_000;
 const LOADING_POLL_MS = 2_000;
@@ -1243,8 +1256,17 @@ async function executeAction(
           (await textInputFocused(page))
         )
           return `skipped ${action.key} (text input focused)`;
-        await page.keyboard.press(action.key);
-        return `pressed ${action.key}`;
+        {
+          // a BOUNDED movement burst — one action, up to 5 presses, then the caller recaptures.
+          const n = Math.max(1, Math.min(5, action.repeat ?? 1));
+          for (let i = 0; i < n; i++) {
+            await page.keyboard.press(action.key);
+            if (n > 1) await page.waitForTimeout(160);
+          }
+          return n > 1
+            ? `pressed ${action.key} ×${n}`
+            : `pressed ${action.key}`;
+        }
       case "type_text": {
         const value = resolveSyntheticValue(action.valueKind);
         const el = loc(action.elementId);
@@ -1275,6 +1297,20 @@ async function executeAction(
           await el.click({ force: true }).catch(() => {});
           await page.keyboard.type(value, { delay: 10 }).catch(() => {});
         });
+        // VERIFY the value actually landed (a framework-controlled input can silently reject a fill).
+        // The trigger must never claim an entry that did not happen — and the caller uses it as progress.
+        const landed = await el
+          .evaluate((node, v) => {
+            const he = node as HTMLElement & { value?: string };
+            const got =
+              typeof he.value === "string" ? he.value : (he.textContent ?? "");
+            return (
+              got.trim().length > 0 &&
+              v.slice(0, 12).includes(got.trim().slice(0, 12).slice(0, 12))
+            );
+          }, value)
+          .catch(() => false);
+        if (!landed) return "attempted to type (the field did not accept it)";
         return action.valueKind === "ai_probe"
           ? "typed a test message"
           : action.valueKind === "display_name"
@@ -1449,40 +1485,175 @@ async function exploreInteractive(ctx: {
       }
     }
 
+    /**
+     * COMPLETE a private in-product conversation (an AI/NPC character, a support bot, any message box the
+     * founder's goal asks Sage to use): type the FIXED synthetic probe, submit it via the observed Send
+     * control (else Enter), then WAIT for an actual response. Each captured state corresponds to something
+     * that really happened — the reply state is captured ONLY when new content genuinely appeared, so a
+     * "responded" claim can never come from a mere "Talk"/"Meet" label. General: no product strings.
+     */
+    const SEND_RE = /^(send|send message|submit|reply|post|go|➤|➔|→|▶|↵)$/i;
+    const completeConversation = async (
+      els: MintedElement[],
+    ): Promise<"none" | "sent" | "replied"> => {
+      const input = els.find((e) => e.typable);
+      if (!input) return "none";
+      const beforeSig = wordSignature(
+        states[states.length - 1]?.visibleTextExcerpt ?? "",
+      );
+      // 1. type the fixed, transparent probe (never model-authored, never a credential).
+      const typed = await executeAction(
+        page,
+        { kind: "type_text", elementId: input.id, valueKind: "ai_probe" },
+        els,
+      );
+      interactions++;
+      if (/skipped/i.test(typed)) return "none"; // a sensitive field → never type, stay honest
+      await page.waitForTimeout(300);
+      await capture("typed the test message into the conversation");
+      // 2. submit via the OBSERVED send control, else Enter.
+      const send = els.find((e) => SEND_RE.test(e.label.trim()));
+      const submitted = send
+        ? await executeAction(
+            page,
+            { kind: "click_element", elementId: send.id },
+            els,
+          )
+        : await executeAction(page, { kind: "press_key", key: "Enter" }, els);
+      interactions++;
+      await page.waitForTimeout(900);
+      await capture(
+        send
+          ? `sent the message — ${submitted}`
+          : "pressed Enter to send the message",
+      );
+      const sentSig = wordSignature(
+        states[states.length - 1]?.visibleTextExcerpt ?? "",
+      );
+      // 3. WAIT for a real response — new visible words that weren't there before or right after sending.
+      const replyDeadline = Math.min(deadline, Date.now() + 15_000);
+      let replied = false;
+      while (Date.now() < replyDeadline) {
+        await page.waitForTimeout(1_500);
+        const sig = wordSignature(await renderedExcerpt(page));
+        if (sig !== sentSig && sig !== beforeSig) {
+          replied = true;
+          break;
+        }
+      }
+      if (replied) await capture("observed the reply in the conversation");
+      return replied ? "replied" : "sent";
+    };
+
     // ── GOAL-DIRECTED CONTROLLER ─────────────────────────────────────────────
     // With a founder goal, Sage PURSUES it: each step observe → choose ONE bounded action (a deterministic
     // forward affordance first, else the multimodal controller) → execute in THIS guarded browser → capture
     // the new state → dedup (state,action) to prevent loops → stop at the goal, a real boundary, or a budget.
     const runGoalLoop = async (goal: string): Promise<void> => {
       const tried = new Set<string>();
-      const deadLabels = new Set<string>(); // affordances that did nothing in THIS context (cleared on progress)
+      const deadLabels = new Set<string>(); // affordances/directions that did nothing HERE (cleared on progress)
       const ineffective = new Map<string, number>();
       const history: ControllerHistoryItem[] = [];
       const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const terms = goalTerms(goal);
+      const wantsConversation = goalWantsConversation(goal);
       let modelCalls = 0;
       let stall = 0;
-      // Budget MEANINGFUL states (real progress), not raw actions — the spec allows up to 30 actions but
-      // only 25 retained states, so animation frames / no-progress fumbles don't burn the state budget.
+      // Budget MEANINGFUL states (real progress), not raw actions, and COMPACT a run of consecutive
+      // linear-onboarding states into one budget unit — the whole trace + its transitions are still
+      // recorded, but crossing a 15-step signup can never consume the exploration budget.
       let meaningful = 1; // the initial state counts
+      let prevOnboarding = false;
+      let mainReached = false; // the product's main experience (past linear onboarding)
+      let actionCap = MAX_INTERACTIONS;
+      let stateCap = MAX_STATES;
+      let modelCap = MAX_MODEL_CALLS;
+      /** Guarantee a floor of budget for real exploration, bounded by the hard extension ceilings. */
+      const reserveBudget = () => {
+        actionCap = Math.min(
+          EXT_MAX_INTERACTIONS,
+          Math.max(actionCap, interactions + RESERVE_ACTIONS),
+        );
+        stateCap = Math.min(
+          EXT_MAX_STATES,
+          Math.max(stateCap, meaningful + RESERVE_STATES),
+        );
+        modelCap = Math.min(
+          EXT_MAX_MODEL_CALLS,
+          Math.max(modelCap, modelCalls + RESERVE_MODEL_CALLS),
+        );
+      };
       let prevWordSig = wordSignature(
         states[states.length - 1]?.visibleTextExcerpt ?? "",
       );
       let prevUrl = page.url();
-      while (canInteract() && meaningful < MAX_STATES) {
+      let conversationDone = false;
+      // A filled form field changes the state WITHOUT changing any visible text, so the state digest
+      // (url + text + elements) stays identical. This salt advances on every successful fill so the
+      // now-meaningful control ("Continue", disabled-until-filled) is no longer treated as already-tried.
+      let ctxSalt = 0;
+
+      while (
+        interactions < actionCap &&
+        meaningful < stateCap &&
+        Date.now() < deadline
+      ) {
         const cur = states[states.length - 1];
         if (!cur) break;
-        const digest = stateDigest(cur);
+        const digest = `${stateDigest(cur)}#${ctxSalt}`;
         const elements = await mintInteractiveElements(page);
-        // deterministic forward affordance first (cheap, general — no model call), skipping dead ones.
+
+        // COMPLETE THE TARGET INTERACTION: once the goal calls for a conversation and a message box is
+        // actually present, do the real exchange (probe → submit → wait for a reply) instead of clicking on.
+        if (
+          wantsConversation &&
+          !conversationDone &&
+          elements.some((e) => e.typable)
+        ) {
+          conversationDone = true;
+          const outcome = await completeConversation(elements);
+          history.push({
+            action: `conversation:${outcome}`,
+            changed: outcome !== "none",
+            note: "target interaction",
+          });
+          if (outcome === "replied") break; // the founder's goal is genuinely done — stop.
+          prevWordSig = wordSignature(
+            states[states.length - 1]?.visibleTextExcerpt ?? "",
+          );
+          prevUrl = page.url();
+          meaningful++;
+          reserveBudget();
+          continue;
+        }
+
+        // 1. linear onboarding: the obvious forward control (cheap + deterministic, no model call).
         let action: ControllerAction | null = chooseForwardAffordance(
           elements,
           digest,
           tried,
           deadLabels,
         );
-        let progress: ControllerDecision["goalProgress"] = "advancing";
+        let isOnboarding = !!action;
+        // 2. no forward control ⇒ the MAIN EXPERIENCE is reached: guarantee exploration budget, then go
+        //    straight for whatever the GOAL names (a character/entity/interaction visible on screen).
         if (!action) {
-          if (modelCalls >= MAX_MODEL_CALLS) break;
+          if (!mainReached) {
+            mainReached = true;
+            reserveBudget();
+          }
+          action = chooseGoalTargetAffordance(
+            elements,
+            terms,
+            digest,
+            tried,
+            deadLabels,
+          );
+        }
+        let progress: ControllerDecision["goalProgress"] = "advancing";
+        // 3. still nothing obvious ⇒ ask the multimodal controller (it sees the screenshot + goal targets).
+        if (!action) {
+          if (modelCalls >= modelCap) break;
           const img = await screenshotJpegDataUri(page);
           const decision = await decideNextAction(
             goal,
@@ -1493,7 +1664,7 @@ async function exploreInteractive(ctx: {
               canvas: await canvasGeomPct(page),
             },
             history,
-            MAX_INTERACTIONS - interactions,
+            actionCap - interactions,
             img,
             ctx.controllerDeps ?? {},
           );
@@ -1511,13 +1682,24 @@ async function exploreInteractive(ctx: {
           break; // reached the goal, or an honest boundary (auth / captcha / payment / real person).
         }
         tried.add(actionSignature(digest, action));
-        // the label acted on — for context-scoped retirement of a control that does nothing here.
+        // what was acted on — for context-scoped retirement of a control OR a movement direction that
+        // repeatedly produces no goal-relative progress.
         const actedLabel =
           action.kind === "click_element"
             ? normL(
                 elements.find((e) => e.id === action.elementId)?.label ?? "",
               )
-            : "";
+            : action.kind === "press_key"
+              ? `key:${action.key}`
+              : "";
+        // did this action move us toward something the goal names? (for verified-progress extension)
+        const targetedGoal =
+          action.kind === "click_element" &&
+          goalMatchScore(
+            elements.find((e) => e.id === action.elementId)?.label ?? "",
+            terms,
+          ) > 0;
+
         const trigger = await executeAction(page, action, elements);
         interactions++;
         await page
@@ -1528,27 +1710,40 @@ async function exploreInteractive(ctx: {
           await page.goBack().catch(() => {});
           await page.waitForTimeout(300);
         }
-        await capture(trigger);
-        // REAL progress = the URL changed or the WORD content changed. Drifting particles / emoji / spinners
-        // move pixels every frame; ignoring them stops the controller re-clicking a control that did nothing.
+        await capture(trigger); // recapture after EVERY action, including a movement burst
+        // REAL progress = the URL changed or the WORD content changed. Drifting particles / emoji /
+        // cosmetic canvas motion move pixels every frame and must never read as progress.
         const newWordSig = wordSignature(
           states[states.length - 1]?.visibleTextExcerpt ?? "",
         );
-        const realChange = page.url() !== prevUrl || newWordSig !== prevWordSig;
+        // A successful FILL is real progress even though it changes no visible text — a form's value
+        // lives in the DOM, not in innerText. Without this, "fill the field then continue" stalls: the
+        // continue control looks dead because typing appeared to change nothing.
+        const filled =
+          action.kind === "type_text" && !/^skipped/i.test(trigger);
+        if (filled) ctxSalt++; // the context genuinely changed → previously-dead controls are live again
+        const realChange =
+          page.url() !== prevUrl || newWordSig !== prevWordSig || filled;
         history.push({ action: trigger, changed: realChange, note: progress });
         if (realChange) {
-          meaningful++;
+          // COMPACT consecutive onboarding states: a linear ladder costs ONE unit of the state budget.
+          if (!(isOnboarding && prevOnboarding)) meaningful++;
           deadLabels.clear();
           ineffective.clear();
           stall = 0;
+          // verified goal progress after the main experience → extend, bounded by the hard ceilings.
+          if (mainReached && (targetedGoal || progress === "advancing"))
+            reserveBudget();
         } else {
           if (actedLabel) {
             const n = (ineffective.get(actedLabel) ?? 0) + 1;
             ineffective.set(actedLabel, n);
-            if (n >= 2) deadLabels.add(actedLabel); // retire it here — pick something else / ask the model
+            if (n >= 2) deadLabels.add(actedLabel); // retire this control/direction here
           }
           stall++;
+          isOnboarding = false;
         }
+        prevOnboarding = isOnboarding && realChange;
         prevWordSig = newWordSig;
         prevUrl = page.url();
         if (progress === "reached") break;

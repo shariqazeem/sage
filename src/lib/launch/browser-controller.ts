@@ -41,7 +41,7 @@ export type SyntheticValueKind = "display_name" | "search" | "ai_probe";
 export type ControllerAction =
   | { kind: "click_element"; elementId: string }
   | { kind: "click_coords"; xPct: number; yPct: number }
-  | { kind: "press_key"; key: AllowedKey }
+  | { kind: "press_key"; key: AllowedKey; repeat?: number }
   | { kind: "type_text"; elementId: string; valueKind: SyntheticValueKind }
   | { kind: "select_option"; elementId: string; optionValue: string }
   | { kind: "scroll"; direction: "down" | "up" }
@@ -173,13 +173,196 @@ function normLabel(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/* ─────────────── goal-relative targeting (general, product-agnostic) ─────── */
+
+/** Words that carry no targeting signal in a founder goal — everything else is a candidate target term. */
+const GOAL_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "into",
+  "onto",
+  "that",
+  "this",
+  "they",
+  "them",
+  "their",
+  "there",
+  "her",
+  "his",
+  "its",
+  "our",
+  "your",
+  "you",
+  "she",
+  "him",
+  "who",
+  "was",
+  "are",
+  "can",
+  "will",
+  "would",
+  "make",
+  "makes",
+  "made",
+  "let",
+  "lets",
+  "want",
+  "wants",
+  "need",
+  "needs",
+  "should",
+  "must",
+  "able",
+  "user",
+  "users",
+  "people",
+  "person",
+  "visitor",
+  "visitors",
+  "tester",
+  "testers",
+  "customer",
+  "customers",
+  "land",
+  "lands",
+  "landing",
+  "goes",
+  "get",
+  "gets",
+  "got",
+  "see",
+  "sees",
+  "give",
+  "gives",
+  "take",
+  "budget",
+  "usd",
+  "usdc",
+  "dollar",
+  "dollars",
+  "reward",
+  "rewards",
+  "campaign",
+  "mission",
+  "missions",
+  "product",
+  "app",
+  "site",
+  "website",
+  "page",
+  "pages",
+  "screen",
+  "test",
+  "testing",
+  "tests",
+  "try",
+  "then",
+  "after",
+  "before",
+  "when",
+  "while",
+  "where",
+  "what",
+  "how",
+  "why",
+  "any",
+  "all",
+  "one",
+  "new",
+  "first",
+  "next",
+  "last",
+  "just",
+  "also",
+  "really",
+  "very",
+  "some",
+  "more",
+  "most",
+  "each",
+]);
+
+/**
+ * The founder goal's TARGET TERMS — the content words that name what Sage must reach or do (an entity,
+ * a place, an interaction). Pure + product-agnostic: it's just "the meaningful words of the goal", used
+ * to recognise a matching on-screen affordance. No product-specific strings anywhere.
+ */
+export function goalTerms(goal: string): string[] {
+  const words = goal.toLowerCase().match(/[a-zà-ÿ][a-zà-ÿ'-]{2,}/g) ?? [];
+  const out: string[] = [];
+  for (const w of words) {
+    const t = w.replace(/[''-]+$/, "");
+    if (t.length < 3 || GOAL_STOPWORDS.has(t) || out.includes(t)) continue;
+    out.push(t);
+  }
+  return out.slice(0, 12);
+}
+
+/** Does the founder's goal require an actual conversation/message exchange? Pure, language-general. */
+export function goalWantsConversation(goal: string): boolean {
+  return /\b(talk|talks|talking|chat|chats|chatting|speak|speaks|message|messages|messaging|ask|asks|converse|conversation|dialogue|dialog|reply|replies|respond|responds|response|greet|greets|say|says)\b/i.test(
+    goal,
+  );
+}
+
+/** How strongly an element label matches the goal's target terms (count of distinct matched terms). */
+export function goalMatchScore(
+  label: string,
+  terms: readonly string[],
+): number {
+  const n = normLabel(label);
+  if (!n) return 0;
+  let score = 0;
+  for (const t of terms) if (n.includes(t)) score++;
+  return score;
+}
+
+/**
+ * Pick the affordance that most directly targets the FOUNDER'S GOAL (e.g. a character/entity/interaction
+ * named in the goal), skipping ones already tried or dead in this context. This is what lets Sage go to
+ * the thing it was asked to reach instead of wandering — general to any visually located target, with no
+ * product-specific strings. Returns null when no element matches the goal's terms.
+ */
+export function chooseGoalTargetAffordance(
+  elements: MintedElement[],
+  terms: readonly string[],
+  stateDigest: string,
+  tried: ReadonlySet<string>,
+  deadLabels: ReadonlySet<string> = new Set(),
+): ControllerAction | null {
+  if (terms.length === 0) return null;
+  let best: { el: MintedElement; score: number } | null = null;
+  for (const el of elements) {
+    if (el.tag === "select") continue;
+    if (deadLabels.has(normLabel(el.label))) continue;
+    const score = goalMatchScore(el.label, terms);
+    if (score <= 0) continue;
+    const sig = actionSignature(stateDigest, {
+      kind: "click_element",
+      elementId: el.id,
+    });
+    if (tried.has(sig)) continue;
+    if (!best || score > best.score) best = { el, score };
+  }
+  return best ? { kind: "click_element", elementId: best.el.id } : null;
+}
+
+/** A control's label is short; a sentence is prose. Prose that merely CONTAINS "continue" ("Please enter
+ *  your name to continue", "By continuing you agree…") is not a forward control — only an exact phrase
+ *  match qualifies past this length, so validation/consent copy can never be mistaken for a button. */
+const CONTROL_LABEL_MAX = 24;
+
 /** The forward-affordance priority of a label, or -1 if none (lower index = higher priority). */
 export function affordanceRank(label: string): number {
   const n = normLabel(label);
   if (!n) return -1;
   for (let i = 0; i < FORWARD_AFFORDANCES.length; i++) {
     const phrase = FORWARD_AFFORDANCES[i];
-    if (n === phrase || n.includes(phrase)) return i;
+    if (n === phrase) return i;
+    if (n.includes(phrase) && n.length <= CONTROL_LABEL_MAX) return i;
   }
   return -1;
 }
@@ -241,7 +424,7 @@ function canonicalAction(a: ControllerAction): string {
     case "click_coords":
       return `coords:${Math.round(a.xPct)},${Math.round(a.yPct)}`;
     case "press_key":
-      return `key:${a.key}`;
+      return `key:${a.key}`; // repeat is NOT in the signature — a burst of the same key is the same move
     case "type_text":
       return `type:${a.elementId}:${a.valueKind}`;
     case "select_option":
@@ -314,9 +497,14 @@ export function coerceDecision(
       });
     case "press_key": {
       const key = String(a.key);
-      return KEY_SET.has(key)
-        ? wrap({ kind: "press_key", key: key as AllowedKey })
-        : null;
+      if (!KEY_SET.has(key)) return null;
+      // a BOUNDED movement burst (1..5 presses) — enough to cross a walkable world without a free loop.
+      const r =
+        typeof a.repeat === "number" && isFinite(a.repeat)
+          ? Math.round(a.repeat)
+          : 1;
+      const repeat = Math.max(1, Math.min(5, r));
+      return wrap({ kind: "press_key", key: key as AllowedKey, repeat });
     }
     case "type_text": {
       const el = byId.get(String(a.elementId));
@@ -397,6 +585,7 @@ export const BROWSER_ACTION_SCHEMA: {
           xPct: { type: ["number", "null"] },
           yPct: { type: ["number", "null"] },
           key: { type: ["string", "null"], enum: [...ALLOWED_KEYS, null] },
+          repeat: { type: ["integer", "null"] },
           valueKind: {
             type: ["string", "null"],
             enum: ["display_name", "search", "ai_probe", null],
@@ -419,6 +608,7 @@ export const BROWSER_ACTION_SCHEMA: {
           "xPct",
           "yPct",
           "key",
+          "repeat",
           "valueKind",
           "optionValue",
           "direction",
@@ -475,10 +665,11 @@ const CONTROLLER_SYSTEM = [
   "Return exactly ONE next action that best advances the goal, using ONLY the provided element ids, the allowlisted keys, normalized 0-100 coordinates, or a synthetic value KIND (display_name, search, ai_probe).",
   "You may NOT author selectors, JavaScript, URLs, credentials, or free-text values. To fill a name field use type_text with valueKind display_name; to message an in-product AI/NPC character (only if the goal requires talking to one) use type_text with valueKind ai_probe.",
   "Prefer obvious forward controls (Start, Continue, Enter, Come in, Skip). For a canvas/visual world with few DOM elements, use click_coords, press_key (arrows/WASD/Space/Enter), or drag to move and interact.",
+  "PRIORITY once the product's main experience is reached: go to the thing the GOAL names. If a label or on-screen affordance matching the goal's target is visible, click that element (or its screen coordinates) directly. If the target is visible but out of reach, use press_key with a repeat of 2-5 as a bounded movement burst toward it, then reassess from the new screenshot; if a direction produces no goal-relative progress twice, try a different direction.",
   "STOP with status blocked if you hit a login, signup, CAPTCHA, wallet signature, payment, purchase, file upload, publish, or a message to a real person — never attempt those. STOP with status completed once the goal is clearly achieved.",
   "Do not repeat an action that already produced no change.",
   'Reply with ONLY a JSON object, no prose, exactly: {"action":{"kind":"...", ...fields for that kind...},"expectedChange":"...","goalProgress":"not_started|advancing|reached|blocked"}.',
-  'Field per kind: click_element→{"kind":"click_element","elementId":"e3"}; click_coords→{"kind":"click_coords","xPct":50,"yPct":80}; press_key→{"kind":"press_key","key":"Enter"}; type_text→{"kind":"type_text","elementId":"e1","valueKind":"display_name"}; select_option→{"kind":"select_option","elementId":"e2","optionValue":"US"}; scroll→{"kind":"scroll","direction":"down"}; drag→{"kind":"drag","fromXPct":40,"fromYPct":50,"toXPct":60,"toYPct":50}; wait→{"kind":"wait"}; go_back→{"kind":"go_back"}; stop→{"kind":"stop","status":"completed|blocked","reason":"..."}.',
+  'Field per kind: click_element→{"kind":"click_element","elementId":"e3"}; click_coords→{"kind":"click_coords","xPct":50,"yPct":80}; press_key→{"kind":"press_key","key":"ArrowRight","repeat":3}; type_text→{"kind":"type_text","elementId":"e1","valueKind":"display_name"}; select_option→{"kind":"select_option","elementId":"e2","optionValue":"US"}; scroll→{"kind":"scroll","direction":"down"}; drag→{"kind":"drag","fromXPct":40,"fromYPct":50,"toXPct":60,"toYPct":50}; wait→{"kind":"wait"}; go_back→{"kind":"go_back"}; stop→{"kind":"stop","status":"completed|blocked","reason":"..."}.',
 ].join(" ");
 
 function controllerUserText(
@@ -505,8 +696,19 @@ function controllerUserText(
   const canvas = view.canvas
     ? `\nCANVAS (normalized %): x=${view.canvas.xPct} y=${view.canvas.yPct} w=${view.canvas.wPct} h=${view.canvas.hPct}`
     : "";
+  // Which on-screen elements match the goal's target terms — the model should go THERE, not wander.
+  const terms = goalTerms(goal);
+  const targets = view.elements
+    .filter((e) => goalMatchScore(e.label, terms) > 0)
+    .slice(0, 6)
+    .map((e) => `${e.id} "${e.label.slice(0, 60)}"`)
+    .join(", ");
   return [
     `FOUNDER GOAL: ${goal}`,
+    `GOAL TARGET TERMS: ${terms.join(", ") || "(none)"}`,
+    targets
+      ? `ELEMENTS MATCHING THE GOAL (prefer these): ${targets}`
+      : `NO on-screen element matches the goal yet — move toward it or open what likely contains it.`,
     `CURRENT URL: ${view.url}`,
     `REMAINING ACTIONS: ${remainingActions}`,
     `VISIBLE TEXT (bounded):\n<<<UNTRUSTED_PAGE\n${view.visibleText.slice(0, 1200)}\n>>>`,
