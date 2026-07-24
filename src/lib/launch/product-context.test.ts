@@ -241,11 +241,19 @@ describe("#2/#3 an onboarding occurrence cannot satisfy an in-world requirement"
       compileJourneyFromRaw("go to the guide and talk", {
         checkpoints: [
           {
+            kind: "entry",
+            requirement: "Open the product",
+            targetEntity: "",
+            requiredContext: "",
+            dependsOnIndexes: [],
+            sourcePhrase: "go to the guide",
+          },
+          {
             kind: "navigation",
             requirement: "Locate the guide",
             targetEntity: "guide",
             requiredContext: "",
-            dependsOnIndexes: [],
+            dependsOnIndexes: [1],
             sourcePhrase: "go to the guide",
           },
         ],
@@ -258,7 +266,7 @@ describe("#2/#3 an onboarding occurrence cannot satisfy an in-world requirement"
         "goal_entity_instance_mismatch",
       );
     } else {
-      expect(r.journey.checkpoints[0].boundEntityId).toBeTruthy(); // an exact match resolved it
+      expect(r.journey.checkpoints[1].boundEntityId).toBeTruthy(); // an exact match resolved it
     }
   });
 

@@ -425,7 +425,10 @@ export function bindJourneyToContext(
   let question: string | null = null;
   const checkpoints = journey.checkpoints.map((cp, i) => {
     const requiredPhase = requiredPhaseFor(cp, i);
-    if (!cp.targetEntity) return { ...cp, requiredPhase, boundEntityId: null };
+    // The ENTRY checkpoint is about arriving at the product itself (its domain), not about any in-world
+    // occurrence — binding it to one would be a category error (and a false ambiguity).
+    if (!cp.targetEntity || requiredPhase === "entry")
+      return { ...cp, requiredPhase, boundEntityId: null };
     const all = instancesOf(context, cp.targetEntity);
     const inPhase = all.filter((e) => phaseAtLeast(e.phase, requiredPhase));
     if (all.length > 0 && inPhase.length === 0) {
@@ -1123,23 +1126,32 @@ export function journeyForPrompt(journey: GoalJourneyV1): {
     requirement: string;
     targetEntity: string;
     requiredContext: string;
+    requiredPhase: string;
     status: CheckpointStatus;
     sourcePhrase: string;
+    evidenceFactIds: string[];
+    evidenceTransitionIds: string[];
   }>;
 } {
   return {
     goal: journey.goal,
     note:
-      "The founder's request decomposed into ordered checkpoints. Your mission plan must COVER every observed checkpoint — " +
-      "especially the final outcome. A mission about an earlier prerequisite is NOT an answer to the founder's request.",
+      "The founder's request decomposed into ordered checkpoints. Your plan MUST cover EVERY observed checkpoint — " +
+      "especially the final outcome. For each one, write a criterion that asserts exactly that requirement and CITE " +
+      "that checkpoint's own evidenceFactIds (and evidenceTransitionIds when present) in that criterion's factRefs, " +
+      "with an evidenceRequirement that proves it. A criterion about an earlier step, or one citing another state's " +
+      "evidence, does NOT count — a mission about a prerequisite is not an answer to the founder's request.",
     checkpoints: journey.checkpoints.map((c) => ({
       id: c.checkpointId,
       kind: c.kind,
       requirement: c.requirement,
       targetEntity: c.targetEntity,
       requiredContext: c.requiredContext,
+      requiredPhase: c.requiredPhase ?? "",
       status: c.status,
       sourcePhrase: c.sourcePhrase,
+      evidenceFactIds: c.evidence.factIds.slice(0, 6),
+      evidenceTransitionIds: c.evidence.transitionIds.slice(0, 3),
     })),
   };
 }
