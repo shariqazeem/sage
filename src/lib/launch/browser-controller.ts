@@ -465,7 +465,9 @@ const CONTROLLER_SYSTEM = [
   "You may NOT author selectors, JavaScript, URLs, credentials, or free-text values. To fill a name field use type_text with valueKind display_name; to message an in-product AI/NPC character (only if the goal requires talking to one) use type_text with valueKind ai_probe.",
   "Prefer obvious forward controls (Start, Continue, Enter, Come in, Skip). For a canvas/visual world with few DOM elements, use click_coords, press_key (arrows/WASD/Space/Enter), or drag to move and interact.",
   "STOP with status blocked if you hit a login, signup, CAPTCHA, wallet signature, payment, purchase, file upload, publish, or a message to a real person — never attempt those. STOP with status completed once the goal is clearly achieved.",
-  "Do not repeat an action that already produced no change. Output must match the schema exactly.",
+  "Do not repeat an action that already produced no change.",
+  'Reply with ONLY a JSON object, no prose, exactly: {"action":{"kind":"...", ...fields for that kind...},"expectedChange":"...","goalProgress":"not_started|advancing|reached|blocked"}.',
+  'Field per kind: click_element→{"kind":"click_element","elementId":"e3"}; click_coords→{"kind":"click_coords","xPct":50,"yPct":80}; press_key→{"kind":"press_key","key":"Enter"}; type_text→{"kind":"type_text","elementId":"e1","valueKind":"display_name"}; select_option→{"kind":"select_option","elementId":"e2","optionValue":"US"}; scroll→{"kind":"scroll","direction":"down"}; drag→{"kind":"drag","fromXPct":40,"fromYPct":50,"toXPct":60,"toYPct":50}; wait→{"kind":"wait"}; go_back→{"kind":"go_back"}; stop→{"kind":"stop","status":"completed|blocked","reason":"..."}.',
 ].join(" ");
 
 function controllerUserText(
@@ -565,14 +567,10 @@ async function callController(
         model: provider.model,
         temperature: 0,
         max_tokens: 400,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: BROWSER_ACTION_SCHEMA.name,
-            schema: BROWSER_ACTION_SCHEMA.schema,
-            strict: true,
-          },
-        },
+        // json_object (NOT strict json_schema): the Flash-Lite provider ignores strict json_schema for
+        // multimodal calls (returns a bare enum value, not the object). json_object forces valid JSON; the
+        // exact SHAPE is enforced deterministically by coerceDecision, so the model can smuggle nothing.
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },
@@ -588,6 +586,28 @@ async function callController(
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Leniently isolate a JSON object from a model reply — tolerate ```json fences / stray prose. */
+export function isolateJson(raw: string): unknown {
+  const s = raw
+    .replace(/```json\s*/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  try {
+    return JSON.parse(s);
+  } catch {
+    const a = s.indexOf("{"),
+      b = s.lastIndexOf("}");
+    if (a >= 0 && b > a) {
+      try {
+        return JSON.parse(s.slice(a, b + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 }
 
@@ -618,13 +638,7 @@ export async function decideNextAction(
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await complete(CONTROLLER_SYSTEM, user, imageDataUri);
     if (raw) {
-      let parsed: unknown = null;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = null;
-      }
-      const decision = coerceDecision(parsed, view.elements);
+      const decision = coerceDecision(isolateJson(raw), view.elements);
       if (decision) return decision;
     }
     deps.log?.(

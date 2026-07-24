@@ -362,9 +362,7 @@ export function explorationCounts(
  * mode keeps today's per-page shape; interactive mode surfaces the observed state log so a mission
  * can only be anchored to a state Sage actually reached.
  */
-export function fieldTestForMap(
-  summary: FieldTestSummary,
-):
+export function fieldTestForMap(summary: FieldTestSummary):
   | {
       mode: "static";
       pages: Array<{
@@ -1030,8 +1028,23 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
         .querySelectorAll("[data-sage-eid]")
         .forEach((e) => e.removeAttribute("data-sage-eid"));
       const sel =
-        "button,[role=button],a[href],input,textarea,select,[contenteditable=''],[contenteditable=true],[tabindex],[onclick]";
-      const nodes = Array.from(document.querySelectorAll(sel));
+        "button,[role=button],a[href],[role=link],input,textarea,select,[contenteditable=''],[contenteditable=true],[tabindex],[onclick],[class*='btn' i],[class*='button' i]";
+      const set = new Set<Element>(Array.from(document.querySelectorAll(sel)));
+      // ALSO include pointer-cursor leaf controls that only announce themselves via the cursor — immersive
+      // onboarding uses styled <div>s ("tap to step inside", "come in") and clickable scene labels, not
+      // <button>s. Leaf-ish + short-text only, so a huge wrapper is never grabbed. (Mirrors clickAffordance.)
+      for (const el of Array.from(document.querySelectorAll("body *"))) {
+        const he = el as HTMLElement;
+        const t = (he.innerText || "").trim();
+        if (t && t.length <= 40 && he.childElementCount <= 1) {
+          try {
+            if (getComputedStyle(he).cursor === "pointer") set.add(el);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const nodes = Array.from(set);
       const out: Array<{
         id: string;
         label: string;
