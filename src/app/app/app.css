@@ -1523,3 +1523,10 @@
   color: var(--ink-faint);
   font-style: italic;
 }
+
+/* stopped campaign — console header chip (amber, matches the dashboard "Stopped" pill) */
+.sage-app .cw-status-stopped {
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+}

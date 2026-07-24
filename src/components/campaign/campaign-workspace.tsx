@@ -135,7 +135,12 @@ function Console({ data }: { data: WorkspaceData }) {
   const [copied, setCopied] = useState(false);
   const [showTech, setShowTech] = useState(false);
   const pct = data.fundedBase > 0 ? Math.round((data.paidBase / data.fundedBase) * 100) : 0;
-  const live = data.status === "live";
+  const status = data.status.toLowerCase();
+  const isLive = status === "live" || status === "active";
+  const isStopped = status === "cancelled" || status === "stopped";
+  const isDone = status === "completed" || status === "closed";
+  const statusLabel = isLive ? "Live" : isStopped ? "Stopped" : isDone ? "Completed" : data.status;
+  const statusClass = isStopped ? "cw-status-stopped" : isLive || isDone ? "cw-status-live" : "cw-status-off";
   const autopilot = data.autonomy === "autopilot";
 
   return (
@@ -146,13 +151,16 @@ function Console({ data }: { data: WorkspaceData }) {
           <ShieldCheck size={13} /> Founder console · you own this vault
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.025em", margin: "6px 0" }}>
+          <h1 className="dash-display" style={{ fontSize: "clamp(1.7rem, 3.2vw, 2.4rem)", margin: "8px 0" }}>
             {data.title}
           </h1>
-          <span className={`cw-status ${live ? "cw-status-live" : "cw-status-off"}`}>
-            {live ? "Live" : data.status}
-          </span>
+          <span className={`cw-status ${statusClass}`}>{statusLabel}</span>
         </div>
+        {isStopped && (
+          <p style={{ fontSize: 13.5, color: "var(--warn)", margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
+            This campaign is stopped — the remaining funds were returned to your wallet.
+          </p>
+        )}
         {data.description && (
           <p style={{ fontSize: 14.5, color: "var(--sec)", lineHeight: 1.55, margin: "2px 0 0" }}>
             {data.description}

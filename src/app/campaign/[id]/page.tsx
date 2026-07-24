@@ -4,6 +4,7 @@ import "../../app/demo-moments.css";
 import { notFound, redirect } from "next/navigation";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getCampaign, listSubmissions, getDecisionBySubmission } from "@/lib/db/campaigns";
+import { reconcileStopped } from "@/lib/campaigns/reconcile-stopped";
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
@@ -37,9 +38,11 @@ export default async function CampaignConsolePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const campaign = getCampaign(id);
-  if (!campaign) notFound();
-  if (campaign.vaultKind !== "campaign_v2") redirect("/app?legacy=1");
+  const loaded = getCampaign(id);
+  if (!loaded) notFound();
+  if (loaded.vaultKind !== "campaign_v2") redirect("/app?legacy=1");
+  // The on-chain vault is the truth: if it's been revoked (stopped), reflect that as "cancelled".
+  const campaign = await reconcileStopped(loaded);
 
   const session = await getSessionAddress();
   const isOwner =
