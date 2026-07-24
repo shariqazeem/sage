@@ -6,6 +6,7 @@ import type { McpToolDef, ToolResult } from "@/lib/mcp/server";
 import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
+import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { putPendingWithdrawal, consumePendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { getCurrentRevision, approveRevision } from "@/lib/db/plan-revisions";
@@ -177,6 +178,18 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
       required: ["submissionId"],
     },
   },
+  {
+    name: "sage_stop_campaign",
+    description:
+      "Permanently STOP one of the founder's campaigns and return its remaining USDC to their Sage agent wallet. Use when the founder wants to cancel a campaign, stop testing, wind down a campaign that found no testers, or recover leftover funds after creating a campaign. It revokes the vault on-chain then withdraws the remainder back to their own wallet. Call ONLY after the founder clearly confirms they want to permanently stop THAT specific campaign — it cannot be undone and any not-yet-approved submissions won't be paid. Afterwards the recovered USDC sits in their agent wallet; they can send it out with sage_request_withdrawal. Only works for campaigns launched from this chat (the agent wallet must own the vault).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        campaignId: { type: "string", description: "The campaign id to stop (from sage_fund_and_launch or sage_get_campaign)." },
+      },
+      required: ["campaignId"],
+    },
+  },
 ];
 
 const NAMES = new Set(AGENT_WALLET_TOOLS.map((t) => t.name));
@@ -338,6 +351,38 @@ export async function callAgentWalletTool(
         } catch (e) {
           console.error("[agent-wallet-tools] withdraw failed:", e);
           return err(`The withdrawal didn't go through (${e instanceof Error ? e.message : String(e)}). Your funds are safe in the wallet — you can try again.`);
+        }
+      }
+      case "sage_stop_campaign": {
+        const b = founderBinding(chatId);
+        if (!b) return err("There's no agent wallet yet, so there's no campaign to stop.");
+        const campaign = getCampaign(typeof args.campaignId === "string" ? args.campaignId : "");
+        if (!campaign) return err("That campaign wasn't found — double-check the campaign id.");
+        if (!ownsCampaign(campaign, b.privyWalletAddress)) {
+          return err("That campaign wasn't launched from this chat, so this wallet can't stop it.");
+        }
+        if (!campaign.vaultAddress) return err("That campaign has no on-chain vault to stop.");
+        let vault: Address;
+        try {
+          vault = getAddress(campaign.vaultAddress);
+        } catch {
+          return err("That campaign's vault address looks invalid.");
+        }
+        const recoverable = await usdcBalanceBase(vault);
+        try {
+          const res = await stopCampaignViaPrivy(b, vault);
+          return ok({
+            ok: true,
+            campaignId: campaign.id,
+            stopped: true,
+            recoveredUsdc: usd(recoverable),
+            revokeTx: res.revoke.explorerUrl,
+            withdrawTx: res.withdraw.explorerUrl,
+            message: `Stopped "${campaign.title}" and returned ${usd(recoverable)} USDC to the founder's Sage wallet — it's in their balance now. They can withdraw it out with sage_request_withdrawal, or leave it for the next campaign.`,
+          });
+        } catch (e) {
+          console.error("[agent-wallet-tools] stop campaign failed:", e);
+          return err(`Couldn't stop the campaign (${e instanceof Error ? e.message : String(e)}). No funds moved unless a transaction confirmed — the wallet is safe and you can retry.`);
         }
       }
       case "sage_list_held": {

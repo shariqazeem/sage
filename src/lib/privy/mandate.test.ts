@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getAddress } from "viem";
-import { buildMandatePolicy, buildWithdrawPolicy } from "./mandate";
+import { buildMandatePolicy, buildWithdrawPolicy, buildStopCampaignPolicy } from "./mandate";
 
 type Cond = Record<string, unknown>;
 type Rule = { name: string; method: string; action: string; conditions: Cond[] };
@@ -75,5 +75,53 @@ describe("buildWithdrawPolicy", () => {
   it("does not permit transfers on the base mandate (a withdraw is denied until the permit is attached)", () => {
     const base = rulesOf(buildMandatePolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }));
     expect(base.some((r) => r.conditions.some((c) => c.field === "transfer.to"))).toBe(false);
+  });
+});
+
+describe("buildStopCampaignPolicy", () => {
+  const vault = getAddress("0x4444444444444444444444444444444444444444");
+
+  it("adds exactly two rules on top of the base mandate, both pinned to the vault", () => {
+    const base = rulesOf(buildMandatePolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }));
+    const rules = rulesOf(buildStopCampaignPolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }, vault));
+    expect(rules).toHaveLength(base.length + 2);
+    const added = rules.slice(base.length);
+    for (const r of added) {
+      expect(r.action).toBe("ALLOW");
+      expect(r.method).toBe("eth_signTransaction");
+      const to = r.conditions.find((c) => c.field === "to");
+      expect(to?.value).toBe(vault); // pinned to THIS vault only
+      expect(to?.operator).toBe("eq");
+    }
+  });
+
+  it("permits revoke() and withdrawRemaining() by function name, nothing else", () => {
+    const rules = rulesOf(buildStopCampaignPolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }, vault));
+    const revoke = rules.find((r) => r.name.includes("revoke"))!;
+    const rc = revoke.conditions.find((c) => c.field === "function_name");
+    expect(rc?.value).toBe("revoke");
+    expect(rc?.operator).toBe("eq");
+    const wd = rules.find((r) => r.name.includes("withdraw"))!;
+    const wc = wd.conditions.find((c) => c.field === "function_name");
+    expect(wc?.value).toBe("withdrawRemaining");
+    expect(wc?.operator).toBe("eq");
+  });
+
+  it("preserves the base mandate rules unchanged (create/approve/fund/activate)", () => {
+    const rules = rulesOf(buildStopCampaignPolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }, vault));
+    expect(rules.some((r) => r.name.includes("create"))).toBe(true);
+    expect(rules.some((r) => r.name.includes("approve"))).toBe(true);
+    expect(rules.some((r) => r.name.includes("fund"))).toBe(true);
+    expect(rules.some((r) => r.name.includes("activate"))).toBe(true);
+  });
+
+  it("the new rules never permit an arbitrary transfer (funds can only return to the owner on-chain)", () => {
+    const rules = rulesOf(buildStopCampaignPolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }, vault));
+    const baseLen = rulesOf(buildMandatePolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP })).length;
+    const added = rules.slice(baseLen);
+    // neither added rule references transfer.to / transfer.amount — they are no-arg vault calls
+    for (const r of added) {
+      expect(r.conditions.some((c) => String(c.field).startsWith("transfer."))).toBe(false);
+    }
   });
 });

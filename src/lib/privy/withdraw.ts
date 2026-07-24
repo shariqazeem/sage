@@ -16,7 +16,7 @@ import { executeViaPrivy, type PrivyExecResult } from "./executor";
  * so the secure enclave itself guarantees the money can only ever reach the founder's chosen address.
  */
 
-async function restoreBasePolicy(walletId: string, basePolicyId: string): Promise<void> {
+export async function restoreBasePolicy(walletId: string, basePolicyId: string): Promise<void> {
   for (let i = 0; i < 3; i++) {
     try {
       await setWalletPolicies(walletId, [basePolicyId]);

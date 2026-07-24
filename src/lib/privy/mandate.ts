@@ -34,6 +34,8 @@ const ACTIVATE_ABI = [
 const TRANSFER_ABI = [
   { type: "function", name: "transfer", stateMutability: "nonpayable", outputs: [{ type: "bool" }], inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }] },
 ];
+const REVOKE_ABI = [{ type: "function", name: "revoke", stateMutability: "nonpayable", outputs: [], inputs: [] }];
+const WITHDRAW_REMAINING_ABI = [{ type: "function", name: "withdrawRemaining", stateMutability: "nonpayable", outputs: [], inputs: [] }];
 
 export interface MandateSpec {
   /** a human label (e.g. "mandate:<founder>"). */
@@ -114,5 +116,40 @@ export function buildWithdrawPolicy(m: MandateSpec, target: Address, maxBase: bi
 /** Create the scoped withdraw policy in Privy; returns the id to briefly attach to the wallet. */
 export async function createWithdrawPolicy(m: MandateSpec, target: Address, maxBase: bigint): Promise<string> {
   const res = await privyPost<{ id: string }>("/policies", buildWithdrawPolicy(m, target, maxBase));
+  return res.id;
+}
+
+/**
+ * A SCOPED stop-campaign policy: the full base mandate PLUS two ALLOWs pinned to EXACTLY ONE vault
+ * address — `revoke()` (stop the campaign) and `withdrawRemaining()` (return the vault's balance to
+ * its owner). It is attached only for the duration of one stop-and-recover, then the wallet is
+ * re-locked to the base mandate. Both calls are no-arg + pinned to the single `to = vault`, and
+ * `withdrawRemaining` can only ever send to the vault's `i_owner` (the agent wallet itself, enforced
+ * on-chain) — so even a lingering attachment can only stop THAT vault and pull ITS funds home, never
+ * move money anywhere else.
+ */
+export function buildStopCampaignPolicy(m: MandateSpec, vault: Address): Record<string, unknown> {
+  const base = buildMandatePolicy(m);
+  const rules = (base.rules as Array<Record<string, unknown>>).slice();
+  rules.push(
+    {
+      name: "stop the campaign (revoke) — this vault only",
+      method: "eth_signTransaction",
+      action: "ALLOW",
+      conditions: [toCond(vault), { field_source: "ethereum_calldata", field: "function_name", abi: REVOKE_ABI, operator: "eq", value: "revoke" }],
+    },
+    {
+      name: "withdraw remaining to the vault owner — this vault only",
+      method: "eth_signTransaction",
+      action: "ALLOW",
+      conditions: [toCond(vault), { field_source: "ethereum_calldata", field: "function_name", abi: WITHDRAW_REMAINING_ABI, operator: "eq", value: "withdrawRemaining" }],
+    },
+  );
+  return { ...base, name: `${m.name}:stop`, rules };
+}
+
+/** Create the scoped stop-campaign policy in Privy; returns the id to briefly attach to the wallet. */
+export async function createStopCampaignPolicy(m: MandateSpec, vault: Address): Promise<string> {
+  const res = await privyPost<{ id: string }>("/policies", buildStopCampaignPolicy(m, vault));
   return res.id;
 }
