@@ -21,10 +21,15 @@ const rm = (process.env.PAYOUT_ACTION_REPLAY_MODE ?? "off").toLowerCase();
 add("env modes", ["off", "shadow", "canary"].includes(gm) && ["off", "shadow", "canary"].includes(rm), `grounding=${gm} replay=${rm}`);
 const isCanary = gm === "canary" && rm === "canary";
 
-// 2. exactly one valid allowlisted wallet
+// 2. allowlist is either the "*" wildcard (all founders — pre-launch) OR exactly one valid wallet
 const allow = (process.env.MISSION_CANARY_ALLOWLIST ?? "").split(/[,\s]+/).map((w) => w.trim().toLowerCase()).filter(Boolean);
 const valid = allow.filter((w) => /^0x[0-9a-f]{40}$/.test(w));
-add("allowlist = exactly one valid wallet", valid.length === 1 && valid.length === allow.length, `entries=${allow.length} valid=${valid.length}`);
+const isWildcard = allow.length === 1 && allow[0] === "*";
+add(
+  "allowlist = wildcard(*) or exactly one valid wallet",
+  isWildcard || (valid.length === 1 && valid.length === allow.length),
+  isWildcard ? "wildcard: ALL founder wallets" : `entries=${allow.length} valid=${valid.length}`,
+);
 
 // 3. model identity
 const mm = process.env.MISSION_MODEL ?? process.env.DEPUTY_MODEL ?? "";

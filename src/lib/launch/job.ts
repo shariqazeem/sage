@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
-import { canaryAllowlist, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
+import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { fieldTestEnabled } from "./field-test";
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
@@ -70,7 +70,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
   // SIWE approval of the generated revision). The wallet MUST be syntactically valid + non-anonymous, so an
   // "anonymous" job can never carry canary authority.
   const canaryIdentity: CanaryIdentity | null = isValidFounderWallet(job.founderWallet)
-    ? { wallet: job.founderWallet, operatorAuthorized: canaryAllowlist().has(job.founderWallet.trim().toLowerCase()), source: "server_session" }
+    ? { wallet: job.founderWallet, operatorAuthorized: isWalletCanaryEligible(job.founderWallet), source: "server_session" }
     : null;
 
   try {

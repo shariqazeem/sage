@@ -46,6 +46,21 @@ export function canaryAllowlist(): ReadonlySet<string> {
   return new Set(raw.split(/[,\s]+/).map((w) => w.trim().toLowerCase()).filter(Boolean));
 }
 
+/**
+ * Is `wallet` eligible for the canary per the operator allowlist? The special allowlist entry `"*"` is a
+ * WILDCARD meaning "every valid founder wallet" — the operator authorizing the grounded-plan + replay covenant
+ * for ALL founders (pre-launch, so any wallet the team rotates through works without re-listing). This ONLY
+ * widens WHO can receive a grounded plan. It changes NOTHING about what gates a payout: each founder still
+ * SIWE-approves their own revision, and every settlement still passes the full replay covenant (fresh
+ * reproduced permit + policy digest match + budget/caps). A wildcard never authorizes an "anonymous" or
+ * malformed wallet — the isValidFounderWallet shape check still applies.
+ */
+export function isWalletCanaryEligible(wallet: string | null | undefined): boolean {
+  if (!isValidFounderWallet(wallet)) return false;
+  const allow = canaryAllowlist();
+  return allow.has("*") || allow.has((wallet as string).trim().toLowerCase());
+}
+
 export type CanaryAuthority =
   | { allowed: true; wallet: string }
   | { allowed: false; reason: string };
@@ -61,7 +76,7 @@ export function resolveCanaryAuthority(mode: MissionGroundingMode, identity: Can
   if (!isValidFounderWallet(identity.wallet)) return { allowed: false, reason: "invalid_wallet" };
   const wallet = identity.wallet.trim().toLowerCase();
   if (!identity.operatorAuthorized) return { allowed: false, reason: "not_operator_authorized" };
-  if (!canaryAllowlist().has(wallet)) return { allowed: false, reason: "not_allowlisted" };
+  if (!isWalletCanaryEligible(wallet)) return { allowed: false, reason: "not_allowlisted" };
   return { allowed: true, wallet };
 }
 

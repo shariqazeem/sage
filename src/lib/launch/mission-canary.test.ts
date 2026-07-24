@@ -3,6 +3,7 @@ import {
   canaryAllowlist,
   resolveCanaryAuthority,
   isValidFounderWallet,
+  isWalletCanaryEligible,
   firstUnmetStrictCondition,
   deterministicGroundedPlanDigest,
   canaryPlanCommitment,
@@ -90,6 +91,56 @@ describe("canaryAllowlist — operator-controlled, case-insensitive, fails close
     expect(s.has(WALLET.toLowerCase())).toBe(true);
     expect(s.has("0xbeef")).toBe(true);
     expect(s.has(WALLET)).toBe(false); // stored lowercased
+  });
+});
+
+describe("isWalletCanaryEligible — wildcard '*' authorizes every VALID founder wallet", () => {
+  const OTHER = "0x1111111111111111111111111111111111111111";
+  it("unset ⇒ nobody eligible", () => {
+    expect(isWalletCanaryEligible(WALLET)).toBe(false);
+  });
+  it("specific wallet ⇒ only that wallet", () => {
+    process.env[ALLOW] = WALLET;
+    expect(isWalletCanaryEligible(WALLET)).toBe(true);
+    expect(isWalletCanaryEligible(OTHER)).toBe(false);
+  });
+  it("'*' ⇒ ANY valid wallet eligible (case-insensitive)", () => {
+    process.env[ALLOW] = "*";
+    expect(isWalletCanaryEligible(WALLET)).toBe(true);
+    expect(isWalletCanaryEligible(OTHER)).toBe(true);
+    expect(isWalletCanaryEligible(WALLET.toUpperCase())).toBe(true);
+  });
+  it("'*' NEVER authorizes an anonymous / malformed wallet — the shape check still applies", () => {
+    process.env[ALLOW] = "*";
+    expect(isWalletCanaryEligible("anonymous")).toBe(false);
+    expect(isWalletCanaryEligible("0xnothex")).toBe(false);
+    expect(isWalletCanaryEligible("")).toBe(false);
+    expect(isWalletCanaryEligible(null)).toBe(false);
+  });
+});
+
+describe("resolveCanaryAuthority + wildcard — widens WHO, never weakens the other gates", () => {
+  const OTHER = "0x2222222222222222222222222222222222222222";
+  it("'*' + canary + server identity + opt-in + valid wallet ⇒ allowed for ANY founder", () => {
+    process.env[ALLOW] = "*";
+    expect(resolveCanaryAuthority("canary", serverId({ wallet: OTHER }))).toEqual({ allowed: true, wallet: OTHER });
+  });
+  it("'*' still requires canary mode", () => {
+    process.env[ALLOW] = "*";
+    expect(resolveCanaryAuthority("shadow", serverId({ wallet: OTHER }))).toEqual({ allowed: false, reason: "mode_not_canary" });
+  });
+  it("'*' still requires a server-session identity", () => {
+    process.env[ALLOW] = "*";
+    expect(resolveCanaryAuthority("canary", null)).toEqual({ allowed: false, reason: "no_server_identity" });
+  });
+  it("'*' still rejects an anonymous wallet (invalid_wallet)", () => {
+    process.env[ALLOW] = "*";
+    expect(resolveCanaryAuthority("canary", serverId({ wallet: "anonymous" }))).toEqual({ allowed: false, reason: "invalid_wallet" });
+  });
+  it("'*' + canary + valid plan ⇒ selected for a fresh wallet", () => {
+    process.env[ALLOW] = "*";
+    const d = evaluateCanarySelection({ mode: "canary", identity: serverId({ wallet: OTHER }), plan: goodPlan() });
+    expect(d.status).toBe("selected");
   });
 });
 
