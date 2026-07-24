@@ -1,7 +1,7 @@
 import "server-only";
 
 import { startInspection } from "@/lib/launch/start";
-import { getInspectionJob, clarifyInspectionForRetry } from "@/lib/db/inspection";
+import { getInspectionJob, clarifyInspectionForRetry, founderGoalDigest } from "@/lib/db/inspection";
 import { jobToView } from "@/lib/launch/job";
 import {
   getCampaign,
@@ -80,6 +80,13 @@ export function opStartInspection(
     founder: founderOverride ?? `clawup:${slugRef(clientRef)}`,
   });
   if (!result.ok) return { ok: false, error: result.error, status: 400 };
+
+  // STALE-INTENT GUARD (defense in depth): the returned job MUST answer the goal the founder just asked.
+  // If idempotency ever hands back a job whose stored goal differs from the request, refuse to present it
+  // — never surface a plan or a fundable approvalUrl for a stale request. (Incident 2026-07-24.)
+  if (founderGoalDigest(result.job.goal) !== founderGoalDigest(body.goal)) {
+    return { ok: false, error: "blocked: stale_task_result", status: 409 };
+  }
 
   const base = siteUrl();
   return {

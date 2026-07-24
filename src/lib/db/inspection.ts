@@ -21,9 +21,26 @@ const ORDER: Record<InspectionStatus, number> = {
   ready: 6, needs_input: 6, failed: 6, superseded: 7,
 };
 
-export function idempotencyKey(founderWallet: string, productUrl: string, budgetBase: bigint, repoUrl?: string | null): string {
+/**
+ * The founder's GOAL digest — the exact campaign intent, canonicalized (NFC + collapsed whitespace +
+ * lowercased) so trivial reformatting is stable but a genuinely different goal changes it. This binds
+ * the founder's request to a specific plan: a plan produced for goal A can never be reused/approved as
+ * the answer to goal B. Immutable per request.
+ */
+export function founderGoalDigest(goal: unknown): string {
+  const canon = (typeof goal === "string" ? goal : "").normalize("NFC").trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(`founder-goal-v1|${canon}`).digest("hex");
+}
+
+/**
+ * The idempotency key that de-dupes repeated create requests. It MUST include the goal digest — a new
+ * founder instruction (different goal) is a NEW campaign-planning request and must NEVER reuse a prior
+ * job. (Incident 2026-07-24: a goal-blind key returned a stale `ready` job created for a different goal
+ * on the same URL + budget, presenting an old plan as current + fundable.)
+ */
+export function idempotencyKey(founderWallet: string, productUrl: string, budgetBase: bigint, goalDigest: string, repoUrl?: string | null): string {
   return createHash("sha256")
-    .update(`${founderWallet.toLowerCase()}|${productUrl.trim().toLowerCase()}|${budgetBase.toString()}|${(repoUrl ?? "").trim().toLowerCase()}`)
+    .update(`${founderWallet.toLowerCase()}|${productUrl.trim().toLowerCase()}|${budgetBase.toString()}|${goalDigest}|${(repoUrl ?? "").trim().toLowerCase()}`)
     .digest("hex");
 }
 
@@ -57,7 +74,7 @@ export interface CreateInspectionInput {
 
 /** Create (or return the existing idempotent) job. Returns {job, created}. */
 export function createInspectionJob(input: CreateInspectionInput): { job: InspectionJob; created: boolean } {
-  const key = idempotencyKey(input.founderWallet, input.productUrl, input.totalBudgetBase, input.repoUrl);
+  const key = idempotencyKey(input.founderWallet, input.productUrl, input.totalBudgetBase, founderGoalDigest(input.goal), input.repoUrl);
   const existing = getInspectionJobByIdem(key);
   if (existing) {
     // A prior run that FAILED (or stalled on needs_input) + a fresh request → retry it from scratch,
