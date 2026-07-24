@@ -33,11 +33,38 @@
   margin-bottom: var(--s-4);
 }
 .tb-hero-title {
-  font-size: var(--fs-h2);
-  line-height: var(--lh-h2);
-  letter-spacing: var(--tracking-h2);
-  font-weight: 700;
-  margin: 0 0 8px;
+  font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(1.9rem, 4.6vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  font-weight: 450;
+  margin: 0 0 10px;
+}
+
+/* completed campaign banner (all rewards paid) */
+.tb-done {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--ok-border);
+  background: var(--ok-soft);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tb-done svg {
+  color: var(--ok);
+  flex: none;
+}
+.tb-done b {
+  font-weight: 600;
+}
+.tb-econ-status-done {
+  color: var(--ok);
+  font-weight: 600;
 }
 .tb-hero-desc {
   font-size: 15px;

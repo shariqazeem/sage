@@ -86,6 +86,15 @@ export default async function CampaignPublicPage({
 
           {explored && <ExploredBanner screens={explored.screens} elements={explored.elements} />}
 
+          {complete && (
+            <div className="tb-done">
+              <Check size={16} strokeWidth={2.4} />
+              <span>
+                This campaign is <b>complete</b> — every reward has been paid. Thanks for the interest.
+              </span>
+            </div>
+          )}
+
           <div className="v2-econ">
             <div className="v2-econ-row">
               <div className="v2-econ-fig"><span className="k">Funded</span><span className="v mono">{fmtReward(e.totalFundedBase, e.chainId)}</span></div>
@@ -100,7 +109,9 @@ export default async function CampaignPublicPage({
               <span>·</span>
               <span>{e.paidCompletions}/{e.totalCompletions} paid</span>
               <span>·</span>
-              <span>{live ? "Live" : "Closed"}</span>
+              <span className={complete ? "tb-econ-status-done" : ""}>
+                {complete ? "Completed" : live ? "Live" : "Closed"}
+              </span>
             </div>
             {e.isTestnet && (
               <p className="v2-testnote">Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.</p>
@@ -108,7 +119,7 @@ export default async function CampaignPublicPage({
           </div>
         </div>
 
-        <HowYouGetPaid autopays={autopays} />
+        {!complete && <HowYouGetPaid autopays={autopays} />}
 
         <div className="sb-sec-label">Missions</div>
         <V2Board
