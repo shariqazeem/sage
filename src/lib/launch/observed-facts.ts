@@ -97,26 +97,36 @@ export interface ObservationSetV1 {
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
-const uniqSorted = (xs: string[]) => [...new Set(xs.map(norm).filter(Boolean))].sort();
+const uniqSorted = (xs: string[]) =>
+  [...new Set(xs.map(norm).filter(Boolean))].sort();
 
 /** Deterministic digest of one field-test state — the same content always yields the same id. */
-export function stateDigest(s: Pick<FieldTestState, "url" | "visibleTextExcerpt" | "notableElements">): string {
+export function stateDigest(
+  s: Pick<FieldTestState, "url" | "visibleTextExcerpt" | "notableElements">,
+): string {
   const canonical = JSON.stringify({
     u: s.url,
     t: norm(s.visibleTextExcerpt).slice(0, 4000),
-    e: (s.notableElements ?? []).map((e) => [e.tag, e.role, norm(e.text)]).sort(),
+    e: (s.notableElements ?? [])
+      .map((e) => [e.tag, e.role, norm(e.text)])
+      .sort(),
   });
   return sha(canonical).slice(0, 24);
 }
 
 /** Parse a field-test trigger string into a safe verb + a locator name (deterministic; no model). */
-export function parseTrigger(trigger: string): { verb: SafeVerb; name?: string } {
+export function parseTrigger(trigger: string): {
+  verb: SafeVerb;
+  name?: string;
+} {
   const t = norm(trigger).toLowerCase();
   const quoted = /'([^']+)'|"([^"]+)"/.exec(trigger);
-  const name = quoted ? quoted[1] ?? quoted[2] : undefined;
-  if (t.includes("initial load") || t.startsWith("loaded") || t === "load") return { verb: "load" };
+  const name = quoted ? (quoted[1] ?? quoted[2]) : undefined;
+  if (t.includes("initial load") || t.startsWith("loaded") || t === "load")
+    return { verb: "load" };
   if (t.includes("wait")) return { verb: "wait" };
-  if (t.includes("click") || t.includes("tapped") || t.includes("explored")) return { verb: "click", name };
+  if (t.includes("click") || t.includes("tapped") || t.includes("explored"))
+    return { verb: "click", name };
   if (t.includes("press")) {
     const key = /press(?:ed)?\s+([A-Za-z0-9]+)/i.exec(trigger)?.[1];
     return { verb: "press", name: name ?? key };
@@ -128,23 +138,44 @@ export function parseTrigger(trigger: string): { verb: SafeVerb; name?: string }
 /** A visible-text token set for one state (for the transition delta) — exact rendered texts + element texts. */
 function stateTexts(s: FieldTestState): Set<string> {
   const out = new Set<string>();
-  for (const line of norm(s.visibleTextExcerpt).split(/(?<=[.!?])\s+|\n+/)) if (norm(line)) out.add(norm(line));
-  for (const e of s.notableElements ?? []) if (norm(e.text)) out.add(norm(e.text));
+  for (const line of norm(s.visibleTextExcerpt).split(/(?<=[.!?])\s+|\n+/))
+    if (norm(line)) out.add(norm(line));
+  for (const e of s.notableElements ?? [])
+    if (norm(e.text)) out.add(norm(e.text));
   return out;
 }
 
 /** Build one `seen` DOM fact from a notable element or a page/state text. */
 function seenFact(args: {
-  source: FactSource; pageUrl: string; stateId: string | null; texts: string[];
-  role?: string; name?: string; transitionId?: string | null;
+  source: FactSource;
+  pageUrl: string;
+  stateId: string | null;
+  texts: string[];
+  role?: string;
+  name?: string;
+  transitionId?: string | null;
 }): ObservedFactV1 {
   const texts = uniqSorted(args.texts);
-  const canonical = JSON.stringify({ s: args.source, p: args.pageUrl, st: args.stateId, x: texts, r: args.role ?? "", n: args.name ?? "" });
+  const canonical = JSON.stringify({
+    s: args.source,
+    p: args.pageUrl,
+    st: args.stateId,
+    x: texts,
+    r: args.role ?? "",
+    n: args.name ?? "",
+  });
   const digest = sha(canonical);
   return {
-    version: "obs-fact-v1", id: digest.slice(0, 24), source: args.source, grounding: "seen", decisive: true,
-    pageUrl: args.pageUrl, stateId: args.stateId, visibleTexts: texts,
-    ...(args.role ? { elementRole: args.role } : {}), ...(args.name ? { elementName: args.name } : {}),
+    version: "obs-fact-v1",
+    id: digest.slice(0, 24),
+    source: args.source,
+    grounding: "seen",
+    decisive: true,
+    pageUrl: args.pageUrl,
+    stateId: args.stateId,
+    visibleTexts: texts,
+    ...(args.role ? { elementRole: args.role } : {}),
+    ...(args.name ? { elementName: args.name } : {}),
     ...(args.transitionId ? { transitionId: args.transitionId } : {}),
     provenanceDigest: digest,
   };
@@ -154,62 +185,176 @@ function seenFact(args: {
  * Derive the observation set from a completed field test (+ its vision observations). Pure + deterministic:
  * the same summary always yields the same ids. `captureVersion` is metadata only (not hashed).
  */
-export function deriveObservations(fieldTest: FieldTestSummary | null | undefined, captureVersion = 1): ObservationSetV1 {
+export function deriveObservations(
+  fieldTest: FieldTestSummary | null | undefined,
+  captureVersion = 1,
+): ObservationSetV1 {
   const facts: ObservedFactV1[] = [];
   const transitions: ActionTransitionV1[] = [];
   const byId = new Map<string, ObservedFactV1>();
-  const add = (f: ObservedFactV1) => { if (!byId.has(f.id)) { byId.set(f.id, f); facts.push(f); } };
+  const add = (f: ObservedFactV1) => {
+    if (!byId.has(f.id)) {
+      byId.set(f.id, f);
+      facts.push(f);
+    }
+  };
 
   if (!fieldTest || !fieldTest.ran) {
-    return { version: OBS_SET_VERSION, facts: [], transitions: [], captureVersion, digest: sha("[]").slice(0, 24) };
+    return {
+      version: OBS_SET_VERSION,
+      facts: [],
+      transitions: [],
+      captureVersion,
+      digest: sha("[]").slice(0, 24),
+    };
   }
 
   // STATIC pages → seen DOM facts (title/h1/ctas/forms).
   for (const p of fieldTest.pages) {
-    if (norm(p.h1)) add(seenFact({ source: "dom", pageUrl: p.url, stateId: null, texts: [p.h1] }));
-    if (norm(p.title)) add(seenFact({ source: "dom", pageUrl: p.url, stateId: null, texts: [p.title] }));
-    for (const cta of p.ctas) if (norm(cta)) add(seenFact({ source: "dom", pageUrl: p.url, stateId: null, texts: [cta], role: "button", name: cta }));
-    for (const form of p.forms) add(seenFact({ source: "dom", pageUrl: p.url, stateId: null, texts: [form.action, ...form.fields].filter(Boolean), role: "form" }));
+    if (norm(p.h1))
+      add(
+        seenFact({
+          source: "dom",
+          pageUrl: p.url,
+          stateId: null,
+          texts: [p.h1],
+        }),
+      );
+    if (norm(p.title))
+      add(
+        seenFact({
+          source: "dom",
+          pageUrl: p.url,
+          stateId: null,
+          texts: [p.title],
+        }),
+      );
+    for (const cta of p.ctas)
+      if (norm(cta))
+        add(
+          seenFact({
+            source: "dom",
+            pageUrl: p.url,
+            stateId: null,
+            texts: [cta],
+            role: "button",
+            name: cta,
+          }),
+        );
+    for (const form of p.forms)
+      add(
+        seenFact({
+          source: "dom",
+          pageUrl: p.url,
+          stateId: null,
+          texts: [form.action, ...form.fields].filter(Boolean),
+          role: "form",
+        }),
+      );
   }
 
   // INTERACTIVE states → seen DOM facts + transitions between consecutive states.
   const stateIds = fieldTest.states.map((s) => stateDigest(s));
   fieldTest.states.forEach((s, i) => {
     const stateId = stateIds[i];
+    const before = facts.length;
     // a `seen` fact per notable element (role/name/text) — the decisive anchors.
     for (const e of s.notableElements ?? []) {
       if (!norm(e.text)) continue;
-      add(seenFact({ source: "dom", pageUrl: s.url, stateId, texts: [e.text], role: e.role || e.tag, name: e.text }));
+      add(
+        seenFact({
+          source: "dom",
+          pageUrl: s.url,
+          stateId,
+          texts: [e.text],
+          role: e.role || e.tag,
+          name: e.text,
+        }),
+      );
     }
     // a `seen` fact for the state's visible-text excerpt (the state itself).
     if (norm(s.visibleTextExcerpt)) {
-      add(seenFact({ source: "field_transition", pageUrl: s.url, stateId, texts: [norm(s.visibleTextExcerpt).slice(0, 400)] }));
+      add(
+        seenFact({
+          source: "field_transition",
+          pageUrl: s.url,
+          stateId,
+          texts: [norm(s.visibleTextExcerpt).slice(0, 400)],
+        }),
+      );
+    }
+    // A canvas / WebGL / pixel-only state has NO DOM text or notable elements — but Sage DID reach it
+    // (screenshot + the action that produced it). That is a real, `seen` observation: mint one fact from
+    // the trigger so a screenshot-only state is still citable (a decisive anchor for a state/visual mission).
+    // Only when the state otherwise produced nothing — DOM-ful states are byte-identical to before.
+    if (facts.length === before && s.screenshot) {
+      const { name } = parseTrigger(s.trigger);
+      add(
+        seenFact({
+          source: "field_transition",
+          pageUrl: s.url,
+          stateId,
+          texts: [norm(s.trigger) || "reached a new state"],
+          ...(name ? { name } : {}),
+        }),
+      );
     }
     // transition FROM the previous state via this state's trigger.
     if (i > 0) {
       const prev = fieldTest.states[i - 1];
       const { verb, name } = parseTrigger(s.trigger);
-      const before = stateTexts(prev), after = stateTexts(s);
+      const before = stateTexts(prev),
+        after = stateTexts(s);
       const added = [...after].filter((t) => !before.has(t)).sort();
       const removed = [...before].filter((t) => !after.has(t)).sort();
-      const observableChange = added.length > 0 || removed.length > 0 || s.pixelDeltaPct >= 3;
+      const observableChange =
+        added.length > 0 || removed.length > 0 || s.pixelDeltaPct >= 3;
       // network summary + safety from the after-state's captured methods. `safe` ONLY when we positively
       // observed GET/HEAD-only; a mutating method → state_changing; no capture → unverified (NOT safe).
       const methods = (s.networkMethods ?? []).map((m) => m.toUpperCase());
       const summary: ActionTransitionV1["networkMethodSummary"] =
-        methods.length === 0 ? "not_captured" : methods.every((m) => m === "GET" || m === "HEAD") ? "get_observed" : "state_changing";
+        methods.length === 0
+          ? "not_captured"
+          : methods.every((m) => m === "GET" || m === "HEAD")
+            ? "get_observed"
+            : "state_changing";
       const safeClassification: ActionTransitionV1["safeClassification"] =
-        summary === "get_observed" ? "safe" : summary === "state_changing" ? "state_changing" : "unverified";
+        summary === "get_observed"
+          ? "safe"
+          : summary === "state_changing"
+            ? "state_changing"
+            : "unverified";
       // the locator is built from the BEFORE state's target element (what was acted on), not the after
       // state — the after state's elements are the RESULT, not the control that was clicked.
-      const beforeEl = (prev.notableElements ?? []).find((e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase());
-      const canonical = JSON.stringify({ f: stateIds[i - 1], t: stateId, v: verb, n: name ?? "", a: added, r: removed });
+      const beforeEl = (prev.notableElements ?? []).find(
+        (e) => name && norm(e.text).toLowerCase() === norm(name).toLowerCase(),
+      );
+      const canonical = JSON.stringify({
+        f: stateIds[i - 1],
+        t: stateId,
+        v: verb,
+        n: name ?? "",
+        a: added,
+        r: removed,
+      });
       transitions.push({
-        version: "action-transition-v1", id: sha(canonical).slice(0, 24),
-        startUrl: prev.url, beforeStateDigest: stateIds[i - 1], verb,
-        locator: { ...(beforeEl?.role ? { role: beforeEl.role } : {}), ...(name ? { accessibleName: name } : {}), ...(name && !beforeEl ? { raw: name } : {}) },
-        afterUrl: s.url, afterStateDigest: stateId, addedTexts: added, removedTexts: removed,
-        observableChange, networkMethodSummary: summary, safeClassification,
+        version: "action-transition-v1",
+        id: sha(canonical).slice(0, 24),
+        startUrl: prev.url,
+        beforeStateDigest: stateIds[i - 1],
+        verb,
+        locator: {
+          ...(beforeEl?.role ? { role: beforeEl.role } : {}),
+          ...(name ? { accessibleName: name } : {}),
+          ...(name && !beforeEl ? { raw: name } : {}),
+        },
+        afterUrl: s.url,
+        afterStateDigest: stateId,
+        addedTexts: added,
+        removedTexts: removed,
+        observableChange,
+        networkMethodSummary: summary,
+        safeClassification,
         provenance: { fromStateIndex: i - 1, toStateIndex: i },
       });
     }
@@ -219,24 +364,51 @@ export function deriveObservations(fieldTest: FieldTestSummary | null | undefine
   // captured DOM/field source (invented text is dropped). Interpretation (scene/ui kinds) is kept as a
   // hypothesis, never a decisive anchor.
   const seenTextPool = new Set<string>();
-  for (const f of facts) for (const x of f.visibleTexts) seenTextPool.add(x.toLowerCase());
+  for (const f of facts)
+    for (const x of f.visibleTexts) seenTextPool.add(x.toLowerCase());
   for (const vo of fieldTest.visionObservations ?? []) {
     const state = fieldTest.states[vo.stateIndex];
     const pageUrl = state?.url ?? fieldTest.startUrl;
     const stateId = state ? stateIds[vo.stateIndex] : null;
     // keep ONLY vision visibleText that is corroborated by the captured source.
-    const grounded = uniqSorted(vo.visibleText).filter((t) => seenTextPool.has(t.toLowerCase()));
-    const canonical = JSON.stringify({ s: "vision", p: pageUrl, st: stateId, img: vo.stateIndex, x: grounded, d: norm(vo.sceneDescription).slice(0, 200) });
+    const grounded = uniqSorted(vo.visibleText).filter((t) =>
+      seenTextPool.has(t.toLowerCase()),
+    );
+    const canonical = JSON.stringify({
+      s: "vision",
+      p: pageUrl,
+      st: stateId,
+      img: vo.stateIndex,
+      x: grounded,
+      d: norm(vo.sceneDescription).slice(0, 200),
+    });
     const digest = sha(canonical);
     add({
-      version: "obs-fact-v1", id: digest.slice(0, 24), source: "vision", grounding: "inferred", decisive: false,
-      pageUrl, stateId, visibleTexts: grounded, sourceImageIndex: vo.stateIndex,
-      confidence: grounded.length > 0 ? 0.6 : 0.3, provenanceDigest: digest,
+      version: "obs-fact-v1",
+      id: digest.slice(0, 24),
+      source: "vision",
+      grounding: "inferred",
+      decisive: false,
+      pageUrl,
+      stateId,
+      visibleTexts: grounded,
+      sourceImageIndex: vo.stateIndex,
+      confidence: grounded.length > 0 ? 0.6 : 0.3,
+      provenanceDigest: digest,
     });
   }
 
-  const setCanonical = JSON.stringify({ f: facts.map((f) => f.id).sort(), t: transitions.map((t) => t.id).sort() });
-  return { version: OBS_SET_VERSION, facts, transitions, captureVersion, digest: sha(setCanonical).slice(0, 24) };
+  const setCanonical = JSON.stringify({
+    f: facts.map((f) => f.id).sort(),
+    t: transitions.map((t) => t.id).sort(),
+  });
+  return {
+    version: OBS_SET_VERSION,
+    facts,
+    transitions,
+    captureVersion,
+    digest: sha(setCanonical).slice(0, 24),
+  };
 }
 
 /** The decisive (seen) facts — the only ones a mission may anchor to. */
@@ -245,7 +417,10 @@ export function decisiveFacts(set: ObservationSetV1): ObservedFactV1[] {
 }
 
 /** Lookup a fact/transition by id (for grounding checks in mission validation). */
-export function factIndex(set: ObservationSetV1): { facts: Map<string, ObservedFactV1>; transitions: Map<string, ActionTransitionV1> } {
+export function factIndex(set: ObservationSetV1): {
+  facts: Map<string, ObservedFactV1>;
+  transitions: Map<string, ActionTransitionV1>;
+} {
   return {
     facts: new Map(set.facts.map((f) => [f.id, f])),
     transitions: new Map(set.transitions.map((t) => [t.id, t])),
@@ -276,15 +451,32 @@ export interface ActionOutcomeV1 {
 /** Derive the typed action→outcome view from an already-derived set. Pure; references ids only. */
 export function deriveActionOutcomes(set: ObservationSetV1): ActionOutcomeV1[] {
   return set.transitions.map((t) => {
-    const factIds = set.facts.filter((f) => f.decisive && f.stateId === t.afterStateDigest).map((f) => f.id).sort();
-    const visionForState = set.facts.find((f) => f.source === "vision" && f.stateId === t.afterStateDigest);
-    const control = t.locator.accessibleName || t.locator.raw || t.locator.role
-      ? { ...(t.locator.role ? { role: t.locator.role } : {}), ...(t.locator.accessibleName || t.locator.raw ? { name: t.locator.accessibleName ?? t.locator.raw } : {}) }
-      : null;
+    const factIds = set.facts
+      .filter((f) => f.decisive && f.stateId === t.afterStateDigest)
+      .map((f) => f.id)
+      .sort();
+    const visionForState = set.facts.find(
+      (f) => f.source === "vision" && f.stateId === t.afterStateDigest,
+    );
+    const control =
+      t.locator.accessibleName || t.locator.raw || t.locator.role
+        ? {
+            ...(t.locator.role ? { role: t.locator.role } : {}),
+            ...(t.locator.accessibleName || t.locator.raw
+              ? { name: t.locator.accessibleName ?? t.locator.raw }
+              : {}),
+          }
+        : null;
     return {
-      version: "action-outcome-v1", transitionId: t.id, afterStateId: t.afterStateDigest,
-      sourceImageIndex: visionForState?.sourceImageIndex ?? null, observedControl: control,
-      safeAction: t.verb, changedAfter: t.addedTexts, factIds, grounding: "seen",
+      version: "action-outcome-v1",
+      transitionId: t.id,
+      afterStateId: t.afterStateDigest,
+      sourceImageIndex: visionForState?.sourceImageIndex ?? null,
+      observedControl: control,
+      safeAction: t.verb,
+      changedAfter: t.addedTexts,
+      factIds,
+      grounding: "seen",
       whyItMightMatter: null, // never fabricated; the architect supplies significance from these facts
     };
   });
@@ -296,11 +488,20 @@ export function deriveActionOutcomes(set: ObservationSetV1): ActionOutcomeV1[] {
  * public/audit surface. (The private corpus itself is enforced separately in observation-verify.)
  */
 export function publicObservationView(set: ObservationSetV1): {
-  version: string; digest: string; seenFacts: number; inferredFacts: number; transitions: number; factIds: string[];
+  version: string;
+  digest: string;
+  seenFacts: number;
+  inferredFacts: number;
+  transitions: number;
+  factIds: string[];
 } {
   const seen = set.facts.filter((f) => f.grounding === "seen").length;
   return {
-    version: set.version, digest: set.digest, seenFacts: seen, inferredFacts: set.facts.length - seen,
-    transitions: set.transitions.length, factIds: set.facts.map((f) => f.id).sort(),
+    version: set.version,
+    digest: set.digest,
+    seenFacts: seen,
+    inferredFacts: set.facts.length - seen,
+    transitions: set.transitions.length,
+    factIds: set.facts.map((f) => f.id).sort(),
   };
 }
