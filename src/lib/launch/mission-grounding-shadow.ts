@@ -17,6 +17,10 @@ import { factIndex, stateDigest } from "./observed-facts";
 import {
   compileGoalMission,
   applyProseRefinement,
+  buildCompilerSupportProof,
+  verifyCompilerSupportProof,
+  type CompilerSupportProofV1,
+  type CompileGoalInput,
 } from "./goal-mission-compiler";
 import { buildJourneySteps } from "./goal-journey";
 import {
@@ -429,6 +433,10 @@ export interface GroundingShadowResult {
   goalCompilerQuestion?: string | null;
   /** how many missions Sage compiled deterministically (criteria/evidence never model-authored). */
   compilerAuthoredMissions?: number;
+  /** the recomputed compiler-support proof digest (null when no mission was compiled). */
+  compilerSupportProofDigest?: string | null;
+  /** `compiler_support_proof_invalid` detail when a compiled mission failed re-verification. */
+  compilerSupportProofInvalid?: string | null;
   sampleAdjusted?: boolean;
   sampleReason?: string;
   sampleQuestion?: string | null;
@@ -809,8 +817,13 @@ export async function runGroundedShadow(
   };
   let candidates: CandidateMission[] = [];
   let goalCompilerQuestion: string | null = null;
-  /** mission keys Sage COMPILED deterministically (never model-authored criteria/evidence). */
-  const compilerAuthored = new Set<string>();
+  // COMPILER SUPPORT — never a trusted flag. The proof is issued in-process for the FINAL mission and
+  // RE-VERIFIED (by recompiling from the immutable inputs) at acceptance time; only a mission that still
+  // proves out may stand without a critic verdict.
+  let compilerProof: CompilerSupportProofV1 | null = null;
+  let compilerProofInput: CompileGoalInput | null = null;
+  let compilerProofMission: CandidateMission | null = null;
+  let compilerProofInvalid: string | null = null;
   let compileOutcome: DraftCompileOutcome | null = null;
   const draftTelemetry = () =>
     compileOutcome
@@ -838,7 +851,7 @@ export async function runGroundedShadow(
     map.productContext
   ) {
     const ftStates = map.fieldTest?.states ?? [];
-    const compiledGoal = compileGoalMission({
+    const compileArgs: CompileGoalInput = {
       journey: journeyForCompile,
       context: map.productContext,
       steps: buildJourneySteps(
@@ -854,7 +867,8 @@ export async function runGroundedShadow(
       transitions: set.transitions,
       productUrl: input.productUrl,
       totalBudgetBase: input.totalBudgetBase,
-    });
+    };
+    const compiledGoal = compileGoalMission(compileArgs);
     if (compiledGoal.ok) {
       let mission = compiledGoal.compiled.mission;
       // ONE optional prose-only refinement (title/objective/whyItMatters/instructions).
@@ -873,7 +887,18 @@ export async function runGroundedShadow(
       }
       architectStatus = "ok";
       candidates = [mission];
-      compilerAuthored.add(mission.missionKey);
+      // issue the proof over the FINAL mission (prose included) + the immutable compile inputs.
+      compilerProofInput = compileArgs;
+      compilerProofMission = mission;
+      compilerProof = buildCompilerSupportProof({
+        mission,
+        mappings: compiledGoal.compiled.mappings,
+        criteria: compiledGoal.compiled.criteria,
+        resolvedEntity: compiledGoal.compiled.resolvedEntity,
+        journey: journeyForCompile,
+        context: map.productContext,
+        observationSetDigest: digest,
+      });
       compileOutcome = {
         kind: "compiled",
         candidates,
@@ -1104,9 +1129,24 @@ export async function runGroundedShadow(
   // validateMissionGrounding above). The critic exists to catch a MODEL asserting something the evidence
   // does not support — there is no model assertion here, so its verdict is recorded but cannot veto
   // Sage's own deterministic derivation. Model-authored missions still require critic support.
+  // COMPILER SUPPORT — recomputed, never trusted. The proof is re-verified against the FINAL mission by
+  // recompiling from the immutable inputs; only then may a compiled criterion stand without a critic
+  // verdict. Any edited criterion/fact/entity/mapping/wording, or a stale observation set, fails here.
+  const compilerSupported = new Set<string>();
+  if (compilerProof && compilerProofInput && compilerProofMission) {
+    const verdict = verifyCompilerSupportProof({
+      mission: compilerProofMission,
+      proof: compilerProof,
+      input: compilerProofInput,
+      observationSetDigest: digest,
+    });
+    if (verdict.ok) compilerSupported.add(compilerProofMission.missionKey);
+    else compilerProofInvalid = verdict.mismatch;
+  }
+
   const criticSupportedList = structurallyValid.filter(
     (m) =>
-      supportedKeys.has(m.missionKey) || compilerAuthored.has(m.missionKey),
+      supportedKeys.has(m.missionKey) || compilerSupported.has(m.missionKey),
   );
 
   // 3b) CANONICAL GATE REHEARSAL — the critic-supported candidates now traverse the SAME deterministic gate
@@ -1235,7 +1275,7 @@ export async function runGroundedShadow(
     accepted.length > 0 &&
     accepted.every(
       (m) =>
-        supportedKeys.has(m.missionKey) || compilerAuthored.has(m.missionKey),
+        supportedKeys.has(m.missionKey) || compilerSupported.has(m.missionKey),
     );
   const provenancePresent = !!(
     architectActual &&
@@ -1306,7 +1346,9 @@ export async function runGroundedShadow(
     // ordered founder-goal coverage (bounded codes + counts; never observed product text)
     ...journeyTelemetry(map.goalJourney),
     goalCompilerQuestion,
-    compilerAuthoredMissions: compilerAuthored.size,
+    compilerAuthoredMissions: compilerSupported.size,
+    compilerSupportProofDigest: compilerProof?.proofDigest ?? null,
+    compilerSupportProofInvalid: compilerProofInvalid,
     sampleAdjusted: sample.adjusted,
     sampleReason: sample.reason,
     sampleQuestion: sample.question,

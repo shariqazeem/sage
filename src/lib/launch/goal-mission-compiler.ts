@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   EntityInstanceV1,
   ProductContextV1,
@@ -525,4 +526,215 @@ export function applyProseRefinement(
     whyItMatters: take(prose.whyItMatters, 300, mission.whyItMatters),
     instructions: take(prose.instructions, 1200, mission.instructions),
   };
+}
+
+/* ───────────────── 4. CompilerSupportProofV1 (recomputed, never trusted) ──── */
+
+/** Bump when the compiler's derivation changes — an old proof can never validate against a new compiler. */
+export const GOAL_MISSION_COMPILER_VERSION =
+  "goal-mission-compiler-v1" as const;
+
+/**
+ * The deterministic proof that a mission's criteria were COMPILED by Sage from immutable observed inputs
+ * — the thing that lets a compiled criterion stand without a model critic's blessing.
+ *
+ * It is never supplied by a model, an API caller, a database row or a persisted mission: it is computed
+ * in-process from the compile inputs, and — crucially — {@link verifyCompilerSupportProof} RECOMPUTES the
+ * whole compilation from those same immutable inputs and checks the final mission against it. A forged
+ * proof, a forged provenance flag, an edited criterion, a swapped fact id, a different entity, a changed
+ * mapping, a reworded mission, or a stale observation set all fail verification.
+ */
+export interface CompilerSupportProofV1 {
+  version: "compiler-support-proof-v1";
+  compilerVersion: typeof GOAL_MISSION_COMPILER_VERSION;
+  /** the founder's compiled journey (goal + ordered checkpoints). */
+  journeyDigest: string;
+  /** the exact observation set the compilation was derived from. */
+  observationSetDigest: string;
+  /** where things were observed (phases + entity occurrences). */
+  productContextDigest: string;
+  /** the behaviourally-resolved target occurrence. */
+  entityId: string | null;
+  /** checkpoint → criterion/evidence mapping. */
+  mappingsDigest: string;
+  /** per-criterion evidence: fact ids, transition ids, evidence index and mode. */
+  evidenceDigest: string;
+  /** the FINAL mission (prose included) this proof was issued for. */
+  missionDigest: string;
+  /** sha over every field above. */
+  proofDigest: string;
+}
+
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** Canonical digest of the product context (phases + entity identity), order-independent. */
+export function productContextDigest(context: ProductContextV1): string {
+  return sha(
+    JSON.stringify({
+      v: context.version,
+      p: context.statePhases,
+      e: [...context.entities]
+        .map((x) => [
+          x.entityId,
+          x.label,
+          x.kind,
+          x.phase,
+          x.stateId,
+          x.stateIndex,
+          [...x.affordances].sort(),
+        ])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      t: context.phaseTransitions.map((x) => [x.from, x.to, x.atStateIndex]),
+    }),
+  ).slice(0, 32);
+}
+
+/** Canonical digest of the FINAL mission — content AND prose. Any edit changes it. */
+export function missionContentDigest(m: CandidateMission): string {
+  return sha(
+    JSON.stringify({
+      k: m.missionKey,
+      t: m.title,
+      o: m.objective,
+      i: m.instructions,
+      w: m.whyItMatters,
+      s: m.targetSurface,
+      c: m.criteria,
+      e: m.evidenceRequirements,
+      a: m.anchors ?? [],
+      v: m.verifiabilityClass ?? "",
+      g: (m.groundingV1?.criteria ?? []).map((g) => [
+        g.criterionIndex,
+        g.evidenceIndex,
+        [...g.sourceFactIds].sort(),
+        [...(g.sourceTransitionIds ?? [])].sort(),
+        g.verificationMode,
+        g.criterionKind ?? "",
+      ]),
+    }),
+  ).slice(0, 32);
+}
+
+const mappingsDigestOf = (
+  mappings: readonly CheckpointEvidenceMapping[],
+): string =>
+  sha(
+    JSON.stringify(
+      [...mappings]
+        .map((m) => [
+          m.checkpointId,
+          m.missionKey,
+          m.criterionIndex,
+          m.evidenceIndex,
+          [...m.factIds].sort(),
+          [...m.transitionIds].sort(),
+          m.evidenceMode,
+        ])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ),
+  ).slice(0, 32);
+
+const evidenceDigestOf = (criteria: readonly CompiledCriterion[]): string =>
+  sha(
+    JSON.stringify(
+      criteria.map((c) => [
+        c.index,
+        c.evidenceMode,
+        c.criterionKind,
+        [...c.factIds].sort(),
+        [...c.transitionIds].sort(),
+        [...c.checkpointIds].sort(),
+      ]),
+    ),
+  ).slice(0, 32);
+
+/** Issue the proof for a freshly compiled (and optionally prose-polished) mission. In-process only. */
+export function buildCompilerSupportProof(args: {
+  mission: CandidateMission;
+  mappings: readonly CheckpointEvidenceMapping[];
+  criteria: readonly CompiledCriterion[];
+  resolvedEntity: EntityInstanceV1 | null;
+  journey: GoalJourneyV1;
+  context: ProductContextV1;
+  observationSetDigest: string;
+}): CompilerSupportProofV1 {
+  const base = {
+    version: "compiler-support-proof-v1" as const,
+    compilerVersion: GOAL_MISSION_COMPILER_VERSION,
+    journeyDigest: args.journey.digest,
+    observationSetDigest: args.observationSetDigest,
+    productContextDigest: productContextDigest(args.context),
+    entityId: args.resolvedEntity?.entityId ?? null,
+    mappingsDigest: mappingsDigestOf(args.mappings),
+    evidenceDigest: evidenceDigestOf(args.criteria),
+    missionDigest: missionContentDigest(args.mission),
+  };
+  return { ...base, proofDigest: sha(JSON.stringify(base)).slice(0, 32) };
+}
+
+export type ProofVerdict =
+  | { ok: true; proof: CompilerSupportProofV1 }
+  | { ok: false; code: "compiler_support_proof_invalid"; mismatch: string };
+
+/**
+ * RECOMPUTE the compilation from the immutable inputs and check the final mission + proof against it.
+ * Nothing here is taken on trust: the criteria, evidence ids, mapping and entity are re-derived, and the
+ * mission is re-digested. This is what makes a compiled criterion self-proving rather than flag-driven.
+ */
+export function verifyCompilerSupportProof(args: {
+  mission: CandidateMission;
+  proof: CompilerSupportProofV1 | null | undefined;
+  input: CompileGoalInput;
+  observationSetDigest: string;
+}): ProofVerdict {
+  const { mission, proof, input } = args;
+  const fail = (mismatch: string): ProofVerdict => ({
+    ok: false,
+    code: "compiler_support_proof_invalid",
+    mismatch,
+  });
+  if (!proof || proof.version !== "compiler-support-proof-v1")
+    return fail("absent");
+  if (proof.compilerVersion !== GOAL_MISSION_COMPILER_VERSION)
+    return fail("compiler_version");
+  // 1. the proof must be internally consistent (a hand-edited field breaks its own digest).
+  const { proofDigest, ...body } = proof;
+  if (sha(JSON.stringify(body)).slice(0, 32) !== proofDigest)
+    return fail("proof_digest");
+  // 2. the immutable inputs must be the ones the proof was issued against.
+  if (proof.journeyDigest !== input.journey.digest)
+    return fail("journey_digest");
+  if (proof.observationSetDigest !== args.observationSetDigest)
+    return fail("observation_set_digest");
+  if (proof.productContextDigest !== productContextDigest(input.context))
+    return fail("product_context_digest");
+  // 3. RECOMPUTE the compilation — the criteria/evidence/mapping/entity must be exactly what Sage derives.
+  const recomputed = compileGoalMission(input);
+  if (!recomputed.ok) return fail(`recompile_failed:${recomputed.reason}`);
+  const r = recomputed.compiled;
+  if ((r.resolvedEntity?.entityId ?? null) !== proof.entityId)
+    return fail("entity_id");
+  if (mappingsDigestOf(r.mappings) !== proof.mappingsDigest)
+    return fail("mappings");
+  if (evidenceDigestOf(r.criteria) !== proof.evidenceDigest)
+    return fail("evidence");
+  // 4. the FINAL mission must be the one the proof was issued for, and structurally identical to the
+  //    recomputation (prose may differ from the raw skeleton, but not from what the proof committed to).
+  if (missionContentDigest(mission) !== proof.missionDigest)
+    return fail("mission_digest");
+  const structural = (m: CandidateMission) =>
+    JSON.stringify({
+      k: m.missionKey,
+      c: m.criteria,
+      e: m.evidenceRequirements,
+      g: (m.groundingV1?.criteria ?? []).map((g) => [
+        g.criterionIndex,
+        g.evidenceIndex,
+        [...g.sourceFactIds].sort(),
+        g.verificationMode,
+      ]),
+    });
+  if (structural(mission) !== structural(r.mission))
+    return fail("mission_structure");
+  return { ok: true, proof };
 }
