@@ -10,6 +10,7 @@ import "server-only";
  */
 
 import { llmCompleteJson, llmConfigured } from "@/lib/llm/complete";
+import { backoffMs } from "@/lib/llm/retry";
 import { missionModel } from "@/lib/llm/mission-model";
 import {
   ARCHITECT_SYSTEM,
@@ -220,7 +221,10 @@ export function compactMapForLlm(map: ProductMapV1): string {
   });
 }
 
-const jitter = (attempt: number) => new Promise((res) => setTimeout(res, attempt === 0 ? 0 : 250 * attempt + Math.floor(Math.random() * 200)));
+/** Wait before the next attempt: seconds for a provider hiccup, a short jitter for a shape failure.
+ *  The old ladder waited ~3s across five tries — too fast to outlive an outage worth waiting for. */
+const jitter = (attempt: number, lastError?: unknown) =>
+  new Promise((res) => setTimeout(res, backoffMs(attempt, lastError ?? new Error("shape"))));
 
 /** Classify an architect failure for durable observability. */
 function classifyBrainError(e: unknown): string {
@@ -244,8 +248,9 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
   // A `correction` (the deterministic validation errors from a prior round) steers the
   // model to fix specific problems rather than blindly regenerate. Never canned output.
   let lastError = "architect_failed";
+  let lastThrown: unknown = null; // the raw error, so a provider hiccup waits and a shape failure doesn't
   for (let attempt = 0; attempt < 5; attempt++) {
-    await jitter(attempt);
+    await jitter(attempt, lastThrown);
     try {
       const base = buildArchitectUser(
         mapJson,
@@ -265,6 +270,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
     } catch (e) {
       lastError = classifyBrainError(e);
+      lastThrown = e;
       if (lastError === "llm_not_configured") break;
     }
   }

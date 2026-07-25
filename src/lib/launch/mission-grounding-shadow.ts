@@ -6,6 +6,7 @@ import {
   LlmCompletionError,
   type ContentShape,
 } from "@/lib/llm/complete";
+import { withTransientRetry } from "@/lib/llm/retry";
 import { missionModel } from "@/lib/llm/mission-model";
 import { compactMapForLlm } from "./mission-brain";
 import {
@@ -689,15 +690,20 @@ export async function runGroundedShadow(
   const architect =
     deps.architect ??
     (async (system: string, user: string) => {
-      const r = await llmCompleteJson({
-        system,
-        user,
-        maxTokens: 4200,
-        temperature: 0.2,
-        model: architectModelRequested ?? undefined,
-        parsePolicy: "strict",
-        responseSchema: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA,
-      });
+      // A provider hiccup here used to block the whole grounded plan on its first attempt — one 503
+      // and a fully-explored product produced nothing. Transient failures now wait and retry; a
+      // strict-parse rejection still fails immediately, because waiting cannot fix a bad shape.
+      const r = await withTransientRetry(() =>
+        llmCompleteJson({
+          system,
+          user,
+          maxTokens: 4200,
+          temperature: 0.2,
+          model: architectModelRequested ?? undefined,
+          parsePolicy: "strict",
+          responseSchema: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA,
+        }),
+      );
       architectActual = r.responseModel ?? r.model;
       architectProvider = r.provider;
       architectShape = "bare_object";
@@ -714,15 +720,19 @@ export async function runGroundedShadow(
   const critic =
     deps.critic ??
     (async (system: string, user: string) => {
-      const r = await llmCompleteJson({
-        system,
-        user,
-        maxTokens: 2200,
-        temperature: 0,
-        model: criticModelRequested ?? undefined,
-        parsePolicy: "strict",
-        responseSchema: CRITIC_TRANSPORT_SCHEMA_V3,
-      });
+      // Same reason as the architect above: a transient provider failure here left every criterion
+      // unsupported, which reads as "the plan failed its checks" when nothing was actually judged.
+      const r = await withTransientRetry(() =>
+        llmCompleteJson({
+          system,
+          user,
+          maxTokens: 2200,
+          temperature: 0,
+          model: criticModelRequested ?? undefined,
+          parsePolicy: "strict",
+          responseSchema: CRITIC_TRANSPORT_SCHEMA_V3,
+        }),
+      );
       criticActual = r.responseModel ?? r.model;
       criticProvider = r.provider;
       criticShape = "bare_object";

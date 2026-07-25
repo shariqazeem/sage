@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { getInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
+import { getInspectionJob, updateInspectionJob, resetInspectionForRetry } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
@@ -51,6 +51,17 @@ export function serialize<T>(v: T): unknown {
  * pipeline enters them. On success it stores the result AND creates revision 1 of the
  * durable plan. Never throws — a failure is a `failed` status with a sanitized reason.
  */
+/** Failure reasons worth re-running the whole job for: the provider blinked, nothing is wrong with
+ *  the product or the plan. Anything else (a real refusal, a needs-input, a bad URL) is not retried
+ *  — repeating it would only make the founder wait for the same honest answer. */
+const RETRYABLE_FAILURES = new Set([
+  "provider_transient",
+  "provider_timeout",
+  "provider_error",
+  "architect_failed",
+]);
+const MAX_AUTO_RETRIES = 2;
+
 export async function runInspectionJob(jobId: string): Promise<void> {
   const job = getInspectionJob(jobId);
   if (!job || (job.status !== "queued" && job.status !== "needs_input" && job.status !== "failed")) return;
@@ -124,6 +135,24 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         verificationPolicyRequired: canary?.verificationPolicyRequired ?? false,
         groundedProvenance: grounded ?? null,
       });
+    }
+
+    // A PROVIDER HICCUP IS NOT A VERDICT. Sage can spend minutes in a real browser gathering
+    // evidence and then lose all of it because one model call caught a 503 — the founder sees
+    // "Sage couldn't finish this one" for something that had nothing to do with their product.
+    // So a transient failure re-runs itself, bounded and recorded, instead of ending there. A real
+    // refusal is never retried: repeating it would only make the founder wait for the same answer.
+    if (
+      result.stage === "failed" &&
+      RETRYABLE_FAILURES.has(result.reason ?? "") &&
+      (getInspectionJob(jobId)?.retryCount ?? 0) < MAX_AUTO_RETRIES &&
+      // the SAME atomic reset the founder's "Try again" uses — terminal-only, so a manual retry
+      // already in flight wins and this becomes a no-op instead of a second concurrent run.
+      resetInspectionForRetry(jobId)
+    ) {
+      const attempt = getInspectionJob(jobId)?.retryCount ?? 1;
+      await new Promise((r) => setTimeout(r, 4_000 * attempt));
+      await runInspectionJob(jobId);
     }
   } catch (err) {
     updateInspectionJob(jobId, "failed", { failureReason: (err instanceof Error ? err.message : "inspection error").slice(0, 200) });
