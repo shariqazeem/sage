@@ -12,6 +12,7 @@ import {
   isAgentWalletTool,
   callAgentWalletTool,
 } from "@/lib/telegram/agent-wallet-tools";
+import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   conciergeBase as base,
@@ -394,6 +395,17 @@ async function runAgentTurn(
                 continue;
               }
               args.founderOverride = ctx.founderWallet.toLowerCase();
+            }
+            // TELEGRAM ↔ WEB PARITY: a chat that has onboarded owns a real wallet (its Privy agent
+            // wallet IS its founder address) — the same address that approves the plan and owns the
+            // vault. Binding the inspection to it gives a walletless founder the IDENTICAL planning
+            // path as the web founder (server-verified identity ⇒ the grounded compiler + journey gate,
+            // instead of falling back to the weaker legacy plan). Set server-side, never by the model.
+            if (surface === "telegram") {
+              const bound = getAgentWallet(ref)?.founderAddress;
+              if (bound && /^0x[0-9a-fA-F]{40}$/.test(bound)) {
+                args.founderOverride = bound.toLowerCase();
+              }
             }
           }
 
