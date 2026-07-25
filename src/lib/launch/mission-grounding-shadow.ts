@@ -907,7 +907,16 @@ export async function runGroundedShadow(
     const compiledGoal = compileGoalMissions(compileArgs, partition.groups);
     if (compiledGoal.ok) {
       const missions: CandidateMission[] = [];
-      for (const seg of compiledGoal.compiled) {
+      // the distinctive words of each segment, so refined copy for one segment can never promise
+      // another's work (a live plan titled the "enter the garden" mission "…and Chat with Yara").
+      const segTerms = compiledGoal.compiled.map((s) =>
+        journeyForCompile.checkpoints
+          .filter((c) => s.mappings.some((m) => m.checkpointId === c.checkpointId))
+          .flatMap((c) => [c.targetEntity, c.requiredContext])
+          .filter((t): t is string => !!t && t.trim().length > 2),
+      );
+      for (const [segIndex, seg] of compiledGoal.compiled.entries()) {
+        const foreignTerms = segTerms.filter((_, i) => i !== segIndex).flat();
         let mission = seg.mission;
         // ONE optional prose-only refinement per mission (title/objective/whyItMatters/instructions).
         try {
@@ -919,6 +928,7 @@ export async function runGroundedShadow(
           mission = applyProseRefinement(
             mission,
             prose as Record<string, unknown>,
+            foreignTerms,
           );
         } catch {
           /* prose refinement failed — the deterministic copy stands */

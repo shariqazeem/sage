@@ -615,9 +615,41 @@ export interface ProseRefinement {
  * and only when they are non-empty strings; criteria, evidence, ids, mappings, anchors and modes are
  * untouchable. Any failure keeps the deterministic copy — the grounded skeleton is never discarded.
  */
+/**
+ * Does refined copy promise work this mission does NOT contain?
+ *
+ * A live two-segment plan produced a mission whose only criterion was "enter the garden" under the
+ * title "Explore the Garden and Chat with Yara". A tester would have done the chatting, and then
+ * found the mission never asked for it — wasted effort, and evidence the judge cannot match. When a
+ * journey is split, each mission's copy must describe ITS OWN steps and nothing later.
+ *
+ * `foreignTerms` are the distinctive words of the OTHER segments; a term the mission's own text
+ * already uses is never foreign. Deterministic, and it only ever falls back to the compiled copy.
+ */
+export function mentionsForeignScope(
+  text: string,
+  ownText: string,
+  foreignTerms: readonly string[],
+): boolean {
+  // Match on WORD boundaries over punctuation-stripped text: entity labels arrive as observed
+  // ("Yara.", "Yara's Grove"), and a raw substring test both misses those and fires on fragments
+  // (a three-letter term inside a longer word).
+  const tokens = (s: string) => ` ${lower(s).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const t = tokens(text);
+  const own = tokens(ownText);
+  return foreignTerms.some((raw) => {
+    const term = tokens(raw).trim();
+    if (term.length < 3) return false;
+    if (own.includes(` ${term} `)) return false; // this mission legitimately covers it
+    return t.includes(` ${term} `);
+  });
+}
+
 export function applyProseRefinement(
   mission: CandidateMission,
   prose: ProseRefinement | null | undefined,
+  /** distinctive words belonging to OTHER segments of a partitioned journey. */
+  foreignTerms: readonly string[] = [],
 ): CandidateMission {
   if (!prose || typeof prose !== "object") return mission;
   // A model asked for "instructions" answers with a paragraph on one call and a list of steps on the
@@ -633,8 +665,17 @@ export function applyProseRefinement(
       : typeof v === "string"
         ? norm(v)
         : "";
+  // this mission's own words — anything the refinement adds beyond them is out of scope
+  const ownText = [
+    mission.title,
+    mission.objective,
+    mission.instructions,
+    ...mission.criteria,
+  ].join(" ");
   const take = (v: unknown, max: number, fallback: string) => {
     const text = flatten(v);
+    // scope guard: copy that promises another segment's work falls back to the compiled copy
+    if (text && mentionsForeignScope(text, ownText, foreignTerms)) return fallback;
     return text.length >= 8 ? text.slice(0, max) : fallback;
   };
   return {
