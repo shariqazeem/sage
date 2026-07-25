@@ -233,8 +233,28 @@ function anchorsFrom(
   return out;
 }
 
-const pick = <T>(xs: readonly T[], n: number): T[] =>
-  xs.slice(0, Math.max(0, n));
+/**
+ * Collect the cited fact ids for a criterion so that EVERY checkpoint it covers keeps at least one of its
+ * own facts. A flat slice can silently drop a checkpoint's only evidence, which breaks its
+ * checkpoint→criterion→evidence mapping (`goal_checkpoint_evidence_unmapped`) even though Sage observed
+ * it. Round-robin first (one per checkpoint, in order), then top up to the cap. Pure + deterministic.
+ */
+function citedFactIds(
+  groups: readonly GoalCheckpointV1[],
+  cap: number,
+): string[] {
+  const out: string[] = [];
+  const push = (id: string) => {
+    if (id && !out.includes(id) && out.length < cap) out.push(id);
+  };
+  for (const c of groups) push(c.evidence.factIds[0] ?? ""); // one per checkpoint — none left unmapped
+  for (let i = 1; out.length < cap; i++) {
+    const before = out.length;
+    for (const c of groups) push(c.evidence.factIds[i] ?? "");
+    if (out.length === before) break;
+  }
+  return out;
+}
 
 /**
  * Compile the founder's observed journey into ONE grounded mission with a small number of meaningful
@@ -316,13 +336,8 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
   // criterion 0 — reach the target + open the interaction (prerequisites attach here).
   const coreCps = [...prereqOnly, ...core];
   if (coreCps.length > 0) {
-    const factIds = dedupe([
-      ...pick(
-        core.flatMap((c) => c.evidence.factIds),
-        4,
-      ),
-      ...prereqOnly.flatMap((c) => pick(c.evidence.factIds, 2)),
-    ]).slice(0, 8);
+    // every checkpoint this criterion covers must keep at least one of its own facts.
+    const factIds = citedFactIds([...core, ...prereqOnly], 8);
     const transIds = usableTransitions(
       core.flatMap((c) => c.evidence.transitionIds),
       transitions,
@@ -343,13 +358,14 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
 
   // criterion 1 — supply the input + observe the result, with DISTINCT send/response evidence.
   if (outcomeGroup.length > 0) {
-    const sendCp = outcomeGroup.find((c) => c.kind === "input");
     const respCp =
       [...outcomeGroup].reverse().find((c) => c.kind === "outcome") ??
       outcomeGroup[outcomeGroup.length - 1];
-    const sendIds = sendCp ? pick(sendCp.evidence.factIds, 3) : [];
-    const respIds = pick(respCp.evidence.factIds, 4);
-    const factIds = dedupe([...respIds, ...sendIds]).slice(0, 8);
+    // the response state's evidence leads, but the send state keeps its own cited fact.
+    const factIds = citedFactIds(
+      [respCp, ...outcomeGroup.filter((c) => c !== respCp)],
+      8,
+    );
     criteria.push({
       index: criteria.length,
       text: `${joinRequirements(outcomeGroup)} — a NEW response from "${entityLabel}" that was not on screen before the message was sent`,
@@ -362,8 +378,8 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
       ),
       evidenceMode: "observation",
       criterionKind: "state",
-      stateId: factsStateId(facts, respIds),
-      pageUrl: factsPageUrl(facts, respIds) ?? input.productUrl,
+      stateId: factsStateId(facts, respCp.evidence.factIds),
+      pageUrl: factsPageUrl(facts, respCp.evidence.factIds) ?? input.productUrl,
     });
   }
 
