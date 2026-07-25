@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BudgetBar } from "@/components/launch/budget-bar";
+import { MissionCard } from "@/components/launch/mission-card";
 import { LiveBrowserTrail } from "@/components/launch/live-browser-trail";
 import type { JobView } from "@/components/launch/types";
 import "@/app/launch/launch.css";
@@ -99,6 +100,26 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
   }
   return (
     <div className="lx ac-inline">
+      {/* The MISSIONS, not just the money. A plan that shows "$2 · 1 mission" and no mission reads
+          as an empty plan — the founder is being asked to approve work they cannot see. Same cards
+          as the plan page, so the two surfaces show the founder the same thing. */}
+      {job.plan.missions.length > 0 && (
+        <section aria-label="Mission plan">
+          <div className="lx-kicker" style={{ margin: "0 0 6px" }}>
+            Sage designed {job.plan.missions.length === 1 ? "this mission" : "these missions"} from what it found
+          </div>
+          {job.plan.missions.map((m) => (
+            <MissionCard
+              key={m.missionKey}
+              mission={m}
+              jobId={inspectionId}
+              revision={job.plan!.revision}
+              locked={!!job.approval}
+              onSaved={(j) => setJob(j)}
+            />
+          ))}
+        </section>
+      )}
       <BudgetBar
         plan={job.plan}
         jobId={inspectionId}

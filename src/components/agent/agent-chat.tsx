@@ -11,6 +11,7 @@ import { ArrowUp, ArrowUpRight, SquarePen } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { InlineLaunch } from "./inline-launch";
 import "./agent-chat.css";
+import { trimUrlPunctuation } from "./linkify";
 
 /**
  * P27 — the light, full-page Agent chat (`/agent`). Same plumbing as the retired dark dock — the
@@ -45,13 +46,16 @@ function linkify(text: string): ReactNode[] {
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) parts.push(text.slice(last, match.index));
-    const url = match[1];
+    const raw = match[1]!;
+    const url = trimUrlPunctuation(raw);
     parts.push(
       <a key={i++} href={url} target="_blank" rel="noreferrer noopener">
         {url}
       </a>,
     );
-    last = match.index + url.length;
+    // whatever was trimmed is sentence text, and belongs back in the paragraph
+    if (raw.length > url.length) parts.push(raw.slice(url.length));
+    last = match.index + raw.length;
   }
   if (last < text.length) parts.push(text.slice(last));
   return parts;

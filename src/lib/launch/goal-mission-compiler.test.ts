@@ -189,6 +189,45 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
     );
     expect(total).toBe(BigInt(1_500_000)); // exactly $1.50
   });
+
+  /**
+   * REGRESSION — a founder asked for "users" with a $2 budget and got ONE tester at $2.00, because
+   * 2,000,000 does not divide by three. Divisibility is an implementation detail; it must not
+   * decide how many people get paid. The split now takes the largest sample the pot divides
+   * exactly, and exactness itself is never traded away.
+   */
+  it("falls back to the largest sample the pot divides exactly", () => {
+    const key = "m";
+    const cases: [bigint, number, bigint][] = [
+      // pot,        expected completions, expected reward each
+      [BigInt(1_500_000), 3, BigInt(500_000)], // $1.50 → 3 × $0.50 (unchanged)
+      [BigInt(2_000_000), 2, BigInt(1_000_000)], // $2.00 → 2 × $1.00 (was 1 × $2.00)
+      [BigInt(3_000_000), 3, BigInt(1_000_000)], // $3.00 → 3 × $1.00
+      [BigInt(250_000), 2, BigInt(125_000)], // $0.25 → 2 × $0.125, still over the floor
+    ];
+    for (const [pot, n, each] of cases) {
+      const split = splitCompletionsForSample(
+        [{ missionKey: key, rewardBase: pot, maxCompletions: BigInt(1) }],
+        new Map([[key, 3]]),
+        MIN_REWARD_BASE,
+      );
+      expect(split[0].maxCompletions).toBe(BigInt(n));
+      expect(split[0].rewardBase).toBe(each);
+      // the invariant that matters, every time
+      expect(split[0].rewardBase * split[0].maxCompletions).toBe(pot);
+    }
+  });
+
+  it("never splits a tester below the meaningful floor", () => {
+    // $0.15 cannot buy two meaningful rewards ($0.10 each) → it stays one tester
+    const split = splitCompletionsForSample(
+      [{ missionKey: "m", rewardBase: BigInt(150_000), maxCompletions: BigInt(1) }],
+      new Map([["m", 3]]),
+      MIN_REWARD_BASE,
+    );
+    expect(split[0].maxCompletions).toBe(BigInt(1));
+    expect(split[0].rewardBase).toBe(BigInt(150_000));
+  });
 });
 
 /* ─────────────────── product-agnostic unit cases (generic product) ────────── */

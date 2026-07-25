@@ -157,10 +157,18 @@ export function splitCompletionsForSample<
     const target = targetByKey.get(m.missionKey);
     if (!target || target <= Number(m.maxCompletions)) return m;
     const pot = m.rewardBase * m.maxCompletions;
-    const n = BigInt(target);
-    if (pot % n !== BigInt(0)) return m; // never introduce rounding
-    const reward = pot / n;
-    if (reward < minRewardBase) return m; // never drop a tester below the meaningful floor
-    return { ...m, rewardBase: reward, maxCompletions: n };
+    const floor = Number(m.maxCompletions);
+    // Take the LARGEST sample the pot divides exactly. $1.50 splits three ways; $2.00 does not —
+    // and a founder who asked about users should get two testers at $1.00 rather than one at $2.00
+    // because of a remainder. Exactness is never traded away: `rewardBase × maxCompletions` still
+    // equals the pot bit for bit, so the allocation invariant holds untouched.
+    for (let k = target; k > floor; k--) {
+      const n = BigInt(k);
+      if (pot % n !== BigInt(0)) continue; // never introduce rounding
+      const reward = pot / n;
+      if (reward < minRewardBase) continue; // never drop a tester below the meaningful floor
+      return { ...m, rewardBase: reward, maxCompletions: n };
+    }
+    return m;
   });
 }
