@@ -124,12 +124,15 @@ function limiters(): LimiterStore {
         86_400_000,
       ),
       publicMcp: new RateLimiter(20, 60_000), // 20 public MCP calls / min / derived caller
+      // Per-caller = per-IP, and a marketplace sends every one of its users through shared egress:
+      // a cap tuned for one abusive stranger silently caps the whole marketplace. 3/day was already
+      // 2/3 spent by a single reviewer. The GLOBAL budget below is the real spend backstop.
       publicMcpDaily: new RateLimiter(
-        Math.max(1, Number(process.env.PUBLIC_MCP_DAILY_CAP) || 3),
+        Math.max(1, Number(process.env.PUBLIC_MCP_DAILY_CAP) || 15),
         86_400_000,
       ),
       publicMcpGlobalDaily: new RateLimiter(
-        Math.max(1, Number(process.env.PUBLIC_MCP_GLOBAL_DAILY_CAP) || 40),
+        Math.max(1, Number(process.env.PUBLIC_MCP_GLOBAL_DAILY_CAP) || 150),
         86_400_000,
       ),
     };

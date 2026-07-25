@@ -42,6 +42,7 @@ try {
   const names = tools.map((t) => t.name).sort();
   const expected = [
     "sage_answer_questions",
+    "sage_example_plan",
     "sage_get_campaign",
     "sage_get_inspection",
     "sage_get_proof",

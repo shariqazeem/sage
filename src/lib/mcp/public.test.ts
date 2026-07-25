@@ -42,6 +42,7 @@ describe("the published registry is an allowlist", () => {
     const names = publicMcpTools().map((t) => t.name);
     expect(names.sort()).toEqual([...PUBLIC_READ_TOOLS, ...PUBLIC_WORK_TOOLS].sort());
     // the tools that read someone ELSE's data or need a founder session are absent
+    expect(names).toContain("sage_example_plan");
     expect(names).not.toContain("sage_get_submission");
     expect(names).not.toContain("sage_my_campaigns");
   });

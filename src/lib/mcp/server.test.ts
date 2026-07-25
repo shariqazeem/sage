@@ -12,6 +12,7 @@ describe("MCP tool registry", () => {
       "sage_answer_questions",
       "sage_get_campaign",
       "sage_get_submission",
+      "sage_example_plan",
       "sage_get_proof",
     ]);
     for (const t of MCP_TOOLS) {

@@ -62,7 +62,7 @@ const a = await connect("okx-review-sim-a");
 check("1. initialize succeeds with no credentials", a.getServerVersion()?.name === "sage");
 
 const tools = (await a.listTools()).tools;
-check("2. lists all five tools", tools.length === 5, tools.map((t) => t.name).join(","));
+check("2. lists every published tool", tools.length === 6, tools.map((t) => t.name).join(","));
 
 const GOAL =
   "A tester should land on the site, walk into the world, find the Yara character and have a real conversation with her.";

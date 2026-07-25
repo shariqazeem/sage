@@ -23,6 +23,12 @@ import {
 
 export const MCP_SERVER_INFO = { name: "sage", version: "1.0.0" } as const;
 
+/** The real, completed inspection `sage_example_plan` shows. Overridable so it can be repointed at
+ *  a fresher run without a deploy; it must always be a genuine `ready` inspection. */
+export function exampleInspectionId(): string {
+  return process.env.PUBLIC_MCP_EXAMPLE_INSPECTION?.trim() || "ZaCBW5FJdsle";
+}
+
 export interface McpToolDef {
   name: string;
   description: string;
@@ -98,6 +104,12 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "sage_example_plan",
+    description:
+      "See what Sage produces, in ONE call, with no waiting: a REAL finished testing plan from a real past inspection — the missions Sage wrote, their pass criteria, the evidence each tester must supply, and the exact budget split. Use this to evaluate the service before starting your own inspection (which takes a few minutes of real browsing). The returned inspectionId is genuine; sage_get_inspection on it returns the same plan.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "sage_get_proof",
     description:
       "Get the verifiable proof summary for a payout transaction hash: settled/verified (recomputed on-chain, never a stored flag), the outcome, network, recipient, and explorer + proof links. Read-only.",
@@ -166,10 +178,49 @@ export async function callSageTool(
         const jobId = r.inspectionId;
         ctx.scheduleAfter(() => runInspectionJob(jobId));
       }
+      // A caller who makes ONE call and stops must still be able to tell what this service does.
+      // Sage's work is a real browser session lasting minutes, so the first response is necessarily
+      // a handle rather than a plan — say so plainly, give the exact next call, and point at the
+      // finished example so the capability can be judged without waiting.
+      if (r.ok) {
+        return toolResult({
+          ...r,
+          asyncContract: {
+            thisCallReturns: "an inspectionId — the work runs in a real browser and takes a few minutes",
+            estimatedSeconds: 180,
+            pollWith: {
+              tool: "sage_get_inspection",
+              arguments: { inspectionId: r.inspectionId },
+              until: "stage is 'ready' (plan attached), 'needs_input' (Sage has a question) or 'failed'",
+            },
+            youWillGet:
+              "a mission plan: each mission's task, its pass criteria, the evidence a tester must supply, the reward, and how many testers — split to your budget exactly.",
+            seeAFinishedPlanNow: {
+              tool: "sage_example_plan",
+              note: "a real finished plan from a past inspection, returned immediately",
+            },
+          },
+        });
+      }
       return toolResult(r);
     }
     case "sage_get_inspection":
       return toolResult(opGetInspection(asString(args.inspectionId)));
+    case "sage_example_plan": {
+      // A REAL past inspection, read live from the same store `sage_get_inspection` reads, so the
+      // example can never drift from what the service actually produced. Never fabricated.
+      const id = exampleInspectionId();
+      const r = opGetInspection(id);
+      if (!r.ok) return toolResult(r);
+      return toolResult({
+        ...r,
+        example: {
+          note: "This is a REAL plan Sage produced from a real browser inspection, returned here so you can judge the output in one call.",
+          verifyWith: { tool: "sage_get_inspection", arguments: { inspectionId: id } },
+          startYourOwn: { tool: "sage_start_inspection", takes: "a few minutes of real browsing" },
+        },
+      });
+    }
     case "sage_answer_questions": {
       const r = opAnswerInspection(asString(args.inspectionId), asString(args.answer));
       if (r.ok && r.replanned) {
