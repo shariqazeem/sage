@@ -7,6 +7,7 @@ import { MissionCard } from "./mission-card";
 import { BudgetBar } from "./budget-bar";
 import type { JobView, PlanView } from "./types";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
+import { LiveBrowserTrail } from "./live-browser-trail";
 
 /**
  * P23 — the founder learns BEFORE funding whether this product's corpus supports autonomous payouts.
@@ -71,64 +72,6 @@ interface MapView {
   routes: { value: string }[]; primaryJourney: { value: string }[]; limitations: string[];
   openQuestions: string[]; pagesInspected: number; repoFilesInspected: number;
   fieldTest?: FieldTestView | null;
-}
-
-interface TrailStep { n: number; label: string; screenshot: string | null; url: string }
-
-/**
- * What Sage is doing in the browser, RIGHT NOW.
- *
- * The browser phase can run for minutes; a founder staring at one motionless line can't tell work
- * from a hang. This shows each state the moment Sage captures it — the shot it just took and, in
- * its own words, the action that produced it. Every entry is a real capture: no timers, no
- * predicted steps, nothing shown before it happened. When there is nothing yet, it renders nothing.
- */
-function LiveBrowserTrail({ inspectionId, active }: { inspectionId: string; active: boolean }) {
-  const [steps, setSteps] = useState<TrailStep[]>([]);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (!active) { if (timer.current) clearInterval(timer.current); return; }
-    let alive = true;
-    const tick = async () => {
-      try {
-        const res = await fetch(`/api/field-tests/${inspectionId}/progress`, { cache: "no-store" });
-        const data = await res.json();
-        if (alive && data?.ok && Array.isArray(data.steps)) setSteps(data.steps as TrailStep[]);
-      } catch { /* keep polling — a missing trail is not an error */ }
-    };
-    void tick();
-    timer.current = setInterval(tick, 2000);
-    return () => { alive = false; if (timer.current) clearInterval(timer.current); };
-  }, [inspectionId, active]);
-
-  if (steps.length === 0) return null;
-  const latest = steps[steps.length - 1]!;
-  // newest first, and only the recent tail — the full set is in the finished report.
-  const recent = [...steps].reverse().slice(0, 6);
-
-  return (
-    <div className="lx-trail">
-      <div className="lx-trail-head">
-        <span className="lx-trail-live" />
-        Sage is using your product — <b>{steps.length}</b> state{steps.length === 1 ? "" : "s"} so far
-      </div>
-      <div className="lx-trail-body">
-        {latest.screenshot && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="lx-trail-shot" src={latest.screenshot} alt={latest.label} />
-        )}
-        <ol className="lx-trail-steps">
-          {recent.map((s) => (
-            <li key={s.n} className={s.n === latest.n ? "now" : ""}>
-              <span className="lx-trail-n">{s.n + 1}</span>
-              {s.label}
-            </li>
-          ))}
-        </ol>
-      </div>
-    </div>
-  );
 }
 
 export function LaunchResults({ initial }: { initial: JobView }) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BudgetBar } from "@/components/launch/budget-bar";
+import { LiveBrowserTrail } from "@/components/launch/live-browser-trail";
 import type { JobView } from "@/components/launch/types";
 import "@/app/launch/launch.css";
 
@@ -84,7 +85,17 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
     );
   }
   if (job.status !== "ready" || !job.plan) {
-    return <div className="ac-inline-note">Sage is still building your plan — this will open the moment it&apos;s ready.</div>;
+    // While the plan builds, show the WORK — the screen Sage is looking at in the browser, right
+    // in the conversation. It renders nothing until there is a real captured state, so a static
+    // product (no browser phase) still just reads the note.
+    return (
+      <div className="lx ac-inline">
+        <div className="ac-inline-note">
+          Sage is still building your plan — this will open the moment it&apos;s ready.
+        </div>
+        <LiveBrowserTrail inspectionId={inspectionId} active />
+      </div>
+    );
   }
   return (
     <div className="lx ac-inline">

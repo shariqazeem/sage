@@ -84,38 +84,57 @@
 .lx-discover { margin-top: 14px; font-size: 13.5px; color: var(--lx-muted); line-height: 1.6; }
 .lx-discover b { color: var(--lx-ink); font-weight: 600; }
 
-/* live browser trail — what Sage is doing right now, one entry per REAL captured state */
-.lx-trail { margin-top: 16px; border: 1px solid var(--lx-line); border-radius: 10px; overflow: hidden; }
-.lx-trail-head {
-  display: flex; align-items: center; gap: 8px; padding: 10px 13px;
+/* LIVE BROWSER TRAIL — the screen Sage is looking at, right now. One frame per REAL captured
+   state; the browser runs at 1280×800, so the viewport is exactly 16/10 and nothing is cropped. */
+.lbt { margin-top: 16px; border: 1px solid var(--lx-line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.lbt-head {
+  display: flex; align-items: center; gap: 9px; padding: 10px 13px;
   font-size: 13px; color: var(--lx-muted); background: var(--lx-bg);
   border-bottom: 1px solid var(--lx-line);
 }
-.lx-trail-head b { color: var(--lx-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.lx-trail-live {
+.lbt-title { color: var(--lx-ink); font-weight: 560; }
+.lbt-host { font-family: var(--font-mono), monospace; font-size: 11.5px; opacity: 0.75; }
+.lbt-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.lbt-count b { color: var(--lx-ink); font-weight: 600; }
+.lbt-live {
   width: 7px; height: 7px; border-radius: 50%; background: var(--lx-accent); flex: none;
-  animation: lx-trail-blink 1.4s ease-in-out infinite;
+  animation: lbt-blink 1.4s ease-in-out infinite;
 }
-@keyframes lx-trail-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-.lx-trail-body { display: flex; gap: 14px; padding: 13px; align-items: flex-start; }
-.lx-trail-shot {
-  width: 190px; flex: none; aspect-ratio: 4 / 3; object-fit: cover; object-position: top center;
-  border: 1px solid var(--lx-line); border-radius: 8px; background: var(--lx-bg);
+@keyframes lbt-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+.lbt-screen { position: relative; background: var(--lx-bg); }
+.lbt-frame {
+  display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: contain; object-position: center;
+  animation: lbt-fade var(--dur-1, 220ms) ease-out;
 }
-.lx-trail-steps { list-style: none; margin: 0; padding: 0; min-width: 0; flex: 1; }
-.lx-trail-steps li {
-  display: flex; align-items: baseline; gap: 9px; padding: 4px 0; font-size: 13.5px;
-  color: var(--lx-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.lbt-frame-none { background: var(--lx-bg); }
+@keyframes lbt-fade { from { opacity: 0.35; } to { opacity: 1; } }
+.lbt-caption {
+  position: absolute; left: 12px; right: 12px; bottom: 12px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; border-radius: 8px; font-size: 13.5px; line-height: 1.35;
+  color: #fff; background: rgba(20, 22, 25, 0.82); backdrop-filter: blur(6px);
 }
-.lx-trail-steps li.now { color: var(--lx-ink); font-weight: 560; }
-.lx-trail-n {
-  font-family: var(--font-mono), monospace; font-size: 11px; color: var(--lx-muted);
-  min-width: 20px; text-align: right; flex: none; font-variant-numeric: tabular-nums;
+.lbt-step-n {
+  font-family: var(--font-mono), monospace; font-size: 11px; font-variant-numeric: tabular-nums;
+  padding: 1px 6px; border-radius: 999px; background: var(--lx-accent); color: #fff; flex: none;
 }
-@media (prefers-reduced-motion: reduce) { .lx-trail-live { animation: none; } }
+
+.lbt-strip { display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto; border-top: 1px solid var(--lx-line); }
+.lbt-thumb {
+  width: 72px; flex: none; aspect-ratio: 16 / 10; object-fit: cover; object-position: top center;
+  border: 1px solid var(--lx-line); border-radius: 5px; opacity: 0.5;
+  transition: opacity var(--dur-1, 220ms), border-color var(--dur-1, 220ms);
+}
+.lbt-thumb.now { opacity: 1; border-color: var(--lx-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lbt-live { animation: none; }
+  .lbt-frame { animation: none; }
+}
 @media (max-width: 560px) {
-  .lx-trail-body { flex-direction: column; }
-  .lx-trail-shot { width: 100%; }
+  .lbt-caption { font-size: 12.5px; padding: 7px 10px; }
+  .lbt-thumb { width: 58px; }
 }
 
 /* product map */
