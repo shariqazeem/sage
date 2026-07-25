@@ -1092,6 +1092,28 @@ function expressesCheckpoint(pair: string, cp: GoalCheckpointV1): boolean {
 }
 
 /**
+ * The one question to ask a founder about a checkpoint Sage could not complete.
+ *
+ * There are TWO different boundaries and they need different questions. Asking "is there a path
+ * Sage should take?" about a step whose affordance Sage plainly FOUND is unanswerable — the founder
+ * watches Sage ask again about a button it already saw. So:
+ *
+ *   · the entity was never observed → an ACCESS boundary. The founder can genuinely help: where is
+ *     it, or what account/invite/permission does Sage need?
+ *   · the entity was observed, the step wasn't finished → an EFFORT boundary (a game played to a
+ *     high tile, a long document, an invite loop). No path exists to hand over; the honest ask is
+ *     for a goal Sage can verify, because a criterion it cannot check is one it must not pay on.
+ *
+ * Pure — the caller decides when to ask.
+ */
+export function journeyGapQuestion(cp: GoalCheckpointV1): string {
+  const named = cp.targetEntity?.trim();
+  return cp.entityIsObserved === false
+    ? `Sage never found ${named ? `“${named}”` : "this"} while exploring: ${cp.requirement}. Where is it — or does it need an account, invite, or permission Sage doesn't have?`
+    : `Sage found ${named ? `“${named}”` : "it"} but couldn't complete this in a short visit: ${cp.requirement}. If it takes sustained use or a real account, tell Sage what a tester should prove instead — it only pays for outcomes it can verify itself.`;
+}
+
+/**
  * The GATE: a grounded plan may only be selected when EVERY founder-required checkpoint is (a) observed in
  * the browser with real evidence and (b) mapped to a mission CRITERION + EVIDENCE pair grounded on that
  * same evidence. Correct wording in a title or objective can never compensate for a missing criterion.

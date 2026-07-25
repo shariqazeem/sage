@@ -27,6 +27,7 @@ import {
   evaluateJourney,
   bindJourneyToContext,
   buildJourneySteps,
+  journeyGapQuestion,
   type GoalJourneyV1,
 } from "./goal-journey";
 import { buildProductContext, derivePhases } from "./product-context";
@@ -589,12 +590,8 @@ export async function inspectAndPlan(
       allocation: legacy.allocation,
       questions: [
         ...(goalJourneyQuestion ? [goalJourneyQuestion] : []),
-        ...missing
-          .slice(0, 4)
-          .map(
-            (c) =>
-              `Sage could not complete this part of your request: ${c.requirement}. Is there a path Sage should take (or does it need an account/permission) to reach it?`,
-          ),
+        // An ACCESS gap and an EFFORT gap need different questions — see `journeyGapQuestion`.
+        ...missing.slice(0, 4).map(journeyGapQuestion),
         ...(missing.length === 0
           ? [
               "Sage observed your whole journey but could not design a mission that proves the outcome you asked for. Can you describe what a successful result looks like?",
