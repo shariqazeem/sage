@@ -13,6 +13,7 @@ import {
   callAgentWalletTool,
 } from "@/lib/telegram/agent-wallet-tools";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
+import { friendlyFailure } from "@/lib/launch/failure-copy";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   conciergeBase as base,
@@ -233,7 +234,9 @@ function buildInspectionNotice(v: InspectionView): string {
       .join("\n");
     return `I need a little more to finish your plan for ${host}:\n${qs || "• a few more details about your goal or testers"}\n\nJust reply here and I'll keep going.`;
   }
-  return `I couldn't finish inspecting ${host}${v.failure ? `: ${v.failure}` : "."}\n\nWant to try a different URL or tweak the goal?`;
+  // TELEGRAM ↔ WEB PARITY: the SAME sentence the plan page shows. A founder must never be handed an
+  // engineering code (`canary_blocked:no_grounded_plan`) on either surface.
+  return `I couldn't finish inspecting ${host}. ${friendlyFailure(v.failure)}\n\nWant to try a different URL or tweak the goal?`;
 }
 
 /**

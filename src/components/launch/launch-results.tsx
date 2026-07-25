@@ -6,6 +6,7 @@ import { ShieldCheck, Eye } from "lucide-react";
 import { MissionCard } from "./mission-card";
 import { BudgetBar } from "./budget-bar";
 import type { JobView, PlanView } from "./types";
+import { friendlyFailure } from "@/lib/launch/failure-copy";
 
 /**
  * P23 — the founder learns BEFORE funding whether this product's corpus supports autonomous payouts.
@@ -313,12 +314,4 @@ function AnswerBox({ jobId, onDone, onScheduled }: { jobId: string; onDone: (j: 
   );
 }
 
-function friendlyFailure(reason?: string | null): string {
-  switch (reason) {
-    case "llm_not_configured": return "Sage’s reviewer is not configured in this environment.";
-    case "invalid_json": case "truncated_output": case "schema_mismatch": return "Sage’s reviewer returned an unusable response. This is usually transient — please try again.";
-    case "provider_timeout": case "provider_transient": case "provider_error": return "Sage’s reviewer was briefly unavailable. Please try again.";
-    default: return reason ?? "The inspection did not complete.";
-  }
-}
 function hostOf(u: string): string { try { return new URL(u).host; } catch { return u; } }
