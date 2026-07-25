@@ -492,12 +492,28 @@ describe("#7/#8/#9 tester sample policy", () => {
     expect(deterministic.missions[0].maxCompletions).toBe(1);
   });
 
-  it("never reduces a mission that already asks for a bigger sample", () => {
+  /**
+   * UPDATED — this used to assert that a bigger model-proposed sample was left alone. Live runs
+   * showed why that deference was wrong: a model asked for ten completions of a qualitative mission
+   * on a $1.50 budget and the plan came out as fifteen testers at $0.10 each, the smallest reward
+   * the system allows. Past a small independent sample another account buys no extra confidence, so
+   * the preferred sample is now a target in both directions — for QUALITATIVE missions only.
+   */
+  it("caps a qualitative mission at the preferred sample so rewards don't collapse", () => {
     const r = applySamplePolicy([sampleMission({ maxCompletions: 5 })], {
       goal: "let users try it",
       totalBudgetBase: BigInt(5_000_000),
       minRewardBase: MIN,
     });
+    expect(r.missions[0].maxCompletions).toBe(3);
+    expect(r.reason).toBe("capped_to_sample");
+  });
+
+  it("a deterministic URL check keeps its bigger sample — repeating it is cheap", () => {
+    const r = applySamplePolicy(
+      [sampleMission({ maxCompletions: 5, qualitative: false })],
+      { goal: "let users try it", totalBudgetBase: BigInt(5_000_000), minRewardBase: MIN },
+    );
     expect(r.missions[0].maxCompletions).toBe(5);
   });
 });

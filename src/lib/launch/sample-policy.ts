@@ -34,6 +34,7 @@ export interface SamplePolicyResult<T extends SampleMission> {
     | "not_plural"
     | "not_qualitative"
     | "raised_to_sample"
+    | "capped_to_sample"
     | "budget_limited"
     | "already_sampled";
 }
@@ -71,8 +72,6 @@ export function applySamplePolicy<T extends SampleMission>(
       question: null,
       reason: "not_qualitative",
     };
-  if (!requestsPluralSample(opts.goal))
-    return { missions, adjusted: false, question: null, reason: "not_plural" };
 
   const totalWeight = missions.reduce(
     (s, m) => s + Math.max(1, m.rewardWeight),
@@ -80,8 +79,32 @@ export function applySamplePolicy<T extends SampleMission>(
   );
   let adjusted = false;
   let budgetLimited = false;
+  let capped = false;
 
-  const out = missions.map((m) => {
+  // THE CAP applies whether or not the request was worded in the plural, because it is not about
+  // how many accounts Sage wants — it is about what each tester is paid. A model that asks for ten
+  // completions of a qualitative mission on a $1.50 budget drives every reward to the floor (the
+  // run that produced 15 × $0.10). Past a small independent sample, another tester buys no extra
+  // confidence and only shrinks everyone's share.
+  const cap = (m: T): T => {
+    if (!m.qualitative || m.maxCompletions <= preferred) return m;
+    capped = true;
+    adjusted = true;
+    return { ...m, maxCompletions: preferred };
+  };
+
+  if (!requestsPluralSample(opts.goal)) {
+    const capOnly = missions.map(cap);
+    return {
+      missions: capOnly,
+      adjusted,
+      question: null,
+      reason: capped ? "capped_to_sample" : "not_plural",
+    };
+  }
+
+  const out = missions.map((raw) => {
+    const m = cap(raw);
     if (!m.qualitative) return m;
     if (m.maxCompletions >= preferred) return m;
     // this mission's share of the budget, and how many meaningful rewards it can buy.
@@ -133,7 +156,11 @@ export function applySamplePolicy<T extends SampleMission>(
     missions: out,
     adjusted: true,
     question: null,
-    reason: budgetLimited ? "budget_limited" : "raised_to_sample",
+    reason: budgetLimited
+      ? "budget_limited"
+      : capped
+        ? "capped_to_sample"
+        : "raised_to_sample",
   };
 }
 
