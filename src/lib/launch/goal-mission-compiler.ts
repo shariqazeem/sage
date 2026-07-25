@@ -531,10 +531,23 @@ export function applyProseRefinement(
   prose: ProseRefinement | null | undefined,
 ): CandidateMission {
   if (!prose || typeof prose !== "object") return mission;
-  const take = (v: unknown, max: number, fallback: string) =>
-    typeof v === "string" && norm(v).length >= 8
-      ? norm(v).slice(0, max)
-      : fallback;
+  // A model asked for "instructions" answers with a paragraph on one call and a list of steps on the
+  // next. Read both — a list is joined one step per line — so a well-written refinement is not thrown
+  // away over its shape. Everything else about the rule is unchanged: prose only, non-empty only.
+  const flatten = (v: unknown): string =>
+    Array.isArray(v)
+      ? v
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => norm(x))
+          .filter((x) => x.length > 0)
+          .join("\n")
+      : typeof v === "string"
+        ? norm(v)
+        : "";
+  const take = (v: unknown, max: number, fallback: string) => {
+    const text = flatten(v);
+    return text.length >= 8 ? text.slice(0, max) : fallback;
+  };
   return {
     ...mission,
     title: take(prose.title, 90, mission.title),

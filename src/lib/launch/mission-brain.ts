@@ -39,8 +39,42 @@ const RISK: MissionRiskCategory[] = [
   "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression",
 ];
 
-const asStr = (v: unknown, max = 6000): string => (typeof v === "string" ? v.slice(0, max) : "");
-const asArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => (x as string).slice(0, 600)) : []);
+/**
+ * SHAPE TOLERANCE — a model asked for "instructions" answers with a paragraph on one call and a
+ * list of numbered steps on the next; both are the same mission. Sage's RECEIVING parser accepts
+ * either and normalizes, because throwing the mission away costs the founder the whole inspection
+ * (a real production failure: every candidate dropped → `schema_mismatch` on a product Sage had
+ * fully explored). This loosens only what Sage will READ. Nothing downstream is loosened — the
+ * deterministic validate gate, the anchor check, and the grounding/coverage rules are untouched,
+ * so a mission still has to earn acceptance on its content.
+ */
+const TEXT_KEYS = ["text", "step", "instruction", "description", "value", "label", "title"] as const;
+function textOf(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    for (const k of TEXT_KEYS) if (typeof o[k] === "string" && o[k]) return o[k] as string;
+  }
+  return "";
+}
+/** A required text field: string, a list of steps, or an object carrying the text. */
+const asStr = (v: unknown, max = 6000): string => {
+  if (typeof v === "string") return v.slice(0, max);
+  if (Array.isArray(v)) {
+    const lines = v.map(textOf).filter((s) => s.trim().length > 0);
+    return lines.join("\n").slice(0, max);
+  }
+  return textOf(v).slice(0, max);
+};
+/** A list field: a real array, or a single item the model didn't bother to wrap. */
+const asArr = (v: unknown): string[] => {
+  const items = Array.isArray(v) ? v : v === undefined || v === null || v === "" ? [] : [v];
+  return items
+    .map(textOf)
+    .filter((s) => s.trim().length > 0)
+    .map((s) => s.slice(0, 600));
+};
 const clampNum = (v: unknown, lo: number, hi: number, dflt: number): number => {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : dflt;
@@ -51,12 +85,17 @@ const asFloat = (v: unknown, dflt: number): number => {
 };
 
 function coerceSources(v: unknown): SourceRef[] {
-  if (!Array.isArray(v)) return [];
-  return v
+  const items = Array.isArray(v) ? v : v === undefined || v === null || v === "" ? [] : [v];
+  return items
     .map((s) => {
+      // A bare "https://…" is the same citation as {kind:"page", ref:"https://…"} — read both.
+      if (typeof s === "string") {
+        return { kind: "page", ref: s.slice(0, 600), observation: "" } as SourceRef;
+      }
       const o = (s ?? {}) as Record<string, unknown>;
       const kind = o.kind === "repo" ? "repo" : o.kind === "founder" ? "founder" : "page";
-      return { kind, ref: asStr(o.ref, 600), observation: asStr(o.observation, 400) } as SourceRef;
+      const ref = asStr(o.ref, 600) || asStr(o.url, 600);
+      return { kind, ref, observation: asStr(o.observation, 400) } as SourceRef;
     })
     .filter((s) => s.ref.length > 0)
     .slice(0, 6);
