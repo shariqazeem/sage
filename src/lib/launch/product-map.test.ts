@@ -65,6 +65,49 @@ describe("buildProductMap — deterministic, sourced, honest", () => {
   });
 });
 
+/* ── Sage never asks about something it already did ────────────────────────── */
+
+describe("the signup question is asked only when Sage doesn't already know", () => {
+  const noJourneyUrl = obs("https://play.example/", { links: [] });
+  const state = (i: number) => ({
+    trigger: `explored ${i}`,
+    screenshot: `/api/field-tests/x/${i}`,
+    visibleTextExcerpt: "score 128",
+    notableElements: [],
+    pixelDeltaPct: 20,
+    url: "https://play.example/",
+  });
+  const walked = (n: number): FieldTestSummary => ({
+    ran: true, startUrl: "https://play.example/", mode: "interactive", pages: [],
+    states: Array.from({ length: n }, (_, i) => state(i)) as never,
+    classification: "", limitation: null, durationMs: 1,
+  });
+  const q = /signup\/onboarding surface/;
+
+  it("asks when the browser never got past the entry screen", () => {
+    const map = buildProductMap([noJourneyUrl], [], founder, walked(1));
+    expect(map.openQuestions.some((x) => q.test(x))).toBe(true);
+  });
+
+  it("still asks at a login wall (entry + auth screen is not walking in)", () => {
+    const map = buildProductMap([noJourneyUrl], [], founder, walked(2));
+    expect(map.openQuestions.some((x) => q.test(x))).toBe(true);
+  });
+
+  it("does NOT ask when the browser walked through the product itself", () => {
+    // a game/canvas/world with no account gate: Sage already performed the start.
+    for (const n of [3, 8, 27]) {
+      const map = buildProductMap([noJourneyUrl], [], founder, walked(n));
+      expect(map.openQuestions.some((x) => q.test(x))).toBe(false);
+    }
+  });
+
+  it("a product that DOES expose a signup URL is never asked either way", () => {
+    const withSignup = [obs("https://acme.example/"), obs("https://acme.example/signup")];
+    expect(buildProductMap(withSignup, [], founder).openQuestions.some((x) => q.test(x))).toBe(false);
+  });
+});
+
 /* ─────────────────────────── P14 — vision enrichment ─────────────────────── */
 
 const yaraObs = (): ProductObservation =>

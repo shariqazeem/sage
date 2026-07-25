@@ -192,7 +192,17 @@ export function buildProductMap(
   if (repoArtifacts.length === 0 && founder.repoUrl) {
     limitations.push("The repository could not be inspected; coverage is web-only.");
   }
-  if (!observations.some((o) => journeyOrder.test(o.url)) && observations.length > 0) {
+  // Ask where a new user starts ONLY when Sage doesn't already know. A product a visitor can simply
+  // use (a game, a canvas, a world) has no signup URL to find — and when the real browser walked
+  // through the product's own experience, it ALREADY performed the start; the missing signup link is
+  // then an answer ("no account gate"), not a question. A login wall still yields ~2 states (entry +
+  // auth), so it keeps the question — that product genuinely does gate the start.
+  const walkedIntoProduct = (fieldTest?.states?.length ?? 0) >= 3;
+  if (
+    !observations.some((o) => journeyOrder.test(o.url)) &&
+    observations.length > 0 &&
+    !walkedIntoProduct
+  ) {
     openQuestions.push("Sage did not find an obvious signup/onboarding surface — where should a new user start?");
   }
 

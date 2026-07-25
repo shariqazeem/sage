@@ -84,6 +84,12 @@ interface LimiterStore {
   agentWeb: RateLimiter;
   /** web Agent-mode turns / day / session — bounds one browser session's LLM spend (P25). */
   agentWebDaily: RateLimiter;
+  /** public (keyless) MCP calls / min / derived caller — the burst cap on the ASP surface. */
+  publicMcp: RateLimiter;
+  /** public MCP inspections / day / derived caller — each runs the real (paid) pipeline. */
+  publicMcpDaily: RateLimiter;
+  /** ONE global daily budget for public MCP inspections, so the ASP surface can't be farmed. */
+  publicMcpGlobalDaily: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -115,6 +121,15 @@ function limiters(): LimiterStore {
       agentWeb: new RateLimiter(12, 60_000), // 12 web Agent-mode turns / min / session
       agentWebDaily: new RateLimiter(
         Math.max(1, Number(process.env.AGENT_WEB_DAILY_CAP) || 40),
+        86_400_000,
+      ),
+      publicMcp: new RateLimiter(20, 60_000), // 20 public MCP calls / min / derived caller
+      publicMcpDaily: new RateLimiter(
+        Math.max(1, Number(process.env.PUBLIC_MCP_DAILY_CAP) || 3),
+        86_400_000,
+      ),
+      publicMcpGlobalDaily: new RateLimiter(
+        Math.max(1, Number(process.env.PUBLIC_MCP_GLOBAL_DAILY_CAP) || 40),
         86_400_000,
       ),
     };
