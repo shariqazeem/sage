@@ -29,6 +29,11 @@ import type { CandidateMission, CriterionGroundingV1 } from "./schemas";
  */
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** Does the founder's own wording describe a CONVERSATION (send → reply)? Drives vocabulary only —
+ *  never which evidence is required, never whether a criterion is supported. */
+const MESSAGE_LIKE =
+  /\b(message|messages|send|sends|sent|sending|reply|replies|replied|respond|responds|response|chat|conversation|say|says|said|type|types|typed|write|writes|wrote|ask|asks|asked|prompt|prompts)\b/i;
 const lower = (s: string) => norm(s).toLowerCase();
 const words = (s: string) =>
   lower(s)
@@ -366,10 +371,22 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
       [respCp, ...outcomeGroup.filter((c) => c !== respCp)],
       8,
     );
+    // The SHAPE of the outcome comes from the founder's own words, not from an assumption. "Send a
+    // message and get a reply" and "draw a rectangle and see it appear" are the same structure —
+    // act, then something new is on screen — but describing a drawing app in chat vocabulary
+    // ("before the message was sent", "what you wrote") is simply wrong, and a tester reads it as
+    // Sage not having understood the product. Conversational goals keep the concrete chat wording.
+    const conversational = outcomeGroup.some((c) =>
+      MESSAGE_LIKE.test(`${c.requirement} ${c.targetEntity ?? ""}`),
+    );
     criteria.push({
       index: criteria.length,
-      text: `${joinRequirements(outcomeGroup)} — a NEW response from "${entityLabel}" that was not on screen before the message was sent`,
-      evidenceText: `Quote the response "${entityLabel}" sent back to you, and say what you wrote to prompt it.`,
+      text: conversational
+        ? `${joinRequirements(outcomeGroup)} — a NEW response from "${entityLabel}" that was not on screen before the message was sent`
+        : `${joinRequirements(outcomeGroup)} — a NEW result from "${entityLabel}" that was not on screen beforehand`,
+      evidenceText: conversational
+        ? `Quote the response "${entityLabel}" sent back to you, and say what you wrote to prompt it.`
+        : `Say exactly what you did to "${entityLabel}", and describe what appeared as a result — it must be something that was not on screen before.`,
       checkpointIds: outcomeGroup.map((c) => c.checkpointId),
       factIds,
       transitionIds: usableTransitions(
