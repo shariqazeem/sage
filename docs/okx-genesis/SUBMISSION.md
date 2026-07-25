@@ -28,6 +28,20 @@
 
 ## 2. Status — what is done, and what only you can do
 
+### REGISTERED — 2026-07-25
+
+| | |
+| --- | --- |
+| **Agent ID** | **#9211** (usable now, even before review) |
+| Name | Sage · ASP · XLayer (chainIndex 196) |
+| Owner wallet | `0x83b4b4f6348f71ffbdbb0cb046e428ca646f3c35` (Agentic Wallet, shariqshaukat786@gmail.com) |
+| Register tx | `0xe1519720e085f1022af22447dec18c3eae949082cd19a7620ee2a04490c0e7f4` |
+| Service | Product testing plan design · API service (A2MCP) · **0 USDT** · `https://sagepays.xyz/mcp/public` |
+| Listing | **Submitted for review** — result arrives by email within 24h |
+
+Remaining: the X post (§6), the ≤90s demo (§5), and the form (§7).
+
+
 **Done (verified tonight):**
 - Public ASP endpoint live and conformant: `node scripts/mcp-public-conformance.mjs` → 9/9 pass.
 - End-to-end proven through that endpoint as an external agent: an inspection of `play2048.co`
