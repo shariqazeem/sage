@@ -72,6 +72,14 @@ export interface GoalCheckpointV1 {
   requiredPhase?: ExperiencePhase;
   /** the specific observed entity OCCURRENCE this checkpoint was bound to (null until bound). */
   boundEntityId?: string | null;
+  /** whether `requiredContext` names something the product ACTUALLY shows (same reasoning as
+   *  {@link GoalCheckpointV1.entityIsObserved}: a named concept cannot be text-matched on screen). */
+  contextIsObserved?: boolean;
+  /** whether `targetEntity` names something the product ACTUALLY shows. A journey compiler often names a
+   *  concept ("onboarding", "the conversation", "the main area") that no product label contains; requiring
+   *  such a word to appear on screen would make the checkpoint unsatisfiable, so the entity match is only
+   *  demanded when the entity is genuinely observed. Set during binding, never by a model. */
+  entityIsObserved?: boolean;
 }
 
 export interface GoalJourneyV1 {
@@ -377,11 +385,19 @@ export async function compileGoalJourney(
 /* ───────────── product-context binding (phase + entity INSTANCE identity) ─── */
 
 /** The phase a checkpoint's requirement must hold in — derived from its kind + whether it names an entity. */
+const LIFECYCLE_ONBOARDING =
+  /\b(onboard\w*|intro\b|introduction|sign[- ]?up|signup|register\w*|tutorial|welcome|walkthrough|get started|first[- ]run|splash)\b/i;
+
 export function requiredPhaseFor(
   cp: GoalCheckpointV1,
   index: number,
 ): ExperiencePhase {
   if (cp.kind === "entry" || index === 0) return "entry";
+  // A checkpoint that IS a lifecycle stage happens IN that stage — "complete the onboarding" can never be
+  // required to occur AFTER onboarding. (Without this, such a checkpoint is unsatisfiable and every later
+  // checkpoint stalls behind it, so Sage asks the founder about steps it actually performed.)
+  if (LIFECYCLE_ONBOARDING.test(`${cp.requirement} ${cp.targetEntity}`))
+    return "onboarding";
   switch (cp.kind) {
     case "state":
       return "onboarding";
@@ -428,9 +444,26 @@ export function bindJourneyToContext(
     // The ENTRY checkpoint is about arriving at the product itself (its domain), not about any in-world
     // occurrence — binding it to one would be a category error (and a false ambiguity).
     if (!cp.targetEntity || requiredPhase === "entry")
-      return { ...cp, requiredPhase, boundEntityId: null };
+      return {
+        ...cp,
+        requiredPhase,
+        boundEntityId: null,
+        entityIsObserved: false,
+      };
     const all = instancesOf(context, cp.targetEntity);
-    const inPhase = all.filter((e) => phaseAtLeast(e.phase, requiredPhase));
+    const entityIsObserved = all.length > 0;
+    const contextIsObserved =
+      !cp.requiredContext ||
+      instancesOf(context, cp.requiredContext).length > 0;
+    // Does this entity ALSO appear before the required phase? Only then is a phase floor meaningful —
+    // it exists to stop the earlier occurrence (a name on the intro screen) standing in for the real one.
+    const hasEarlierHomonym = all.some(
+      (e) => !phaseAtLeast(e.phase, requiredPhase),
+    );
+    const effectivePhase: ExperiencePhase = hasEarlierHomonym
+      ? requiredPhase
+      : "entry";
+    const inPhase = all.filter((e) => phaseAtLeast(e.phase, effectivePhase));
     if (all.length > 0 && inPhase.length === 0) {
       // seen — but only BEFORE the phase the founder's action requires (e.g. named during onboarding).
       rejections.push({
@@ -438,10 +471,22 @@ export function bindJourneyToContext(
         checkpointId: cp.checkpointId,
         requirement: cp.requirement,
       });
-      return { ...cp, requiredPhase, boundEntityId: null };
+      return {
+        ...cp,
+        requiredPhase: effectivePhase,
+        boundEntityId: null,
+        entityIsObserved,
+        contextIsObserved,
+      };
     }
     if (inPhase.length === 0)
-      return { ...cp, requiredPhase, boundEntityId: null };
+      return {
+        ...cp,
+        requiredPhase: effectivePhase,
+        boundEntityId: null,
+        entityIsObserved,
+        contextIsObserved,
+      };
     // prefer an exact label match; else a single candidate; else ask.
     const wanted = lower(cp.targetEntity);
     const exact = inPhase.filter((e) => lower(e.label) === wanted);
@@ -454,9 +499,21 @@ export function bindJourneyToContext(
       // The deterministic GoalMissionCompiler ranks these BEHAVIOURALLY (which one actually led to the
       // founder's observed outcome) and asks only if they are genuinely equivalent. Leaving the instance
       // unbound simply means no instance guard applies; the phase guard still does.
-      return { ...cp, requiredPhase, boundEntityId: null };
+      return {
+        ...cp,
+        requiredPhase: effectivePhase,
+        boundEntityId: null,
+        entityIsObserved,
+        contextIsObserved,
+      };
     }
-    return { ...cp, requiredPhase, boundEntityId: pool[0]?.entityId ?? null };
+    return {
+      ...cp,
+      requiredPhase: effectivePhase,
+      boundEntityId: pool[0]?.entityId ?? null,
+      entityIsObserved,
+      contextIsObserved,
+    };
   });
   return { journey: { ...journey, checkpoints }, question, rejections };
 }
@@ -577,6 +634,7 @@ function stepCompletes(
   // the context, when the founder required one, must be present in the state Sage is in.
   const contextOk =
     !ctx ||
+    cp.contextIsObserved === false ||
     containsAny(step.stateText, ctx) ||
     containsAny(step.addedText, ctx);
   switch (cp.kind) {
@@ -589,8 +647,9 @@ function stepCompletes(
       // a place/screen is REACHED by an action that observably changed the view (not by reading a word).
       if (!step.observableChange || step.actionKind === "load") return false;
       if (!contextOk) return false;
-      // when an entity is named, it must be present in what the action REVEALED, or have been acted on.
-      if (!entity) return true;
+      // when an entity is named AND the product actually shows it, it must be present in what the action
+      // REVEALED or have been acted on. A named CONCEPT (no observed occurrence) cannot be text-matched.
+      if (!entity || cp.entityIsObserved === false) return true;
       return (
         containsAny(step.addedText, entity) ||
         containsAny(step.actedLabel, entity) ||
@@ -609,6 +668,7 @@ function stepCompletes(
       if (!contextOk) return false;
       return (
         !entity ||
+        cp.entityIsObserved === false ||
         containsAny(step.actedLabel, entity) ||
         containsAll(step.addedText, entity)
       );
