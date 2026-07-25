@@ -920,7 +920,15 @@ export async function runGroundedShadow(
         let mission = seg.mission;
         // ONE optional prose-only refinement per mission (title/objective/whyItMatters/instructions).
         try {
-          const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.\n\nFOUNDER GOAL: ${input.goal}\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
+          // The refinement must know the BOUNDARY of the mission it is rewriting. Without its own
+          // criteria it retitled a navigate-only segment "Visit the Garden and Chat with Yara" and
+          // gave two different segments the same name — copy that sends a tester to do work this
+          // mission never asked for, and that they will not be paid for.
+          const partOf =
+            compiledGoal.compiled.length > 1
+              ? `\nThis is PART ${segIndex + 1} OF ${compiledGoal.compiled.length} of a split journey. It covers ONLY the steps below. Do NOT mention or promise anything from the other parts, and make the title clearly different from the other parts'.`
+              : "";
+          const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.${partOf}\n\nFOUNDER GOAL: ${input.goal}\nWHAT THIS MISSION REQUIRES (the only things it is judged on):\n${mission.criteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}\n\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
           const prose = await architect(
             "You improve the wording of a product-testing mission. You may ONLY rewrite title, objective, whyItMatters and instructions. Never change what is being tested, never add steps, never mention ids. JSON only.",
             proseUser,
