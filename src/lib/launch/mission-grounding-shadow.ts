@@ -16,7 +16,7 @@ import {
 import { validatePlanMissions, type ValidationScope } from "./validate-mission";
 import { factIndex, stateDigest } from "./observed-facts";
 import {
-  compileGoalMission,
+  compileGoalMissions,
   applyProseRefinement,
   buildCompilerSupportProof,
   verifyCompilerSupportProof,
@@ -32,6 +32,12 @@ import {
 } from "./goal-journey";
 import { allocateBudget, MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy } from "./sample-policy";
+import {
+  validateMissionPartition,
+  singleMissionPartition,
+  buildPartitionUser,
+  PARTITION_SYSTEM,
+} from "./mission-partition";
 import {
   parseAndCompileArchitectDraft,
   ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA,
@@ -830,9 +836,12 @@ export async function runGroundedShadow(
   // COMPILER SUPPORT — never a trusted flag. The proof is issued in-process for the FINAL mission and
   // RE-VERIFIED (by recompiling from the immutable inputs) at acceptance time; only a mission that still
   // proves out may stand without a critic verdict.
-  let compilerProof: CompilerSupportProofV1 | null = null;
-  let compilerProofInput: CompileGoalInput | null = null;
-  let compilerProofMission: CandidateMission | null = null;
+  /** one entry per compiled mission — each proof binds only its own segment of the journey. */
+  const compilerProofs: Array<{
+    mission: CandidateMission;
+    proof: CompilerSupportProofV1;
+    input: CompileGoalInput;
+  }> = [];
   let compilerProofInvalid: string | null = null;
   let compileOutcome: DraftCompileOutcome | null = null;
   const draftTelemetry = () =>
@@ -878,47 +887,89 @@ export async function runGroundedShadow(
       productUrl: input.productUrl,
       totalBudgetBase: input.totalBudgetBase,
     };
-    const compiledGoal = compileGoalMission(compileArgs);
+    // HOW MANY MISSIONS this journey is worth is the model's call — the only planning decision it
+    // gets. It proposes a partition of the ordered checkpoints; `validateMissionPartition` accepts it
+    // only if it is a real partition, and anything else falls back to the single whole-journey
+    // mission (byte-identical to before). The model never writes a criterion or names an amount.
+    const orderedIds = journeyForCompile.checkpoints.map((c) => c.checkpointId);
+    let partition = singleMissionPartition(orderedIds);
+    try {
+      const proposed = await architect(
+        PARTITION_SYSTEM,
+        buildPartitionUser(journeyForCompile),
+      );
+      const valid = validateMissionPartition(proposed, orderedIds);
+      if (valid) partition = valid;
+    } catch {
+      /* no proposal — one mission, exactly as before */
+    }
+
+    const compiledGoal = compileGoalMissions(compileArgs, partition.groups);
     if (compiledGoal.ok) {
-      let mission = compiledGoal.compiled.mission;
-      // ONE optional prose-only refinement (title/objective/whyItMatters/instructions).
-      try {
-        const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.\n\nFOUNDER GOAL: ${input.goal}\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
-        const prose = await architect(
-          "You improve the wording of a product-testing mission. You may ONLY rewrite title, objective, whyItMatters and instructions. Never change what is being tested, never add steps, never mention ids. JSON only.",
-          proseUser,
-        );
-        mission = applyProseRefinement(
+      const missions: CandidateMission[] = [];
+      for (const seg of compiledGoal.compiled) {
+        let mission = seg.mission;
+        // ONE optional prose-only refinement per mission (title/objective/whyItMatters/instructions).
+        try {
+          const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.\n\nFOUNDER GOAL: ${input.goal}\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
+          const prose = await architect(
+            "You improve the wording of a product-testing mission. You may ONLY rewrite title, objective, whyItMatters and instructions. Never change what is being tested, never add steps, never mention ids. JSON only.",
+            proseUser,
+          );
+          mission = applyProseRefinement(
+            mission,
+            prose as Record<string, unknown>,
+          );
+        } catch {
+          /* prose refinement failed — the deterministic copy stands */
+        }
+        missions.push(mission);
+        // the proof binds THIS mission (prose included) to THIS segment's immutable compile inputs.
+        const segInput: CompileGoalInput = {
+          ...compileArgs,
+          journey: {
+            ...journeyForCompile,
+            checkpoints: journeyForCompile.checkpoints.filter((c) =>
+              seg.mappings.some((m) => m.checkpointId === c.checkpointId),
+            ),
+          },
+          missionKey:
+            partition.groups.length === 1 ? undefined : mission.missionKey,
+          rewardWeight: seg.mission.rewardWeight,
+          maxCompletions: Number(seg.mission.maxCompletions),
+        };
+        compilerProofs.push({
           mission,
-          prose as Record<string, unknown>,
-        );
-      } catch {
-        /* prose refinement failed — the deterministic copy stands */
+          input: segInput,
+          proof: buildCompilerSupportProof({
+            mission,
+            mappings: seg.mappings,
+            criteria: seg.criteria,
+            resolvedEntity: seg.resolvedEntity,
+            journey: segInput.journey,
+            context: map.productContext,
+            observationSetDigest: digest,
+          }),
+        });
       }
       architectStatus = "ok";
-      candidates = [mission];
-      // issue the proof over the FINAL mission (prose included) + the immutable compile inputs.
-      compilerProofInput = compileArgs;
-      compilerProofMission = mission;
-      compilerProof = buildCompilerSupportProof({
-        mission,
-        mappings: compiledGoal.compiled.mappings,
-        criteria: compiledGoal.compiled.criteria,
-        resolvedEntity: compiledGoal.compiled.resolvedEntity,
-        journey: journeyForCompile,
-        context: map.productContext,
-        observationSetDigest: digest,
-      });
+      candidates = missions;
       compileOutcome = {
         kind: "compiled",
         candidates,
-        draftMissionCount: 1,
-        draftCriterionCount: mission.criteria.length,
-        compiledMissionCount: 1,
+        draftMissionCount: missions.length,
+        draftCriterionCount: missions.reduce(
+          (s, m) => s + m.criteria.length,
+          0,
+        ),
+        compiledMissionCount: missions.length,
         compilerRejectedCount: 0,
         compilerRejectionCodes: {},
-        derivedAnchorCount: mission.anchors?.length ?? 0,
-        derivedSourceCount: mission.sources.length,
+        derivedAnchorCount: missions.reduce(
+          (s, m) => s + (m.anchors?.length ?? 0),
+          0,
+        ),
+        derivedSourceCount: missions.reduce((s, m) => s + m.sources.length, 0),
         derivedTargetSurfaceCount: 1,
       } as DraftCompileOutcome;
     } else if (compiledGoal.question) {
@@ -1142,16 +1193,18 @@ export async function runGroundedShadow(
   // COMPILER SUPPORT — recomputed, never trusted. The proof is re-verified against the FINAL mission by
   // recompiling from the immutable inputs; only then may a compiled criterion stand without a critic
   // verdict. Any edited criterion/fact/entity/mapping/wording, or a stale observation set, fails here.
+  // Every compiled mission carries its OWN proof over its OWN segment of the journey — one failing
+  // proof withdraws that mission's compiler support, never another's.
   const compilerSupported = new Set<string>();
-  if (compilerProof && compilerProofInput && compilerProofMission) {
+  for (const p of compilerProofs) {
     const verdict = verifyCompilerSupportProof({
-      mission: compilerProofMission,
-      proof: compilerProof,
-      input: compilerProofInput,
+      mission: p.mission,
+      proof: p.proof,
+      input: p.input,
       observationSetDigest: digest,
     });
-    if (verdict.ok) compilerSupported.add(compilerProofMission.missionKey);
-    else compilerProofInvalid = verdict.mismatch;
+    if (verdict.ok) compilerSupported.add(p.mission.missionKey);
+    else compilerProofInvalid = compilerProofInvalid ?? verdict.mismatch;
   }
 
   const criticSupportedList = structurallyValid.filter(
@@ -1357,7 +1410,11 @@ export async function runGroundedShadow(
     ...journeyTelemetry(map.goalJourney),
     goalCompilerQuestion,
     compilerAuthoredMissions: compilerSupported.size,
-    compilerSupportProofDigest: compilerProof?.proofDigest ?? null,
+    // one digest per compiled mission, joined in order — a single-mission plan reads exactly as before
+    compilerSupportProofDigest:
+      compilerProofs.length > 0
+        ? compilerProofs.map((p) => p.proof.proofDigest).join(",")
+        : null,
     compilerSupportProofInvalid: compilerProofInvalid,
     sampleAdjusted: sample.adjusted,
     sampleReason: sample.reason,

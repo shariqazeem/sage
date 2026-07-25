@@ -199,6 +199,14 @@ export interface CompileGoalInput {
   transitions: readonly ActionTransitionV1[];
   productUrl: string;
   totalBudgetBase: bigint;
+  /** Set when this compile covers ONE SEGMENT of a partitioned journey. Absent ⇒ the whole journey
+   *  under the original key, so a single-mission plan is byte-identical to before partitioning. */
+  missionKey?: string;
+  /** The segment's relative worth and tester count — proposed by the model, bounded by the caller. */
+  rewardWeight?: number;
+  maxCompletions?: number;
+  /** Requirements the tester must already have completed (earlier segments), for the instructions. */
+  precedingRequirements?: readonly string[];
 }
 
 /** The step where the founder's required outcome was observed (the reply / result). */
@@ -419,11 +427,17 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
   ].join("\n");
 
   const allFactIds = dedupe(criteria.flatMap((c) => c.factIds));
+  // A segment that is not the first assumes the earlier ones were already done — say so, rather than
+  // letting a tester start mid-journey and wonder how they got there.
+  const priorText =
+    input.precedingRequirements && input.precedingRequirements.length > 0
+      ? `Before this: ${input.precedingRequirements.map((r) => lower(r).replace(/\.$/, "")).join(", then ")}.\n\n`
+      : "";
   const mission: CandidateMission = {
-    missionKey: "founder-goal-journey",
+    missionKey: input.missionKey ?? "founder-goal-journey",
     title: `Reach ${entityLabel} and have a real exchange`,
     objective: `Complete the founder's journey end to end: ${joinRequirements(cps).toLowerCase()}.`,
-    instructions: `${stepsText}\n\nReport what actually happened in your own words — especially the response you received.`,
+    instructions: `${priorText}${stepsText}\n\nReport what actually happened in your own words — especially the response you received.`,
     targetSurface: input.productUrl,
     criteria: criteria.map((c) => c.text),
     evidenceRequirements: criteria.map((c) => c.evidenceText),
@@ -435,8 +449,8 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
     riskCategory: "critical_journey",
     effortMinutes: Math.min(20, 4 + cps.length * 2),
     conditions: [],
-    rewardWeight: 5,
-    maxCompletions: 1, // the sample policy sets the real number before budget compilation
+    rewardWeight: input.rewardWeight ?? 5,
+    maxCompletions: input.maxCompletions ?? 1, // the sample policy still bounds this before budget compilation
     verificationMethod:
       "the observed state/action outcome described by the tester",
     confidence: 0.8,
@@ -528,6 +542,64 @@ const factsPageUrl = (
   ids
     .map((id) => facts.find((f) => f.id === id)?.pageUrl)
     .find((s): s is string => !!s);
+
+/* ───────────────── 2b. one mission per journey SEGMENT ────────────────────── */
+
+export type CompileGoalMissionsResult =
+  | { ok: true; compiled: CompiledGoalMission[] }
+  | { ok: false; reason: string; question?: string };
+
+/**
+ * Compile the founder's journey into ONE MISSION PER SEGMENT of a proposed partition.
+ *
+ * Each segment is compiled by {@link compileGoalMission} verbatim, over just its own checkpoints —
+ * so every criterion, evidence requirement, fact id, anchor and mapping is derived from observed
+ * evidence exactly as before. The partition decides only how the work divides.
+ *
+ * A one-group partition produces byte-identical output to compiling the whole journey, so the
+ * single-mission plan is unchanged. If ANY segment fails to compile, the whole partition is
+ * abandoned rather than shipping a plan that covers only part of what the founder asked for — the
+ * caller falls back to the single whole-journey mission.
+ */
+export function compileGoalMissions(
+  input: CompileGoalInput,
+  groups: ReadonlyArray<{
+    checkpointIds: readonly string[];
+    rewardWeight?: number;
+    maxCompletions?: number;
+  }>,
+): CompileGoalMissionsResult {
+  if (groups.length === 0) return { ok: false, reason: "empty_partition" };
+  const single = groups.length === 1;
+  const byId = new Map(
+    input.journey.checkpoints.map((c) => [c.checkpointId, c]),
+  );
+  const out: CompiledGoalMission[] = [];
+  const preceding: string[] = [];
+
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i]!;
+    const cps = g.checkpointIds
+      .map((id) => byId.get(id))
+      .filter((c): c is GoalCheckpointV1 => !!c);
+    if (cps.length !== g.checkpointIds.length) {
+      return { ok: false, reason: "partition_checkpoint_unknown" };
+    }
+    const r = compileGoalMission({
+      ...input,
+      journey: { ...input.journey, checkpoints: cps },
+      // the original key when there is one mission, so nothing downstream sees a rename
+      missionKey: single ? undefined : `founder-goal-part-${i + 1}`,
+      rewardWeight: g.rewardWeight,
+      maxCompletions: g.maxCompletions,
+      precedingRequirements: single ? undefined : [...preceding],
+    });
+    if (!r.ok) return r;
+    out.push(r.compiled);
+    preceding.push(...cps.map((c) => c.requirement));
+  }
+  return { ok: true, compiled: out };
+}
 
 /* ───────────────── 3. optional prose refinement (model may polish only) ───── */
 
