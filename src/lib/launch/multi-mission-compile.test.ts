@@ -9,6 +9,7 @@ import {
 } from "./goal-journey";
 import { singleMissionPartition } from "./mission-partition";
 import { allocateBudget, MIN_REWARD_BASE } from "./budget";
+import { buildObservationCorpus, anchorIssues } from "./validate-mission";
 import type { ProductContextV1 } from "./product-context";
 import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
 import type { CandidateMission } from "./schemas";
@@ -180,5 +181,47 @@ describe("a partition is abandoned rather than half-shipped", () => {
   it("an empty partition is refused", () => {
     const r = compileGoalMissions(input(), []);
     expect(r.ok).toBe(false);
+  });
+});
+
+/**
+ * REGRESSION — live plan os77wiEEexQb. The model split this journey three ways, all three proofs
+ * verified, and then the canonical gate rejected the segment carrying the conversation for
+ * `unanchored_claim`: every one of its eight cited facts was a decorative button ("·", "🔊", "+",
+ * "−") with no letters in it. The two survivors no longer covered the founder's outcome, so the
+ * whole plan was correctly blocked — a working single-mission plan turned into a dead end purely
+ * because splitting thins each segment's evidence.
+ *
+ * A segment must be able to anchor itself. Anchors now scan every text a cited fact observed, and
+ * fall back to text from the same STATES when a segment cites only decoration.
+ */
+describe("every segment can anchor itself, however finely the journey is cut", () => {
+  const corpus = buildObservationCorpus([], {
+    ran: true,
+    startUrl: "https://yara.garden/",
+    mode: "interactive",
+    pages: [],
+    states: fixture.states as never,
+    classification: "",
+    limitation: null,
+    durationMs: 1,
+  } as never);
+
+  it("one mission per checkpoint still leaves every mission anchored", () => {
+    const groups = ids.map((id) => ({ checkpointIds: [id] })).slice(0, 4);
+    const r = compileGoalMissions(input(), groups);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    for (const seg of r.compiled) {
+      expect(seg.mission.anchors?.length ?? 0).toBeGreaterThan(0);
+      // and every anchor is a literal substring of what Sage observed
+      expect(anchorIssues(seg.mission, corpus)).toEqual([]);
+    }
+  });
+
+  it("the two-way split is anchored too", () => {
+    const r = compileGoalMissions(input(), twoWay);
+    if (!r.ok) return;
+    for (const seg of r.compiled) expect(anchorIssues(seg.mission, corpus)).toEqual([]);
   });
 });

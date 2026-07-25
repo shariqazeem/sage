@@ -237,11 +237,39 @@ function anchorsFrom(
   for (const id of ids) {
     const f = facts.find((x) => x.id === id);
     if (!f) continue;
-    const candidate = f.elementName || f.visibleTexts[0] || "";
-    const c = norm(candidate);
-    if (c.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && !out.includes(c))
-      out.push(c.slice(0, 120));
+    // Scan EVERY text this fact observed, not just the first. A fact's first visible text is often a
+    // decorative glyph ("·", "🔊", "+"), which carries no letters and cannot anchor anything. Over a
+    // whole journey some other fact always rescued it; over a single SEGMENT every cited fact can be
+    // decoration, leaving the mission unanchored and correctly rejected — a real plan lost the
+    // conversation mission this way. Same source of truth, just not limited to index 0.
+    for (const candidate of [f.elementName, ...f.visibleTexts]) {
+      const c = norm(candidate ?? "");
+      if (c.replace(/[^\p{L}\p{N}]/gu, "").length < 3) continue;
+      const anchor = c.slice(0, 120);
+      if (!out.includes(anchor)) out.push(anchor);
+      break; // one anchor per fact, so anchors stay spread across the cited evidence
+    }
     if (out.length >= limit) break;
+  }
+  // A segment can cite ONLY decoration — a real conversation mission cited eight facts that were all
+  // "·", "🔊", "+" and "−", so it had no anchor and was rejected as unanchored. Fall back to text
+  // observed in the SAME STATES those facts came from: equally verbatim, equally Sage's own
+  // observation, and the state the criteria are about.
+  if (out.length === 0) {
+    const stateIds = new Set(
+      ids.map((id) => facts.find((x) => x.id === id)?.stateId).filter(Boolean),
+    );
+    for (const f of facts) {
+      if (!f.stateId || !stateIds.has(f.stateId)) continue;
+      for (const candidate of [f.elementName, ...f.visibleTexts]) {
+        const c = norm(candidate ?? "");
+        if (c.replace(/[^\p{L}\p{N}]/gu, "").length < 3) continue;
+        const anchor = c.slice(0, 120);
+        if (!out.includes(anchor)) out.push(anchor);
+        break;
+      }
+      if (out.length >= limit) break;
+    }
   }
   return out;
 }
