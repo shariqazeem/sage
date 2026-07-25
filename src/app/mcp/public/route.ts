@@ -20,6 +20,9 @@ import {
   publicCallGuard,
   sanitizePublicArgs,
   isPublicTool,
+  looksLikeJsonRpc,
+  acceptsMcp,
+  MCP_ACCEPT,
 } from "@/lib/mcp/public";
 
 export const runtime = "nodejs";
@@ -48,6 +51,37 @@ function rpcError(code: number, message: string, status: number): NextResponse {
     { jsonrpc: "2.0", id: null, error: { code, message } },
     { status },
   );
+}
+
+/** What this service is, in plain JSON — the answer to any caller that isn't speaking MCP. */
+function serviceCard() {
+  return {
+    service: "Sage — autonomous paid user testing",
+    summary:
+      "Point Sage at a live product with a budget. It browses the product in a real browser, designs paid testing missions with verifiable pass criteria, and — once the founder funds it — pays human testers in USDC for verified evidence, inside on-chain limits it cannot exceed. Every payout publishes a receipt anchored to an on-chain transaction.",
+    transport: "mcp/streamable-http",
+    endpoint: "https://sagepays.xyz/mcp/public",
+    pricing: {
+      model: "free",
+      note: "Free per call. Funding a campaign is the founder's own wallet.",
+    },
+    tools: publicMcpTools().map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    })),
+    usage: {
+      protocol: "JSON-RPC 2.0 over HTTP POST (Model Context Protocol, Streamable HTTP)",
+      example:
+        'curl -X POST https://sagepays.xyz/mcp/public -H "content-type: application/json" -d \'{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\'',
+    },
+    boundaries: [
+      "This surface cannot approve, fund, settle, or sign anything.",
+      "Plans are prepared under an anonymous namespace; the founder claims and funds them with their own wallet at https://sagepays.xyz/launch/<inspectionId>.",
+      "Payout receipts are recomputed from the chain, never a stored flag: https://sagepays.xyz/proof/<txHash>.",
+    ],
+    docs: "https://sagepays.xyz",
+  };
 }
 
 /** A stateless MCP server for one public request: the published tool list + guarded dispatch. */
@@ -101,13 +135,34 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const ref = publicCallerRef(req.headers, clientIp(req.headers));
 
-  const { req: nodeReq, res: nodeRes } = toReqRes(req);
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return rpcError(-32700, "Parse error.", 400);
+    // Not JSON at all — a probe, not a protocol error worth a 400 to a reviewer with curl.
+    return NextResponse.json(serviceCard(), { status: 200 });
   }
+
+  // A caller who isn't speaking MCP gets the service card with a 200, not a protocol fault it
+  // cannot interpret. This is how a marketplace reviewer with `curl -i` sees the endpoint.
+  if (!looksLikeJsonRpc(body)) {
+    return NextResponse.json(serviceCard(), { status: 200 });
+  }
+
+  // A real MCP message under-specifying Accept is served anyway: the transport requires both
+  // application/json and text/event-stream, and a plain `curl -X POST` offers neither.
+  const request = acceptsMcp(req.headers.get("accept"))
+    ? req
+    : new Request(req.url, {
+        method: "POST",
+        headers: (() => {
+          const h = new Headers(req.headers);
+          h.set("accept", MCP_ACCEPT);
+          return h;
+        })(),
+      });
+
+  const { req: nodeReq, res: nodeRes } = toReqRes(request as NextRequest);
 
   const server = buildPublicServer(ref, (fn) => after(fn));
   const transport = new StreamableHTTPServerTransport({
@@ -135,19 +190,5 @@ export function GET(req: NextRequest): Response {
   if (req.headers.get("accept")?.includes("text/event-stream")) {
     return rpcError(-32000, "Use POST for MCP messages.", 405);
   }
-  return NextResponse.json({
-    service: "Sage — autonomous paid user testing",
-    summary:
-      "Point Sage at a live product with a budget. It browses the product in a real browser, designs paid testing missions with verifiable pass criteria, and — once the founder funds it — pays human testers in USDC for verified evidence, inside on-chain limits it cannot exceed. Every payout publishes a receipt anchored to an on-chain transaction.",
-    transport: "mcp/streamable-http",
-    endpoint: "https://sagepays.xyz/mcp/public",
-    pricing: { model: "free", note: "Free per call. Funding a campaign is the founder's own wallet." },
-    tools: publicMcpTools().map((t) => ({ name: t.name, description: t.description })),
-    boundaries: [
-      "This surface cannot approve, fund, settle, or sign anything.",
-      "Plans are prepared under an anonymous namespace; the founder claims and funds them with their own wallet at https://sagepays.xyz/launch/<inspectionId>.",
-      "Payout receipts are recomputed from the chain, never a stored flag: https://sagepays.xyz/proof/<txHash>.",
-    ],
-    docs: "https://sagepays.xyz",
-  });
+  return NextResponse.json(serviceCard());
 }

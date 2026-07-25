@@ -9,6 +9,9 @@ import {
   isPublicTool,
   PUBLIC_READ_TOOLS,
   PUBLIC_WORK_TOOLS,
+  looksLikeJsonRpc,
+  acceptsMcp,
+  MCP_ACCEPT,
   type PublicLimiterKind,
 } from "./public";
 import { MCP_TOOLS } from "./server";
@@ -209,6 +212,57 @@ describe("no money verb reaches this surface", () => {
   it("the published descriptions still tell the truth about who funds", () => {
     const start = publicMcpTools().find((t) => t.name === "sage_start_inspection")!;
     expect(start.description).toMatch(/never funds or pays|founder approves/i);
+  });
+});
+
+/**
+ * REGRESSION — a marketplace reviewer validates a free endpoint with `curl -i` and expects HTTP 200
+ * with a result. The MCP transport answered 406 to any POST whose Accept header didn't offer both
+ * application/json and text/event-stream, which no plain curl does. A working service looked broken
+ * to the exact probe that decides eligibility.
+ */
+describe("callers who aren't MCP clients still get an answer", () => {
+  it("recognises a JSON-RPC message, single or batched", () => {
+    expect(looksLikeJsonRpc({ jsonrpc: "2.0", id: 1, method: "tools/list" })).toBe(true);
+    expect(looksLikeJsonRpc({ method: "initialize", params: {} })).toBe(true);
+    expect(
+      looksLikeJsonRpc([
+        { jsonrpc: "2.0", id: 1, method: "tools/list" },
+        { jsonrpc: "2.0", id: 2, method: "tools/call" },
+      ]),
+    ).toBe(true);
+  });
+
+  it("does not mistake a probe for a protocol message", () => {
+    for (const body of [
+      {},
+      { query: "hello" },
+      { jsonrpc: "2.0" },
+      "hello",
+      42,
+      null,
+      [],
+      [{ nope: true }],
+      [{ method: "ok" }, { nope: true }],
+    ]) {
+      expect(looksLikeJsonRpc(body)).toBe(false);
+    }
+  });
+
+  it("knows when an Accept header satisfies the transport", () => {
+    expect(acceptsMcp("application/json, text/event-stream")).toBe(true);
+    expect(acceptsMcp("TEXT/EVENT-STREAM, APPLICATION/JSON")).toBe(true);
+    // what a plain curl sends, and what the SDK rejected with 406
+    expect(acceptsMcp("*/*")).toBe(false);
+    expect(acceptsMcp("application/json")).toBe(false);
+    expect(acceptsMcp("text/event-stream")).toBe(false);
+    expect(acceptsMcp(null)).toBe(false);
+    expect(acceptsMcp(undefined)).toBe(false);
+    expect(acceptsMcp("")).toBe(false);
+  });
+
+  it("the header Sage substitutes is the one the transport requires", () => {
+    expect(acceptsMcp(MCP_ACCEPT)).toBe(true);
   });
 });
 
