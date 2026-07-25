@@ -176,10 +176,10 @@ wallet-bound founder gets Sage's strongest planner (see §8).
 > The AI proposes. The vault disposes. No model ever computes an amount, and every payout publishes
 > a receipt anchored to the chain.
 >
-> Live on GOAT Network mainnet. Now an Agent Service Provider on @okx AI — any agent can call it,
-> free: sagepays.xyz/mcp/public
+> Live on GOAT Network mainnet. Now an Agent Service Provider on OKX.AI (Agent #9211) — any agent
+> can call it, free: sagepays.xyz/mcp/public
 >
-> #OKXAI @OKX_AI
+> #OKXAI @OKX @XLayerOfficial
 
 ---
 

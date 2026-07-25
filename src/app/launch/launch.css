@@ -84,6 +84,40 @@
 .lx-discover { margin-top: 14px; font-size: 13.5px; color: var(--lx-muted); line-height: 1.6; }
 .lx-discover b { color: var(--lx-ink); font-weight: 600; }
 
+/* live browser trail — what Sage is doing right now, one entry per REAL captured state */
+.lx-trail { margin-top: 16px; border: 1px solid var(--lx-line); border-radius: 10px; overflow: hidden; }
+.lx-trail-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 13px;
+  font-size: 13px; color: var(--lx-muted); background: var(--lx-bg);
+  border-bottom: 1px solid var(--lx-line);
+}
+.lx-trail-head b { color: var(--lx-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.lx-trail-live {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--lx-accent); flex: none;
+  animation: lx-trail-blink 1.4s ease-in-out infinite;
+}
+@keyframes lx-trail-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.lx-trail-body { display: flex; gap: 14px; padding: 13px; align-items: flex-start; }
+.lx-trail-shot {
+  width: 190px; flex: none; aspect-ratio: 4 / 3; object-fit: cover; object-position: top center;
+  border: 1px solid var(--lx-line); border-radius: 8px; background: var(--lx-bg);
+}
+.lx-trail-steps { list-style: none; margin: 0; padding: 0; min-width: 0; flex: 1; }
+.lx-trail-steps li {
+  display: flex; align-items: baseline; gap: 9px; padding: 4px 0; font-size: 13.5px;
+  color: var(--lx-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lx-trail-steps li.now { color: var(--lx-ink); font-weight: 560; }
+.lx-trail-n {
+  font-family: var(--font-mono), monospace; font-size: 11px; color: var(--lx-muted);
+  min-width: 20px; text-align: right; flex: none; font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) { .lx-trail-live { animation: none; } }
+@media (max-width: 560px) {
+  .lx-trail-body { flex-direction: column; }
+  .lx-trail-shot { width: 100%; }
+}
+
 /* product map */
 .lx-map-row { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--lx-line); font-size: 14.5px; }
 .lx-map-row:first-child { border-top: none; }

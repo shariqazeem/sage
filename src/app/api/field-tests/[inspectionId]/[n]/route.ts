@@ -12,11 +12,16 @@ export const dynamic = "force-dynamic";
  * public/field-tests/<id>/<n>.png. But `next start` snapshots public/ at startup and does NOT
  * serve files added afterward (a real landmine — verified in prod), so they are served through
  * this route, which reads from disk on every request. Inputs are strictly validated to prevent
- * path traversal (id = the inspection nanoid; n = a single digit, since a run captures ≤6 pages).
+ * path traversal: the id is the inspection nanoid, and `n` is digits only.
+ *
+ * `n` was ONE digit while a run captured ≤6 pages. The goal-directed browser now captures a state
+ * per action — a real run reached 41 — so every screenshot from index 10 up was answered with
+ * "bad request" and rendered as a broken image, exactly where the run gets interesting. Digits-only
+ * still makes traversal impossible; the bound just matches what a run can actually produce.
  */
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
-const N_RE = /^[0-9]$/;
+const N_RE = /^[0-9]{1,3}$/;
 
 export async function GET(
   _req: NextRequest,

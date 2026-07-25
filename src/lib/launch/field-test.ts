@@ -22,6 +22,7 @@ import { validateEvidenceUrl } from "@/lib/campaigns/validate";
 import { resolvesPublic } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
+import { recordFieldTestStep } from "./field-test-progress";
 import { stateDigest } from "./observed-facts";
 import {
   evaluateJourney,
@@ -1470,6 +1471,13 @@ async function exploreInteractive(ctx: {
     } catch {
       screenshot = null;
     }
+    // LIVE TRAIL — publish the step the moment it exists, so the founder watching the inspecting
+    // page sees the work rather than a still spinner. Best-effort; never affects the run.
+    void recordFieldTestStep(inspectionId, {
+      label: trigger,
+      screenshot,
+      url: page.url(),
+    });
     states.push({
       trigger,
       screenshot,
