@@ -241,6 +241,96 @@ export function verifyAgainstKey(account: string | null | undefined, key: Privat
   return { distinctSources: sources.size, matchedCount: matched.length, matched };
 }
 
+/* ─────────────────────── CRITERION-LEVEL proof (the contract, not a headcount) ─────────────────── */
+
+/**
+ * What proves ONE criterion — the criterion's own slice of the private key.
+ *
+ * The flat bar asks "did this account mention three hidden things?", which is a proxy, and a loose one
+ * in both directions. It pays an account that named three details from the entry screen for a mission
+ * whose criterion is about the conversation, and it holds a concise tester who evidenced every
+ * criterion but only reached two matches. Sage already knows which observations back which criterion —
+ * the compiler derives exactly that when it builds the mission — so the gate can ask the real question:
+ * WAS EACH CRITERION PROVEN?
+ *
+ * `keySources` are private-key source ids (`state:<i>` / `page:<i>`), never text: this record is
+ * persisted with the campaign and must leak nothing a tester could read back as an answer.
+ */
+export interface CriterionEvidenceV1 {
+  criterionIndex: number;
+  /** the key sources whose observations evidence this criterion. Empty ⇒ unprovable from the key. */
+  keySources: string[];
+}
+
+export interface CriterionVerdict {
+  criterionIndex: number;
+  proven: boolean;
+  /** distinct sources matched WITHIN this criterion's own slice. */
+  matchedSources: number;
+}
+
+export interface CriteriaProof {
+  verdicts: CriterionVerdict[];
+  /** every criterion that has a slice was proven. */
+  allProven: boolean;
+  /** criteria the key cannot prove at all (no sources) — a mission-design gap, not a tester failure. */
+  unprovableCriteria: number[];
+  /** indexes the tester has not yet evidenced — what the coaching message names. */
+  missingCriteria: number[];
+}
+
+/**
+ * Prove each criterion against its OWN slice of the pinned key.
+ *
+ * A criterion counts as proven when the account matches at least one observation from the sources that
+ * back it. Matching reuses {@link verifyAgainstKey} verbatim, so every anti-guess rule already in force
+ * — the ≥3-content-word floor, the fuzzy-overlap threshold, structural parrot exclusion — applies
+ * unchanged inside each slice. A criterion with no slice is reported as UNPROVABLE rather than proven:
+ * the gate must never read "we have no way to check this" as "this passed".
+ */
+export function proveCriteria(
+  account: string | null | undefined,
+  key: PrivateKey,
+  evidence: readonly CriterionEvidenceV1[],
+): CriteriaProof {
+  const verdicts: CriterionVerdict[] = [];
+  const unprovableCriteria: number[] = [];
+  const missingCriteria: number[] = [];
+
+  for (const ce of evidence) {
+    const sources = new Set(ce.keySources);
+    if (sources.size === 0) {
+      unprovableCriteria.push(ce.criterionIndex);
+      verdicts.push({ criterionIndex: ce.criterionIndex, proven: false, matchedSources: 0 });
+      continue;
+    }
+    const slice: PrivateKey = {
+      observations: key.observations.filter((o) => sources.has(o.source)),
+      distinctSources: sources.size,
+      digest: key.digest,
+    };
+    const m = verifyAgainstKey(account, slice);
+    const proven = m.distinctSources > 0;
+    if (!proven) missingCriteria.push(ce.criterionIndex);
+    verdicts.push({
+      criterionIndex: ce.criterionIndex,
+      proven,
+      matchedSources: m.distinctSources,
+    });
+  }
+
+  const provable = verdicts.filter(
+    (v) => !unprovableCriteria.includes(v.criterionIndex),
+  );
+  return {
+    verdicts,
+    // "all proven" requires at least one provable criterion — an empty contract proves nothing.
+    allProven: provable.length > 0 && provable.every((v) => v.proven),
+    unprovableCriteria,
+    missingCriteria,
+  };
+}
+
 /* ─────────────────────── the observation autopay BAR (deterministic-primary) ─────────────────────── */
 
 /**
