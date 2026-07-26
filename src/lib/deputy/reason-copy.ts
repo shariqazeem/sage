@@ -44,6 +44,35 @@ export function observationCoaching(distinctMatched: number, keySources: number,
   );
 }
 
+/**
+ * P-CRIT — coaching that names WHICH REQUIREMENT is still unmet, instead of a running total.
+ *
+ * "You matched 2 of 9 things Sage saw" tells a tester they are short without telling them of what, so
+ * the only strategy it suggests is "write more", which is exactly how a genuine tester ends up padding.
+ * Once a mission carries a criterion contract, Sage knows precisely which requirement has no evidence
+ * yet — and naming it leaks NOTHING: the criteria are printed on the mission card the tester is reading.
+ *
+ * The no-oracle rule still holds absolutely. This says WHICH requirement is outstanding; it never says
+ * what would satisfy it, never hints at a corpus item, and never reveals whether a phrase was close.
+ */
+export function observationCriteriaCoaching(
+  missingCriteria: readonly number[],
+  criteria: readonly string[],
+  attemptsLeft: number,
+): string | null {
+  const named = missingCriteria
+    .map((i) => criteria[i])
+    .filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+  if (named.length === 0) return null;
+  const left = attemptsLeft === 1 ? "1 attempt left" : `${attemptsLeft} attempts left`;
+  const list = named.map((c) => `• ${c.trim()}`).join("\n");
+  return (
+    `Your account covers part of this mission, but Sage can't yet see evidence for:\n${list}\n\n` +
+    `Add what you actually did for that part and what you saw happen — the screen you were on, the ` +
+    `exact text that appeared, what changed after you acted. Then resubmit (${left}).`
+  );
+}
+
 /** The founder-facing one-liner for a still-retryable observation hold (no DM fires; this is log-only). */
 export function observationRetryLine(attempt: number, maxAttempts: number): string {
   return `Held for the tester to refine — attempt ${attempt} of ${maxAttempts}, no action needed yet (observation_retry)`;

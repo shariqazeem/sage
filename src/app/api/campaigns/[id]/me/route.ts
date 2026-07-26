@@ -5,11 +5,12 @@ import {
   getDecisionBySubmission,
   getWalletSubmission,
   getWalletMissionSubmission,
+  getMissionByHash,
   listCampaignEvents,
 } from "@/lib/db/campaigns";
 import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
-import { observationCoaching } from "@/lib/deputy/reason-copy";
+import { observationCoaching, observationCriteriaCoaching } from "@/lib/deputy/reason-copy";
 import { decodeDetail } from "@/lib/campaigns/journal";
 
 export const runtime = "nodejs";
@@ -59,6 +60,11 @@ export async function GET(
   const mission = req.nextUrl.searchParams.get("mission");
   const sub = mission ? getWalletMissionSubmission(mission, wallet) : getWalletSubmission(id, wallet);
   if (!sub) return NextResponse.json({ authed: true, submission: null });
+  // the mission's PUBLIC criteria — already on the card this tester is reading, so naming an unmet one
+  // back to them leaks nothing.
+  const missionCriteria = mission
+    ? (getMissionByHash(id, mission)?.criteria ?? [])
+    : [];
 
   const stored = getDecisionBySubmission(sub.id);
   // For an OBSERVATION mission Sage judges against its own private eyes — never the url-verifiable brain.
@@ -84,7 +90,15 @@ export async function GET(
           attemptsLeft,
           retryable,
           coaching: retryable
-            ? observationCoaching(observation.distinctSources, observation.keyDistinctSources, attemptsLeft)
+            ? // Name the REQUIREMENT that has no evidence yet when the mission carries a criterion
+              // contract — actionable, and leak-free (the criteria are printed on the card the tester
+              // is reading). Fall back to the count line for legacy missions with no contract.
+              (observationCriteriaCoaching(
+                observation.unprovenCriteria ?? [],
+                missionCriteria,
+                attemptsLeft,
+              ) ??
+              observationCoaching(observation.distinctSources, observation.keyDistinctSources, attemptsLeft))
             : barPassed
               ? "Sage verified your work — the founder is releasing your reward."
               : fraudFlagged

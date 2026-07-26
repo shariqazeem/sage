@@ -64,6 +64,8 @@ export function observationFromRow(row: Decision | null | undefined): {
   corpusDigest: string;
   barPass: boolean;
   barReasons: string[];
+  /** criterion INDEXES with no evidence yet — drives the coaching that names the unmet requirement. */
+  unprovenCriteria?: number[];
 } | null {
   const s = (row?.observationShadow ?? null) as ObservationShadow | null;
   if (!s) return null;
@@ -74,6 +76,7 @@ export function observationFromRow(row: Decision | null | undefined): {
     corpusDigest: s.corpusDigest,
     barPass: s.barPass,
     barReasons: s.barReasons,
+    ...(s.unprovenCriteria ? { unprovenCriteria: s.unprovenCriteria } : {}),
   };
 }
 

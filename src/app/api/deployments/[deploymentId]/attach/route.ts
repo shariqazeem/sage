@@ -13,6 +13,7 @@ import { deserializePlan } from "@/lib/launch/serde";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
+import { stateDigest } from "@/lib/launch/observed-facts";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
 import { deploymentAttachDeps, deploymentChainVerifier, verifyActivate } from "@/lib/launch/verify-receipts";
 import { getInspectionJob } from "@/lib/db/inspection";
@@ -81,7 +82,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   if (deployment.state === "active") beginAttach(deploymentId);
 
   const job = getInspectionJob(deployment.jobId);
+  // THE PAYOUT GATE'S CONTRACT. The compiler derived which observed screens prove which criterion;
+  // `compilePlan` drops it (the plan is hashed into the on-chain mission identity), so it travelled on
+  // the grounding shadow instead. Here it is translated from state DIGESTS into the pinned key's own
+  // source ids (`state:<i>`) using the same field-test ordering `distillPrivateKey` indexes by — the one
+  // place both are in scope. Ids only; no observed text is copied.
+  const shadowEvidence =
+    (
+      job?.result as
+        | { brain?: { groundingShadow?: { criterionEvidence?: { missionKey: string; criterionIndex: number; stateIds: string[] }[] } } }
+        | undefined
+    )?.brain?.groundingShadow?.criterionEvidence ?? [];
+  const ftForIndex =
+    (job?.result as { map?: { fieldTest?: FieldTestSummary | null } } | undefined)?.map?.fieldTest ?? null;
+  const sourceByStateId = new Map<string, string>();
+  (ftForIndex?.states ?? []).forEach((st, i) => sourceByStateId.set(stateDigest(st), `state:${i}`));
+  const evidenceByMission = new Map<string, { criterionIndex: number; keySources: string[] }[]>();
+  for (const e of shadowEvidence) {
+    const keySources = [
+      ...new Set(e.stateIds.map((sid) => sourceByStateId.get(sid)).filter((s): s is string => !!s)),
+    ];
+    const list = evidenceByMission.get(e.missionKey) ?? [];
+    list.push({ criterionIndex: e.criterionIndex, keySources });
+    evidenceByMission.set(e.missionKey, list);
+  }
+
   const missions: V2MissionSetupInput[] = loaded.plan.missions.map((m) => ({
+    criterionEvidence: evidenceByMission.get(m.missionKey),
     missionKey: m.missionKey,
     title: m.title,
     objective: m.objective,

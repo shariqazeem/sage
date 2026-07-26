@@ -4,6 +4,7 @@ import {
   type PrivateKey,
   type CriterionEvidenceV1,
 } from "./observation-verify";
+import { observationCriteriaCoaching } from "./reason-copy";
 
 /**
  * CRITERION-LEVEL PROOF — the gate stops counting hidden details and starts asking whether each
@@ -127,5 +128,45 @@ describe("the verdict is reportable without leaking the key", () => {
     const blob = JSON.stringify(p);
     for (const o of key.observations) expect(blob).not.toContain(o.text);
     expect(blob).toContain("criterionIndex");
+  });
+});
+
+/* ── coaching that names the unmet requirement ─────────────────────────────── */
+
+describe("coaching names WHICH requirement is missing, never what would satisfy it", () => {
+  const criteria = [
+    "Navigate to the url and enter the garden",
+    "Send a message to Yara and receive a response",
+  ];
+
+  it("names the unmet criterion by its own public text", () => {
+    const msg = observationCriteriaCoaching([1], criteria, 2);
+    expect(msg).toContain("Send a message to Yara and receive a response");
+    expect(msg).toContain("2 attempts left");
+    // the criterion they DID prove is not repeated back as an outstanding ask
+    expect(msg).not.toContain("Navigate to the url and enter the garden");
+  });
+
+  it("leaks nothing from the answer key", () => {
+    const msg = observationCriteriaCoaching([1], criteria, 1)!;
+    for (const secret of [
+      "make a wish at the wishing tree",
+      "what brings you here today friend",
+      "state:7",
+    ]) {
+      expect(msg).not.toContain(secret);
+    }
+    // and never tells them what WOULD satisfy it
+    expect(msg).not.toMatch(/mention|say the words|include the phrase/i);
+  });
+
+  it("falls back to null when there is nothing nameable, so the caller keeps the count line", () => {
+    expect(observationCriteriaCoaching([], criteria, 2)).toBeNull();
+    expect(observationCriteriaCoaching([5], criteria, 2)).toBeNull();
+    expect(observationCriteriaCoaching([0], ["   "], 2)).toBeNull();
+  });
+
+  it("handles the singular attempt wording", () => {
+    expect(observationCriteriaCoaching([0], criteria, 1)).toContain("1 attempt left");
   });
 });

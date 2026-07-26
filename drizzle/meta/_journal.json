@@ -225,6 +225,13 @@
       "when": 1784906948435,
       "tag": "0031_request_scoped_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1785060000000,
+      "tag": "0032_criterion_evidence",
+      "breakpoints": true
     }
   ]
 }

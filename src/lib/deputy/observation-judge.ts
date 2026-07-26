@@ -28,10 +28,13 @@ import {
   validateContradictions,
   validateCorroborations,
   verifyAgainstKey,
+  proveCriteria,
   type BarResult,
   type ContradictionClaim,
   type CorroborationClaim,
   type CorpusMatch,
+  type CriteriaProof,
+  type CriterionEvidenceV1,
   type ObservationSignals,
   type PrivateKey,
 } from "./observation-verify";
@@ -67,6 +70,8 @@ export interface ObservationPublicView {
   barPass: boolean;
   /** count-only reasons, e.g. "few_matches(2<3)" — enumerated, never free text or a matched string. */
   barReasons: string[];
+  /** criterion INDEXES not yet evidenced — what to ask for, never what would satisfy it. */
+  unprovenCriteria?: number[];
 }
 
 /**
@@ -99,6 +104,10 @@ export interface ObservationShadow {
   legacyBarPass: boolean;
   legacyBarReasons: string[];
   corpusDigest: string;
+  /** criterion INDEXES the account has not evidenced — indexes only, never corpus text. */
+  unprovenCriteria?: number[];
+  /** SHADOW: every criterion proven and only the flat count still objecting (the pending relaxation). */
+  wouldPassOnCriteriaAlone?: boolean;
   wouldAutopay: boolean;
   at: number;
 }
@@ -120,6 +129,8 @@ export function toObservationShadow(d: ObservationDecision, wouldAutopay: boolea
     legacyBarPass: d.legacyBar.pass,
     legacyBarReasons: d.legacyBar.reasons,
     corpusDigest: d.publicView.corpusDigest,
+    ...(d.criteriaProof ? { unprovenCriteria: d.criteriaProof.missingCriteria } : {}),
+    wouldPassOnCriteriaAlone: d.wouldPassOnCriteriaAlone,
     wouldAutopay,
     at,
   };
@@ -146,6 +157,11 @@ export interface ObservationDecision {
   bar: BarResult;
   /** the LEGACY confidence-gated bar — logged for shadow continuity, never gates. */
   legacyBar: BarResult;
+  /** per-criterion proof against the mission's own contract. Null when the mission has none. */
+  criteriaProof: CriteriaProof | null;
+  /** SHADOW: would this account have cleared on criterion proof alone, i.e. is the flat count now the
+   *  only thing holding a tester who evidenced everything the mission asked for? Never gates. */
+  wouldPassOnCriteriaAlone: boolean;
   publicView: ObservationPublicView;
 }
 
@@ -167,6 +183,8 @@ export function assembleObservationDecision(input: {
   /** PUBLIC card/plan content tokens — a corroboration's anchor must be NON-public (parrot-zero). Live
    *  callers MUST pass this; an empty set (some fixtures) means no non-public anchor requirement. */
   publicTokens?: Set<string>;
+  /** the mission's criterion → key-source contract, pinned at attach. Absent ⇒ the flat bar alone. */
+  criterionEvidence?: CriterionEvidenceV1[] | null;
 }): ObservationDecision {
   const injectionDetected = detectInjection(input.account ?? "").length > 0;
   const corpusMatch = verifyAgainstKey(input.account, input.key);
@@ -191,12 +209,23 @@ export function assembleObservationDecision(input: {
   // Injection is a high-severity block, so a plausible account carrying an attack never clears the bar.
   const hasHighFraud = input.hasHighFraud || injectionDetected;
 
+  // CRITERION PROOF — was each thing the mission actually asked for evidenced? Uses the same unit as
+  // the bar (distinct sources, deterministic matches unioned with validated corroborations), so a
+  // genuine paraphrase proves its criterion exactly as a literal match would.
+  const criteriaProof =
+    input.criterionEvidence && input.criterionEvidence.length > 0
+      ? proveCriteria(input.account, input.key, input.criterionEvidence, matchedSources)
+      : null;
+
   const signals: ObservationSignals = {
     distinctSources: combinedDistinctSources,
     keyDistinctSources: input.key.distinctSources,
     vetoFired: validated.length > 0,
     nearDupClear: !near,
     hasHighFraud,
+    // an UNPROVABLE criterion (no evidence slice) is a mission-design gap, not a tester failure — it
+    // must not be reported as something the tester failed to show.
+    ...(criteriaProof ? { unprovenCriteria: criteriaProof.missingCriteria } : {}),
   };
   const bar = observationBar(signals);
   const legacyBar = legacyObservationBar({
@@ -218,6 +247,14 @@ export function assembleObservationDecision(input: {
     validatedCorroborations,
     bar,
     legacyBar,
+    criteriaProof,
+    // The RELAXATION, measured before it is trusted: every criterion proven, nothing else failing, and
+    // the only remaining objection is the flat count. Logged now; it will arm once real submissions
+    // show it behaves — never on the strength of the idea alone.
+    wouldPassOnCriteriaAlone:
+      !!criteriaProof &&
+      criteriaProof.allProven &&
+      bar.reasons.every((r) => r.startsWith("few_matches")),
     publicView: {
       // the bar's unit — deterministic matches UNIONED with validated corroborations. A COUNT only; the
       // matched/corroborated strings themselves stay server-side (the leak rule).
@@ -227,6 +264,8 @@ export function assembleObservationDecision(input: {
       corpusDigest: input.key.digest,
       barPass: bar.pass,
       barReasons: bar.reasons,
+      // indexes only — what is missing, never what would satisfy it (the no-oracle rule).
+      ...(criteriaProof ? { unprovenCriteria: criteriaProof.missingCriteria } : {}),
     },
   };
 }
@@ -340,6 +379,8 @@ export async function runObservationDecision(input: {
   hasHighFraud: boolean;
   /** the PUBLIC card/plan strings — a corroboration's anchor token must be NON-public (parrot-zero). */
   publicStrings: string[];
+  /** the mission's criterion → key-source contract, pinned at attach. Absent ⇒ the flat bar alone. */
+  criterionEvidence?: CriterionEvidenceV1[] | null;
   model?: string;
 }): Promise<ObservationDecision> {
   const injection = detectInjection(input.account ?? "").length > 0;
@@ -370,5 +411,6 @@ export async function runObservationDecision(input: {
     priors: input.priors,
     judge,
     hasHighFraud: input.hasHighFraud,
+    criterionEvidence: input.criterionEvidence ?? null,
   });
 }

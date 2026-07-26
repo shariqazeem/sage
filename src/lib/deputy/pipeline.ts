@@ -356,6 +356,11 @@ export async function runDeputyOnSubmission(
       criteria: mission.criteria,
       publicStrings,
       hasHighFraud,
+      // The mission's OWN contract, pinned beside the key at attach: which observed screens prove which
+      // criterion. Present ⇒ the gate additionally requires each criterion to be evidenced, so detail
+      // from the wrong screen can no longer buy a payout. Null on legacy/model-authored missions, which
+      // keep the flat bar exactly as before.
+      criterionEvidence: mission.criterionEvidence ?? null,
       // The corroboration recall path needs a STRONG judge to bridge the vision↔experience vocabulary
       // gap (a weak model finds only the near-lexical matches — measured). OBS_JUDGE_MODEL routes just the
       // observation judge to it; unset → falls back to the default judge model (weaker recall → genuine

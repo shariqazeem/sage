@@ -440,6 +440,22 @@ export interface GroundingShadowResult {
   goalCompilerQuestion?: string | null;
   /** how many missions Sage compiled deterministically (criteria/evidence never model-authored). */
   compilerAuthoredMissions?: number;
+  /**
+   * WHICH OBSERVED SCREENS PROVE WHICH CRITERION — the payout gate's contract, carried out of planning.
+   *
+   * The compiler derives this to build the mission and `compilePlan` then drops it, so at settle time
+   * the gate could only count hidden details instead of checking criteria. It travels HERE rather than
+   * on the plan because the plan is hashed into `missionPlanDigest` → `specDigest` → the on-chain
+   * mission identity; adding a field there would move the mission's identity for every new campaign.
+   *
+   * Ids only (state digests), never observed text — this is persisted with the campaign and must leak
+   * nothing a tester could read back as an answer.
+   */
+  criterionEvidence?: {
+    missionKey: string;
+    criterionIndex: number;
+    stateIds: string[];
+  }[];
   /** the recomputed compiler-support proof digest (null when no mission was compiled). */
   compilerSupportProofDigest?: string | null;
   /** `compiler_support_proof_invalid` detail when a compiled mission failed re-verification. */
@@ -836,6 +852,12 @@ export async function runGroundedShadow(
   // COMPILER SUPPORT — never a trusted flag. The proof is issued in-process for the FINAL mission and
   // RE-VERIFIED (by recompiling from the immutable inputs) at acceptance time; only a mission that still
   // proves out may stand without a critic verdict.
+  /** criterion → the observed screens that prove it, carried to the payout gate (ids only). */
+  const criterionEvidence: {
+    missionKey: string;
+    criterionIndex: number;
+    stateIds: string[];
+  }[] = [];
   /** one entry per compiled mission — each proof binds only its own segment of the journey. */
   const compilerProofs: Array<{
     mission: CandidateMission;
@@ -942,6 +964,23 @@ export async function runGroundedShadow(
           /* prose refinement failed — the deterministic copy stands */
         }
         missions.push(mission);
+        // the contract the payout gate will check: each criterion → the screens whose observations
+        // back it. Derived from the criterion's OWN cited facts, so it can never be wider than the
+        // evidence the compiler actually used.
+        for (const c of seg.criteria) {
+          const stateIds = [
+            ...new Set(
+              c.factIds
+                .map((fid) => set.facts.find((f) => f.id === fid)?.stateId)
+                .filter((s): s is string => !!s),
+            ),
+          ];
+          criterionEvidence.push({
+            missionKey: mission.missionKey,
+            criterionIndex: c.index,
+            stateIds,
+          });
+        }
         // the proof binds THIS mission (prose included) to THIS segment's immutable compile inputs.
         const segInput: CompileGoalInput = {
           ...compileArgs,
@@ -1428,6 +1467,15 @@ export async function runGroundedShadow(
     ...journeyTelemetry(map.goalJourney),
     goalCompilerQuestion,
     compilerAuthoredMissions: compilerSupported.size,
+    // only for missions whose compiler support actually verified — an unverified mission's mapping
+    // must never reach the payout gate as if it were Sage's own derivation.
+    ...(criterionEvidence.length > 0
+      ? {
+          criterionEvidence: criterionEvidence.filter((c) =>
+            compilerSupported.has(c.missionKey),
+          ),
+        }
+      : {}),
     // one digest per compiled mission, joined in order — a single-mission plan reads exactly as before
     compilerSupportProofDigest:
       compilerProofs.length > 0

@@ -441,6 +441,16 @@ export const missions = sqliteTable(
      * held for the founder otherwise). Default is the SAFE side: an unclassified/legacy mission holds.
      */
     verifiabilityClass: text("verifiability_class").$type<"url-verifiable" | "observation-based">().notNull().default("observation-based"),
+    /**
+     * WHICH PINNED-KEY SOURCES PROVE WHICH CRITERION — the payout gate's contract, pinned with the
+     * mission at attach so a settle can ask "was each criterion evidenced?" instead of counting hidden
+     * details. Sources only (`state:<i>` / `page:<i>`), never observed text: this is stored beside the
+     * campaign and must leak nothing a tester could read back as an answer. Null on legacy and
+     * model-authored missions, which keep the flat bar exactly as before.
+     */
+    criterionEvidence: text("criterion_evidence", { mode: "json" }).$type<
+      { criterionIndex: number; keySources: string[] }[] | null
+    >(),
     /** legacy single free-text evidence requirement (V1-era), or null. */
     evidenceRequirements: text("evidence_requirements"),
     /** MissionSpecV1: ordered evidence requirements. */

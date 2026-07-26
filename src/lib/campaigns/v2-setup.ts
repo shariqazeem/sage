@@ -45,6 +45,8 @@ export interface V2MissionSetupInput {
   evidenceRequirements: string[];
   /** P16 money gate — "url-verifiable" | "observation-based". Missing → the safe side (never autopays). */
   verifiabilityClass?: "url-verifiable" | "observation-based";
+  /** criterion → the pinned-key sources that prove it. Absent ⇒ the flat bar, exactly as before. */
+  criterionEvidence?: { criterionIndex: number; keySources: string[] }[];
   /** exact reward in token base units (6dp). */
   rewardBase: bigint;
   maxCompletions: bigint;
@@ -399,6 +401,10 @@ export async function attachV2Campaign(
             // P16 money gate — persist the class the mission was authored with; absent → the safe
             // side ("observation-based" never auto-pays), matching the column default.
             verifiabilityClass: m.verifiabilityClass ?? "observation-based",
+            // The payout gate's contract: which pinned-key sources prove which criterion. Pinned at
+            // the same instant as the key and the plan, so a settle can check criteria rather than
+            // count hidden details. Absent on legacy/model-authored missions → the flat bar, unchanged.
+            criterionEvidence: m.criterionEvidence ?? null,
             rewardAmount: Number(m.rewardBase),
             maxCompletions: Number(m.maxCompletions),
             status: "active",

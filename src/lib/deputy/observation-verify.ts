@@ -292,6 +292,9 @@ export function proveCriteria(
   account: string | null | undefined,
   key: PrivateKey,
   evidence: readonly CriterionEvidenceV1[],
+  /** sources already credited by a VALIDATED corroboration — the same unit the bar counts, so a
+   *  genuine paraphrase the judge bridged proves its criterion exactly as a token match would. */
+  creditedSources: ReadonlySet<string> = new Set(),
 ): CriteriaProof {
   const verdicts: CriterionVerdict[] = [];
   const unprovableCriteria: number[] = [];
@@ -310,12 +313,17 @@ export function proveCriteria(
       digest: key.digest,
     };
     const m = verifyAgainstKey(account, slice);
-    const proven = m.distinctSources > 0;
+    const bridged = [...sources].filter((s) => creditedSources.has(s));
+    const matchedSources = new Set<string>([
+      ...m.matched.map((o) => o.source),
+      ...bridged,
+    ]).size;
+    const proven = matchedSources > 0;
     if (!proven) missingCriteria.push(ce.criterionIndex);
     verdicts.push({
       criterionIndex: ce.criterionIndex,
       proven,
-      matchedSources: m.distinctSources,
+      matchedSources,
     });
   }
 
@@ -469,6 +477,13 @@ export interface ObservationSignals {
   nearDupClear: boolean;
   /** a HIGH-severity fraud signal on the brief (injection/spam; low/med freshness never blocks). */
   hasHighFraud: boolean;
+  /**
+   * Criteria the mission's own contract says are NOT yet evidenced. Absent/empty on a mission with no
+   * contract (legacy, model-authored) ⇒ the flat bar alone, exactly as before. Present ⇒ an ADDITIONAL
+   * requirement: three details from the wrong screen can no longer buy a payout for work the mission
+   * actually asked for.
+   */
+  unprovenCriteria?: number[];
 }
 
 export interface BarResult {
@@ -503,6 +518,12 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   if (s.vetoFired) reasons.push("contradiction");
   if (!s.nearDupClear) reasons.push("near_dup");
   if (s.hasHighFraud) reasons.push("high_fraud");
+  // The mission's own contract, when it has one. Strictly ADDITIVE to the count above: this release
+  // only ever makes the gate harder. Letting a concise account that proved every criterion clear on
+  // fewer total matches is the relaxation, and it stays in shadow until real submissions justify it.
+  if (s.unprovenCriteria && s.unprovenCriteria.length > 0) {
+    reasons.push(`criteria_unproven(${s.unprovenCriteria.join(",")})`);
+  }
   return { pass: reasons.length === 0, reasons };
 }
 
