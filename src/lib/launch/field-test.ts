@@ -1855,7 +1855,14 @@ async function exploreInteractive(ctx: {
               ? (elements.find((e) => e.id === action.elementId)?.label ?? "")
               : "",
         });
+        // how many of the founder's checkpoints were observed BEFORE this action, so "did the journey
+        // actually move?" is a fact rather than an impression.
+        const metBefore =
+          liveJourney?.checkpoints.filter((c) => c.status === "observed").length ?? 0;
         advanceJourney(); // evidence-based: only real observations can complete a checkpoint
+        const journeyAdvanced =
+          (liveJourney?.checkpoints.filter((c) => c.status === "observed").length ?? 0) >
+          metBefore;
         // REAL progress = the URL changed or the WORD content changed. Drifting particles / emoji /
         // cosmetic canvas motion move pixels every frame and must never read as progress.
         const newWordSig = wordSignature(
@@ -1873,8 +1880,14 @@ async function exploreInteractive(ctx: {
         if (realChange) {
           // COMPACT consecutive onboarding states: a linear ladder costs ONE unit of the state budget.
           if (!(isOnboarding && prevOnboarding)) meaningful++;
-          deadLabels.clear();
-          ineffective.clear();
+          // Retirement is forgiven only by REAL movement — a new page, a filled field, or the founder's
+          // journey actually advancing. On an animated marketing page every click repaints something,
+          // so "the words changed" forgave every dead control and Sage clicked the same hero button
+          // forever instead of opening the route that leads to the flow.
+          if (page.url() !== prevUrl || filled || journeyAdvanced) {
+            deadLabels.clear();
+            ineffective.clear();
+          }
           stall = 0;
           // verified goal progress after the main experience → extend, bounded by the hard ceilings.
           if (mainReached && (targetedGoal || progress === "advancing"))
