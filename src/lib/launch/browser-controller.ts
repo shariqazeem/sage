@@ -179,6 +179,24 @@ function normLabel(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The key a dead affordance is retired under.
+ *
+ * Retirement used to key on the element's exact minted label, so a page with several controls that
+ * all read "Start" (a nav button, a hero CTA, the same word quoted in body copy, each minted with its
+ * own role prefix) retired them ONE AT A TIME — sixteen clicks, one URL, no progress, and the action
+ * budget gone before Sage reached the flow the founder asked about.
+ *
+ * What is actually dead is the WORD the tester would aim at, not the node. Strips a minted `role ·`
+ * prefix and quoting so every control saying the same thing shares one verdict.
+ */
+export function affordanceKey(s: string): string {
+  return normLabel(s)
+    .replace(/^[a-z_-]+\s*·\s*/, "")
+    .replace(/[“”"'`]/g, "")
+    .trim();
+}
+
 /* ─────────────── goal-relative targeting (general, product-agnostic) ─────── */
 
 /** Words that carry no targeting signal in a founder goal — everything else is a candidate target term. */
@@ -361,7 +379,7 @@ export function chooseGoalTargetAffordance(
   let best: { el: MintedElement; score: number } | null = null;
   for (const el of elements) {
     if (el.tag === "select") continue;
-    if (deadLabels.has(normLabel(el.label))) continue;
+    if (deadLabels.has(affordanceKey(el.label))) continue;
     const score = goalMatchScore(el.label, terms);
     if (score <= 0) continue;
     const sig = actionSignature(stateDigest, {
@@ -415,7 +433,7 @@ export function chooseForwardAffordance(
   for (const el of elements) {
     if (el.tag === "input" || el.tag === "textarea" || el.tag === "select")
       continue; // not a forward click
-    if (deadLabels.has(normLabel(el.label))) continue; // ineffective here → try something else
+    if (deadLabels.has(affordanceKey(el.label))) continue; // ineffective here → try something else
     const rank = affordanceRank(el.label);
     if (rank < 0) continue;
     const sig = actionSignature(stateDigest, {

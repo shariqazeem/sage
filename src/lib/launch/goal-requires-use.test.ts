@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { goalRequiresUse, type GoalJourneyV1 } from "./goal-journey";
 import { classifyMode, type ProductSignals } from "./field-test";
-import { coerceDecision, canonicalAction } from "./browser-controller";
+import { coerceDecision, canonicalAction, affordanceKey } from "./browser-controller";
 
 /**
  * REGRESSION — production job 2XruYQs-qQ9B. A founder asked Sage to test sagepays.xyz so that
@@ -136,5 +136,24 @@ describe("open_path — the flow the founder named usually lives behind a link",
     expect(canonicalAction({ kind: "open_path", path: "/app" })).not.toBe(
       canonicalAction({ kind: "open_path", path: "/launch" }),
     );
+  });
+});
+
+/* ── a dead affordance is the WORD, not the node ───────────────────────────── */
+
+describe("affordanceKey — several controls saying the same thing share one verdict", () => {
+  it("collapses the minted variants that cost 16 clicks on one landing page", () => {
+    const variants = ["Start", "action · Start", "“Start”", '"Start"', "  START  ", "link · start"];
+    const keys = new Set(variants.map(affordanceKey));
+    expect(keys).toEqual(new Set(["start"]));
+  });
+
+  it("keeps genuinely different affordances apart", () => {
+    expect(affordanceKey("Start")).not.toBe(affordanceKey("Start free trial"));
+    expect(affordanceKey("action · Launch")).not.toBe(affordanceKey("action · Login"));
+  });
+
+  it("never collapses everything to an empty key", () => {
+    for (const s of ["Start", "action · Go", "“x”"]) expect(affordanceKey(s).length).toBeGreaterThan(0);
   });
 });

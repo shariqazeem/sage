@@ -48,6 +48,7 @@ import {
   type ControllerHistoryItem,
   type MintedElement,
   type DecideDeps,
+  affordanceKey,
 } from "./browser-controller";
 import type {
   FieldTestForm,
@@ -1821,7 +1822,7 @@ async function exploreInteractive(ctx: {
         // repeatedly produces no goal-relative progress.
         const actedLabel =
           action.kind === "click_element"
-            ? normL(
+            ? affordanceKey(
                 elements.find((e) => e.id === action.elementId)?.label ?? "",
               )
             : action.kind === "press_key"
