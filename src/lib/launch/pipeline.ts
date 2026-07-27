@@ -584,6 +584,49 @@ export async function inspectAndPlan(
     const missing = goalJourney.checkpoints.filter(
       (c) => c.status !== "observed",
     );
+    const observed = goalJourney.checkpoints.filter(
+      (c) => c.status === "observed",
+    );
+
+    // PLAN WHAT SAGE COULD SEE. A wall Sage cannot cross — a wallet, a login, a payment — is a
+    // statement about SAGE, not about whether the work is worth testing. A human tester connects
+    // their own wallet trivially; Sage just cannot witness it. Sending the founder away empty
+    // because the last mile was gated wastes the part it DID verify, and asking them to restate a
+    // goal they already gave is the least useful thing an agent can do.
+    //
+    // So when Sage genuinely observed part of the founder's journey and has a validated plan for
+    // it, that plan is offered — with the boundary named, never hidden. Nothing about the covenant
+    // moves: this plan is the legacy one, marked as such, and the grounded canary stays BLOCKED, so
+    // an ungrounded plan is still never dressed up as a grounded one.
+    const wallBlocked = missing.every((c) => c.entityIsObserved === false);
+    if (observed.length > 0 && wallBlocked && legacy.plan.missions.length > 0) {
+      const unreachable = missing
+        .map((c) => c.requirement.replace(/\.$/, ""))
+        .slice(0, 4);
+      map.limitations = [
+        ...new Set([
+          ...map.limitations,
+          `Sage could not reach: ${unreachable.join("; ")}. It needs an account, wallet or permission it doesn't have, so these missions cover the part it verified itself.`,
+        ]),
+      ];
+      stamp("ready");
+      return out("ready", null, {
+        map,
+        brain,
+        allocation: legacy.allocation,
+        plan: legacy.plan,
+        questions: [
+          `These missions cover what Sage verified itself. It could not reach ${unreachable.length === 1 ? "this part" : "these parts"} of your request — ${unreachable.join("; ")} — because that needs an account, wallet or permission Sage doesn't have. A human tester can still do it; Sage just can't witness it, so it isn't something it can pay out on automatically.`,
+        ],
+        canary: {
+          status: "blocked",
+          reason: `founder_goal_partial:${codes.join(",") || "uncovered"}`,
+          planSource: "legacy",
+          planDigest: legacy.plan.missionPlanDigest,
+        },
+      });
+    }
+
     return out("needs_input", "founder_goal_incomplete", {
       map,
       brain,

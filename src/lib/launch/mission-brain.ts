@@ -343,16 +343,31 @@ function gatherRichness(map: ProductMapV1, corpus: string) {
 }
 
 /** SPECIFIC needs_input questions generated from what Sage DID see (never confabulated). */
-function sufficiencyQuestions(map: ProductMapV1): string[] {
+function sufficiencyQuestions(map: ProductMapV1, founderGoal = ""): string[] {
   const qs: string[] = [];
+  // NEVER ASK FOR WHAT THE FOUNDER ALREADY SAID. A founder who wrote "make users launch a campaign"
+  // has already answered "what is the most important thing a tester should confirm?" — asking it back
+  // is the least useful thing an agent can do, and it reads as not having listened. A goal that names
+  // an action and a target is specific enough to design against; the only honest remaining question
+  // is about ACCESS Sage lacks, which the questions below already cover.
+  const goalIsSpecific =
+    /\b(make|have|let|get|ensure|verify|confirm|check|test)\b/i.test(founderGoal) &&
+    founderGoal.trim().split(/\s+/).length >= 4;
   const ft = map.fieldTest;
   const vis = ft?.visionObservations ?? [];
   const types = [...new Set(vis.flatMap((v) => v.productTypeSignals))].slice(0, 2);
   const scene = vis.map((v) => v.sceneDescription).find(Boolean);
-  if (types.length) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
-  if (scene) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
+  if (types.length && !goalIsSpecific) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
+  if (scene && !goalIsSpecific) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
   if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's user agent, SageMissionBrain/1.0?");
-  if (qs.length === 0) qs.push("Sage's inspection didn't surface enough to design paid missions with confidence. What is the one flow you most want validated, and how would a tester prove they completed it?");
+  if (qs.length === 0) {
+    qs.push(
+      goalIsSpecific
+        ? // they told us WHAT they want; the only thing Sage is missing is a way IN.
+          "Sage couldn't get far enough into your product to design missions it can verify. Is there a demo link, a test account, or a step it needs — or (if your site blocks bots) can you allowlist its user agent, SageMissionBrain/1.0?"
+        : "Sage's inspection didn't surface enough to design paid missions with confidence. What is the one flow you most want validated, and how would a tester prove they completed it?",
+    );
+  }
   return qs.slice(0, 3);
 }
 
@@ -377,7 +392,7 @@ export async function runMissionBrain(
   // needs_input → answer → re-plan loop instead of asking the same question forever on a thin product.
   const answered = /Founder clarification/i.test(founder.goal);
   if (!answered && observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
-    return { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map) };
+    return { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map, founder.goal) };
   }
 
   const needsInputQuestions: string[] = [];
@@ -429,7 +444,7 @@ export async function runMissionBrain(
   // mission to), fall back to the SPECIFIC sufficiency questions built from what Sage DID see — so the
   // needs_input → answer → re-plan loop always has something concrete to answer.
   if (r.accepted.length === 0 && needsInputQuestions.length === 0) {
-    for (const q of sufficiencyQuestions(map)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
+    for (const q of sufficiencyQuestions(map, founder.goal)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   }
 
   const groundingShadow = await computeShadow(r.accepted.length);
