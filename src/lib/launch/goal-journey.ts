@@ -1113,8 +1113,12 @@ export function goalRequiresUse(
   goal: string | null | undefined,
   journey?: GoalJourneyV1 | null,
 ): boolean {
+  // `input` / `outcome` mean the tester must PRODUCE something and see a result — that cannot be
+  // read off HTML. `interaction` alone is too weak a signal: the compiler emits one for almost any
+  // request, so trusting it turned "validate the core experience" on a docs site into a full
+  // exploration and cost that plan its url-verifiable (cleanly auto-payable) mission.
   const actionable = journey?.checkpoints?.some(
-    (c) => c.kind === "interaction" || c.kind === "input" || c.kind === "outcome",
+    (c) => c.kind === "input" || c.kind === "outcome",
   );
   if (actionable) return true;
   return GOAL_ACTION_VERB.test(goal ?? "");

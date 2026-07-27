@@ -70,10 +70,16 @@ describe("the compiled journey outranks the wording", () => {
       checkpoints: kinds.map((kind, i) => ({ checkpointId: `cp${i}`, kind, requirement: "r" })),
     }) as unknown as GoalJourneyV1;
 
-  it("an actionable checkpoint forces exploration even when the words look passive", () => {
-    for (const kind of ["interaction", "input", "outcome"]) {
+  it("a checkpoint that PRODUCES a result forces exploration, even when the words look passive", () => {
+    for (const kind of ["input", "outcome"]) {
       expect(goalRequiresUse("wording that names no action at all", journey([kind]))).toBe(true);
     }
+  });
+
+  it("`interaction` alone does NOT — the compiler emits one for almost any request", () => {
+    // trusting it turned "validate the core experience" on a docs site into a full exploration and
+    // cost that plan its url-verifiable mission (caught by the generality battery).
+    expect(goalRequiresUse("validate the core experience", journey(["entry", "interaction"]))).toBe(false);
   });
 
   it("a journey of pure navigation/state does not force it on its own", () => {
