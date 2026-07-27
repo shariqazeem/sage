@@ -308,6 +308,73 @@ export function canvasStrokes(
   return strokes;
 }
 
+/**
+ * A bounded, read-only pass over a product's OTHER pages, for URL-anchored evidence.
+ *
+ * Exploration proves a tester can DO something; a crawl yields evidence a mission can be checked
+ * against from a public link — the url-verifiable class Sage can confirm and pay without judging an
+ * account. They answer different questions, so an interactive run wants both. Never throws: the
+ * caller keeps its exploration summary whatever happens here.
+ */
+async function crawlPagesForUrlEvidence(
+  context: BrowserContext | null,
+  startUrl: string,
+  candidateLinks: readonly string[],
+  host: string,
+  max = 3,
+): Promise<FieldTestCapture[]> {
+  if (!context) return [];
+  const urls = [
+    ...new Set(
+      candidateLinks
+        .map((u) => {
+          try {
+            const url = new URL(u, startUrl);
+            return url.host.toLowerCase() === host.toLowerCase() ? url.toString() : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((u): u is string => !!u),
+    ),
+  ].slice(0, max);
+  const caps: FieldTestCapture[] = [];
+  for (const url of urls) {
+    const page = await context.newPage().catch(() => null);
+    if (!page) continue;
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 10_000 });
+      const title = (await page.title().catch(() => "")).slice(0, 200);
+      const h1 = (
+        await page.locator("h1").first().innerText({ timeout: 1000 }).catch(() => "")
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
+      const renderedTextLen = await page
+        .evaluate(() => document.body?.innerText?.length ?? 0)
+        .catch(() => 0);
+      caps.push({
+        url: page.url(),
+        title,
+        h1,
+        ctas: await extractCtas(page),
+        forms: await extractForms(page),
+        consoleErrors: [],
+        failedRequests: [],
+        rawHtmlTextLen: renderedTextLen,
+        renderedTextLen,
+        screenshot: null,
+      });
+    } catch {
+      /* skip this page */
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+  return caps;
+}
+
 /** Build the durable STATIC summary from raw captures — caps CTAs, filters broken requests. Pure. */
 export function buildFieldTestSummary(input: {
   startUrl: string;
@@ -704,6 +771,31 @@ export async function runFieldTest(
         } catch {
           /* vision degraded — summary unchanged */
         }
+      }
+      // ALSO CRAWL THE PAGES. Exploration and crawling answer different questions: exploring proves a
+      // tester can DO something, crawling yields the URL-anchored evidence a mission can be checked
+      // against from a public link. Choosing one used to discard the other, and the generality battery
+      // caught the cost — content-ish products lost their url-verifiable (cleanly auto-payable)
+      // missions the moment intent turned exploration on. A bounded read-only pass, fully isolated:
+      // any failure leaves the exploration summary exactly as it was.
+      try {
+        const pageCaps = await crawlPagesForUrlEvidence(
+          context,
+          opts.startUrl,
+          opts.candidateLinks ?? [],
+          opts.host,
+        );
+        if (pageCaps.length > 0) {
+          const asPages = buildFieldTestSummary({
+            startUrl: opts.startUrl,
+            captures: pageCaps,
+            durationMs: 0,
+            limitation: null,
+          }).pages;
+          return { ...summary, pages: [...(summary.pages ?? []), ...asPages] };
+        }
+      } catch {
+        /* the exploration stands on its own */
       }
       return summary;
     }
