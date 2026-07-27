@@ -54,13 +54,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     return rpcError(-32000, "Rate limit exceeded.", 429);
   }
 
-  const { req: nodeReq, res: nodeRes } = toReqRes(req);
   let body: unknown;
   try {
     body = await req.json();
   } catch {
     return rpcError(-32700, "Parse error.", 400);
   }
+  // Rebuilt, never reused: reading the body above consumes the stream, and passing the SAME request
+  // to `toReqRes` raises "ReadableStream is locked" as an unhandled rejection on every call.
+  const { req: nodeReq, res: nodeRes } = toReqRes(
+    new Request(req.url, {
+      method: "POST",
+      headers: new Headers(req.headers),
+      body: JSON.stringify(body),
+    }) as unknown as NextRequest,
+  );
 
   const server = buildServer((fn) => after(fn));
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });

@@ -151,18 +151,23 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // A real MCP message under-specifying Accept is served anyway: the transport requires both
   // application/json and text/event-stream, and a plain `curl -X POST` offers neither.
-  const request = acceptsMcp(req.headers.get("accept"))
-    ? req
-    : new Request(req.url, {
-        method: "POST",
-        headers: (() => {
-          const h = new Headers(req.headers);
-          h.set("accept", MCP_ACCEPT);
-          return h;
-        })(),
-      });
+  //
+  // The request is ALWAYS rebuilt, never reused. `req.json()` above already consumed the incoming
+  // body stream, and handing that same consumed request to `toReqRes` made every call emit
+  // "unhandledRejection: ReadableStream is locked" — invisible to callers (the response still went
+  // out) but a real unhandled rejection on every request. Rebuilding gives the transport a fresh,
+  // unread body.
+  const request = new Request(req.url, {
+    method: "POST",
+    headers: (() => {
+      const h = new Headers(req.headers);
+      if (!acceptsMcp(req.headers.get("accept"))) h.set("accept", MCP_ACCEPT);
+      return h;
+    })(),
+    body: JSON.stringify(body),
+  });
 
-  const { req: nodeReq, res: nodeRes } = toReqRes(request as NextRequest);
+  const { req: nodeReq, res: nodeRes } = toReqRes(request as unknown as NextRequest);
 
   const server = buildPublicServer(ref, (fn) => after(fn));
   const transport = new StreamableHTTPServerTransport({
