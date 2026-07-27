@@ -2,7 +2,8 @@ import "server-only";
 
 import { MCP_TOOLS, callSageTool, type McpContext } from "@/lib/mcp/server";
 import { opGetInspection, type InspectionView } from "@/lib/agent-api/operations";
-import { sendTelegram } from "@/lib/telegram/bot";
+import { sendTelegram, sendTelegramForEdit, editTelegram } from "@/lib/telegram/bot";
+import { readFieldTestProgress } from "@/lib/launch/field-test-progress";
 import { privyConfigured } from "@/lib/privy/client";
 import { loadChatMessages, saveChatMessages } from "@/lib/db/concierge-chats";
 import { conciergeTaskRunMode, ConciergeTaskShadow, readMemory } from "./concierge-shadow";
@@ -264,6 +265,34 @@ function maybeNotifyOnInspection(
   }
 
   scheduleAfter(async () => {
+    // A LIVING VIEW FOR TELEGRAM. The web founder watches Sage move through their product; a Telegram
+    // founder used to get one "I've started" line and then silence for minutes. Telegram cannot
+    // stream, so one message is EDITED in place with the work as it happens — same trail, same real
+    // captures, no fabricated steps. Entirely best-effort: it is created lazily on the first real
+    // state, and every failure here is swallowed so it can never affect the inspection or the notice.
+    let progressMsgId: number | null = null;
+    let lastRendered = "";
+    const renderProgress = async () => {
+      try {
+        const steps = await readFieldTestProgress(inspectionId);
+        if (steps.length === 0) return;
+        const latest = steps[steps.length - 1]!;
+        const recent = steps.slice(-4).map((s) => `• ${s.label}`).join("\n");
+        const text =
+          `Sage is using your product — ${steps.length} state${steps.length === 1 ? "" : "s"} so far\n\n` +
+          `${recent}\n\nNow: ${latest.label}`;
+        if (text === lastRendered) return;
+        lastRendered = text;
+        if (progressMsgId === null) {
+          progressMsgId = await sendTelegramForEdit(chatId, text);
+        } else {
+          await editTelegram(chatId, progressMsgId, text);
+        }
+      } catch {
+        /* a progress line is a nicety; an inspection is not */
+      }
+    };
+
     for (let i = 0; i < 45; i++) {
       const r = opGetInspection(inspectionId);
       if (!r.ok) return;
@@ -280,6 +309,7 @@ function maybeNotifyOnInspection(
         await sendTelegram(chatId, notice, { html: false });
         return;
       }
+      await renderProgress();
       await delay(4000);
     }
   });

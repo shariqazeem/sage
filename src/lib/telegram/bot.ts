@@ -76,6 +76,62 @@ export async function sendTelegram(
   return allOk;
 }
 
+/**
+ * Send ONE message and return its id, so it can be EDITED in place afterwards.
+ *
+ * Telegram has no streaming, so an agent that works for minutes either says nothing or spams the
+ * chat. Editing one message gives a Telegram founder the same living view a web founder gets: one
+ * line that keeps changing as Sage moves through their product. Never throws.
+ */
+export async function sendTelegramForEdit(chatId: string, text: string): Promise<number | null> {
+  const token = botToken();
+  if (!token || !chatId) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 3800), disable_web_page_preview: true }),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { result?: { message_id?: number } };
+    return typeof j.result?.message_id === "number" ? j.result.message_id : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Replace the text of a message already sent. Silent no-op on any failure — a progress line that
+ *  fails to update must never affect the inspection or the final notice. */
+export async function editTelegram(chatId: string, messageId: number, text: string): Promise<boolean> {
+  const token = botToken();
+  if (!token || !chatId) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text: text.slice(0, 3800),
+        disable_web_page_preview: true,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Send ONE already-bounded message. Never throws; returns whether Telegram accepted it. */
 async function sendOneMessage(token: string, chatId: string, text: string, html: boolean): Promise<boolean> {
   const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true };
