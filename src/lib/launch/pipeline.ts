@@ -681,7 +681,11 @@ export async function inspectAndPlan(
     brain,
     allocation: legacy.allocation,
     plan: legacy.plan,
-    questions: brain.needsInputQuestions,
+    // A READY plan carries the map's ADVISORY open questions, never the brain's needs-input ones.
+    // Those are written for a run that could NOT design missions ("Sage couldn't get far enough into
+    // your product…") and handing them to a founder alongside a working plan contradicts the plan
+    // itself — the fastest way to make a correct answer look untrustworthy.
+    questions: map.openQuestions,
     canary: {
       status: canaryDecision.status,
       reason: canaryDecision.reason,
