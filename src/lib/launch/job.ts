@@ -59,6 +59,12 @@ const RETRYABLE_FAILURES = new Set([
   "provider_timeout",
   "provider_error",
   "architect_failed",
+  // A model that returned an unusable SHAPE five times is not a verdict about the founder's product
+  // — a fresh run samples differently and usually clears it. Leaving this out made it the one
+  // remaining dead end in the generality battery (a bot-walled store, nothing wrong with the plan).
+  "schema_mismatch",
+  "invalid_json",
+  "truncated_output",
 ]);
 const MAX_AUTO_RETRIES = 2;
 
