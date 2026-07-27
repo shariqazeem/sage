@@ -16,6 +16,7 @@ import {
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
 import { siteUrl } from "@/lib/site";
+import { guardGoalAgainstFounder } from "@/lib/launch/intent-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   conciergeBase as base,
@@ -437,6 +438,23 @@ async function runAgentTurn(
                 continue;
               }
               args.founderOverride = ctx.founderWallet.toLowerCase();
+            }
+            // INTENT FIDELITY — the model may rephrase the founder's goal, never enlarge it. It
+            // turned "make users launch campaign, funding not required" into "…CONNECT THEIR WALLET
+            // and initiate creation", and those invented words became hard checkpoints Sage could
+            // never observe, so a fully-explored product still came back asking the founder to
+            // restate their goal. Applied HERE because this is the one place that holds both the
+            // founder's own words and the expansion — so web and Telegram get the identical guard.
+            if (typeof args.goal === "string") {
+              const guarded = guardGoalAgainstFounder(userText, args.goal);
+              if (guarded.dropped.length > 0) {
+                console.log(
+                  "[concierge:%s] dropped invented requirement(s) from goal: %s",
+                  surface,
+                  guarded.dropped.join(","),
+                );
+                args.goal = guarded.goal;
+              }
             }
             // TELEGRAM ↔ WEB PARITY: a chat that has onboarded owns a real wallet (its Privy agent
             // wallet IS its founder address) — the same address that approves the plan and owns the
