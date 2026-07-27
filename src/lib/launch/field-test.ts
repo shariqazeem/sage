@@ -1889,8 +1889,14 @@ async function exploreInteractive(ctx: {
             ineffective.clear();
           }
           stall = 0;
+          // THE FOUNDER'S OWN CHECKPOINTS MOVING is the strongest evidence the run is on the right
+          // track, and it is the one signal that survives crossing from a marketing page into an app.
+          // Without it a run spent its budget on the landing page and reached the actual flow with
+          // nothing left — it opened /launch, clicked Continue, touched the first form field, and
+          // stopped there, which is exactly where the interesting evidence starts.
+          if (journeyAdvanced) reserveBudget();
           // verified goal progress after the main experience → extend, bounded by the hard ceilings.
-          if (mainReached && (targetedGoal || progress === "advancing"))
+          else if (mainReached && (targetedGoal || progress === "advancing"))
             reserveBudget();
         } else {
           if (actedLabel) {
