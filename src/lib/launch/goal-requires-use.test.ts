@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { goalRequiresUse, type GoalJourneyV1 } from "./goal-journey";
 import { classifyMode, type ProductSignals } from "./field-test";
+import { coerceDecision, canonicalAction } from "./browser-controller";
 
 /**
  * REGRESSION — production job 2XruYQs-qQ9B. A founder asked Sage to test sagepays.xyz so that
@@ -99,5 +100,41 @@ describe("the render-based rules still work when intent is absent", () => {
         false,
       ),
     ).toBe("interactive");
+  });
+});
+
+/* ── the explorer can cross into another page of the same product ──────────── */
+
+describe("open_path — the flow the founder named usually lives behind a link", () => {
+  const els = [{ id: "e1", tag: "button", label: "Start", typable: false }] as never;
+
+  it("accepts a path Sage offered", () => {
+    const d = coerceDecision(
+      { action: { kind: "open_path", path: "/launch" }, goalProgress: "advancing" },
+      els,
+      ["/launch", "/app"],
+    );
+    expect(d?.action).toEqual({ kind: "open_path", path: "/launch" });
+  });
+
+  it("refuses a path Sage never offered — the model picks, it never composes", () => {
+    for (const path of ["/admin", "https://evil.example/steal", "../../etc/passwd", ""]) {
+      expect(
+        coerceDecision({ action: { kind: "open_path", path } }, els, ["/launch"]),
+      ).toBeNull();
+    }
+  });
+
+  it("refuses every path once the navigation budget is spent (empty offer list)", () => {
+    expect(
+      coerceDecision({ action: { kind: "open_path", path: "/launch" } }, els, []),
+    ).toBeNull();
+  });
+
+  it("is a distinct move in the repeat-detector, so it is not confused with a click", () => {
+    expect(canonicalAction({ kind: "open_path", path: "/launch" })).toBe("open:/launch");
+    expect(canonicalAction({ kind: "open_path", path: "/app" })).not.toBe(
+      canonicalAction({ kind: "open_path", path: "/launch" }),
+    );
   });
 });

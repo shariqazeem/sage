@@ -54,6 +54,12 @@ export type ControllerAction =
     }
   | { kind: "wait" }
   | { kind: "go_back" }
+  /** Go to another page of the SAME product. `path` must be one Sage already discovered and offered —
+   *  the model picks from a list, it never composes a URL, so it can neither wander off-host nor
+   *  invent a route. Without this the explorer is single-page: it was built for a product that lives
+   *  on one screen, and on a normal app it clicks the hero button forever and never reaches the flow
+   *  the founder asked about. */
+  | { kind: "open_path"; path: string }
   | { kind: "stop"; status: "completed" | "blocked"; reason: string };
 
 export type GoalProgress = "not_started" | "advancing" | "reached" | "blocked";
@@ -435,10 +441,12 @@ export function actionSignature(
     .digest("hex")
     .slice(0, 20);
 }
-function canonicalAction(a: ControllerAction): string {
+export function canonicalAction(a: ControllerAction): string {
   switch (a.kind) {
     case "click_element":
       return `click:${a.elementId}`;
+    case "open_path":
+      return `open:${a.path}`;
     case "click_coords":
       return `coords:${Math.round(a.xPct)},${Math.round(a.yPct)}`;
     case "press_key":
@@ -480,6 +488,8 @@ const clampPct = (n: unknown): number =>
 export function coerceDecision(
   raw: unknown,
   elements: MintedElement[],
+  /** the same-host paths Sage offered this turn — an `open_path` outside this list is refused. */
+  offeredPaths: readonly string[] = [],
 ): ControllerDecision | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -506,6 +516,11 @@ export function coerceDecision(
     case "click_element": {
       const el = byId.get(String(a.elementId));
       return el ? wrap({ kind: "click_element", elementId: el.id }) : null;
+    }
+    case "open_path": {
+      // only a path Sage itself discovered and offered — never a model-composed URL.
+      const want = String(a.path ?? "").trim();
+      return offeredPaths.includes(want) ? wrap({ kind: "open_path", path: want }) : null;
     }
     case "click_coords":
       return wrap({
@@ -687,7 +702,7 @@ const CONTROLLER_SYSTEM = [
   "STOP with status blocked if you hit a login, signup, CAPTCHA, wallet signature, payment, purchase, file upload, publish, or a message to a real person — never attempt those. STOP with status completed once the goal is clearly achieved.",
   "Do not repeat an action that already produced no change.",
   'Reply with ONLY a JSON object, no prose, exactly: {"action":{"kind":"...", ...fields for that kind...},"expectedChange":"...","goalProgress":"not_started|advancing|reached|blocked"}.',
-  'Field per kind: click_element→{"kind":"click_element","elementId":"e3"}; click_coords→{"kind":"click_coords","xPct":50,"yPct":80}; press_key→{"kind":"press_key","key":"ArrowRight","repeat":3}; type_text→{"kind":"type_text","elementId":"e1","valueKind":"display_name"}; select_option→{"kind":"select_option","elementId":"e2","optionValue":"US"}; scroll→{"kind":"scroll","direction":"down"}; drag→{"kind":"drag","fromXPct":40,"fromYPct":50,"toXPct":60,"toYPct":50}; wait→{"kind":"wait"}; go_back→{"kind":"go_back"}; stop→{"kind":"stop","status":"completed|blocked","reason":"..."}.',
+  'Field per kind: click_element→{"kind":"click_element","elementId":"e3"}; click_coords→{"kind":"click_coords","xPct":50,"yPct":80}; press_key→{"kind":"press_key","key":"ArrowRight","repeat":3}; type_text→{"kind":"type_text","elementId":"e1","valueKind":"display_name"}; select_option→{"kind":"select_option","elementId":"e2","optionValue":"US"}; scroll→{"kind":"scroll","direction":"down"}; drag→{"kind":"drag","fromXPct":40,"fromYPct":50,"toXPct":60,"toYPct":50}; wait→{"kind":"wait"}; go_back→{"kind":"go_back"}; open_path→{"kind":"open_path","path":"/one-of-the-offered-paths"}; stop→{"kind":"stop","status":"completed|blocked","reason":"..."}.',
 ].join(" ");
 
 function controllerUserText(
@@ -695,6 +710,8 @@ function controllerUserText(
   view: ControllerStateView,
   history: ControllerHistoryItem[],
   remainingActions: number,
+  /** other pages of this same product Sage has discovered — the only paths `open_path` may use. */
+  offeredPaths: readonly string[] = [],
 ): string {
   const els = view.elements
     .slice(0, 40)
@@ -731,9 +748,14 @@ function controllerUserText(
     `REMAINING ACTIONS: ${remainingActions}`,
     `VISIBLE TEXT (bounded):\n<<<UNTRUSTED_PAGE\n${view.visibleText.slice(0, 1200)}\n>>>`,
     `INTERACTIVE ELEMENTS (reference by id only):\n${els || "  (none — this is a canvas/visual state; use coords/keys)"}${canvas}`,
+    offeredPaths.length > 0
+      ? `OTHER PAGES OF THIS PRODUCT (open one with open_path when the goal clearly lives elsewhere — e.g. the flow the founder named is not on this screen):\n${offeredPaths.map((p) => `  ${p}`).join("\n")}`
+      : "",
     `YOUR RECENT ACTIONS:\n${hist}`,
     `Return the single next action toward the goal.`,
-  ].join("\n\n");
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n\n");
 }
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
@@ -854,6 +876,8 @@ export async function decideNextAction(
   remainingActions: number,
   imageDataUri: string | null,
   deps: DecideDeps = {},
+  /** other same-host pages Sage discovered; empty once the navigation budget is spent. */
+  offeredPaths: readonly string[] = [],
 ): Promise<ControllerDecision | null> {
   const complete = deps.complete
     ? deps.complete
@@ -865,11 +889,11 @@ export async function decideNextAction(
           : null;
       })();
   if (!complete) return null;
-  const user = controllerUserText(goal, view, history, remainingActions);
+  const user = controllerUserText(goal, view, history, remainingActions, offeredPaths);
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await complete(CONTROLLER_SYSTEM, user, imageDataUri);
     if (raw) {
-      const decision = coerceDecision(isolateJson(raw), view.elements);
+      const decision = coerceDecision(isolateJson(raw), view.elements, offeredPaths);
       if (decision) return decision;
     }
     deps.log?.(

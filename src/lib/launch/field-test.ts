@@ -95,6 +95,9 @@ const EXPLORE_MS = 180_000; // 3 minutes hard cap
 const LOADING_BUDGET_MS = 60_000;
 const LOADING_POLL_MS = 2_000;
 const STABLE_DELTA = 4; // % — under this vs the prior poll counts as "settled"
+/** Pages the explorer may open per run. Crossing into the founder's flow needs one or two; more
+ *  than this is browsing the site instead of using it. */
+const MAX_NAVIGATIONS = 3;
 const CANVAS_MIN_AREA = 40_000; // ≥ ~200×200: a real surface, not an icon
 const ANIMATION_PROBE_MS = 8_000; // watch a thin shell this long for self-animation (early-out on first change)
 const MAX_AFFORDANCES = 10; // distinct scene/controls to click in a choice-driven experience (P21: 6→10)
@@ -664,6 +667,25 @@ export async function runFieldTest(
         entryErrors,
         goal: opts.goal,
         journey: opts.journey ?? null,
+        // the routes the static crawl already found on this host, as paths. The explorer was
+        // single-page: on a normal app the flow the founder named lives behind a link, and clicking
+        // the hero button forever never gets there (13 identical clicks, one URL, zero progress).
+        candidatePaths: [
+          ...new Set(
+            (opts.candidateLinks ?? [])
+              .map((u) => {
+                try {
+                  const url = new URL(u, opts.startUrl);
+                  return url.host.toLowerCase() === opts.host.toLowerCase()
+                    ? url.pathname + url.search
+                    : null;
+                } catch {
+                  return null;
+                }
+              })
+              .filter((p): p is string => !!p && p !== "/"),
+          ),
+        ].slice(0, 6),
         controllerDeps: deps.controller,
       });
       await entryPage.close().catch(() => {});
@@ -1292,6 +1314,14 @@ async function executeAction(
       case "click_element":
         await loc(action.elementId).click({ timeout: 2_500, force: true });
         return `clicked "${labelOf(action.elementId)}"`;
+      case "open_path": {
+        // Same-origin only, and only a path Sage discovered and offered — `coerceDecision` already
+        // refused anything else, and the egress boundary refuses anything off-host regardless.
+        const target = new URL(action.path, page.url());
+        await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 12_000 });
+        await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+        return `opened ${action.path}`;
+      }
       case "click_coords":
         await page.mouse.click(
           (action.xPct / 100) * vp.width,
@@ -1451,6 +1481,8 @@ async function exploreInteractive(ctx: {
   goal?: string;
   /** the founder's compiled ordered journey (checkpoint-driven targeting). */
   journey?: GoalJourneyV1 | null;
+  /** same-host pages the static crawl discovered — the only routes `open_path` may take. */
+  candidatePaths?: readonly string[];
   /** controller deps (scripted decider for fixtures; real multimodal model otherwise). */
   controllerDeps?: DecideDeps;
 }): Promise<FieldTestSummary> {
@@ -1663,6 +1695,9 @@ async function exploreInteractive(ctx: {
       // The founder's ordered journey, advanced LIVE from the states captured so far. It decides which
       // target Sage pursues next; completion is evidence-based (see evaluateJourney), never text alone.
       let liveJourney = ctx.journey ?? null;
+      // Navigation is bounded: enough to cross into the flow the founder named, not enough to wander
+      // the whole site instead of using it.
+      let navigations = 0;
       const advanceJourney = () => {
         if (!ctx.journey) return;
         liveJourney = evaluateJourney(
@@ -1765,10 +1800,12 @@ async function exploreInteractive(ctx: {
             actionCap - interactions,
             img,
             ctx.controllerDeps ?? {},
+            navigations < MAX_NAVIGATIONS ? (ctx.candidatePaths ?? []) : [],
           );
           modelCalls++;
           if (!decision) break;
           action = decision.action;
+          if (action.kind === "open_path") navigations++;
           progress = decision.goalProgress;
         }
         if (action.kind === "stop") {
