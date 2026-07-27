@@ -1092,6 +1092,35 @@ function expressesCheckpoint(pair: string, cp: GoalCheckpointV1): boolean {
 }
 
 /**
+ * DOES THE FOUNDER'S REQUEST NEED THE PRODUCT USED, rather than read?
+ *
+ * Sage decided that from how a page RENDERED, so a text-rich app could never be explored — it crawled
+ * six pages of its own site and clicked nothing, then failed for want of grounded evidence. Reading
+ * HTML cannot verify "make users launch a campaign"; only clicking Launch and filling the form can.
+ *
+ * Two signals, in order of authority:
+ *   1. the COMPILED JOURNEY — a checkpoint of kind interaction/input/outcome is Sage's own structured
+ *      reading of the request, and beats any keyword;
+ *   2. the goal's own words — the fallback when the journey is empty or hasn't compiled yet.
+ *
+ * Deliberately conservative: a request to read, check or review a page has no action verb and stays a
+ * crawl. Pure and product-agnostic — no product names, no per-site rules.
+ */
+const GOAL_ACTION_VERB =
+  /\b(launch|create|creat\w+|start|begin|open|click|tap|press|submit|send|sign[- ]?up|signup|register|log[- ]?in|login|onboard\w*|complete|finish|use|try|play|draw|type|enter|fill|upload|download|install|configure|set[- ]?up|connect|buy|purchase|checkout|check[- ]?out|order|book|pay|fund|claim|mint|swap|add|invite|share|post|publish|comment|vote|join|subscribe|search|filter|save|edit|delete|drag|swipe|talk|chat|message|reply|respond|interact|navigate|reach|walk|explore|get to|go to|land on)\b/i;
+
+export function goalRequiresUse(
+  goal: string | null | undefined,
+  journey?: GoalJourneyV1 | null,
+): boolean {
+  const actionable = journey?.checkpoints?.some(
+    (c) => c.kind === "interaction" || c.kind === "input" || c.kind === "outcome",
+  );
+  if (actionable) return true;
+  return GOAL_ACTION_VERB.test(goal ?? "");
+}
+
+/**
  * The one question to ask a founder about a checkpoint Sage could not complete.
  *
  * There are TWO different boundaries and they need different questions. Asking "is there a path

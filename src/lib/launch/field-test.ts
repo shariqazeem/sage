@@ -29,6 +29,7 @@ import {
   nextUnmetCheckpoint,
   buildJourneySteps,
   type GoalJourneyV1,
+  goalRequiresUse,
 } from "./goal-journey";
 import {
   chooseForwardAffordance,
@@ -190,7 +191,18 @@ export interface ProductSignals {
  * (e.g. yara.garden — an emoji world with no canvas at all). Otherwise it is a content site we crawl
  * exactly as before. Text-rich pages are always static (a dashboard's pages ARE crawlable). Pure.
  */
-export function classifyMode(s: ProductSignals): ProductMode {
+export function classifyMode(
+  s: ProductSignals,
+  /** true when the founder asked for something a tester must DO, not merely read. */
+  goalRequiresUse = false,
+): ProductMode {
+  // THE FOUNDER'S INTENT OUTRANKS THE RENDER. Every branch below needs `thinText` (<600 chars), so a
+  // text-rich app could never be explored — Sage crawled six pages of its OWN site and never clicked
+  // anything, then failed for want of grounded evidence. "A dashboard's pages ARE crawlable" is true
+  // for READING a product and false for USING one: "make users launch a campaign" cannot be verified
+  // by reading HTML, only by clicking Launch and filling the form. When the goal names work a tester
+  // must perform, Sage uses the product regardless of how much text it renders.
+  if (goalRequiresUse) return "interactive";
   const bigCanvas = s.hasCanvas && s.canvasArea >= CANVAS_MIN_AREA;
   const thinText = s.renderedTextLen < 600;
   // a game / rendered experience on a canvas
@@ -632,7 +644,11 @@ export async function runFieldTest(
       /* couldn't load entry — fall through to static (which will degrade honestly) */
     }
 
-    const mode: ProductMode = signals ? classifyMode(signals) : "static";
+    // the founder's intent, decided ONCE from the compiled journey (authoritative) or the goal's words.
+    const requiresUse = goalRequiresUse(opts.goal, opts.journey ?? null);
+    const mode: ProductMode = signals
+      ? classifyMode(signals, requiresUse)
+      : "static";
 
     if (mode === "interactive") {
       // hand the already-loaded entry page to the state machine.
