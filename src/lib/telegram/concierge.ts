@@ -15,6 +15,7 @@ import {
 } from "@/lib/telegram/agent-wallet-tools";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
+import { siteUrl } from "@/lib/site";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   conciergeBase as base,
@@ -270,6 +271,14 @@ function maybeNotifyOnInspection(
     // stream, so one message is EDITED in place with the work as it happens — same trail, same real
     // captures, no fabricated steps. Entirely best-effort: it is created lazily on the first real
     // state, and every failure here is swallowed so it can never affect the inspection or the notice.
+    // THE TRACKING LINK IS NOT THE MODEL'S TO REMEMBER. It relayed the plan link on one run and
+    // silently dropped it on the next, leaving the founder with no way to watch their own inspection.
+    // Send it deterministically, the moment the run starts, so it is always there.
+    await sendTelegram(
+      chatId,
+      `Watching it live: ${siteUrl()}/launch/${inspectionId}`,
+      { html: false },
+    ).catch(() => false);
     let progressMsgId: number | null = null;
     let lastRendered = "";
     const renderProgress = async () => {
