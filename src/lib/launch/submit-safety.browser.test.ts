@@ -124,12 +124,45 @@ describe("a required field the mint missed is filled, not submitted past", () =>
     expect(await page.inputValue("[name=email]")).toBe("");
   });
 
-  it("leaves optional fields alone", async () => {
+  it("fills optional fields too, because a JS-validated form marks nothing required", async () => {
+    // Sage's own launch form validates in React and sets no `required` attribute anywhere, so an
+    // attribute-driven pass filled nothing and every submission bounced off "Target users is
+    // required." Filling every safe empty field is what makes a JS-validated form completable.
     await load(
-      `<form><input name="productUrl" type="url" required /><input id="opt" name="notes" /><button type="submit">Go</button></form>`,
+      `<form><input id="a" name="productUrl" type="url" /><input id="b" name="targetUsers" placeholder="Who should test this" /><button type="submit">Go</button></form>`,
+    );
+    expect(await requiredSensitiveFieldPending(page)).toBe(false);
+    expect(await page.inputValue("#a")).toBe("https://example.com");
+    expect((await page.inputValue("#b")).trim().length).toBeGreaterThan(0);
+  });
+
+  it("leaves an OPTIONAL credential box alone without blocking the form", async () => {
+    await load(
+      `<form><input id="a" name="topic" /><input id="e" name="email" type="email" /><button type="submit">Go</button></form>`,
+    );
+    expect(await requiredSensitiveFieldPending(page)).toBe(false);
+    expect(await page.inputValue("#e")).toBe("");
+    expect((await page.inputValue("#a")).trim().length).toBeGreaterThan(0);
+  });
+
+  it("never types into a checkbox, radio or file input", async () => {
+    await load(
+      `<form><input id="c" type="checkbox" /><input id="r" type="radio" /><input id="f" type="file" /><input id="t" name="topic" /><button type="submit">Go</button></form>`,
     );
     await requiredSensitiveFieldPending(page);
-    expect(await page.inputValue("#opt")).toBe("");
+    expect(await page.locator("#c").isChecked()).toBe(false);
+    expect(await page.locator("#r").isChecked()).toBe(false);
+    expect(await page.inputValue("#f")).toBe("");
+  });
+
+  it("leaves a disabled or readonly field untouched", async () => {
+    await load(
+      `<form><input id="d" name="topic" disabled /><input id="ro" name="note" readonly /><input id="ok" name="thing" /><button type="submit">Go</button></form>`,
+    );
+    await requiredSensitiveFieldPending(page);
+    expect(await page.inputValue("#d")).toBe("");
+    expect(await page.inputValue("#ro")).toBe("");
+    expect((await page.inputValue("#ok")).trim().length).toBeGreaterThan(0);
   });
 });
 

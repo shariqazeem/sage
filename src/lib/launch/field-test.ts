@@ -1425,6 +1425,8 @@ async function filledFieldCount(page: Page): Promise<number> {
 /** One still-empty required field, as read from the live page. */
 interface PendingRequired {
   eid: string;
+  /** whether the APP itself insists on this field — decides if an unfillable one blocks the submit. */
+  required: boolean;
   type: string;
   name: string;
   id: string;
@@ -1435,7 +1437,15 @@ interface PendingRequired {
   tag: string;
 }
 
-/** Read every REQUIRED field that is still empty, and tag each so it can be filled by id. */
+/**
+ * Read every still-empty visible field, and tag each so it can be filled by id.
+ *
+ * Deliberately NOT limited to fields carrying `required`. A React form validates in JavaScript and
+ * frequently sets no such attribute — Sage's own launch form is exactly that, and its "target users"
+ * field was invisible to an attribute-driven pass, so every submission bounced off "Target users is
+ * required." while Sage believed it had filled the form. `requiredOnly` marks which of them the app
+ * itself insists on, which is what decides whether an unfillable field BLOCKS the submission.
+ */
 async function pendingRequiredFields(page: Page): Promise<PendingRequired[]> {
   return page
     .evaluate(() => {
@@ -1447,13 +1457,18 @@ async function pendingRequiredFields(page: Page): Promise<PendingRequired[]> {
         const he = el as HTMLInputElement;
         const required =
           he.required || he.getAttribute("aria-required") === "true";
-        if (!required || (he.value ?? "").trim().length > 0) continue;
+        const t = (he.getAttribute("type") || "").toLowerCase();
+        if (["hidden", "submit", "button", "checkbox", "radio", "file"].includes(t))
+          continue;
+        if (he.disabled || he.readOnly) continue;
+        if ((he.value ?? "").trim().length > 0) continue;
         const rect = he.getBoundingClientRect?.();
         if (!rect || rect.width < 4 || rect.height < 4) continue;
         const eid = "req" + n++;
         he.setAttribute("data-sage-req", eid);
         out.push({
           eid,
+          required,
           type: (he.getAttribute("type") || "").toLowerCase(),
           name: he.getAttribute("name") || "",
           id: he.id || "",
@@ -1492,15 +1507,17 @@ async function pendingRequiredFields(page: Page): Promise<PendingRequired[]> {
 export async function requiredSensitiveFieldPending(
   page: Page,
 ): Promise<boolean> {
+  let blocked = false;
   for (const f of await pendingRequiredFields(page)) {
-    if (isSensitiveField(f)) return true;
-    // A required field the mint missed, which Sage IS allowed to fill: fill it now.
+    if (isSensitiveField(f)) {
+      // Only a field the APP insists on can block. An optional credential box is simply left alone.
+      if (f.required) blocked = true;
+      continue;
+    }
     const value = resolveSyntheticValue(classifyFieldValue(f));
     const loc = page.locator(`[data-sage-req="${f.eid}"]`).first();
     if (f.tag === "select") {
-      await loc
-        .selectOption({ index: 1 }, { timeout: 2_000 })
-        .catch(() => {});
+      await loc.selectOption({ index: 1 }, { timeout: 2_000 }).catch(() => {});
       continue;
     }
     await loc.fill(value, { timeout: 2_000 }).catch(async () => {
@@ -1508,8 +1525,9 @@ export async function requiredSensitiveFieldPending(
       await page.keyboard.type(value, { delay: 10 }).catch(() => {});
     });
   }
-  // Anything still empty and required after that pass blocks an honest submission.
-  return (await pendingRequiredFields(page)).length > 0;
+  if (blocked) return true;
+  // Anything the APP requires that is still empty after that pass blocks an honest submission.
+  return (await pendingRequiredFields(page)).some((f) => f.required);
 }
 
 /**
