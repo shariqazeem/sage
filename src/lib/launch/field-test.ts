@@ -2075,6 +2075,10 @@ async function exploreInteractive(ctx: {
       const ineffective = new Map<string, number>();
       /** How many times a single URL has changed under Sage without ever leading anywhere new. */
       const churnAtUrl = new Map<string, number>();
+      /** Where Sage arrived. A landing page is where a visitor ARRIVES, not where the product lives. */
+      const entryUrl = page.url();
+      /** Same-host routes Sage has already opened, so a forced departure never loops between two. */
+      const visitedPaths = new Set<string>();
       const history: ControllerHistoryItem[] = [];
       const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
       const terms = goalTerms(goal);
@@ -2194,14 +2198,39 @@ async function exploreInteractive(ctx: {
           continue;
         }
 
+        // 0. LEAVE A SCREEN THAT HAS STOPPED PAYING. Retiring controls by LABEL cannot work here: the
+        //    landing page's demo widget renames its affordances on every repaint — "Start", then
+        //    "action · Start", then "payout may continue", then "SAGE REPLAYED" — so retiring one only
+        //    ever hides a label the page has already replaced. Three attempts at label-level
+        //    retirement moved 11 states to 10.
+        //
+        //    The entry page is where a visitor ARRIVES, not where the product lives; a founder's flow
+        //    almost always sits behind a link. So once the entry screen has churned past the cap and
+        //    Sage holds a route it has not opened, it goes there — deterministically, without asking
+        //    the model to decline the same buttons one more time. A genuine single-page product has no
+        //    candidate paths, so nothing here fires and its behaviour is unchanged.
+        let action: ControllerAction | null = null;
+        const hereUrl = page.url();
+        if (
+          hereUrl === entryUrl &&
+          (churnAtUrl.get(hereUrl) ?? 0) >= SCREEN_CHURN_CAP &&
+          navigations < MAX_NAVIGATIONS
+        ) {
+          const next = (ctx.candidatePaths ?? []).find(
+            (p) => !visitedPaths.has(p),
+          );
+          if (next) {
+            visitedPaths.add(next);
+            navigations++;
+            action = { kind: "open_path", path: next };
+          }
+        }
+
         // 1. linear onboarding: the obvious forward control (cheap + deterministic, no model call).
-        let action: ControllerAction | null = chooseForwardAffordance(
-          elements,
-          digest,
-          tried,
-          deadLabels,
-        );
-        let isOnboarding = !!action;
+        const forcedExit = !!action;
+        if (!action)
+          action = chooseForwardAffordance(elements, digest, tried, deadLabels);
+        let isOnboarding = !!action && !forcedExit;
         // 2. no forward control ⇒ the MAIN EXPERIENCE is reached: guarantee exploration budget, then go
         //    straight for whatever the GOAL names (a character/entity/interaction visible on screen).
         if (!action) {

@@ -87,7 +87,7 @@ describe("a screen that is getting somewhere is never retired", () => {
   });
 
   it("a multi-step form alternating fill and continue survives indefinitely", () => {
-    const steps = [{ url: "/launch" }];
+    const steps: Array<{ url: string; filled?: boolean }> = [{ url: "/launch" }];
     for (let i = 0; i < 12; i++) {
       steps.push({ url: "/launch" }, { url: "/launch", filled: true });
     }
@@ -115,5 +115,64 @@ describe("churn is per screen, not global", () => {
     // / churns 3, Sage leaves, comes back — the return resets rather than resuming at 3.
     const steps = [...at("/", 3), { url: "/app" }, { url: "/" }, ...at("/", 3)];
     expect(runChurn(steps).retired).toEqual([]);
+  });
+});
+
+/**
+ * FORCED DEPARTURE — the rule that finally moved the number. Label-level retirement cannot work on a
+ * page whose demo widget RENAMES its controls on every repaint ("Start" → "action · Start" → "payout
+ * may continue" → "SAGE REPLAYED"); retiring one only hides a label the page has already replaced.
+ * Two attempts at it moved 11 states to 10. So the entry screen, once it has churned past the cap,
+ * is left by NAVIGATION rather than by declining the same buttons again.
+ */
+const MAX_NAVIGATIONS = 3;
+
+function forcedExit(opts: {
+  here: string;
+  entry: string;
+  churn: number;
+  candidates: string[];
+  visited?: string[];
+  navigations?: number;
+}): string | null {
+  const visited = new Set(opts.visited ?? []);
+  if (opts.here !== opts.entry) return null;
+  if (opts.churn < SCREEN_CHURN_CAP) return null;
+  if ((opts.navigations ?? 0) >= MAX_NAVIGATIONS) return null;
+  return opts.candidates.find((p) => !visited.has(p)) ?? null;
+}
+
+describe("an exhausted entry screen is left by navigating", () => {
+  const base = { here: "/", entry: "/", candidates: ["/launch", "/dashboard"] };
+
+  it("opens the first unvisited route once the entry page is exhausted", () => {
+    expect(forcedExit({ ...base, churn: SCREEN_CHURN_CAP })).toBe("/launch");
+  });
+
+  it("stays put while the entry page is still paying", () => {
+    expect(forcedExit({ ...base, churn: SCREEN_CHURN_CAP - 1 })).toBeNull();
+  });
+
+  it("never loops back onto a route it already opened", () => {
+    expect(
+      forcedExit({ ...base, churn: 9, visited: ["/launch"] }),
+    ).toBe("/dashboard");
+    expect(
+      forcedExit({ ...base, churn: 9, visited: ["/launch", "/dashboard"] }),
+    ).toBeNull();
+  });
+
+  it("leaves a genuine single-page product alone — no routes, no forced exit", () => {
+    expect(forcedExit({ ...base, churn: 9, candidates: [] })).toBeNull();
+  });
+
+  it("does not fire on a screen Sage navigated TO, only on the entry screen", () => {
+    expect(forcedExit({ ...base, here: "/launch", churn: 9 })).toBeNull();
+  });
+
+  it("respects the navigation ceiling", () => {
+    expect(
+      forcedExit({ ...base, churn: 9, navigations: MAX_NAVIGATIONS }),
+    ).toBeNull();
   });
 });
