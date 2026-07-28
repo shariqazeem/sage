@@ -84,6 +84,10 @@ const MAX_CTAS = 10;
 // tester, not the reverse. The time cap is unchanged (still 3 min hard); the extra actions fit inside it.
 const MAX_INTERACTIONS = 30; // goal-directed action budget (spec cap: 30 browser actions)
 const MAX_STATES = 25; // retained meaningful states (spec cap)
+/** Changes Sage will accept from ONE url before treating that screen as seen and looking for a way
+ *  off it. A page whose own demo widget repaints on every click is otherwise indistinguishable from
+ *  progress, and will happily absorb the entire exploration budget. */
+const SCREEN_CHURN_CAP = 4;
 const MAX_MODEL_CALLS = 12; // multimodal controller decisions (spec cap)
 // Linear onboarding must not eat the exploration budget. Once the product's MAIN EXPERIENCE is reached,
 // reserve a floor for real exploration, and allow a bounded extension while the controller is making
@@ -2069,6 +2073,8 @@ async function exploreInteractive(ctx: {
       const tried = new Set<string>();
       const deadLabels = new Set<string>(); // affordances/directions that did nothing HERE (cleared on progress)
       const ineffective = new Map<string, number>();
+      /** How many times a single URL has changed under Sage without ever leading anywhere new. */
+      const churnAtUrl = new Map<string, number>();
       const history: ControllerHistoryItem[] = [];
       const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
       const terms = goalTerms(goal);
@@ -2317,6 +2323,26 @@ async function exploreInteractive(ctx: {
         if (realChange) {
           // COMPACT consecutive onboarding states: a linear ladder costs ONE unit of the state budget.
           if (!(isOnboarding && prevOnboarding)) meaningful++;
+          // RETIRE THE WHOLE SCREEN, not just a label. Retirement was already forgiven only by real
+          // movement (below), but the BUDGET was not: on a marketing page whose demo widget repaints,
+          // every click is a "real change", so each one bought another unit of the state budget and
+          // the run never left. Job Y2RRcUc9OB_Q spent 11 of 26 states on `/` clicking "Start",
+          // "action · Start", "payout may continue" and "SAGE REPLAYED" before reaching the app.
+          //
+          // So churn is counted PER URL. A screen that keeps changing without ever taking Sage
+          // somewhere new has been seen; every control on it is retired at once, which pushes the
+          // next decision to navigation (`open_path`) instead of one more click into the same page.
+          const sameUrl = page.url() === prevUrl;
+          if (sameUrl && !filled && !journeyAdvanced) {
+            const seen = (churnAtUrl.get(prevUrl) ?? 0) + 1;
+            churnAtUrl.set(prevUrl, seen);
+            if (seen >= SCREEN_CHURN_CAP) {
+              for (const e of elements) if (e.label.trim()) deadLabels.add(normL(e.label));
+              if (actedLabel) deadLabels.add(actedLabel);
+            }
+          } else if (!sameUrl) {
+            churnAtUrl.set(page.url(), 0);
+          }
           // Retirement is forgiven only by REAL movement — a new page, a filled field, or the founder's
           // journey actually advancing. On an animated marketing page every click repaints something,
           // so "the words changed" forgave every dead control and Sage clicked the same hero button
