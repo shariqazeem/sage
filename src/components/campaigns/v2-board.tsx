@@ -11,6 +11,11 @@ import { useSiwe } from "@/lib/auth/use-siwe";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import {
+  composeAccount,
+  evidencePrompts,
+  hasAnyAnswer,
+} from "@/lib/campaigns/evidence-answers";
+import {
   buildEvidenceClaimTypedData, computeEvidenceDigest,
   EVIDENCE_CLAIM_SCHEMA_VERSION, EVIDENCE_CLAIM_TTL_SECONDS, type EvidenceClaim,
 } from "@/lib/campaigns/evidence-claim";
@@ -149,6 +154,17 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");
+  // The mission designs its own evidence form: one answer per requirement it authored. A tester used
+  // to face a single box and no idea what it had to contain, so honest people wrote two sentences and
+  // the observation bar — which needs three details only a real user could know — held them.
+  const [answers, setAnswers] = useState<string[]>([]);
+  // The questions this mission puts to a tester, authored per product by the mission brain from what
+  // Sage actually saw. Empty for a mission that carries none → one open box, an honest degradation.
+  const prompts = evidencePrompts(mission.evidenceList);
+  // The judged account: the tester's OWN words only. The prompts are public card text, and folding
+  // them in would put language the tester merely read in front of the verifier.
+  const composedNote = prompts.length > 0 ? composeAccount(answers) : note.trim();
+  const answered = prompts.length === 0 ? note.trim().length > 0 : hasAnyAnswer(answers);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mine, setMine] = useState<MySubmission | null>(null);
@@ -185,7 +201,9 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       const account = wallet.address;
       const walletClient = wallet.getWalletClient();
       if (!account || !walletClient) { setError("Reconnect your wallet to sign."); return; }
-      const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidence.trim(), note: note.trim() });
+      // ONE string, used for both the signed digest and the request body — they must never diverge.
+      const submittedNote = composedNote;
+      const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidence.trim(), note: submittedNote });
       const now = Math.floor(Date.now() / 1000);
       const claim: EvidenceClaim = {
         schemaVersion: EVIDENCE_CLAIM_SCHEMA_VERSION,
@@ -210,14 +228,14 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       } catch { setError("You declined the signature. Nothing was submitted."); return; }
       const res = await fetch(`/api/campaigns/${campaignId}/submit`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ missionKey: mission.missionKey, evidence: evidence.trim(), note: note.trim(), claim, signature }),
+        body: JSON.stringify({ missionKey: mission.missionKey, evidence: evidence.trim(), note: submittedNote, claim, signature }),
       });
       const json = (await res.json()) as { error?: string };
       if (!res.ok) { setError(json.error ?? "Could not submit."); return; }
       setOpen(false);
       await loadMine();
     } finally { setBusy(false); }
-  }, [wallet, evidence, note, campaignId, campaignIdHash, chainId, mission, loadMine]);
+  }, [wallet, evidence, composedNote, campaignId, campaignIdHash, chainId, mission, loadMine]);
 
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
   const soldOut = mission.full && !mine;
@@ -228,23 +246,51 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   // handler is identical; the route decides create-vs-revise from the wallet's existing held submission.
   // P23: for an OBSERVATION mission the ACCOUNT is the evidence, so the form leads with it and demotes the
   // URL to optional; for a url-verifiable mission the public link leads, as before.
-  const account = (
-    <div className="sage-field">
-      <label className="sage-label">What you did and saw</label>
-      <textarea
-        className="sage-textarea"
-        rows={isObservation ? 5 : 3}
-        placeholder={
-          isObservation
-            ? "Describe the specific screens you opened, the exact labels and text you read, and what happened when you clicked — the details only someone who actually used it would know."
-            : "Quote the exact text or describe what you saw."
-        }
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        disabled={busy}
-      />
-    </div>
-  );
+  // THE MISSION'S OWN FORM. Each requirement Sage authored for THIS product becomes a question, so a
+  // tester is told exactly what to look for instead of guessing at an empty box. A mission carrying no
+  // requirements still gets the single open field — never a blank form.
+  const account =
+    prompts.length > 0 ? (
+      <div>
+        {prompts.map((p, i) => (
+          <div className="sage-field" key={i}>
+            <label className="sage-label">{p}</label>
+            <textarea
+              className="sage-textarea"
+              rows={2}
+              placeholder="In your own words — what did you actually see?"
+              value={answers[i] ?? ""}
+              onChange={(e) => {
+                const next = [...answers];
+                next[i] = e.target.value;
+                setAnswers(next);
+              }}
+              disabled={busy}
+            />
+          </div>
+        ))}
+        <p className="sage-hint" style={{ marginTop: -4 }}>
+          Answer in your own words. Sage checks what you describe against what it saw itself, so the
+          exact labels, headings and results you read are what count — not the wording you use.
+        </p>
+      </div>
+    ) : (
+      <div className="sage-field">
+        <label className="sage-label">What you did and saw</label>
+        <textarea
+          className="sage-textarea"
+          rows={isObservation ? 5 : 3}
+          placeholder={
+            isObservation
+              ? "Describe the specific screens you opened, the exact labels and text you read, and what happened when you clicked — the details only someone who actually used it would know."
+              : "Quote the exact text or describe what you saw."
+          }
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          disabled={busy}
+        />
+      </div>
+    );
   const link = (
     <div className="sage-field">
       <label className="sage-label">
@@ -261,11 +307,12 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   );
   const formBlock = (
     <div className="v2-form">
-      <EvidenceCoaching evidenceList={mission.evidenceList} observation={isObservation} />
+      <EvidenceCoaching evidenceList={mission.evidenceList} observation={isObservation} requirementsShown={prompts.length > 0} />
       {isObservation ? <>{account}{link}</> : <>{link}{account}</>}
       <p className="tb-sig">You&apos;ll sign a message binding this exact evidence to your wallet — a free signature that authorizes no transaction and moves no funds.</p>
       <div className="sage-row">
-        <button className="sage-btn sage-btn-primary" disabled={busy} onClick={() => void submit()}>
+        {/* An empty form costs the tester one of their limited attempts for nothing. */}
+        <button className="sage-btn sage-btn-primary" disabled={busy || !answered} onClick={() => void submit()}>
           {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing + submitting…</> : canRetry ? "Sign + resubmit" : "Sign + submit evidence"}
         </button>
         <button className="sage-btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
@@ -354,13 +401,20 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
 
 /** Evidence coaching driven by the mission's requirements — mirrors mission-prompt.ts rule 6:
  *  Sage reads ONE public URL as text; screenshots/uploads/logged-in pages can't be verified. */
-function EvidenceCoaching({ evidenceList, observation = false }: { evidenceList: string[]; observation?: boolean }) {
+function EvidenceCoaching({
+  evidenceList,
+  observation = false,
+  /** true when the requirements are already rendered as the form's own field labels — repeating the
+   *  first one above them reads as a bug, not as coaching. */
+  requirementsShown = false,
+}: { evidenceList: string[]; observation?: boolean; requirementsShown?: boolean }) {
+  const list = requirementsShown ? [] : evidenceList;
   if (observation) {
     // P23 — for an observation mission Sage judges your firsthand ACCOUNT against what it saw itself.
     return (
       <div className="tb-coach">
-        {evidenceList.length > 0 && (
-          <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Do:</span><span>{evidenceList[0]}</span></div>
+        {list.length > 0 && (
+          <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Do:</span><span>{list[0]}</span></div>
         )}
         <div className="tb-coach-row"><span className="ok">Clears</span><span>a specific, firsthand account in your own words — the exact screens, labels, and text you saw, and what happened when you acted. Details only someone who actually used it would know.</span></div>
         <div className="tb-coach-row"><span className="no">Won&apos;t clear</span><span>a vague summary, or repeating the mission card. Sage compares your account to what it saw exploring the product itself.</span></div>
@@ -369,8 +423,8 @@ function EvidenceCoaching({ evidenceList, observation = false }: { evidenceList:
   }
   return (
     <div className="tb-coach">
-      {evidenceList.length > 0 && (
-        <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Submit:</span><span>{evidenceList[0]}</span></div>
+      {list.length > 0 && (
+        <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Submit:</span><span>{list[0]}</span></div>
       )}
       <div className="tb-coach-row"><span className="ok">Works</span><span>a public URL anyone can open — e.g. <code>https://yourproduct.com/pricing</code> or a block-explorer tx page — plus the exact text you saw.</span></div>
       <div className="tb-coach-row"><span className="no">Won&apos;t work</span><span>screenshots, images, file uploads, or logged-in / private pages. Sage reads public web pages as text only.</span></div>
