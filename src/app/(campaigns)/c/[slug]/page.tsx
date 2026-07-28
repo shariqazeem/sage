@@ -128,6 +128,7 @@ export default async function CampaignPublicPage({
           chainId={e.chainId}
           live={live}
           missions={e.missions}
+          autopays={autopays}
         />
 
         <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />

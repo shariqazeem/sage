@@ -143,8 +143,10 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
  * commitment before submit. After submitting, the tester WATCHES the real pipeline decide
  * and (on autopilot) pay, polling /me?mission=<hash>. A paid entry links to its proof.
  */
-function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTarget }: {
+function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTarget, autopays }: {
   campaignId: string; campaignIdHash: string; chainId: number; mission: MissionView; live: boolean; isTarget: boolean;
+  /** whether THIS campaign auto-pays — server-decided, never inferred from the mission's class alone. */
+  autopays: boolean;
 }) {
   const wallet = useWallet();
   // Share ONE wallet instance with SIWE — otherwise the connect/sign-in runs on siwe's
@@ -337,9 +339,16 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
             <span className="v2-slots">{mission.remainingSlots} of {mission.maxCompletions} paid slots left</span>
             {mission.targetSurface && <a className="v2-chip link" href={mission.targetSurface} target="_blank" rel="noopener noreferrer">{hostOf(mission.targetSurface)}</a>}
           </div>
+          {/* Say what THIS campaign actually does. This line used to be hardcoded to
+              "observation-based", from the P16 era when such missions could never auto-pay — so with
+              observation autopay armed it told testers they would be reviewed by hand when Sage was
+              in fact about to pay them automatically. Under-promising is still misinformation, and on
+              the money path it is the claim testers decide to take the work on. */}
           {mission.verifiabilityClass === "observation-based" && (
             <p style={{ fontSize: 12.5, color: "var(--sec)", margin: "8px 0 0", lineHeight: 1.5 }}>
-              Payouts on this mission are founder-approved after Sage&apos;s assessment.
+              {autopays
+                ? "Sage assesses your account against what it saw itself and pays automatically when it clears."
+                : "Payouts on this mission are founder-approved after Sage\u2019s assessment."}
             </p>
           )}
 
@@ -510,8 +519,10 @@ export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) 
 }
 
 /** The V2 tester mission board: real per-mission economics + signed, mission-scoped submit. */
-export function V2Board({ campaignId, campaignIdHash, chainId, live, missions }: {
+export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, autopays = false }: {
   campaignId: string; campaignIdHash: string; chainId: number; live: boolean; missions: MissionView[];
+  /** whether THIS campaign actually auto-pays — decided server-side by `campaignAutopays`. */
+  autopays?: boolean;
 }) {
   const [target, setTarget] = useState<string | null>(null);
   // Deep link: /c/<slug>#<missionKey> scrolls that mission into view + highlights it briefly, so a
@@ -528,7 +539,7 @@ export function V2Board({ campaignId, campaignIdHash, chainId, live, missions }:
   return (
     <div className="v2-board sage-stagger">
       {missions.map((m) => (
-        <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} />
+        <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} autopays={autopays} />
       ))}
     </div>
   );
