@@ -1398,44 +1398,118 @@ async function canvasGeomPct(
 }
 
 /**
- * Does this screen still REQUIRE a field Sage is not allowed to type into? A signup form asking for
- * an email is the ordinary case. Submitting it would produce a validation error and nothing else, and
- * would let Sage record an attempt that never had a chance — so the form is filled as far as it
- * honestly can be and left there, which is a truthful boundary rather than a fake failure.
+ * How many visible fields on this screen now hold a value. The capture trigger is evidence a tester
+ * and the mission brain both read, so it must count what the PAGE ended up with — not how many fill
+ * attempts were made, which counts a framework-rejected fill as a success and misses every field the
+ * required-field pass completed afterwards.
  */
-export async function requiredSensitiveFieldPending(page: Page): Promise<boolean> {
-  const raw = await page
+async function filledFieldCount(page: Page): Promise<number> {
+  return page
     .evaluate(() => {
-      const out: Array<{
-        type: string;
-        name: string;
-        id: string;
-        placeholder: string;
-        autocomplete: string;
-        ariaLabel: string;
-        label: string;
-      }> = [];
+      let n = 0;
       for (const el of Array.from(
         document.querySelectorAll("input,textarea,select"),
       )) {
         const he = el as HTMLInputElement;
-        if (!he.required || (he.value ?? "").trim().length > 0) continue;
+        const t = (he.getAttribute("type") || "").toLowerCase();
+        if (t === "hidden" || t === "submit" || t === "button") continue;
         const rect = he.getBoundingClientRect?.();
         if (!rect || rect.width < 4 || rect.height < 4) continue;
+        if ((he.value ?? "").trim().length > 0) n++;
+      }
+      return n;
+    })
+    .catch(() => 0);
+}
+
+/** One still-empty required field, as read from the live page. */
+interface PendingRequired {
+  eid: string;
+  type: string;
+  name: string;
+  id: string;
+  placeholder: string;
+  autocomplete: string;
+  ariaLabel: string;
+  label: string;
+  tag: string;
+}
+
+/** Read every REQUIRED field that is still empty, and tag each so it can be filled by id. */
+async function pendingRequiredFields(page: Page): Promise<PendingRequired[]> {
+  return page
+    .evaluate(() => {
+      const out: PendingRequired[] = [];
+      let n = 0;
+      for (const el of Array.from(
+        document.querySelectorAll("input,textarea,select"),
+      )) {
+        const he = el as HTMLInputElement;
+        const required =
+          he.required || he.getAttribute("aria-required") === "true";
+        if (!required || (he.value ?? "").trim().length > 0) continue;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width < 4 || rect.height < 4) continue;
+        const eid = "req" + n++;
+        he.setAttribute("data-sage-req", eid);
         out.push({
+          eid,
           type: (he.getAttribute("type") || "").toLowerCase(),
           name: he.getAttribute("name") || "",
           id: he.id || "",
           placeholder: he.getAttribute("placeholder") || "",
           autocomplete: he.getAttribute("autocomplete") || "",
           ariaLabel: he.getAttribute("aria-label") || "",
-          label: (he.labels?.[0]?.textContent || "").replace(/\s+/g, " ").trim(),
+          label: (
+            he.labels?.[0]?.textContent ||
+            he.getAttribute("aria-label") ||
+            ""
+          )
+            .replace(/\s+/g, " ")
+            .trim(),
+          tag: he.tagName.toLowerCase(),
         });
       }
       return out;
     })
-    .catch(() => []);
-  return raw.some((r) => isSensitiveField(r));
+    .catch(() => [] as PendingRequired[]);
+}
+
+/**
+ * Finish what the mint could not see, then say whether the form can honestly be submitted.
+ *
+ * Minting only ever sees the controls it recognises, and a required field it missed is invisible to
+ * the fill pass — so Sage would fill what it found, submit, and collect a validation error instead of
+ * a result. That is exactly what happened on Sage's own launch form: two of three fields filled, and
+ * the only thing the submission ever produced was "target users is required". A failed submission is
+ * worse than none, because it also poisons the corpus: the state Sage records as the outcome contains
+ * an error message rather than the screen a real tester would describe.
+ *
+ * So every still-empty REQUIRED field is read straight from the page and filled with what it asks
+ * for. Returns true only when something REQUIRED remains that Sage must not type — a signup form's
+ * email or password — in which case the form is left honestly incomplete rather than submitted.
+ */
+export async function requiredSensitiveFieldPending(
+  page: Page,
+): Promise<boolean> {
+  for (const f of await pendingRequiredFields(page)) {
+    if (isSensitiveField(f)) return true;
+    // A required field the mint missed, which Sage IS allowed to fill: fill it now.
+    const value = resolveSyntheticValue(classifyFieldValue(f));
+    const loc = page.locator(`[data-sage-req="${f.eid}"]`).first();
+    if (f.tag === "select") {
+      await loc
+        .selectOption({ index: 1 }, { timeout: 2_000 })
+        .catch(() => {});
+      continue;
+    }
+    await loc.fill(value, { timeout: 2_000 }).catch(async () => {
+      await loc.click({ force: true }).catch(() => {});
+      await page.keyboard.type(value, { delay: 10 }).catch(() => {});
+    });
+  }
+  // Anything still empty and required after that pass blocks an honest submission.
+  return (await pendingRequiredFields(page)).length > 0;
 }
 
 /**
@@ -1895,17 +1969,20 @@ async function exploreInteractive(ctx: {
         interactions++;
         if (!/skipped|did not accept/i.test(outcome)) filled++;
       }
-      if (filled === 0) return "none";
+      // 2. finish any REQUIRED field the mint never saw, and learn whether the form can be honestly
+      //    submitted at all. This runs BEFORE the capture so the recorded trigger counts what was
+      //    really entered, not what the first pass happened to reach.
+      const blocked = await requiredSensitiveFieldPending(page);
+      const total = await filledFieldCount(page);
+      if (filled === 0 && total === 0) return "none";
       await page.waitForTimeout(250);
+      const n = Math.max(filled, total);
       await capture(
-        filled === 1
+        n === 1
           ? "filled in the field on the form"
-          : `filled in ${filled} fields on the form`,
+          : `filled in ${n} fields on the form`,
         { kind: "type" },
       );
-
-      // 2. a form that still REQUIRES something Sage must not type cannot be honestly submitted.
-      const blocked = await requiredSensitiveFieldPending(page);
       if (blocked) return "filled";
 
       // 3. submit through the form's OWN control; Enter only when there is none to click.

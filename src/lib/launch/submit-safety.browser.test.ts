@@ -67,6 +67,72 @@ describe("a form that still needs a credential is never submitted", () => {
   });
 });
 
+/**
+ * REGRESSION — inspection jypLi8nvg9fY on Sage's own launch form. Sage filled the two fields it had
+ * minted, submitted, and the only thing that submission ever produced was "target users is required".
+ * A required field the mint never saw is invisible to the fill pass, so the form was submitted
+ * incomplete. That is worse than not submitting: the state Sage records as the OUTCOME then contains
+ * a validation error instead of the screen a tester would describe, which poisons the private key
+ * that later has to judge them.
+ */
+describe("a required field the mint missed is filled, not submitted past", () => {
+  it("fills a required text field and then allows the submit", async () => {
+    await load(
+      `<form><input name="productUrl" type="url" required /><input name="targetUsers" required placeholder="Who should test this" /><button type="submit">Launch</button></form>`,
+    );
+    expect(await requiredSensitiveFieldPending(page)).toBe(false);
+    const values = await page.$$eval("input", (els) =>
+      els.map((e) => (e as HTMLInputElement).value),
+    );
+    expect(values.every((v) => v.trim().length > 0)).toBe(true);
+  });
+
+  it("gives each field the value its own type asks for", async () => {
+    await load(
+      `<form><input id="u" name="productUrl" type="url" required /><input id="b" name="budget" type="number" required /><button type="submit">Go</button></form>`,
+    );
+    await requiredSensitiveFieldPending(page);
+    expect(await page.inputValue("#u")).toBe("https://example.com");
+    expect(await page.inputValue("#b")).toBe("1");
+    expect(
+      await page.locator("form").evaluate((n) => (n as HTMLFormElement).checkValidity()),
+    ).toBe(true);
+  });
+
+  it("picks an option for a required select rather than leaving it empty", async () => {
+    await load(
+      `<form><select name="plan" required><option value="">Choose…</option><option value="basic">Basic</option></select><button type="submit">Go</button></form>`,
+    );
+    expect(await requiredSensitiveFieldPending(page)).toBe(false);
+    expect(await page.inputValue("select")).toBe("basic");
+  });
+
+  it("honours aria-required, not only the required attribute", async () => {
+    await load(
+      `<form><input name="topic" aria-required="true" /><button type="submit">Go</button></form>`,
+    );
+    await requiredSensitiveFieldPending(page);
+    expect((await page.inputValue("input")).trim().length).toBeGreaterThan(0);
+  });
+
+  it("still refuses when the missing required field is one Sage must not type", async () => {
+    await load(
+      `<form><input name="productUrl" type="url" required /><input name="email" type="email" required /><button type="submit">Go</button></form>`,
+    );
+    expect(await requiredSensitiveFieldPending(page)).toBe(true);
+    // and it did not type into the email box on its way to finding that out
+    expect(await page.inputValue("[name=email]")).toBe("");
+  });
+
+  it("leaves optional fields alone", async () => {
+    await load(
+      `<form><input name="productUrl" type="url" required /><input id="opt" name="notes" /><button type="submit">Go</button></form>`,
+    );
+    await requiredSensitiveFieldPending(page);
+    expect(await page.inputValue("#opt")).toBe("");
+  });
+});
+
 describe("a destructive or spending control is refused", () => {
   it.each([
     "Delete account",
