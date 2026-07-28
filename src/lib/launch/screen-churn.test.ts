@@ -176,3 +176,61 @@ describe("an exhausted entry screen is left by navigating", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * THE TRIGGER THAT HELD. Every cleverer signal was defeated by the page itself — label retirement by
+ * a widget that renames its controls each repaint, churn-with-journey-reset by landing copy that
+ * DESCRIBES the flow so checkpoints read as observed from marketing text. Three deploys moved 11
+ * states to 10 to 11.
+ *
+ * A marketing page can fake progress signals. It cannot fake having been looked at N times.
+ */
+const ENTRY_STATE_CAP = 6;
+
+function entryExit(steps: string[], candidates: string[]): number | null {
+  let entryStates = 0;
+  const entry = steps[0];
+  const visited = new Set<string>();
+  let navigations = 0;
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i] === entry) entryStates++;
+    if (
+      steps[i] === entry &&
+      entryStates > ENTRY_STATE_CAP &&
+      navigations < MAX_NAVIGATIONS
+    ) {
+      const next = candidates.find((p) => !visited.has(p));
+      if (next) {
+        visited.add(next);
+        navigations++;
+        return i; // the state index at which Sage leaves
+      }
+    }
+  }
+  return null;
+}
+
+describe("the entry screen is left after a fixed number of looks", () => {
+  it("leaves on the state after the cap, whatever the page claims", () => {
+    expect(entryExit(Array(12).fill("/"), ["/launch"])).toBe(ENTRY_STATE_CAP);
+  });
+
+  it("caps the real failure at 7 states instead of 11", () => {
+    const leaveAt = entryExit(Array(11).fill("/"), ["/launch", "/dashboard"]);
+    expect(leaveAt).not.toBeNull();
+    expect((leaveAt as number) + 1).toBeLessThan(11);
+  });
+
+  it("does not fire while the entry screen is within its allowance", () => {
+    expect(entryExit(Array(ENTRY_STATE_CAP).fill("/"), ["/launch"])).toBeNull();
+  });
+
+  it("leaves a single-page product alone — no routes, no exit", () => {
+    expect(entryExit(Array(12).fill("/"), [])).toBeNull();
+  });
+
+  it("does not count states spent on other screens against the entry allowance", () => {
+    const steps = ["/", "/", "/launch", "/launch", "/launch", "/launch", "/launch"];
+    expect(entryExit(steps, ["/launch"])).toBeNull();
+  });
+});

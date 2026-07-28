@@ -88,6 +88,9 @@ const MAX_STATES = 25; // retained meaningful states (spec cap)
  *  off it. A page whose own demo widget repaints on every click is otherwise indistinguishable from
  *  progress, and will happily absorb the entire exploration budget. */
 const SCREEN_CHURN_CAP = 4;
+/** States Sage will spend on the ENTRY screen before going looking for the product itself. Generous
+ *  enough to cross a real onboarding ladder, small enough that a marketing page cannot eat the run. */
+const ENTRY_STATE_CAP = 6;
 const MAX_MODEL_CALLS = 12; // multimodal controller decisions (spec cap)
 // Linear onboarding must not eat the exploration budget. Once the product's MAIN EXPERIENCE is reached,
 // reserve a floor for real exploration, and allow a bounded extension while the controller is making
@@ -2077,6 +2080,17 @@ async function exploreInteractive(ctx: {
       const churnAtUrl = new Map<string, number>();
       /** Where Sage arrived. A landing page is where a visitor ARRIVES, not where the product lives. */
       const entryUrl = page.url();
+      /**
+       * States spent on the entry screen, counted plainly and never reset while Sage is still there.
+       *
+       * Every cleverer trigger was defeated by the page itself. Label retirement: the demo widget
+       * renames its controls on each repaint. Churn with a `journeyAdvanced` reset: the landing copy
+       * DESCRIBES the whole flow, so checkpoints kept getting marked observed from marketing text and
+       * the count reset before it ever reached the cap. Three deploys, 11 states → 10 → 11.
+       *
+       * A marketing page can fake progress signals; it cannot fake having been looked at N times.
+       */
+      let entryStates = 0;
       /** Same-host routes Sage has already opened, so a forced departure never loops between two. */
       const visitedPaths = new Set<string>();
       const history: ControllerHistoryItem[] = [];
@@ -2211,9 +2225,10 @@ async function exploreInteractive(ctx: {
         //    candidate paths, so nothing here fires and its behaviour is unchanged.
         let action: ControllerAction | null = null;
         const hereUrl = page.url();
+        if (hereUrl === entryUrl) entryStates++;
         if (
           hereUrl === entryUrl &&
-          (churnAtUrl.get(hereUrl) ?? 0) >= SCREEN_CHURN_CAP &&
+          entryStates > ENTRY_STATE_CAP &&
           navigations < MAX_NAVIGATIONS
         ) {
           const next = (ctx.candidatePaths ?? []).find(
