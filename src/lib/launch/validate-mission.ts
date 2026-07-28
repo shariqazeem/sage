@@ -315,13 +315,28 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
     }
   }
 
-  // any other URL referenced in the instructions must be same-origin / in-scope.
-  for (const u of urlsIn(m.instructions)) {
+  // Any other URL referenced in the instructions must be same-origin / in-scope — the guard that
+  // stops a mission sending a tester somewhere Sage never inspected.
+  //
+  // But a URL is not always a place to GO. On a product whose own job is to take a URL, the mission
+  // is "type a product URL into the field", and the model reaches for an example — which this guard
+  // read as a hallucinated route and killed the whole mission (a real rejection on sagepays.xyz:
+  // "instructions reference an out-of-scope URL: google.com"). A URL introduced as a VALUE to enter
+  // is not navigation: the tester stays on the inspected product and types it into a field there.
+  // Only navigation is checked; example values pass.
+  const instructions = m.instructions ?? "";
+  for (const u of urlsIn(instructions)) {
     const parsed = urlOrNull(u);
-    if (parsed && !scope.hosts.has(parsed.host.toLowerCase())) {
-      add("hallucinated_route", "instructions", `instructions reference an out-of-scope URL: ${parsed.host}`);
-      break;
-    }
+    if (!parsed || scope.hosts.has(parsed.host.toLowerCase())) continue;
+    const at = instructions.indexOf(u);
+    const before = at > 0 ? instructions.slice(Math.max(0, at - 60), at).toLowerCase() : "";
+    const isExampleValue =
+      /\b(enter|type|paste|input|fill|such as|for example|e\.?g\.?|like|any (?:public )?(?:url|site|website)|placeholder)\b[^.]*$/i.test(
+        before,
+      );
+    if (isExampleValue) continue;
+    add("hallucinated_route", "instructions", `instructions reference an out-of-scope URL: ${parsed.host}`);
+    break;
   }
 
   // 4. every cited source must exist.
