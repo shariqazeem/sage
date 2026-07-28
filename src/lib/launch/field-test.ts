@@ -1422,6 +1422,14 @@ async function filledFieldCount(page: Page): Promise<number> {
     .catch(() => 0);
 }
 
+/**
+ * Is there anything on this screen Sage could still fill in? The question a wizard turns on: a step
+ * with an empty field must be completed before the "Continue →" next to it is worth pressing.
+ */
+async function hasEmptySafeField(page: Page): Promise<boolean> {
+  return (await pendingRequiredFields(page)).some((f) => !isSensitiveField(f));
+}
+
 /** One still-empty required field, as read from the live page. */
 interface PendingRequired {
   eid: string;
@@ -1549,9 +1557,14 @@ export async function findSubmitControl(
       document
         .querySelectorAll("[data-sage-submit]")
         .forEach((e) => e.removeAttribute("data-sage-submit"));
+      // FORM-SCOPED ONLY. With no <form> element — a React wizard built from divs, say — scanning the
+      // whole document for "a button that looks like submit" reaches page navigation and headers, and
+      // pressing one of those leaves the flow entirely. There is a safe path for that case already:
+      // fill the fields, return, and let the deterministic forward affordance press "Continue →" on
+      // the next turn, now that the step is actually complete.
       const forms = Array.from(document.querySelectorAll("form"));
-      const scopes: ParentNode[] = forms.length ? forms : [document];
-      for (const scope of scopes) {
+      if (!forms.length) return null;
+      for (const scope of forms) {
         const cands = Array.from(
           scope.querySelectorAll(
             "button[type=submit],input[type=submit],button:not([type=button]):not([type=reset]),[role=button]",
@@ -2140,12 +2153,19 @@ async function exploreInteractive(ctx: {
         //
         // `formsDone` is keyed by SCREEN, not a single global latch, so a multi-step flow can be
         // carried through one form at a time while no screen is ever filled twice.
+        // NEVER ADVANCE PAST A SCREEN SAGE CAN STILL FILL. A multi-step wizard puts a "Continue →" on
+        // every step, so preferring the forward affordance walked Sage through the whole flow with
+        // every field empty — and the app then complained about step 1 while Sage was on step 2, with
+        // no way back. That is the general shape of a wizard, not one product's quirk.
+        //
+        // A marketing/onboarding screen has nothing fillable, so it is unaffected and the
+        // deterministic forward affordance still wins there. The test is EMPTINESS, not presence: a
+        // screen whose fields are already filled is finished, and Sage moves on.
         const formReady =
-          elements.some((e) => e.typable) &&
           !formsDone.has(digest) &&
-          (wantsConversation ||
-            mainReached ||
-            !chooseForwardAffordance(elements, digest, tried, deadLabels));
+          (wantsConversation
+            ? elements.some((e) => e.typable)
+            : await hasEmptySafeField(page));
         if (formReady) {
           formsDone.add(digest);
           const outcome = wantsConversation
