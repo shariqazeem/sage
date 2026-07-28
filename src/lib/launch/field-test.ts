@@ -43,6 +43,8 @@ import {
   wordSignature,
   resolveSyntheticValue,
   isSensitiveField,
+  classifyFieldValue,
+  typedTrigger,
   type ControllerAction,
   type ControllerDecision,
   type ControllerHistoryItem,
@@ -1301,20 +1303,27 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
         }>,
     );
   return raw.map((r) => {
+    // `url` and `number` join the typable types so Sage can fill the two things a real form asks for
+    // most and it previously could not: a link box and a quantity box. Neither widens what may be
+    // TYPED — `isSensitiveField` still refuses every credential, payment and personal-data field, and
+    // a bare number box with no quantity wording stays refused because it could be a card.
     const isTextInput =
-      (r.tag === "input" && ["text", "search", ""].includes(r.inputType)) ||
+      (r.tag === "input" &&
+        ["text", "search", "url", "number", ""].includes(r.inputType)) ||
       r.tag === "textarea" ||
       r.editable;
-    const typable =
-      isTextInput &&
-      !isSensitiveField({
-        type: r.inputType,
-        name: r.name,
-        id: r.elId,
-        placeholder: r.placeholder,
-        autocomplete: r.autocomplete,
-        ariaLabel: r.ariaLabel,
-      });
+    const descriptor = {
+      type: r.inputType,
+      name: r.name,
+      id: r.elId,
+      placeholder: r.placeholder,
+      autocomplete: r.autocomplete,
+      ariaLabel: r.ariaLabel,
+      // The VISIBLE label counts too: a field whose only clue is the word on screen ("Card number")
+      // was invisible to a check that read attributes alone.
+      label: r.label,
+    };
+    const typable = isTextInput && !isSensitiveField(descriptor);
     const el: MintedElement = {
       id: r.id,
       label: r.label,
@@ -1322,6 +1331,8 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
       tag: r.tag,
       typable,
     };
+    // The FIELD decides what it is asking for — the model only ever points at it.
+    if (typable) el.valueKind = classifyFieldValue({ ...descriptor, tag: r.tag });
     if (r.options && r.options.length) el.options = r.options;
     return el;
   });
@@ -1387,6 +1398,101 @@ async function canvasGeomPct(
 }
 
 /**
+ * Does this screen still REQUIRE a field Sage is not allowed to type into? A signup form asking for
+ * an email is the ordinary case. Submitting it would produce a validation error and nothing else, and
+ * would let Sage record an attempt that never had a chance — so the form is filled as far as it
+ * honestly can be and left there, which is a truthful boundary rather than a fake failure.
+ */
+export async function requiredSensitiveFieldPending(page: Page): Promise<boolean> {
+  const raw = await page
+    .evaluate(() => {
+      const out: Array<{
+        type: string;
+        name: string;
+        id: string;
+        placeholder: string;
+        autocomplete: string;
+        ariaLabel: string;
+        label: string;
+      }> = [];
+      for (const el of Array.from(
+        document.querySelectorAll("input,textarea,select"),
+      )) {
+        const he = el as HTMLInputElement;
+        if (!he.required || (he.value ?? "").trim().length > 0) continue;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width < 4 || rect.height < 4) continue;
+        out.push({
+          type: (he.getAttribute("type") || "").toLowerCase(),
+          name: he.getAttribute("name") || "",
+          id: he.id || "",
+          placeholder: he.getAttribute("placeholder") || "",
+          autocomplete: he.getAttribute("autocomplete") || "",
+          ariaLabel: he.getAttribute("aria-label") || "",
+          label: (he.labels?.[0]?.textContent || "").replace(/\s+/g, " ").trim(),
+        });
+      }
+      return out;
+    })
+    .catch(() => []);
+  return raw.some((r) => isSensitiveField(r));
+}
+
+/**
+ * Find the form's own submit control and mark it for clicking, or refuse. Returns its label, `null`
+ * when there is none (Enter is then the honest fallback), or `"unsafe"` when the only way forward
+ * would spend money or destroy something.
+ *
+ * Submit controls are deliberately NOT minted as ordinary elements — that exclusion is what kept the
+ * exploring model from pressing random submit buttons, and it stays. This is the one narrow path that
+ * may press one, after Sage has actually filled the form it belongs to.
+ */
+const UNSAFE_SUBMIT =
+  /\b(delete|remove|destroy|erase|wipe|deactivate|close account|pay|payment|purchase|buy|checkout|check out|order|subscribe|upgrade|donate|withdraw|transfer|send money|top ?up|billing)\b/i;
+export async function findSubmitControl(
+  page: Page,
+): Promise<string | null | "unsafe"> {
+  const found = await page
+    .evaluate(() => {
+      document
+        .querySelectorAll("[data-sage-submit]")
+        .forEach((e) => e.removeAttribute("data-sage-submit"));
+      const forms = Array.from(document.querySelectorAll("form"));
+      const scopes: ParentNode[] = forms.length ? forms : [document];
+      for (const scope of scopes) {
+        const cands = Array.from(
+          scope.querySelectorAll(
+            "button[type=submit],input[type=submit],button:not([type=button]):not([type=reset]),[role=button]",
+          ),
+        );
+        for (const c of cands) {
+          const he = c as HTMLElement;
+          if ((he as HTMLButtonElement).disabled) continue;
+          const rect = he.getBoundingClientRect?.();
+          if (!rect || rect.width < 4 || rect.height < 4) continue;
+          const st = getComputedStyle(he);
+          if (st.visibility === "hidden" || st.display === "none") continue;
+          const label = (
+            he.getAttribute("aria-label") ||
+            he.innerText ||
+            (he as HTMLInputElement).value ||
+            ""
+          )
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 60);
+          he.setAttribute("data-sage-submit", "1");
+          return label;
+        }
+      }
+      return null;
+    })
+    .catch(() => null);
+  if (found === null) return null;
+  return UNSAFE_SUBMIT.test(found) ? "unsafe" : found;
+}
+
+/**
  * Execute ONE validated controller action in the guarded browser and return an honest trigger label.
  * Every action is bounded and read-only-ish: it clicks a Sage-minted element / normalized coordinate,
  * presses an allowlisted key, types a SYNTHETIC value into a re-verified non-sensitive field, selects a
@@ -1441,31 +1547,37 @@ async function executeAction(
             : `pressed ${action.key}`;
         }
       case "type_text": {
-        const value = resolveSyntheticValue(action.valueKind);
+        // The FIELD's own classification wins over the model's choice — the model may point at an
+        // input, but what that input is asking for is read off the input itself.
+        const kind =
+          elements.find((e) => e.id === action.elementId)?.valueKind ??
+          action.valueKind;
+        const value = resolveSyntheticValue(kind);
         const el = loc(action.elementId);
-        // live re-check — never type into a field that turned out to be a credential/personal-data input.
-        const safe = await el
+        // LIVE re-check — the DOM may have changed since minting, so the field is re-read and judged
+        // again before a single character is typed. It reads the descriptor in the page and decides in
+        // NODE, against the same `isSensitiveField` the mint used. It used to re-implement the rules as
+        // a second inline regex, and that copy is precisely where a guard silently rots out of step
+        // with the real one — the `account\b` boundary bug lived in both copies at once.
+        const live = await el
           .evaluate((node) => {
             const he = node as HTMLElement;
-            const t = (he.getAttribute("type") || "").toLowerCase();
-            const hay = [
-              he.getAttribute("name"),
-              he.id,
-              he.getAttribute("placeholder"),
-              he.getAttribute("autocomplete"),
-              he.getAttribute("aria-label"),
-            ]
-              .filter(Boolean)
-              .join(" ");
-            return (
-              !["password", "email", "tel", "number"].includes(t) &&
-              !/pass|email|e-mail|phone|tel|mobile|card|cvv|cvc|iban|routing|acct|account\b|ssn|social|secret|token|api[_-]?key|seed|mnemonic|private[_-]?key|wallet|address|street|zip|postal|postcode|dob|birth|passport|licen[sc]e|tax/i.test(
-                hay,
-              )
-            );
+            return {
+              type: (he.getAttribute("type") || "").toLowerCase(),
+              name: he.getAttribute("name") || "",
+              id: he.id || "",
+              placeholder: he.getAttribute("placeholder") || "",
+              autocomplete: he.getAttribute("autocomplete") || "",
+              ariaLabel: he.getAttribute("aria-label") || "",
+              label: (he.getAttribute("aria-label") || he.innerText || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 120),
+            };
           })
-          .catch(() => false);
-        if (!safe) return "skipped typing (sensitive field)";
+          .catch(() => null);
+        if (!live || isSensitiveField(live))
+          return "skipped typing (sensitive field)";
         await el.fill(value, { timeout: 2_500 }).catch(async () => {
           await el.click({ force: true }).catch(() => {});
           await page.keyboard.type(value, { delay: 10 }).catch(() => {});
@@ -1484,11 +1596,8 @@ async function executeAction(
           }, value)
           .catch(() => false);
         if (!landed) return "attempted to type (the field did not accept it)";
-        return action.valueKind === "ai_probe"
-          ? "typed a test message"
-          : action.valueKind === "display_name"
-            ? 'entered the name "Sage Test"'
-            : "typed a search term";
+        // The trigger is evidence a tester will read — it names the value that actually landed.
+        return typedTrigger(kind);
       }
       case "select_option":
         await loc(action.elementId).selectOption(action.optionValue, {
@@ -1742,6 +1851,108 @@ async function exploreInteractive(ctx: {
       return replied ? "replied" : "sent";
     };
 
+    /**
+     * COMPLETE A FORM — the general case that `completeConversation` was only ever one shape of. Fill
+     * every safe field on screen with the value its own type asks for, submit through the form's real
+     * control, and wait for the result to actually appear.
+     *
+     * This is what a tester does and what Sage could not do: typing was reachable only through the
+     * conversation path, so any product whose goal ran through a form — a launch form, a search, a
+     * create-something flow — could be clicked AT but never THROUGH. Sage would reach the founder's
+     * own form, click the submit button with empty fields, watch nothing happen, and report that it
+     * could not complete the journey.
+     *
+     * Bounded on purpose:
+     *  - only fields `isSensitiveField` cleared are filled, so no credential, payment or personal
+     *    datum is ever entered, and the values are the same closed set of fixed strings;
+     *  - a form that REQUIRES something Sage may not type is filled but never submitted — submitting
+     *    it would only produce a validation error and a false "I tried" claim;
+     *  - a submit control that reads as destructive or as spending money is refused outright;
+     *  - one submission per form, deduped by the caller, so this can never become a loop.
+     */
+    const completeForm = async (
+      els: MintedElement[],
+    ): Promise<"none" | "filled" | "submitted" | "result"> => {
+      const fields = els.filter((e) => e.typable);
+      if (fields.length === 0) return "none";
+      const beforeSig = wordSignature(
+        states[states.length - 1]?.visibleTextExcerpt ?? "",
+      );
+      const beforeUrl = page.url();
+
+      // 1. fill every safe field with what that field is asking for.
+      let filled = 0;
+      for (const f of fields.slice(0, 6)) {
+        const outcome = await executeAction(
+          page,
+          {
+            kind: "type_text",
+            elementId: f.id,
+            valueKind: f.valueKind ?? "display_name",
+          },
+          els,
+        );
+        interactions++;
+        if (!/skipped|did not accept/i.test(outcome)) filled++;
+      }
+      if (filled === 0) return "none";
+      await page.waitForTimeout(250);
+      await capture(
+        filled === 1
+          ? "filled in the field on the form"
+          : `filled in ${filled} fields on the form`,
+        { kind: "type" },
+      );
+
+      // 2. a form that still REQUIRES something Sage must not type cannot be honestly submitted.
+      const blocked = await requiredSensitiveFieldPending(page);
+      if (blocked) return "filled";
+
+      // 3. submit through the form's OWN control; Enter only when there is none to click.
+      const submit = await findSubmitControl(page);
+      if (submit === "unsafe") return "filled";
+      const submitted = submit
+        ? await page
+            .locator(`[data-sage-submit="1"]`)
+            .first()
+            .click({ timeout: 2_500, force: true })
+            .then(() => `pressed "${submit}"`)
+            .catch(() => "")
+        : await executeAction(page, { kind: "press_key", key: "Enter" }, els);
+      interactions++;
+      if (!submitted) return "filled";
+      await page.waitForTimeout(900);
+      await capture(
+        submit ? `submitted the form — ${submitted}` : "submitted the form",
+        { kind: "submit", label: submit || "" },
+      );
+
+      // 4. WAIT for the real result. A submitted form that changes nothing has not been completed,
+      //    and Sage must never record an outcome it did not watch arrive.
+      const sentSig = wordSignature(
+        states[states.length - 1]?.visibleTextExcerpt ?? "",
+      );
+      const resultDeadline = Math.min(deadline, Date.now() + 15_000);
+      let landed = false;
+      while (Date.now() < resultDeadline) {
+        await page.waitForTimeout(1_500);
+        if (page.url() !== beforeUrl) {
+          landed = true;
+          break;
+        }
+        const sig = wordSignature(await renderedExcerpt(page));
+        if (sig !== sentSig && sig !== beforeSig) {
+          landed = true;
+          break;
+        }
+      }
+      if (landed)
+        await capture("observed the result after submitting", {
+          kind: "observe_response",
+        });
+      return landed ? "result" : "submitted";
+    };
+
     // ── GOAL-DIRECTED CONTROLLER ─────────────────────────────────────────────
     // With a founder goal, Sage PURSUES it: each step observe → choose ONE bounded action (a deterministic
     // forward affordance first, else the multimodal controller) → execute in THIS guarded browser → capture
@@ -1784,7 +1995,10 @@ async function exploreInteractive(ctx: {
         states[states.length - 1]?.visibleTextExcerpt ?? "",
       );
       let prevUrl = page.url();
-      let conversationDone = false;
+      // Which SCREENS Sage has already completed a form on. Keyed by state digest rather than a single
+      // boolean, so a multi-step flow (fill → next screen → fill again) can be carried all the way
+      // through, while the same screen is never filled twice.
+      const formsDone = new Set<string>();
       // The founder's ordered journey, advanced LIVE from the states captured so far. It decides which
       // target Sage pursues next; completion is evidence-based (see evaluateJourney), never text alone.
       let liveJourney = ctx.journey ?? null;
@@ -1819,21 +2033,37 @@ async function exploreInteractive(ctx: {
         const digest = `${stateDigest(cur)}#${ctxSalt}`;
         const elements = await mintInteractiveElements(page);
 
-        // COMPLETE THE TARGET INTERACTION: once the goal calls for a conversation and a message box is
-        // actually present, do the real exchange (probe → submit → wait for a reply) instead of clicking on.
-        if (
-          wantsConversation &&
-          !conversationDone &&
-          elements.some((e) => e.typable)
-        ) {
-          conversationDone = true;
-          const outcome = await completeConversation(elements);
+        // COMPLETE THE TARGET INTERACTION. A conversation is one shape of it (type the probe, send,
+        // wait for a reply); a launch form, a search, a create-something flow are the others, and
+        // until now only the conversation could be completed at all.
+        //
+        // A conversation goal jumps the queue: a message box IS the goal, so there is nothing to be
+        // gained by clicking past it. A plain form does NOT — the deterministic onboarding affordance
+        // is tried first, so a landing page with both "Get started" and a newsletter box still gets
+        // started rather than filling in the first input it sees. Forms are completed once the
+        // product's main experience is reached, which is where the founder's flow actually lives.
+        //
+        // `formsDone` is keyed by SCREEN, not a single global latch, so a multi-step flow can be
+        // carried through one form at a time while no screen is ever filled twice.
+        const formReady =
+          elements.some((e) => e.typable) &&
+          !formsDone.has(digest) &&
+          (wantsConversation ||
+            mainReached ||
+            !chooseForwardAffordance(elements, digest, tried, deadLabels));
+        if (formReady) {
+          formsDone.add(digest);
+          const outcome = wantsConversation
+            ? await completeConversation(elements)
+            : await completeForm(elements);
           history.push({
-            action: `conversation:${outcome}`,
+            action: `form:${outcome}`,
             changed: outcome !== "none",
             note: "target interaction",
           });
-          if (outcome === "replied") break; // the founder's goal is genuinely done — stop.
+          // A conversation that got a reply IS the founder's goal. A form result is progress, not
+          // necessarily the end — the flow may continue on the next screen, so keep going.
+          if (outcome === "replied") break;
           prevWordSig = wordSignature(
             states[states.length - 1]?.visibleTextExcerpt ?? "",
           );

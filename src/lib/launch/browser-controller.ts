@@ -36,7 +36,12 @@ export const ALLOWED_KEYS = [
 export type AllowedKey = (typeof ALLOWED_KEYS)[number];
 
 /** Synthetic value KINDS — the model picks a kind; the exact text is resolved HERE, never by the model. */
-export type SyntheticValueKind = "display_name" | "search" | "ai_probe";
+export type SyntheticValueKind =
+  | "display_name"
+  | "search"
+  | "ai_probe"
+  | "url"
+  | "quantity";
 
 export type ControllerAction =
   | { kind: "click_element"; elementId: string }
@@ -79,6 +84,8 @@ export interface MintedElement {
   tag: string;
   /** true only for a non-sensitive text input Sage may type a synthetic value into. */
   typable: boolean;
+  /** what this field is ASKING FOR, decided from the field itself — never from the model. */
+  valueKind?: SyntheticValueKind;
   /** the exact option values, when this is a <select>. */
   options?: string[];
 }
@@ -102,7 +109,113 @@ export function resolveSyntheticValue(kind: SyntheticValueKind): string {
       return AI_PROBE;
     case "search":
       return "test";
+    case "url":
+      // RFC 2606 reserves example.com precisely so it can be written down without ever resolving to
+      // someone's real service. A product whose job is to accept a URL gets a URL that is valid,
+      // obviously synthetic, and incapable of pointing Sage or the founder at a third party.
+      return "https://example.com";
+    case "quantity":
+      // Deliberately small: if a quantity ever reaches something that spends, it should be the least
+      // it can be. Sage still never fills a card, an account or an amount field (see isSensitiveField).
+      return "1";
   }
+}
+
+/**
+ * The honest, human-readable record of what Sage typed. It becomes a state trigger in the trace and
+ * is read by testers and by the mission brain, so it must name the value that actually landed —
+ * never a generic "typed something".
+ */
+export function typedTrigger(kind: SyntheticValueKind): string {
+  switch (kind) {
+    case "ai_probe":
+      return "typed a test message";
+    case "display_name":
+      return 'entered the name "Sage Test"';
+    case "search":
+      return "typed a search term";
+    case "url":
+      return "entered the URL https://example.com";
+    case "quantity":
+      return "entered the amount 1";
+  }
+}
+
+/**
+ * Pick the value kind a field is ASKING FOR, from the field itself. Deterministic and closed: the
+ * model never chooses the text Sage types, and it cannot choose the kind either — it only points at
+ * a field. A URL box gets a URL, a quantity box gets a number, a message box gets the transparent
+ * probe, a search box gets a search term, and everything else gets a display name.
+ *
+ * This is what lets Sage complete a FORM rather than only a chat. `completeConversation` was the one
+ * typing path in the product, so anything that wasn't "send a message and wait for a reply" could
+ * only ever be clicked at — Sage would reach a founder's signup or launch form and stall there.
+ */
+export function classifyFieldValue(el: {
+  type?: string;
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  ariaLabel?: string;
+  label?: string;
+  tag?: string;
+}): SyntheticValueKind {
+  const hay = normalizeFieldText([
+    el.name,
+    el.id,
+    el.placeholder,
+    el.ariaLabel,
+    el.label,
+  ]);
+  const type = (el.type ?? "").toLowerCase();
+  if (
+    type === "url" ||
+    /\burl\b|\blink\b|website|https?:\/\/|\bdomain\b|\bsite\b/.test(hay)
+  )
+    return "url";
+  if (type === "search" || /search|filter|query|find\b|look up/.test(hay))
+    return "search";
+  if (isQuantityField({ type, name: el.name, id: el.id, placeholder: el.placeholder, ariaLabel: el.ariaLabel, label: el.label }))
+    return "quantity";
+  // A textarea, or anything that calls itself a message, is a place to say something.
+  if (
+    (el.tag ?? "").toLowerCase() === "textarea" ||
+    /message|comment|prompt|chat|ask|describe|feedback|note|body|reply|say/.test(hay)
+  )
+    return "ai_probe";
+  return "display_name";
+}
+
+/**
+ * A BENIGN quantity — a budget, an amount of items, a count. `type="number"` is otherwise refused
+ * outright (see SENSITIVE_TYPES) because a card or account number must never be typed, and that
+ * blanket refusal is why Sage could not fill a plain budget box. So the exception is an allowlist,
+ * not a loosening: the field must positively read as a quantity AND still pass the sensitive check,
+ * which independently rejects card / cvv / account / routing / iban / ssn wording.
+ */
+export function isQuantityField(el: {
+  type?: string;
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  ariaLabel?: string;
+  label?: string;
+}): boolean {
+  const hay = normalizeFieldText([
+    el.name,
+    el.id,
+    el.placeholder,
+    el.ariaLabel,
+    el.label,
+  ]);
+  if (!hay) return false;
+  if (
+    !/\bbudget\b|\bamount\b|\bquantity\b|\bqty\b|\bcount\b|how many|number of|\bsize\b|\blimit\b|\btesters\b|\bseats\b|\bslots\b|\bunits\b/.test(
+      hay,
+    )
+  )
+    return false;
+  return !SENSITIVE.test(hay);
 }
 
 /**
@@ -110,8 +223,26 @@ export function resolveSyntheticValue(kind: SyntheticValueKind): string {
  * credential / payment / personal-data field, regardless of what the model proposes. field-test.ts also
  * re-checks live in the page, but this keeps the minted `typable` flag honest.
  */
+/**
+ * Field identifiers are written as `account_number`, `cardNumber`, `api-key` — and a word boundary
+ * does NOT exist between `account` and `_number`, because `_` is a word character. So `account\b`
+ * silently failed to match `account_number`, the single most common spelling of the thing it exists
+ * to catch. Splitting camelCase and separators into spaces FIRST makes every boundary in the pattern
+ * below mean what it says, and stops a bare substring like `count` matching inside `account`.
+ */
+export function normalizeFieldText(parts: Array<string | undefined>): string {
+  return parts
+    .filter(Boolean)
+    .join(" ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
 const SENSITIVE =
-  /pass(word)?|email|e-mail|phone|tel|mobile|card|cc-|cvv|cvc|ccv|iban|routing|acct|account\b|ssn|social|secret|token|api[_-]?key|seed|mnemonic|private[_-]?key|wallet|address|street|zip|postal|postcode|dob|birth|passport|licen[sc]e|tax/i;
+  /pass(word)?|e-?mail|phone|\btel\b|mobile|card|\bcc\b|cvv|cvc|ccv|iban|routing|\bacct\b|\baccount\b|\bssn\b|social|secret|token|api ?key|seed|mnemonic|private ?key|wallet|address|street|\bzip\b|postal|postcode|\bdob\b|birth|passport|licen[sc]e|\btax\b/i;
 const SENSITIVE_TYPES = new Set(["password", "email", "tel", "number"]);
 export function isSensitiveField(el: {
   type?: string;
@@ -120,12 +251,26 @@ export function isSensitiveField(el: {
   placeholder?: string;
   autocomplete?: string;
   ariaLabel?: string;
+  label?: string;
 }): boolean {
-  if (el.type && SENSITIVE_TYPES.has(el.type.toLowerCase())) return true;
-  const hay = [el.name, el.id, el.placeholder, el.autocomplete, el.ariaLabel]
-    .filter(Boolean)
-    .join(" ");
-  return SENSITIVE.test(hay);
+  const hay = normalizeFieldText([
+    el.name,
+    el.id,
+    el.placeholder,
+    el.autocomplete,
+    el.ariaLabel,
+    el.label,
+  ]);
+  if (SENSITIVE.test(hay)) return true;
+  if (el.type && SENSITIVE_TYPES.has(el.type.toLowerCase())) {
+    // `type="number"` is blocked because a card or account number must never be typed — but that
+    // blanket refusal also blocked every budget, quantity and count box, which is most of what a
+    // form actually asks for. A field that positively reads as a quantity is allowed through; the
+    // SENSITIVE check above has already refused card / cvv / account / routing / iban / ssn wording,
+    // so this exception cannot reach a payment field. password / email / tel are never excepted.
+    return !(el.type.toLowerCase() === "number" && isQuantityField(el));
+  }
+  return false;
 }
 
 /* ───────────────── deterministic forward-affordance preference ────────────── */
@@ -493,6 +638,12 @@ const KIND_SET = new Set<SyntheticValueKind>([
   "display_name",
   "search",
   "ai_probe",
+  // The controller prompt still only teaches the first three, so a model will rarely name these. They
+  // are accepted rather than rejected because every kind resolves to a fixed, non-sensitive string —
+  // and because the field's OWN classification (MintedElement.valueKind) overrides the model's choice
+  // at execution time anyway. The model points at a field; the field decides what it is asking for.
+  "url",
+  "quantity",
 ]);
 const clampPct = (n: unknown): number =>
   typeof n === "number" && isFinite(n) ? Math.max(0, Math.min(100, n)) : 50;
