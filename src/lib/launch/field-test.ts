@@ -2232,12 +2232,25 @@ async function exploreInteractive(ctx: {
         if (!action) {
           if (modelCalls >= modelCap) break;
           const img = await screenshotJpegDataUri(page);
+          // THE MODEL CANNOT PICK WHAT IT CANNOT SEE. Retirement was only ever consulted by the
+          // deterministic choosers, so once the model was driving — which on a marketing page is
+          // almost immediately — a retired control was offered back to it every single turn. That is
+          // why retiring the landing page changed nothing measurable: job WptzbM8c5klY still spent 11
+          // of 26 states on `/`. Passing `deadLabels` alongside the list would only be advice; taking
+          // the elements OUT is the enforcement, and it needs no prompt change.
+          //
+          // An emptied list is the CORRECT outcome on an exhausted screen: with nothing left to click
+          // the model's remaining moves are navigation, scrolling, going back, or an honest stop —
+          // which is exactly the decision Sage should be making there.
+          const liveElements = elements.filter(
+            (e) => !deadLabels.has(normL(e.label)),
+          );
           const decision = await decideNextAction(
             goal,
             {
               url: page.url(),
               visibleText: cur.visibleTextExcerpt,
-              elements,
+              elements: liveElements,
               canvas: await canvasGeomPct(page),
             },
             history,
@@ -2333,15 +2346,19 @@ async function exploreInteractive(ctx: {
           // somewhere new has been seen; every control on it is retired at once, which pushes the
           // next decision to navigation (`open_path`) instead of one more click into the same page.
           const sameUrl = page.url() === prevUrl;
-          if (sameUrl && !filled && !journeyAdvanced) {
+          if (!sameUrl || filled || journeyAdvanced) {
+            // A screen that is GETTING SOMEWHERE — a new url, a field accepted, a founder checkpoint
+            // met — has earned a clean slate. Without this reset a genuinely productive screen like a
+            // multi-step form accumulates churn between its fills and retires itself mid-flow, which
+            // is the exact opposite of the intent.
+            churnAtUrl.set(page.url(), 0);
+          } else {
             const seen = (churnAtUrl.get(prevUrl) ?? 0) + 1;
             churnAtUrl.set(prevUrl, seen);
             if (seen >= SCREEN_CHURN_CAP) {
               for (const e of elements) if (e.label.trim()) deadLabels.add(normL(e.label));
               if (actedLabel) deadLabels.add(actedLabel);
             }
-          } else if (!sameUrl) {
-            churnAtUrl.set(page.url(), 0);
           }
           // Retirement is forgiven only by REAL movement — a new page, a filled field, or the founder's
           // journey actually advancing. On an animated marketing page every click repaints something,
