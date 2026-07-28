@@ -206,7 +206,7 @@ function pushAssistant(chatId: string, content: string): void {
 }
 
 /** The plain-text follow-up for a finished inspection — ready plan, needs-input, or failure. */
-function buildInspectionNotice(v: InspectionView): string {
+export function buildInspectionNotice(v: InspectionView): string {
   const host = safeHost(v.productUrl);
   if (v.ready && v.plan) {
     const total = v.plan.totalBudgetBase ? usdFrom(v.plan.totalBudgetBase) : "the budget";
