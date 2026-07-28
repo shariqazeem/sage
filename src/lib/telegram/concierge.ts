@@ -218,7 +218,13 @@ function buildInspectionNotice(v: InspectionView): string {
     const fieldLine =
       v.fieldTest && v.fieldTest.screenshots > 0
         ? `\n\nI clicked through ${v.fieldTest.pages} page${v.fieldTest.pages === 1 ? "" : "s"} and took screenshots — see the plan link.`
-        : "";
+        : v.pagesInspected > 0
+          ? `\n\nI read ${v.pagesInspected} page${v.pagesInspected === 1 ? "" : "s"} of the product to design these — see the plan link.`
+          : "";
+    // A plan that covers only PART of the ask must say so on the same screen as the missions. Sage
+    // plans what it verified rather than dead-ending, and the founder learns the boundary here —
+    // never by noticing later that something they asked for is missing.
+    const coverageLine = v.coverageNote ? `\n\n${v.coverageNote}` : "";
     // P23 — tell the founder BEFORE they fund whether these missions auto-pay or need their review.
     const cr = v.corpusReadiness;
     const readyLine = cr?.observation
@@ -228,7 +234,7 @@ function buildInspectionNotice(v: InspectionView): string {
       : "";
     // Request-scoped, honest framing: this plan is READY FOR YOUR REVIEW — nothing is approved or
     // funded yet. Replying "launch" is how the founder approves + funds it (never done automatically).
-    return `Your plan for ${host} is ready for your review — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}, ${total} total (plan ${v.inspectionId}):${ask}\n${rows}\n\nNothing is approved or funded yet. When you're happy with it, reply "launch" — that approves this exact plan and funds it from your agent wallet, inside its on-chain limits.${readyLine}${fieldLine}`;
+    return `Your plan for ${host} is ready for your review — ${v.plan.missionCount} mission${v.plan.missionCount === 1 ? "" : "s"}, ${total} total (plan ${v.inspectionId}):${ask}\n${rows}\n\nNothing is approved or funded yet. When you're happy with it, reply "launch" — that approves this exact plan and funds it from your agent wallet, inside its on-chain limits.${coverageLine}${readyLine}${fieldLine}`;
   }
   if (v.stage === "needs_input") {
     const qs = (v.needsInput ?? [])

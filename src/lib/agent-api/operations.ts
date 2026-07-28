@@ -128,6 +128,13 @@ export interface InspectionView {
   goal: string;
   pagesInspected: number;
   needsInput: string[] | null;
+  /**
+   * A READY plan that does not cover the founder's whole ask says so here, in one sentence: what
+   * Sage could not finish itself and why. Sage plans the part it verified rather than dead-ending,
+   * so this note is the only thing standing between "a plan" and "a plan that quietly dropped
+   * something you asked for". Never null on a partial plan; null on a complete one.
+   */
+  coverageNote: string | null;
   failure: string | null;
   plan: {
     missionCount: number;
@@ -204,6 +211,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     goal: v.goal,
     pagesInspected: v.pagesInspected,
     needsInput: v.status === "needs_input" ? (v.result?.questions ?? []) : null,
+    coverageNote: ready ? ((v.result?.questions ?? [])[0] ?? null) : null,
     failure: v.status === "failed" ? v.failureReason : null,
     plan,
     approvalUrl: `${siteUrl()}/launch/${v.id}`,

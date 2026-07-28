@@ -1147,6 +1147,38 @@ export function journeyGapQuestion(cp: GoalCheckpointV1): string {
 }
 
 /**
+ * Say WHY Sage stopped short, in the terms that are actually true of it.
+ *
+ * Two different walls hide behind one unmet checkpoint. ACCESS — Sage never found the thing, because
+ * it sits behind a wallet, a login, a payment. EFFORT — Sage found it and could not finish inside one
+ * short visit. Only the first limits what is knowable; the second limits Sage's hands and its clock.
+ * Neither one says the work isn't worth testing, and a human tester walks through both. Conflating
+ * them produced the worst sentence Sage can say to a founder: a demand that they restate a goal they
+ * had already stated plainly, after Sage had explored the product well enough to plan it.
+ *
+ * Pure so the wording is testable without standing up a browser or a model.
+ */
+export function describeJourneyWall(missing: GoalCheckpointV1[]): {
+  boundary: string;
+  unreachable: string[];
+} {
+  const label = (c: GoalCheckpointV1) => c.requirement.replace(/\.$/, "");
+  const unreached = missing.filter((c) => c.entityIsObserved === false);
+  const unfinished = missing.filter((c) => c.entityIsObserved !== false);
+  const boundary = [
+    unreached.length > 0
+      ? `it needs an account, wallet or permission Sage doesn't have (${unreached.map(label).slice(0, 3).join("; ")})`
+      : null,
+    unfinished.length > 0
+      ? `it takes longer than one visit to finish (${unfinished.map(label).slice(0, 3).join("; ")})`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(", and ");
+  return { boundary, unreachable: missing.map(label).slice(0, 4) };
+}
+
+/**
  * The GATE: a grounded plan may only be selected when EVERY founder-required checkpoint is (a) observed in
  * the browser with real evidence and (b) mapped to a mission CRITERION + EVIDENCE pair grounded on that
  * same evidence. Correct wording in a title or objective can never compensate for a missing criterion.

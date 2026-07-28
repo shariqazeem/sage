@@ -17,6 +17,7 @@ import type { CandidateMission } from "./schemas";
 const scope: ValidationScope = {
   hosts: new Set(["sagepays.xyz"]),
   knownUrls: new Set(["https://sagepays.xyz/", "https://sagepays.xyz/launch"]),
+  repoPaths: new Set<string>(),
 };
 
 const mission = (instructions: string): CandidateMission =>

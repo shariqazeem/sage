@@ -28,6 +28,7 @@ import {
   bindJourneyToContext,
   buildJourneySteps,
   journeyGapQuestion,
+  describeJourneyWall,
   type GoalJourneyV1,
 } from "./goal-journey";
 import { buildProductContext, derivePhases } from "./product-context";
@@ -598,15 +599,20 @@ export async function inspectAndPlan(
     // it, that plan is offered — with the boundary named, never hidden. Nothing about the covenant
     // moves: this plan is the legacy one, marked as such, and the grounded canary stays BLOCKED, so
     // an ungrounded plan is still never dressed up as a grounded one.
-    const wallBlocked = missing.every((c) => c.entityIsObserved === false);
-    if (observed.length > 0 && wallBlocked && legacy.plan.missions.length > 0) {
-      const unreachable = missing
-        .map((c) => c.requirement.replace(/\.$/, ""))
-        .slice(0, 4);
+    // Two different walls, one answer. ACCESS — Sage never found the thing, because it sits behind a
+    // wallet, a login, a payment. EFFORT — Sage FOUND it and could not finish it inside one short
+    // visit. Only the first is a limit on what is knowable; the second is a limit on Sage's hands and
+    // its clock. Neither says the work isn't worth testing, and a human tester walks through both.
+    //
+    // Treating the effort wall as a dead end was the bug: Sage would browse a product thoroughly,
+    // learn exactly how it works, and then refuse to plan because it couldn't personally complete the
+    // last step — then ask the founder to restate a goal they had already stated plainly.
+    if (observed.length > 0 && legacy.plan.missions.length > 0) {
+      const { boundary, unreachable } = describeJourneyWall(missing);
       map.limitations = [
         ...new Set([
           ...map.limitations,
-          `Sage could not reach: ${unreachable.join("; ")}. It needs an account, wallet or permission it doesn't have, so these missions cover the part it verified itself.`,
+          `Sage explored the product but did not complete every part of the goal itself: ${boundary}. These missions cover what it verified first-hand.`,
         ]),
       ];
       stamp("ready");
@@ -616,7 +622,7 @@ export async function inspectAndPlan(
         allocation: legacy.allocation,
         plan: legacy.plan,
         questions: [
-          `These missions cover what Sage verified itself. It could not reach ${unreachable.length === 1 ? "this part" : "these parts"} of your request — ${unreachable.join("; ")} — because that needs an account, wallet or permission Sage doesn't have. A human tester can still do it; Sage just can't witness it, so it isn't something it can pay out on automatically.`,
+          `These missions cover what Sage verified itself. It did not finish ${unreachable.length === 1 ? "this part" : "these parts"} of your request — ${unreachable.join("; ")} — because ${boundary}. A human tester can still do it; Sage just can't witness it, so that part holds for your approval instead of paying out automatically.`,
         ],
         canary: {
           status: "blocked",
