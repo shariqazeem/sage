@@ -65,7 +65,15 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
 
   const goal = validateText(input.goal, "Goal", { max: 1200 });
   if (!goal.ok) return { ok: false, error: goal.error };
-  const targetUsers = validateText(input.targetUsers, "Target users", { max: 800 });
+  // OPTIONAL. The /launch wizard stopped asking for this when it went 3 steps → 2 ("the goal carries
+  // intent"), but this validator was never updated — so every founder using the web front door sent
+  // an empty value and was rejected on step TWO for a field step one never showed them. The launch
+  // form is the product's primary entrance; it had been closed.
+  //
+  // Optional is also the right answer, not just the compatible one: who would use a product is
+  // something Sage can infer from the product and the founder's stated goal, and the standing
+  // principle is to ask only for genuine decisions.
+  const targetUsers = validateOptionalText(input.targetUsers, "Target users", 800);
   if (!targetUsers.ok) return { ok: false, error: targetUsers.error };
 
   // budget in whole USDC → 6dp base units (capped, floored) via the shared validator.
