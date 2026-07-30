@@ -3,6 +3,7 @@ import {
   isTransientLlmError,
   backoffMs,
   withTransientRetry,
+  isRateLimited,
   RETRY_BUDGET_MS,
 } from "./retry";
 
@@ -114,8 +115,10 @@ describe("withTransientRetry", () => {
 
   it("stops when the time budget would be exceeded rather than hanging", async () => {
     let calls = 0;
-    // starts at 0, and by the first failure the ladder has nearly spent its budget
-    const ticks = [0, 19_500];
+    // starts at 0, and by the first failure the ladder has nearly spent its budget. Derived from the
+    // constant rather than hardcoded — this test silently became a 20-second hang when the budget was
+    // raised to outlast a rate-limit window.
+    const ticks = [0, RETRY_BUDGET_MS - 500];
     let i = 0;
     const clock = vi.fn(() => ticks[Math.min(i++, ticks.length - 1)]!);
     await expect(
@@ -138,5 +141,54 @@ describe("withTransientRetry", () => {
     });
     expect(out).toBe(42);
     expect(calls).toBe(1);
+  });
+});
+
+/**
+ * REGRESSION — commonstack.ai inspections eVG-Lg5Rxmmx and 5K5vTb9Lcnmo, both `provider_transient`.
+ *
+ * The gateway caps the access key over a WINDOW ("Access key quota exceeded (cap 5)"). Retrying that
+ * on the network-blip schedule — 1s, 3s, 7s — lands three more calls inside the same window and burns
+ * every attempt, then reports failure to the founder. Measured: the key recovered on its own in under
+ * 30 seconds, so the old 20s total budget could not have waited it out even in principle.
+ */
+describe("a rate limit is not a network blip", () => {
+  const rateLimit = new Error("llm_status_429 rate_limit_exceeded");
+  const blip = new Error("fetch failed");
+
+  it("is recognised as its own kind of failure", () => {
+    expect(isRateLimited(rateLimit)).toBe(true);
+    expect(isRateLimited(blip)).toBe(false);
+    expect(isRateLimited(new Error("quota exceeded"))).toBe(true);
+  });
+
+  it("waits long enough to outlast the window", () => {
+    const first = backoffMs(0, rateLimit, () => 0);
+    expect(first).toBeGreaterThanOrEqual(10_000);
+  });
+
+  it("waits progressively longer across attempts", () => {
+    const w = [0, 1, 2].map((i) => backoffMs(i, rateLimit, () => 0));
+    expect(w[1]).toBeGreaterThan(w[0]!);
+    expect(w[2]).toBeGreaterThan(w[1]!);
+  });
+
+  it("outlasts the ~30s recovery actually observed", () => {
+    const total = [0, 1].reduce((a, i) => a + backoffMs(i, rateLimit, () => 0), 0);
+    expect(total).toBeGreaterThan(30_000);
+  });
+
+  it("still fits inside the retry budget, so the waits are actually taken", () => {
+    const total = [0, 1, 2].reduce((a, i) => a + backoffMs(i, rateLimit, () => 0), 0);
+    expect(total).toBeLessThanOrEqual(RETRY_BUDGET_MS);
+  });
+
+  it("leaves an ordinary blip on the fast schedule", () => {
+    expect(backoffMs(0, blip, () => 0)).toBeLessThan(2_000);
+  });
+
+  it("still prefers the provider's own Retry-After when it sends one", () => {
+    const withHeader = Object.assign(new Error("llm_status_429"), { retryAfterMs: 4_000 });
+    expect(backoffMs(0, withHeader, () => 0)).toBe(4_000);
   });
 });

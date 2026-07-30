@@ -239,7 +239,12 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     expect(gs.criticParsePolicy).toBe("strict");
   });
 
+  // A 429 is now retried on the RATE-LIMIT ladder (10s / 25s / 45s) rather than the network-blip one,
+  // because the gateway caps the key over a window and 1s/3s/7s just spends the attempts inside it.
+  // That is correct in production and unaffordable in a test, so the clock is advanced for us instead
+  // of the suite genuinely sleeping 35 seconds.
   it("P0.2: a critic 429 → provider_error (distinct from unsupported); an architect 429 → provider_error", async () => {
+    process.env.LLM_RETRY_MAX_WAIT_MS = "1";
     process.env.MISSION_GROUNDING_MODE = "shadow";
     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { criticThrows: "llm_status_429" });
     const c = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
@@ -247,6 +252,10 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     scriptProviders({ missions: [v2Mission()] }, { verdicts: [] }, { v2Throws: "llm_status_429" });
     const a = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
     expect(a.architectStatus).toBe("provider_error"); expect(a.criticStatus).toBe("not_run");
+    delete process.env.LLM_RETRY_MAX_WAIT_MS; // never leak the ceiling into a later case
+    // The rate-limit ladder is real (10s / 25s / 45s); what is under test here is how a 429 is
+    // CLASSIFIED, not how long it waits, so the operator wait-ceiling is pinned to 1ms for this case.
+    // `retry.test.ts` is where the ladder's actual durations are asserted.
   });
 
   it("P0.3: the critic payload contains the founder's goal as bounded untrusted data", async () => {
