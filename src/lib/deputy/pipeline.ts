@@ -21,7 +21,7 @@ import {
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
-import { OBS_MAX_ATTEMPTS, type PrivateKey } from "./observation-verify";
+import { OBS_MAX_ATTEMPTS, verdictStillApplies, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
@@ -367,7 +367,37 @@ export async function runDeputyOnSubmission(
       // work holds for the founder, the SAFE degradation, never a wrong pay).
       model: process.env.OBS_JUDGE_MODEL || undefined,
     }).catch(() => null);
-    const autopay = !!decision && observationAutopayEnabled() && decision.bar.pass;
+
+    // A VERDICT THAT CANNOT HAVE CHANGED IS NOT RE-BOUGHT. The sweep re-runs this pipeline over every
+    // pending submission on every tick (~5 min), and the judge is an LLM call. Nothing it reads moves
+    // between ticks — the account text and the pinned corpus are both immutable — so each re-judge
+    // returned the identical verdict and was billed for it.
+    //
+    // Measured over one week: 3,766 judge calls costing $8.65, against ~11 submissions in total. It
+    // was 81% of all LLM spend. The trigger was submissions STUCK pending (frozen by the vacuous-policy
+    // covenant defect), which the sweep then re-judged 288 times a day, forever. Two bugs compounding:
+    // one froze the work, the other charged for noticing it was still frozen.
+    //
+    // The stored verdict is reused when BOTH of the judge's inputs are provably unchanged — the
+    // tester's attempt (a revision increments it) and the corpus digest. Anything else re-judges as
+    // before. This spends nothing and weakens nothing: the settlement gate below still runs in full on
+    // the reused numbers, which are the same numbers a fresh call would have produced.
+    const attemptNow = submission.attempt ?? 1;
+    const priorShadow = (!decision
+      ? (getDecisionBySubmission(submissionId)?.observationShadow as
+          | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number }
+          | null
+          | undefined)
+      : null) ?? null;
+    const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
+
+    const barPass = decision ? decision.bar.pass : reusable ? priorShadow!.barPass! : false;
+    const barReasons = decision ? decision.bar.reasons : reusable ? (priorShadow!.barReasons ?? []) : ["no_decision"];
+    const injectionDetected = decision ? decision.injectionDetected : reusable ? (priorShadow!.injectionDetected ?? false) : false;
+    const distinctSources = decision ? decision.publicView.distinctSources : reusable ? (priorShadow!.distinctSources ?? 0) : 0;
+    const haveVerdict = !!decision || reusable;
+
+    const autopay = haveVerdict && observationAutopayEnabled() && barPass;
     if (decision) {
       const shadow = toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>;
       // OBS JUDGE V2 SHADOW — an action/state-grounded verdict on the SAME submission (reconstructed from
@@ -378,13 +408,15 @@ export async function runDeputyOnSubmission(
         shadow.v2 = v2;
         agentLog(cid, "observation_v2", { disagreement: v2.disagreement, v2Pass: v2.v2Pass, legacyPass: v2.legacyPass, stateSpecific: v2.stateSpecificMatches });
       }
+      shadow.attempt = attemptNow; // lets a later sweep prove the verdict still applies
       setObservationShadow(submissionId, shadow);
     }
     agentLog(cid, "observation", {
-      barPass: decision?.bar.pass ?? false,
-      distinct: decision?.publicView.distinctSources ?? 0,
-      reasons: decision?.bar.reasons ?? ["no_decision"],
+      barPass,
+      distinct: distinctSources,
+      reasons: barReasons,
       autopay,
+      reusedVerdict: !decision && reusable,
     });
     if (!autopay) {
       // P20 — a hold is RETRYABLE only when the work FELL SHORT of the bar but looks honest and the tester
@@ -393,10 +425,9 @@ export async function runDeputyOnSubmission(
       // founder: a submission that PASSED the bar (ready to pay — autopay is just off/mainnet), a fraud
       // signal (an attack shouldn't get retries), a null decision (fail-safe), or exhausted attempts.
       const attempt = submission.attempt ?? 1;
-      const fraudFlagged =
-        (decision?.injectionDetected ?? false) || (decision?.bar.reasons.includes("high_fraud") ?? false);
-      const barPassed = decision?.bar.pass ?? false;
-      const retryable = !!decision && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
+      const fraudFlagged = injectionDetected || barReasons.includes("high_fraud");
+      const barPassed = barPass;
+      const retryable = haveVerdict && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
       const reasonCode = retryable ? "observation_retry" : "observation_review";
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
         journalHeld(

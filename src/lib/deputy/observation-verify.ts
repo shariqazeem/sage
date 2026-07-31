@@ -506,6 +506,30 @@ export const OBS_BAR = {
   minKeySources: 5, // campaign eligibility — the pinned key holds ≥5 distinct observations
 } as const;
 
+/**
+ * A STORED VERDICT STILL APPLIES when both of the judge's inputs are provably unchanged: the tester's
+ * attempt (a revision increments it) and the pinned corpus digest. Nothing else the judge reads can
+ * move between sweep ticks, so re-running the LLM would return the identical answer and be billed for
+ * it — 3,766 such calls cost $8.65 in one week, 81% of all LLM spend, because submissions frozen by a
+ * covenant defect were re-judged 288 times a day forever.
+ *
+ * Pure and conservative: anything missing, mismatched, or malformed returns false and re-judges.
+ */
+export function verdictStillApplies(
+  prior:
+    | { barPass?: unknown; corpusDigest?: unknown; attempt?: unknown }
+    | null
+    | undefined,
+  attempt: number,
+  corpusDigest: string,
+): boolean {
+  if (!prior) return false;
+  if (typeof prior.barPass !== "boolean") return false;
+  if (typeof prior.attempt !== "number" || prior.attempt !== attempt) return false;
+  if (typeof prior.corpusDigest !== "string" || prior.corpusDigest !== corpusDigest) return false;
+  return true;
+}
+
 /** P20: total times an observation submission may be judged (revise-while-held). Attempt 1..3; after the
  *  third HOLD the submission is EXHAUSTED and flows to the founder's review — a genuine tester never hits
  *  a dead end without a coached chance to add the detail that clears them. */
