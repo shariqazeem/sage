@@ -19,7 +19,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 import type { BrowserContext, Page, Route } from "playwright";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
-import { resolvesPublic } from "./inspect";
+import { resolvesPublic, sameSiteHost, BROWSER_UA } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { recordFieldTestStep } from "./field-test-progress";
@@ -339,7 +339,7 @@ async function crawlPagesForUrlEvidence(
         .map((u) => {
           try {
             const url = new URL(u, startUrl);
-            return url.host.toLowerCase() === host.toLowerCase() ? url.toString() : null;
+            return sameSiteHost(url.host, host) ? url.toString() : null;
           } catch {
             return null;
           }
@@ -608,9 +608,14 @@ export async function runFieldTest(
     return ok;
   };
 
+  // The LIVE product host. Starts as the caller's host and is REBASED onto the host the entry page
+  // actually lands on (post-redirect), so an apex→www or marketing→app redirect doesn't turn every
+  // subsequent same-site check false (which made the explorer goBack() after every single action).
+  // Scope only — safety stays with the egress proxy + SSRF guard on every request.
+  let liveHost = opts.host;
   const sameOrigin = (u: string): boolean => {
     try {
-      return new URL(u).host.toLowerCase() === opts.host.toLowerCase();
+      return sameSiteHost(new URL(u).host, liveHost);
     } catch {
       return false;
     }
@@ -642,9 +647,14 @@ export async function runFieldTest(
       proxy: { server: proxy.url },
       args: proxy.chromiumArgs,
     });
+    // A REALISTIC browser identity. The old "SageFieldTest/1.0" UA got the field test bot-walled
+    // (403/challenge page) on any WAF-fronted product, so exploration saw a challenge screen instead
+    // of the product — the honest marker moves to a header a site operator can still allowlist.
     context = await browser.newContext({
-      userAgent: "SageFieldTest/1.0 (+read-only product field test)",
+      userAgent: BROWSER_UA,
+      locale: "en-US",
       viewport: { width: 1280, height: 800 },
+      extraHTTPHeaders: { "x-sage-agent": "SageFieldTest/1.0 (+read-only product field test)" },
     });
     // Instrument BEFORE any page script runs: record which event listeners + SPA routing appear,
     // so mode detection reflects the real product, not a guess. Reads only; changes nothing.
@@ -719,6 +729,14 @@ export async function runFieldTest(
       await entryPage
         .waitForLoadState("networkidle", { timeout: PAGE_MS })
         .catch(() => {});
+      // REBASE the live host onto where the product actually landed (post-redirect). Every hop was
+      // validated by the egress boundary; this only fixes the same-site scope for the rest of the run.
+      try {
+        const landed = new URL(entryPage.url()).host;
+        if (landed) liveHost = landed;
+      } catch {
+        /* keep the caller's host */
+      }
       signals = await gatherSignals(entryPage, entryRawTextLen);
     } catch {
       /* couldn't load entry — fall through to static (which will degrade honestly) */
@@ -738,7 +756,7 @@ export async function runFieldTest(
         inspectionId: opts.inspectionId,
         artifactDir,
         methodsSinceCapture,
-        host: opts.host,
+        host: liveHost,
         started,
         signals: signals as ProductSignals,
         entryErrors,
@@ -753,7 +771,7 @@ export async function runFieldTest(
               .map((u) => {
                 try {
                   const url = new URL(u, opts.startUrl);
-                  return url.host.toLowerCase() === opts.host.toLowerCase()
+                  return sameSiteHost(url.host, liveHost)
                     ? url.pathname + url.search
                     : null;
                 } catch {
@@ -792,7 +810,7 @@ export async function runFieldTest(
           context,
           opts.startUrl,
           opts.candidateLinks ?? [],
-          opts.host,
+          liveHost,
         );
         if (pageCaps.length > 0) {
           const asPages = buildFieldTestSummary({
@@ -854,6 +872,33 @@ export async function runFieldTest(
         renderedTextLen,
         screenshot,
       });
+      // SPA LINK DISCOVERY — a client-rendered content site serves raw HTML with no links, so the
+      // static inspector found nothing and `targets` holds only the entry URL. The RENDERED DOM is
+      // where its navigation actually exists; harvest same-site links from it so a JS-rendered
+      // product gets a real multi-page crawl instead of a one-page map.
+      if (targets.length < MAX_PAGES) {
+        const rendered = await entryPage
+          .evaluate(() =>
+            Array.from(document.querySelectorAll("a[href]"))
+              .map((a) => (a as HTMLAnchorElement).href)
+              .filter(Boolean)
+              .slice(0, 40),
+          )
+          .catch(() => [] as string[]);
+        for (const raw of rendered) {
+          if (targets.length >= MAX_PAGES) break;
+          try {
+            const u = new URL(raw, entryPage.url());
+            if (u.protocol !== "https:" || !sameOrigin(u.toString())) continue;
+            const k = u.toString().replace(/#.*$/, "");
+            if (seenTargets.has(k)) continue;
+            seenTargets.add(k);
+            targets.push(k);
+          } catch {
+            /* skip unparseable */
+          }
+        }
+      }
     } catch {
       /* entry capture failed — keep going */
     } finally {
@@ -1808,7 +1853,7 @@ async function exploreInteractive(ctx: {
 
   const sameOrigin = (u: string): boolean => {
     try {
-      return new URL(u).host.toLowerCase() === host.toLowerCase();
+      return sameSiteHost(new URL(u).host, host);
     } catch {
       return false;
     }

@@ -392,7 +392,12 @@ describe("P20 retry-while-held — the hold triages into retryable vs final (fou
     vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: passBar } as never);
     vi.mocked(observationAutopayEnabled).mockReturnValue(false); // off → holds despite passing
     const r = await runDeputyOnSubmission("s1");
-    expect(r.reason).toBe("observation_review"); // NOT observation_retry — nothing to improve, founder just pays
+    // NOT observation_retry — the work is done, there is nothing for the tester to improve.
+    expect(r.reason).not.toBe("observation_retry");
+    // And NOT observation_review either: that sentence ("needs your judgment") reads as a verdict on
+    // the tester, which work that PASSED the whole bar never earned. The hold here is purely that
+    // OBSERVATION_AUTOPAY is unarmed — verified work awaiting release.
+    expect(r.reason).toBe("observation_verified");
     expect(notifyFounderHeld).toHaveBeenCalledTimes(1);
   });
 });

@@ -21,7 +21,7 @@ import {
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
-import { OBS_MAX_ATTEMPTS, verdictStillApplies, type PrivateKey } from "./observation-verify";
+import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, verdictStillApplies, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
@@ -362,7 +362,7 @@ export async function runDeputyOnSubmission(
     const attemptNow = submission.attempt ?? 1;
     const priorShadow =
       (getDecisionBySubmission(submissionId)?.observationShadow as
-        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number }
+        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number; barPolicy?: string }
         | null
         | undefined) ?? null;
     const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
@@ -409,6 +409,7 @@ export async function runDeputyOnSubmission(
         agentLog(cid, "observation_v2", { disagreement: v2.disagreement, v2Pass: v2.v2Pass, legacyPass: v2.legacyPass, stateSpecific: v2.stateSpecificMatches });
       }
       shadow.attempt = attemptNow; // lets a later sweep prove the verdict still applies
+      shadow.barPolicy = OBS_BAR_POLICY_VERSION; // a bar-policy change invalidates stored verdicts
       setObservationShadow(submissionId, shadow);
     }
     agentLog(cid, "observation", {
@@ -428,12 +429,20 @@ export async function runDeputyOnSubmission(
       const fraudFlagged = injectionDetected || barReasons.includes("high_fraud");
       const barPassed = barPass;
       const retryable = haveVerdict && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
-      const reasonCode = retryable ? "observation_retry" : "observation_review";
+      // A bar-PASS held only because autopay is unarmed is VERIFIED work awaiting release — it must
+      // never be journaled as "needs your judgment", which reads as a verdict on the tester.
+      const reasonCode = retryable
+        ? "observation_retry"
+        : barPassed
+          ? "observation_verified"
+          : "observation_review";
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
         journalHeld(
           campaign,
           submission,
-          retryable ? observationRetryLine(attempt, OBS_MAX_ATTEMPTS) : reasonSentence("observation_review"),
+          retryable
+            ? observationRetryLine(attempt, OBS_MAX_ATTEMPTS)
+            : reasonSentence(barPassed ? "observation_verified" : "observation_review"),
           cid,
         );
         if (!retryable) void notifyFounderHeld(campaign, submission); // DM only on FINAL holds (P20.4)
@@ -533,12 +542,19 @@ export async function runDeputyOnSubmission(
   }
 
   // c''. Near-duplicate (P18) — the same report lightly reworded across wallets (paraphrase farming).
-  // Scans ALL other submissions on the campaign, since a farm shows as a cluster of near-identical
-  // PENDING reports, not just paid ones. HELD for human review, never auto-rejected: the threshold is
-  // deliberately high, but a false "you copied" is worse than a miss, so a person makes the final call.
+  // url-lane: scans ALL other submissions on the campaign, since a farm shows as a cluster of
+  // near-identical PENDING reports, not just paid ones. HELD for human review, never auto-rejected.
+  //
+  // OBSERVATION lane: CAUSAL priors only (earlier submissions), matching the decision the bar already
+  // made with the same causal rule (2b). Scanning ALL here re-introduced the exact bug that rule
+  // fixed: a LATER copycat (or the same tester's own later refinement) retroactively flagged an
+  // EARLIER genuine account as a near-dup at settle time, holding work the bar had passed. The
+  // copycat itself still gets caught — from ITS side, the genuine account is an earlier submission.
   const near = findNearDuplicate(
     { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null },
-    listSubmissionsForDedup(campaign.id, submissionId),
+    isObservation
+      ? listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt)
+      : listSubmissionsForDedup(campaign.id, submissionId),
   );
   if (near) {
     const reason = `possible duplicate account — ${near.reason}`;

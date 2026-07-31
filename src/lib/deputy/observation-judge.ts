@@ -106,8 +106,11 @@ export interface ObservationShadow {
   corpusDigest: string;
   /** criterion INDEXES the account has not evidenced — indexes only, never corpus text. */
   unprovenCriteria?: number[];
-  /** SHADOW: every criterion proven and only the flat count still objecting (the pending relaxation). */
+  /** SHADOW: every criterion proven and only the flat count still objecting (the armed relaxation's
+   *  target class, whether or not it fired). */
   wouldPassOnCriteriaAlone?: boolean;
+  /** the criteria-complete pass decided this outcome (strict flat bar alone would have held). */
+  criteriaCompletePass?: boolean;
   wouldAutopay: boolean;
   at: number;
 }
@@ -131,6 +134,7 @@ export function toObservationShadow(d: ObservationDecision, wouldAutopay: boolea
     corpusDigest: d.publicView.corpusDigest,
     ...(d.criteriaProof ? { unprovenCriteria: d.criteriaProof.missingCriteria } : {}),
     wouldPassOnCriteriaAlone: d.wouldPassOnCriteriaAlone,
+    criteriaCompletePass: d.criteriaCompletePass,
     wouldAutopay,
     at,
   };
@@ -162,6 +166,9 @@ export interface ObservationDecision {
   /** SHADOW: would this account have cleared on criterion proof alone, i.e. is the flat count now the
    *  only thing holding a tester who evidenced everything the mission asked for? Never gates. */
   wouldPassOnCriteriaAlone: boolean;
+  /** TRUE when the criteria-complete pass decided this outcome (the strict flat bar alone would have
+   *  held it). Auditable provenance for the receipt — the relaxation is never invisible. */
+  criteriaCompletePass: boolean;
   publicView: ObservationPublicView;
 }
 
@@ -225,9 +232,19 @@ export function assembleObservationDecision(input: {
     hasHighFraud,
     // an UNPROVABLE criterion (no evidence slice) is a mission-design gap, not a tester failure — it
     // must not be reported as something the tester failed to show.
-    ...(criteriaProof ? { unprovenCriteria: criteriaProof.missingCriteria } : {}),
+    ...(criteriaProof
+      ? {
+          unprovenCriteria: criteriaProof.missingCriteria,
+          // arms the criteria-complete pass: every PROVABLE criterion evidenced (never inferred from
+          // an empty missing-list, which an all-unprovable contract also produces).
+          criteriaAllProven: criteriaProof.allProven,
+        }
+      : {}),
   };
   const bar = observationBar(signals);
+  // the UNRELAXED flat bar — what the gate would have said without the criteria-complete pass. Kept
+  // for the calibration shadow, so "the relaxation decided this one" stays a measurable fact.
+  const strictBar = observationBar({ ...signals, criteriaAllProven: false });
   const legacyBar = legacyObservationBar({
     distinctSources: corpusMatch.distinctSources,
     keyDistinctSources: input.key.distinctSources,
@@ -248,13 +265,14 @@ export function assembleObservationDecision(input: {
     bar,
     legacyBar,
     criteriaProof,
-    // The RELAXATION, measured before it is trusted: every criterion proven, nothing else failing, and
-    // the only remaining objection is the flat count. Logged now; it will arm once real submissions
-    // show it behaves — never on the strength of the idea alone.
+    // ARMED (see observationBar's criteria-complete pass). This shadow field now records the honest
+    // pre-relaxation view: every criterion proven and the STRICT flat bar's only objection was the
+    // count — i.e. exactly the accounts the relaxation exists for, whether or not it fired.
     wouldPassOnCriteriaAlone:
       !!criteriaProof &&
       criteriaProof.allProven &&
-      bar.reasons.every((r) => r.startsWith("few_matches")),
+      strictBar.reasons.every((r) => r.startsWith("few_matches")),
+    criteriaCompletePass: bar.pass && !strictBar.pass,
     publicView: {
       // the bar's unit — deterministic matches UNIONED with validated corroborations. A COUNT only; the
       // matched/corroborated strings themselves stay server-side (the leak rule).

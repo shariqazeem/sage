@@ -196,7 +196,16 @@ const EMPTY = (reason: string): MissionBrainResult => ({
  *  without the verbose sources/snippets that overwhelm the model on content-heavy sites. */
 export function compactMapForLlm(map: ProductMapV1): string {
   const vals = (f: { value: string }[], n = 12) => f.slice(0, n).map((x) => x.value);
-  const inspectedUrls = [...new Set(map.routes.flatMap((r) => r.sources.map((s) => s.ref)))].slice(0, 14);
+  // inspectedUrls must include the FIELD TEST's really-visited pages/states: on a bot-walled/SPA
+  // product the static routes are empty, and telling the architect "targetSurface MUST be one of []"
+  // guaranteed an out-of-scope rejection for every mission it could ever write.
+  const inspectedUrls = [
+    ...new Set([
+      ...map.routes.flatMap((r) => r.sources.map((s) => s.ref)),
+      ...(map.fieldTest?.pages ?? []).map((p) => p.url),
+      ...(map.fieldTest?.states ?? []).map((s) => s.url),
+    ]),
+  ].filter(Boolean).slice(0, 14);
   return JSON.stringify({
     productName: map.productName,
     category: map.category,
@@ -359,12 +368,12 @@ function sufficiencyQuestions(map: ProductMapV1, founderGoal = ""): string[] {
   const scene = vis.map((v) => v.sceneDescription).find(Boolean);
   if (types.length && !goalIsSpecific) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
   if (scene && !goalIsSpecific) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
-  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's user agent, SageMissionBrain/1.0?");
+  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's requests (they carry an `x-sage-agent` header)?");
   if (qs.length === 0) {
     qs.push(
       goalIsSpecific
         ? // they told us WHAT they want; the only thing Sage is missing is a way IN.
-          "Sage couldn't get far enough into your product to design missions it can verify. Is there a demo link, a test account, or a step it needs — or (if your site blocks bots) can you allowlist its user agent, SageMissionBrain/1.0?"
+          "Sage couldn't get far enough into your product to design missions it can verify. Is there a demo link, a test account, or a step it needs — or (if your site blocks bots) can you allowlist its requests (they carry an `x-sage-agent` header)?"
         : "Sage's inspection didn't surface enough to design paid missions with confidence. What is the one flow you most want validated, and how would a tester prove they completed it?",
     );
   }

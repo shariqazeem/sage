@@ -328,7 +328,10 @@ export async function inspectAndPlan(
 
   // 4. real LLM mission brain (architect → critic → deterministic gate).
   stamp("generating_missions");
-  const scope = scopeFromObservations(inspection.observations, repo.artifacts);
+  // The scope includes the FIELD TEST's really-visited pages/states, so a bot-walled or client-rendered
+  // product (0 static observations, rich browser exploration) still has a non-empty validation scope —
+  // without it, every mission on such a product failed `target_out_of_scope` before anyone saw it.
+  const scope = scopeFromObservations(inspection.observations, repo.artifacts, map.fieldTest);
   // the observation corpus is every string Sage actually observed — the anchor gate matches each
   // mission's claimed anchors against it, so nothing can be invented from scraps.
   const corpus = buildObservationCorpus(inspection.observations, map.fieldTest);

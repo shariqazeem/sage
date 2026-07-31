@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { verdictStillApplies } from "./observation-verify";
+import { OBS_BAR_POLICY_VERSION, verdictStillApplies } from "./observation-verify";
 
 /**
  * REGRESSION — one week of CommonStack usage: **3,766 judge calls costing $8.65**, against roughly
@@ -22,6 +22,7 @@ const shadow = (over: Record<string, unknown> = {}) => ({
   barPass: true,
   attempt: 1,
   corpusDigest: DIGEST,
+  barPolicy: OBS_BAR_POLICY_VERSION,
   ...over,
 });
 
@@ -58,6 +59,8 @@ describe("a malformed or legacy shadow always re-judges — never a stale payout
     ["attempt not a number", { attempt: "1" }],
     ["missing corpusDigest", { corpusDigest: undefined }],
     ["corpusDigest not a string", { corpusDigest: 12345 }],
+    ["missing barPolicy (row written before the bar-policy pin existed)", { barPolicy: undefined }],
+    ["barPolicy from an older bar (the bar itself changed — the verdict is stale by definition)", { barPolicy: "obs-bar-v1" }],
   ])("re-judges when %s", (_label, over) => {
     expect(verdictStillApplies(shadow(over), 1, DIGEST)).toBe(false);
   });

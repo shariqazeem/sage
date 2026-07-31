@@ -184,7 +184,7 @@ export function buildProductMap(
   // genuinely saw nothing, the likeliest cause is a WAF blocking automated visits, so we name the
   // concrete founder actions — including allowlisting Sage's user agent — rather than a vague ask.
   if (observations.length === 0 && !fieldTestExplored(fieldTest)) {
-    openQuestions.push("Sage couldn't read any page at this URL — it may be unreachable or blocking automated visits. Is there a public link or a demo/staging URL Sage can use, or can you allowlist Sage's user agent (SageMissionBrain/1.0) so it can read the page?");
+    openQuestions.push("Sage couldn't read any page at this URL — it may be unreachable or blocking automated visits. Is there a public link or a demo/staging URL Sage can use, or can you allowlist Sage's requests (they carry an `x-sage-agent` header) so it can read the page?");
   }
   if (observations.length > 0 && observations.length < 3) {
     limitations.push("Only a few pages were reachable, so the map is partial.");
@@ -205,6 +205,28 @@ export function buildProductMap(
   ) {
     openQuestions.push("Sage did not find an obvious signup/onboarding surface — where should a new user start?");
   }
+
+  // A field-test-only product (bot-walled / client-rendered: 0 static observations, real browser
+  // evidence) still deserves a name — "the product" in every mission prompt reads as Sage not having
+  // looked. Derived from what the browser actually saw: the first crawled page's title/h1, else the
+  // first state's URL host.
+  const ftNameSource = fieldTest?.pages?.[0]?.title || fieldTest?.pages?.[0]?.h1 || "";
+  const ftFallbackName = (() => {
+    if (observations.length > 0) return null;
+    if (ftNameSource) {
+      const brand = ftNameSource.split(/\s[|–—-]\s/).map((s) => s.trim()).filter(Boolean).pop();
+      if (brand) return norm(brand);
+    }
+    const ftUrl = fieldTest?.states?.[0]?.url || fieldTest?.pages?.[0]?.url || fieldTest?.startUrl;
+    if (ftUrl) {
+      try {
+        return new URL(ftUrl).host.replace(/^www\./, "");
+      } catch {
+        /* fall through */
+      }
+    }
+    return null;
+  })();
 
   const base: Omit<ProductMapV1, "digest"> = {
     productName: inferName(observations),
@@ -229,6 +251,9 @@ export function buildProductMap(
   // shifts the map digest (or any downstream plan hash). Off/failed field test → no key at all,
   // leaving the serialized map byte-identical to today.
   const map: ProductMapV1 = { ...base, digest: productMapDigest(base) };
+  // Applied AFTER the digest (exactly like vision below), so the canonical digest stays a hash of the
+  // deterministic static evidence and existing plan hashes never shift.
+  if (ftFallbackName) map.productName = ftFallbackName;
   if (fieldTestExplored(fieldTest)) map.fieldTest = fieldTest;
   // P14 — enrich the map's UNDERSTANDING from what a vision model saw in the state screenshots. Applied
   // AFTER the digest, so the canonical digest stays a stable hash of the deterministic static evidence
@@ -297,20 +322,45 @@ function applyVisionUnderstanding(map: ProductMapV1, observations: ProductObserv
   }
 }
 
-/** The set of every URL/host/repo-path known from the map — the mission-validation scope. */
-export function scopeFromObservations(observations: ProductObservation[], repoArtifacts: RepoArtifact[]) {
+/**
+ * The set of every URL/host/repo-path known from the map — the mission-validation scope.
+ *
+ * The FIELD TEST is part of the known scope. It used to be built from static observations alone, so a
+ * bot-walled or client-rendered product — 0 static pages, but a real-browser exploration full of pages
+ * and states — produced an EMPTY scope, and the validator then rejected every mission with
+ * `target_out_of_scope` / `unknown_source_ref` no matter how well-grounded it was. Every URL here was
+ * genuinely visited: static observations by the inspector, field-test pages/states by the guarded
+ * headless browser. Same-site (www/apex) link variants are admitted like everywhere else.
+ */
+export function scopeFromObservations(
+  observations: ProductObservation[],
+  repoArtifacts: RepoArtifact[],
+  fieldTest?: FieldTestSummary | null,
+) {
   const knownUrls = new Set<string>();
   const hosts = new Set<string>();
-  for (const o of observations) {
-    knownUrls.add(o.url);
+  const sameSite = (a: string, b: string) =>
+    a.toLowerCase().replace(/^www\./, "") === b.toLowerCase().replace(/^www\./, "");
+  const addUrl = (raw: string | null | undefined, base?: string) => {
+    if (!raw) return;
     try {
-      const u = new URL(o.url);
+      const u = new URL(raw, base);
+      knownUrls.add(u.toString());
+      knownUrls.add(u.toString().replace(/#.*$/, ""));
       hosts.add(u.host.toLowerCase());
       knownUrls.add(`${u.origin}/`);
+    } catch {
+      /* skip */
+    }
+  };
+  for (const o of observations) {
+    addUrl(o.url);
+    try {
+      const u = new URL(o.url);
       for (const l of o.links) {
         try {
           const lu = new URL(l, o.url);
-          if (lu.host.toLowerCase() === u.host.toLowerCase()) knownUrls.add(lu.toString());
+          if (sameSite(lu.host, u.host)) knownUrls.add(lu.toString());
         } catch {
           /* skip */
         }
@@ -318,6 +368,12 @@ export function scopeFromObservations(observations: ProductObservation[], repoAr
     } catch {
       /* skip */
     }
+  }
+  // Real-browser evidence: every crawled page and every explored state is a URL Sage actually reached.
+  if (fieldTest?.ran) {
+    addUrl(fieldTest.startUrl);
+    for (const p of fieldTest.pages ?? []) addUrl(p.url);
+    for (const s of fieldTest.states ?? []) addUrl(s.url);
   }
   return { knownUrls, hosts, repoPaths: new Set(repoArtifacts.map((a) => a.path)) };
 }

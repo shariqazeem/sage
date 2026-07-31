@@ -484,6 +484,12 @@ export interface ObservationSignals {
    * actually asked for.
    */
   unprovenCriteria?: number[];
+  /**
+   * TRUE only when the mission carries a criterion contract AND every PROVABLE criterion was evidenced
+   * (proveCriteria.allProven — never inferred from an empty missing-list, which an all-unprovable
+   * contract also produces). This is what arms the criteria-complete pass below.
+   */
+  criteriaAllProven?: boolean;
 }
 
 export interface BarResult {
@@ -507,17 +513,46 @@ export const OBS_BAR = {
 } as const;
 
 /**
- * A STORED VERDICT STILL APPLIES when both of the judge's inputs are provably unchanged: the tester's
- * attempt (a revision increments it) and the pinned corpus digest. Nothing else the judge reads can
- * move between sweep ticks, so re-running the LLM would return the identical answer and be billed for
- * it — 3,766 such calls cost $8.65 in one week, 81% of all LLM spend, because submissions frozen by a
- * covenant defect were re-judged 288 times a day forever.
+ * THE CRITERIA-COMPLETE PASS — the armed form of the relaxation that lived in shadow as
+ * `wouldPassOnCriteriaAlone`. The flat ≥3-distinct bar was a proxy for "did real work", and it held
+ * the exact tester it exists to pay: a concise, honest account that evidenced EVERY criterion of the
+ * mission's own contract but touched only two of Sage's screens. Measured on real submissions, that
+ * was the dominant genuine-hold class.
+ *
+ * The pass is DELIBERATELY narrow — all of these must hold at once:
+ *   · the mission carries a criterion contract (compiler-authored; legacy missions keep the flat bar),
+ *   · every PROVABLE criterion was evidenced (proveCriteria.allProven — same anti-guess matcher,
+ *     same structural parrot-zero, same validated-corroboration unit as the flat bar),
+ *   · the account still matched ≥2 DISTINCT private sources (never a single lucky phrase),
+ *   · nothing else objects — no veto, no near-dup, no fraud, corpus eligible. The ONLY objection the
+ *     pass may override is the flat count itself.
+ * A parrot still scores zero (public strings are structurally absent from the key); a guesser still
+ * fails the ≥2-content-word floor per observation; and every criterion had to be proven from its OWN
+ * slice of the key, which is strictly harder to fake than three matches anywhere.
+ */
+export const CRITERIA_COMPLETE_MIN_MATCHES = 2;
+
+/**
+ * The BAR POLICY under which a stored verdict was computed. A verdict is only reusable under the SAME
+ * policy: when the bar itself changes (e.g. arming the criteria-complete pass), every stored verdict
+ * is stale by definition — a submission held under the old policy might pass under the new one, and
+ * reusing the old answer would freeze it forever. Bump this on ANY change to observationBar/OBS_BAR.
+ */
+export const OBS_BAR_POLICY_VERSION = "obs-bar-v2-criteria-complete";
+
+/**
+ * A STORED VERDICT STILL APPLIES when everything the verdict depends on is provably unchanged: the
+ * tester's attempt (a revision increments it), the pinned corpus digest, AND the bar policy that
+ * computed it. Nothing else the judge reads can move between sweep ticks, so re-running the LLM would
+ * return the identical answer and be billed for it — 3,766 such calls cost $8.65 in one week, 81% of
+ * all LLM spend, because submissions frozen by a covenant defect were re-judged 288 times a day forever.
  *
  * Pure and conservative: anything missing, mismatched, or malformed returns false and re-judges.
+ * (A legacy row without a stored barPolicy re-judges ONCE under the current policy, then reuses.)
  */
 export function verdictStillApplies(
   prior:
-    | { barPass?: unknown; corpusDigest?: unknown; attempt?: unknown }
+    | { barPass?: unknown; corpusDigest?: unknown; attempt?: unknown; barPolicy?: unknown }
     | null
     | undefined,
   attempt: number,
@@ -527,6 +562,7 @@ export function verdictStillApplies(
   if (typeof prior.barPass !== "boolean") return false;
   if (typeof prior.attempt !== "number" || prior.attempt !== attempt) return false;
   if (typeof prior.corpusDigest !== "string" || prior.corpusDigest !== corpusDigest) return false;
+  if (prior.barPolicy !== OBS_BAR_POLICY_VERSION) return false;
   return true;
 }
 
@@ -542,11 +578,23 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   if (s.vetoFired) reasons.push("contradiction");
   if (!s.nearDupClear) reasons.push("near_dup");
   if (s.hasHighFraud) reasons.push("high_fraud");
-  // The mission's own contract, when it has one. Strictly ADDITIVE to the count above: this release
-  // only ever makes the gate harder. Letting a concise account that proved every criterion clear on
-  // fewer total matches is the relaxation, and it stays in shadow until real submissions justify it.
+  // The mission's own contract, when it has one. Strictly ADDITIVE: detail from the wrong screen can
+  // never buy a payout for work the mission actually asked for.
   if (s.unprovenCriteria && s.unprovenCriteria.length > 0) {
     reasons.push(`criteria_unproven(${s.unprovenCriteria.join(",")})`);
+  }
+  // THE CRITERIA-COMPLETE PASS (armed from shadow — see CRITERIA_COMPLETE_MIN_MATCHES). When every
+  // provable criterion of the mission's own contract is evidenced and the ONLY remaining objection is
+  // the flat count — with still ≥2 distinct private-source matches — the account has proven the work
+  // the mission asked for, and holding it punishes concision. Any other objection (veto, near-dup,
+  // fraud, thin corpus, an unproven criterion) keeps the hold exactly as before.
+  if (
+    reasons.length > 0 &&
+    s.criteriaAllProven === true &&
+    s.distinctSources >= CRITERIA_COMPLETE_MIN_MATCHES &&
+    reasons.every((r) => r.startsWith("few_matches"))
+  ) {
+    return { pass: true, reasons: [] };
   }
   return { pass: reasons.length === 0, reasons };
 }

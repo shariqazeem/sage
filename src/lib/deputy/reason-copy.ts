@@ -26,6 +26,10 @@ const SENTENCE: Record<string, string> = {
   duplicate_account: "the report closely matches another submission — possible multi-wallet farming (duplicate_account)",
   observation_review: "observation-based work that needs your judgment (observation_review)",
   observation_retry: "the tester is refining thin-but-genuine work; Sage is re-judging (observation_retry)",
+  // A submission that PASSED the whole observation bar while autopay is unarmed. It must never read
+  // as a verdict on the work — Sage verified it; only the release switch is off.
+  observation_verified:
+    "Sage verified this account against its own private observations — it's ready to pay and only awaits release (observation autopay is off) (observation_verified)",
   // settlement-covenant reasons. These say the CAMPAIGN could not be settled — they are never a
   // verdict on the tester's work, and the wording must not read like one. The first real tester on the
   // yara campaign passed the bar and was shown "the submitted link had no usable evidence"; a sentence

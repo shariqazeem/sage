@@ -780,17 +780,19 @@ export const BROWSER_ACTION_SCHEMA: {
               "drag",
               "wait",
               "go_back",
+              "open_path",
               "stop",
             ],
           },
           elementId: { type: ["string", "null"] },
+          path: { type: ["string", "null"] },
           xPct: { type: ["number", "null"] },
           yPct: { type: ["number", "null"] },
           key: { type: ["string", "null"], enum: [...ALLOWED_KEYS, null] },
           repeat: { type: ["integer", "null"] },
           valueKind: {
             type: ["string", "null"],
-            enum: ["display_name", "search", "ai_probe", null],
+            enum: ["display_name", "search", "ai_probe", "url", "quantity", null],
           },
           optionValue: { type: ["string", "null"] },
           direction: { type: ["string", "null"], enum: ["up", "down", null] },
@@ -807,6 +809,7 @@ export const BROWSER_ACTION_SCHEMA: {
         required: [
           "kind",
           "elementId",
+          "path",
           "xPct",
           "yPct",
           "key",
@@ -864,7 +867,7 @@ export interface DecideDeps {
 const CONTROLLER_SYSTEM = [
   "You are Sage, an autonomous product tester driving a real web browser to accomplish ONE founder goal.",
   "You are given the goal, the current screen (screenshot + visible text), a list of Sage-minted interactive elements (referenced ONLY by their id), optional canvas geometry, and your recent actions with outcomes.",
-  "Return exactly ONE next action that best advances the goal, using ONLY the provided element ids, the allowlisted keys, normalized 0-100 coordinates, or a synthetic value KIND (display_name, search, ai_probe).",
+  "Return exactly ONE next action that best advances the goal, using ONLY the provided element ids, the allowlisted keys, normalized 0-100 coordinates, one of the offered same-product paths (open_path), or a synthetic value KIND (display_name, search, ai_probe, url, quantity).",
   "You may NOT author selectors, JavaScript, URLs, credentials, or free-text values. To fill a name field use type_text with valueKind display_name; to message an in-product AI/NPC character (only if the goal requires talking to one) use type_text with valueKind ai_probe.",
   "Prefer obvious forward controls (Start, Continue, Enter, Come in, Skip). For a canvas/visual world with few DOM elements, use click_coords, press_key (arrows/WASD/Space/Enter), or drag to move and interact.",
   "PRIORITY once the product's main experience is reached: go to the thing the GOAL names. If a label or on-screen affordance matching the goal's target is visible, click that element (or its screen coordinates) directly. If the target is visible but out of reach, use press_key with a repeat of 2-5 as a bounded movement burst toward it, then reassess from the new screenshot; if a direction produces no goal-relative progress twice, try a different direction.",
@@ -968,6 +971,7 @@ async function callController(
   system: string,
   user: string,
   imageDataUri: string | null,
+  log: (m: string) => void = () => {},
 ): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONTROLLER_TIMEOUT_MS);
@@ -999,12 +1003,18 @@ async function callController(
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // SILENT nulls made "browsing fails on product X" undiagnosable — a 400 (model can't take an
+      // image), a 401 (bad key) and a 429 (quota) all looked identical. Status + model are leak-safe.
+      log(`[controller] provider ${res.status} (model=${provider.model}${imageDataUri ? ", multimodal" : ""})`);
+      return null;
+    }
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
     };
     return data.choices?.[0]?.message?.content ?? null;
-  } catch {
+  } catch (e) {
+    log(`[controller] provider unreachable (${e instanceof Error ? e.name : "error"})`);
     return null;
   } finally {
     clearTimeout(timer);
@@ -1054,19 +1064,23 @@ export async function decideNextAction(
         const p = resolveController(deps);
         return p
           ? (sys: string, usr: string, img: string | null) =>
-              callController(p, sys, usr, img)
+              callController(p, sys, usr, img, deps.log ?? (() => {}))
           : null;
       })();
   if (!complete) return null;
   const user = controllerUserText(goal, view, history, remainingActions, offeredPaths);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await complete(CONTROLLER_SYSTEM, user, imageDataUri);
+    // TEXT-ONLY FALLBACK on the retry: if the configured model can't take an image (a non-multimodal
+    // model behind a gateway 400s the image_url part), the first attempt fails — the retry re-asks
+    // from the text view alone, so exploration degrades to text-guided instead of ending outright.
+    const img = attempt === 0 ? imageDataUri : null;
+    const raw = await complete(CONTROLLER_SYSTEM, user, img);
     if (raw) {
       const decision = coerceDecision(isolateJson(raw), view.elements, offeredPaths);
       if (decision) return decision;
     }
     deps.log?.(
-      `[controller] decision attempt ${attempt + 1} unusable — ${attempt === 0 ? "retrying once" : "giving up"}`,
+      `[controller] decision attempt ${attempt + 1} unusable — ${attempt === 0 ? "retrying once (text-only)" : "giving up"}`,
     );
   }
   return null;

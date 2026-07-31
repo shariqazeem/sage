@@ -105,6 +105,16 @@ function urlOrNull(raw: string): URL | null {
   }
 }
 
+/** SAME-SITE host membership: a host is in scope when it (or its www/apex variant) was inspected.
+ *  Mirrors the crawler's own scope rule so a product that 301s apex→www doesn't fail its target gate. */
+function hostInScope(host: string, hosts: Set<string>): boolean {
+  const norm = (h: string) => h.toLowerCase().replace(/^www\./, "");
+  const want = norm(host);
+  if (hosts.has(host.toLowerCase())) return true;
+  for (const h of hosts) if (norm(h) === want) return true;
+  return false;
+}
+
 /** Every http(s) URL mentioned in a blob (to catch out-of-scope links in instructions). */
 function urlsIn(text: string): string[] {
   return text.match(/https?:\/\/[^\s"'<>)]+/gi) ?? [];
@@ -305,7 +315,7 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
   const target = urlOrNull(m.targetSurface);
   if (!target || target.protocol !== "https:") {
     add("target_out_of_scope", "targetSurface", "target surface must be an https URL");
-  } else if (!scope.hosts.has(target.host.toLowerCase())) {
+  } else if (!hostInScope(target.host, scope.hosts)) {
     add("target_out_of_scope", "targetSurface", `host ${target.host} was not inspected`);
   } else {
     const canon = target.toString();
@@ -327,7 +337,7 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
   const instructions = m.instructions ?? "";
   for (const u of urlsIn(instructions)) {
     const parsed = urlOrNull(u);
-    if (!parsed || scope.hosts.has(parsed.host.toLowerCase())) continue;
+    if (!parsed || hostInScope(parsed.host, scope.hosts)) continue;
     const at = instructions.indexOf(u);
     const before = at > 0 ? instructions.slice(Math.max(0, at - 60), at).toLowerCase() : "";
     const isExampleValue =

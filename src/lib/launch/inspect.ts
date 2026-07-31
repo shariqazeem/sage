@@ -62,6 +62,39 @@ function priority(url: string): number {
   return 1;
 }
 
+/**
+ * SAME-SITE host equality — the generalization fix. Half the real web serves the product on the
+ * `www.` variant of the apex the founder typed (or vice-versa): `commonstack.ai` 301s to
+ * `www.commonstack.ai`. Every observation then lands on the www host, and a strict `a === b` host
+ * comparison silently drops EVERY discovered link — the crawl covers one page, the field test
+ * `goBack()`s after every action, and mission design starves. Products that happen to serve on the
+ * apex (yara.garden, sagepays.xyz) never showed the bug. Comparing with the `www.` prefix stripped
+ * treats the apex and its www variant as one site — nothing else is widened, and this is a SCOPE
+ * decision only: SSRF/public-host safety is enforced independently by validateEvidenceUrl,
+ * resolvesPublic and the egress proxy on every request regardless of scope.
+ */
+export function sameSiteHost(a: string, b: string): boolean {
+  const norm = (h: string) => h.toLowerCase().replace(/^www\./, "");
+  return norm(a) === norm(b);
+}
+
+/**
+ * Browser-equivalent request headers. The old UA ("SageMissionBrain/1.0") was honest and got the
+ * inspector bot-walled on sight: Cloudflare/WAF-fronted products (most commercial ones) 403 any
+ * non-browser UA, so a NEW product often yielded zero observations while Sage's own unshielded
+ * domains worked — exactly the "works on mine, fails on theirs" failure. A realistic UA is what
+ * every production browsing agent sends; the `x-sage-agent` header preserves an honest, allowlistable
+ * marker for operators who look.
+ */
+export const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+export const BROWSER_HEADERS: Record<string, string> = {
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "en-US,en;q=0.9",
+  "user-agent": BROWSER_UA,
+  "x-sage-agent": "SageMissionBrain/1.0 (+read-only product inspection)",
+};
+
 /** A literal private/loopback/link-local/metadata IP (v4 + basic v6) — belt-and-braces. */
 function isPrivateIp(addr: string, family: number): boolean {
   if (family === 4) {
@@ -119,7 +152,7 @@ async function fetchPageRaw(rawUrl: string, o: Required<InspectOptions>): Promis
       const res = await fetch(url, {
         redirect: "manual",
         signal: controller.signal,
-        headers: { accept: "text/html,application/xhtml+xml", "user-agent": "SageMissionBrain/1.0 (+read-only product inspection)" },
+        headers: BROWSER_HEADERS,
       });
       if (res.status >= 300 && res.status < 400) {
         const loc = res.headers.get("location");
@@ -195,7 +228,10 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
     return { startUrl, host: "", observations: [], limitations: [`Start URL rejected: ${entry.error}`], blocked };
   }
   const origin = new URL(entry.value);
-  const host = origin.host.toLowerCase();
+  // the crawl host — REBASED onto the landed host of the first successful page, so a product that
+  // 301s apex→www (or www→apex, or onto its real app host) is crawled where it actually lives.
+  // Every hop was already validated by the SSRF guard; this only decides SCOPE.
+  let host = origin.host.toLowerCase();
 
   const visited = new Set<string>();
   const queue: { url: string; depth: number }[] = [{ url: entry.value, depth: 0 }];
@@ -221,6 +257,17 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
       continue;
     }
     totalBytes += page.bytes?.byteLength ?? 0;
+    // FIRST successful page: adopt its landed (post-redirect) host as the crawl host. Without this,
+    // an apex→www redirect left `host` pointing at a host no discovered link matches, and the crawl
+    // ended after one page on any product served on its www (or app.) variant.
+    if (observations.length === 0) {
+      try {
+        const landed = new URL(page.url).host.toLowerCase();
+        if (landed && landed !== host) host = landed;
+      } catch {
+        /* keep the entry host */
+      }
+    }
     const obs = extractObservation({ url: page.url, status: page.status, html: page.html, bytes: page.bytes });
     obs.inspectedAt = now > 0 ? now : Math.floor(Date.now() / 1000);
     observations.push(obs);
@@ -238,7 +285,7 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
           continue;
         }
         if (abs.protocol !== "https:") continue;
-        if (abs.host.toLowerCase() !== host) continue; // same-origin only
+        if (!sameSiteHost(abs.host, host)) continue; // same-site only (www/apex variants included)
         if (SOCIAL.test(abs.toString())) continue;
         const k = abs.toString().replace(/#.*$/, "");
         if (visited.has(k) || queue.some((q) => q.url === k)) continue;
@@ -280,7 +327,7 @@ export function rankPrimaryLinks(
         continue;
       }
       if (abs.protocol !== "https:") continue;
-      if (abs.host.toLowerCase() !== host.toLowerCase()) continue;
+      if (!sameSiteHost(abs.host, host)) continue; // same-site (www/apex variants included)
       if (SOCIAL.test(abs.toString())) continue;
       const k = abs.toString().replace(/#.*$/, "");
       if (seen.has(k)) continue;

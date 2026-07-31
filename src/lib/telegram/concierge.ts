@@ -452,7 +452,19 @@ async function runAgentTurn(
             // restate their goal. Applied HERE because this is the one place that holds both the
             // founder's own words and the expansion — so web and Telegram get the identical guard.
             if (typeof args.goal === "string") {
-              const guarded = guardGoalAgainstFounder(userText, args.goal);
+              // The founder's OWN words are the whole conversation's user turns, not just this one.
+              // Guarding against only the current message ("yes, launch it") wrongly dropped goal
+              // clauses the founder stated two messages earlier — the guard then filtered a goal the
+              // founder had legitimately asked for.
+              const founderWords = [
+                ...history
+                  .filter((m): m is { role: "user"; content: string } => m.role === "user" && typeof m.content === "string")
+                  .map((m) => m.content),
+                userText,
+              ]
+                .join("\n")
+                .slice(-4000);
+              const guarded = guardGoalAgainstFounder(founderWords, args.goal);
               if (guarded.dropped.length > 0) {
                 console.log(
                   "[concierge:%s] dropped invented requirement(s) from goal: %s",
