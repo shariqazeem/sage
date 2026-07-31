@@ -874,6 +874,10 @@ async function composeProofV2(
     submission,
     attempt,
     brief,
+    // The V2 caller must pass this too — the yara payout is a campaign_v2 settlement, so it lands in
+    // buildProofV2, and wiring only the V1 caller left the receipt still publishing the url-lane
+    // brief on exactly the payout this fix exists for.
+    observationShadow: decision?.observationShadow,
     recomputed,
     recomputedCampaignIdHash,
     recomputedMissionIdHash,
