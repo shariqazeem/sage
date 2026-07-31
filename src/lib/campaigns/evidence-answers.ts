@@ -22,6 +22,17 @@
 /** How many questions a tester is asked. Beyond this it stops being a form and becomes a chore. */
 export const MAX_EVIDENCE_PROMPTS = 4;
 
+/**
+ * How long the composed account may be. Sized for the FORM, not for one box: up to
+ * {@link MAX_EVIDENCE_PROMPTS} answers, each long enough to describe a screen properly.
+ *
+ * The old limit was 500 — correct when a tester faced a single textarea, and wrong the moment the
+ * mission started asking several questions. A real submission on the yara campaign (two thorough,
+ * specific answers, exactly the kind the observation bar pays for) came to roughly 700 characters and
+ * was refused. A cap that rejects the accounts most likely to clear is fighting its own product.
+ */
+export const MAX_ACCOUNT_CHARS = 4000;
+
 /** The minimum a single answer must contain before it counts as answered at all. */
 const MIN_ANSWER_CHARS = 3;
 

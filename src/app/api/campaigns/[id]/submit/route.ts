@@ -2,6 +2,7 @@ import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { MAX_ACCOUNT_CHARS } from "@/lib/campaigns/evidence-answers";
 import {
   validateEvidenceUrl,
   validateOptionalText,
@@ -79,7 +80,11 @@ export async function POST(
     if (!ev.ok) return NextResponse.json({ error: ev.error }, { status: 400 });
     evidenceUrl = ev.value;
   }
-  const note = validateOptionalText(body.note, "Note", 500);
+  // 500 was sized for ONE free-text box. The mission now asks up to MAX_EVIDENCE_PROMPTS questions
+  // and the answers are composed into this single note, so a tester who answers each one properly
+  // blows the old cap — and detail is exactly what the observation bar requires to pay them. A limit
+  // that rejects the accounts most likely to clear is a limit fighting its own product.
+  const note = validateOptionalText(body.note, "Note", MAX_ACCOUNT_CHARS);
   if (!note.ok) return NextResponse.json({ error: note.error }, { status: 400 });
 
   let missionIdHash: string | null = null;
