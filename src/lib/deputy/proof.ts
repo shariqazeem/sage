@@ -63,6 +63,55 @@ export type ProofState =
   | "incomplete_local_record"
   | "not_found";
 
+/**
+ * Read the OBSERVATION verdict off a decision row's stored shadow, or null when this payout was not
+ * decided on the observation lane. Pure; counts and booleans only.
+ */
+export function observationVerdictFrom(
+  shadow: unknown,
+): PublicObservationVerdict | null {
+  if (!shadow || typeof shadow !== "object") return null;
+  const s = shadow as Record<string, unknown>;
+  if (typeof s.barPass !== "boolean") return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    barPass: s.barPass,
+    distinctSources: num(s.distinctSources),
+    keySources: num(s.keyDistinctSources),
+    matchedCount: num(s.matchedCount),
+    criteriaCompletePass: s.criteriaCompletePass === true,
+    corpusDigest: typeof s.corpusDigest === "string" ? s.corpusDigest : null,
+  };
+}
+
+/**
+ * The OBSERVATION verdict, when this payout was decided on the observation lane.
+ *
+ * An observation mission is judged against Sage's own private corpus, NOT against a fetched public
+ * URL — the url-lane brief that `PublicBrief` carries is explicitly meaningless for it (the pipeline
+ * says so in as many words, and skips its reason codes entirely). Publishing that brief as the
+ * receipt made the proof page announce `HOLD · 0% · no_evidence` for a payout Sage had in fact made
+ * autonomously after the account matched 5 of 9 distinct sources. The most important public artifact
+ * the product has was arguing against its own thesis.
+ *
+ * Leak-safe by construction: counts and booleans only, never which observations exist or matched —
+ * the same discipline the tester-facing coaching follows.
+ */
+export interface PublicObservationVerdict {
+  /** the account cleared the observation bar (this is what actually authorized the payout). */
+  barPass: boolean;
+  /** DISTINCT private-key sources the account matched. */
+  distinctSources: number;
+  /** how many distinct sources the pinned corpus holds. */
+  keySources: number;
+  /** total matched observations (>= distinctSources). */
+  matchedCount: number;
+  /** true when the criteria-complete pass decided it (the strict flat bar alone would have held). */
+  criteriaCompletePass: boolean;
+  /** the pinned corpus digest — recomputable provenance, not content. */
+  corpusDigest: string | null;
+}
+
 /** The sanitized, publishable decision fields — never keys, prompts, or raw submissions. */
 export interface PublicBrief {
   engine: "llm" | "heuristic";
@@ -150,6 +199,10 @@ export interface FoundProof extends ProofBase {
   settled: boolean;
   /** the campaign's autopilot confidence bar, for the decision receipt (or null). */
   threshold: number | null;
+  /** The verdict that ACTUALLY authorized an observation-lane payout, or null for the url lane. The
+   *  url-lane `decision` brief is meaningless for an observation mission — publishing it as the
+   *  receipt made this page announce HOLD on a payout Sage made autonomously. */
+  observation?: PublicObservationVerdict | null;
   human: {
     outcome: string;
     recipient: string;
@@ -238,6 +291,8 @@ export interface ProofInputs {
   /** payoutIntentHash + digest recomputed from the stored decision, or null. */
   recomputed: { payoutIntentHash: string; decisionDigest: string | null } | null;
   brief: DecisionBrief | null;
+  /** the decision row's stored observation shadow, when it was judged on the observation lane. */
+  observationShadow?: unknown;
   capability: VaultReplaySupport | null;
 }
 
@@ -303,6 +358,7 @@ export function buildProof(i: ProofInputs): ComposedProof {
   const outcome = buildOutcome(state, p, reason);
 
   const decision = i.brief ? toPublicBrief(i.brief) : null;
+  const observation = observationVerdictFrom(i.observationShadow);
   const decisionUnavailableReason = decision
     ? null
     : legacy
@@ -329,6 +385,7 @@ export function buildProof(i: ProofInputs): ComposedProof {
       failedCheckReason: reason,
     },
     decision,
+    observation,
     decisionUnavailableReason,
     chain: {
       txHash: p.txHash,
@@ -424,6 +481,8 @@ export interface ProofV2Inputs {
   submission: Submission | null;
   attempt: SettlementAttempt | null;
   brief: DecisionBrief | null;
+  /** the decision row's stored observation shadow, when it was judged on the observation lane. */
+  observationShadow?: unknown;
   /** DecisionCommitmentV2 recomputed from the stored decision + settlement inputs. */
   recomputed: { decisionDigest: string; payoutIntentHash: string } | null;
   recomputedCampaignIdHash: string | null;
@@ -536,6 +595,7 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
     : `A mission payout was refused on-chain — ${reason ?? "a policy check"}. No funds moved.`;
 
   const decision = i.brief ? toPublicBrief(i.brief) : null;
+  const observation = observationVerdictFrom(i.observationShadow);
 
   const v2: V2ProofDetail = {
     vaultKind: "campaign_v2",
@@ -596,6 +656,7 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
       failedCheckReason: reason,
     },
     decision,
+    observation,
     decisionUnavailableReason: decision ? null : "The decision record for this payout is unavailable.",
     chain: {
       txHash: e.txHash,
@@ -682,6 +743,7 @@ export async function composeProof(
     proof,
     campaign,
     decision,
+    observationShadow: decision?.observationShadow,
     submission,
     attempt,
     recomputed,

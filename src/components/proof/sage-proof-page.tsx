@@ -165,14 +165,22 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
           <span className="spp-card-title">
             <Bot size={16} /> Sage decision receipt
           </span>
-          {proof.decision && (
+          {/* An OBSERVATION payout was authorized by the observation bar, not by the url-lane brief —
+              publishing the brief's verdict here announced HOLD on a payout Sage made autonomously. */}
+          {proof.observation ? (
+            <span className={`spp-rec ${proof.observation.barPass ? "pay" : "hold"}`}>
+              {proof.observation.barPass ? "VERIFIED" : "HELD"}
+            </span>
+          ) : proof.decision ? (
             <span className={`spp-rec ${proof.decision.recommendation}`}>
               {proof.decision.recommendation.toUpperCase()}
             </span>
-          )}
+          ) : null}
         </div>
 
-        {proof.decision ? (
+        {proof.observation ? (
+          <ObservationReceipt observation={proof.observation} />
+        ) : proof.decision ? (
           <>
             <DecisionReceipt decision={proof.decision} threshold={proof.threshold} />
             {settled && proof.decision.recommendation !== "pay" && (
@@ -396,6 +404,52 @@ function HashLine({
         {match === false && <X className="bad" size={12} strokeWidth={3} />}
       </span>
       <span className="spp-hashline-v mono">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * The receipt for a payout decided on the OBSERVATION lane — judged against the private corpus Sage
+ * distilled from browsing the product itself, never against a fetched public URL.
+ *
+ * Leak-safe: counts only. It says HOW MANY of Sage's own observations the account matched, never
+ * which — the same rule the tester-facing coaching follows, because naming them would hand over the
+ * answer key.
+ */
+function ObservationReceipt({
+  observation,
+}: {
+  observation: NonNullable<FoundProof["observation"]>;
+}) {
+  const o = observation;
+  return (
+    <div className="spp-dr">
+      <div className="spp-dr-conf">
+        <div className="spp-dr-conf-top">
+          <span className="spp-dr-conf-n mono">
+            {o.distinctSources}/{o.keySources}
+          </span>
+          <span className="spp-dr-conf-l">
+            distinct things Sage saw itself · matched by this account
+          </span>
+        </div>
+      </div>
+      <p className="spp-dr-summary">
+        Sage browsed this product itself before anyone was paid, and kept a private record of what it
+        saw. This account matched <b>{o.distinctSources}</b> distinct
+        {o.keySources > 0 ? ` of the ${o.keySources}` : ""} — specifics a copy of the public mission
+        card could not contain.{" "}
+        {o.barPass
+          ? "That cleared Sage's bar, and Sage released the payout above autonomously."
+          : "That did not clear Sage's bar, so the work was held."}
+        {o.criteriaCompletePass
+          ? " It cleared by proving every criterion of the mission's own contract — the flat match count alone would have held it."
+          : ""}
+      </p>
+      <div className="spp-dr-reason mono">
+        matched {o.matchedCount} · distinct {o.distinctSources}/{o.keySources}
+        {o.corpusDigest ? ` · corpus ${o.corpusDigest.slice(0, 10)}…` : ""}
+      </div>
     </div>
   );
 }
