@@ -507,8 +507,23 @@ export async function inspectAndPlan(
         planCommitment: commitment.commitment,
         wallet: canaryDecision.wallet,
         provenance,
-        verificationPolicy: compiled?.policy ?? null,
-        verificationPolicyDigest: compiled?.policy.policyDigest ?? null,
+        // ATTACH A POLICY ONLY WHEN IT GOVERNS SOMETHING. `verifyReplayPermit` treats "a policy
+        // exists while required=false" as an inconsistent covenant and FAILS CLOSED — correctly, since
+        // it cannot tell a deliberate state from a corrupted one. But a plan with zero action criteria
+        // compiles a VACUOUS policy (actionCriteria: [], probes: []) that proves nothing and gates
+        // nothing, and attaching it froze the campaign's payouts permanently.
+        //
+        // Measured on `launch-yara-garden-cerk8k`: a real tester's account PASSED the observation bar
+        // (5 of 9 distinct sources) and was still held, every sweep, on
+        // `action_replay_permit_denied:inconsistent:policy_without_required`. A client-side product has
+        // no safe GET transitions, so it compiles exactly this empty policy — meaning the whole class
+        // of observation-only campaigns could never pay anyone.
+        //
+        // The invariant the permit relies on is now maintained at the source: a policy is stored if and
+        // only if it is required. Nothing about the covenant is loosened — a policy that DOES carry
+        // action criteria is attached and required exactly as before.
+        verificationPolicy: policyRequired ? (compiled?.policy ?? null) : null,
+        verificationPolicyDigest: policyRequired ? (compiled?.policy.policyDigest ?? null) : null,
         verificationPolicyRequired: policyRequired,
       },
     });

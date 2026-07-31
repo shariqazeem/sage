@@ -84,3 +84,48 @@ describe("observationRetryLine (P20 — founder log, no DM)", () => {
     expect(line).toContain("(observation_retry)");
   });
 });
+
+/**
+ * REGRESSION — the first real tester on `launch-yara-garden-cerk8k`. Their account PASSED the
+ * observation bar (5 of 9 distinct sources) and the board told them "the submitted link had no usable
+ * evidence". Two faults compounded: the feed read the BRAIN's url-lane code instead of the settlement
+ * gate's, and there was no sentence for a covenant failure so it would have read as a mystery anyway.
+ *
+ * A settlement-covenant fault is a statement about the CAMPAIGN. Wording it as a verdict on the
+ * worker's evidence is worse than saying nothing.
+ */
+describe("a covenant fault never reads as a verdict on the tester", () => {
+  it("names the campaign, not the submission", () => {
+    const s = reasonSentence("action_replay_permit_denied");
+    expect(s).toMatch(/campaign/i);
+    expect(s).not.toMatch(/no usable evidence|your (work|evidence) (was|is) (bad|unusable)/i);
+  });
+
+  it("says explicitly that the work is not what failed", () => {
+    expect(reasonSentence("action_replay_permit_denied")).toMatch(
+      /not a problem with the submitted work/i,
+    );
+  });
+
+  it("collapses operator detail to the class, keeping it out of a tester's face", () => {
+    const full = reasonSentence(
+      "action_replay_permit_denied:inconsistent:policy_without_required",
+    );
+    expect(full).toBe(reasonSentence("action_replay_permit_denied"));
+    expect(full).not.toMatch(/policy_without_required/);
+  });
+
+  it("covers the other covenant classes", () => {
+    expect(reasonSentence("covenant_frozen")).toMatch(/frozen/i);
+    expect(reasonSentence("covenant_metadata_incomplete")).toMatch(/metadata/i);
+  });
+
+  it("leaves an unknown token degrading honestly, as before", () => {
+    expect(reasonSentence("something_new")).toMatch(/couldn't reach a confident decision/i);
+  });
+
+  it("does not disturb the existing brain codes", () => {
+    expect(reasonSentence("no_evidence")).toMatch(/no usable evidence/);
+    expect(reasonSentence("observation_review")).toMatch(/needs your judgment/);
+  });
+});

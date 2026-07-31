@@ -26,7 +26,23 @@ const SENTENCE: Record<string, string> = {
   duplicate_account: "the report closely matches another submission — possible multi-wallet farming (duplicate_account)",
   observation_review: "observation-based work that needs your judgment (observation_review)",
   observation_retry: "the tester is refining thin-but-genuine work; Sage is re-judging (observation_retry)",
+  // settlement-covenant reasons. These say the CAMPAIGN could not be settled — they are never a
+  // verdict on the tester's work, and the wording must not read like one. The first real tester on the
+  // yara campaign passed the bar and was shown "the submitted link had no usable evidence"; a sentence
+  // that blames the worker for a configuration fault is worse than an opaque one.
+  action_replay_permit_denied:
+    "the campaign's settlement covenant is in an inconsistent state — this is a campaign configuration fault, not a problem with the submitted work (action_replay_permit_denied)",
+  covenant_frozen: "the campaign's settlement covenant is frozen by operator configuration (covenant_frozen)",
+  covenant_metadata_incomplete:
+    "the campaign's settlement covenant is missing metadata it requires (covenant_metadata_incomplete)",
 };
+
+/** The reason CLASS — everything before the first colon. `action_replay_permit_denied:inconsistent:…`
+ *  carries operator detail after the class, which belongs in logs rather than in a tester's face. */
+function reasonClassOf(code: string): string {
+  const head = code.split(":")[0]?.trim();
+  return head && SENTENCE[head] ? head : code;
+}
 
 /**
  * P20 — leak-safe coaching for a RETRYABLE observation hold, shown to the TESTER (never the founder log).
@@ -81,7 +97,8 @@ export function observationRetryLine(attempt: number, maxAttempts: number): stri
 /** The plain-language sentence for a reason token. Unknown/absent → an honest fallback. */
 export function reasonSentence(code: string | null | undefined): string {
   if (!code) return "Sage couldn't reach a confident decision (unknown)";
-  return SENTENCE[code] ?? `Sage couldn't reach a confident decision (${code})`;
+  const key = reasonClassOf(code);
+  return SENTENCE[key] ?? `Sage couldn't reach a confident decision (${code})`;
 }
 
 /** A held headline line for the feed / chat / DM: "Held: <sentence>". */

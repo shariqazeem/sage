@@ -39,11 +39,28 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
   // Any submission whose DECISION recommended something other than pay was HELD — surface the real
   // reason so its decision line reads "Held: …", never a false "verified". Keyed on the decision, not
   // current status, so a held-then-released payout still shows the hold (then a separate paid line).
+  // THE REASON A SUBMISSION IS ACTUALLY HELD is the SETTLEMENT GATE's, not the brain's, whenever the
+  // gate is what stopped it. Reading `brief.reasonCode` unconditionally told the first real tester on
+  // the yara campaign "the submitted link had no usable evidence" — a url-lane code that is
+  // meaningless for an observation mission (the pipeline says so in as many words) — while the true
+  // reason, recorded correctly on the `autopay_held` event, was a replay-permit denial. Their account
+  // had in fact PASSED the bar with 5 of 9 distinct sources. Telling someone their evidence was
+  // unusable when it was accepted is the worst kind of wrong: it reads as a verdict on their work.
+  const gateReasonOf = (submissionId: string): string | null => {
+    const held = [...events]
+      .filter((e) => e.kind === "autopay_held" && e.submissionId === submissionId)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    // detail carries "<wallet> · <reason>"; the reason is the part the founder needs.
+    const t = (held?.detail as { t?: unknown } | null)?.t;
+    if (typeof t !== "string") return null;
+    const token = t.includes("·") ? t.split("·").pop()!.trim() : t.trim();
+    return token.length > 0 ? token : null;
+  };
   const heldReasons: Record<string, string> = {};
   for (const s of subs) {
     const d = getDecisionBySubmission(s.id);
     if (d && d.brief?.recommendation && d.brief.recommendation !== "pay") {
-      heldReasons[s.id] = reasonSentence(d.brief.reasonCode);
+      heldReasons[s.id] = reasonSentence(gateReasonOf(s.id) ?? d.brief.reasonCode);
     }
   }
 
