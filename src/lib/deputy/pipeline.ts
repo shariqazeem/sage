@@ -346,7 +346,28 @@ export async function runDeputyOnSubmission(
       ...(mission.evidenceRequirements ? [mission.evidenceRequirements] : []),
       mission.descriptionMd,
     ].filter((s): s is string => typeof s === "string" && s.length > 0);
-    const decision = await runObservationDecision({
+
+    // A VERDICT THAT CANNOT HAVE CHANGED IS NOT RE-BOUGHT. The sweep re-runs this pipeline over every
+    // pending submission on every tick (~5 min), and the judge below is an LLM call. Nothing it reads
+    // moves between ticks — the tester's account text and the pinned corpus are both immutable — so
+    // each re-judge returned the identical verdict and was billed for it.
+    //
+    // Measured over one week: 3,766 judge calls costing $8.65 against ~11 submissions — 81% of all LLM
+    // spend. The trigger was submissions STUCK pending (frozen by the vacuous-policy covenant defect),
+    // which the sweep then re-judged 288 times a day, forever. One bug froze the work; the other
+    // charged for noticing it was still frozen.
+    //
+    // This check MUST precede the call — deciding afterwards only discards the answer, having already
+    // paid for it.
+    const attemptNow = submission.attempt ?? 1;
+    const priorShadow =
+      (getDecisionBySubmission(submissionId)?.observationShadow as
+        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number }
+        | null
+        | undefined) ?? null;
+    const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
+
+    const decision = reusable ? null : await runObservationDecision({
       account: submission.note,
       key,
       // CAUSAL priors (2b): only submissions that existed BEFORE this one, so a later copy can never
@@ -368,29 +389,8 @@ export async function runDeputyOnSubmission(
       model: process.env.OBS_JUDGE_MODEL || undefined,
     }).catch(() => null);
 
-    // A VERDICT THAT CANNOT HAVE CHANGED IS NOT RE-BOUGHT. The sweep re-runs this pipeline over every
-    // pending submission on every tick (~5 min), and the judge is an LLM call. Nothing it reads moves
-    // between ticks — the account text and the pinned corpus are both immutable — so each re-judge
-    // returned the identical verdict and was billed for it.
-    //
-    // Measured over one week: 3,766 judge calls costing $8.65, against ~11 submissions in total. It
-    // was 81% of all LLM spend. The trigger was submissions STUCK pending (frozen by the vacuous-policy
-    // covenant defect), which the sweep then re-judged 288 times a day, forever. Two bugs compounding:
-    // one froze the work, the other charged for noticing it was still frozen.
-    //
-    // The stored verdict is reused when BOTH of the judge's inputs are provably unchanged — the
-    // tester's attempt (a revision increments it) and the corpus digest. Anything else re-judges as
-    // before. This spends nothing and weakens nothing: the settlement gate below still runs in full on
-    // the reused numbers, which are the same numbers a fresh call would have produced.
-    const attemptNow = submission.attempt ?? 1;
-    const priorShadow = (!decision
-      ? (getDecisionBySubmission(submissionId)?.observationShadow as
-          | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number }
-          | null
-          | undefined)
-      : null) ?? null;
-    const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
-
+    // The reused numbers are the same numbers a fresh call would have produced, and the settlement
+    // gate below still runs in full on them — nothing is weakened, only not re-purchased.
     const barPass = decision ? decision.bar.pass : reusable ? priorShadow!.barPass! : false;
     const barReasons = decision ? decision.bar.reasons : reusable ? (priorShadow!.barReasons ?? []) : ["no_decision"];
     const injectionDetected = decision ? decision.injectionDetected : reusable ? (priorShadow!.injectionDetected ?? false) : false;
