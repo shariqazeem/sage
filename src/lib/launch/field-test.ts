@@ -71,6 +71,8 @@ export interface FieldTestCapture {
   rawHtmlTextLen: number;
   renderedTextLen: number;
   screenshot: string | null;
+  /** rendered visible-text excerpt (bounded) — a static crawl's OBSERVATIONS (see FieldTestPage). */
+  visibleTextExcerpt?: string;
 }
 
 const MAX_PAGES = 6;
@@ -374,6 +376,7 @@ async function crawlPagesForUrlEvidence(
         rawHtmlTextLen: renderedTextLen,
         renderedTextLen,
         screenshot: null,
+        visibleTextExcerpt: await renderedExcerpt(page),
       });
     } catch {
       /* skip this page */
@@ -401,6 +404,7 @@ export function buildFieldTestSummary(input: {
     brokenRequests: c.failedRequests.filter((r) => r.status >= 400),
     jsOnly: computeJsOnly(c.rawHtmlTextLen, c.renderedTextLen),
     screenshot: c.screenshot,
+    ...(c.visibleTextExcerpt ? { visibleTextExcerpt: c.visibleTextExcerpt } : {}),
   }));
   return {
     ran: pages.length > 0,
@@ -486,6 +490,7 @@ export function fieldTestForMap(summary: FieldTestSummary):
         consoleErrors: string[];
         brokenRequests: { url: string; status: number }[];
         jsOnly: boolean;
+        visibleTextExcerpt?: string;
       }>;
     }
   | {
@@ -497,7 +502,17 @@ export function fieldTestForMap(summary: FieldTestSummary):
         notableElements: { tag: string; text: string; role: string }[];
         url: string;
       }>;
+      /** crawled PAGES that accompanied the exploration (url-anchored evidence for url missions). */
+      pages?: Array<{ url: string; title: string; ctas: string[]; visibleTextExcerpt?: string }>;
     } {
+  const pageView = (p: FieldTestSummary["pages"][number]) => ({
+    url: p.url,
+    title: p.title,
+    ctas: p.ctas.slice(0, 8),
+    ...(p.visibleTextExcerpt
+      ? { visibleTextExcerpt: p.visibleTextExcerpt.slice(0, 500) }
+      : {}),
+  });
   if (summary.mode === "interactive") {
     return {
       mode: "interactive",
@@ -508,14 +523,18 @@ export function fieldTestForMap(summary: FieldTestSummary):
         notableElements: s.notableElements.slice(0, 10),
         url: s.url,
       })),
+      // The crawled pages ride along (bounded): an interactive product with readable pages can then
+      // still be given a url-verifiable mission — the architect needs page TEXT to cite, and hiding
+      // it here was why interactive plans drifted observation-only (the url-mission floor's cause).
+      ...(summary.pages.length > 0
+        ? { pages: summary.pages.slice(0, 4).map(pageView) }
+        : {}),
     };
   }
   return {
     mode: "static",
     pages: summary.pages.map((p) => ({
-      url: p.url,
-      title: p.title,
-      ctas: p.ctas.slice(0, 8),
+      ...pageView(p),
       consoleErrors: p.consoleErrors.slice(0, 5),
       brokenRequests: p.brokenRequests.slice(0, 5),
       jsOnly: p.jsOnly,
@@ -892,6 +911,8 @@ export async function runFieldTest(
         rawHtmlTextLen: entryRawTextLen,
         renderedTextLen,
         screenshot,
+        // the static crawl's OBSERVATIONS — real rendered text the corpus, key and architect can use.
+        visibleTextExcerpt: await renderedExcerpt(entryPage),
       });
       // SPA LINK DISCOVERY — a client-rendered content site serves raw HTML with no links, so the
       // static inspector found nothing and `targets` holds only the entry URL. The RENDERED DOM is
@@ -993,6 +1014,7 @@ export async function runFieldTest(
           rawHtmlTextLen,
           renderedTextLen,
           screenshot,
+          visibleTextExcerpt: await renderedExcerpt(page),
         });
       } catch {
         /* per-page failure — skip this page, keep the run going */

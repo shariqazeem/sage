@@ -176,6 +176,9 @@ export function buildObservationCorpus(observations: ProductObservation[], field
       push(p.title);
       push(p.h1);
       pushAll(p.ctas);
+      // the static crawl's rendered text — without it a bot-walled product (0 static observations)
+      // had a near-empty corpus even after the browser read every page, so no anchor could survive.
+      push(p.visibleTextExcerpt);
     }
     for (const s of fieldTest.states ?? []) {
       push(s.trigger);
