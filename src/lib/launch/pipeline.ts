@@ -50,6 +50,26 @@ import type {
   ProductMapV1,
 } from "./schemas";
 
+/**
+ * ZERO-INPUT LAUNCH — the goal Sage plans against when the founder gave none (or a generic
+ * "test my site"). DELIBERATELY a fixed string with no observed product text: the goal line is
+ * presented to the architect as TRUSTED founder context, so composing it from untrusted page
+ * content would open an injection channel. It names no producing verb, so a content site keeps
+ * its crawl (and its url-verifiable mission) while a real app still classifies interactive from
+ * its own signals. The founder's actual words, when specific, always win.
+ */
+export const DEFAULT_FIRST_VISIT_GOAL =
+  "Verify a first-time visitor understands what this product is and can experience its primary flow, reporting specifically what they saw and did.";
+
+/** A goal too thin/generic to plan against — Sage infers instead of asking. */
+const GENERIC_GOAL_RE =
+  /^(please\s+)?(test|check|try|validate|review|explore|inspect|evaluate)(\s+out)?(\s+(the|my|our|this))?(\s+(product|app|site|website|page|it|this))?\s*[.!]*$/i;
+
+export function isThinGoal(goal: string | null | undefined): boolean {
+  const g = (goal ?? "").replace(/\s+/g, " ").trim();
+  return g.length < 12 || GENERIC_GOAL_RE.test(g);
+}
+
 export type LaunchStage =
   | "fetching"
   | "field_test"
@@ -136,6 +156,11 @@ export async function inspectAndPlan(
     canaryIdentity?: CanaryIdentity | null;
   } = {},
 ): Promise<LaunchResult> {
+  // ONE INTENT, ZERO FORMS AFTER IT — and zero MANDATORY forms before it either. A founder who gave
+  // only a URL + budget still gets a real plan: Sage plans for the first visit and says so on the map.
+  const goalInferred = isThinGoal(input.goal);
+  if (goalInferred) input = { ...input, goal: DEFAULT_FIRST_VISIT_GOAL };
+
   const trail: { stage: LaunchStage; at: number }[] = [];
   const stamp = (stage: LaunchStage) => {
     trail.push({ stage, at: now > 0 ? now : Math.floor(Date.now() / 1000) });
@@ -286,6 +311,9 @@ export async function inspectAndPlan(
       ...map.limitations,
       ...inspectorLimitations,
       ...explorationNote,
+      ...(goalInferred
+        ? ["No specific goal was given, so Sage planned for a first-time visitor's primary flow — state a goal to steer the missions."]
+        : []),
       ...(repo.reason ? [`Repository: ${repo.reason}`] : []),
     ]),
   ];

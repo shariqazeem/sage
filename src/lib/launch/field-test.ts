@@ -716,10 +716,20 @@ export async function runFieldTest(
     let signals: ProductSignals | null = null;
     let entryRawTextLen = 0;
     try {
-      const resp = await entryPage.goto(targets[0] ?? opts.startUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: PAGE_MS,
-      });
+      // ONE retry on a failed entry load — a transient network/TLS flake used to zero out the whole
+      // field test (static degrade with no captures) when a second attempt would have worked.
+      let resp: Awaited<ReturnType<typeof entryPage.goto>> = null;
+      for (let attempt = 0; attempt < 2 && !resp; attempt++) {
+        try {
+          resp = await entryPage.goto(targets[0] ?? opts.startUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: PAGE_MS,
+          });
+        } catch (e) {
+          if (attempt === 0) await entryPage.waitForTimeout(2_000);
+          else throw e;
+        }
+      }
       try {
         const body = await resp?.text();
         if (body) entryRawTextLen = visibleTextLen(body);
@@ -729,6 +739,17 @@ export async function runFieldTest(
       await entryPage
         .waitForLoadState("networkidle", { timeout: PAGE_MS })
         .catch(() => {});
+      // BOT-CHALLENGE PATIENCE — a WAF interstitial usually clears once its JS runs. Wait it out,
+      // reload once, and continue with whatever landed; a real block degrades exactly as before.
+      if (await looksLikeChallenge(entryPage)) {
+        await entryPage.waitForTimeout(6_000);
+        await entryPage
+          .reload({ waitUntil: "domcontentloaded", timeout: PAGE_MS })
+          .catch(() => {});
+        await entryPage
+          .waitForLoadState("networkidle", { timeout: PAGE_MS })
+          .catch(() => {});
+      }
       // REBASE the live host onto where the product actually landed (post-redirect). Every hop was
       // validated by the egress boundary; this only fixes the same-site scope for the rest of the run.
       try {
@@ -1011,6 +1032,10 @@ const START_WORDS = [
   "explore",
 ];
 const CONSENT_WORDS = [
+  "accept all",
+  "allow all",
+  "accept cookies",
+  "i agree",
   "accept",
   "agree",
   "got it",
@@ -1796,6 +1821,24 @@ async function executeAction(
   } catch {
     return `attempted ${action.kind} (no effect)`;
   }
+}
+
+/**
+ * A WAF/bot-challenge interstitial ("Just a moment…", "Checking your browser", "Verify you are
+ * human") — thin text + challenge phrasing. These usually clear on their own once the challenge JS
+ * runs; the caller waits briefly and reloads ONCE, so a protected-but-public product yields its real
+ * pages instead of a challenge screen masquerading as the product. Read-only.
+ */
+async function looksLikeChallenge(page: Page): Promise<boolean> {
+  return page
+    .evaluate(() => {
+      const title = (document.title || "").toLowerCase();
+      const text = (document.body?.innerText || "").toLowerCase();
+      const re =
+        /just a moment|checking your browser|verify (that )?you are (a )?human|verifying you are human|attention required|access denied|enable javascript and cookies|ddos protection|are you a robot|cf-browser-verification|security check to access/;
+      return text.length < 900 && (re.test(title) || re.test(text));
+    })
+    .catch(() => false);
 }
 
 /** Whether the page is showing a loading state right now (spinner/progress, "loading" text, bare canvas). */

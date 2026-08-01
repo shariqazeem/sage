@@ -447,6 +447,33 @@ export async function runMissionBrain(
     if (arch2.ok) { arch = arch2; r = await run(arch2); }
   }
 
+  // URL-MISSION FLOOR — a plan with readable page evidence should carry at least one url-verifiable
+  // mission (public URL + quoted text: the cleanly auto-payable class). Interactive exploration of a
+  // content-ish product anchors every mission to states, producing an observation-only plan that is
+  // strictly worse for the founder (every payout judged instead of auto-verified) — the P-GEN drift
+  // the battery flagged on plausible.io / brittanychiang.com. ONE bounded corrective round, adopted
+  // ONLY when it genuinely improves the plan (gains a url mission without shrinking it); the
+  // deterministic gate still judges every mission, and a product with no readable pages is untouched.
+  if (r.accepted.length > 0) {
+    const urlAccepted = r.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
+    const readablePages = map.pagesInspected + (map.fieldTest?.pages?.length ?? 0);
+    if (urlAccepted === 0 && readablePages >= 2) {
+      const arch3 = await architect(
+        map,
+        founder,
+        "The plan is missing a URL-VERIFIABLE mission. Keep the strongest existing missions and ADD one mission whose criteria hinge on REACHING a specific inspected URL and QUOTING specific text found there (a public page + exact quoted text — Sage can auto-verify that). Anchor it to a real inspected page from inspectedUrls; no subjective/experiential language in that mission.",
+      );
+      if (arch3.ok) {
+        const r3 = await run(arch3);
+        const url3 = r3.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
+        if (url3 >= 1 && r3.accepted.length >= r.accepted.length) {
+          arch = arch3;
+          r = r3;
+        }
+      }
+    }
+  }
+
   for (const q of map.openQuestions) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   // Never dead-end the founder loop: if the gate rejected every mission but neither the critic nor the
   // map surfaced a question (e.g. a bot-walled/SPA product the browser reached but couldn't anchor a

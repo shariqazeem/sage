@@ -66,9 +66,13 @@ const OBS_MIN_CONTENT_WORDS = 2;
  */
 const OBS_MAX_SOURCE_SPREAD = 3;
 
-/** Normalize for matching: lowercased, punctuation→space, whitespace-collapsed. */
+/** Normalize for matching: lowercased, punctuation→space, whitespace-collapsed.
+ *  UNICODE-AWARE: `\w` is ASCII-only, so the old pattern replaced every non-Latin letter with a
+ *  space — a genuine account written in Urdu/Arabic/Hindi/Chinese normalized to NOTHING, scored 0
+ *  content words, never even reached the LLM judge, and held. Letters and digits in ANY script now
+ *  survive normalization; English corpora are unaffected (ASCII letters normalize identically). */
 export function normObs(s: string | null | undefined): string {
-  return (s ?? "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  return (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
 }
 
 /** Split rendered prose (a paragraph / sentence) into discrete matchable lines/clauses. */
@@ -339,6 +343,58 @@ export function proveCriteria(
   };
 }
 
+/**
+ * UNIVERSAL CRITERION CONTRACTS — derive a criterion → key-source contract for a mission that has
+ * none stored (legacy / model-authored missions; only compiler-authored ones persist a contract).
+ *
+ * Without a contract those missions are judged by the flat count alone: three details from ANY
+ * screens pay, a concise account that answered exactly what the mission asked may hold, and the
+ * per-criterion coaching ("Sage can't yet see evidence for: …") never fires. The mapping here is the
+ * deterministic bridge: each criterion (+ its evidence requirement) is reduced to its distinctive
+ * content tokens, and a key SOURCE backs the criterion when one of its private observations carries
+ * such a token at a word start. The tester still has to match PRIVATE observations inside the slice
+ * — this maps which screens prove what, it never weakens what counts as proof.
+ *
+ * Fail-safe by construction: a criterion with no distinctive token or no matching source gets an
+ * EMPTY slice → reported UNPROVABLE (a design gap, never a tester failure, and never armable for the
+ * criteria-complete pass, whose allProven requires ≥1 provable criterion). Deterministic given
+ * (key, criteria), so verdict reuse stays sound. SERVER-SIDE ONLY — the mapping names key sources
+ * and must never reach a tester-readable surface (the leak rule).
+ */
+// ≥4 so short ENTITY names still map ("Yara", "2048", "Uber") — a 4-char generic UI word is caught
+// by the generic set instead, which is what actually separates signal from filler at this length.
+const DERIVE_MIN_TOKEN_LEN = 4;
+const DERIVE_GENERIC = new Set(
+  ("page pages screen screens button buttons click clicks clicked open opens opened tester testers user users visitor visitors product website their there which where should would could describe report reports confirm confirms verify verified observe observed observation complete completed mission evidence account specific exactly about after before between during using appear appears appeared display displays displayed visible text texts words " +
+    "site view links link icon icons form forms menu menus name names list lists item items step steps time back next data info main real full each also what when then than that this with from into onto over your").split(
+    " ",
+  ),
+);
+export function deriveCriterionEvidence(
+  key: PrivateKey,
+  criteria: readonly string[],
+  evidenceRequirements: readonly string[] = [],
+): CriterionEvidenceV1[] {
+  const out: CriterionEvidenceV1[] = [];
+  for (let i = 0; i < criteria.length; i++) {
+    const text = normObs(`${criteria[i] ?? ""} ${evidenceRequirements[i] ?? ""}`);
+    const tokens = contentTokens(text).filter(
+      (t) => t.length >= DERIVE_MIN_TOKEN_LEN && !DERIVE_GENERIC.has(t),
+    );
+    const sources = new Set<string>();
+    if (tokens.length > 0) {
+      for (const o of key.observations) {
+        if (sources.has(o.source)) continue;
+        const hay = ` ${o.text} `;
+        // word-START matching, so "dashboard" backs "dashboards" but "board" never backs "keyboard".
+        if (tokens.some((t) => hay.includes(` ${t}`))) sources.add(o.source);
+      }
+    }
+    out.push({ criterionIndex: i, keySources: [...sources] });
+  }
+  return out;
+}
+
 /* ─────────────────────── the observation autopay BAR (deterministic-primary) ─────────────────────── */
 
 /**
@@ -485,6 +541,22 @@ export interface ObservationSignals {
    */
   unprovenCriteria?: number[];
   /**
+   * TRUE when the criterion contract was DERIVED from the key rather than authored by the compiler.
+   *
+   * A derived contract is a lexical GUESS about which screens prove which criterion, and a guess must
+   * never block a payout. Measured on the live yara mission: the derivation maps criteria by shared
+   * tokens, so `state:28`/`state:29` — which hold Yara's actual dialogue, the most authentic evidence
+   * in the whole corpus — back NEITHER criterion, because "what brings you here" shares no words with
+   * "the user experiences the outcome of interacting with yara". A tester quoting exactly that would
+   * have been held on `criteria_unproven` for giving the best possible evidence. That vocabulary gap
+   * is precisely what the LLM corroboration path exists to bridge and a token match cannot.
+   *
+   * So a derived contract HELPS and never HINDERS: it still arms the criteria-complete pass and still
+   * drives per-criterion coaching, but an unproven criterion under it is not a blocking reason. A
+   * COMPILER-authored contract is authoritative and blocks exactly as before.
+   */
+  criteriaAdvisory?: boolean;
+  /**
    * TRUE only when the mission carries a criterion contract AND every PROVABLE criterion was evidenced
    * (proveCriteria.allProven — never inferred from an empty missing-list, which an all-unprovable
    * contract also produces). This is what arms the criteria-complete pass below.
@@ -538,7 +610,7 @@ export const CRITERIA_COMPLETE_MIN_MATCHES = 2;
  * is stale by definition — a submission held under the old policy might pass under the new one, and
  * reusing the old answer would freeze it forever. Bump this on ANY change to observationBar/OBS_BAR.
  */
-export const OBS_BAR_POLICY_VERSION = "obs-bar-v2-criteria-complete";
+export const OBS_BAR_POLICY_VERSION = "obs-bar-v3-derived-contracts";
 
 /**
  * A STORED VERDICT STILL APPLIES when everything the verdict depends on is provably unchanged: the
@@ -580,7 +652,7 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   if (s.hasHighFraud) reasons.push("high_fraud");
   // The mission's own contract, when it has one. Strictly ADDITIVE: detail from the wrong screen can
   // never buy a payout for work the mission actually asked for.
-  if (s.unprovenCriteria && s.unprovenCriteria.length > 0) {
+  if (s.unprovenCriteria && s.unprovenCriteria.length > 0 && !s.criteriaAdvisory) {
     reasons.push(`criteria_unproven(${s.unprovenCriteria.join(",")})`);
   }
   // THE CRITERIA-COMPLETE PASS (armed from shadow — see CRITERIA_COMPLETE_MIN_MATCHES). When every

@@ -21,7 +21,7 @@ import {
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
-import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, verdictStillApplies, type PrivateKey } from "./observation-verify";
+import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, deriveCriterionEvidence, verdictStillApplies, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import {
@@ -367,6 +367,14 @@ export async function runDeputyOnSubmission(
         | undefined) ?? null;
     const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
 
+    const criterionContract = (() => {
+      if (mission.criterionEvidence) return { evidence: mission.criterionEvidence, derived: false };
+      const derived = deriveCriterionEvidence(key, mission.criteria ?? [], mission.evidenceList ?? []);
+      return derived.some((c) => c.keySources.length > 0)
+        ? { evidence: derived, derived: true }
+        : { evidence: null, derived: false };
+    })();
+
     const decision = reusable ? null : await runObservationDecision({
       account: submission.note,
       key,
@@ -377,11 +385,19 @@ export async function runDeputyOnSubmission(
       criteria: mission.criteria,
       publicStrings,
       hasHighFraud,
-      // The mission's OWN contract, pinned beside the key at attach: which observed screens prove which
-      // criterion. Present ⇒ the gate additionally requires each criterion to be evidenced, so detail
-      // from the wrong screen can no longer buy a payout. Null on legacy/model-authored missions, which
-      // keep the flat bar exactly as before.
-      criterionEvidence: mission.criterionEvidence ?? null,
+      // The mission's OWN contract: the compiler-pinned one when it exists, else a contract DERIVED
+      // deterministically from the pinned key + the mission's criteria (universal contracts). Every
+      // observation mission is now judged per-criterion — "did they evidence each thing the mission
+      // asked for" — instead of by the flat count alone; per-criterion coaching fires everywhere; and
+      // the criteria-complete pass applies uniformly. Derivation is pure and stable given (key,
+      // criteria), so verdict reuse stays sound; an empty derivation degrades to the flat bar.
+      criterionEvidence: criterionContract.evidence,
+      // A DERIVED contract may help (arm the criteria-complete pass, drive coaching) but must never
+      // block: the derivation is lexical, so a tester quoting the product's own dialogue can back a
+      // criterion whose wording shares no tokens with it. Measured on the live yara mission —
+      // `state:28`/`state:29` (Yara's actual words, the best evidence in the corpus) back NEITHER
+      // criterion. A compiler-authored contract is authoritative and blocks exactly as before.
+      criterionEvidenceDerived: criterionContract.derived,
       // The corroboration recall path needs a STRONG judge to bridge the vision↔experience vocabulary
       // gap (a weak model finds only the near-lexical matches — measured). OBS_JUDGE_MODEL routes just the
       // observation judge to it; unset → falls back to the default judge model (weaker recall → genuine
