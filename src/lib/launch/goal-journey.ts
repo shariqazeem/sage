@@ -119,6 +119,7 @@ const JOURNEY_SYSTEM = [
   "Each checkpoint: kind (entry|navigation|state|interaction|input|outcome|experience), a one-sentence requirement, the target entity ('' if none), the required context it must happen in ('' if unconstrained), the 1-based indexes of earlier checkpoints it depends on, and sourcePhrase — an EXACT VERBATIM substring of the founder's request that demands this checkpoint (copy it character-for-character; never paraphrase).",
   "Include the implicit steps a real product requires (arriving, passing any onboarding/intro, reaching the main experience) as separate earlier checkpoints, before the explicitly named ones.",
   "If the founder asks to talk/message/ask something, ALWAYS emit both an input checkpoint (send the message) and a separate outcome checkpoint (observe the response).",
+  "kind 'outcome' is ONLY for a result the user PRODUCES or RECEIVES (something created, submitted, exported, purchased, a reply). A passive confirmation — 'the experience works', 'the page is clear', 'the copy makes sense' — is kind 'experience' or 'state', never 'outcome'.",
   "Order matters: an entity mentioned early is not reached until its own checkpoint.",
   "These are END-USER journey steps (what a person does in the product), NEVER engineering/build tasks.",
   'Output JSON ONLY, exactly this shape: {"checkpoints":[{"kind":"entry","requirement":"...","targetEntity":"...","requiredContext":"...","dependsOnIndexes":[],"sourcePhrase":"..."}]}.',
@@ -211,18 +212,21 @@ const KINDS = new Set<CheckpointKind>([
  * forces USE, so a content site keeps its crawl and its url mission. A genuine produced/received
  * outcome (export, reply, confirmation, purchase) keeps its kind and everything it implies.
  *
- * REVERTED, NOT DELETED — measured on the P-GEN battery. The demotion did fix the drift (plausible.io
- * and brittanychiang.com came back as `static` WITH a url-verifiable mission), but it cost four other
- * categories their entire plan: allbirds, web.telegram.org, cnn.com and the static landing went from
- * `ready` to `needs_input` with ZERO observations. The field test still RAN on them (allbirds: 6
- * pages crawled) — but in STATIC mode a bot-walled product contributes no observations to the map, so
- * the mission brain had nothing to design from. Round 1 masked that by always exploring.
+ * HISTORY — first armed in round 2, REVERTED after the P-GEN battery measured 11/11 → 7/11: it fixed
+ * the drift (plausible.io + brittanychiang.com came back `static` WITH a url mission) but cost four
+ * bot-walled categories their entire plan (allbirds/cnn/telegram/static-landing → needs_input with
+ * ZERO observations, even though the field test had crawled 6 pages). The true defect was upstream:
+ * a STATIC field-test crawl kept only title/h1/CTAs, so a bot-walled product routed static had
+ * nothing for the corpus, the key, or the architect.
  *
- * So the real defect is upstream of this regex: a static field-test CRAWL should contribute
- * observations when static HTML inspection yields none. Fix that and the demotion becomes safe to
- * re-arm. Until then this stays dormant — 11/11 ready beats 7/11 with two better mission splits.
+ * RE-ARMED in round 3 behind that fix: static crawls now capture each page's rendered
+ * visibleTextExcerpt and feed it to the corpus (buildObservationCorpus), the private key
+ * (distillPrivateKey), the sufficiency signals (gatherRichness), and the architect's map view
+ * (fieldTestForMap) — so routing a bot-walled product down the static path now yields a full plan
+ * with url-verifiable missions instead of an empty needs_input. The P-GEN battery is the gate that
+ * must confirm 11/11 before this ships; if it regresses again, revert THIS block and keep the
+ * excerpt plumbing (which is independently correct).
  */
-/* eslint-disable @typescript-eslint/no-unused-vars -- kept as the documented diagnosis; see above. */
 const PRODUCING_OUTCOME =
   /\b(create[sd]?|creating|generat\w+|produc\w+|export\w*|download\w*|upload\w*|submit\w*|send(s|ing)?|sent|receiv\w+|response|respond\w*|repl(y|ies|ied)|answer\w*|result\w*|confirmation|confirm\w*|receipt|save[sd]?|publish\w*|post(s|ed)?|order(s|ed)?|purchas\w+|checkout|sign(s|ed)?[- ]?up|register\w*|complet\w+|finish\w*|launch\w*|deploy\w*|mint\w*|claim\w*|swap\w*|pay(s)?|paid|payment|invit\w+|book(s|ed)?|subscrib\w+|score[sd]?|message[sd]?|add(s|ed)?\b)\b/i;
 
@@ -248,7 +252,7 @@ export function compileJourneyFromRaw(
         ? r.kind
         : (item as Record<string, unknown>)?.type
     ) as CheckpointKind;
-    const kind = KINDS.has(kindRaw) ? kindRaw : "state";
+    let kind = KINDS.has(kindRaw) ? kindRaw : "state";
     const rec = r as unknown as Record<string, unknown>;
     const requirement = norm(
       pick(rec, [
@@ -269,6 +273,12 @@ export function compileJourneyFromRaw(
       rawPhrase && goalLower.includes(lower(rawPhrase))
         ? rawPhrase.slice(0, 200)
         : "";
+    // DEMOTE a passive "outcome" (see PRODUCING_OUTCOME above — re-armed in round 3 behind the
+    // static-crawl-observations fix). Deterministic, checkpoint-local; the prompt teaches the
+    // distinction, this enforces it.
+    if (kind === "outcome" && !PRODUCING_OUTCOME.test(`${requirement} ${rawPhrase}`)) {
+      kind = "experience";
+    }
     // dependencies: only on strictly EARLIER checkpoints (the model cannot invent a cycle or a forward dep).
     const depsRaw = rec.dependsOnIndexes ?? rec.dependsOn ?? rec.dependencies;
     const deps = Array.isArray(depsRaw) ? depsRaw : [];

@@ -34,9 +34,11 @@ import {
 import {
   chooseForwardAffordance,
   chooseGoalTargetAffordance,
+  chooseGoalPath,
   targetTerms,
   goalTerms,
   goalWantsConversation,
+  goalWantsSearch,
   goalMatchScore,
   decideNextAction,
   actionSignature,
@@ -71,6 +73,8 @@ export interface FieldTestCapture {
   rawHtmlTextLen: number;
   renderedTextLen: number;
   screenshot: string | null;
+  /** rendered visible-text excerpt (bounded) — a static crawl's OBSERVATIONS (see FieldTestPage). */
+  visibleTextExcerpt?: string;
 }
 
 const MAX_PAGES = 6;
@@ -374,6 +378,7 @@ async function crawlPagesForUrlEvidence(
         rawHtmlTextLen: renderedTextLen,
         renderedTextLen,
         screenshot: null,
+        visibleTextExcerpt: await renderedExcerpt(page),
       });
     } catch {
       /* skip this page */
@@ -401,6 +406,7 @@ export function buildFieldTestSummary(input: {
     brokenRequests: c.failedRequests.filter((r) => r.status >= 400),
     jsOnly: computeJsOnly(c.rawHtmlTextLen, c.renderedTextLen),
     screenshot: c.screenshot,
+    ...(c.visibleTextExcerpt ? { visibleTextExcerpt: c.visibleTextExcerpt } : {}),
   }));
   return {
     ran: pages.length > 0,
@@ -486,6 +492,7 @@ export function fieldTestForMap(summary: FieldTestSummary):
         consoleErrors: string[];
         brokenRequests: { url: string; status: number }[];
         jsOnly: boolean;
+        visibleTextExcerpt?: string;
       }>;
     }
   | {
@@ -497,7 +504,17 @@ export function fieldTestForMap(summary: FieldTestSummary):
         notableElements: { tag: string; text: string; role: string }[];
         url: string;
       }>;
+      /** crawled PAGES that accompanied the exploration (url-anchored evidence for url missions). */
+      pages?: Array<{ url: string; title: string; ctas: string[]; visibleTextExcerpt?: string }>;
     } {
+  const pageView = (p: FieldTestSummary["pages"][number]) => ({
+    url: p.url,
+    title: p.title,
+    ctas: p.ctas.slice(0, 8),
+    ...(p.visibleTextExcerpt
+      ? { visibleTextExcerpt: p.visibleTextExcerpt.slice(0, 500) }
+      : {}),
+  });
   if (summary.mode === "interactive") {
     return {
       mode: "interactive",
@@ -508,14 +525,18 @@ export function fieldTestForMap(summary: FieldTestSummary):
         notableElements: s.notableElements.slice(0, 10),
         url: s.url,
       })),
+      // The crawled pages ride along (bounded): an interactive product with readable pages can then
+      // still be given a url-verifiable mission — the architect needs page TEXT to cite, and hiding
+      // it here was why interactive plans drifted observation-only (the url-mission floor's cause).
+      ...(summary.pages.length > 0
+        ? { pages: summary.pages.slice(0, 4).map(pageView) }
+        : {}),
     };
   }
   return {
     mode: "static",
     pages: summary.pages.map((p) => ({
-      url: p.url,
-      title: p.title,
-      ctas: p.ctas.slice(0, 8),
+      ...pageView(p),
       consoleErrors: p.consoleErrors.slice(0, 5),
       brokenRequests: p.brokenRequests.slice(0, 5),
       jsOnly: p.jsOnly,
@@ -892,6 +913,8 @@ export async function runFieldTest(
         rawHtmlTextLen: entryRawTextLen,
         renderedTextLen,
         screenshot,
+        // the static crawl's OBSERVATIONS — real rendered text the corpus, key and architect can use.
+        visibleTextExcerpt: await renderedExcerpt(entryPage),
       });
       // SPA LINK DISCOVERY — a client-rendered content site serves raw HTML with no links, so the
       // static inspector found nothing and `targets` holds only the entry URL. The RENDERED DOM is
@@ -993,6 +1016,7 @@ export async function runFieldTest(
           rawHtmlTextLen,
           renderedTextLen,
           screenshot,
+          visibleTextExcerpt: await renderedExcerpt(page),
         });
       } catch {
         /* per-page failure — skip this page, keep the run going */
@@ -1300,6 +1324,7 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
         autocomplete: string;
         ariaLabel: string;
         editable: boolean;
+        href: string | null;
         options: string[] | null;
       }> = [];
       let n = 0;
@@ -1338,6 +1363,22 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
           .slice(0, 120);
         const id = "e" + n;
         he.setAttribute("data-sage-eid", id);
+        // SAME-SITE link destination (path only) — the element's own href IS a navigation the click
+        // intends. On a React SPA a re-render can strip the minted attribute between mint and click,
+        // so the executor needs a truthful fallback: go where the link was going.
+        let href: string | null = null;
+        if (tag === "a") {
+          try {
+            const a = he as HTMLAnchorElement;
+            const strip = (h: string) => h.toLowerCase().replace(/^www\./, "");
+            if (a.host && strip(a.host) === strip(location.host)) {
+              const p = a.pathname + a.search;
+              if (p && p.length <= 120) href = p;
+            }
+          } catch {
+            /* no href */
+          }
+        }
         out.push({
           id,
           label,
@@ -1350,6 +1391,7 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
           autocomplete: he.getAttribute("autocomplete") || "",
           ariaLabel: he.getAttribute("aria-label") || "",
           editable: he.isContentEditable === true,
+          href,
           options:
             tag === "select"
               ? Array.from((he as HTMLSelectElement).options)
@@ -1376,6 +1418,7 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
           autocomplete: string;
           ariaLabel: string;
           editable: boolean;
+          href: string | null;
           options: string[] | null;
         }>,
     );
@@ -1411,6 +1454,7 @@ async function mintInteractiveElements(page: Page): Promise<MintedElement[]> {
     // The FIELD decides what it is asking for — the model only ever points at it.
     if (typable) el.valueKind = classifyFieldValue({ ...descriptor, tag: r.tag });
     if (r.options && r.options.length) el.options = r.options;
+    if (r.href) el.href = r.href;
     return el;
   });
 }
@@ -1502,9 +1546,17 @@ async function filledFieldCount(page: Page): Promise<number> {
 /**
  * Is there anything on this screen Sage could still fill in? The question a wizard turns on: a step
  * with an empty field must be completed before the "Continue →" next to it is worth pressing.
+ *
+ * A SEARCH box is NOT a wizard step. Nearly every product carries a global search field in its nav,
+ * and counting it here made the explorer treat any homepage as "a form to complete" — it typed the
+ * synthetic term into site search and submitted, burning its opening states on a dropdown instead of
+ * going where the goal pointed (measured: commonstack.ai — goal named the playground; Sage searched
+ * "test" and got "No options"). Search fields count only when the founder's goal IS about searching.
  */
-async function hasEmptySafeField(page: Page): Promise<boolean> {
-  return (await pendingRequiredFields(page)).some((f) => !isSensitiveField(f));
+async function hasEmptySafeField(page: Page, allowSearch = false): Promise<boolean> {
+  return (await pendingRequiredFields(page)).some(
+    (f) => !isSensitiveField(f) && (allowSearch || classifyFieldValue(f) !== "search"),
+  );
 }
 
 /** One still-empty required field, as read from the live page. */
@@ -1692,9 +1744,41 @@ async function executeAction(
     (elements.find((e) => e.id === id)?.label ?? id).slice(0, 40);
   try {
     switch (action.kind) {
-      case "click_element":
-        await loc(action.elementId).click({ timeout: 2_500, force: true });
-        return `clicked "${labelOf(action.elementId)}"`;
+      case "click_element": {
+        try {
+          await loc(action.elementId).click({ timeout: 2_500, force: true });
+          return `clicked "${labelOf(action.elementId)}"`;
+        } catch {
+          // RESILIENT TARGETING (the SPA gap): a React re-render strips the minted data-sage-eid
+          // between mint and click, and an open dropdown/overlay can swallow a hit — the trace then
+          // reads "attempted click (no effect)" forever (measured: commonstack.ai, 3 dead clicks on
+          // header links that existed and worked). Recover in order:
+          //   1. re-resolve the SAME control by its minted label (role/text — survives re-renders);
+          //   2. a same-site LINK falls back to going where it was going anyway (its Sage-read href).
+          const el = elements.find((e) => e.id === action.elementId);
+          const label = (el?.label ?? "").trim();
+          if (label && label.length <= 80) {
+            const retried = await page
+              .locator(`a, button, [role=button], [role=link]`, { hasText: label })
+              .first()
+              .click({ timeout: 2_000, force: true })
+              .then(() => true)
+              .catch(() => false);
+            if (retried) return `clicked "${labelOf(action.elementId)}"`;
+          }
+          if (el?.href) {
+            try {
+              const target = new URL(el.href, page.url());
+              await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 12_000 });
+              await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+              return `opened ${el.href} (following the "${label.slice(0, 32)}" link)`;
+            } catch {
+              /* fall through to the honest no-effect label */
+            }
+          }
+          return `attempted click_element (no effect)`;
+        }
+      }
       case "open_path": {
         // Same-origin only, and only a path Sage discovered and offered — `coerceDecision` already
         // refused anything else, and the egress boundary refuses anything off-host regardless.
@@ -1996,7 +2080,12 @@ async function exploreInteractive(ctx: {
     const completeConversation = async (
       els: MintedElement[],
     ): Promise<"none" | "sent" | "replied"> => {
-      const input = els.find((e) => e.typable);
+      // prefer the field that IS a message box (its own classification says so) over the first
+      // typable thing on screen — a nav search box must never swallow the conversation probe.
+      const input =
+        els.find((e) => e.typable && e.valueKind === "ai_probe") ??
+        els.find((e) => e.typable && e.valueKind !== "search") ??
+        els.find((e) => e.typable);
       if (!input) return "none";
       const beforeSig = wordSignature(
         states[states.length - 1]?.visibleTextExcerpt ?? "",
@@ -2181,10 +2270,58 @@ async function exploreInteractive(ctx: {
       let entryStates = 0;
       /** Same-host routes Sage has already opened, so a forced departure never loops between two. */
       const visitedPaths = new Set<string>();
+      /**
+       * SAME-SITE PATHS SAGE HAS DISCOVERED (path → the link label that revealed it) — seeded from
+       * the static crawl, then GROWN from the live DOM every turn. Links are the web's API, and on a
+       * client-rendered product they exist ONLY in the rendered DOM: the static seed was EMPTY on
+       * commonstack.ai, so the explorer had literally nowhere it could go — Playground, Model
+       * Library and Docs sat in the header while it burned its budget re-clicking the hero. Bounded
+       * (20 paths, 12 per harvest); paths come from Sage's own read of the page, never a model.
+       */
+      const livePaths = new Map<string, string>();
+      for (const p of ctx.candidatePaths ?? []) livePaths.set(p, "");
+      const harvestPaths = async (): Promise<void> => {
+        if (livePaths.size >= 20) return;
+        const found = await page
+          .evaluate(() => {
+            const strip = (h: string) => h.toLowerCase().replace(/^www\./, "");
+            const here = location.pathname + location.search;
+            const out: { path: string; label: string }[] = [];
+            const seen = new Set<string>();
+            for (const a of Array.from(document.querySelectorAll("a[href]"))) {
+              const el = a as HTMLAnchorElement;
+              try {
+                if (!el.host || strip(el.host) !== strip(location.host)) continue;
+                const path = el.pathname + el.search;
+                if (!path || path === "/" || path === here || path.length > 120) continue;
+                if (/log ?out|sign ?out|delete|unsubscribe|\.(pdf|zip|png|jpe?g|svg|mp4|webm)$/i.test(path)) continue;
+                if (seen.has(path)) continue;
+                seen.add(path);
+                const label = (el.innerText || el.getAttribute("aria-label") || "")
+                  .replace(/\s+/g, " ")
+                  .trim()
+                  .slice(0, 60);
+                out.push({ path, label });
+                if (out.length >= 12) break;
+              } catch {
+                /* skip */
+              }
+            }
+            return out;
+          })
+          .catch(() => [] as { path: string; label: string }[]);
+        for (const f of found) {
+          if (livePaths.size >= 20) break;
+          if (!livePaths.has(f.path)) livePaths.set(f.path, f.label);
+        }
+      };
+      const unvisitedPaths = (): string[] =>
+        [...livePaths.keys()].filter((p) => !visitedPaths.has(p));
       const history: ControllerHistoryItem[] = [];
       const normL = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
       const terms = goalTerms(goal);
       const wantsConversation = goalWantsConversation(goal);
+      const wantsSearch = goalWantsSearch(goal);
       let modelCalls = 0;
       let stall = 0;
       // Budget MEANINGFUL states (real progress), not raw actions, and COMPACT a run of consecutive
@@ -2252,6 +2389,7 @@ async function exploreInteractive(ctx: {
         if (!cur) break;
         const digest = `${stateDigest(cur)}#${ctxSalt}`;
         const elements = await mintInteractiveElements(page);
+        await harvestPaths(); // the SPA's map lives in the rendered DOM — keep it current each turn
 
         // COMPLETE THE TARGET INTERACTION. A conversation is one shape of it (type the probe, send,
         // wait for a reply); a launch form, a search, a create-something flow are the others, and
@@ -2277,7 +2415,7 @@ async function exploreInteractive(ctx: {
           !formsDone.has(digest) &&
           (wantsConversation
             ? elements.some((e) => e.typable)
-            : await hasEmptySafeField(page));
+            : await hasEmptySafeField(page, wantsSearch));
         if (formReady) {
           formsDone.add(digest);
           const outcome = wantsConversation
@@ -2313,15 +2451,53 @@ async function exploreInteractive(ctx: {
         //    candidate paths, so nothing here fires and its behaviour is unchanged.
         let action: ControllerAction | null = null;
         const hereUrl = page.url();
+        const herePath = (() => {
+          try {
+            const u = new URL(hereUrl);
+            return u.pathname + u.search;
+          } catch {
+            return "";
+          }
+        })();
         if (hereUrl === entryUrl) entryStates++;
+
+        // 0a. THE GOAL KNOWS WHERE TO GO. When the current checkpoint names something that is NOT
+        //     clickable on this screen but a DISCOVERED same-site path matches it (its link label or
+        //     its slug — "Playground" → /playground), go there directly. This is what a person does:
+        //     read the nav, follow the link that says the thing. Fires only as a fallback (an
+        //     on-screen match is still clicked, which stays cheaper and more faithful), only within
+        //     the navigation budget, and only over paths Sage itself read off the product's DOM.
+        if (navigations < MAX_NAVIGATIONS) {
+          const cpNav = nextUnmetCheckpoint(liveJourney);
+          const navTerms = cpNav
+            ? targetTerms({ entity: cpNav.targetEntity, context: cpNav.requiredContext })
+            : terms;
+          if (
+            navTerms.length > 0 &&
+            !chooseGoalTargetAffordance(elements, navTerms, digest, tried, deadLabels)
+          ) {
+            const goalPath = chooseGoalPath(
+              [...livePaths].map(([path, label]) => ({ path, label })),
+              navTerms,
+              new Set([...visitedPaths, herePath]),
+            );
+            if (goalPath) {
+              visitedPaths.add(goalPath);
+              navigations++;
+              action = { kind: "open_path", path: goalPath };
+            }
+          }
+        }
+
+        // 0b. LEAVE A SCREEN THAT HAS STOPPED PAYING (the churn exit — unchanged, now over the LIVE
+        //     path set, so a client-rendered product has real routes to leave through).
         if (
+          !action &&
           hereUrl === entryUrl &&
           entryStates > ENTRY_STATE_CAP &&
           navigations < MAX_NAVIGATIONS
         ) {
-          const next = (ctx.candidatePaths ?? []).find(
-            (p) => !visitedPaths.has(p),
-          );
+          const next = unvisitedPaths().find((p) => p !== herePath);
           if (next) {
             visitedPaths.add(next);
             navigations++;
@@ -2389,12 +2565,15 @@ async function exploreInteractive(ctx: {
             actionCap - interactions,
             img,
             ctx.controllerDeps ?? {},
-            navigations < MAX_NAVIGATIONS ? (ctx.candidatePaths ?? []) : [],
+            navigations < MAX_NAVIGATIONS ? unvisitedPaths().slice(0, 8) : [],
           );
           modelCalls++;
           if (!decision) break;
           action = decision.action;
-          if (action.kind === "open_path") navigations++;
+          if (action.kind === "open_path") {
+            navigations++;
+            visitedPaths.add(action.path);
+          }
           progress = decision.goalProgress;
         }
         if (action.kind === "stop") {
@@ -2426,6 +2605,14 @@ async function exploreInteractive(ctx: {
 
         const trigger = await executeAction(page, action, elements);
         interactions++;
+        // a failed click that recovered by FOLLOWING the link's own href is a navigation — count it
+        // against the same budget so the fallback can never out-travel an explicit open_path, and
+        // mark the destination visited so the path choosers never re-open it.
+        if (action.kind === "click_element" && trigger.startsWith("opened ")) {
+          navigations++;
+          const opened = /^opened (\S+)/.exec(trigger)?.[1];
+          if (opened) visitedPaths.add(opened);
+        }
         await page
           .waitForLoadState("networkidle", { timeout: 5_000 })
           .catch(() => {});

@@ -56,7 +56,10 @@ function rebuildCorpus(map) {
   for (const k of ["routes", "primaryJourney", "claimRisks", "observedStates", "interactiveSurfaces", "trustSurfaces"]) for (const f of map?.[k] || []) push(f.value);
   const ft = map?.fieldTest;
   if (ft) {
-    for (const p of ft.pages || []) { push(p.title); push(p.h1); pushAll(p.ctas); }
+    // NB: p.visibleTextExcerpt MUST stay in step with buildObservationCorpus (validate-mission.ts).
+    // This mirror missing it is what failed round 3's anchors at 0–50%: the in-process gate rightly
+    // accepted anchors quoted from page excerpts, and this stale copy then failed them post-hoc.
+    for (const p of ft.pages || []) { push(p.title); push(p.h1); pushAll(p.ctas); push(p.visibleTextExcerpt); }
     for (const s of ft.states || []) { push(s.trigger); push(s.visibleTextExcerpt); for (const e of s.notableElements || []) push(e.text); }
     for (const v of ft.visionObservations || []) { push(v.sceneDescription); pushAll(v.visibleText); for (const e of v.uiElements || []) push(e.label); pushAll(v.productTypeSignals); pushAll(v.audienceSignals); }
   }

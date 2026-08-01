@@ -88,6 +88,10 @@ export interface MintedElement {
   valueKind?: SyntheticValueKind;
   /** the exact option values, when this is a <select>. */
   options?: string[];
+  /** SAME-SITE destination (path+search) when the element is a link — Sage-read from the DOM, never
+   *  model-authored. Lets a failed click on an SPA (re-render stripped the minted attribute, an
+   *  overlay swallowed the hit) fall back to going where the link was going anyway. */
+  href?: string;
 }
 
 /* ─────────────────── synthetic-value policy (fixed, never model text) ─────── */
@@ -475,6 +479,38 @@ export function goalWantsConversation(goal: string): boolean {
   return /\b(talk|talks|talking|chat|chats|chatting|speak|speaks|message|messages|messaging|ask|asks|converse|conversation|dialogue|dialog|reply|replies|respond|responds|response|greet|greets|say|says)\b/i.test(
     goal,
   );
+}
+
+/** Does the founder's goal ask for SEARCHING/filtering? Only then is a search box part of the work —
+ *  otherwise a site's global search field is navigation chrome, not a form to complete. Pure. */
+export function goalWantsSearch(goal: string): boolean {
+  return /\b(search|searches|searching|find|finds|filter|filters|filtering|look ?up|query|queries)\b/i.test(goal);
+}
+
+/**
+ * THE GOAL KNOWS WHERE TO GO — pick the discovered same-site PATH that most directly matches the
+ * current checkpoint's terms ("playground" → /playground, or the path whose link label said
+ * Playground). Links are the web's API: on a normal product the flow the founder named lives behind
+ * one, and clicking around the entry screen instead of following it is how an explorer gets trapped
+ * on a homepage (measured: commonstack.ai — goal named the playground, the header linked it, Sage
+ * burned its budget searching and re-clicking the hero). Deterministic, product-agnostic; paths come
+ * only from Sage's own DOM harvest, never from a model.
+ */
+export function chooseGoalPath(
+  paths: ReadonlyArray<{ path: string; label: string }>,
+  terms: readonly string[],
+  visited: ReadonlySet<string>,
+): string | null {
+  if (terms.length === 0) return null;
+  let best: { path: string; score: number } | null = null;
+  for (const p of paths) {
+    if (visited.has(p.path)) continue;
+    const hay = `${p.label} ${p.path.replace(/[/\-_?=&]+/g, " ")}`;
+    const score = goalMatchScore(hay, terms);
+    if (score <= 0) continue;
+    if (!best || score > best.score) best = { path: p.path, score };
+  }
+  return best?.path ?? null;
 }
 
 /** How strongly an element label matches the goal's target terms (count of distinct matched terms). */

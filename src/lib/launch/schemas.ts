@@ -134,6 +134,16 @@ export interface FieldTestPage {
   jsOnly: boolean;
   /** public path to the full-page screenshot, e.g. /field-tests/<inspectionId>/0.png. */
   screenshot: string | null;
+  /**
+   * Rendered visible-text excerpt of the page (line structure preserved, bounded) — what makes a
+   * STATIC field-test crawl contribute OBSERVATIONS. Before this, a static crawl kept only
+   * title/h1/CTAs: on a bot-walled product (0 static-HTML observations) the mission brain then had
+   * nothing to design from and the private key nothing to verify against, even though the browser
+   * had genuinely read every page — the root cause behind the passive-outcome-demotion regression
+   * (allbirds/cnn/telegram went needs_input with "0 states" while 6 pages had been crawled).
+   * Optional: absent on summaries persisted before this field existed.
+   */
+  visibleTextExcerpt?: string;
 }
 
 /** How the product renders — decided on entry from real signals (canvas, listeners, SPA routing…). */
