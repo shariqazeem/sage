@@ -344,10 +344,7 @@ function gatherRichness(map: ProductMapV1, corpus: string) {
   for (const p of ft?.pages ?? []) for (const c of p.ctas ?? []) els.add(c.toLowerCase());
   return {
     states: ft?.states?.length ?? 0,
-    // field-test pages ARE inspected pages (read by the real browser). Counting only static-HTML
-    // observations here sent a bot-walled product (0 static, 6 crawled pages) to needs_input as
-    // "insufficient observation" while a full crawl sat unused on the summary.
-    pages: map.pagesInspected + (ft?.pages?.length ?? 0),
+    pages: map.pagesInspected,
     vision: ft?.visionObservations?.length ?? 0,
     distinctElements: els.size,
     textLen: corpus.length,
@@ -371,7 +368,7 @@ function sufficiencyQuestions(map: ProductMapV1, founderGoal = ""): string[] {
   const scene = vis.map((v) => v.sceneDescription).find(Boolean);
   if (types.length && !goalIsSpecific) qs.push(`Sage's inspection was thin, but the product looks like ${types.join(" / ")}. What is the single most important thing a tester should confirm actually works?`);
   if (scene && !goalIsSpecific) qs.push(`The most Sage could see was: "${scene.slice(0, 120)}". What specific, checkable outcome would you pay a tester to demonstrate?`);
-  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1 && (ft?.pages?.length ?? 0) <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's requests (they carry an `x-sage-agent` header)?");
+  if ((ft?.states?.length ?? 0) <= 1 && map.pagesInspected <= 1) qs.push("Sage could only reach the entry screen — is there a login, invite code, or specific step it needs, or (if your site blocks bots) can you allowlist Sage's requests (they carry an `x-sage-agent` header)?");
   if (qs.length === 0) {
     qs.push(
       goalIsSpecific

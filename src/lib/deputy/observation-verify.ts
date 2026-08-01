@@ -137,10 +137,6 @@ export function distillPrivateKey(
       add(s, p.title);
       add(s, p.h1);
       (p.ctas ?? []).forEach((c) => add(s, c));
-      // the page's rendered text (static crawls carry it now) — each page becomes a REAL source of
-      // firsthand observations, so a bot-walled product read in static mode still pins a key rich
-      // enough to verify testers against (title+h1+ctas alone rarely cleared minKeySources).
-      add(s, p.visibleTextExcerpt);
     });
     (ft.states ?? []).forEach((st, i) => {
       const s = `state:${i}`;
