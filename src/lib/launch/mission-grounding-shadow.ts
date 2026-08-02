@@ -1319,6 +1319,7 @@ export async function runGroundedShadow(
       maxCompletions: m.maxCompletions,
       rewardWeight: m.rewardWeight,
       qualitative: m.verifiabilityClass !== "url-verifiable",
+      effortMinutes: m.effortMinutes, // arms the effort-anchored reward ceiling
     })),
     {
       goal: input.goal,

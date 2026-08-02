@@ -791,6 +791,9 @@ export async function runFieldTest(
       : "static";
 
     if (mode === "interactive") {
+      // the explorer's own DOM-harvested paths — merged into the url-evidence crawl below, so an SPA
+      // whose static link list was empty still yields readable pages + url-verifiable evidence.
+      const discoveredPaths: string[] = [];
       // hand the already-loaded entry page to the state machine.
       const summary = await exploreInteractive({
         page: entryPage,
@@ -800,6 +803,7 @@ export async function runFieldTest(
         methodsSinceCapture,
         host: liveHost,
         started,
+        discoveredPathsOut: discoveredPaths,
         signals: signals as ProductSignals,
         entryErrors,
         goal: opts.goal,
@@ -851,7 +855,19 @@ export async function runFieldTest(
         const pageCaps = await crawlPagesForUrlEvidence(
           context,
           opts.startUrl,
-          opts.candidateLinks ?? [],
+          [
+            ...(opts.candidateLinks ?? []),
+            // the explorer's DOM-harvested paths, absolutized — a client-rendered product's only links
+            ...discoveredPaths
+              .map((p) => {
+                try {
+                  return new URL(p, opts.startUrl).toString();
+                } catch {
+                  return null;
+                }
+              })
+              .filter((u): u is string => !!u),
+          ],
           liveHost,
         );
         if (pageCaps.length > 0) {
@@ -1464,6 +1480,9 @@ function actionKindOf(action: ControllerAction): FieldTestState["actionKind"] {
   switch (action.kind) {
     case "click_element":
     case "click_coords":
+    // opening a discovered path IS the programmatic click of that link — labeling it "wait" (the old
+    // default fallthrough) under-credited navigation checkpoints for pages Sage genuinely reached.
+    case "open_path":
       return "click";
     case "press_key":
       return "key";
@@ -1969,6 +1988,10 @@ async function exploreInteractive(ctx: {
   journey?: GoalJourneyV1 | null;
   /** same-host pages the static crawl discovered — the only routes `open_path` may take. */
   candidatePaths?: readonly string[];
+  /** OUT: every same-site path the explorer discovered in the live DOM — the caller feeds these to
+   *  the url-evidence crawl, so a client-rendered product (whose static link list was empty) still
+   *  gets readable pages, url-verifiable missions, and a richer corpus. */
+  discoveredPathsOut?: string[];
   /** controller deps (scripted decider for fixtures; real multimodal model otherwise). */
   controllerDeps?: DecideDeps;
 }): Promise<FieldTestSummary> {
@@ -2238,11 +2261,25 @@ async function exploreInteractive(ctx: {
           break;
         }
       }
-      if (landed)
-        await capture("observed the result after submitting", {
-          kind: "observe_response",
-        });
-      return landed ? "result" : "submitted";
+      if (landed) {
+        // A VALIDATION ERROR IS NOT A RESULT. Labeling it "observed the result" let an error screen
+        // credit outcome checkpoints and read as progress, which is how a wizard whose budget step
+        // kept rejecting was retried to exhaustion. Same URL + validation wording = the form said no.
+        const errorish =
+          page.url() === beforeUrl &&
+          (await page
+            .evaluate(() => {
+              const t = (document.body?.innerText || "").toLowerCase();
+              return /\b(required|invalid|must be at least|must be|please enter|please provide|try again|too (low|small|short|long))\b/.test(t);
+            })
+            .catch(() => false));
+        await capture(
+          errorish ? "the form showed a validation error" : "observed the result after submitting",
+          errorish ? { kind: "wait" } : { kind: "observe_response" },
+        );
+        return errorish ? "submitted" : "result";
+      }
+      return "submitted";
     };
 
     // ── GOAL-DIRECTED CONTROLLER ─────────────────────────────────────────────
@@ -2324,6 +2361,17 @@ async function exploreInteractive(ctx: {
       const wantsSearch = goalWantsSearch(goal);
       let modelCalls = 0;
       let stall = 0;
+      /** login walls hit after redirects — a couple mean the goal is gated behind auth; stop honestly. */
+      let wallHits = 0;
+      /**
+       * CYCLE DETECTION by state identity. Same-URL churn is already capped, but a 2-screen cycle
+       * (fill → submit → login redirect → back → fill again) resets the churn counter on every hop
+       * and never accumulates — measured: commonstack ran its whole fill→submit→login loop twice, and
+       * a wizard whose budget step kept rejecting was retried 3–5 times. A state digest recurring is
+       * the loop itself, whatever the URLs did: third recurrence retires the screen's controls,
+       * fourth ends the run honestly.
+       */
+      const digestSeen = new Map<string, number>();
       // Budget MEANINGFUL states (real progress), not raw actions, and COMPACT a run of consecutive
       // linear-onboarding states into one budget unit — the whole trace + its transitions are still
       // recorded, but crossing a 15-step signup can never consume the exploration budget.
@@ -2387,9 +2435,19 @@ async function exploreInteractive(ctx: {
       ) {
         const cur = states[states.length - 1];
         if (!cur) break;
-        const digest = `${stateDigest(cur)}#${ctxSalt}`;
+        const rawDigest = stateDigest(cur);
+        const digest = `${rawDigest}#${ctxSalt}`;
         const elements = await mintInteractiveElements(page);
         await harvestPaths(); // the SPA's map lives in the rendered DOM — keep it current each turn
+        // cycle guard — the same state recurring is a loop whatever route it took to come back.
+        const cycleN = (digestSeen.get(rawDigest) ?? 0) + 1;
+        digestSeen.set(rawDigest, cycleN);
+        if (cycleN === 3) {
+          for (const e of elements) if (e.label.trim()) deadLabels.add(normL(e.label));
+        } else if (cycleN >= 4) {
+          history.push({ action: "stop:cycle", changed: false, note: "the same screen kept recurring" });
+          break;
+        }
 
         // COMPLETE THE TARGET INTERACTION. A conversation is one shape of it (type the probe, send,
         // wait for a reply); a launch form, a search, a create-something flow are the others, and
@@ -2628,7 +2686,9 @@ async function exploreInteractive(ctx: {
           label:
             action.kind === "click_element"
               ? (elements.find((e) => e.id === action.elementId)?.label ?? "")
-              : "",
+              : action.kind === "open_path"
+                ? action.path // the journey evaluator can then credit "navigate to X" from the path itself
+                : "",
         });
         // how many of the founder's checkpoints were observed BEFORE this action, so "did the journey
         // actually move?" is a fact rather than an impression.
@@ -2709,9 +2769,39 @@ async function exploreInteractive(ctx: {
         prevOnboarding = isOnboarding && realChange;
         prevWordSig = newWordSig;
         prevUrl = page.url();
+        // AUTH-WALL RECOGNITION — a password field appearing on a screen that is NOT the entry means
+        // the last move crossed into gated territory (commonstack: submitting the playground bounced
+        // to /settings/login, and the explorer re-ran the whole cycle instead of recognising it).
+        // Deterministic: retire the move that led here, step back once, and after a few distinct
+        // walls stop honestly — the journey wall then words it as the access boundary it is.
+        if (page.url() !== entryUrl) {
+          const authWall = await page
+            .evaluate(() => !!document.querySelector('input[type="password"]'))
+            .catch(() => false);
+          if (authWall) {
+            wallHits++;
+            if (actedLabel) deadLabels.add(actedLabel);
+            try {
+              const u = new URL(page.url());
+              visitedPaths.add(u.pathname + u.search); // never re-open the gated route
+            } catch {
+              /* keep going */
+            }
+            history.push({ action: "auth_wall", changed: true, note: "login required past this point" });
+            if (wallHits >= 3) break;
+            await page.goBack().catch(() => {});
+            await page.waitForTimeout(400);
+            await capture("stepped back from the login wall", { kind: "back" });
+            prevWordSig = wordSignature(states[states.length - 1]?.visibleTextExcerpt ?? "");
+            prevUrl = page.url();
+            continue;
+          }
+        }
         if (progress === "reached") break;
         if (stall >= 4) break; // several real-no-progress actions → a genuine stall, stop honestly.
       }
+      // hand every discovered path back to the caller for the url-evidence crawl (bounded there).
+      ctx.discoveredPathsOut?.push(...livePaths.keys());
     };
 
     const goalText = (ctx.goal ?? "").trim();

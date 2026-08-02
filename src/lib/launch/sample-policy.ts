@@ -15,12 +15,39 @@
 /** How many independent testers a qualitative, plural request prefers. */
 export const PREFERRED_SAMPLE = 3;
 
+/**
+ * EFFORT-ANCHORED REWARD CEILING — what a completion is WORTH, so a fat budget buys a larger sample
+ * instead of overpaying a tiny one. The policy used to reason only about sample size and the $0.10
+ * floor: a $10 budget with one 5-minute mission became 2 × $5.00 (the largest exact split ≤ 3) —
+ * $1/minute, farm bait, and only two data points from a budget that honestly buys ten. A completion's
+ * fair ceiling is `effortMinutes × $0.20` (never below the meaningful floor); when a mission's share
+ * pays past that ceiling, the target sample grows until each tester earns fair-but-not-absurd money.
+ * More testers at fair pay strictly dominates fewer at inflated pay: same spend, more independent
+ * evidence, no farming magnet. Missions without an effortMinutes (older callers) keep the old
+ * behavior exactly.
+ */
+export const PER_MINUTE_RATE_BASE = BigInt(200_000); // $0.20 per estimated minute, 6dp base units
+/** Hard cap on any derived sample — matches the budget layer's per-mission completion cap. */
+const MAX_SAMPLE = 50;
+
+export function effortCeilingBase(
+  effortMinutes: number | undefined,
+  minRewardBase: bigint,
+): bigint | null {
+  if (!effortMinutes || !Number.isFinite(effortMinutes) || effortMinutes <= 0) return null;
+  const ceiling = BigInt(Math.round(effortMinutes)) * PER_MINUTE_RATE_BASE;
+  return ceiling > minRewardBase ? ceiling : minRewardBase;
+}
+
 export interface SampleMission {
   missionKey: string;
   maxCompletions: number;
   rewardWeight: number;
   /** true when completion is judged from the tester's own account (not a deterministic URL check). */
   qualitative: boolean;
+  /** the mission's estimated effort — arms the effort-anchored reward ceiling. Optional: absent keeps
+   *  the pre-effort behavior byte-identical. */
+  effortMinutes?: number;
 }
 
 export interface SamplePolicyResult<T extends SampleMission> {
@@ -81,37 +108,68 @@ export function applySamplePolicy<T extends SampleMission>(
   let budgetLimited = false;
   let capped = false;
 
+  /** this mission's share of the budget (by weight) — the pot its sample must be paid from. */
+  const shareOf = (m: T): bigint =>
+    (opts.totalBudgetBase * BigInt(Math.max(1, m.rewardWeight))) /
+    BigInt(totalWeight);
+
+  /**
+   * The EFFORT-ANCHORED sample target: enough testers that each is paid fairly (share ÷ ceiling),
+   * never below the plural-preferred sample, never past the hard cap. Null ceiling (no effort data)
+   * → the plain preferred sample, exactly as before.
+   */
+  const effortTarget = (m: T): number => {
+    const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase);
+    if (!ceiling) return preferred;
+    const byEffort = Number(shareOf(m) / ceiling);
+    return Math.max(preferred, Math.min(MAX_SAMPLE, byEffort));
+  };
+
   // THE CAP applies whether or not the request was worded in the plural, because it is not about
   // how many accounts Sage wants — it is about what each tester is paid. A model that asks for ten
   // completions of a qualitative mission on a $1.50 budget drives every reward to the floor (the
-  // run that produced 15 × $0.10). Past a small independent sample, another tester buys no extra
-  // confidence and only shrinks everyone's share.
+  // run that produced 15 × $0.10). Past the fair sample for this pot, another tester buys no extra
+  // confidence and only shrinks everyone's share — but "fair sample" now grows with the pot, so a
+  // fat budget can never hide behind a tiny sample at inflated pay (2 × $5.00 for 5-minute work).
   const cap = (m: T): T => {
-    if (!m.qualitative || m.maxCompletions <= preferred) return m;
+    const capTo = m.qualitative ? effortTarget(m) : Number.MAX_SAFE_INTEGER;
+    if (!m.qualitative || m.maxCompletions <= capTo) return m;
     capped = true;
     adjusted = true;
-    return { ...m, maxCompletions: preferred };
+    return { ...m, maxCompletions: capTo };
+  };
+
+  /** Raise a qualitative mission UP to the effort-anchored target (overpay protection — applies to
+   *  every qualitative mission, plural wording or not: paying $5 for 5 minutes is wrong either way). */
+  const raiseToFair = (m: T): T => {
+    if (!m.qualitative) return m;
+    // NO EFFORT DATA, NO RAISE. The ceiling is the only evidence that a completion is OVERPAID, and
+    // without it `effortTarget` just returns the preferred sample — which would silently add testers
+    // to every legacy mission, including on a singular goal where this module deliberately never
+    // raised. Overpay protection must fire on evidence of overpay, not on its absence.
+    if (!effortCeilingBase(m.effortMinutes, opts.minRewardBase)) return m;
+    const target = effortTarget(m);
+    if (target <= m.maxCompletions) return m;
+    adjusted = true;
+    return { ...m, maxCompletions: target };
   };
 
   if (!requestsPluralSample(opts.goal)) {
-    const capOnly = missions.map(cap);
+    const capOnly = missions.map((m) => raiseToFair(cap(m)));
     return {
       missions: capOnly,
       adjusted,
       question: null,
-      reason: capped ? "capped_to_sample" : "not_plural",
+      reason: capped || adjusted ? "capped_to_sample" : "not_plural",
     };
   }
 
   const out = missions.map((raw) => {
-    const m = cap(raw);
+    const m = raiseToFair(cap(raw));
     if (!m.qualitative) return m;
     if (m.maxCompletions >= preferred) return m;
     // this mission's share of the budget, and how many meaningful rewards it can buy.
-    const share =
-      (opts.totalBudgetBase * BigInt(Math.max(1, m.rewardWeight))) /
-      BigInt(totalWeight);
-    const affordable = Number(share / opts.minRewardBase); // whole meaningful rewards this share can fund
+    const affordable = Number(shareOf(m) / opts.minRewardBase); // whole meaningful rewards this share can fund
     const target = Math.min(preferred, Math.max(1, affordable));
     if (target < preferred) budgetLimited = true;
     if (target > m.maxCompletions) {
