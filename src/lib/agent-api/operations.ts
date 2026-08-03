@@ -144,6 +144,21 @@ export interface InspectionView {
     missions: Array<{
       title: string;
       objective: string;
+      /** where the tester does the work. */
+      targetSurface: string;
+      /**
+       * The CHECKABLE PASS CRITERIA and the EVIDENCE each tester must supply.
+       *
+       * These are the two capabilities the service description promises, and they were absent from
+       * this payload — a caller got a title and a price and nothing to verify against. OKX rejected
+       * the listing for exactly that: "the results returned by your service in actual calls don't
+       * match the capabilities stated in your service description." They were right. The plan has
+       * carried both all along; only this public view dropped them.
+       */
+      criteria: string[];
+      evidenceRequirements: string[];
+      /** how a completion is verified — a deterministic URL check, or a firsthand account. */
+      verifiabilityClass: string | null;
       /** the reward in whole USDC (human-readable). */
       rewardUsd: number | null;
       rewardBase: string;
@@ -171,6 +186,11 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     missions?: Array<{
       title: string;
       objective: string;
+      targetSurface?: string;
+      criteria?: string[];
+      evidenceRequirements?: string[];
+      evidenceList?: string[];
+      verifiabilityClass?: string;
       rewardBase: string;
       maxCompletions: string;
     }>;
@@ -187,6 +207,12 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
           missions: p.missions.map((m) => ({
             title: m.title,
             objective: m.objective,
+            targetSurface: m.targetSurface ?? "",
+            criteria: m.criteria ?? [],
+            // the mission brain writes these as `evidenceRequirements`; the compiled plan persists
+            // them as `evidenceList`. Read both so neither shape returns an empty promise.
+            evidenceRequirements: m.evidenceRequirements ?? m.evidenceList ?? [],
+            verifiabilityClass: m.verifiabilityClass ?? null,
             rewardUsd: toUsd(m.rewardBase),
             rewardBase: m.rewardBase,
             maxCompletions: m.maxCompletions,
