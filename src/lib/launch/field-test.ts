@@ -2775,8 +2775,39 @@ async function exploreInteractive(ctx: {
         // Deterministic: retire the move that led here, step back once, and after a few distinct
         // walls stop honestly — the journey wall then words it as the access boundary it is.
         if (page.url() !== entryUrl) {
+          // VISIBLE, not merely present. `querySelector('input[type=password]')` matches the login
+          // drawer that a shop or a chat app keeps mounted on EVERY page, hidden until opened — so
+          // every state read as a wall, wallHits hit 3, and exploration aborted after ~3 states.
+          // Measured: allbirds went 4 states -> 0 and web.telegram.org lost its plan entirely.
+          // A hidden drawer is not a wall Sage walked into; a wall is one it can actually see.
           const authWall = await page
-            .evaluate(() => !!document.querySelector('input[type="password"]'))
+            .evaluate(() => {
+              // `display` and `visibility` inherit, so the element's own computed style settles them.
+              // `opacity` does NOT — a child of an opacity:0 drawer computes opacity 1 — and neither
+              // does clipping, so a collapsed `max-height:0; overflow:hidden` panel still reports a
+              // full-size rect. Both need one walk up the ancestors.
+              const shown = (el: Element) => {
+                const he = el as HTMLElement;
+                const rect = he.getBoundingClientRect?.();
+                if (!rect || rect.width < 8 || rect.height < 8) return false;
+                const st = getComputedStyle(he);
+                if (st.visibility === "hidden" || st.display === "none") return false;
+                if (Number(st.opacity) === 0) return false;
+                let p = he.parentElement;
+                for (let depth = 0; p && depth < 12; depth++) {
+                  const ps = getComputedStyle(p);
+                  if (Number(ps.opacity) === 0) return false;
+                  const clip = `${ps.overflow}${ps.overflowX}${ps.overflowY}`;
+                  if (clip.includes("hidden") || clip.includes("clip")) {
+                    const pr = p.getBoundingClientRect();
+                    if (pr.width < 8 || pr.height < 8) return false;
+                  }
+                  p = p.parentElement;
+                }
+                return true;
+              };
+              return Array.from(document.querySelectorAll('input[type="password"]')).some(shown);
+            })
             .catch(() => false);
           if (authWall) {
             wallHits++;
