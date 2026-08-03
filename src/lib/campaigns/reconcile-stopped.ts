@@ -3,7 +3,11 @@ import "server-only";
 import { getAddress } from "viem";
 import { publicClient } from "@/lib/deputy/chain";
 import { campaignVaultAbi } from "@/lib/deputy/campaign-vault";
-import { setCampaignStatus } from "@/lib/db/campaigns";
+import {
+  TERMINAL_CAMPAIGN_STATUSES,
+  resolveStoppedCampaignSubmissions,
+  setCampaignStatus,
+} from "@/lib/db/campaigns";
 import type { Campaign } from "@/lib/db/schema";
 
 /**
@@ -15,7 +19,7 @@ import type { Campaign } from "@/lib/db/schema";
  */
 
 const VAULT_STATE_REVOKED = 4; // ["created","funded","active","paused","revoked"]
-const TERMINAL = new Set(["cancelled", "completed", "closed", "draft"]);
+const TERMINAL = new Set<string>(TERMINAL_CAMPAIGN_STATUSES);
 
 /** True if the vault's on-chain state is `revoked`; null on any read failure (never guesses). */
 export async function isVaultRevoked(vault: string, chainId: number): Promise<boolean | null> {
@@ -37,6 +41,9 @@ export async function reconcileStopped(campaign: Campaign): Promise<Campaign> {
   const revoked = await isVaultRevoked(campaign.vaultAddress, campaign.chainId);
   if (revoked === true) {
     setCampaignStatus(campaign.id, "cancelled");
+    // A revoked vault can never pay, so anything still awaiting judgment is now unpayable. Resolve it
+    // with an honest reason instead of leaving the tester on "verifying" forever.
+    resolveStoppedCampaignSubmissions(campaign.id);
     return { ...campaign, status: "cancelled" };
   }
   return campaign;

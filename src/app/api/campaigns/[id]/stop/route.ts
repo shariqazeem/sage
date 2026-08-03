@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getSessionAddress } from "@/lib/auth/session";
-import { getCampaign, setCampaignStatus } from "@/lib/db/campaigns";
+import { getCampaign, resolveStoppedCampaignSubmissions,
+  setCampaignStatus } from "@/lib/db/campaigns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,5 +25,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   setCampaignStatus(id, "cancelled");
-  return NextResponse.json({ ok: true, status: "cancelled" });
+  // Work still awaiting judgment can never be paid once the vault is revoked — resolve it with an
+  // honest reason rather than leaving those testers reading "verifying" forever.
+  const resolved = resolveStoppedCampaignSubmissions(id);
+  return NextResponse.json({ ok: true, status: "cancelled", resolvedSubmissions: resolved });
 }

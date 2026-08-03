@@ -364,6 +364,55 @@ export function casSubmissionStatus(id: string, from: string, to: string): boole
   return res.changes > 0;
 }
 
+/**
+ * Campaign statuses that are NOT live: nothing to sweep, nothing to reconcile against the chain.
+ * "draft" is pre-launch; the other three are over. ONE list, shared with `reconcile-stopped.ts` —
+ * two copies of a safety predicate is how the sensitive-field guard once had the same bug twice.
+ */
+export const TERMINAL_CAMPAIGN_STATUSES: readonly string[] = [
+  "cancelled",
+  "completed",
+  "closed",
+  "draft",
+];
+
+/**
+ * The reason a tester sees when a campaign was stopped before their work was judged. It says what
+ * actually happened, because it is NOT a judgment of the work — the founder revoked the vault, so
+ * there is no longer anything to pay from.
+ */
+export const CAMPAIGN_STOPPED_REASON =
+  "The founder stopped this campaign and withdrew the remaining funds before this submission was judged. That is not a verdict on your work — with the vault revoked on-chain there is nothing left to pay from.";
+
+/**
+ * Resolve every submission that a stopped campaign left unpayable.
+ *
+ * A revoked vault can never settle, so `pending` and `approved` rows on a cancelled campaign sit
+ * unresolved FOREVER: the sweep re-runs the pipeline on them every five minutes, the tester board
+ * counts them as "verifying" to the public, and the tester never gets an answer. Measured on prod:
+ * two submissions ~15 days old with `decided_at` null, one of them a genuine own-words account.
+ *
+ * `settling` is deliberately left alone — that row may have a transaction in flight, and the sweep's
+ * stale-settling recovery owns it.
+ */
+export function resolveStoppedCampaignSubmissions(campaignId: string): number {
+  const res = db
+    .update(submissions)
+    .set({
+      status: "rejected",
+      rejectReason: CAMPAIGN_STOPPED_REASON,
+      decidedAt: nowSeconds(),
+    })
+    .where(
+      and(
+        eq(submissions.campaignId, campaignId),
+        inArray(submissions.status, ["pending", "approved"]),
+      ),
+    )
+    .run();
+  return res.changes;
+}
+
 /** Recover crashed 'settling' rows (stamped before `staleBeforeSec`) → pending. */
 export function resetStaleSettling(staleBeforeSec: number): number {
   const res = db
@@ -380,7 +429,15 @@ export function listPendingAutopilotSubmissionIds(): string[] {
     .select({ id: submissions.id })
     .from(submissions)
     .innerJoin(campaigns, eq(submissions.campaignId, campaigns.id))
-    .where(and(eq(campaigns.autonomy, "autopilot"), eq(submissions.status, "pending")))
+    .where(
+      and(
+        eq(campaigns.autonomy, "autopilot"),
+        eq(submissions.status, "pending"),
+        // A stopped campaign's vault is revoked, so its pending rows can NEVER settle. Without this
+        // the sweep re-ran the full pipeline over them every five minutes, forever.
+        notInArray(campaigns.status, [...TERMINAL_CAMPAIGN_STATUSES]),
+      ),
+    )
     .all()
     .map((r) => r.id);
 }
