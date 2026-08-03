@@ -40,7 +40,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "sage_start_inspection",
     description:
-      "Start a REAL Sage product-testing inspection for a founder. Sage inspects the live product and designs paid testing missions within the budget. It PREPARES a plan only — it never funds or pays; the founder approves and funds once in the Sage web app. Poll sage_get_inspection until stage='ready', then give the founder the approvalUrl.",
+      "Start a REAL Sage product-testing inspection for a founder. Sage inspects the live product in a real browser and designs paid testing missions within the budget. It PREPARES a plan only — it never funds or pays; the founder approves and funds once in the Sage web app. Returns an inspectionId in about a second; the browsing itself takes roughly 4-11 minutes. Poll sage_get_inspection every 15-30s until stage='ready', then give the founder the approvalUrl. To see a finished plan immediately instead, call sage_example_plan.",
     inputSchema: {
       type: "object",
       properties: {
@@ -61,7 +61,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "sage_get_inspection",
     description:
-      "Poll a Sage inspection by id. Returns the honest stage, any needs-input questions or a failure, and — when ready — the mission plan plus the founder approvalUrl. Only the founder's own wallet can approve and fund; the agent cannot.",
+      "Poll a Sage inspection by id. While it is still running, `progress` says what Sage is doing right now (step N of 7), how long it has been working, and when to poll again — a long browse is normal, not a hang. When done: any needs-input questions or a failure, and when ready the mission plan plus the founder approvalUrl. Only the founder's own wallet can approve and fund; the agent cannot.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,8 +186,14 @@ export async function callSageTool(
         return toolResult({
           ...r,
           asyncContract: {
-            thisCallReturns: "an inspectionId — the work runs in a real browser and takes a few minutes",
-            estimatedSeconds: 180,
+            thisCallReturns:
+              "an inspectionId — the work runs in a real browser and takes minutes, not seconds",
+            // MEASURED, not guessed. A simple page finishes near the low end; a site that challenges
+            // automated visitors pushes Sage onto the slow browser path — a bot-walled SaaS product
+            // measured 633s on prod and returned a good plan from 12 browser states. This field used
+            // to say 180, which made a normal run look like a broken one.
+            estimatedSeconds: { typical: 240, upTo: 660 },
+            pollEvery: "poll every 15-30s; each poll returns a `progress` object saying what Sage is doing",
             pollWith: {
               tool: "sage_get_inspection",
               arguments: { inspectionId: r.inspectionId },

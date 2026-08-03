@@ -3,6 +3,7 @@ import "server-only";
 import { startInspection } from "@/lib/launch/start";
 import { getInspectionJob, clarifyInspectionForRetry, founderGoalDigest } from "@/lib/db/inspection";
 import { jobToView } from "@/lib/launch/job";
+import { inspectionProgress, type InspectionProgress } from "./progress";
 import {
   getCampaign,
   listSubmissions,
@@ -136,6 +137,12 @@ export interface InspectionView {
    */
   coverageNote: string | null;
   failure: string | null;
+  /**
+   * While the inspection is still running: what Sage is doing, for how long, and when to poll again.
+   * Null once the job is terminal. Without this a caller sees only `stage` and cannot tell a job that
+   * is browsing from one that is hung — the async contract, made legible.
+   */
+  progress: InspectionProgress | null;
   plan: {
     missionCount: number;
     /** the budget in whole USDC (human-readable) — always prefer this over the base-unit field. */
@@ -239,6 +246,7 @@ export function opGetInspection(id: string): OpResult<InspectionView> {
     needsInput: v.status === "needs_input" ? (v.result?.questions ?? []) : null,
     coverageNote: ready ? ((v.result?.questions ?? [])[0] ?? null) : null,
     failure: v.status === "failed" ? v.failureReason : null,
+    progress: inspectionProgress(v.status, Math.floor(Date.now() / 1000) - v.createdAt),
     plan,
     approvalUrl: `${siteUrl()}/launch/${v.id}`,
     approvalNote: ready
