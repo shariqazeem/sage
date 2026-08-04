@@ -132,15 +132,13 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
     }
   }, [rows, sort]);
 
-  // Rails only make sense when there is enough to fill more than one; below that a single rail
-  // reads as the whole list, which is the truth.
+  // A per-product rail has to EARN its place. Grouping a campaign that has one mission just prints
+  // that mission a second time, so with 5 missions across 3 campaigns every single one appeared
+  // twice — noise dressed as navigation. Only campaigns with something to group get a rail.
   const byProduct = useMemo(() => {
     const m = new Map<string, MarketplaceRow[]>();
-    for (const r of sorted) {
-      const k = r.campaignId;
-      m.set(k, [...(m.get(k) ?? []), r]);
-    }
-    return [...m.entries()];
+    for (const r of sorted) m.set(r.campaignId, [...(m.get(r.campaignId) ?? []), r]);
+    return [...m.entries()].filter(([, rs]) => rs.length > 1);
   }, [sorted]);
 
   return (
@@ -165,15 +163,14 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
         rows={sorted}
       />
 
-      {byProduct.length > 1 &&
-        byProduct.map(([id, rs]) => (
-          <Rail
-            key={id}
-            title={rs[0]!.campaignTitle}
-            hint={`${rs.length} open ${rs.length === 1 ? "mission" : "missions"} on ${rs[0]!.productHost ?? "this product"}`}
-            rows={rs}
-          />
-        ))}
+      {byProduct.map(([id, rs]) => (
+        <Rail
+          key={id}
+          title={rs[0]!.campaignTitle}
+          hint={`${rs.length} open missions on ${rs[0]!.productHost ?? "this product"}`}
+          rows={rs}
+        />
+      ))}
     </>
   );
 }
