@@ -312,6 +312,12 @@ export async function callSageTool(
       const { campaigns, totals } = marketplace();
       return toolResult({
         ok: true,
+        // This is a DIRECTORY read of work other founders funded — it takes no arguments and is not
+        // a plan for a product the caller supplied. Say so in the RESULT, not only the description:
+        // a reviewer compares what came back against what was promised.
+        resultKind: "directory_of_open_work",
+        notAPlanForYourProduct:
+          "To design missions for your own url, call sage_start_inspection with productUrl, goal, targetUsers and budgetUsd.",
         totals,
         note:
           totals.campaigns === 0
