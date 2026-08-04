@@ -528,6 +528,14 @@ export function validateCorroborations(
 export interface ObservationSignals {
   /** distinct SOURCES the account matched in the pinned key (verifyAgainstKey). */
   distinctSources: number;
+  /**
+   * Distinct sources the DETERMINISTIC token-matcher found on its own, before any LLM corroboration
+   * was unioned in. Optional: a caller that does not supply it keeps the pre-anchor behaviour exactly.
+   *
+   * This exists because `distinctSources` cannot distinguish "the tester wrote things only a real
+   * visitor could write" from "the model was willing to bridge three vague phrases". Both arrive as 3.
+   */
+  deterministicSources?: number;
   /** distinct sources IN the pinned key — campaign eligibility (a thin answer key can't verify). */
   keyDistinctSources: number;
   /** a VALIDATED contradiction veto fired (verbatim account↔corpus pair). Only this blocks; a
@@ -586,6 +594,26 @@ export interface BarResult {
 export const OBS_BAR = {
   minDistinctMatches: 3, // ≥3 DISTINCT non-public corpus matches (different sources)
   minKeySources: 5, // campaign eligibility — the pinned key holds ≥5 distinct observations
+  /**
+   * THE ANCHOR FLOOR — at least ONE distinct source the deterministic matcher found by itself.
+   *
+   * `validateCorroborations` is real code, not model judgment: both quotes must be verbatim, the
+   * account side needs a non-public token, and one claim earns at most one source. That is a sound
+   * RECALL path, and it stays. But the model chooses the corpus quote — it can see the corpus — so
+   * the only thing a corroboration truly binds is that the ACCOUNT contains some firsthand phrase the
+   * model was willing to link. Three such links and nothing else, and an autonomous payout rests
+   * entirely on the model's semantic judgment. That contradicts this module's own rule, stated a few
+   * lines below: the model is trusted ONLY for the semantic link.
+   *
+   * So: the model may bridge, expand and rescue — it may not be the SOLE basis for moving money.
+   * Falling short HOLDS for the founder (it does not reject), so the recall path still gets paid, just
+   * with a human glance first.
+   *
+   * Measured on every shadow row to date (5): the two well-anchored payouts scored 3 and 4 here and
+   * are untouched; both holds scored 0 and 1 and stay held; exactly one row changes — the payout that
+   * cleared on 0 deterministic + 3 model-bridged sources.
+   */
+  minDeterministicSources: 1,
 } as const;
 
 /**
@@ -614,7 +642,7 @@ export const CRITERIA_COMPLETE_MIN_MATCHES = 2;
  * is stale by definition — a submission held under the old policy might pass under the new one, and
  * reusing the old answer would freeze it forever. Bump this on ANY change to observationBar/OBS_BAR.
  */
-export const OBS_BAR_POLICY_VERSION = "obs-bar-v3-derived-contracts";
+export const OBS_BAR_POLICY_VERSION = "obs-bar-v4-anchor-floor";
 
 /**
  * A STORED VERDICT STILL APPLIES when everything the verdict depends on is provably unchanged: the
@@ -651,6 +679,16 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   const reasons: string[] = [];
   if (s.keyDistinctSources < cfg.minKeySources) reasons.push(`thin_corpus(${s.keyDistinctSources}<${cfg.minKeySources})`);
   if (s.distinctSources < cfg.minDistinctMatches) reasons.push(`few_matches(${s.distinctSources}<${cfg.minDistinctMatches})`);
+  // The anchor floor. Only applied when the caller actually supplies the split — an older caller that
+  // does not know its deterministic count keeps the previous behaviour rather than being held by default.
+  if (
+    typeof s.deterministicSources === "number" &&
+    s.deterministicSources < cfg.minDeterministicSources
+  ) {
+    reasons.push(
+      `no_deterministic_anchor(${s.deterministicSources}<${cfg.minDeterministicSources})`,
+    );
+  }
   if (s.vetoFired) reasons.push("contradiction");
   if (!s.nearDupClear) reasons.push("near_dup");
   if (s.hasHighFraud) reasons.push("high_fraud");
@@ -664,6 +702,10 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   // the flat count — with still ≥2 distinct private-source matches — the account has proven the work
   // the mission asked for, and holding it punishes concision. Any other objection (veto, near-dup,
   // fraud, thin corpus, an unproven criterion) keeps the hold exactly as before.
+  // NOTE the `few_matches`-only condition below is what keeps the anchor floor un-overridable: an
+  // account with no deterministic anchor carries `no_deterministic_anchor`, which is not `few_matches`,
+  // so the pass cannot fire. Proving every criterion through model bridges alone is exactly the case
+  // the floor exists for.
   if (
     reasons.length > 0 &&
     s.criteriaAllProven === true &&

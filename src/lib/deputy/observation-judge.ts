@@ -228,6 +228,9 @@ export function assembleObservationDecision(input: {
 
   const signals: ObservationSignals = {
     distinctSources: combinedDistinctSources,
+    // The pre-corroboration count, so the bar can tell "only a real visitor could have written this"
+    // from "the model was willing to bridge three vague phrases" — both arrive as `distinctSources`.
+    deterministicSources: corpusMatch.distinctSources,
     keyDistinctSources: input.key.distinctSources,
     vetoFired: validated.length > 0,
     nearDupClear: !near,
