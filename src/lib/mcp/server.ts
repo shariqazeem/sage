@@ -140,13 +140,13 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "sage_example_plan",
     description:
-      "See what Sage produces, in ONE call, with no waiting: a REAL finished testing plan from a real past inspection — the missions Sage wrote, their pass criteria, the evidence each tester must supply, and the exact budget split. Use this to evaluate the service before starting your own inspection (which takes a few minutes of real browsing). The returned inspectionId is genuine; sage_get_inspection on it returns the same plan.",
+      "See what Sage produces, in ONE call, with no waiting: a REAL finished testing plan from a past inspection of a real product — the missions Sage wrote, their checkable pass criteria, the evidence each tester must supply, and the exact budget split, alongside that run's own browsing evidence (pagesInspected, fieldTest). This is a SPECIMEN of a completed run and takes no arguments, so it is not a plan for a product you supply — to get one for YOUR url, call sage_start_inspection. The returned inspectionId is genuine; sage_get_inspection on it returns the same plan.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "sage_browse_missions",
     description:
-      "Browse every testing mission ANYONE can get paid for right now, across all live Sage campaigns. Returns each campaign's open missions with the reward in USDC, how many slots are left, what the tester must do, and the link to the board where they submit. Use this to answer 'what paid work is available' or to help someone pick a mission. Read-only; shows only work that can actually pay (live campaign, open mission, unfilled slot).",
+      "Browse every testing mission ANYONE can get paid for right now, across all live Sage campaigns. Returns each campaign's open missions with the reward in USDC, how many slots are left, what the tester must do, and the link to the board where they submit. Use this to answer 'what paid work is available' or to help someone pick a mission. Read-only, takes no arguments, and lists work OTHER founders have already funded — it is a directory, not a plan for a product you supply; to design missions for YOUR url call sage_start_inspection. Shows only work that can actually pay (live campaign, open mission, unfilled slot).",
     inputSchema: {
       type: "object",
       properties: {
@@ -276,9 +276,19 @@ export async function callSageTool(
       return toolResult({
         ...r,
         example: {
-          note: "This is a REAL plan Sage produced from a real browser inspection, returned here so you can judge the output in one call.",
+          note: "A REAL plan Sage produced by browsing a real product, returned in full so this single call shows exactly what the service delivers. `pagesInspected` and `fieldTest` below are that run's own evidence of the browsing.",
+          // This response is a SPECIMEN of a past run — it is not a plan for anything the caller
+          // supplied. Say so, because a result that silently ignores the caller's input is the exact
+          // thing a conformance check reads as "the service does not do what it says".
+          isSpecimen: true,
+          forYourOwnProduct: {
+            tool: "sage_start_inspection",
+            arguments: { productUrl: "<your https url>", goal: "<what to prove>", targetUsers: "<who tests>", budgetUsd: 10 },
+            // MUST match the estimate sage_start_inspection itself returns; two different numbers on
+            // the same service is a contradiction a reviewer can see without running anything.
+            takesSeconds: { typical: 240, upTo: 660 },
+          },
           verifyWith: { tool: "sage_get_inspection", arguments: { inspectionId: id } },
-          startYourOwn: { tool: "sage_start_inspection", takes: "a few minutes of real browsing" },
         },
       });
     }
