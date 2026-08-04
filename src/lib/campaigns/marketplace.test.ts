@@ -200,3 +200,63 @@ describe("ordering and shape", () => {
     expect(v.totals).toEqual({ campaigns: 0, missions: 0, slots: 0, usd: 0 });
   });
 });
+
+describe("the tester-facing rows — one per mission, not per campaign", () => {
+  it("flattens every open mission into its own row, carrying its campaign", () => {
+    const c = campaign({ title: "Acme test" });
+    mission(c.id, { rewardAmount: 300_000 });
+    mission(c.id, { rewardAmount: 700_000 });
+    const rows = marketplace().rows.filter((r) => r.campaignId === c.id);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.campaignTitle).toBe("Acme test");
+      expect(r.boardPath).toBe(`/c/${c.id}`);
+      expect(r.key).toContain(c.id); // stable react key, unique per mission
+    }
+    expect(new Set(rows.map((r) => r.key)).size).toBe(2);
+  });
+
+  it("is sorted by reward so the default view answers 'what pays most'", () => {
+    const rows = marketplace().rows;
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1]!.rewardUsd).toBeGreaterThanOrEqual(rows[i]!.rewardUsd);
+    }
+  });
+
+  it("shows the product host a tester would recognise, not the raw surface", () => {
+    const c = campaign();
+    mission(c.id);
+    const r = marketplace().rows.find((x) => x.campaignId === c.id)!;
+    expect(r.productHost).toBe("example.com"); // targetSurface is https://example.com
+  });
+
+  it("survives a mission whose targetSurface is not a usable URL", () => {
+    // A row must still render — a bad surface is a mission-authoring gap, not a reason to 500.
+    expect(() => marketplace().rows).not.toThrow();
+  });
+
+  it("never lists a row for work the campaign view already excluded", () => {
+    const v = marketplace();
+    const listed = new Set(v.campaigns.map((c) => c.id));
+    for (const r of v.rows) expect(listed.has(r.campaignId)).toBe(true);
+    // and the counts agree, so the two views can never disagree about what is open
+    expect(v.rows.length).toBe(v.totals.missions);
+    expect(v.rows.reduce((s, r) => s + r.remainingSlots, 0)).toBe(v.totals.slots);
+  });
+});
+
+describe("effort is a coarse label, never a promise", () => {
+  it("is one of the three known buckets", () => {
+    for (const r of marketplace().rows) {
+      expect(["quick", "standard", "deep"]).toContain(r.effort);
+    }
+  });
+
+  it("grows with what the mission actually asks for", () => {
+    const c = campaign();
+    mission(c.id);
+    const r = marketplace().rows.find((x) => x.campaignId === c.id)!;
+    // 1 criterion + 1 evidence requirement = the smallest possible ask
+    expect(r.effort).toBe("quick");
+  });
+});

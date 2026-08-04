@@ -138,7 +138,7 @@ export default async function CampaignPublicPage({
 
         <nav className="tb-more">
           {/* A tester who finishes here (or finds this one full) has nowhere to go without this. */}
-          <a href="/missions">Browse every open mission on Sage &rarr;</a>
+          <a href="/marketplace">Browse every open mission on Sage &rarr;</a>
         </nav>
 
         <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>

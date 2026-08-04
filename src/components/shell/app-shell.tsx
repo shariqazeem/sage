@@ -22,7 +22,10 @@ function isAppRoute(p: string): boolean {
     /^\/dashboard/.test(p) ||
     /^\/campaign\//.test(p) ||
     /^\/launch/.test(p) ||
-    /^\/agent(\/|$)/.test(p)
+    /^\/agent(\/|$)/.test(p) ||
+    // The marketplace is reachable from the founder rail, so the rail must survive the navigation —
+    // a nav item that makes its own chrome disappear is worse than no nav item.
+    /^\/marketplace/.test(p)
   );
 }
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square } from "lucide-react";
+import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square, Compass} from "lucide-react";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { chainConfig } from "@/lib/deputy/networks";
 import { CountUp } from "@/components/app/count-up";
@@ -118,6 +118,19 @@ export function DashboardClient({
           </span>
           <span className="sb-home-card-cta">
             Start <ArrowRight size={14} strokeWidth={2.2} />
+          </span>
+        </Link>
+        <Link href="/marketplace" className="sage-agent-card sb-agent-tap sb-home-card">
+          <span className="sb-home-card-ico">
+            <Compass size={20} strokeWidth={1.9} />
+          </span>
+          <span className="sb-home-card-title dash-h3">Browse the marketplace</span>
+          <span className="sb-home-card-desc">
+            Every mission open across Sage right now — see what other founders are paying for, or do
+            one yourself and get paid in USDC.
+          </span>
+          <span className="sb-home-card-cta">
+            Browse <ArrowRight size={14} strokeWidth={2.2} />
           </span>
         </Link>
         <Link href="/agent" className="sage-agent-card sb-agent-tap sb-home-card">

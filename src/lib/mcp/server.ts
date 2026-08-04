@@ -324,7 +324,7 @@ export async function callSageTool(
           totals.campaigns === 0
             ? "No missions are open right now. Every mission is backed by a funded vault, so the list is empty whenever no campaign has an unfilled slot."
             : "Open the boardUrl to read the full brief and submit. Payment is USDC from the campaign's on-chain vault.",
-        browseUrl: `${siteUrl()}/missions`,
+        browseUrl: `${siteUrl()}/marketplace`,
         campaigns: campaigns.slice(0, limit).map((c) => ({
           campaignId: c.id,
           title: c.title,

@@ -57,9 +57,55 @@ export interface MarketplaceCampaign {
   missions: MarketplaceMission[];
 }
 
+/**
+ * One row of the marketplace as a TESTER reads it: a single mission, carrying enough of its
+ * campaign to be judged and opened on its own. People pick a task, not a campaign — a campaign-first
+ * list makes someone open three boards to compare two rewards.
+ */
+export interface MarketplaceRow {
+  key: string;
+  campaignId: string;
+  campaignTitle: string;
+  boardPath: string;
+  title: string;
+  objective: string;
+  targetSurface: string;
+  /** the product's hostname — what a tester actually recognises. */
+  productHost: string | null;
+  criteria: string[];
+  evidenceList: string[];
+  rewardUsd: number;
+  remainingSlots: number;
+  maxCompletions: number;
+  tokenSymbol: string;
+  isTestnet: boolean;
+  autopays: boolean;
+  /** roughly how involved the work is, derived from what the mission asks for — never a promise. */
+  effort: "quick" | "standard" | "deep";
+}
+
 export interface MarketplaceView {
   campaigns: MarketplaceCampaign[];
+  /** every open mission, flattened and sorted by reward — the tester-facing list. */
+  rows: MarketplaceRow[];
   totals: { campaigns: number; missions: number; slots: number; usd: number };
+}
+
+/** A rough size for the work, from what the mission itself demands. Presentation only — it never
+ *  touches money, and it is deliberately coarse so it cannot read as a time guarantee. */
+function effortOf(m: MarketplaceMission): MarketplaceRow["effort"] {
+  const asks = m.criteria.length + m.evidenceList.length;
+  if (asks <= 3) return "quick";
+  return asks <= 6 ? "standard" : "deep";
+}
+
+/** Hostname of the surface a tester will actually visit; null when it is not a usable URL. */
+function hostOf(surface: string): string | null {
+  try {
+    return new URL(surface).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
 
 const toUsd = (base: number) => base / 1_000_000;
@@ -98,7 +144,7 @@ export function marketplace(): MarketplaceView {
     .where(and(eq(campaigns.status, "live"), eq(campaigns.sandbox, false)))
     .all();
   if (live.length === 0) {
-    return { campaigns: [], totals: { campaigns: 0, missions: 0, slots: 0, usd: 0 } };
+    return { campaigns: [], rows: [], totals: { campaigns: 0, missions: 0, slots: 0, usd: 0 } };
   }
 
   const ids = live.map((c) => c.id);
@@ -156,8 +202,32 @@ export function marketplace(): MarketplaceView {
   // Real money first: the biggest single reward a tester could earn, then the most work available.
   out.sort((a, b) => b.topRewardUsd - a.topRewardUsd || b.openSlots - a.openSlots);
 
+  const rows: MarketplaceRow[] = out.flatMap((c) =>
+    c.missions.map((m) => ({
+      key: `${c.id}:${m.missionKey}`,
+      campaignId: c.id,
+      campaignTitle: c.title,
+      boardPath: c.boardPath,
+      title: m.title,
+      objective: m.objective,
+      targetSurface: m.targetSurface,
+      productHost: hostOf(m.targetSurface),
+      criteria: m.criteria,
+      evidenceList: m.evidenceList,
+      rewardUsd: m.rewardUsd,
+      remainingSlots: m.remainingSlots,
+      maxCompletions: m.maxCompletions,
+      tokenSymbol: c.tokenSymbol,
+      isTestnet: c.isTestnet,
+      autopays: c.autopays,
+      effort: effortOf(m),
+    })),
+  );
+  rows.sort((a, b) => b.rewardUsd - a.rewardUsd || b.remainingSlots - a.remainingSlots);
+
   return {
     campaigns: out,
+    rows,
     totals: {
       campaigns: out.length,
       missions: out.reduce((s, c) => s + c.openMissions, 0),

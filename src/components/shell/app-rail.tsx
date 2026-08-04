@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { House, Rocket, Sparkles, Send, Wallet } from "lucide-react";
+import { House, Rocket, Sparkles, Send, Wallet, Compass} from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
@@ -15,6 +15,7 @@ import { useSiwe } from "@/lib/auth/use-siwe";
 const NAV = [
   { href: "/dashboard", label: "Home", Icon: House },
   { href: "/launch", label: "Launch", Icon: Rocket },
+  { href: "/marketplace", label: "Marketplace", Icon: Compass },
   { href: "/agent", label: "Agent", Icon: Sparkles },
 ] as const;
 

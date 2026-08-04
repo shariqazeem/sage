@@ -8,6 +8,9 @@ import { SageMark } from "@/components/brand/sage-mark";
 const LINKS = [
   { href: "#how", label: "How Sage works" },
   { href: "#proof", label: "Live proof" },
+  // The market has two sides. The landing sells the founder side; this is the only door for the
+  // people who do the work, and without it a tester can only arrive via a link a founder sent them.
+  { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 
