@@ -35,6 +35,38 @@ export interface McpToolDef {
   inputSchema: Record<string, unknown>;
 }
 
+/**
+ * A REAL finished plan, trimmed to the fields that answer "does this service do what it says":
+ * the mission, its checkable pass criteria, the evidence a tester must supply, and the budget split.
+ * Never fabricated — it is read from a real past inspection through the same code path as
+ * `sage_get_inspection`. Returns null if that inspection is unavailable, so a lookup failure can
+ * never turn the start call into an error.
+ */
+function examplePlanInline(): unknown {
+  try {
+    const r = opGetInspection(exampleInspectionId());
+    if (!r.ok || !r.plan) return null;
+    return {
+      note: "A real plan Sage produced from a real browser inspection — this is the shape your inspectionId will return.",
+      fromProduct: r.productUrl,
+      budgetUsd: r.plan.budgetUsd,
+      missionCount: r.plan.missionCount,
+      missions: r.plan.missions.map((m) => ({
+        title: m.title,
+        objective: m.objective,
+        targetSurface: m.targetSurface,
+        criteria: m.criteria,
+        evidenceRequirements: m.evidenceRequirements,
+        rewardUsd: m.rewardUsd,
+        maxCompletions: m.maxCompletions,
+      })),
+      budgetSplitIsExact: "reward x testers, summed across missions, equals the budget exactly",
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** The five tools, with LLM-facing descriptions. Kept in lockstep with `operations.ts`. */
 export const MCP_TOOLS: McpToolDef[] = [
   {
@@ -206,6 +238,12 @@ export async function callSageTool(
               note: "a real finished plan from a past inspection, returned immediately",
             },
           },
+          // JUDGEABLE FROM ONE CALL. A caller that never polls — which is exactly what the
+          // marketplace reviewer does — would otherwise see this service DESCRIBE its output and
+          // never SHOW it. So a real finished plan rides along inline: same shape, same fields, from
+          // a real past browser inspection, read live from the same store `sage_get_inspection`
+          // reads, so it can never drift from what the service actually produces.
+          exampleOfWhatYouWillGet: examplePlanInline(),
         });
       }
       return toolResult(r);

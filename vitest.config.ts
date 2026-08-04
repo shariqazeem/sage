@@ -30,10 +30,17 @@ export default defineConfig({
     isolate: true,
     // Headroom over the 5s default: several integration tests do real DB seeding + crypto (identity
     // hashing) + the full settle pipeline. Under scheduler contention on a loaded CI machine that can creep
-    // past 5s and time out spuriously (the observed flake). 15s absorbs contention while a GENUINE hang
+    // past 5s and time out spuriously (the observed flake). This absorbs contention while a GENUINE hang
     // (unresolved promise) still fails — this is headroom, not retry-based hiding.
-    testTimeout: 15_000,
-    hookTimeout: 15_000,
+    //
+    // Raised 15s -> 30s (2026-08-04) after the *.browser.test.ts files put real chromium processes into
+    // this forks pool. The cost is not the tests: `telegram/bot.test.ts` asserts message chunking against a
+    // mocked fetch and does no I/O at all, yet takes ~8.6s ALONE — that is `await import("./bot")` pulling a
+    // large module graph through the transform. Add browser-launch contention and it crossed 15s, failing 2
+    // to 10 files a run at random. Every one of them passed in isolation, which is how the flake was
+    // identified rather than assumed: a suite that cries wolf is how a real failure gets waved through.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // DB-backed drills run against an isolated in-memory SQLite — real schema +
     // real atomic CAS/locks, never the dev database.
     env: { SAGE_DB_PATH: ":memory:" },
