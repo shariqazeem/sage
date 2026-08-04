@@ -77,11 +77,23 @@ async function runOne(m, i) {
     const j = await res.json();
     if (!j.ok) return { ...m, error: `launch: ${j.error}` };
     const id = j.job.id;
-    for (let t = 0; t < 30; t++) {
+    // POLL BUDGET, from measurement not habit. This was 30 x 10s = 5 minutes, which is SHORTER than
+    // the work: a real inspection runs ~240s typically and up to ~660s on a site that challenges
+    // automated visitors (measured on prod — notion.so 231s, linear.app 633s). So the battery gave up
+    // on precisely the hard categories it exists to test and printed `FAIL(undefined)`, which reads
+    // identically to a quality regression. On one run that was 3 of 11 categories, and all three had
+    // finished `ready` with 8, 21 and 7 browser states.
+    //
+    // A battery that cries wolf is how a real regression gets waved through, so: wait past the
+    // measured ceiling, and report a timeout AS a timeout — never as a failing check.
+    for (let t = 0; t < 72; t++) {
       const p = await (await fetch(`${base}/api/launch/${id}`)).json();
       job = p.job;
       if (["ready", "needs_input", "failed"].includes(job?.status)) break;
       await new Promise((r) => setTimeout(r, 10_000));
+    }
+    if (!["ready", "needs_input", "failed"].includes(job?.status)) {
+      return { ...m, error: `TIMEOUT after 720s (last stage: ${job?.status ?? "unknown"})` };
     }
   } catch (e) {
     return { ...m, error: String(e?.message || e).slice(0, 80) };
