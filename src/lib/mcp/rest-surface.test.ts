@@ -75,7 +75,8 @@ describe("caps apply to the REST shape too", () => {
   it("refuses when the shared rate limiter says no", () => {
     const g = publicCallGuard("sage_start_inspection", "ref", () => false);
     expect(g.ok).toBe(false);
-    expect(g.message).toBeTruthy();
+    // narrow before reading `message` — it only exists on the refusal arm
+    if (!g.ok) expect(g.message).toBeTruthy();
   });
 
   it("allows when it says yes", () => {

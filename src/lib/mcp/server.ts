@@ -3,6 +3,8 @@ import "server-only";
 import { runInspectionJob } from "@/lib/launch/job";
 import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
+import { marketplace } from "@/lib/campaigns/marketplace";
+import { siteUrl } from "@/lib/site";
 import {
   opStartInspection,
   opGetInspection,
@@ -142,6 +144,21 @@ export const MCP_TOOLS: McpToolDef[] = [
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "sage_browse_missions",
+    description:
+      "Browse every testing mission ANYONE can get paid for right now, across all live Sage campaigns. Returns each campaign's open missions with the reward in USDC, how many slots are left, what the tester must do, and the link to the board where they submit. Use this to answer 'what paid work is available' or to help someone pick a mission. Read-only; shows only work that can actually pay (live campaign, open mission, unfilled slot).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "number",
+          description: "Max campaigns to return (default 10, max 25).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "sage_get_proof",
     description:
       "Get the verifiable proof summary for a payout transaction hash: settled/verified (recomputed on-chain, never a stored flag), the outcome, network, recipient, and explorer + proof links. Read-only.",
@@ -279,6 +296,37 @@ export async function callSageTool(
       return toolResult(opGetSubmission(asString(args.submissionId)));
     case "sage_get_proof":
       return toolResult(await opGetProof(asString(args.txHash)));
+    case "sage_browse_missions": {
+      const raw = Number(args.limit);
+      const limit = Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 25) : 10;
+      const { campaigns, totals } = marketplace();
+      return toolResult({
+        ok: true,
+        totals,
+        note:
+          totals.campaigns === 0
+            ? "No missions are open right now. Every mission is backed by a funded vault, so the list is empty whenever no campaign has an unfilled slot."
+            : "Open the boardUrl to read the full brief and submit. Payment is USDC from the campaign's on-chain vault.",
+        browseUrl: `${siteUrl()}/missions`,
+        campaigns: campaigns.slice(0, limit).map((c) => ({
+          campaignId: c.id,
+          title: c.title,
+          boardUrl: `${siteUrl()}${c.boardPath}`,
+          network: c.tokenSymbol,
+          isTestnet: c.isTestnet,
+          paysAutomatically: c.autopays,
+          openSlots: c.openSlots,
+          missions: c.missions.map((m) => ({
+            title: m.title,
+            objective: m.objective,
+            targetSurface: m.targetSurface,
+            rewardUsd: m.rewardUsd,
+            slotsLeft: m.remainingSlots,
+            evidenceRequirements: m.evidenceList,
+          })),
+        })),
+      });
+    }
     case "sage_my_campaigns": {
       // The founder wallet is the SERVER-BOUND ctx value, NEVER a tool arg — so this can only ever
       // read the campaigns of the wallet the session is authenticated as.

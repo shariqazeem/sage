@@ -1,0 +1,168 @@
+import "server-only";
+
+import { and, eq, inArray } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { campaigns, missions, submissions, type Campaign } from "@/lib/db/schema";
+import { isTestnetChain, tokenSymbol } from "@/lib/format";
+
+/**
+ * THE PUBLIC MARKETPLACE — every mission anyone can actually get paid for, right now.
+ *
+ * Sage already had two ways in: a founder's own dashboard, and a direct link to one campaign's
+ * tester board. Nothing listed the open work across campaigns, so a tester could only find a
+ * mission if a founder handed them the URL. This is the missing side of the market: founders get
+ * testers they never had to recruit, and testers get a list of paid work.
+ *
+ * WHAT IS SHOWN IS DELIBERATELY NARROW. A row appears only when someone can genuinely be paid for
+ * it — a live campaign, a non-closed mission, and a slot that is not already taken. Listing work
+ * that cannot pay is the same class of untruth as a stopped campaign showing "verifying" forever.
+ *
+ * ONE QUERY PER TABLE, not per campaign. `v2Economics` calls `countPaidForMission` once per mission,
+ * which is fine for a single board but is N x (1+M) round trips across a marketplace. Here the paid
+ * counts arrive as one grouped read and are joined in memory.
+ */
+
+export interface MarketplaceMission {
+  missionKey: string;
+  missionIdHash: string;
+  title: string;
+  objective: string;
+  targetSurface: string;
+  criteria: string[];
+  evidenceList: string[];
+  rewardBase: number;
+  rewardUsd: number;
+  maxCompletions: number;
+  paid: number;
+  remainingSlots: number;
+  /** "url-verifiable" missions can auto-pay; "observation-based" ones are founder-approved. */
+  verifiabilityClass: "url-verifiable" | "observation-based";
+}
+
+export interface MarketplaceCampaign {
+  id: string;
+  title: string;
+  /** where a tester goes to read the full brief and submit. */
+  boardPath: string;
+  chainId: number;
+  tokenSymbol: string;
+  isTestnet: boolean;
+  /** true when the founder's mandate can pay without a human in the loop. */
+  autopays: boolean;
+  openMissions: number;
+  openSlots: number;
+  /** the largest single reward on offer here, for sorting and for the card headline. */
+  topRewardUsd: number;
+  totalOpenUsd: number;
+  missions: MarketplaceMission[];
+}
+
+export interface MarketplaceView {
+  campaigns: MarketplaceCampaign[];
+  totals: { campaigns: number; missions: number; slots: number; usd: number };
+}
+
+const toUsd = (base: number) => base / 1_000_000;
+
+/** Paid completions for MANY missions in one grouped read. Missing key = zero paid. */
+function paidCountsByMission(missionIdHashes: string[]): Map<string, number> {
+  const out = new Map<string, number>();
+  if (missionIdHashes.length === 0) return out;
+  const rows = db
+    .select({ missionIdHash: submissions.missionIdHash })
+    .from(submissions)
+    .where(
+      and(eq(submissions.status, "paid"), inArray(submissions.missionIdHash, missionIdHashes)),
+    )
+    .all();
+  for (const r of rows) {
+    if (!r.missionIdHash) continue;
+    out.set(r.missionIdHash, (out.get(r.missionIdHash) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Every campaign with at least one mission a tester can still be paid for.
+ *
+ * Excluded, each for its own reason:
+ *  - status !== "live"     — a draft has no vault, and a stopped one has a revoked vault;
+ *  - sandbox               — the red-team box can never settle, by construction;
+ *  - mission status closed — the founder retired it;
+ *  - remainingSlots === 0  — every completion is already paid, so a submission would be wasted work.
+ */
+export function marketplace(): MarketplaceView {
+  const live: Campaign[] = db
+    .select()
+    .from(campaigns)
+    .where(and(eq(campaigns.status, "live"), eq(campaigns.sandbox, false)))
+    .all();
+  if (live.length === 0) {
+    return { campaigns: [], totals: { campaigns: 0, missions: 0, slots: 0, usd: 0 } };
+  }
+
+  const ids = live.map((c) => c.id);
+  const missionRows = db.select().from(missions).where(inArray(missions.campaignId, ids)).all();
+  const paidBy = paidCountsByMission(missionRows.map((m) => m.missionIdHash));
+
+  const byCampaign = new Map<string, MarketplaceMission[]>();
+  for (const m of missionRows) {
+    if (m.status === "closed") continue;
+    const paid = paidBy.get(m.missionIdHash) ?? 0;
+    const remainingSlots = Math.max(0, m.maxCompletions - paid);
+    if (remainingSlots === 0) continue; // full — nobody else can be paid for it
+    const list = byCampaign.get(m.campaignId) ?? [];
+    list.push({
+      missionKey: m.missionKey,
+      missionIdHash: m.missionIdHash,
+      title: m.title,
+      objective: m.objective,
+      targetSurface: m.targetSurface,
+      criteria: m.criteria,
+      evidenceList: m.evidenceList,
+      rewardBase: m.rewardAmount,
+      rewardUsd: toUsd(m.rewardAmount),
+      maxCompletions: m.maxCompletions,
+      paid,
+      remainingSlots,
+      verifiabilityClass: m.verifiabilityClass,
+    });
+    byCampaign.set(m.campaignId, list);
+  }
+
+  const out: MarketplaceCampaign[] = [];
+  for (const c of live) {
+    const ms = byCampaign.get(c.id);
+    if (!ms || ms.length === 0) continue;
+    ms.sort((a, b) => b.rewardUsd - a.rewardUsd);
+    const chainId = c.chainId ?? 59902;
+    const openSlots = ms.reduce((s, m) => s + m.remainingSlots, 0);
+    out.push({
+      id: c.id,
+      title: c.title,
+      boardPath: `/c/${c.id}`,
+      chainId,
+      tokenSymbol: tokenSymbol(chainId),
+      isTestnet: isTestnetChain(chainId),
+      autopays: c.autonomy === "autopilot",
+      openMissions: ms.length,
+      openSlots,
+      topRewardUsd: ms[0]!.rewardUsd,
+      totalOpenUsd: ms.reduce((s, m) => s + m.rewardUsd * m.remainingSlots, 0),
+      missions: ms,
+    });
+  }
+
+  // Real money first: the biggest single reward a tester could earn, then the most work available.
+  out.sort((a, b) => b.topRewardUsd - a.topRewardUsd || b.openSlots - a.openSlots);
+
+  return {
+    campaigns: out,
+    totals: {
+      campaigns: out.length,
+      missions: out.reduce((s, c) => s + c.openMissions, 0),
+      slots: out.reduce((s, c) => s + c.openSlots, 0),
+      usd: out.reduce((s, c) => s + c.totalOpenUsd, 0),
+    },
+  };
+}

@@ -21,6 +21,7 @@ import { SageActivity } from "@/components/campaigns/sage-activity";
 import { PublicFeed } from "@/components/campaigns/public-feed";
 import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import "@/styles/tester-board.css";
+import "@/styles/marketplace.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,6 +135,11 @@ export default async function CampaignPublicPage({
         <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />
 
         <TesterFaq perWalletCap={campaign.perWalletPayoutCap} />
+
+        <nav className="tb-more">
+          {/* A tester who finishes here (or finds this one full) has nowhere to go without this. */}
+          <a href="/missions">Browse every open mission on Sage &rarr;</a>
+        </nav>
 
         <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
           You own the campaign vault; Sage is the bounded operator. It reviews each submission
