@@ -3,6 +3,7 @@ import "server-only";
 import { startInspection } from "@/lib/launch/start";
 import { getInspectionJob, clarifyInspectionForRetry, founderGoalDigest } from "@/lib/db/inspection";
 import { jobToView } from "@/lib/launch/job";
+import { takeFirstLook, type FirstLook } from "./first-look";
 import { inspectionProgress, type InspectionProgress } from "./progress";
 import {
   getCampaign,
@@ -54,6 +55,15 @@ export interface StartInspectionOk {
   note: string;
   /** The server-minted request id this job is bound to (echoed for the notify/launch gate). */
   planningRequestId: string;
+  /**
+   * PROOF, in this same call, that Sage opened the URL you just gave it — the address it landed on
+   * after redirects, that page's own title and headings, what is clickable, whether it is an auth
+   * wall. Never null: when the page could not be loaded it says so and why.
+   *
+   * Without this the response is an id plus a specimen of somebody else's product, which reads as a
+   * service that ignored its input. It is a first look, never the plan.
+   */
+  firstLook: FirstLook;
 }
 
 /** Normalize a caller-supplied idempotency ref into a safe founder-namespace slug. Empty or
@@ -68,12 +78,12 @@ function slugRef(s: unknown): string {
  *  only. `planningRequestId` is the server-minted, never-LLM-authored per-turn identity — one turn
  *  → one job; a new turn never reuses a stale ready plan. `clientRef` (e.g. the founder's chat id)
  *  is the founder namespace; junk → "shared". */
-export function opStartInspection(
+export async function opStartInspection(
   body: StartInspectionBody,
   clientRef: unknown,
   planningRequestId: string,
   founderOverride?: string,
-): OpResult<StartInspectionOk> {
+): Promise<OpResult<StartInspectionOk>> {
   const surface = founderOverride ? "web" : "telegram";
   const founder = founderOverride ?? `clawup:${slugRef(clientRef)}`;
   const result = startInspection({
@@ -108,11 +118,17 @@ export function opStartInspection(
     return { ok: false, error: "blocked: stale_task_result", status: 409 };
   }
 
+  // Look at THEIR product, now, in this call. Uses the job's stored URL — already validated and
+  // normalized by startInspection — never the raw caller string. Bounded and non-throwing, so a slow
+  // or unreachable page costs the response its budget and nothing more.
+  const firstLook = await takeFirstLook(result.job.productUrl);
+
   const base = siteUrl();
   return {
     ok: true,
     inspectionId: result.job.id,
     created: result.created,
+    firstLook,
     statusUrl: `${base}/api/agent/inspections/${result.job.id}`,
     approvalUrl: `${base}/launch/${result.job.id}`,
     planningRequestId,

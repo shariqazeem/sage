@@ -17,13 +17,13 @@ const REQ = "prid:tg:req-current";
 const body = (goal: string) => ({ productUrl: "https://yara.garden/", repoUrl: null, goal, targetUsers: "u", budgetUsd: 1.5 });
 
 describe("opStartInspection — request/goal identity guard", () => {
-  it("BLOCKS stale_task_result when the returned job's goal ≠ the requested goal", () => {
+  it("BLOCKS stale_task_result when the returned job's goal ≠ the requested goal", async () => {
     startInspectionMock.mockReturnValue({
       ok: true,
       created: false,
       job: { id: "6PciNNBK3f1A", goal: "Does a first-time visitor understand what yara.garden is…", planningRequestId: REQ },
     });
-    const r = opStartInspection(body("make users land in yara.garden and talk to yara"), "chat-1", REQ);
+    const r = await opStartInspection(body("make users land in yara.garden and talk to yara"), "chat-1", REQ);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error).toBe("blocked: stale_task_result");
@@ -31,13 +31,13 @@ describe("opStartInspection — request/goal identity guard", () => {
     }
   });
 
-  it("BLOCKS request_identity_mismatch when the returned job's request id ≠ the turn's", () => {
+  it("BLOCKS request_identity_mismatch when the returned job's request id ≠ the turn's", async () => {
     startInspectionMock.mockReturnValue({
       ok: true,
       created: false,
       job: { id: "otherJob", goal: "talk to yara", planningRequestId: "prid:tg:req-OTHER" },
     });
-    const r = opStartInspection(body("talk to yara"), "chat-1", REQ);
+    const r = await opStartInspection(body("talk to yara"), "chat-1", REQ);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error).toBe("blocked: request_identity_mismatch");
@@ -45,9 +45,9 @@ describe("opStartInspection — request/goal identity guard", () => {
     }
   });
 
-  it("RELAYS a fail-closed request_identity_mismatch from the create layer", () => {
+  it("RELAYS a fail-closed request_identity_mismatch from the create layer", async () => {
     startInspectionMock.mockReturnValue({ ok: false, error: "request_identity_mismatch" });
-    const r = opStartInspection(body("talk to yara"), "chat-1", REQ);
+    const r = await opStartInspection(body("talk to yara"), "chat-1", REQ);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error).toBe("blocked: request_identity_mismatch");
@@ -55,13 +55,13 @@ describe("opStartInspection — request/goal identity guard", () => {
     }
   });
 
-  it("passes through when goal + request id both match (boundary-trim tolerant, case-exact)", () => {
+  it("passes through when goal + request id both match (boundary-trim tolerant, case-exact)", async () => {
     startInspectionMock.mockReturnValue({
       ok: true,
       created: true,
       job: { id: "freshId12345", goal: "Talk to Yara", planningRequestId: REQ },
     });
-    const r = opStartInspection(body("  Talk to Yara  "), "chat-1", REQ);
+    const r = await opStartInspection(body("  Talk to Yara  "), "chat-1", REQ);
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.inspectionId).toBe("freshId12345");

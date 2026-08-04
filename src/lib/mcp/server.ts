@@ -75,7 +75,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "sage_start_inspection",
     description:
-      "Start a REAL Sage product-testing inspection for a founder. Sage inspects the live product in a real browser and designs paid testing missions within the budget. It PREPARES a plan only — it never funds or pays; the founder approves and funds once in the Sage web app. Returns an inspectionId in about a second; the browsing itself takes roughly 4-11 minutes. Poll sage_get_inspection every 15-30s until stage='ready', then give the founder the approvalUrl. To see a finished plan immediately instead, call sage_example_plan.",
+      "Start a REAL Sage product-testing inspection for a founder, on the productUrl YOU supply. Sage inspects the live product in a real browser and designs paid testing missions within the budget. It PREPARES a plan only — it never funds or pays; the founder approves and funds once in the Sage web app. This call returns in a few seconds with an inspectionId AND `firstLook`: Sage opens your URL immediately and reports the address it landed on after redirects, that page's own title and headings, what is clickable there, and whether it is an auth wall — evidence it is looking at your product, not a sample. The missions need real browsing and take roughly 4-11 minutes: poll sage_get_inspection every 15-30s until stage='ready', then give the founder the approvalUrl.",
     inputSchema: {
       type: "object",
       properties: {
@@ -211,7 +211,7 @@ export async function callSageTool(
 ): Promise<ToolResult | null> {
   switch (name) {
     case "sage_start_inspection": {
-      const r = opStartInspection(
+      const r = await opStartInspection(
         {
           productUrl: args.productUrl,
           goal: args.goal,

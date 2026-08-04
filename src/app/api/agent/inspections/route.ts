@@ -27,7 +27,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Server-minted per POST (never from the caller/LLM). Each request is a new turn — request-scoped.
-  const result = opStartInspection(
+  const result = await opStartInspection(
     {
       productUrl: body.productUrl,
       repoUrl: body.repoUrl,

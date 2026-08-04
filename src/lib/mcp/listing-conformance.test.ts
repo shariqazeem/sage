@@ -73,6 +73,14 @@ describe("every capability the listing claims is reachable from the published to
     expect(all).toMatch(re);
   });
 
+  it("the URL-taking tool promises evidence about the CALLER's product, in that call", () => {
+    // The rejection reads as "you took my input and answered about something else". The description
+    // must therefore claim what the response now actually carries: a look at THEIR url.
+    const d = tool("sage_start_inspection").description;
+    expect(d).toMatch(/firstLook/);
+    expect(d).toMatch(/your product|you supply|your URL/i);
+  });
+
   it("the tool that accepts a product URL is published, so the described flow is actually callable", () => {
     const names = publicMcpTools().map((t) => t.name);
     expect(names).toContain("sage_start_inspection");
