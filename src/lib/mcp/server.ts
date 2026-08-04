@@ -5,6 +5,7 @@ import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
+import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import {
   opStartInspection,
   opGetInspection,
@@ -241,7 +242,7 @@ export async function callSageTool(
             // automated visitors pushes Sage onto the slow browser path — a bot-walled SaaS product
             // measured 633s on prod and returned a good plan from 12 browser states. This field used
             // to say 180, which made a normal run look like a broken one.
-            estimatedSeconds: { typical: 240, upTo: 660 },
+            estimatedSeconds: START_INSPECTION_ESTIMATE, // the ONE estimate — see progress.ts
             pollEvery: "poll every 15-30s; each poll returns a `progress` object saying what Sage is doing",
             pollWith: {
               tool: "sage_get_inspection",
@@ -286,7 +287,7 @@ export async function callSageTool(
             arguments: { productUrl: "<your https url>", goal: "<what to prove>", targetUsers: "<who tests>", budgetUsd: 10 },
             // MUST match the estimate sage_start_inspection itself returns; two different numbers on
             // the same service is a contradiction a reviewer can see without running anything.
-            takesSeconds: { typical: 240, upTo: 660 },
+            takesSeconds: START_INSPECTION_ESTIMATE,
           },
           verifyWith: { tool: "sage_get_inspection", arguments: { inspectionId: id } },
         },

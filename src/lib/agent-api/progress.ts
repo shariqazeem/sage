@@ -14,6 +14,17 @@
  * Pure — no clock, no DB. The caller supplies elapsed seconds.
  */
 
+/**
+ * THE ONE ESTIMATE. Every place the service quotes how long an inspection takes reads this: the
+ * `asyncContract` on sage_start_inspection, the `progress` object on every poll, and the marketplace
+ * listing text. Measured on prod — notion.so 231s, linear.app 633s (bot-walled).
+ *
+ * It is a shared constant rather than three literals because it already drifted once: `progress`
+ * shipped 120-660 while the contract and the listing said 240-660, and one service quoting two
+ * different waits is exactly what "results don't match the description" means.
+ */
+export const START_INSPECTION_ESTIMATE = { typical: 240, upTo: 660 } as const;
+
 /** The inspection lifecycle, in the order the pipeline stamps them. */
 const ORDER = [
   "queued",
@@ -59,6 +70,11 @@ export interface InspectionProgress {
   /**
    * Honest expectation, stated once rather than implied. A simple page finishes in a couple of
    * minutes; a site that blocks automated visitors pushes Sage onto the slow browser path.
+   *
+   * MUST equal the range `sage_start_inspection` advertises in `asyncContract.estimatedSeconds` and
+   * the range the marketplace listing states. Three numbers for one wait is precisely the kind of
+   * self-contradiction a conformance reviewer reads as "the service does not do what it says" — this
+   * field said 120-660 while the other two said 240-660.
    */
   typicalTotalSeconds: string;
 }
@@ -77,6 +93,6 @@ export function inspectionProgress(
     nextPollSeconds: pollSeconds(stage, elapsed),
     step: idx + 1,
     totalSteps: ORDER.length,
-    typicalTotalSeconds: "120-660",
+    typicalTotalSeconds: `${START_INSPECTION_ESTIMATE.typical}-${START_INSPECTION_ESTIMATE.upTo}`,
   };
 }

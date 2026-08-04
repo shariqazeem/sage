@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inspectionProgress } from "./progress";
+import { inspectionProgress, START_INSPECTION_ESTIMATE } from "./progress";
 
 /**
  * OKX rejected the listing once for "results don't match the description". This is the other half of
@@ -72,5 +72,18 @@ describe("the stated expectation covers what prod actually does", () => {
     const [lo, hi] = inspectionProgress("queued", 0)!.typicalTotalSeconds.split("-").map(Number);
     expect(lo).toBeGreaterThan(0);
     expect(hi).toBeGreaterThanOrEqual(633);
+  });
+
+  it("agrees EXACTLY with the range sage_start_inspection advertises", () => {
+    // This shipped as 120-660 while the async contract and the marketplace listing both said
+    // 240-660. One service quoting two waits is the self-contradiction that got the listing
+    // rejected, and it survived a review that only checked the tool DESCRIPTIONS.
+    const [lo, hi] = inspectionProgress("field_test", 30)!.typicalTotalSeconds.split("-").map(Number);
+    expect({ lo, hi }).toEqual({ lo: START_INSPECTION_ESTIMATE.typical, hi: START_INSPECTION_ESTIMATE.upTo });
+  });
+
+  it("every running stage quotes the same range — a caller must not see it change mid-poll", () => {
+    const ranges = new Set(RUNNING.map((s) => inspectionProgress(s, 100)!.typicalTotalSeconds));
+    expect(ranges.size).toBe(1);
   });
 });
