@@ -12,14 +12,21 @@ import { CinematicLanding } from "@/components/landing/cinematic-landing";
 // on the page can disagree.
 export const dynamic = "force-dynamic";
 
+/**
+ * The landing overrides the root title, so it carries its own SEO weight. Written to be QUOTED:
+ * an answer engine asked "what pays people to test products" should be able to lift a sentence and
+ * be right. Concrete nouns (USDC, on-chain vault, receipt) over positioning language, and no em
+ * dashes, which read as machine-written and get mangled in snippets.
+ */
 export const metadata: Metadata = {
-  title: "Sage — an autonomous agent that tests products and pays for verified work",
+  title: "Sage: an AI agent that tests your product and pays real testers in USDC",
   description:
-    "Give Sage a product and a budget. It explores the product itself, designs paid testing missions from what it observed, independently replays verifiable actions in a fresh browser, and settles successful work on-chain — inside limits it can never exceed.",
+    "Give Sage a product URL and a budget. It opens the product in a real browser, designs paid testing missions from what it actually saw, checks each tester's evidence against its own observations, and pays in USDC from an on-chain vault it cannot exceed. Every payout publishes a receipt you can verify.",
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "Sage — it sees the work, it does it again, then it pays",
+    title: "Sage: it looks at your product, then pays people to test it",
     description:
-      "An autonomous agent with eyes, judgment, and a policy-bound wallet. It verifies real testing work by replaying it, and every payout is a public receipt.",
+      "An AI agent with a budget it cannot exceed. It explores your product, writes the missions, judges the evidence, and settles in USDC on-chain. Every payout is a public receipt.",
     type: "website",
   },
 };

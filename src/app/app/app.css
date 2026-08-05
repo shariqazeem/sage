@@ -1365,9 +1365,16 @@
 }
 .sb-home-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* THREE across. At two columns the third card wrapped onto its own row and sat there
+     half-width, which reads as a layout that broke rather than three equal ways in. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s-3);
   margin-bottom: var(--s-6);
+}
+@media (max-width: 1080px) {
+  .sb-home-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 620px) {
   .sb-home-cards {

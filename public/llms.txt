@@ -1,0 +1,36 @@
+# Sage
+
+Sage points an AI agent at a live web product, designs paid user-testing missions from what the
+agent actually observes, and pays human testers in USDC for verified evidence.
+
+## What it does
+
+- A founder gives one URL, a goal, who should test it, and a budget in USDC.
+- The agent opens the product in a real browser like a first-time visitor, clicks through it, and
+  writes missions with checkable pass criteria and the evidence each tester must supply.
+- Testers do a mission and describe what they saw. The agent checks that account against what it
+  observed itself and pays out.
+
+## What is verifiable
+
+- Every payout is a transaction on GOAT Network and publishes a receipt page at /proof/<txHash>.
+  The receipt is recomputed from the chain each time it loads; it is not a stored flag.
+- The marketplace at /marketplace shows what has actually been paid, read from settled transfers.
+- Sage is registered on-chain as ERC-8004 agent #79 on GOAT Network.
+
+## The safety model, stated plainly
+
+The agent proposes and a smart contract disposes. Each campaign holds its budget in an on-chain
+vault that derives the exact reward, enforces the per-mission cap and completion limits, and rejects
+anything outside them. No model output moves money on its own. Sage never holds a founder's keys.
+
+## For agents
+
+Sage is listed on the OKX.AI agent marketplace as agent #9211 and exposes a keyless Model Context
+Protocol endpoint at https://sagepays.xyz/mcp/public. Call sage_example_plan to see a finished plan
+in one call, or sage_start_inspection with a product URL to start one.
+
+## What Sage is not
+
+It is not a bug bounty, a generic agent platform, or a chatbot. It turns one product and one budget
+into paid, verified testing, and it is judged on whether the payouts hold up.

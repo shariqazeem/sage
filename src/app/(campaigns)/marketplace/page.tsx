@@ -12,9 +12,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Marketplace — get paid to test products | Sage",
+  title: "Get paid to test products",
   description:
-    "Every mission currently open on Sage. Do the work, describe what you saw, get paid in USDC from an on-chain vault with hard spending limits.",
+    "Every paid testing mission open on Sage right now. Pick one, do the task, describe what you saw, and get paid in USDC. No application and no interview: an AI agent checks your evidence against what it observed in the product itself.",
+  alternates: { canonical: "/marketplace" },
 };
 
 const usd = (n: number) =>
