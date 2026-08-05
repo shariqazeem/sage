@@ -35,27 +35,29 @@ export default function MarketplacePage() {
   const { rows, totals, recentPayouts, paidToDate } = marketplace();
 
   return (
-    <main className="sb-shell mk-shell">
-      <header className="mk-hero sage-stagger">
-        <div className="sage-eyebrow">Marketplace</div>
-        <h1 className="dash-display mk-title">Get paid to test real products.</h1>
-        <p className="mk-lede">
-          Founders fund a vault up front. You do one short, specific task and describe what you
-          actually saw. Sage checks the evidence and pays in USDC — no application, no interview.
-        </p>
-
+    <main className="mk-page">
+      <header className="mk-hero">
+        <div>
+          <div className="sage-eyebrow">Marketplace</div>
+          <h1 className="dash-display mk-title">Get paid to test real products.</h1>
+          <p className="mk-lede">
+            Founders fund a vault up front. Do one short, specific task, describe what you actually
+            saw, and the agent pays you in USDC. No application, no interview.
+          </p>
+        </div>
         {totals.slots > 0 && (
-          <div className="mk-totals mono">
-            <span>
-              <strong>{totals.slots}</strong> open {totals.slots === 1 ? "slot" : "slots"}
+          <div className="mk-hero-stats">
+            <span className="mk-hstat">
+              <span className="mk-hstat-v mono">{usd(totals.usd)}</span>
+              <span className="mk-hstat-k">available now</span>
             </span>
-            <span aria-hidden>·</span>
-            <span>
-              <strong>{totals.missions}</strong> {totals.missions === 1 ? "mission" : "missions"}
+            <span className="mk-hstat">
+              <span className="mk-hstat-v mono">{totals.slots}</span>
+              <span className="mk-hstat-k">open slots</span>
             </span>
-            <span aria-hidden>·</span>
-            <span>
-              <strong>{usd(totals.usd)}</strong> available now
+            <span className="mk-hstat">
+              <span className="mk-hstat-v mono">{totals.missions}</span>
+              <span className="mk-hstat-k">{totals.missions === 1 ? "mission" : "missions"}</span>
             </span>
           </div>
         )}

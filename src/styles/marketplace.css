@@ -5,31 +5,64 @@
  * settlement. Radii 6/10/16 only; 999px pills for status chips only.
  */
 
-/* A job board needs room. The app shell is 720px, which is right for a single reading column and
-   wrong for a two-column board — it squeezed the rows and wrapped the sort chips onto a second line. */
-.mk-shell {
-  max-width: 1120px;
-  padding-bottom: 4rem;
+/* FULL BLEED. A marketplace is inventory, and inventory wants the whole window — a centred column
+   reads as "a page about missions" rather than "a place where the work is". The left padding clears
+   the fixed rail (left:16px, width:60px) at every width, so nothing sits under it. */
+.mk-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 78px clamp(1.5rem, 3vw, 3rem) 4rem clamp(6rem, 7vw, 7.5rem);
 }
 
 .mk-hero {
-  padding: 3rem 0 2rem;
-  max-width: 46rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.5rem 2.5rem;
+  padding: 1.6rem 0 1.5rem;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
 }
 
 .mk-title {
-  margin: 0.35rem 0 0.75rem;
-  font-size: clamp(1.9rem, 4.5vw, 2.9rem);
-  line-height: 1.08;
+  margin: 0.3rem 0 0.5rem;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1.1;
   letter-spacing: -0.022em;
 }
 
 .mk-lede {
   margin: 0;
-  font-size: 1.02rem;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: var(--sage-ink-2, #4a4f57);
-  max-width: 38rem;
+  max-width: 42rem;
+}
+
+/* Headline numbers sit BESIDE the title, not below it — the first thing in the eyeline is money. */
+.mk-hero-stats {
+  display: flex;
+  gap: 2.2rem;
+  flex: none;
+}
+.mk-hstat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.mk-hstat-v {
+  font-size: 1.45rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--sage-ink, #1a1d21);
+}
+.mk-hstat-k {
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: var(--sage-ink-3, #6b7280);
 }
 
 .mk-totals {
@@ -49,11 +82,30 @@
 
 /* ── sort chips ───────────────────────────────────────────────────────── */
 
+.mk-toolbar {
+  position: sticky;
+  top: 66px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  margin-bottom: 0.2rem;
+  background: var(--sage-paper, #fbfbf9);
+  border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
+}
+.mk-count {
+  flex: none;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sage-ink-3, #6b7280);
+}
 .mk-sorts {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin: 0 0 1.1rem;
+  margin: 0;
 }
 .mk-sort {
   appearance: none;
@@ -85,8 +137,8 @@
 
 .mk-cols {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 20rem;
-  gap: 2.2rem;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: 2.6rem;
   align-items: start;
 }
 .mk-main {
@@ -99,7 +151,6 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
 }
 .mk-list > li {
   border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
@@ -202,7 +253,7 @@
   flex-direction: column;
   gap: 0.9rem;
   position: sticky;
-  top: 1.5rem;
+  top: 96px;
 }
 .mk-side-card {
   border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.1));

@@ -23,7 +23,7 @@ import { missions, submissions } from "@/lib/db/schema";
 let seq = 0;
 const wallet = () => `0x${(++seq).toString(16).padStart(40, "0")}`;
 
-function campaign(over: { status?: string; sandbox?: boolean; title?: string } = {}) {
+function campaign(over: { status?: string; sandbox?: boolean; title?: string; chainId?: number } = {}) {
   const c = createCampaign({
     title: over.title ?? `camp-${++seq}`,
     rewardAmount: 1_000_000,
@@ -31,6 +31,9 @@ function campaign(over: { status?: string; sandbox?: boolean; title?: string } =
     posterWallet: "0x0000000000000000000000000000000000000002",
     autonomy: "autopilot",
     sandbox: over.sandbox ?? false,
+    // GOAT mainnet. The column default is the testnet, and a testnet campaign is deliberately not
+    // listable, so a fixture that took the default would be testing the exclusion by accident.
+    chainId: over.chainId ?? 2345,
   });
   setCampaignStatus(c.id, (over.status ?? "live") as never);
   return c;
@@ -326,5 +329,27 @@ describe("a payout we cannot price is not shown as proof", () => {
     expect(v.recentPayouts.find((p) => p.txHash === "0xunpriceable")).toBeUndefined();
     // and it never contributes a zero to the headline count either
     for (const p of v.recentPayouts) expect(p.usd).toBeGreaterThan(0);
+  });
+});
+
+describe("testnet work is not paid work", () => {
+  it("a testnet campaign is never listed, however healthy it looks", () => {
+    const c = campaign({ chainId: 59902 });
+    mission(c.id, { rewardAmount: 5_000_000, maxCompletions: 20 });
+    expect(ids()).not.toContain(c.id);
+    expect(marketplace().rows.find((r) => r.campaignId === c.id)).toBeUndefined();
+  });
+
+  it("its money never reaches the headline totals", () => {
+    const before = marketplace().totals;
+    const c = campaign({ chainId: 59902 });
+    mission(c.id, { rewardAmount: 9_000_000, maxCompletions: 9 });
+    expect(marketplace().totals).toEqual(before);
+  });
+
+  it("the mainnet equivalent IS listed, so the exclusion is about the chain and nothing else", () => {
+    const c = campaign({ chainId: 2345 });
+    mission(c.id, { rewardAmount: 5_000_000, maxCompletions: 20 });
+    expect(ids()).toContain(c.id);
   });
 });

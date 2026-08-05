@@ -65,19 +65,25 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
 
   return (
     <>
-      <nav className="mk-sorts" aria-label="Sort missions">
-        {SORTS.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            className={`mk-sort${sort === s.key ? " is-on" : ""}`}
-            aria-pressed={sort === s.key}
-            onClick={() => setSort(s.key)}
-          >
-            {s.label}
-          </button>
-        ))}
-      </nav>
+      {/* Sticky, so the sort you want stays reachable at row 80 as it was at row 1. */}
+      <div className="mk-toolbar">
+        <nav className="mk-sorts" aria-label="Sort missions">
+          {SORTS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`mk-sort${sort === s.key ? " is-on" : ""}`}
+              aria-pressed={sort === s.key}
+              onClick={() => setSort(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+        <span className="mk-count mono">
+          {sorted.length} {sorted.length === 1 ? "mission" : "missions"}
+        </span>
+      </div>
 
       <ul className="mk-list">
         {sorted.map((r) => (

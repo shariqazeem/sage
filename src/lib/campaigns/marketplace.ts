@@ -261,6 +261,10 @@ export function marketplace(): MarketplaceView {
   for (const c of live) {
     const ms = byCampaign.get(c.id);
     if (!ms || ms.length === 0) continue;
+    // TESTNET WORK IS NOT PAID WORK. A test-token campaign cannot pay anyone real money, so listing
+    // it on a board whose whole promise is "get paid" asks a stranger to do a task for nothing and
+    // find out afterwards. Same payability rule as a revoked vault or a filled slot.
+    if (isTestnetChain(c.chainId ?? 59902)) continue;
     ms.sort((a, b) => b.rewardUsd - a.rewardUsd);
     const chainId = c.chainId ?? 59902;
     const openSlots = ms.reduce((s, m) => s + m.remainingSlots, 0);

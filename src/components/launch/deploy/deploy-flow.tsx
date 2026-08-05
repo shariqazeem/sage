@@ -8,9 +8,18 @@ import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/netw
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
-/** Chains the launch wizard offers (mirrors the server allowlist; the server
- *  re-validates that the chosen chain is actually configured). */
-const LAUNCH_CHAINS = [59902, 2345];
+/**
+ * Chains the launch wizard offers. GOAT mainnet only.
+ *
+ * The testnet was a development convenience that leaked into the founder's path: the funding step
+ * offered "Metis Sepolia (testnet)" beside real USDC, which asks someone about to spend money to
+ * first understand a distinction that exists for our benefit and not theirs. A campaign funded in
+ * test tokens also cannot pay a real tester, so every mission under it is work nobody gets paid for.
+ *
+ * The server allowlist and the chain registry are unchanged, so campaigns already on the testnet keep
+ * working — this only stops offering it to anyone new.
+ */
+const LAUNCH_CHAINS = [2345];
 function onLaunchChain(chainId: number | null): boolean {
   return chainId != null && LAUNCH_CHAINS.includes(chainId);
 }
@@ -451,12 +460,9 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">Choose the network for this campaign.</p>
+          <p className="lxd-own">This campaign runs on GOAT with real USDC.</p>
           <button className="lx-btn" onClick={() => void siwe.switchToChain(2345)}>
-            GOAT Mainnet (real USDC)
-          </button>
-          <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(59902)}>
-            Metis Sepolia (testnet)
+            Switch to GOAT Mainnet
           </button>
         </div>
       ) : (
@@ -467,11 +473,6 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
           {siwe.chainId !== 2345 && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
               Switch to GOAT Mainnet (real USDC)
-            </button>
-          )}
-          {siwe.chainId !== 59902 && (
-            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(59902)}>
-              Switch to Metis Sepolia (testnet)
             </button>
           )}
         </div>
