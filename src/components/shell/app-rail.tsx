@@ -51,8 +51,10 @@ export function AppRail() {
       onMouseLeave={() => setExpanded(false)}
     >
       <nav className="app-rail-card">
-        <Link href="/dashboard" className="app-rail-brand" aria-label="Sage home">
-          <SageMark size={22} />
+        {/* The mark goes HOME — the public landing — not to the dashboard. "Home" already has its
+            own rail item; a brand mark that lands you where you already are is a dead click. */}
+        <Link href="/" className="app-rail-brand" aria-label="Sage home">
+          <SageMark size={20} />
           <span className="app-rail-label">sage</span>
         </Link>
         {NAV.map(({ href, label, Icon }) => (

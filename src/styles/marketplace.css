@@ -5,15 +5,7 @@
  * settlement. Radii 6/10/16 only; 999px pills for status chips only.
  */
 
-/* FULL BLEED. A marketplace is inventory, and inventory wants the whole window — a centred column
-   reads as "a page about missions" rather than "a place where the work is". The left padding clears
-   the fixed rail (left:16px, width:60px) at every width, so nothing sits under it. */
-.mk-page {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 78px clamp(1.5rem, 3vw, 3rem) 4rem clamp(6rem, 7vw, 7.5rem);
-}
+/* Container comes from the shared `.sb-board` (app.css) so /marketplace and /dashboard cannot drift. */
 
 .mk-hero {
   display: flex;

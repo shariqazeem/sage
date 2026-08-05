@@ -74,6 +74,25 @@
 }
 
 /* ---------------------------------------------------------------- shell */
+/* THE BOARD CONTAINER — full-bleed, for surfaces that are inventory rather than reading.
+   `.sb-shell` is a 720px centred column, which is right for a document and wrong for a list of
+   things: it makes a marketplace or a campaign catalogue read as "a page about them" instead of
+   "the place where they are". Left padding clears the fixed rail (left:16px, width:60px) at every
+   width so nothing hides under it. Shared by /marketplace and /dashboard so they cannot drift. */
+.sb-board {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 78px clamp(1.5rem, 3vw, 3rem) 4rem clamp(6rem, 7vw, 7.5rem);
+}
+@media (max-width: 720px) {
+  .sb-board {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: 92px;
+  }
+}
+
 .sb-shell {
   max-width: 720px;
   margin: 0 auto;
@@ -1536,4 +1555,137 @@
   color: var(--ok);
   background: var(--ok-soft);
   border: 1px solid var(--ok-border);
+}
+
+/* ── dashboard as a board (matches /marketplace) ─────────────────────────────────────────── */
+
+/* Header: who you are on the left, what you have earned on the right — money in the first eyeline,
+   the same arrangement the marketplace uses, so the two surfaces read as one product. */
+.sb-dash .sb-welcome {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.4rem 2.5rem;
+  padding: 0 0 1.4rem;
+  margin-bottom: 1.6rem;
+  border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
+}
+.sb-dash .sb-welcome-h1 {
+  margin: 0.25rem 0 0.45rem;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1.1;
+}
+.sb-dash .sb-welcome-sub {
+  margin: 0;
+  font-size: 0.95rem;
+  max-width: 42rem;
+}
+.sb-dash .sb-dash-stats {
+  display: flex;
+  gap: 2.2rem;
+  flex: none;
+  margin: 0;
+}
+.sb-dash .sb-dash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.sb-dash .sb-dash-stat-v {
+  font-size: 1.45rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.sb-dash .sb-dash-stat-k {
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: var(--sage-ink-3, #6b7280);
+}
+
+/* Campaign rows — one per campaign, status hard right, exactly like a mission row. */
+.sb-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sb-rows > li {
+  border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
+}
+.sb-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 0.6rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+  transition: background 0.13s ease;
+}
+.sb-row:hover {
+  background: rgba(26, 29, 33, 0.028);
+}
+.sb-row:focus-visible {
+  outline: 2px solid var(--accent, #c2410c);
+  outline-offset: -2px;
+}
+.sb-row-mark {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1.02rem;
+}
+.sb-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+}
+.sb-row-title {
+  font-size: 0.97rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--sage-ink, #1a1d21);
+}
+.sb-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.775rem;
+  color: var(--sage-ink-3, #6b7280);
+}
+.sb-row-meta b {
+  color: var(--sage-ink-2, #4a4f57);
+  font-weight: 600;
+}
+.sb-dot {
+  opacity: 0.4;
+}
+
+.sb-dash .sb-cat {
+  margin-bottom: 2rem;
+}
+.sb-dash .sb-cat-label {
+  margin-bottom: 0.3rem;
+}
+
+@media (max-width: 720px) {
+  .sb-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 0.45rem;
+  }
+  .sb-row > .sb-stpill {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .sb-dash .sb-dash-stats {
+    gap: 1.4rem;
+  }
 }

@@ -35,7 +35,7 @@ export default function MarketplacePage() {
   const { rows, totals, recentPayouts, paidToDate } = marketplace();
 
   return (
-    <main className="mk-page">
+    <main className="sb-board mk-page">
       <header className="mk-hero">
         <div>
           <div className="sage-eyebrow">Marketplace</div>

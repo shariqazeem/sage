@@ -9,6 +9,19 @@ import { chainConfig } from "@/lib/deputy/networks";
 import { CountUp } from "@/components/app/count-up";
 import type { CampaignCard } from "@/lib/campaigns/overview";
 
+/** A letter mark from the campaign's own title, hued deterministically — same visual language as
+ *  the marketplace board so the two surfaces read as one product. */
+function CampaignMark({ title }: { title: string }) {
+  const letter = (title.trim()[0] ?? "?").toUpperCase();
+  let h = 0;
+  for (const ch of title) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return (
+    <span className="sb-row-mark" style={{ background: `hsl(${h} 42% 94%)`, color: `hsl(${h} 55% 32%)` }}>
+      {letter}
+    </span>
+  );
+}
+
 function short(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
 }
@@ -89,9 +102,10 @@ export function DashboardClient({
   })).filter((g) => g.items.length > 0);
 
   return (
-    <main className="sb-shell">
+    <main className="sb-board sb-dash">
       <div className="sb-welcome">
-        <div className="sage-eyebrow dash-eyebrow">Founder dashboard</div>
+        <div>
+          <div className="sage-eyebrow dash-eyebrow">Founder dashboard</div>
         <h1 className="sb-welcome-h1 dash-display">
           Welcome back
           {address && (
@@ -104,6 +118,25 @@ export function DashboardClient({
         <p className="sb-welcome-sub">
           Point Sage at a product and it designs paid testing missions — or just ask.
         </p>
+        </div>
+        <div className="sb-dash-stats">
+          <div className="sb-dash-stat">
+            <CountUp className="sb-dash-stat-v" value={live ? campaigns.length : 0} />
+            <span className="sb-dash-stat-k">Campaigns</span>
+          </div>
+          <div className="sb-dash-stat">
+            <CountUp className="sb-dash-stat-v" value={live ? paidAmountBase : 0} format={usd} />
+            <span className="sb-dash-stat-k">Released</span>
+          </div>
+          <div className="sb-dash-stat">
+            <CountUp className="sb-dash-stat-v" value={live ? totalPaid : 0} />
+            <span className="sb-dash-stat-k">Payouts</span>
+          </div>
+          <div className="sb-dash-stat">
+            <CountUp className="sb-dash-stat-v" value={live ? approvedRecipients : 0} />
+            <span className="sb-dash-stat-k">Testers</span>
+          </div>
+        </div>
       </div>
 
       <div className="sb-home-cards sage-stagger">
@@ -148,25 +181,6 @@ export function DashboardClient({
         </Link>
       </div>
 
-      <div className="sb-dash-stats">
-        <div className="sb-dash-stat">
-          <CountUp className="sb-dash-stat-v" value={live ? campaigns.length : 0} />
-          <span className="sb-dash-stat-k">Campaigns</span>
-        </div>
-        <div className="sb-dash-stat">
-          <CountUp className="sb-dash-stat-v" value={live ? paidAmountBase : 0} format={usd} />
-          <span className="sb-dash-stat-k">Released</span>
-        </div>
-        <div className="sb-dash-stat">
-          <CountUp className="sb-dash-stat-v" value={live ? totalPaid : 0} />
-          <span className="sb-dash-stat-k">Payouts</span>
-        </div>
-        <div className="sb-dash-stat">
-          <CountUp className="sb-dash-stat-v" value={live ? approvedRecipients : 0} />
-          <span className="sb-dash-stat-k">Testers paid</span>
-        </div>
-      </div>
-
       {campaigns.length === 0 ? (
         <div className="sage-agent-card sb-dash-empty">
           <p className="sage-hint sb-dash-empty-p">
@@ -181,39 +195,49 @@ export function DashboardClient({
               {g.label}
               <span className="sb-cat-count mono">{g.items.length}</span>
             </div>
-            <div className="sb-dash-cards sage-stagger">
+            <ul className="sb-rows">
               {g.items.map((c) => {
                 const meta = statusMeta(c);
                 return (
-                  <Link
-                    key={c.id}
-                    href={`/campaign/${c.id}`}
-                    className={`sage-agent-card sb-agent-tap sb-dash-card sb-dash-card-${g.key}`}
-                  >
-                    <div className="sb-dash-card-head">
-                      <span className="sb-dash-card-title dash-h3">{c.title}</span>
-                      <span className={`sb-stpill sb-stpill-${g.key} mono`}>{meta.label}</span>
-                    </div>
-                    <div className="sage-metarow sb-dash-card-meta">
-                      <span className="sage-metachip">{chainConfig(c.chainId).chipLabel}</span>
-                      <span className="sage-metachip">{usd(c.rewardBase)} / mission</span>
-                      <span className="sage-metachip">
-                        <b>{c.paid}</b> paid
-                      </span>
-                      {g.key === "running" && (
-                        <span className="sage-metachip">
-                          <b>{c.pending}</b> pending
+                  <li key={c.id}>
+                    <Link href={`/campaign/${c.id}`} className="sb-row">
+                      <CampaignMark title={c.title} />
+                      <span className="sb-row-main">
+                        <span className="sb-row-title">{c.title}</span>
+                        <span className="sb-row-meta">
+                          <span>{chainConfig(c.chainId).chipLabel}</span>
+                          <span className="sb-dot" aria-hidden>·</span>
+                          <span>{usd(c.rewardBase)} / mission</span>
+                          <span className="sb-dot" aria-hidden>·</span>
+                          <span>
+                            <b>{c.paid}</b> paid
+                          </span>
+                          {g.key === "running" && c.pending > 0 && (
+                            <>
+                              <span className="sb-dot" aria-hidden>·</span>
+                              <span>
+                                <b>{c.pending}</b> pending
+                              </span>
+                            </>
+                          )}
+                          <span className="sb-dot" aria-hidden>·</span>
+                          <span>
+                            <b>{c.submissions}</b> submissions
+                          </span>
+                          {g.key === "stopped" && (
+                            <>
+                              <span className="sb-dot" aria-hidden>·</span>
+                              <span>funds returned</span>
+                            </>
+                          )}
                         </span>
-                      )}
-                      <span className="sage-metachip">
-                        <b>{c.submissions}</b> submissions
                       </span>
-                      {g.key === "stopped" && <span className="sage-metachip sb-chip-quiet">funds returned</span>}
-                    </div>
-                  </Link>
+                      <span className={`sb-stpill sb-stpill-${g.key} mono`}>{meta.label}</span>
+                    </Link>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </section>
         ))
       )}

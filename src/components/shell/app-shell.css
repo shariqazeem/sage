@@ -265,3 +265,13 @@ html[data-app-shell="on"] .agent-page {
     display: none; /* the mode pill owns the top on mobile; network shows in-page */
   }
 }
+
+/* The brand mark is an IMAGE now, not an inline SVG. The collapsed rail leaves ~20px of inner width
+   (42px box less 11px padding each side), and a flex child wider than that gets squeezed on one axis
+   only — the logo rendered 20x24, i.e. squashed. Pin both axes so it can never distort. */
+.app-rail-brand img {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+}
