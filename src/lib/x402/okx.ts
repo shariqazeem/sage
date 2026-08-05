@@ -1,0 +1,262 @@
+import "server-only";
+
+import { recoverTypedDataAddress, isAddress, getAddress, type Hex } from "viem";
+
+/**
+ * THE OKX x402 RAIL — a different rail from GOAT Flow, on a different chain, in a different token.
+ *
+ * Sage already had one paid rail: GOAT Flow, chain 2345, USDC, used for its own evidence-verification
+ * fees (`facilitator.ts`). That is not the rail an OKX.AI buyer uses. OKX's marketplace settles on
+ * X Layer (chain 196) in USD₮0, and its client pays with an EIP-3009 signed authorization rather than
+ * by sending a transaction. Confirmed by reading a working listing's live 402 and by OKX's own
+ * validator, which reports `scheme: exact, network: eip155:196, x402Version: 2`.
+ *
+ * The two rails do not share code beyond this comment, and deliberately so: they price different
+ * things, in different tokens, for different callers.
+ *
+ * WHAT A PAYMENT IS HERE. The buyer signs a `TransferWithAuthorization` for an exact amount to our
+ * address. The signature IS the payment instrument: anyone holding it can redeem it on-chain, which
+ * is how the buyer pays no gas and we need none either. So the verification below is the whole
+ * guarantee, and it checks the things that make an authorization ours and redeemable — the
+ * recipient, the amount, the window, and that the signature genuinely covers those exact fields.
+ * Getting `to` or `value` wrong would mean serving paid work for an authorization payable to someone
+ * else, or for less than we asked.
+ *
+ * OFF UNLESS `OKX_X402_PAY_TO` IS SET. With no address to be paid at, there is nothing to verify
+ * against, so the services run free and say so rather than pretending to charge.
+ */
+
+export const OKX_CHAIN_ID = 196;
+export const OKX_NETWORK = "eip155:196" as const;
+/** USD₮0 on X Layer — the token OKX's marketplace prices in. 6 decimals. */
+export const OKX_ASSET = "0x779ded0c9e1022225f8e0630b35a9b54be713736";
+export const OKX_ASSET_SYMBOL = "USD₮0";
+export const OKX_ASSET_DECIMALS = 6;
+/** The EIP-712 domain fields for the asset, as the buyer's signer uses them. */
+export const OKX_ASSET_EXTRA = { name: "USD₮0", version: "1" } as const;
+/** How long a challenge stays payable. Matches what OKX's client expects to see. */
+export const OKX_MAX_TIMEOUT_SECONDS = 300;
+
+/** The header carrying the challenge. OKX reads this name; `x-` prefixed is not found. */
+export const PAYMENT_REQUIRED_HEADER = "payment-required";
+/** The header carrying the buyer's signed authorization. Clients differ, so all three are read. */
+export const PAYMENT_HEADERS = ["payment", "payment-signature", "x-payment"] as const;
+/** The header carrying our acknowledgement back.  */
+export const PAYMENT_RESPONSE_HEADER = "payment-response";
+
+/** The address paid for OKX services. Unset → the rail is off. */
+export function okxPayTo(): string | null {
+  const raw = process.env.OKX_X402_PAY_TO?.trim();
+  if (!raw || !isAddress(raw)) return null;
+  return getAddress(raw);
+}
+
+export function okxX402Live(): boolean {
+  return okxPayTo() !== null;
+}
+
+/** USDT-denominated price → minimal units (6dp), as an integer string. No float drift. */
+export function priceToMinimal(usd: number): string {
+  return String(Math.round(usd * 10 ** OKX_ASSET_DECIMALS));
+}
+
+export interface X402Challenge {
+  x402Version: 2;
+  error: string;
+  resource: { url: string; description: string; mimeType: string };
+  accepts: Array<{
+    scheme: "exact";
+    network: typeof OKX_NETWORK;
+    amount: string;
+    asset: string;
+    payTo: string;
+    maxTimeoutSeconds: number;
+    extra: { name: string; version: string };
+  }>;
+}
+
+/**
+ * The challenge for one paid resource. `amount` must equal the fee registered for the service on the
+ * marketplace — OKX validates price-match separately and a mismatch reads as a broken listing.
+ */
+export function buildOkxChallenge(input: {
+  resourceUrl: string;
+  description: string;
+  priceUsd: number;
+  payTo: string;
+}): X402Challenge {
+  return {
+    x402Version: 2,
+    error: "Payment required",
+    resource: {
+      url: input.resourceUrl,
+      description: input.description,
+      mimeType: "application/json",
+    },
+    accepts: [
+      {
+        scheme: "exact",
+        network: OKX_NETWORK,
+        amount: priceToMinimal(input.priceUsd),
+        asset: OKX_ASSET,
+        payTo: input.payTo,
+        maxTimeoutSeconds: OKX_MAX_TIMEOUT_SECONDS,
+        extra: { ...OKX_ASSET_EXTRA },
+      },
+    ],
+  };
+}
+
+/** The challenge, base64 for the `payment-required` header. */
+export function encodeChallenge(c: X402Challenge): string {
+  return Buffer.from(JSON.stringify(c)).toString("base64");
+}
+
+/* ────────────────────────────── verifying what the buyer sent ───────────────────────────────── */
+
+export interface PaymentAuthorization {
+  from: string;
+  to: string;
+  value: string;
+  validAfter: string;
+  validBefore: string;
+  nonce: string;
+}
+
+export type PaymentVerdict =
+  | { ok: true; auth: PaymentAuthorization; payer: string; nonce: string; signature: string }
+  | { ok: false; reason: string };
+
+/** Read the first payment header a client actually sent, whichever name it chose. */
+export function readPaymentHeader(headers: Headers): string | null {
+  for (const name of PAYMENT_HEADERS) {
+    const v = headers.get(name)?.trim();
+    if (v) return v;
+  }
+  return null;
+}
+
+const str = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+
+/** Base64 (or base64url, or bare JSON) → the payload object. Never throws. */
+function decodePayment(header: string): Record<string, unknown> | null {
+  const attempts = [
+    () => JSON.parse(header) as unknown,
+    () => JSON.parse(Buffer.from(header, "base64").toString("utf8")) as unknown,
+    () => JSON.parse(Buffer.from(header.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) as unknown,
+  ];
+  for (const attempt of attempts) {
+    try {
+      const v = attempt();
+      if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+    } catch {
+      /* try the next encoding */
+    }
+  }
+  return null;
+}
+
+/**
+ * Verify a buyer's signed authorization against what this resource actually demanded.
+ *
+ * Every check here is one an attacker would otherwise get for free. An authorization payable to
+ * someone else is not payment to us. An authorization for less than the price is not payment for
+ * this. An expired one cannot be redeemed. And a signature that does not recover to the stated payer
+ * means the fields were edited after signing — the amount is the obvious one to raise, or the
+ * recipient to swap, so the recovery is checked over the exact typed data, not over a summary of it.
+ *
+ * `nowSeconds` is injected so the time window is testable without waiting for real time to pass.
+ */
+export async function verifyOkxPayment(
+  header: string,
+  expected: { payTo: string; minAmount: string },
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): Promise<PaymentVerdict> {
+  const payload = decodePayment(header);
+  if (!payload) return { ok: false, reason: "The payment header is not readable JSON or base64 JSON." };
+
+  const scheme = str(payload.scheme);
+  const network = str(payload.network);
+  if (scheme && scheme !== "exact") {
+    return { ok: false, reason: `Unsupported payment scheme "${scheme}". This resource accepts "exact".` };
+  }
+  if (network && network !== OKX_NETWORK) {
+    return { ok: false, reason: `Payment is on ${network}; this resource is priced on ${OKX_NETWORK}.` };
+  }
+
+  const inner = (payload.payload ?? payload) as Record<string, unknown>;
+  const rawAuth = (inner.authorization ?? inner) as Record<string, unknown>;
+  const signature = str(inner.signature ?? payload.signature);
+  if (!signature.startsWith("0x")) return { ok: false, reason: "The payment carries no signature." };
+
+  const auth: PaymentAuthorization = {
+    from: str(rawAuth.from),
+    to: str(rawAuth.to),
+    value: str(rawAuth.value),
+    validAfter: str(rawAuth.validAfter) || "0",
+    validBefore: str(rawAuth.validBefore),
+    nonce: str(rawAuth.nonce),
+  };
+  if (!isAddress(auth.from) || !isAddress(auth.to)) {
+    return { ok: false, reason: "The payment authorization is missing a valid payer or recipient." };
+  }
+  if (!/^\d+$/.test(auth.value) || !/^\d+$/.test(auth.validBefore) || !/^0x[0-9a-fA-F]{64}$/.test(auth.nonce)) {
+    return { ok: false, reason: "The payment authorization is malformed." };
+  }
+
+  // Paid to us, in full. Either failing means this is not payment for this resource.
+  if (getAddress(auth.to) !== getAddress(expected.payTo)) {
+    return { ok: false, reason: "The payment authorization is payable to a different address." };
+  }
+  if (BigInt(auth.value) < BigInt(expected.minAmount)) {
+    return { ok: false, reason: "The payment authorization is for less than this service's price." };
+  }
+
+  // Still redeemable. An expired authorization is a signature over money that can no longer move.
+  if (Number(auth.validBefore) <= nowSeconds) {
+    return { ok: false, reason: "The payment authorization has expired." };
+  }
+  if (Number(auth.validAfter) > nowSeconds) {
+    return { ok: false, reason: "The payment authorization is not valid yet." };
+  }
+
+  // Signed by the payer, over exactly these fields.
+  let recovered: string;
+  try {
+    recovered = await recoverTypedDataAddress({
+      domain: {
+        name: OKX_ASSET_EXTRA.name,
+        version: OKX_ASSET_EXTRA.version,
+        chainId: OKX_CHAIN_ID,
+        verifyingContract: getAddress(OKX_ASSET),
+      },
+      types: {
+        TransferWithAuthorization: [
+          { name: "from", type: "address" },
+          { name: "to", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "validAfter", type: "uint256" },
+          { name: "validBefore", type: "uint256" },
+          { name: "nonce", type: "bytes32" },
+        ],
+      },
+      primaryType: "TransferWithAuthorization",
+      message: {
+        from: getAddress(auth.from),
+        to: getAddress(auth.to),
+        value: BigInt(auth.value),
+        validAfter: BigInt(auth.validAfter),
+        validBefore: BigInt(auth.validBefore),
+        nonce: auth.nonce as Hex,
+      },
+      signature: signature as Hex,
+    });
+  } catch {
+    return { ok: false, reason: "The payment signature could not be verified." };
+  }
+  if (getAddress(recovered) !== getAddress(auth.from)) {
+    return { ok: false, reason: "The payment signature does not match the stated payer." };
+  }
+
+  return { ok: true, auth, payer: getAddress(auth.from), nonce: auth.nonce.toLowerCase(), signature };
+}

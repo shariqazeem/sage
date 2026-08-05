@@ -24,6 +24,7 @@ import {
   acceptsMcp,
   MCP_ACCEPT,
 } from "@/lib/mcp/public";
+import { PAID_SERVICES, priceOf, serviceEndpoint } from "@/lib/mcp/pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,13 +63,22 @@ function serviceCard() {
     transport: "mcp/streamable-http",
     endpoint: "https://sagepays.xyz/mcp/public",
     pricing: {
-      model: "free",
-      note: "Free per call. Funding a campaign is the founder's own wallet.",
+      model: "free on this endpoint; the named services are priced individually",
+      note: "This MCP endpoint answers free, under per-caller caps. Each service below is also callable on its own paid URL, where it is billed per call over x402 and the caps do not apply. You pay for work Sage does, never for reading back work you already bought or for verifying what Sage published. Funding a campaign is always the founder's own wallet.",
+      services: PAID_SERVICES.map((s) => ({
+        name: s.serviceName,
+        tool: s.tool,
+        price: `$${s.priceUsd}`,
+        endpoint: serviceEndpoint(s.tool),
+        does: s.summary,
+      })),
+      standard: "x402 (scheme exact, network eip155:196, USD₮0)",
     },
     tools: publicMcpTools().map((t) => ({
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema,
+      price: priceOf(t.name) ? `$${priceOf(t.name)!.priceUsd} on ${serviceEndpoint(t.name)}` : "free",
     })),
     usage: {
       protocol: "JSON-RPC 2.0 over HTTP POST (Model Context Protocol, Streamable HTTP)",

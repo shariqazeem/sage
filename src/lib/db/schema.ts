@@ -807,3 +807,36 @@ export const payoutReplayJournal = sqliteTable(
 );
 
 export type PayoutReplayJournalRow = typeof payoutReplayJournal.$inferSelect;
+
+/**
+ * One row per x402 authorization Sage has accepted as payment for a marketplace service.
+ *
+ * The nonce is the primary key because an EIP-3009 authorization is redeemable exactly once, so
+ * accepting the same one twice would be serving paid work for free. The insert IS the claim: a
+ * conflict means this authorization has already bought something.
+ *
+ * It doubles as the settlement ledger — each row holds a still-redeemable signed instrument, so if
+ * a payment is ever not collected this is what says who owed what, for which call, and until when.
+ */
+export const x402Payments = sqliteTable(
+  "x402_payments",
+  {
+    nonce: text("nonce").primaryKey(),
+    tool: text("tool").notNull(),
+    payer: text("payer").notNull(),
+    payTo: text("pay_to").notNull(),
+    /** minimal units of the asset, as a string — never a JS number. */
+    amount: text("amount").notNull(),
+    asset: text("asset").notNull(),
+    chainId: integer("chain_id").notNull(),
+    validBefore: integer("valid_before").notNull(),
+    signature: text("signature").notNull(),
+    authorizationJson: text("authorization_json").notNull(),
+    createdAt: integer("created_at").notNull(),
+    /** null until redeemed on-chain; the tx hash once it is. */
+    settledTx: text("settled_tx"),
+  },
+  (t) => [index("x402_payments_created_idx").on(t.createdAt)],
+);
+
+export type X402PaymentRow = typeof x402Payments.$inferSelect;

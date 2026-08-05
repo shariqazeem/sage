@@ -3,6 +3,7 @@ import "server-only";
 import { inspectProduct } from "@/lib/launch/inspect";
 import { phraseAnchors, verifyAgainstKey, type PrivateKey } from "@/lib/deputy/observation-verify";
 import { takeFirstLook, FIRST_LOOK_BUDGET_MS, FIRST_LOOK_MAX_BYTES, type FirstLook } from "./first-look";
+import { compileGoalJourney } from "@/lib/launch/goal-journey";
 
 /**
  * SAGE'S CAPABILITIES, EACH STANDING ALONE.
@@ -141,5 +142,79 @@ export async function capCheckEvidence(input: {
     reason: anchored
       ? `The account reproduces ${anchors.length} phrase${anchors.length === 1 ? "" : "s"} that appear on the page itself, across ${match.distinctSources} of its ${key.distinctSources} sections. Someone who had not opened it would have to guess those exactly.`
       : "Nothing in this account appears on the page. That is what a plausible-sounding write-up from someone who never opened the product looks like. Checked against this one page as it is now, not a full browsing session.",
+  };
+}
+
+/* ── 3. Turn a goal into ordered, checkable checkpoints ────────────────────────────── */
+
+export interface GoalCheckpoints {
+  goal: string;
+  checkpoints: Array<{
+    id: string;
+    kind: string;
+    /** one sentence: what must be true. */
+    requirement: string;
+    /** what this checkpoint is about — a page, a control, a feature. Empty when unconstrained. */
+    target: string;
+    /** where the requirement must hold. Empty when unconstrained. */
+    context: string;
+    /** checkpoint ids that must be met first. The order is structural, not advisory. */
+    dependsOn: string[];
+    /** the exact words in the goal that demanded this checkpoint. Verbatim, never paraphrased. */
+    fromPhrase: string;
+  }>;
+  /** stable digest over the compiled journey — the same goal compiles to the same id. */
+  digest: string;
+  reason?: string;
+}
+
+/**
+ * Compile a goal written in plain language into the ordered checkpoints a first-time user must
+ * complete.
+ *
+ * This is the piece that keeps Sage's own testing honest, offered on its own. A goal like "make sure
+ * people can actually book a room" hides a sequence, and the sequence is where testing goes wrong:
+ * an agent that cannot tell a prerequisite from the outcome will happily report that signing up
+ * works and call the job done. So each checkpoint carries what must be true, what it depends on, and
+ * the exact words in the goal that demanded it — that last one is why a checkpoint cannot quietly
+ * enlarge the ask, because a requirement nobody asked for has no phrase to point at.
+ *
+ * Needs a language model. Without one it returns no checkpoints and says so, rather than inventing
+ * a plausible sequence.
+ */
+export async function capGoalCheckpoints(goal: string): Promise<GoalCheckpoints> {
+  const clean = String(goal ?? "").trim();
+  if (clean.length < 8) {
+    return {
+      goal: clean,
+      checkpoints: [],
+      digest: "",
+      reason: "The goal is too short to compile. Describe what a user should be able to do.",
+    };
+  }
+
+  const journey = await compileGoalJourney(clean);
+  if (!journey) {
+    return {
+      goal: clean,
+      checkpoints: [],
+      digest: "",
+      reason:
+        "Sage could not compile this goal into checkpoints. It returns nothing rather than inventing a sequence it did not derive.",
+    };
+  }
+
+  return {
+    goal: journey.goal,
+    checkpoints: journey.checkpoints.map((c) => ({
+      id: c.checkpointId,
+      kind: c.kind,
+      requirement: c.requirement,
+      target: c.targetEntity,
+      context: c.requiredContext,
+      dependsOn: c.dependsOn,
+      fromPhrase: c.sourcePhrase,
+    })),
+    digest: journey.digest,
   };
 }

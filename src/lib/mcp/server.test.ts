@@ -15,6 +15,7 @@ describe("MCP tool registry", () => {
       "sage_example_plan",
       "sage_first_look",
       "sage_check_evidence",
+      "sage_goal_checkpoints",
       "sage_browse_missions",
       "sage_get_proof",
     ]);

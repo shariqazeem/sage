@@ -10,6 +10,13 @@ import {
   sanitizePublicArgs,
   isPublicTool,
 } from "@/lib/mcp/public";
+import { priceOf } from "@/lib/mcp/pricing";
+import {
+  okxPaywall,
+  challengeBody,
+  challengeHeaders,
+  paidHeaders,
+} from "@/lib/x402/okx-paywall";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,13 +50,25 @@ function notFound(): NextResponse {
   );
 }
 
-/** The tool's own card: what it does and exactly what to POST here. */
+/** The tool's own card: what it does, what it costs, and exactly what to POST here. */
 function toolCard(name: string) {
   const def = publicMcpTools().find((t) => t.name === name);
+  const priced = priceOf(name);
   return {
     tool: name,
     description: def?.description ?? null,
     inputSchema: def?.inputSchema ?? null,
+    price: priced
+      ? {
+          service: priced.serviceName,
+          amount: `$${priced.priceUsd}`,
+          standard: "x402",
+          note: "POST with arguments to receive the payment challenge, then call again with the signed authorization in the PAYMENT header.",
+        }
+      : {
+          amount: "free",
+          note: "Reading back work you already bought, and verifying what Sage published, are never charged.",
+        },
     usage: {
       restStyle: `POST https://sagepays.xyz/mcp/public/${name} with the arguments as the JSON body`,
       mcpStyle:
@@ -97,22 +116,36 @@ export async function POST(
       ? (raw.arguments as Record<string, unknown>)
       : raw;
 
+  // PAYMENT, before any work. Each service is its own priced resource, so the gate sits here rather
+  // than in the tool: the tool must not know or care whether someone paid to reach it.
+  const origin = new URL(req.url).origin;
+  const gate = await okxPaywall(tool, req.headers, origin);
+  if (gate.kind === "challenge" || gate.kind === "rejected") {
+    const problem = gate.kind === "rejected" ? gate.reason : undefined;
+    return NextResponse.json(challengeBody(gate.service, gate.challenge, problem), {
+      status: 402,
+      headers: challengeHeaders(gate.challenge),
+    });
+  }
+
   // Strips caller-supplied identity (founderOverride/clientRef) exactly as the JSON-RPC path does.
   const args = sanitizePublicArgs(inner, ref);
 
   const result = await callSageTool(tool, args, { scheduleAfter: (fn) => after(fn) });
   if (result === null) return notFound();
 
+  const okHeaders = gate.free ? undefined : paidHeaders(gate.payer);
+
   // Unwrap the MCP content envelope so a REST caller gets the tool's JSON directly.
   const text = (result as { content?: Array<{ type: string; text?: string }> }).content?.[0]?.text;
   if (typeof text === "string") {
     try {
-      return NextResponse.json(JSON.parse(text));
+      return NextResponse.json(JSON.parse(text), { headers: okHeaders });
     } catch {
-      return NextResponse.json({ ok: true, result: text });
+      return NextResponse.json({ ok: true, result: text }, { headers: okHeaders });
     }
   }
-  return NextResponse.json(result as unknown as Record<string, unknown>);
+  return NextResponse.json(result as unknown as Record<string, unknown>, { headers: okHeaders });
 }
 
 /** GET — the tool's card, so a reviewer or crawler that pokes the path learns how to call it. */

@@ -5,7 +5,7 @@ import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
-import { capFirstLook, capCheckEvidence } from "@/lib/agent-api/capabilities";
+import { capFirstLook, capCheckEvidence, capGoalCheckpoints } from "@/lib/agent-api/capabilities";
 import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import {
   opStartInspection,
@@ -168,6 +168,21 @@ export const MCP_TOOLS: McpToolDef[] = [
         account: { type: "string", description: "What the person wrote about using the product." },
       },
       required: ["productUrl", "account"],
+    },
+  },
+  {
+    name: "sage_goal_checkpoints",
+    description:
+      "Turn a product goal written in plain language into the ordered checkpoints a first-time user must complete, each one independently checkable. A goal like 'make sure people can actually book a room' hides a sequence, and the sequence is where testing goes wrong: signing up is a prerequisite, not the outcome. Each checkpoint carries what must be true, what it depends on, and the exact words in the goal that demanded it, so a checkpoint can never quietly enlarge the ask. This is the compiler that keeps Sage's own testing honest, offered on its own. Needs no URL and answers in seconds.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        goal: {
+          type: "string",
+          description: "What a user should be able to do, in plain language.",
+        },
+      },
+      required: ["goal"],
     },
   },
   {
@@ -343,6 +358,8 @@ export async function callSageTool(
           account: asString(args.account),
         })),
       });
+    case "sage_goal_checkpoints":
+      return toolResult({ ok: true, ...(await capGoalCheckpoints(asString(args.goal))) });
     case "sage_browse_missions": {
       const raw = Number(args.limit);
       const limit = Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 25) : 10;
