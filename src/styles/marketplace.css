@@ -5,7 +5,10 @@
  * settlement. Radii 6/10/16 only; 999px pills for status chips only.
  */
 
+/* A job board needs room. The app shell is 720px, which is right for a single reading column and
+   wrong for a two-column board — it squeezed the rows and wrapped the sort chips onto a second line. */
 .mk-shell {
+  max-width: 1120px;
   padding-bottom: 4rem;
 }
 
@@ -50,7 +53,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin: 1.6rem 0 1.9rem;
+  margin: 0 0 1.1rem;
 }
 .mk-sort {
   appearance: none;
@@ -59,7 +62,7 @@
   color: var(--sage-ink-2, #4a4f57);
   font: inherit;
   font-size: 0.83rem;
-  padding: 0.34rem 0.8rem;
+  padding: 0.32rem 0.78rem;
   border-radius: 999px;
   cursor: pointer;
   transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
@@ -78,191 +81,250 @@
   outline-offset: 2px;
 }
 
-/* ── horizontal rails ─────────────────────────────────────────────────── */
+/* ── two columns: the board, and the proof it pays ────────────────────── */
 
-.mk-rail-sec {
-  margin-bottom: 2.4rem;
-}
-
-.mk-rail-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.85rem;
-}
-.mk-rail-title {
-  margin: 0;
-  font-size: 1.05rem;
-  letter-spacing: -0.012em;
-}
-.mk-rail-hint {
-  margin: 0.15rem 0 0;
-}
-
-.mk-rail-nav {
-  display: flex;
-  gap: 0.35rem;
-  flex: none;
-}
-.mk-rail-nav button {
-  appearance: none;
-  width: 30px;
-  height: 30px;
+.mk-cols {
   display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.12));
-  background: #fff;
-  color: var(--sage-ink-2, #4a4f57);
-  cursor: pointer;
-  transition: border-color 0.14s ease, color 0.14s ease;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 2.2rem;
+  align-items: start;
 }
-.mk-rail-nav button:hover {
-  border-color: #c2410c;
-  color: #c2410c;
-}
-.mk-rail-nav button:focus-visible {
-  outline: 2px solid #c2410c;
-  outline-offset: 2px;
+.mk-main {
+  min-width: 0;
 }
 
-.mk-rail {
-  display: flex;
-  gap: 0.85rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-padding-left: 2px;
-  padding: 2px 2px 0.9rem;
-  /* the rail scrolls, the page never does — wide content must not push the body sideways */
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+/* ── the board ────────────────────────────────────────────────────────── */
+
+.mk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
 }
-.mk-rail::-webkit-scrollbar {
-  height: 6px;
-}
-.mk-rail::-webkit-scrollbar-thumb {
-  background: rgba(26, 29, 33, 0.16);
-  border-radius: 999px;
+.mk-list > li {
+  border-bottom: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.09));
 }
 
-/* ── a mission tile ───────────────────────────────────────────────────── */
-
-.mk-tile {
-  scroll-snap-align: start;
-  flex: 0 0 20.5rem;
-  max-width: 20.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 1.05rem 1.1rem 0.9rem;
-  border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.1));
-  border-radius: 10px;
-  background: #fff;
+.mk-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.95rem 0.6rem;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+  border-radius: 10px;
+  transition: background 0.13s ease;
 }
-.mk-tile:hover {
-  border-color: rgba(194, 65, 12, 0.42);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(26, 29, 33, 0.07);
+.mk-row:hover {
+  background: rgba(26, 29, 33, 0.028);
 }
-.mk-tile:focus-visible {
+.mk-row:focus-visible {
   outline: 2px solid #c2410c;
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.mk-tile-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.7rem;
+.mk-mark {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
 }
-.mk-tile-host {
-  font-size: 0.74rem;
+
+.mk-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+.mk-row-title {
+  font-size: 0.97rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.008em;
+  color: var(--sage-ink, #1a1d21);
+}
+.mk-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem;
+  font-size: 0.775rem;
   color: var(--sage-ink-3, #6b7280);
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.mk-row-host {
+  color: var(--sage-ink-2, #4a4f57);
+}
+.mk-dot {
+  opacity: 0.45;
+}
+.mk-row-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
   white-space: nowrap;
 }
-/* A reward is an OFFER, not a settlement — ink, never the money-green. */
-.mk-tile-pay {
+.mk-row-chip-test {
+  color: #9a3610;
+}
+
+/* The amount is where the eye lands — this is a board about money. Ink, not green:
+   green is reserved for a payout that already settled. */
+.mk-row-pay {
   flex: none;
-  font-size: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.06rem;
+}
+.mk-row-amount {
+  font-size: 1.16rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   color: var(--sage-ink, #1a1d21);
 }
-
-.mk-tile-title {
-  margin: 0;
-  font-size: 0.99rem;
-  line-height: 1.32;
-  letter-spacing: -0.008em;
-}
-.mk-tile-obj {
-  margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.5;
-  color: var(--sage-ink-2, #4a4f57);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.mk-tile-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-.mk-tag {
-  font-size: 0.71rem;
-  padding: 0.13rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.1));
+.mk-row-token {
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
   color: var(--sage-ink-3, #6b7280);
-  white-space: nowrap;
-}
-.mk-tag-quick {
-  border-color: rgba(26, 29, 33, 0.16);
-  color: #1a1d21;
-}
-.mk-tag-deep {
-  border-style: dashed;
-}
-.mk-tag-test {
-  border-color: rgba(194, 65, 12, 0.28);
-  color: #9a3610;
-  background: rgba(194, 65, 12, 0.05);
 }
 
-.mk-tile-foot {
+/* ── the sidebar: proof, then how it works ────────────────────────────── */
+
+.mk-side {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: auto;
-  padding-top: 0.6rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  position: sticky;
+  top: 1.5rem;
+}
+.mk-side-card {
+  border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.1));
+  border-radius: 12px;
+  background: #fff;
+  padding: 1rem 1.05rem;
+}
+.mk-side-h {
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sage-ink-3, #6b7280);
+}
+
+.mk-side-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.mk-side-stat + .mk-side-stat {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
   border-top: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.07));
 }
-.mk-tile-pays {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.74rem;
+/* Money that HAS settled — the one place the money-green is correct. */
+.mk-side-stat-v {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: #15803d;
+}
+.mk-side-stat-k {
+  font-size: 0.78rem;
   color: var(--sage-ink-3, #6b7280);
 }
-.mk-tile-go {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.79rem;
-  font-weight: 500;
-  color: #c2410c;
+
+.mk-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.mk-steps li {
+  display: flex;
+  gap: 0.55rem;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--sage-ink-2, #4a4f57);
+}
+.mk-step-n {
   flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.08rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(194, 65, 12, 0.09);
+  color: #c2410c;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.mk-payouts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mk-payouts li + li {
+  border-top: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.06));
+}
+.mk-payout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.6rem;
+  padding: 0.5rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+.mk-payout:hover .mk-payout-who {
+  color: #c2410c;
+}
+.mk-payout-who {
+  font-size: 0.79rem;
+  color: var(--sage-ink, #1a1d21);
+}
+.mk-payout-what {
+  grid-column: 1;
+  font-size: 0.72rem;
+  color: var(--sage-ink-3, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-payout-amt {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #15803d;
+}
+.mk-side-empty {
+  margin: 0;
+}
+.mk-side-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.7rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.06));
+  font-size: 0.72rem;
+  color: var(--sage-ink-3, #6b7280);
 }
 
 /* ── empty + foot ─────────────────────────────────────────────────────── */
@@ -290,16 +352,32 @@
   gap: 0.4rem;
 }
 
+@media (max-width: 900px) {
+  /* the proof panel leads on mobile: a stranger decides "is this real" before scrolling a list */
+  .mk-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.4rem;
+  }
+  .mk-side {
+    position: static;
+    order: -1;
+  }
+}
+
 @media (max-width: 560px) {
   .mk-hero {
     padding-top: 2rem;
   }
-  .mk-tile {
-    flex-basis: 84vw;
-    max-width: 84vw;
+  .mk-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 0.5rem;
   }
-  .mk-rail-nav {
-    display: none; /* touch devices swipe; arrows would be dead weight */
+  .mk-row-pay {
+    grid-column: 2;
+    align-items: flex-start;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.3rem;
   }
 }
 

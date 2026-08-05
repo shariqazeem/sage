@@ -1,19 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Zap, UserCheck, ArrowRight } from "lucide-react";
+import { Zap, UserCheck, Clock, Users } from "lucide-react";
 import type { MarketplaceRow } from "@/lib/campaigns/marketplace";
 
 /**
- * THE MARKETPLACE BOARD — open missions, laid out to be scanned sideways and compared.
+ * THE MARKETPLACE BOARD — a job board for paid testing work.
  *
- * A tester picks a TASK, not a campaign. A campaign-first vertical list makes them open three boards
- * to compare two rewards, so this is mission-first: one card per mission, in horizontal rails they
- * can flick through, with the sort they actually care about (what pays most) one tap away.
+ * The horizontal-rail version read like a content shelf: pleasant, and completely wrong for the
+ * question a stranger arrives with, which is "is there real money here". A board answers that by
+ * being DENSE and by putting the amount where the eye lands — one row per mission, the reward set
+ * hard right in tabular figures, scanning down the column instead of sideways through cards.
  *
- * Sorting is client-side over the full set the server already sent — no refetch, no spinner, so
- * switching between "highest paying" and "quickest" is instant.
+ * Sorting runs client-side over the set the server already sent, so switching is instant.
  */
 
 type SortKey = "top" | "low" | "slots" | "quick";
@@ -30,86 +30,17 @@ const EFFORT_RANK = { quick: 0, standard: 1, deep: 2 } as const;
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
-/** One horizontal, scroll-snapped rail with arrow controls that stay usable by keyboard. */
-function Rail({ title, hint, rows }: { title: string; hint: string; rows: MarketplaceRow[] }) {
-  const ref = useRef<HTMLDivElement>(null);
-  // Arrows appear only when there is somewhere to go. A control that does nothing when clicked is
-  // worse than no control — and with two tiles on a wide screen the rail does not scroll at all.
-  const [scrollable, setScrollable] = useState(false);
-
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (el) setScrollable(el.scrollWidth - el.clientWidth > 4);
-  }, []);
-
-  useEffect(() => {
-    measure();
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure, rows.length]);
-
-  const nudge = (dir: 1 | -1) => {
-    const el = ref.current;
-    if (!el) return;
-    // Scroll by roughly one card so a click always lands on a card boundary.
-    el.scrollBy({ left: dir * Math.min(el.clientWidth * 0.85, 640), behavior: "smooth" });
-  };
-  if (rows.length === 0) return null;
-
+/** A product mark from its own initial — recognisable at a glance without fetching a favicon. */
+function Mark({ host, title }: { host: string | null; title: string }) {
+  const source = host ?? title;
+  const letter = (source.replace(/^www\./, "")[0] ?? "?").toUpperCase();
+  // Deterministic hue from the host so the same product always wears the same colour.
+  let h = 0;
+  for (const c of source) h = (h * 31 + c.charCodeAt(0)) % 360;
   return (
-    <section className="mk-rail-sec">
-      <header className="mk-rail-head">
-        <div>
-          <h2 className="dash-h3 mk-rail-title">{title}</h2>
-          <p className="sage-hint mk-rail-hint">{hint}</p>
-        </div>
-        {scrollable && (
-          <div className="mk-rail-nav">
-            <button type="button" aria-label={`Scroll ${title} left`} onClick={() => nudge(-1)}>
-              <ChevronLeft size={16} />
-            </button>
-            <button type="button" aria-label={`Scroll ${title} right`} onClick={() => nudge(1)}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
-      </header>
-
-      <div className="mk-rail" ref={ref}>
-        {rows.map((r) => (
-          <Link key={r.key} href={r.boardPath} className="mk-tile">
-            <div className="mk-tile-top">
-              <span className="mk-tile-host mono">{r.productHost ?? r.campaignTitle}</span>
-              <span className="mk-tile-pay mono">{usd(r.rewardUsd)}</span>
-            </div>
-
-            <h3 className="mk-tile-title">{r.title}</h3>
-            <p className="mk-tile-obj">{r.objective}</p>
-
-            <div className="mk-tile-tags">
-              <span className={`mk-tag mk-tag-${r.effort}`}>{r.effort}</span>
-              <span className="mk-tag">
-                {r.remainingSlots} of {r.maxCompletions} left
-              </span>
-              {r.isTestnet && <span className="mk-tag mk-tag-test">testnet</span>}
-            </div>
-
-            <div className="mk-tile-foot">
-              <span className="mk-tile-pays">
-                {r.autopays ? <Zap size={12} /> : <UserCheck size={12} />}
-                {r.autopays ? "Auto-pays once verified" : "Founder approves"}
-              </span>
-              <span className="mk-tile-go">
-                Open <ArrowRight size={13} />
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
+    <span className="mk-mark" style={{ background: `hsl(${h} 42% 94%)`, color: `hsl(${h} 55% 32%)` }}>
+      {letter}
+    </span>
   );
 }
 
@@ -132,15 +63,6 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
     }
   }, [rows, sort]);
 
-  // A per-product rail has to EARN its place. Grouping a campaign that has one mission just prints
-  // that mission a second time, so with 5 missions across 3 campaigns every single one appeared
-  // twice — noise dressed as navigation. Only campaigns with something to group get a rail.
-  const byProduct = useMemo(() => {
-    const m = new Map<string, MarketplaceRow[]>();
-    for (const r of sorted) m.set(r.campaignId, [...(m.get(r.campaignId) ?? []), r]);
-    return [...m.entries()].filter(([, rs]) => rs.length > 1);
-  }, [sorted]);
-
   return (
     <>
       <nav className="mk-sorts" aria-label="Sort missions">
@@ -157,20 +79,43 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
         ))}
       </nav>
 
-      <Rail
-        title={sort === "low" ? "Lowest paying first" : sort === "quick" ? "Quickest first" : sort === "slots" ? "Most slots open" : "Best paying right now"}
-        hint={`${sorted.length} open ${sorted.length === 1 ? "mission" : "missions"}`}
-        rows={sorted}
-      />
+      <ul className="mk-list">
+        {sorted.map((r) => (
+          <li key={r.key}>
+            <Link href={r.boardPath} className="mk-row">
+              <Mark host={r.productHost} title={r.campaignTitle} />
 
-      {byProduct.map(([id, rs]) => (
-        <Rail
-          key={id}
-          title={rs[0]!.campaignTitle}
-          hint={`${rs.length} open missions on ${rs[0]!.productHost ?? "this product"}`}
-          rows={rs}
-        />
-      ))}
+              <span className="mk-row-main">
+                <span className="mk-row-title">{r.title}</span>
+                <span className="mk-row-meta">
+                  <span className="mk-row-host">{r.productHost ?? r.campaignTitle}</span>
+                  <span className="mk-dot" aria-hidden>
+                    ·
+                  </span>
+                  <span className="mk-row-chip">
+                    <Clock size={11} />
+                    {r.effort}
+                  </span>
+                  <span className="mk-row-chip">
+                    <Users size={11} />
+                    {r.remainingSlots} of {r.maxCompletions} left
+                  </span>
+                  <span className="mk-row-chip">
+                    {r.autopays ? <Zap size={11} /> : <UserCheck size={11} />}
+                    {r.autopays ? "auto-pays" : "founder approves"}
+                  </span>
+                  {r.isTestnet && <span className="mk-row-chip mk-row-chip-test">testnet</span>}
+                </span>
+              </span>
+
+              <span className="mk-row-pay">
+                <span className="mk-row-amount mono">{usd(r.rewardUsd)}</span>
+                <span className="mk-row-token mono">{r.tokenSymbol}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

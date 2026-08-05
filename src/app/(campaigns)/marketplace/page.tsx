@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { MarketplaceBoard } from "@/components/marketplace/marketplace-board";
+import { PayoutProof } from "@/components/marketplace/payout-proof";
 import "@/styles/tester-board.css";
 import "@/styles/marketplace.css";
 
@@ -31,7 +32,7 @@ const usd = (n: number) =>
  * marketplace says so plainly rather than dressing up nothing as something.
  */
 export default function MarketplacePage() {
-  const { rows, totals } = marketplace();
+  const { rows, totals, recentPayouts, paidToDate } = marketplace();
 
   return (
     <main className="sb-shell mk-shell">
@@ -60,20 +61,30 @@ export default function MarketplacePage() {
         )}
       </header>
 
-      {rows.length === 0 ? (
-        <section className="mk-empty">
-          <h2 className="dash-h3">No missions are open right now.</h2>
-          <p className="sage-hint">
-            Every mission here is backed by a funded vault, so the list is empty whenever no campaign
-            has an unfilled slot. It fills up again as founders launch.
-          </p>
-          <Link href="/launch" className="sage-btn sage-btn-primary">
-            Launch your own campaign <ArrowRight size={15} />
-          </Link>
-        </section>
-      ) : (
-        <MarketplaceBoard rows={rows} />
-      )}
+      <div className="mk-cols">
+        <div className="mk-main">
+          {rows.length === 0 ? (
+            <section className="mk-empty">
+              <h2 className="dash-h3">No missions are open right now.</h2>
+              <p className="sage-hint">
+                Every mission here is backed by a funded vault, so the list is empty whenever no
+                campaign has an unfilled slot. It fills up again as founders launch.
+              </p>
+              <Link href="/launch" className="sage-btn sage-btn-primary">
+                Launch your own campaign <ArrowRight size={15} />
+              </Link>
+            </section>
+          ) : (
+            <MarketplaceBoard rows={rows} />
+          )}
+        </div>
+        <PayoutProof
+          payouts={recentPayouts}
+          paidToDate={paidToDate}
+          availableUsd={totals.usd}
+          openSlots={totals.slots}
+        />
+      </div>
 
       <footer className="mk-foot">
         <p className="sage-hint">

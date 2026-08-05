@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campaigns, missions, submissions, type Campaign } from "@/lib/db/schema";
 import { isTestnetChain, tokenSymbol } from "@/lib/format";
@@ -84,10 +84,30 @@ export interface MarketplaceRow {
   effort: "quick" | "standard" | "deep";
 }
 
+/**
+ * A payout that ALREADY HAPPENED — the marketplace's only honest form of social proof.
+ *
+ * Superteam-style boards lead with "total value earned" because a stranger's first question is
+ * whether anyone actually gets paid. Ours can answer it with transactions rather than a number we
+ * typed: every row here is a settled submission with a hash anyone can check on the explorer.
+ */
+export interface MarketplacePayout {
+  wallet: string;
+  usd: number;
+  txHash: string;
+  /** the product the work was done on, for recognisability. */
+  productHost: string | null;
+  at: number;
+}
+
 export interface MarketplaceView {
   campaigns: MarketplaceCampaign[];
   /** every open mission, flattened and sorted by reward — the tester-facing list. */
   rows: MarketplaceRow[];
+  /** most recent settled payouts, newest first. Verifiable, never a claim. */
+  recentPayouts: MarketplacePayout[];
+  /** what Sage has ACTUALLY paid out, all time — the number a stranger wants before starting. */
+  paidToDate: { usd: number; count: number };
   totals: { campaigns: number; missions: number; slots: number; usd: number };
 }
 
@@ -129,6 +149,57 @@ function paidCountsByMission(missionIdHashes: string[]): Map<string, number> {
 }
 
 /**
+ * What has actually been paid, read from settled submissions. A payout counts only with a real
+ * transaction hash — "paid" without a hash is a claim, and this is the one place on the product
+ * where a stranger decides whether any of it is real.
+ */
+function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd: number; count: number } } {
+  const rows = db
+    .select({
+      wallet: submissions.wallet,
+      payoutTx: submissions.payoutTx,
+      decidedAt: submissions.decidedAt,
+      createdAt: submissions.createdAt,
+      campaignId: submissions.campaignId,
+      missionIdHash: submissions.missionIdHash,
+    })
+    .from(submissions)
+    .where(and(eq(submissions.status, "paid"), isNotNull(submissions.payoutTx)))
+    .all();
+  if (rows.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0 } };
+
+  // reward comes from the mission that was paid, so the amount is the real one, not the campaign's
+  // headline number.
+  const hashes = rows.map((r) => r.missionIdHash).filter((h): h is string => !!h);
+  const rewardBy = new Map<string, { reward: number; surface: string }>();
+  if (hashes.length > 0) {
+    for (const m of db
+      .select({ h: missions.missionIdHash, reward: missions.rewardAmount, surface: missions.targetSurface })
+      .from(missions)
+      .where(inArray(missions.missionIdHash, hashes))
+      .all()) {
+      rewardBy.set(m.h, { reward: m.reward, surface: m.surface });
+    }
+  }
+
+  const payouts: MarketplacePayout[] = rows.map((r) => {
+    const m = r.missionIdHash ? rewardBy.get(r.missionIdHash) : undefined;
+    return {
+      wallet: r.wallet,
+      usd: toUsd(m?.reward ?? 0),
+      txHash: r.payoutTx as string,
+      productHost: m ? hostOf(m.surface) : null,
+      at: r.decidedAt ?? r.createdAt,
+    };
+  });
+  payouts.sort((a, b) => b.at - a.at);
+  return {
+    recentPayouts: payouts.slice(0, 8),
+    paidToDate: { usd: payouts.reduce((s, p) => s + p.usd, 0), count: payouts.length },
+  };
+}
+
+/**
  * Every campaign with at least one mission a tester can still be paid for.
  *
  * Excluded, each for its own reason:
@@ -144,7 +215,12 @@ export function marketplace(): MarketplaceView {
     .where(and(eq(campaigns.status, "live"), eq(campaigns.sandbox, false)))
     .all();
   if (live.length === 0) {
-    return { campaigns: [], rows: [], totals: { campaigns: 0, missions: 0, slots: 0, usd: 0 } };
+    return {
+      campaigns: [],
+      rows: [],
+      ...settledSoFar(),
+      totals: { campaigns: 0, missions: 0, slots: 0, usd: 0 },
+    };
   }
 
   const ids = live.map((c) => c.id);
@@ -228,6 +304,7 @@ export function marketplace(): MarketplaceView {
   return {
     campaigns: out,
     rows,
+    ...settledSoFar(),
     totals: {
       campaigns: out.length,
       missions: out.reduce((s, c) => s + c.openMissions, 0),

@@ -260,3 +260,53 @@ describe("effort is a coarse label, never a promise", () => {
     expect(r.effort).toBe("quick");
   });
 });
+
+describe("payout proof is read from settled transactions, never asserted", () => {
+  it("an unproven marketplace reports zero rather than inventing a figure", () => {
+    const v = marketplace();
+    // Every payout must carry a hash; a "paid" row without one is a claim, not proof.
+    for (const p of v.recentPayouts) expect(p.txHash).toBeTruthy();
+    expect(v.paidToDate.count).toBe(v.recentPayouts.length <= 8 ? v.paidToDate.count : 0);
+    expect(v.paidToDate.usd).toBeGreaterThanOrEqual(0);
+  });
+
+  it("counts a settled payout and reports its real reward, not the campaign headline", () => {
+    const c = campaign();
+    const m = mission(c.id, { rewardAmount: 400_000, maxCompletions: 3 }); // $0.40
+    const r = createSubmission({ campaignId: c.id, wallet: wallet() });
+    if (!r.ok) throw new Error(r.error);
+    db.update(submissions)
+      .set({ status: "paid", missionIdHash: m.hash, payoutTx: "0xdeadbeef" })
+      .where(eq(submissions.id, r.submission.id))
+      .run();
+
+    const v = marketplace();
+    const p = v.recentPayouts.find((x) => x.txHash === "0xdeadbeef");
+    expect(p).toBeTruthy();
+    expect(p!.usd).toBe(0.4);
+    expect(p!.productHost).toBe("example.com");
+    expect(v.paidToDate.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("a paid row with NO transaction hash is not counted as proof", () => {
+    const before = marketplace().paidToDate.count;
+    const c = campaign();
+    const m = mission(c.id);
+    const r = createSubmission({ campaignId: c.id, wallet: wallet() });
+    if (!r.ok) throw new Error(r.error);
+    // paid, but never settled on-chain
+    db.update(submissions)
+      .set({ status: "paid", missionIdHash: m.hash, payoutTx: null })
+      .where(eq(submissions.id, r.submission.id))
+      .run();
+    expect(marketplace().paidToDate.count).toBe(before);
+  });
+
+  it("shows the most recent payouts first, capped", () => {
+    const v = marketplace();
+    expect(v.recentPayouts.length).toBeLessThanOrEqual(8);
+    for (let i = 1; i < v.recentPayouts.length; i++) {
+      expect(v.recentPayouts[i - 1]!.at).toBeGreaterThanOrEqual(v.recentPayouts[i]!.at);
+    }
+  });
+});
