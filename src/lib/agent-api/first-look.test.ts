@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createServer, type Server } from "node:http";
-import { takeFirstLook, FIRST_LOOK_BUDGET_MS } from "./first-look";
+import { takeFirstLook, FIRST_LOOK_BUDGET_MS, FIRST_LOOK_MAX_BYTES } from "./first-look";
 
 /**
  * THE FIRST LOOK must prove Sage opened the CALLER'S url, and must never cost them their inspection.
@@ -96,4 +96,22 @@ describe("the budget is small enough to ride inside a call the caller waits on",
     await takeFirstLook("https://this-host-does-not-exist-sage-test.invalid/");
     expect(Date.now() - t).toBeLessThan(FIRST_LOOK_BUDGET_MS + 6000);
   }, 20_000);
+});
+
+describe("a failure says the REAL reason, not a standing caveat", () => {
+  it("never blames client-side rendering for a fetch that failed for another cause", async () => {
+    // `inspectProduct` returns a limitation about server-rendered HTML on EVERY run, including
+    // successful ones. Reading it as the failure reason — as the first version did — told every
+    // caller their page was a JavaScript app, whatever had actually happened.
+    const r = await takeFirstLook("https://this-host-does-not-exist-sage-test.invalid/");
+    expect(r.reached).toBe(false);
+    expect(r.couldNotReach).not.toMatch(/server-rendered|client-side|JavaScript/i);
+  }, 20_000);
+});
+
+describe("the byte cap is large enough for the products founders actually bring", () => {
+  it("is well above the crawler default that rejected linear.app as oversized", () => {
+    // Measured: 800KB → 0 observations on linear.app; 3MB → 1, and faster.
+    expect(FIRST_LOOK_MAX_BYTES).toBeGreaterThanOrEqual(3_000_000);
+  });
 });

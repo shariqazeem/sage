@@ -28,6 +28,23 @@ import { inspectProduct } from "@/lib/launch/inspect";
  *  to return in seconds, so a slow product must cost the response almost nothing. */
 export const FIRST_LOOK_BUDGET_MS = 2500;
 
+/**
+ * Byte cap for the peek, deliberately well above the crawler's 800KB default.
+ *
+ * MEASURED: linear.app is rejected `oversized` at 800KB and returns nothing; at 3MB it reads fine —
+ * and FASTER (1145ms vs 1433ms), because the oversize path was not saving any work. Big marketing
+ * pages are exactly the products founders bring, so the peek would have failed on many of them.
+ */
+export const FIRST_LOOK_MAX_BYTES = 3_000_000;
+
+/** Block reasons are internal words; say them the way the caller would. */
+function plainReason(reason: string): string {
+  if (reason === "oversized") return "the page was larger than the quick first look allows";
+  if (/timeout/i.test(reason)) return "the page did not respond in time";
+  if (/robots|blocked/i.test(reason)) return "the site declined an automated fetch";
+  return reason;
+}
+
 export interface FirstLook {
   /** true when Sage actually loaded a page at that URL in this call. */
   reached: boolean;
@@ -77,9 +94,16 @@ export async function takeFirstLook(productUrl: string): Promise<FirstLook> {
       maxPages: 1,
       maxDepth: 0,
       timeBudgetMs: FIRST_LOOK_BUDGET_MS,
+      perResponseBytes: FIRST_LOOK_MAX_BYTES,
     });
     const page = r.observations[0];
-    if (!page) return miss(r.limitations[0] ?? r.blocked[0]?.reason ?? "the page did not load in time");
+    if (!page) {
+      // `blocked[0].reason` is the ACTUAL cause. `limitations[0]` is a standing caveat about
+      // client-side rendering that is present on every run INCLUDING successful ones, so preferring
+      // it — as this did — guaranteed a misleading reason on every failure.
+      const blocked = r.blocked[0]?.reason;
+      return miss(blocked ? plainReason(blocked) : "the page did not load in time");
+    }
 
     const form = page.forms[0] ?? null;
     return {
