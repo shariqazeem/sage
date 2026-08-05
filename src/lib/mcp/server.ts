@@ -5,6 +5,7 @@ import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
+import { capFirstLook, capCheckEvidence } from "@/lib/agent-api/capabilities";
 import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import {
   opStartInspection,
@@ -143,6 +144,31 @@ export const MCP_TOOLS: McpToolDef[] = [
     description:
       "See what Sage produces, in ONE call, with no waiting: a REAL finished testing plan from a past inspection of a real product — the missions Sage wrote, their checkable pass criteria, the evidence each tester must supply, and the exact budget split, alongside that run's own browsing evidence (pagesInspected, fieldTest). This is a SPECIMEN of a completed run and takes no arguments, so it is not a plan for a product you supply — to get one for YOUR url, call sage_start_inspection. The returned inspectionId is genuine; sage_get_inspection on it returns the same plan.",
     inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "sage_first_look",
+    description:
+      "Look at a live web page RIGHT NOW and report what is actually on it: the address Sage landed on after redirects, the HTTP status, the page's own title and headings, what is clickable, whether it is an auth wall, and two verbatim sentences. Answers in about a second. Use this to check what a product actually shows a first-time visitor, or to confirm a URL is reachable and not a login wall, without starting a full inspection.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productUrl: { type: "string", description: "Public HTTPS URL to look at." },
+      },
+      required: ["productUrl"],
+    },
+  },
+  {
+    name: "sage_check_evidence",
+    description:
+      "Check whether a written account of using a product is genuine, against the product's own current page. Sage fetches the page and looks for phrases from inside it that the account also contains, so a fluent write-up from someone who never opened the product scores zero while a real account written in the person's own words, or another language, still verifies. Returns a verdict, the matched phrases as evidence, and how much of the page was available to check against. This is the judgment layer that decides Sage's own payouts, offered on its own. It compares against ONE page as it is now, not a full browsing session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productUrl: { type: "string", description: "Public HTTPS URL the account claims to describe." },
+        account: { type: "string", description: "What the person wrote about using the product." },
+      },
+      required: ["productUrl", "account"],
+    },
   },
   {
     name: "sage_browse_missions",
@@ -307,6 +333,16 @@ export async function callSageTool(
       return toolResult(opGetSubmission(asString(args.submissionId)));
     case "sage_get_proof":
       return toolResult(await opGetProof(asString(args.txHash)));
+    case "sage_first_look":
+      return toolResult({ ok: true, firstLook: await capFirstLook(asString(args.productUrl)) });
+    case "sage_check_evidence":
+      return toolResult({
+        ok: true,
+        ...(await capCheckEvidence({
+          productUrl: asString(args.productUrl),
+          account: asString(args.account),
+        })),
+      });
     case "sage_browse_missions": {
       const raw = Number(args.limit);
       const limit = Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 25) : 10;

@@ -13,6 +13,8 @@ describe("MCP tool registry", () => {
       "sage_get_campaign",
       "sage_get_submission",
       "sage_example_plan",
+      "sage_first_look",
+      "sage_check_evidence",
       "sage_browse_missions",
       "sage_get_proof",
     ]);
