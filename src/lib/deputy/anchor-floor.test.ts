@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { observationBar, OBS_BAR, type ObservationSignals } from "./observation-verify";
+import {
+  observationBar,
+  phraseAnchors,
+  OBS_BAR,
+  type ObservationSignals,
+  type PrivateKey,
+} from "./observation-verify";
 
 /**
  * THE ANCHOR FLOOR — the model may bridge, but it may not be the SOLE basis for moving money.
@@ -41,16 +47,19 @@ describe("the real shadow rows, replayed", () => {
     expect(r.pass).toBe(expected);
   });
 
-  it("ZKFS8PgbizFh — the one row that changes — now HOLDS instead of auto-paying", () => {
-    // 0 deterministic, 3 sources entirely from model-bridged corroboration.
-    const r = observationBar(sig({ deterministicSources: 0, distinctSources: 3, keyDistinctSources: 6 }));
+  it("ZKFS8PgbizFh — 0 deterministic AND no product phrase — still HOLDS", () => {
+    // 3 sources entirely from model-bridged corroboration, and nothing the tester could only have
+    // read inside the product. The model alone still cannot move money.
+    const r = observationBar(
+      sig({ deterministicSources: 0, phraseAnchors: 0, distinctSources: 3, keyDistinctSources: 6 }),
+    );
     expect(r.pass).toBe(false);
-    expect(r.reasons.join(" ")).toMatch(/no_deterministic_anchor/);
+    expect(r.reasons.join(" ")).toMatch(/no_product_anchor/);
   });
 
   it("holding is not rejecting — the founder can still pay it", () => {
     // The floor produces a reason, which is a hold for review. Nothing here rejects the tester.
-    const r = observationBar(sig({ deterministicSources: 0, distinctSources: 3 }));
+    const r = observationBar(sig({ deterministicSources: 0, phraseAnchors: 0, distinctSources: 3 }));
     expect(r.reasons).toHaveLength(1); // ONLY the anchor objection; the work is otherwise clean
   });
 });
@@ -72,10 +81,10 @@ describe("the criteria-complete pass cannot override the floor", () => {
   it("proving every criterion through model bridges alone still holds", () => {
     // This is precisely the case the floor exists for, so the relaxation must not rescue it.
     const r = observationBar(
-      sig({ deterministicSources: 0, distinctSources: 2, criteriaAllProven: true }),
+      sig({ deterministicSources: 0, phraseAnchors: 0, distinctSources: 2, criteriaAllProven: true }),
     );
     expect(r.pass).toBe(false);
-    expect(r.reasons.join(" ")).toMatch(/no_deterministic_anchor/);
+    expect(r.reasons.join(" ")).toMatch(/no_product_anchor/);
   });
 
   it("but the pass still works when there IS an anchor", () => {
@@ -109,5 +118,97 @@ describe("the floor never rescues work that failed for another reason", () => {
   ])("%s still blocks even with a strong anchor", (_label, over) => {
     const r = observationBar(sig({ deterministicSources: 9, distinctSources: 9, ...over }));
     expect(r.pass).toBe(false);
+  });
+});
+
+/* ── the phrase anchor: a genuine tester in their OWN WORDS, or another language, must still pay ── */
+
+/**
+ * MEASURED against the live yara.garden corpus, not invented. These are the real strings: the corpus
+ * lines are Sage's own recorded observations, and the "genuine" account is the one that was actually
+ * paid $1 USDC on GOAT mainnet.
+ */
+const yaraKey: PrivateKey = {
+  observations: [
+    { source: "state:0", text: "oh hello i felt you arrive im yara i tend this place" },
+    { source: "state:1", text: "i made it for people carrying something heavy" },
+    { source: "state:2", text: "so they would have somewhere gentle to set it down" },
+    { source: "state:3", text: "a loading screen with a prompt to tap to step inside" },
+    { source: "state:4", text: "choose your companion a chick or a fox" },
+    { source: "state:5", text: "before we walk together what has been weighing on you" },
+  ],
+  distinctSources: 6,
+  digest: "0xtest",
+};
+// what a guesser can read WITHOUT visiting: the mission card.
+const publicCard = [
+  "Find and Interact with Yara",
+  "Enter the virtual garden, locate the Yara character and have a conversation",
+  "https://yara.garden/",
+];
+
+const anchors = (account: string) => phraseAnchors(account, yaraKey, publicCard).length;
+
+describe("phrase anchors separate a real visit from a good story", () => {
+  it("a genuine account in the tester's own words is anchored", () => {
+    expect(
+      anchors(
+        "opened it, saw a loading screen, tapped to step inside. yara said she made this place for people carrying something heavy.",
+      ),
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("THE POINT: a genuine account in ANOTHER LANGUAGE is still anchored", () => {
+    // Written in Urdu, keeping the product's own English strings as any real tester would.
+    expect(
+      anchors(
+        "میں نے کھولا، loading screen نظر آئی، پھر tap to step inside کا prompt۔ Yara نے کہا یہ اُن کے لیے جو something heavy carrying کر رہے ہیں۔ میں نے chick چُنا۔",
+      ),
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("a fluent fabrication from someone who never visited is NOT anchored", () => {
+    expect(
+      anchors(
+        "I visited the site and was greeted by a beautiful calming interface. The virtual garden loaded smoothly and I navigated the space easily. I located the Yara character and started a conversation. She responded thoughtfully and the dialogue felt natural and warm. The experience was polished with no errors.",
+      ),
+    ).toBe(0);
+  });
+
+  it("parroting the public mission card is NOT anchored", () => {
+    expect(anchors(publicCard.join(" "))).toBe(0);
+  });
+
+  it("public phrases are subtracted, so the card can never anchor itself", () => {
+    const keyWithPublic: PrivateKey = {
+      observations: [{ source: "state:0", text: "enter the virtual garden locate the yara character" }],
+      distinctSources: 1,
+      digest: "0x",
+    };
+    expect(phraseAnchors("enter the virtual garden locate the yara character", keyWithPublic, publicCard))
+      .toEqual([]);
+  });
+
+  it("an empty or absent account anchors nothing", () => {
+    for (const a of ["", "   ", null, undefined]) {
+      expect(phraseAnchors(a, yaraKey, publicCard)).toEqual([]);
+    }
+  });
+});
+
+describe("the widened floor pays the paraphraser without paying the fabricator", () => {
+  it("zero token matches but a real product phrase → PASSES", () => {
+    const r = observationBar(sig({ deterministicSources: 0, phraseAnchors: 2, distinctSources: 3 }));
+    expect(r.pass).toBe(true);
+  });
+
+  it("zero token matches and zero phrases → HOLDS", () => {
+    const r = observationBar(sig({ deterministicSources: 0, phraseAnchors: 0, distinctSources: 3 }));
+    expect(r.pass).toBe(false);
+  });
+
+  it("one phrase is enough — the measured margin is genuine>=2 vs fake 0", () => {
+    expect(OBS_BAR.minPhraseAnchors).toBe(1);
+    expect(observationBar(sig({ deterministicSources: 0, phraseAnchors: 1, distinctSources: 3 })).pass).toBe(true);
   });
 });

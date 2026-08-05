@@ -25,6 +25,7 @@ import {
   observationBar,
   legacyObservationBar,
   publicTokenSet,
+  phraseAnchors,
   validateContradictions,
   validateCorroborations,
   verifyAgainstKey,
@@ -87,6 +88,8 @@ export interface ObservationShadow {
   deterministicSources?: number;
   /** distinct sources added by VALIDATED LLM corroborations (the recall path). Counts only, never text. */
   corroboratedSources?: number;
+  /** product phrases the account reproduced — the anchor that survives paraphrase/translation. */
+  phraseAnchors?: number;
   keyDistinctSources: number;
   /** logged for calibration; no longer part of the gate. */
   obsConfidence: number;
@@ -121,6 +124,7 @@ export function toObservationShadow(d: ObservationDecision, wouldAutopay: boolea
     matchedCount: d.publicView.matchedCount,
     deterministicSources: d.corpusMatch.distinctSources,
     corroboratedSources: d.validatedCorroborations.length,
+    phraseAnchors: d.phraseAnchors,
     keyDistinctSources: d.publicView.keyDistinctSources,
     obsConfidence: d.obsConfidence,
     validatedContradictions: d.validatedContradictions.length,
@@ -157,6 +161,8 @@ export interface ObservationDecision {
   /** SERVER-SIDE corroboration claims that cited a verbatim, grounded, non-public pair — these ADD
    *  distinct-source credit (the recall path). Each carries a matched corpus string — never publish. */
   validatedCorroborations: CorroborationClaim[];
+  /** count of product phrases the account reproduced (the paraphrase/translation-proof anchor). */
+  phraseAnchors: number;
   /** the DETERMINISTIC-PRIMARY (2b) bar — the one that gates a payout. */
   bar: BarResult;
   /** the LEGACY confidence-gated bar — logged for shadow continuity, never gates. */
@@ -190,6 +196,8 @@ export function assembleObservationDecision(input: {
   /** PUBLIC card/plan content tokens — a corroboration's anchor must be NON-public (parrot-zero). Live
    *  callers MUST pass this; an empty set (some fixtures) means no non-public anchor requirement. */
   publicTokens?: Set<string>;
+  /** RAW public strings. `publicTokens` loses word adjacency, and the phrase anchor needs it. */
+  publicStrings?: readonly string[];
   /** the mission's criterion → key-source contract, pinned at attach. Absent ⇒ the flat bar alone. */
   criterionEvidence?: CriterionEvidenceV1[] | null;
   /** the contract was DERIVED from the key, not compiler-authored → it may help, never block. */
@@ -197,6 +205,8 @@ export function assembleObservationDecision(input: {
 }): ObservationDecision {
   const injectionDetected = detectInjection(input.account ?? "").length > 0;
   const corpusMatch = verifyAgainstKey(input.account, input.key);
+  // Phrases from inside the product — the anchor that survives paraphrase and translation.
+  const anchorPhrases = phraseAnchors(input.account, input.key, input.publicStrings ?? []);
   const near = findNearDuplicate({ note: input.account, contentSha256: null }, input.priors);
   const nearDupSimilarity = near?.similarity ?? 0;
 
@@ -231,6 +241,7 @@ export function assembleObservationDecision(input: {
     // The pre-corroboration count, so the bar can tell "only a real visitor could have written this"
     // from "the model was willing to bridge three vague phrases" — both arrive as `distinctSources`.
     deterministicSources: corpusMatch.distinctSources,
+    phraseAnchors: anchorPhrases.length,
     keyDistinctSources: input.key.distinctSources,
     vetoFired: validated.length > 0,
     nearDupClear: !near,
@@ -262,6 +273,7 @@ export function assembleObservationDecision(input: {
 
   return {
     corpusMatch,
+    phraseAnchors: anchorPhrases.length,
     injectionDetected,
     nearDupSimilarity,
     obsConfidence: input.judge.obsConfidence,
@@ -485,6 +497,7 @@ export async function runObservationDecision(input: {
     account: input.account,
     key: input.key,
     publicTokens: publicTokenSet(input.publicStrings),
+    publicStrings: input.publicStrings,
     priors: input.priors,
     judge,
     hasHighFraud: input.hasHighFraud,

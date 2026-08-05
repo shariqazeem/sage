@@ -249,6 +249,60 @@ export function verifyAgainstKey(account: string | null | undefined, key: Privat
   return { distinctSources: sources.size, matchedCount: matched.length, matched };
 }
 
+
+/* ───────────────────── LANGUAGE-INDEPENDENT ANCHOR (phrase evidence) ───────────────────── */
+
+/** Adjacent pairs of CONTENT words — stopwords are already dropped by `contentTokens`, so
+ *  "people carrying something heavy" yields "people carrying", "carrying something", "something heavy"
+ *  and never "to the". Reuses the same normaliser as every other matcher here. */
+function contentBigrams(s: string | null | undefined): Set<string> {
+  const t = contentTokens(normObs(s ?? ""));
+  const out = new Set<string>();
+  for (let i = 0; i + 1 < t.length; i++) out.add(`${t[i]} ${t[i + 1]}`);
+  return out;
+}
+
+/**
+ * PHRASES FROM INSIDE THE PRODUCT that a tester reproduced — the anchor that survives being written
+ * in the tester's own words, or in another language entirely.
+ *
+ * `verifyAgainstKey` needs most of an observation's vocabulary to overlap, so it scores a genuine
+ * paraphrase near zero and a genuine account in another language at exactly zero. That is the wrong
+ * answer for the person this product exists to pay: someone who really used the product and described
+ * it honestly, in their own voice.
+ *
+ * A two-word phrase is the smallest unit that carries real information. MEASURED against the live
+ * yara.garden corpus (70 non-public content bigrams) on real submissions:
+ *
+ *   genuine, English, previously paid ........ 2   ("together what", "loading screen")
+ *   genuine, rewritten in another language ... 2   ("something heavy", "loading screen")
+ *   genuine but TERSE ........................ 5   ("step inside", "people carrying", …)
+ *   fluent fabrication, never visited ........ 0
+ *   parrot of the public mission card ........ 0
+ *
+ * The terse account — historically the dominant genuine-hold class — scores HIGHEST, because brevity
+ * costs vocabulary overlap but not specificity. Single tokens were tried first and are NOT usable: the
+ * same fabrication scored 4 on generic words that happen to sit in the corpus ("felt", "interface",
+ * "character"), against 6-8 for genuine. Pairs separate cleanly where single words do not.
+ *
+ * Public phrases are subtracted first, so copying the mission card can never anchor anything.
+ * Deterministic and model-free.
+ */
+export function phraseAnchors(
+  account: string | null | undefined,
+  key: PrivateKey,
+  publicStrings: readonly string[] = [],
+): string[] {
+  const pub = contentBigrams(publicStrings.join(" • "));
+  const corpus = new Set<string>();
+  for (const o of key.observations) {
+    for (const g of contentBigrams(o.text)) if (!pub.has(g)) corpus.add(g);
+  }
+  if (corpus.size === 0) return [];
+  const acct = contentBigrams(account);
+  return [...corpus].filter((g) => acct.has(g));
+}
+
 /* ─────────────────────── CRITERION-LEVEL proof (the contract, not a headcount) ─────────────────── */
 
 /**
@@ -536,6 +590,12 @@ export interface ObservationSignals {
    * visitor could write" from "the model was willing to bridge three vague phrases". Both arrive as 3.
    */
   deterministicSources?: number;
+  /**
+   * Two-word phrases from INSIDE the product that this account reproduced, with public card phrases
+   * subtracted. This is the anchor that survives a tester writing in their own words or another
+   * language — where token-overlap matching scores zero and would hold a genuine person.
+   */
+  phraseAnchors?: number;
   /** distinct sources IN the pinned key — campaign eligibility (a thin answer key can't verify). */
   keyDistinctSources: number;
   /** a VALIDATED contradiction veto fired (verbatim account↔corpus pair). Only this blocks; a
@@ -614,6 +674,12 @@ export const OBS_BAR = {
    * cleared on 0 deterministic + 3 model-bridged sources.
    */
   minDeterministicSources: 1,
+  /**
+   * ONE reproduced product phrase is enough. The measured margin is not close — every genuine
+   * account scored >=2 and every fabrication exactly 0 — so a higher floor would buy no precision
+   * and would start holding real people for being brief.
+   */
+  minPhraseAnchors: 1,
 } as const;
 
 /**
@@ -642,7 +708,7 @@ export const CRITERIA_COMPLETE_MIN_MATCHES = 2;
  * is stale by definition — a submission held under the old policy might pass under the new one, and
  * reusing the old answer would freeze it forever. Bump this on ANY change to observationBar/OBS_BAR.
  */
-export const OBS_BAR_POLICY_VERSION = "obs-bar-v4-anchor-floor";
+export const OBS_BAR_POLICY_VERSION = "obs-bar-v5-phrase-anchor";
 
 /**
  * A STORED VERDICT STILL APPLIES when everything the verdict depends on is provably unchanged: the
@@ -681,13 +747,19 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
   if (s.distinctSources < cfg.minDistinctMatches) reasons.push(`few_matches(${s.distinctSources}<${cfg.minDistinctMatches})`);
   // The anchor floor. Only applied when the caller actually supplies the split — an older caller that
   // does not know its deterministic count keeps the previous behaviour rather than being held by default.
-  if (
-    typeof s.deterministicSources === "number" &&
-    s.deterministicSources < cfg.minDeterministicSources
-  ) {
-    reasons.push(
-      `no_deterministic_anchor(${s.deterministicSources}<${cfg.minDeterministicSources})`,
-    );
+  // THE ANCHOR FLOOR — satisfied by EITHER a deterministic observation match OR a phrase the tester
+  // could only have read inside the product. Requiring the former alone would hold the genuine
+  // paraphrasing or non-English tester, which is the exact person this is meant to pay.
+  if (typeof s.deterministicSources === "number") {
+    const anchored =
+      s.deterministicSources >= cfg.minDeterministicSources ||
+      (s.phraseAnchors ?? 0) >= cfg.minPhraseAnchors;
+    if (!anchored) {
+      // COUNTS AND COMPARATORS ONLY. These reasons are shown publicly, and the enforced shape
+      // (`name(numbers)`) is what guarantees a reason can never carry corpus text back to a tester.
+      const evidence = s.deterministicSources + (s.phraseAnchors ?? 0);
+      reasons.push(`no_product_anchor(${evidence}<1)`);
+    }
   }
   if (s.vetoFired) reasons.push("contradiction");
   if (!s.nearDupClear) reasons.push("near_dup");
