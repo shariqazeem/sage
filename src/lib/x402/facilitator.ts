@@ -2,11 +2,21 @@ import "server-only";
 
 /**
  * GOAT x402 config + live gate — the single source of truth for whether the two
- * x402 rails are active. Real protocol (`goatx402-sdk-server`, facilitator
- * `https://flow-merchant.goat.network`, GOAT mainnet chain 2345, USDC min 0.1). The
- * merchant credentials come from the GOAT merchant portal (Receive Type DIRECT).
- * (The facilitator moved from the retired `x402-api.goat.network` host to
- * `flow-merchant.goat.network` — SDK path base `/api/v1/*` — around 2026-07.)
+ * x402 rails are active. Real protocol (`goatx402-sdk-server`, GOAT mainnet chain
+ * 2345, USDC min 0.1). The merchant credentials come from the GOAT merchant portal
+ * (Receive Type DIRECT).
+ *
+ * THE API HOST IS NOT THE PORTAL HOST, and confusing them costs weeks.
+ *   API    https://flow-api.goat.network       ← the facilitator, path base /api/v1/*
+ *   portal https://flow-merchant.goat.network  ← the human sign-in UI, no API
+ *
+ * The original `x402-api.goat.network` went dead around 2026-07-18 and the repair
+ * pointed here at the portal, which is a single-page app: it answers 200 with
+ * index.html for EVERY path including /api/v1/orders. The SDK parses that HTML into
+ * an empty object, so a wrong host does not fail loudly. It returns orders with
+ * `payToAddress: ""` and an empty x402 challenge, which reads exactly like a merchant
+ * with no receiving address configured. It cost a false diagnosis. `npm run
+ * x402:merchant` now checks the host is an API before it says anything about config.
  *
  * HONESTY: `isX402Live()` gates EVERYTHING. When false, the honest "pending
  * merchant approval" chips remain and internal calls bypass the paywall — no code
@@ -25,7 +35,7 @@ export const MIN_USDC = 0.1;
 export const VERIFICATION_FEE_USD = 0.1;
 export const OPERATOR_FEE_USD = 0.1;
 
-const DEFAULT_API_URL = "https://flow-merchant.goat.network";
+const DEFAULT_API_URL = "https://flow-api.goat.network";
 
 export interface X402Env {
   /** Facilitator base URL (defaults to the production endpoint). */
