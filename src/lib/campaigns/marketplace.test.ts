@@ -310,3 +310,21 @@ describe("payout proof is read from settled transactions, never asserted", () =>
     }
   });
 });
+
+describe("a payout we cannot price is not shown as proof", () => {
+  it("excludes a settled row whose mission no longer resolves", () => {
+    const c = campaign();
+    const r = createSubmission({ campaignId: c.id, wallet: wallet() });
+    if (!r.ok) throw new Error(r.error);
+    // paid, real hash, but the missionIdHash matches no mission → unpriceable
+    db.update(submissions)
+      .set({ status: "paid", missionIdHash: "0xghost", payoutTx: "0xunpriceable" })
+      .where(eq(submissions.id, r.submission.id))
+      .run();
+
+    const v = marketplace();
+    expect(v.recentPayouts.find((p) => p.txHash === "0xunpriceable")).toBeUndefined();
+    // and it never contributes a zero to the headline count either
+    for (const p of v.recentPayouts) expect(p.usd).toBeGreaterThan(0);
+  });
+});

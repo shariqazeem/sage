@@ -182,16 +182,21 @@ function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd
     }
   }
 
-  const payouts: MarketplacePayout[] = rows.map((r) => {
-    const m = r.missionIdHash ? rewardBy.get(r.missionIdHash) : undefined;
-    return {
-      wallet: r.wallet,
-      usd: toUsd(m?.reward ?? 0),
-      txHash: r.payoutTx as string,
-      productHost: m ? hostOf(m.surface) : null,
-      at: r.decidedAt ?? r.createdAt,
-    };
-  });
+  const payouts: MarketplacePayout[] = rows
+    .map((r) => {
+      const m = r.missionIdHash ? rewardBy.get(r.missionIdHash) : undefined;
+      return {
+        wallet: r.wallet,
+        usd: toUsd(m?.reward ?? 0),
+        txHash: r.payoutTx as string,
+        productHost: m ? hostOf(m.surface) : null,
+        at: r.decidedAt ?? r.createdAt,
+      };
+    })
+    // A PAYOUT WE CANNOT PRICE IS NOT PROOF. Legacy rows whose mission no longer resolves priced to
+    // zero and rendered as "$0.00" lines in the panel whose whole job is showing that people get
+    // paid — the opposite of its purpose. Five real payouts beat eight with three zeros among them.
+    .filter((p) => p.usd > 0);
   payouts.sort((a, b) => b.at - a.at);
   return {
     recentPayouts: payouts.slice(0, 8),
