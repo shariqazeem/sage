@@ -56,6 +56,16 @@ describe("telling a thing from a concept", () => {
     "it",
     "",
     "a",
+    // Every one of these came out of a real journey compilation. "core experience" is the one that
+    // broke excalidraw: "core" is a four-letter word that is not a concept, so the first version
+    // read the phrase as a concrete thing and blocked a product that works perfectly.
+    "core experience",
+    "main experience",
+    "primary features",
+    "the core flow",
+    "key functionality",
+    "the whole journey",
+    "any part of the product",
   ])("%p is a concept, not a label", (e) => expect(isConcreteEntity(e)).toBe(false));
 });
 

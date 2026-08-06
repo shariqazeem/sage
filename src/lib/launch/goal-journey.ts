@@ -650,22 +650,35 @@ const containsAny = (haystack: string, needle: string): boolean => {
  * "Reach the main area" is a real requirement with no label to match; "purchase credits" is not.
  */
 const CONCEPT_ENTITY =
-  /^(the\s+)?(world|experience|product|site|website|app|application|page|screen|interface|onboarding|conversation|flow|area|section|platform|service|system|environment|content|thing|it)s?$/i;
+  /^(world|experience|product|site|website|app|application|page|screen|interface|onboarding|conversation|flow|area|section|platform|service|system|environment|content|thing|feature|features|functionality|capability|capabilities|journey|process|step|steps|action|actions|task|tasks|part|parts|it)$/i;
+
+/** Words that qualify a noun without being one. "core experience" is the experience. */
+const QUALIFIER =
+  /^(the|a|an|any|its|their|our|core|main|primary|key|overall|general|basic|whole|entire|full|complete|new|first|initial|final|actual|real|typical|normal|standard|simple|quick)$/i;
 
 /**
  * Is this entity something the product WOULD have shown if it existed?
  *
  * The distinction decides whether "Sage never saw this" means "the label is a concept" or "the flow
  * was never reached", and those must not be treated the same way.
+ *
+ * BIASED TOWARDS "no". Getting this wrong in the concrete direction blocks a checkpoint on a product
+ * that works — the first version read "core experience" as concrete because "core" is a four-letter
+ * word that is not on the concept list, and turned a passing excalidraw run into needs_input with
+ * zero missions. Getting it wrong the other way merely leaves the old behaviour in place. Those are
+ * not symmetric costs, so qualifiers are stripped before the judgement and anything that reduces to
+ * concept words is a concept.
  */
 export function isConcreteEntity(entity: string | null | undefined): boolean {
   const e = (entity ?? "").trim();
   if (e.length < 3) return false;
-  if (CONCEPT_ENTITY.test(e)) return false;
-  // At least one substantive word. "a few" and "some of" are not things a product displays.
-  return e
+  const substantive = e
     .split(/\s+/)
-    .some((w) => w.replace(/[^a-z0-9]/gi, "").length >= 4 && !CONCEPT_ENTITY.test(w));
+    .map((w) => w.replace(/[^a-z0-9]/gi, ""))
+    .filter((w) => w.length > 0 && !QUALIFIER.test(w));
+  if (substantive.length === 0) return false;
+  if (substantive.every((w) => CONCEPT_ENTITY.test(w))) return false;
+  return substantive.some((w) => w.length >= 4 && !CONCEPT_ENTITY.test(w));
 }
 
 /**

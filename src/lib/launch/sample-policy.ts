@@ -54,8 +54,12 @@ export interface SamplePolicyResult<T extends SampleMission> {
   missions: T[];
   /** true when any mission's completion count was raised to the preferred sample. */
   adjusted: boolean;
-  /** set when the budget cannot fund a meaningful sample — ask the founder instead of picking one tester. */
+  /** set when the budget cannot fund a meaningful sample — ask the founder instead of picking one tester.
+   *  BLOCKING: the pipeline turns a question into `needs_input`, so only put something here when the
+   *  plan genuinely must not proceed without an answer. */
   question: string | null;
+  /** ADVISORY, never blocking — something the founder should know while the plan proceeds. */
+  note?: string | null;
   /** bounded explanation for telemetry. */
   reason:
     | "not_plural"
@@ -114,7 +118,7 @@ function withOverFunding<T extends SampleMission>(
   result: SamplePolicyResult<T>,
   opts: { totalBudgetBase: bigint; minRewardBase: bigint },
 ): SamplePolicyResult<T> {
-  // Never overwrite a question the policy already had to ask; that one is more specific.
+  // A blocking question already exists and is more specific; do not also editorialise.
   if (result.question) return result;
   const ms = result.missions.filter((m) => m.qualitative !== false);
   if (ms.length === 0) return result;
@@ -129,7 +133,12 @@ function withOverFunding<T extends SampleMission>(
     ...result,
     reason: "over_funded",
     absorbableBase: absorbable,
-    question: `This budget is larger than the plan can spend at a fair rate — ${ms.length} mission${ms.length === 1 ? "" : "s"} can pay about $${(Number(absorbable) / 1_000_000).toFixed(2)} in total before each reward runs well above the going rate for the effort involved. Do you want more missions covering more of the product, or a smaller budget to start with?`,
+    // A NOTE, NOT A QUESTION. The pipeline turns any question into `needs_input`, and the first
+    // version put this in `question` — which meant a generous budget produced no plan at all.
+    // Measured on the P-GEN battery at ~$910: excalidraw, play2048 and tailwindcss all went from a
+    // working plan to needs_input with zero missions. A founder who funds well should never be
+    // punished for it; being over-funded is worth saying and is not a reason to stop.
+    note: `This budget is larger than the plan can spend at a fair rate — ${ms.length} mission${ms.length === 1 ? "" : "s"} can pay about $${(Number(absorbable) / 1_000_000).toFixed(2)} in total before each reward runs well above the going rate for the effort involved. More missions covering more of the product would put the rest to work.`,
   };
 }
 

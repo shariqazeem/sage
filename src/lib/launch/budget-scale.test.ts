@@ -122,7 +122,9 @@ describe("over-funding is surfaced, not absorbed", () => {
   it("$401 on a single five-minute mission asks the founder", () => {
     const r = policy(401, [sm("logo", 5)]);
     expect(r.reason).toBe("over_funded");
-    expect(r.question).toMatch(/larger than the plan can spend/i);
+    expect(r.note).toMatch(/larger than the plan can spend/i);
+    // ADVISORY: a question would force needs_input and hand a well-funded founder no plan at all.
+    expect(r.question).toBeNull();
     // It quotes the honest capacity: 50 testers x the $1.00 ceiling for five minutes.
     expect(Number(r.absorbableBase) / 1e6).toBeCloseTo(50, 0);
   });
@@ -131,7 +133,7 @@ describe("over-funding is surfaced, not absorbed", () => {
     // Two 20-minute missions at three testers each is a $24 capacity; $18 sits comfortably inside it.
     const r = policy(18, [sm("a", 20), sm("b", 20)]);
     expect(r.reason).not.toBe("over_funded");
-    expect(r.question).toBeNull();
+    expect(r.note ?? null).toBeNull();
   });
 
   it("says nothing when effort is unknown, rather than guessing a rate", () => {
@@ -139,7 +141,7 @@ describe("over-funding is surfaced, not absorbed", () => {
     // over-funded — an unsubstantiated warning about a founder's money is worse than none.
     const r = policy(1.5, [sm("legacy", undefined)]);
     expect(r.reason).not.toBe("over_funded");
-    expect(r.question).toBeNull();
+    expect(r.note ?? null).toBeNull();
     expect(r.absorbableBase ?? null).toBeNull();
   });
 
@@ -159,7 +161,9 @@ describe("over-funding is checked on EVERY path, not just the happy one", () => 
       minRewardBase: MIN_REWARD_BASE,
     } as never);
     expect(r.reason).toBe("over_funded");
-    expect(r.question).toMatch(/larger than the plan can spend/i);
+    expect(r.note).toMatch(/larger than the plan can spend/i);
+    // ADVISORY: a question would force needs_input and hand a well-funded founder no plan at all.
+    expect(r.question).toBeNull();
   });
 
   it("an already-sampled plan is still checked", () => {
@@ -179,6 +183,39 @@ describe("over-funding is checked on EVERY path, not just the happy one", () => 
       minRewardBase: MIN_REWARD_BASE,
     } as never);
     expect(r.reason).toBe("budget_limited");
+    expect(r.question).toMatch(/only funds one fair reward/i);
+  });
+});
+
+describe("a generous budget must never cost a founder their plan", () => {
+  it("over-funding sets a NOTE and leaves question null on every path", () => {
+    // The pipeline turns any `question` into needs_input with no plan. Measured on the P-GEN
+    // battery at ~$910: excalidraw, play2048 and tailwindcss all went from a working plan to zero
+    // missions because this was written as a question. It is advice; the plan still ships.
+    const cases: [string, number, ReturnType<typeof sm>[]][] = [
+      ["singular goal", 403, [sm("solo", 5)]],
+      ["plural goal", 5_000, [sm("a", 5, 3), sm("b", 5, 3)]],
+      ["already sampled", 5_000, [sm("a", 5, 3), sm("b", 5, 3)]],
+      ["founder scale", 50_000, [sm("a", 5), sm("b", 20), sm("c", 60)]],
+    ];
+    for (const [label, usdAmt, ms] of cases) {
+      const r = applySamplePolicy(ms as never, {
+        goal: label === "singular goal" ? "check the thing" : "have several users try it",
+        totalBudgetBase: BigInt(Math.round(usdAmt * 1e6)),
+        minRewardBase: MIN_REWARD_BASE,
+      } as never);
+      expect(r.question, `${label} must not block`).toBeNull();
+      expect(r.missions.length, `${label} must still return missions`).toBeGreaterThan(0);
+    }
+  });
+
+  it("a budget that genuinely cannot pay a sample DOES still block", () => {
+    // The distinction that matters: too little money is a question, too much is a note.
+    const r = applySamplePolicy([sm("hard", 20)] as never, {
+      goal: "have several users try it",
+      totalBudgetBase: BigInt(1_500_000),
+      minRewardBase: MIN_REWARD_BASE,
+    } as never);
     expect(r.question).toMatch(/only funds one fair reward/i);
   });
 });
