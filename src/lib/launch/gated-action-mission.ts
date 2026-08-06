@@ -156,6 +156,8 @@ export function buildGatedActionMission(
   opts: {
     targetSurface: string;
     productName?: string | null;
+    /** A REAL cited observation. Defaulted from the target surface + the gate line Sage saw, because
+     *  a mission citing nothing is refused by the validator — correctly, and silently. */
     sources?: SourceRef[];
     priority?: MissionPriority;
     index?: number;
@@ -189,7 +191,14 @@ export function buildGatedActionMission(
       "The exact heading or line of text on that page that shows the result.",
     ],
     whyItMatters: `The founder asked for this specifically: "${action.sourcePhrase}". Sage can see where it begins but must never pay, sign, or register on anyone's behalf, so this is the part only a person can carry out.`,
-    sources: opts.sources ?? [],
+    // EVERY MISSION MUST CITE SOMETHING SAGE OBSERVED, and this one nearly shipped citing nothing.
+    // Built correctly, anchored correctly, and then dropped by the validator with
+    // `unknown_source_ref` — in silence, exactly as the drop is designed to behave. So on clawup.org
+    // the gate was detected, the mission was constructed, and it vanished before the founder saw it.
+    // The gate line IS the observation: Sage read those words on that page.
+    sources: opts.sources ?? [
+      { kind: "page", ref: opts.targetSurface, observation: action.gateAnchor },
+    ],
     priority: opts.priority ?? "high",
     // The category the gate itself belongs to — payment and wallet steps are literally this.
     riskCategory:

@@ -519,7 +519,9 @@ export async function runMissionBrain(
     if (uncovered.length > 0) {
       const built = uncovered.map((a, i) =>
         buildGatedActionMission(a, {
-          targetSurface: founder.productUrl,
+          // The surface must be one the validator KNOWS Sage inspected, else the mission is refused
+          // as out of scope. The entry url is the safest such surface and is where the gate was read.
+          targetSurface: [...scope.knownUrls].find((u) => u === founder.productUrl) ?? founder.productUrl,
           productName: map.productName,
           index: i,
         }),

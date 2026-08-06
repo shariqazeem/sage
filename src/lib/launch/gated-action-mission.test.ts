@@ -7,7 +7,7 @@ import {
   alreadyCovered,
   type GatedAction,
 } from "./gated-action-mission";
-import { classifyVerifiability, anchorIssues } from "./validate-mission";
+import { classifyVerifiability, anchorIssues, validatePlanMissions } from "./validate-mission";
 
 /**
  * THE WORK SAGE CANNOT DO IS EXACTLY THE WORK A PAID TESTER IS FOR.
@@ -183,5 +183,47 @@ describe("it does not duplicate work the architect already planned", () => {
         { title: "Read the docs", objective: "Open the quickstart", criteria: ["the page loads"] },
       ]),
     ).toBe(false);
+  });
+});
+
+describe("it must survive the FULL validator, not just the parts I remembered", () => {
+  const scope = {
+    knownUrls: new Set(["https://clawup.org", "https://clawup.org/"]),
+    hosts: new Set(["clawup.org"]),
+    repoPaths: new Set<string>(),
+  };
+  // The real notable-element texts recorded from clawup.org, lowercased as the corpus stores them.
+  const REAL_LINES = [
+    "clawup — build and power up your ai agent",
+    "works with leading agent frameworks",
+    "simple, pay-as-you-go pricing",
+    "sign in / sign up",
+    "user guide",
+  ];
+
+  it("passes validatePlanMissions end to end on a real product's lines", () => {
+    // The mission was built correctly and ANCHORED correctly and still never reached the founder:
+    // it cited no source, so the validator dropped it with `unknown_source_ref` — in silence,
+    // exactly as that drop is designed to behave. Anchors alone are not the gate.
+    const action = detectGatedActions(GOAL, REAL_LINES).find((a) => a.family === "payment")!;
+    expect(action.gateAnchor).toBe("simple, pay-as-you-go pricing");
+    const m = buildGatedActionMission(action, {
+      targetSurface: "https://clawup.org",
+      productName: "ClawUp",
+    });
+    const [report] = validatePlanMissions([m], scope as never, REAL_LINES.join(" • "), undefined);
+    expect(report.issues.map((i) => i.code)).toEqual([]);
+    expect(report.ok).toBe(true);
+  });
+
+  it("cites the gate line it actually read, on the page it read it", () => {
+    const m = buildGatedActionMission(
+      { family: "payment", sourcePhrase: "buy credits", gateAnchor: "simple, pay-as-you-go pricing" },
+      { targetSurface: "https://clawup.org" },
+    );
+    expect(m.sources).toHaveLength(1);
+    expect(m.sources[0]!.kind).toBe("page");
+    expect(m.sources[0]!.ref).toBe("https://clawup.org");
+    expect(m.sources[0]!.observation).toBe("simple, pay-as-you-go pricing");
   });
 });
