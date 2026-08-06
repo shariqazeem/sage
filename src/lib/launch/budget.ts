@@ -99,7 +99,42 @@ export function allocateBudget(
       const reward = maxBig(MIN, u * BigInt(w));
       return { missionKey: m.missionKey, rewardBase: reward, maxCompletions: cap, weight: w, effortMinutes: m.effortMinutes };
     });
-    const othersSpend = otherAlloc.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
+    let othersSpend = otherAlloc.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
+
+    // THE SHARE RULE — the mission the founder actually asked about must not be the one that gets
+    // the leftovers.
+    //
+    // Rewards already track difficulty: reward ∝ weight, so a hard mission pays more per tester than
+    // an easy one. Nothing tracked how the budget SPLITS between missions, because the split is
+    // reward × count and the model picks the count. Measured on a real clawup.org run at $120, goal
+    // "launch an agent, which needs topping up credits and paying for compute": the model asked for 3
+    // testers on that 25-minute paid mission and 17 on a five-minute "check the Terms of Service
+    // effective date". The compiler executed both faithfully, so the founder's actual request took
+    // $20.80 and quoting a legal date seventeen times took $44.20 — two thirds of the money, for the
+    // same fixed string seventeen times over.
+    //
+    // The balancer is the plan's top mission by construction (priority, then weight), which is to say
+    // the one that most serves the stated goal, so the rule is simply: no other single mission may
+    // out-spend it. Only COUNTS are trimmed and only downward, so rewards still track difficulty
+    // exactly, the balancer keeps absorbing the exact remainder, and the invariant is untouched —
+    // every unit trimmed from an other lands on the balancer. Counts bottom out at 1, so this always
+    // terminates, and a plan whose breadth genuinely is the point reverses the rule by itself: give
+    // the broad mission the higher priority and it becomes the balancer.
+    for (;;) {
+      const remainder = B - othersSpend;
+      let worst = -1;
+      let worstSpend = BigInt(0);
+      for (let i = 0; i < otherAlloc.length; i++) {
+        const spend = otherAlloc[i].rewardBase * otherAlloc[i].maxCompletions;
+        if (spend > remainder && spend > worstSpend && otherAlloc[i].maxCompletions > BigInt(1)) {
+          worst = i;
+          worstSpend = spend;
+        }
+      }
+      if (worst < 0) break;
+      otherAlloc[worst].maxCompletions -= BigInt(1);
+      othersSpend -= otherAlloc[worst].rewardBase;
+    }
 
     // The balancer absorbs the EXACT remainder. It used to do that in a single completion, which is
     // what guarantees the sum, and is fine at small budgets: a $10 plan pays its balancer $4.29 once.

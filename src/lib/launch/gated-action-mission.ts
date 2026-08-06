@@ -173,7 +173,16 @@ export function buildGatedActionMission(
     // REACHES_URL + FINDS_TEXT, no SUBJECTIVE terms. Checked by test, not by hope.
     objective: `Complete ${noun} in ${product} that the founder asked to have tested, then reach the page that confirms it and provide the url of that page along with the exact heading shown on it.`,
     instructions: [
-      `Start from ${action.gateAnchor}.`,
+      // MEASURED on the clawup.org run this mission exists for. The gate anchor is a line Sage read
+      // on the page, so dropping it in bare produced "Start from simple, pay-as-you-go pricing." —
+      // a heading spliced mid-sentence, reading as broken grammar and naming no destination. Quoting
+      // it AS a label is what makes it usable: a tester can look for those words on the screen.
+      `Start from the part of ${product} labelled "${action.gateAnchor}".`,
+      // And say what is actually being bought. The old text said only "the paid step", so a tester
+      // could not tell credits from a subscription from compute — on a mission that spends their own
+      // money, and often the first English-language mission a beginner takes. The founder's sentence
+      // is already on this mission (whyItMatters); it just never reached the person doing the work.
+      `The founder described this step in their own words: "${action.sourcePhrase}".`,
       `Carry ${noun} through to completion${spends ? " using your own payment method" : ""}.`,
       "When it finishes, stay on the page that confirms the result.",
       "Give the url of that page and copy the exact heading or line of text on it that shows the result.",

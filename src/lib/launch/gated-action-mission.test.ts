@@ -232,4 +232,46 @@ describe("it must survive the FULL validator, not just the parts I remembered", 
     expect(m.sources[0]!.ref).toBe("https://clawup.org");
     expect(m.sources[0]!.observation).toBe("simple, pay-as-you-go pricing");
   });
+
+  /**
+   * WHAT THE TESTER ACTUALLY READS. Shipped once and measured on the live clawup.org plan, the
+   * instructions began:
+   *
+   *   "Start from simple, pay-as-you-go pricing. Carry the paid step through to completion using
+   *    your own payment method."
+   *
+   * The gate line is a page heading, so splicing it in bare reads as broken grammar and names no
+   * destination; and "the paid step" never says whether to buy credits, a subscription, or compute.
+   * On the one mission that spends the tester's own money, and often the first mission a beginner
+   * takes in a second language, that is the difference between doing the work and abandoning it.
+   */
+  describe("the instructions tell a first-time tester what to actually do", () => {
+    const m = buildGatedActionMission(
+      {
+        family: "payment",
+        sourcePhrase: "That needs them to top up credits and pay for compute first.",
+        gateAnchor: "simple, pay-as-you-go pricing",
+      },
+      { targetSurface: "https://clawup.org", productName: "ClawUp" },
+    );
+
+    it("quotes the gate line as a label, not as prose", () => {
+      expect(m.instructions).toContain('labelled "simple, pay-as-you-go pricing"');
+      expect(m.instructions).not.toContain("Start from simple, pay-as-you-go pricing.");
+    });
+
+    it("passes on the founder's own words for what is being bought", () => {
+      expect(m.instructions).toContain("top up credits and pay for compute");
+    });
+
+    it("still says plainly that this spends the tester's own money", () => {
+      expect(m.instructions).toContain("spend your own money");
+    });
+
+    it("is still judged in the only lane that can judge it", () => {
+      // The objective is what `classifyVerifiability` reads, and it is deliberately fixed wording.
+      // Founder text lands in the instructions precisely so it can never flip the lane.
+      expect(classifyVerifiability(m)).toBe("url-verifiable");
+    });
+  });
 });
