@@ -5,6 +5,7 @@ import { getInspectionJob, updateInspectionJob, resetInspectionForRetry } from "
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
+import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { fieldTestEnabled } from "./field-test";
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
@@ -51,6 +52,51 @@ export function serialize<T>(v: T): unknown {
  * pipeline enters them. On success it stores the result AND creates revision 1 of the
  * durable plan. Never throws — a failure is a `failed` status with a sanitized reason.
  */
+/**
+ * THE CANARY IDENTITY — a SERVER-VERIFIED wallet for the founder this job belongs to, or null.
+ *
+ * A job's `founderWallet` is an ownership NAMESPACE, not always an address: a SIWE web founder is
+ * `0x…`, an anonymous job is "anonymous", and a Telegram or agent-started one is `clawup:<ref>`
+ * (the real owner is claimed later at /launch/<id>). Only the first shape passed
+ * `isValidFounderWallet`, so only web founders could ever reach the grounded planner.
+ *
+ * MEASURED over all 344 jobs: every one of the 20 grounded plans ever selected came from a `0x`
+ * founder. All 43 Telegram founders were refused as `no_server_identity` — not once for a reason
+ * about their product or their plan. They received the weaker legacy planner every single time,
+ * for the same product and the same budget a web founder would have gotten the grounded one for.
+ * That is not a rollout boundary, it is an accident of which string the namespace happened to hold.
+ *
+ * A Telegram founder DOES have a real, server-held, server-verified wallet: the Privy agent wallet
+ * minted when they linked, keyed by the chat this namespace is derived from. It is the same wallet
+ * that will fund the campaign. Resolving it here changes nothing about ownership, funding, or
+ * approval — those still run through the claim and mandate paths — and a founder with no linked
+ * wallet resolves to null, exactly as today.
+ *
+ * Nothing caller-supplied is trusted: the namespace is server-authored at job creation and the
+ * lookup is a primary-key read against wallets minted by the link flow.
+ */
+export function resolveCanaryIdentity(founderWallet: string | null | undefined): CanaryIdentity | null {
+  const raw = (founderWallet ?? "").trim();
+  if (isValidFounderWallet(raw)) {
+    return { wallet: raw, operatorAuthorized: isWalletCanaryEligible(raw), source: "server_session" };
+  }
+  if (!raw.toLowerCase().startsWith("clawup:")) return null;
+  const chatId = raw.slice("clawup:".length);
+  if (!chatId) return null;
+  let address: string | null = null;
+  try {
+    address = getAgentWallet(chatId)?.privyWalletAddress ?? null;
+  } catch {
+    return null; // a lookup failure must degrade to today's behaviour, never grant authority
+  }
+  if (!address || !isValidFounderWallet(address)) return null;
+  return {
+    wallet: address.toLowerCase(),
+    operatorAuthorized: isWalletCanaryEligible(address),
+    source: "server_session",
+  };
+}
+
 /** Failure reasons worth re-running the whole job for: the provider blinked, nothing is wrong with
  *  the product or the plan. Anything else (a real refusal, a needs-input, a bad URL) is not retried
  *  — repeating it would only make the founder wait for the same honest answer. */
@@ -86,9 +132,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
   // operator's allowlisting of this wallet — NOT founder consent (the actual founder decision is the separate
   // SIWE approval of the generated revision). The wallet MUST be syntactically valid + non-anonymous, so an
   // "anonymous" job can never carry canary authority.
-  const canaryIdentity: CanaryIdentity | null = isValidFounderWallet(job.founderWallet)
-    ? { wallet: job.founderWallet, operatorAuthorized: isWalletCanaryEligible(job.founderWallet), source: "server_session" }
-    : null;
+  const canaryIdentity = resolveCanaryIdentity(job.founderWallet);
 
   try {
     const result = await inspectAndPlan(
