@@ -148,3 +148,37 @@ describe("over-funding is surfaced, not absorbed", () => {
     expect(r.reason).not.toBe("over_funded");
   });
 });
+
+describe("over-funding is checked on EVERY path, not just the happy one", () => {
+  it("a singular goal is still checked", () => {
+    // The first version put this at the bottom of the plural path, and a singular goal walked past
+    // it. That is how a live clawup run paid $35.48 a head for five minutes and said nothing.
+    const r = applySamplePolicy([sm("solo", 5)] as never, {
+      goal: "check that a user can do the thing",
+      totalBudgetBase: BigInt(403_000_000),
+      minRewardBase: MIN_REWARD_BASE,
+    } as never);
+    expect(r.reason).toBe("over_funded");
+    expect(r.question).toMatch(/larger than the plan can spend/i);
+  });
+
+  it("an already-sampled plan is still checked", () => {
+    const r = applySamplePolicy([sm("a", 5, 3), sm("b", 5, 3)] as never, {
+      goal: "have a few users try it",
+      totalBudgetBase: BigInt(5_000_000_000),
+      minRewardBase: MIN_REWARD_BASE,
+    } as never);
+    expect(r.reason).toBe("over_funded");
+  });
+
+  it("never overwrites the more specific budget_limited question", () => {
+    // A plan that cannot afford two fair rewards has a better thing to say than "too much money".
+    const r = applySamplePolicy([sm("hard", 20)] as never, {
+      goal: "have several users try it",
+      totalBudgetBase: BigInt(1_500_000),
+      minRewardBase: MIN_REWARD_BASE,
+    } as never);
+    expect(r.reason).toBe("budget_limited");
+    expect(r.question).toMatch(/only funds one fair reward/i);
+  });
+});
