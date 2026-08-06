@@ -20,6 +20,7 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
+import { detectGatedActions, alreadyCovered, buildGatedActionMission } from "./gated-action-mission";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
@@ -493,6 +494,46 @@ export async function runMissionBrain(
         }
       }
     }
+  }
+
+  // THE GATED ACTION THE FOUNDER ASKED FOR. Some of what a founder most wants proven sits behind a
+  // boundary Sage must never cross — buying credits, paying for compute, registering a real account.
+  // Sage reaches the gate, sees it, and correctly stops; the architect then has nothing observable to
+  // design against and writes about whatever it COULD reach. Measured live on clawup.org at $400 with
+  // the goal "testers must launch an agent, which requires purchasing credits": the plan that came
+  // back was a single mission about the brand guidelines page.
+  //
+  // A person with their own payment method walks straight through that gate. So the mission is built
+  // deterministically here rather than asked of the model: it must anchor on the doorway Sage really
+  // saw and must read as url-verifiable, and both of those are mechanical checks the same gate
+  // applies to every other mission. It is added ONLY when the founder's own words named the action
+  // and nothing in the plan already covers it — inventing a paid step is the failure `intent-guard`
+  // exists to prevent, and this must never become that in reverse.
+  try {
+    // The candidate lines come from the anchor CORPUS itself, split on its own separator. Any other
+    // source risks proposing an anchor that is not a literal substring of it, which the gate would
+    // then reject — the corpus is the definition of "what Sage observed", so read it directly.
+    const observedLines = corpus.split(" • ").filter((l) => l.trim().length > 0);
+    const gated = detectGatedActions(founder.goal, observedLines);
+    const uncovered = gated.filter((a) => !alreadyCovered(a, r.accepted));
+    if (uncovered.length > 0) {
+      const built = uncovered.map((a, i) =>
+        buildGatedActionMission(a, {
+          targetSurface: founder.productUrl,
+          productName: map.productName,
+          index: i,
+        }),
+      );
+      // The synthesized missions face the SAME deterministic gate as model-authored ones. Anything
+      // that fails it is dropped in silence — a mission Sage cannot stand behind is not an improvement.
+      const gatedReports = validatePlanMissions(built, scope, corpus, map.observations);
+      const gatedAccepted = built
+        .filter((_m, i) => gatedReports[i].ok)
+        .map((m) => ({ ...m, verifiabilityClass: classifyVerifiability(m) }));
+      if (gatedAccepted.length > 0) r = { ...r, accepted: [...r.accepted, ...gatedAccepted] };
+    }
+  } catch {
+    /* a synthesized extra is a bonus, never a reason the whole plan fails */
   }
 
   for (const q of map.openQuestions) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
