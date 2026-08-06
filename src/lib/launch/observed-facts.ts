@@ -279,7 +279,7 @@ export function deriveObservations(
           source: "field_transition",
           pageUrl: s.url,
           stateId,
-          texts: [norm(s.visibleTextExcerpt).slice(0, 400)],
+          texts: [norm(s.visibleTextExcerpt).slice(0, 800)],
         }),
       );
     }

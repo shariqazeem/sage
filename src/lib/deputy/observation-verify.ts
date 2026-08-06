@@ -48,8 +48,13 @@ export interface CorpusMatch {
 }
 
 const MIN_OBS_LEN = 4; // ignore trivially short fragments (calibratable in shadow)
-const MAX_OBS = 400; // size-cap the stored key
-const MAX_KEY_CHARS = 24_000; // hard char budget on the serialized key
+// 600 / 36k (were 400 / 24k): page excerpts grew from 900 to 4000 chars, and the distiller admits
+// pages BEFORE states and vision — at the old caps a text-rich product filled the key with page
+// prose and crowded out exactly the state/vision phrases that prove a tester actually DID the work.
+// More headroom keeps both; the per-observation floors (≥2 content words, spread collapse, parrot
+// exclusion) are unchanged, so nothing here loosens what counts as a match.
+const MAX_OBS = 600; // size-cap the stored key
+const MAX_KEY_CHARS = 36_000; // hard char budget on the serialized key
 /**
  * P20.0 anti-guess floor: an observation must carry this many CONTENT words to be a matchable answer-key
  * entry. Generic category/UI terms ("shapes", "tools", "keyboard shortcuts") are 1–2 words and guessable;

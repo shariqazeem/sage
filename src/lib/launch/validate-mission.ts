@@ -122,7 +122,11 @@ function urlsIn(text: string): string[] {
 
 /* ───────── the anchor gate: a mission may only claim what Sage actually observed ─────────── */
 
-const CORPUS_CAP = 80_000;
+// 240k, not 80k. Page/state excerpts now run to 4000 chars, and the corpus is assembled statics →
+// pages → states → vision: at 80k a text-rich run truncated the TAIL, which is exactly where the
+// vision entries sit — so an anchor honestly quoted from a screenshot would start failing the gate.
+// The corpus is mechanical (substring checks only, never sent to a model), so the cap costs nothing.
+const CORPUS_CAP = 240_000;
 const MIN_ANCHOR_LEN = 3;
 
 /** Normalize text for anchor matching: lowercase + collapse whitespace. */
