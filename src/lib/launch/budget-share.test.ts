@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { allocateBudget, type WeightedMission } from "./budget";
+import { allocateBudget, MIN_REWARD_BASE, type WeightedMission } from "./budget";
+import { splitCompletionsForSample } from "./sample-policy";
 
 /**
  * THE FOUNDER'S ACTUAL REQUEST MUST NOT GET THE LEFTOVERS.
@@ -88,6 +89,30 @@ describe("budget share follows the plan's top mission", () => {
     expect(spend(a, "terms-and-privacy-transparency")).toBeGreaterThanOrEqual(
       spend(a, "gated-payment"),
     );
+  });
+
+  /**
+   * The pipeline does not ship `allocateBudget`'s output directly — `splitCompletionsForSample` runs
+   * after it and can RAISE a mission's completion count toward the sampled target. It holds the pot
+   * bit for bit while doing so, which is exactly why it cannot undo a share trim: this rule is about
+   * money, and the split only ever redistributes money already inside one mission. Worth pinning,
+   * because a later change to the split that touched the pot would silently reopen the defect.
+   */
+  it("survives the sample split that runs after it", () => {
+    const a = allocateBudget([GATED, TERMS], usd(65));
+    const target = new Map([
+      ["terms-and-privacy-transparency", 17], // the model's original ask, back again
+      ["gated-payment", 3],
+    ]);
+    const after = splitCompletionsForSample(a.missions, target, MIN_REWARD_BASE);
+    const spendOf = (key: string) => {
+      const m = after.find((x) => x.missionKey === key)!;
+      return m.rewardBase * m.maxCompletions;
+    };
+    expect(spendOf("gated-payment")).toBeGreaterThanOrEqual(
+      spendOf("terms-and-privacy-transparency"),
+    );
+    expect(after.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0))).toBe(usd(65));
   });
 
   it("holds across budgets, and never strands a unit", () => {
