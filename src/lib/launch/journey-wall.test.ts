@@ -98,3 +98,39 @@ describe("trailing punctuation is not doubled into the sentence", () => {
     expect(wall.boundary).not.toMatch(/\.\)/);
   });
 });
+
+describe("the wall comes with a way through it", () => {
+  const cp = (over: Partial<GoalCheckpointV1> = {}): GoalCheckpointV1 => ({
+    checkpointId: "c1",
+    kind: "interaction",
+    requirement: "Purchase credits using personal funds",
+    targetEntity: "credits",
+    requiredContext: "",
+    dependsOn: [],
+    sourcePhrase: "purchase credits",
+    evidence: { factIds: [], transitionIds: [] },
+    status: "unmet",
+    entityIsObserved: false,
+    ...over,
+  });
+
+  it("an ACCESS wall asks for the one thing that would open it", () => {
+    // Naming the wall well is not the same as telling someone how to open it. The message described
+    // every unfinished part and separated access from effort, then left the founder nothing to do.
+    const r = describeJourneyWall([cp()]);
+    expect(r.unblockAsk).toBeTruthy();
+    expect(r.unblockAsk).toMatch(/demo account|invite code|public URL/i);
+  });
+
+  it("an EFFORT wall asks for nothing, because nothing they send would help", () => {
+    // Sage found it and ran out of visit. No credential fixes that, so inventing an ask would be
+    // noise dressed as helpfulness.
+    const r = describeJourneyWall([cp({ entityIsObserved: true })]);
+    expect(r.unblockAsk).toBeNull();
+  });
+
+  it("a mixed wall still asks, because the access half is real", () => {
+    const r = describeJourneyWall([cp(), cp({ checkpointId: "c2", entityIsObserved: true })]);
+    expect(r.unblockAsk).toBeTruthy();
+  });
+});

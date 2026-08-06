@@ -1266,6 +1266,9 @@ export function journeyGapQuestion(cp: GoalCheckpointV1): string {
 export function describeJourneyWall(missing: GoalCheckpointV1[]): {
   boundary: string;
   unreachable: string[];
+  /** What the founder can hand Sage to unblock the ACCESS half, when there is one. Null otherwise —
+   *  nothing they could send would let Sage finish a flow that simply takes longer than one visit. */
+  unblockAsk: string | null;
 } {
   const label = (c: GoalCheckpointV1) => c.requirement.replace(/\.$/, "");
   const unreached = missing.filter((c) => c.entityIsObserved === false);
@@ -1280,7 +1283,15 @@ export function describeJourneyWall(missing: GoalCheckpointV1[]): {
   ]
     .filter(Boolean)
     .join(", and ");
-  return { boundary, unreachable: missing.map(label).slice(0, 4) };
+  // THE ONE THING THEY CAN ACTUALLY DO ABOUT IT. Explaining a wall well is not the same as telling
+  // someone how to open it: the message named every unfinished part, separated access from effort,
+  // and then left the founder with nothing to act on. An ACCESS wall has an answer a founder can
+  // send in one line; an EFFORT wall does not, so this stays null there rather than inventing an ask.
+  const unblockAsk =
+    unreached.length > 0
+      ? "If you can share a demo account, an invite code, or a public URL where that part is reachable without signing in, reply with it and Sage will design missions for that flow too."
+      : null;
+  return { boundary, unreachable: missing.map(label).slice(0, 4), unblockAsk };
 }
 
 /**

@@ -667,7 +667,7 @@ export async function inspectAndPlan(
     // learn exactly how it works, and then refuse to plan because it couldn't personally complete the
     // last step — then ask the founder to restate a goal they had already stated plainly.
     if (observed.length > 0 && legacy.plan.missions.length > 0) {
-      const { boundary, unreachable } = describeJourneyWall(missing);
+      const { boundary, unreachable, unblockAsk } = describeJourneyWall(missing);
       map.limitations = [
         ...new Set([
           ...map.limitations,
@@ -682,6 +682,9 @@ export async function inspectAndPlan(
         plan: legacy.plan,
         questions: [
           `These missions cover what Sage verified itself. It did not finish ${unreachable.length === 1 ? "this part" : "these parts"} of your request — ${unreachable.join("; ")} — because ${boundary}. A human tester can still do it; Sage just can't witness it, so that part holds for your approval instead of paying out automatically.`,
+          // An access wall has an answer the founder can send in one line. Saying so is the
+          // difference between a good explanation and a next step.
+          ...(unblockAsk ? [unblockAsk] : []),
         ],
         canary: {
           status: "blocked",
