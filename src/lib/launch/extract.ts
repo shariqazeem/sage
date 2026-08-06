@@ -148,7 +148,9 @@ export function extractObservation(input: {
   const contentSha256 = createHash("sha256")
     .update(input.bytes ?? Buffer.from(html, "utf8"))
     .digest("hex");
-  const snippets = uniq(tagTexts(noScript, "p").filter((p) => p.length >= 20)).slice(0, 4).map((s) => s.slice(0, 160));
+  // 8 × 240, not 4 × 160: on an HTML-only inspection (field test off or failed) these snippets are
+  // the ONLY page prose the corpus gets — 4 short ones read just the hero copy of a landing page.
+  const snippets = uniq(tagTexts(noScript, "p").filter((p) => p.length >= 20)).slice(0, 8).map((s) => s.slice(0, 240));
 
   return {
     url: input.url,

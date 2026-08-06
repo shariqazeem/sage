@@ -384,6 +384,37 @@ function sufficiencyQuestions(map: ProductMapV1, founderGoal = ""): string[] {
   return qs.slice(0, 3);
 }
 
+/**
+ * Questions built from WHY the designed missions died, so the founder answers the real problem.
+ * Measured on production needs_input rows: a docs site whose missions the critic rejected as
+ * "presence checks" was asked "where should a new user start?" — the map's generic seed question,
+ * with no connection to what actually happened and no answer that would change the outcome.
+ */
+export function rejectionQuestionsFor(
+  candidates: CandidateMission[],
+  critiques: MissionCritique[],
+  reports: MissionValidationReport[],
+): string[] {
+  const qs: string[] = [];
+  const rejected = critiques.filter((c) => c.decision === "reject" && (c.reasons ?? []).length > 0);
+  if (rejected.length > 0 && candidates.length > 0) {
+    const first = candidates.find((m) => m.missionKey === rejected[0].missionKey) ?? candidates[0];
+    const reason = ((rejected[0].reasons ?? [])[0] ?? "it could not be verified").replace(/[.\s]+$/, "");
+    qs.push(
+      `Sage designed ${candidates.length} mission idea${candidates.length === 1 ? "" : "s"} and rejected ${rejected.length >= candidates.length ? "all of them" : "most of them"} itself. For example "${first.title}" was rejected because: ${String(reason).slice(0, 160)}. What should a tester DO in your product, and what should be visibly true on screen once they've done it? Sage will design against that.`,
+    );
+  }
+  const unseenCited = reports.some((rep) =>
+    rep.issues.some((i) => i.code === "hallucinated_route" || i.code === "unknown_source_ref" || i.code === "target_out_of_scope"),
+  );
+  if (unseenCited) {
+    qs.push(
+      "Some mission ideas cited pages Sage never actually reached. If specific pages or flows matter most, share direct links Sage can open, or allowlist its requests (they carry an `x-sage-agent` header).",
+    );
+  }
+  return qs.slice(0, 2);
+}
+
 export async function runMissionBrain(
   map: ProductMapV1,
   founder: FounderLaunchInput,
@@ -442,12 +473,22 @@ export async function runMissionBrain(
   }
   let r = await run(arch);
 
-  // CORRECTIVE ROUND: if the deterministic gate rejected everything, feed the exact
-  // validation issues back to the architect ONCE. This is a real model correction —
-  // never canned missions, never a weakened gate.
+  // CORRECTIVE ROUND: if nothing survived, feed the exact rejection reasons back to the architect
+  // ONCE — the gate's validation issues AND the critic's verdicts. This is a real model correction —
+  // never canned missions, never a weakened gate. The critic half is load-bearing: measured across
+  // 56 production no_missions_passed_validation rows, 31 died at the CRITIC (mostly "presence check /
+  // not worth paying for") — and zero survivors meant zero gate reports, so this round fired blind
+  // and the architect regenerated the same shape of mission it had just had rejected.
   if (r.accepted.length === 0) {
-    const issues = r.reports.flatMap((rep) => rep.issues.map((x) => `${rep.missionKey}: ${x.code} — ${x.detail}`)).slice(0, 10).join("; ");
-    const arch2 = await architect(map, founder, issues || "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
+    const gateIssues = r.reports.flatMap((rep) => rep.issues.map((x) => `${rep.missionKey}: ${x.code} — ${x.detail}`));
+    const criticIssues = r.critiques
+      .filter((c) => c.decision === "reject" || c.decision === "revise")
+      .flatMap((c) => (c.reasons ?? []).slice(0, 2).map((x) => `${c.missionKey}: critic — ${x}`));
+    const issues = [...gateIssues, ...criticIssues].slice(0, 10).join("; ");
+    const steer = criticIssues.length > 0
+      ? "\nDesign DIFFERENT missions that survive that review: each must make the tester DO something and name the specific on-screen outcome that proves it happened — never a mission that only confirms text or elements exist."
+      : "";
+    const arch2 = await architect(map, founder, issues ? `${issues}${steer}` : "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
     if (arch2.ok) { arch = arch2; r = await run(arch2); }
   }
 
@@ -538,6 +579,15 @@ export async function runMissionBrain(
     /* a synthesized extra is a bonus, never a reason the whole plan fails */
   }
 
+  // WHEN THE PLAN DIED, SAY WHY FIRST. The map's open questions are generic seeds written before any
+  // mission existed; on a total rejection they used to lead (and often WERE the whole ask), which is
+  // how a fully-read docs site got "where should a new user start?". The rejection-derived questions
+  // carry the actual cause, so they go first and the seeds become trailing context.
+  if (r.accepted.length === 0) {
+    for (const q of rejectionQuestionsFor(arch.candidates, r.critiques, r.reports)) {
+      if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
+    }
+  }
   for (const q of map.openQuestions) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   // Never dead-end the founder loop: if the gate rejected every mission but neither the critic nor the
   // map surfaced a question (e.g. a bot-walled/SPA product the browser reached but couldn't anchor a

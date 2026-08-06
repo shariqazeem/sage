@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { getInspectionJob, updateInspectionJob, resetInspectionForRetry } from "@/lib/db/inspection";
+import { getInspectionJob, updateInspectionJob, resetInspectionForRetry, failStalledInspection } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
@@ -113,6 +113,40 @@ const RETRYABLE_FAILURES = new Set([
   "truncated_output",
 ]);
 const MAX_AUTO_RETRIES = 2;
+
+/** A job whose runner died (a deploy restart kills the in-flight `after()` work) shows its last
+ *  stamped stage forever. Every real stage stamps `updatedAt`, and the longest legitimate gap
+ *  between stamps measured on prod is ~11 minutes (a slow field test + a full retry ladder), so
+ *  15 minutes without movement is a dead runner, not a slow one. */
+const STALL_SECONDS = 15 * 60;
+const NON_TERMINAL: ReadonlySet<InspectionStatus> = new Set([
+  "queued", "fetching", "field_test", "analyzing", "mapping", "generating_missions", "reviewing",
+]);
+
+/**
+ * Reap a job whose runner died mid-flight. Measured on prod: three jobs sat in
+ * `generating_missions` / `field_test` for DAYS — the founder's screen said Sage was working and
+ * nothing was running, the worst kind of fabricated progress. Called from the status read (the
+ * founder's polling is the one heartbeat we always have). CAS-guarded so a live run that advances
+ * meanwhile is never touched and only one of N concurrent readers acts.
+ *
+ * Returns "retrying" when the caller should schedule `runInspectionJob` (observations from the
+ * dead run survive in `result` and are unioned into the retry), "failed" when retries are spent,
+ * null when the job is healthy.
+ */
+export function reapStalledJob(job: InspectionJob): "retrying" | "failed" | null {
+  if (!NON_TERMINAL.has(job.status)) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (now - job.updatedAt < STALL_SECONDS) return null;
+  const won = failStalledInspection(
+    job.id,
+    { status: job.status, updatedAt: job.updatedAt },
+    `stalled_in_${job.status}`,
+  );
+  if (!won) return null;
+  if (job.retryCount < MAX_AUTO_RETRIES && resetInspectionForRetry(job.id)) return "retrying";
+  return "failed";
+}
 
 export async function runInspectionJob(jobId: string): Promise<void> {
   const job = getInspectionJob(jobId);

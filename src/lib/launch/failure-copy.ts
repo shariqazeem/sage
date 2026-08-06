@@ -24,6 +24,12 @@ export function friendlyFailure(reason?: string | null): string {
       : "Sage stopped before publishing a plan it couldn’t fully back with what it observed. Try again, or describe the outcome you want in more detail.";
   }
 
+  // The reaper family: the runner died mid-flight (usually a restart) and auto-retries are spent.
+  // The retry genuinely resumes from what was already observed (prior observations are unioned).
+  if (r.startsWith("stalled_in_")) {
+    return "Sage’s run was interrupted partway (a restart on Sage’s side) and didn’t resume. Retry picks it back up, keeping what it already saw.";
+  }
+
   switch (r) {
     case "llm_not_configured":
       return "Sage’s reviewer is not configured in this environment.";

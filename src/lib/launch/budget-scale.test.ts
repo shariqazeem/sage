@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { allocateBudget, MAX_COMPLETIONS, MIN_REWARD_BASE, type WeightedMission } from "./budget";
-import { applySamplePolicy } from "./sample-policy";
+import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
 
 /**
  * A BIG BUDGET MUST BUY MORE TESTERS, NOT ONE ENORMOUS REWARD.
@@ -217,5 +217,127 @@ describe("a generous budget must never cost a founder their plan", () => {
       minRewardBase: MIN_REWARD_BASE,
     } as never);
     expect(r.question).toMatch(/only funds one fair reward/i);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * FAIR CAPACITY — the number the allocator is now CAPPED at, not just warned about.
+ *
+ * The over-funding note diagnosed the problem and then the allocation shipped it anyway: measured
+ * on production, excalidraw at $913 paid 50 testers $18.26 each for 5-minute work, with a note
+ * attached saying the fair total was about $50. `planFairCapacityBase` is the ceiling the pipeline
+ * hands the allocator (legacy path only); the surplus stays with the founder, disclosed.
+ */
+describe("planFairCapacityBase", () => {
+  const q = (effortMinutes: number | undefined, maxCompletions = 3) => ({ effortMinutes, maxCompletions, qualitative: true });
+  const u = (effortMinutes: number | undefined, maxCompletions = 3) => ({ effortMinutes, maxCompletions, qualitative: false });
+
+  it("a qualitative mission absorbs up to MAX_SAMPLE testers at its effort ceiling", () => {
+    // 5 minutes → $1.00 ceiling × 50 testers = $50.00, regardless of the model's suggested count.
+    expect(planFairCapacityBase([q(5, 3)], MIN_REWARD_BASE)).toBe(BigInt(50_000_000));
+  });
+
+  it("a url-verifiable mission absorbs only its own suggested count", () => {
+    // The sample policy never raises url missions, so capacity must not pretend it will.
+    expect(planFairCapacityBase([u(5, 4)], MIN_REWARD_BASE)).toBe(BigInt(4_000_000));
+  });
+
+  it("any mission without effort data suppresses the whole judgement", () => {
+    expect(planFairCapacityBase([q(5), q(undefined)], MIN_REWARD_BASE)).toBeNull();
+    expect(planFairCapacityBase([], MIN_REWARD_BASE)).toBeNull();
+  });
+});
+
+describe("the capped allocation chain lands at fair per-tester rewards", () => {
+  // Mirrors the pipeline's compileMissions legacy chain exactly: capacity → allocate(min(budget,
+  // capacity)) → sample policy at the EFFECTIVE budget → split. The full real-caller path is also
+  // exercised through inspectAndPlan in inspect-and-plan.integration.test.ts.
+  function compileChain(
+    missions: { missionKey: string; weight: number; suggestedMaxCompletions: number; priority: "high" | "medium" | "low"; effortMinutes: number; qualitative: boolean }[],
+    budgetUsd: number,
+    goal = "Validate the core experience for a first-time user",
+  ) {
+    const total = BigInt(Math.round(budgetUsd * 1e6));
+    const capacity = planFairCapacityBase(
+      missions.map((m) => ({ effortMinutes: m.effortMinutes, maxCompletions: m.suggestedMaxCompletions, qualitative: m.qualitative })),
+      MIN_REWARD_BASE,
+    );
+    const capped = capacity !== null && capacity < total;
+    const effective = capped ? capacity : total;
+    let allocation = allocateBudget(missions, effective);
+    expect(allocation.ok).toBe(true);
+    const sample = applySamplePolicy(
+      missions.map((m) => ({ missionKey: m.missionKey, maxCompletions: m.suggestedMaxCompletions, rewardWeight: m.weight, qualitative: m.qualitative, effortMinutes: m.effortMinutes })),
+      { goal, totalBudgetBase: effective, minRewardBase: MIN_REWARD_BASE },
+    );
+    const fairCounts = new Map(sample.missions.map((m) => [m.missionKey, m.maxCompletions]));
+    if (capped) {
+      const spread = allocateBudget(
+        missions.map((m) => ({ ...m, suggestedMaxCompletions: fairCounts.get(m.missionKey) ?? m.suggestedMaxCompletions })),
+        effective,
+      );
+      if (spread.ok) allocation = spread;
+    }
+    const missionsOut = splitCompletionsForSample(allocation.missions, fairCounts, MIN_REWARD_BASE);
+    return { effective, unspent: total - effective, missionsOut };
+  }
+
+  it("the excalidraw case: $913 on one 5-minute mission pays $1.00 x 50, not $18.26 x 50", () => {
+    const r = compileChain(
+      [{ missionKey: "canvas", weight: 3, suggestedMaxCompletions: 50, priority: "medium", effortMinutes: 5, qualitative: true }],
+      913,
+    );
+    expect(r.effective).toBe(BigInt(50_000_000));
+    expect(r.unspent).toBe(BigInt(863_000_000));
+    const m0 = r.missionsOut[0]!;
+    expect(m0.rewardBase).toBe(BigInt(1_000_000)); // exactly the 5-minute ceiling
+    expect(m0.maxCompletions).toBe(BigInt(50));
+  });
+
+  it("the play2048 case: $914 across three short missions spends capacity exactly and nothing absurd", () => {
+    const r = compileChain(
+      [
+        { missionKey: "new-game", weight: 4, suggestedMaxCompletions: 5, priority: "high", effortMinutes: 3, qualitative: true },
+        { missionKey: "tutorial", weight: 3, suggestedMaxCompletions: 15, priority: "medium", effortMinutes: 5, qualitative: true },
+        { missionKey: "privacy", weight: 2, suggestedMaxCompletions: 10, priority: "medium", effortMinutes: 3, qualitative: true },
+      ],
+      914,
+    );
+    // capacity: (3min → $0.60 + 5min → $1.00 + 3min → $0.60) × 50 = $110
+    expect(r.effective).toBe(BigInt(110_000_000));
+    const spent = r.missionsOut.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
+    expect(spent).toBe(r.effective); // exactness held at the capped budget
+    const totalTesters = r.missionsOut.reduce((s, m) => s + Number(m.maxCompletions), 0);
+    expect(totalTesters).toBeGreaterThanOrEqual(100); // the budget buys a crowd, not a jackpot
+    for (const m of r.missionsOut) {
+      // The balancer's exact-remainder divisor search can still land one mission a few multiples of
+      // its ceiling (the remainder must divide exactly) — but never the measured absurdity: this
+      // exact plan shape allocated $66.47 per 3-minute completion on prod before the cap.
+      expect(Number(m.rewardBase), `${m.missionKey} pays $${Number(m.rewardBase) / 1e6}`).toBeLessThanOrEqual(3_000_000);
+      expect(m.rewardBase).toBeGreaterThanOrEqual(MIN_REWARD_BASE);
+    }
+  });
+
+  it("a budget inside capacity is untouched", () => {
+    const r = compileChain(
+      [{ missionKey: "canvas", weight: 3, suggestedMaxCompletions: 50, priority: "medium", effortMinutes: 5, qualitative: true }],
+      20,
+    );
+    expect(r.effective).toBe(BigInt(20_000_000));
+    expect(r.unspent).toBe(BigInt(0));
+  });
+
+  it("missions without effort data keep the old behavior exactly (no cap, no guess)", () => {
+    const total = BigInt(913_000_000);
+    const capacity = planFairCapacityBase([{ effortMinutes: undefined, maxCompletions: 50, qualitative: true }], MIN_REWARD_BASE);
+    expect(capacity).toBeNull();
+    const allocation = allocateBudget(
+      [{ missionKey: "legacy", weight: 3, suggestedMaxCompletions: 50, priority: "medium", effortMinutes: 0 }],
+      total,
+    );
+    expect(allocation.ok).toBe(true);
+    expect(allocation.allocatedBase).toBe(total);
   });
 });

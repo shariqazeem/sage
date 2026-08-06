@@ -39,6 +39,39 @@ export function effortCeilingBase(
   return ceiling > minRewardBase ? ceiling : minRewardBase;
 }
 
+/**
+ * The most a PLAN can spend at fair rates, in base units — the allocator's honest ceiling.
+ *
+ * The over-funding note (below) already computed this number to WARN, but the allocation still
+ * exhausted the founder's whole budget, so the warning shipped alongside the very rewards it warned
+ * about. Measured on production: play2048 at $914 allocated $66.47 per 3-minute completion, and
+ * excalidraw at $913 paid 50 testers $18.26 each for 5-minute work — with a note saying the fair
+ * total was about $50. A big budget should buy more testing, never inflated rewards, so the
+ * allocator is now handed min(budget, capacity) and the remainder is disclosed as deliberately
+ * unspent.
+ *
+ * Capacity per mission: the effort-derived fair ceiling × the testers that still buy information —
+ * MAX_SAMPLE for a qualitative mission (the policy grows those toward the pot), the mission's own
+ * suggested count for a url-verifiable one (the policy never raises those). Null when ANY mission
+ * lacks effort data: no fair rate, no cap — guessing one is how a wrong number gets authority.
+ */
+export function planFairCapacityBase(
+  missions: { effortMinutes?: number; maxCompletions: number; qualitative: boolean }[],
+  minRewardBase: bigint,
+): bigint | null {
+  if (missions.length === 0) return null;
+  let sum = BigInt(0);
+  for (const m of missions) {
+    const ceiling = effortCeilingBase(m.effortMinutes, minRewardBase);
+    if (ceiling === null) return null;
+    const count = m.qualitative
+      ? MAX_SAMPLE
+      : Math.max(1, Math.min(MAX_SAMPLE, Math.floor(m.maxCompletions)));
+    sum += ceiling * BigInt(count);
+  }
+  return sum;
+}
+
 export interface SampleMission {
   missionKey: string;
   maxCompletions: number;

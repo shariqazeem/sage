@@ -358,6 +358,7 @@ async function crawlPagesForUrlEvidence(
     if (!page) continue;
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 10_000 });
+      await settleLazyContent(page);
       const title = (await page.title().catch(() => "")).slice(0, 200);
       const h1 = (
         await page.locator("h1").first().innerText({ timeout: 1000 }).catch(() => "")
@@ -508,12 +509,15 @@ export function fieldTestForMap(summary: FieldTestSummary):
       /** crawled PAGES that accompanied the exploration (url-anchored evidence for url missions). */
       pages?: Array<{ url: string; title: string; ctas: string[]; visibleTextExcerpt?: string }>;
     } {
+  // 2000 chars per page for the architect (was 500): the missions must come from what Sage SAW, and
+  // 500 chars is one hero section — pricing/features/how-it-works all live further down. Worst case
+  // 6 pages × 2000 ≈ 3k tokens of prompt, well inside the models' context and the battery's cost cap.
   const pageView = (p: FieldTestSummary["pages"][number]) => ({
     url: p.url,
     title: p.title,
     ctas: p.ctas.slice(0, 8),
     ...(p.visibleTextExcerpt
-      ? { visibleTextExcerpt: p.visibleTextExcerpt.slice(0, 500) }
+      ? { visibleTextExcerpt: p.visibleTextExcerpt.slice(0, 2000) }
       : {}),
   });
   if (summary.mode === "interactive") {
@@ -522,7 +526,7 @@ export function fieldTestForMap(summary: FieldTestSummary):
       classification: summary.classification,
       states: summary.states.slice(0, MAX_INTERACTIONS + 4).map((s) => ({
         trigger: s.trigger,
-        visibleTextExcerpt: s.visibleTextExcerpt.slice(0, 600),
+        visibleTextExcerpt: s.visibleTextExcerpt.slice(0, 800),
         notableElements: s.notableElements.slice(0, 10),
         url: s.url,
       })),
@@ -890,6 +894,7 @@ export async function runFieldTest(
     const captures: FieldTestCapture[] = [];
     // reuse the already-loaded entry page as page 0 to avoid a re-fetch.
     try {
+      await settleLazyContent(entryPage);
       const title = (await entryPage.title().catch(() => "")).slice(0, 200);
       const h1 = (
         await entryPage
@@ -995,6 +1000,7 @@ export async function runFieldTest(
         await page
           .waitForLoadState("networkidle", { timeout: PAGE_MS })
           .catch(() => {});
+        await settleLazyContent(page);
         const title = (await page.title().catch(() => "")).slice(0, 200);
         const h1 = (
           await page
@@ -1241,6 +1247,11 @@ async function fingerprint(page: Page): Promise<StateFingerprint> {
  * firsthand observations ("Select all", "Toggle grid", "Zen mode"). Capped a little higher to fit the lines.
  */
 async function renderedExcerpt(page: Page): Promise<string> {
+  // 4000, not 900. `innerText` already contains the WHOLE rendered document — the old 900-char slice
+  // cut everything below the first screen. Measured on clawup.org: the pricing section ("Buy token
+  // credits", "$20 per agent / month") sits ~3k chars in, so the corpus knew "pricing" existed but
+  // not what it said — and every consumer downstream (anchor corpus, mission architect, the pinned
+  // judging key) was starved of exactly the doorway text the founder's goal named.
   return (
     await page
       .evaluate(() =>
@@ -1250,7 +1261,24 @@ async function renderedExcerpt(page: Page): Promise<string> {
           .trim(),
       )
       .catch(() => "")
-  ).slice(0, 900);
+  ).slice(0, 4000);
+}
+
+/**
+ * Reveal lazy-loaded content before reading a PAGE: scroll to the bottom, give below-the-fold
+ * sections a beat to load, scroll back. Page captures only — never interactive state captures,
+ * where a scroll would mutate the very state being recorded. Failure is silently ignored: the
+ * page is then read exactly as before.
+ */
+async function settleLazyContent(page: Page): Promise<void> {
+  try {
+    await page.evaluate(() => window.scrollTo(0, document.body?.scrollHeight ?? 0));
+    await page.waitForTimeout(400);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(150);
+  } catch {
+    /* reveal is best-effort — the unscrolled page still reads fine */
+  }
 }
 
 /** A few notable rendered elements (headings, buttons, inputs) — tag/text/role only. Reads only. */
