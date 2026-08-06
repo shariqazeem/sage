@@ -354,3 +354,57 @@ describe("OKX's own review probe must reach the service", () => {
     expect(v.ok).toBe(false);
   });
 });
+
+/**
+ * A REFUSED PAYMENT IS THE ONLY EVIDENCE WE GET about a rail we do not control.
+ *
+ * OKX's listing review sat rejected while all four services answered every probe correctly, and what
+ * those probes were actually being told had to be reconstructed from nginx response-body sizes. That
+ * arithmetic said "payable to a different address" on all four — consistent with their buyer signing
+ * to a settlement address rather than to the seller — but an inference from byte counts is not an
+ * address, so a refusal now reports what it saw.
+ *
+ * The hard constraint: on this rail the signature IS the money, so it must never appear in what gets
+ * logged, and least of all on the path where the payment was refused and the payer still holds it.
+ */
+describe("a refusal says what it saw, and never what is redeemable", () => {
+  it("reports the recipient it refused, so a rail mismatch is readable", async () => {
+    const elsewhere = getAddress("0x000000000000000000000000000000000000dEaD");
+    const v = await verifyOkxPayment(await signedHeader({ to: elsewhere }), expected, NOW);
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.reason).toContain("payable to a different address");
+    expect(v.observed?.to).toBe(elsewhere);
+    expect(v.observed?.from).toBe(PAYER.address);
+    expect(v.observed?.network).toBe(OKX_NETWORK);
+  });
+
+  it("never carries the signature, on any refusal", async () => {
+    const cases = [
+      await signedHeader({ to: getAddress("0x000000000000000000000000000000000000dEaD") }),
+      await signedHeader({ value: "1" }),
+      await signedHeader({ validBefore: String(NOW - 10) }),
+      await signedHeader({}, { value: "999999" }), // tampered after signing
+    ];
+    for (const header of cases) {
+      const v = await verifyOkxPayment(header, expected, NOW);
+      expect(v.ok).toBe(false);
+      if (v.ok) continue;
+      const serialized = JSON.stringify(v.observed ?? {});
+      expect(serialized).not.toMatch(/0x[0-9a-fA-F]{130}/); // a 65-byte secp256k1 signature
+      expect(Object.keys(v.observed ?? {})).not.toContain("signature");
+    }
+  });
+
+  it("records the payload's shape, which is how a client mismatch shows itself", async () => {
+    const v = await verifyOkxPayment(
+      Buffer.from(JSON.stringify({ scheme: "exact", network: OKX_NETWORK })).toString("base64"),
+      expected,
+      NOW,
+    );
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.observed?.shape).toContain("scheme");
+    expect(v.observed?.shape).toContain("network");
+  });
+});

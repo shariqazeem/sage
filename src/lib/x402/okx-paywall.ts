@@ -64,7 +64,16 @@ export async function okxPaywall(
     payTo,
     minAmount: priceToMinimal(service.priceUsd),
   });
-  if (!verdict.ok) return { kind: "rejected", reason: verdict.reason, challenge, service };
+  if (!verdict.ok) {
+    // A REFUSED PAYMENT IS THE ONLY EVIDENCE WE GET about a rail we do not control, so it is worth
+    // one line. The listing sat rejected while all four services answered every probe correctly;
+    // what the probes were actually being told had to be reconstructed from nginx response sizes.
+    // Signature excluded by construction — see ObservedPayment.
+    console.warn(
+      `[okx-x402] refused ${tool}: ${verdict.reason} · observed ${JSON.stringify(verdict.observed ?? null)} · expected payTo ${payTo}`,
+    );
+    return { kind: "rejected", reason: verdict.reason, challenge, service };
+  }
 
   // Verified, but not yet spent. The claim is what makes it spent, and it is what stops the same
   // authorization from buying a second call.

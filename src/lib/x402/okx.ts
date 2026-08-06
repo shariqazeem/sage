@@ -158,9 +158,33 @@ export interface PaymentAuthorization {
   nonce: string;
 }
 
+/**
+ * What a refused payment actually contained — the fields that say WHY, and nothing that is money.
+ *
+ * The listing sat rejected while the four services answered every probe correctly, so the rejection
+ * was never about reachability. Reconstructed from nginx response sizes, OKX's reviewer sends a real
+ * signed authorization to all four and each one is refused with "payable to a different address",
+ * which is a rail difference rather than a fault: their buyer signs to a settlement address, not to
+ * the seller. That was an inference from byte counts, and an inference is not an address. This
+ * records the real one the next time a probe arrives.
+ *
+ * NEVER the signature. On this rail the signature IS the money — anyone holding it can redeem it —
+ * so it stays out of logs even when the payment was refused, and especially then.
+ */
+export interface ObservedPayment {
+  from: string | null;
+  to: string | null;
+  value: string | null;
+  validBefore: string | null;
+  scheme: string | null;
+  network: string | null;
+  /** the payload's own key names, which is how a shape mismatch shows itself. */
+  shape: string[];
+}
+
 export type PaymentVerdict =
   | { ok: true; auth: PaymentAuthorization; payer: string; nonce: string; signature: string }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; observed?: ObservedPayment };
 
 /** Read the first payment header a client actually sent, whichever name it chose. */
 export function readPaymentHeader(headers: Headers): string | null {
@@ -212,17 +236,32 @@ export async function verifyOkxPayment(
 
   const scheme = str(payload.scheme);
   const network = str(payload.network);
-  if (scheme && scheme !== "exact") {
-    return { ok: false, reason: `Unsupported payment scheme "${scheme}". This resource accepts "exact".` };
-  }
-  if (network && network !== OKX_NETWORK) {
-    return { ok: false, reason: `Payment is on ${network}; this resource is priced on ${OKX_NETWORK}.` };
-  }
 
   const inner = (payload.payload ?? payload) as Record<string, unknown>;
   const rawAuth = (inner.authorization ?? inner) as Record<string, unknown>;
+
+  // Built before any check runs, so a refusal can always say what it was looking at. Signature
+  // deliberately absent — see ObservedPayment.
+  const observed: ObservedPayment = {
+    from: str(rawAuth.from) || null,
+    to: str(rawAuth.to) || null,
+    value: str(rawAuth.value) || null,
+    validBefore: str(rawAuth.validBefore) || null,
+    scheme: scheme || null,
+    network: network || null,
+    shape: Object.keys(payload).concat(rawAuth === payload ? [] : Object.keys(rawAuth)).slice(0, 24),
+  };
+  const fail = (reason: string): PaymentVerdict => ({ ok: false, reason, observed });
+
+  if (scheme && scheme !== "exact") {
+    return fail(`Unsupported payment scheme "${scheme}". This resource accepts "exact".`);
+  }
+  if (network && network !== OKX_NETWORK) {
+    return fail(`Payment is on ${network}; this resource is priced on ${OKX_NETWORK}.`);
+  }
+
   const signature = str(inner.signature ?? payload.signature);
-  if (!signature.startsWith("0x")) return { ok: false, reason: "The payment carries no signature." };
+  if (!signature.startsWith("0x")) return fail("The payment carries no signature.");
 
   const auth: PaymentAuthorization = {
     from: str(rawAuth.from),
@@ -233,30 +272,30 @@ export async function verifyOkxPayment(
     nonce: str(rawAuth.nonce),
   };
   if (!isAddress(auth.from) || !isAddress(auth.to)) {
-    return { ok: false, reason: "The payment authorization is missing a valid payer or recipient." };
+    return fail("The payment authorization is missing a valid payer or recipient.");
   }
   if (!/^\d+$/.test(auth.value) || !/^\d+$/.test(auth.validBefore) || !/^0x[0-9a-fA-F]{64}$/.test(auth.nonce)) {
-    return { ok: false, reason: "The payment authorization is malformed." };
+    return fail("The payment authorization is malformed.");
   }
 
   // Paid to us, in full. Either failing means this is not payment for this resource.
   if (getAddress(auth.to) !== getAddress(expected.payTo)) {
-    return { ok: false, reason: "The payment authorization is payable to a different address." };
+    return fail("The payment authorization is payable to a different address.");
   }
   // The amount floor, waived ONLY for OKX's named review address (see OKX_REVIEW_ADDRESS): its
   // micro-payment probes are deliberately under price, and refusing them fails the availability
   // check for a service that works. Every other check below still runs against it unchanged.
   const isReviewProbe = getAddress(auth.from) === okxReviewAddress();
   if (!isReviewProbe && BigInt(auth.value) < BigInt(expected.minAmount)) {
-    return { ok: false, reason: "The payment authorization is for less than this service's price." };
+    return fail("The payment authorization is for less than this service's price.");
   }
 
   // Still redeemable. An expired authorization is a signature over money that can no longer move.
   if (Number(auth.validBefore) <= nowSeconds) {
-    return { ok: false, reason: "The payment authorization has expired." };
+    return fail("The payment authorization has expired.");
   }
   if (Number(auth.validAfter) > nowSeconds) {
-    return { ok: false, reason: "The payment authorization is not valid yet." };
+    return fail("The payment authorization is not valid yet.");
   }
 
   // Signed by the payer, over exactly these fields.
@@ -291,10 +330,10 @@ export async function verifyOkxPayment(
       signature: signature as Hex,
     });
   } catch {
-    return { ok: false, reason: "The payment signature could not be verified." };
+    return fail("The payment signature could not be verified.");
   }
   if (getAddress(recovered) !== getAddress(auth.from)) {
-    return { ok: false, reason: "The payment signature does not match the stated payer." };
+    return fail("The payment signature does not match the stated payer.");
   }
 
   return { ok: true, auth, payer: getAddress(auth.from), nonce: auth.nonce.toLowerCase(), signature };
