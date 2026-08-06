@@ -112,6 +112,14 @@ export function challengeBody(
     x402Version: challenge.x402Version,
     accepts: challenge.accepts,
     resource: challenge.resource,
+    // A 402 is the correct answer here, not a fault, so say what to do with it. Anyone reaching this
+    // by hand has a working service in front of them and no way to tell that from a broken one.
+    howToPay: {
+      protocol:
+        "Sign the accepts[0] entry as an EIP-3009 TransferWithAuthorization, then repeat this same request with the signed authorization in the PAYMENT header.",
+      okxClient: `onchainos agent x402-check --endpoint ${challenge.resource.url}`,
+      free: "Every Sage tool is also callable free, under per-caller caps, over MCP at https://sagepays.xyz/mcp/public",
+    },
   };
 }
 

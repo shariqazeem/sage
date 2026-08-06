@@ -21,6 +21,7 @@ const auth = (over: Partial<PaymentAuthorization> = {}): PaymentAuthorization =>
   value: "50000",
   validAfter: "0",
   validBefore: "1900000000",
+  nonce: `0x${"00".repeat(32)}`,
   ...over,
 });
 

@@ -11,6 +11,7 @@ import {
   isPublicTool,
 } from "@/lib/mcp/public";
 import { priceOf } from "@/lib/mcp/pricing";
+import { siteUrl } from "@/lib/site";
 import {
   okxPaywall,
   challengeBody,
@@ -118,7 +119,11 @@ export async function POST(
 
   // PAYMENT, before any work. Each service is its own priced resource, so the gate sits here rather
   // than in the tool: the tool must not know or care whether someone paid to reach it.
-  const origin = new URL(req.url).origin;
+  //
+  // The origin is the CANONICAL site, never `req.url`. Behind nginx that request carries the internal
+  // origin, so the challenge quoted a resource at localhost:3000 — an address a buyer cannot reach and
+  // a reviewer would fairly read as a broken service.
+  const origin = siteUrl();
   const gate = await okxPaywall(tool, req.headers, origin);
   if (gate.kind === "challenge" || gate.kind === "rejected") {
     const problem = gate.kind === "rejected" ? gate.reason : undefined;
