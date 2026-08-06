@@ -142,6 +142,11 @@ export interface CanaryPipelineOutcome {
  * stage begins (so a durable job persists true progress — never a timer). `now` lets a
  * deterministic caller stamp times; production passes 0 to use the wall clock.
  */
+/** The sample policy's ADVISORY note, when it produced one. Never blocking — see `withOverFunding`. */
+function sampleNoteFor(brain: MissionBrainResult): string | null {
+  return (brain.groundingShadow as { sampleNote?: string | null } | undefined)?.sampleNote ?? null;
+}
+
 export async function inspectAndPlan(
   input: FounderLaunchInput,
   publicCampaignId: string,
@@ -745,13 +750,33 @@ export async function inspectAndPlan(
     //
     // The strict grounded plan is still refused; what changes is that refusing it no longer throws
     // away the ordinary plan underneath it.
+    // AND SAY WHAT IT COULD NOT FINISH. The branch above explains the journey gap, but it only runs
+    // when the grounded shadow got far enough to compute coverage — and when grounding fails early
+    // that field never exists, so the founder landed here with a plan and no explanation at all.
+    // Measured on clawup.org: two checkpoints blocked, two unmet, and an empty questions array.
+    //
+    // The journey is real data on the map either way, so the wall is derived from it directly rather
+    // than from whether a shadow happened to run.
+    const unfinished = goalJourney
+      ? goalJourney.checkpoints.filter((c) => c.status !== "observed")
+      : [];
+    const wall = unfinished.length > 0 ? describeJourneyWall(unfinished) : null;
     stamp("ready");
     return out("ready", null, {
       map,
       brain,
       allocation: legacy.allocation,
       plan: legacy.plan,
-      questions: map.openQuestions,
+      questions: [
+        ...map.openQuestions,
+        ...(wall
+          ? [
+              `These missions cover what Sage verified itself. It did not finish ${wall.unreachable.length === 1 ? "this part" : "these parts"} of your request — ${wall.unreachable.join("; ")} — because ${wall.boundary}. A human tester can still do it; Sage just can't witness it, so that part holds for your approval instead of paying out automatically.`,
+              ...(wall.unblockAsk ? [wall.unblockAsk] : []),
+            ]
+          : []),
+        ...(sampleNoteFor(brain) ? [sampleNoteFor(brain)!] : []),
+      ],
       canary: {
         status: "blocked",
         reason: canaryDecision.reason,
@@ -767,7 +792,7 @@ export async function inspectAndPlan(
   // `question`: the pipeline turns questions into needs_input, and a founder who funded generously
   // should never be handed "no plan" for it. Today this carries the over-funding disclosure — what
   // the plan can spend at a fair rate when the budget exceeds it.
-  const sampleNote = brain.groundingShadow?.sampleNote ?? null;
+  const sampleNote = sampleNoteFor(brain);
   return out("ready", null, {
     map,
     brain,
