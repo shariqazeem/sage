@@ -55,6 +55,30 @@ const SOCIAL = /(twitter|x|facebook|linkedin|github|youtube|instagram|discord|t\
 // crawling many wastes the page budget on interchangeable content.
 const DETAIL = /(0x)?[0-9a-f]{16,}|\/(proof|tx|receipt|order|invoice|share)\/[^/]+/i;
 
+/**
+ * A FILE, NOT A PAGE. Never spend a page-budget slot on something that cannot contain a product flow.
+ *
+ * Measured on clawup.org: the crawl returned `/`, `/brand-assets`, `/terms`, `/privacy` and FOUR
+ * separate logo SVGs, each counted as a route. There is no product flow inside `clawup-logo-dark.svg`,
+ * and the four of them crowded out whatever else the budget could have reached. The plan Sage
+ * produced from that crawl was a mission about the logo's safety zone, for a $400 budget, when the
+ * founder had asked about launching an agent — it was the only thing Sage had actually looked at.
+ *
+ * Extensions only, deliberately: a path-shaped guess ("/assets/") would drop real pages on sites that
+ * serve their app from one. `.html`, `.php` and friends are pages and are not listed here.
+ */
+const STATIC_ASSET =
+  /\.(?:svg|png|jpe?g|gif|webp|avif|ico|bmp|tiff?|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|ogg|mov|avi|pdf|zip|tar|gz|tgz|rar|7z|dmg|exe|msi|apk|css|js|mjs|cjs|map|json|xml|rss|atom|txt|csv|tsv|yaml|yml|wasm)(?:$|\?)/i;
+
+/** Is this link a static file rather than a page worth inspecting? */
+export function isStaticAsset(url: string): boolean {
+  try {
+    return STATIC_ASSET.test(new URL(url).pathname + (new URL(url).search ? "?" : ""));
+  } catch {
+    return STATIC_ASSET.test(url);
+  }
+}
+
 function priority(url: string): number {
   if (DETAIL.test(url)) return 3; // sample at most one, last
   if (HIGH.test(url)) return 0;
@@ -287,6 +311,7 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
         if (abs.protocol !== "https:") continue;
         if (!sameSiteHost(abs.host, host)) continue; // same-site only (www/apex variants included)
         if (SOCIAL.test(abs.toString())) continue;
+        if (isStaticAsset(abs.toString())) continue; // a file is not a page — see STATIC_ASSET
         const k = abs.toString().replace(/#.*$/, "");
         if (visited.has(k) || queue.some((q) => q.url === k)) continue;
         // sample at most ONE near-duplicate detail page (proof/tx/id-with-hash).
@@ -329,6 +354,7 @@ export function rankPrimaryLinks(
       if (abs.protocol !== "https:") continue;
       if (!sameSiteHost(abs.host, host)) continue; // same-site (www/apex variants included)
       if (SOCIAL.test(abs.toString())) continue;
+      if (isStaticAsset(abs.toString())) continue; // the browser's frontier skips these too
       const k = abs.toString().replace(/#.*$/, "");
       if (seen.has(k)) continue;
       // at most one near-duplicate detail page.
