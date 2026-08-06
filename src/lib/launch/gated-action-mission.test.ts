@@ -149,6 +149,12 @@ describe("harder work is priced as harder work", () => {
     expect(mk("payment").effortMinutes).toBeGreaterThan(mk("approval").effortMinutes);
   });
 
+  it("asks for more than one tester, so a paid flow is not proven by a single person", () => {
+    // It is high-priority, which makes it the compiler's balancer; a cap of 1 meant it swallowed the
+    // whole remainder into one reward — $118.62 on a live $430 run.
+    expect(mk("payment").maxCompletions).toBeGreaterThan(1);
+  });
+
   it("carries a higher reward weight than an ordinary mission", () => {
     // The compiler turns weight into money; this is how difficulty reaches the tester's pocket.
     expect(mk("payment").rewardWeight).toBeGreaterThan(5);

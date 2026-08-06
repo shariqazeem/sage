@@ -213,7 +213,15 @@ export function buildGatedActionMission(
       : ["Their own account on the product"],
     // Harder work, weighted higher, so the deterministic compiler pays it more per tester.
     rewardWeight: 8,
-    maxCompletions: 1,
+    // MORE THAN ONE PERSON SHOULD PROVE A PAID FLOW. One tester is a single data point on the most
+    // expensive thing a founder asked about, and this mission is high-priority so the compiler makes
+    // it the balancer — with a cap of 1 it absorbed the entire remainder into one reward ($118.62 on
+    // a $430 clawup run, which is the leftover rather than a judgement about the work).
+    //
+    // Three is deliberately modest: each tester spends their own money here, so this is not a mission
+    // to fan out widely, and the effort-anchored policy still reduces it when the pot cannot pay three
+    // fairly.
+    maxCompletions: 3,
     verificationMethod:
       "Sage fetches the url the tester provides and checks that the quoted text is really on that page.",
     confidence: 0.9,
