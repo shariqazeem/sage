@@ -45,7 +45,8 @@
     "composition:final": "SAGE_DB_PATH=$(mktemp -d)/fhc.db FINAL_COMPOSITION=1 vitest run src/lib/launch/final-head-composition.live.test.ts --reporter=basic",
     "test:auth-route": "SAGE_DB_PATH=$(mktemp -d)/auth.db AUTH_ROUTE_TEST=1 vitest run src/app/api/launch/approve-route.live.test.ts --reporter=basic",
     "okx:listing": "node scripts/okx-listing.mjs",
-    "okx:watch": "node scripts/okx-listing-watch.mjs"
+    "okx:watch": "node scripts/okx-listing-watch.mjs",
+    "drill:payout": "PAYOUT_DRILL=1 node --env-file-if-exists=.env node_modules/.bin/vitest run src/lib/deputy/payout-drill.live.test.ts --reporter=basic"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

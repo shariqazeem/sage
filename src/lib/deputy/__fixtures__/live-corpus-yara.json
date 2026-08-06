@@ -1,0 +1,229 @@
+{
+ "campaignId": "launch-yara-garden-cerk8k",
+ "digest": "0xb2f424c3df4336e083c4d5b089f9a80b72803be53b3be9cb649bd9efd9177c28",
+ "distinctSources": 9,
+ "observations": [
+  {
+   "source": "state:0",
+   "text": "a gentle world to heal"
+  },
+  {
+   "source": "state:0",
+   "text": "today s path"
+  },
+  {
+   "source": "state:0",
+   "text": "still pond"
+  },
+  {
+   "source": "state:0",
+   "text": "yara s grove"
+  },
+  {
+   "source": "state:0",
+   "text": "fountain plaza"
+  },
+  {
+   "source": "state:0",
+   "text": "lantern grove"
+  },
+  {
+   "source": "state:0",
+   "text": "tap to step inside"
+  },
+  {
+   "source": "state:0",
+   "text": "make a wish at the wishing tree"
+  },
+  {
+   "source": "state:4",
+   "text": "i felt you arrive"
+  },
+  {
+   "source": "state:4",
+   "text": "i tend this place i made it for people carrying something heavy so they d have somewhere gentle to set it down"
+  },
+  {
+   "source": "state:7",
+   "text": "before we walk in together what should i call you"
+  },
+  {
+   "source": "state:28",
+   "text": "what brings you here sage test"
+  },
+  {
+   "source": "state:28",
+   "text": "there s no wrong answer"
+  },
+  {
+   "source": "state:28",
+   "text": "a heavy heart"
+  },
+  {
+   "source": "state:28",
+   "text": "a restless mind"
+  },
+  {
+   "source": "state:28",
+   "text": "i just need a friend"
+  },
+  {
+   "source": "state:28",
+   "text": "just curious"
+  },
+  {
+   "source": "state:28",
+   "text": "or just step inside"
+  },
+  {
+   "source": "state:29",
+   "text": "whatever you re carrying you can set it down here"
+  },
+  {
+   "source": "state:29",
+   "text": "i ll listen i ll remember"
+  },
+  {
+   "source": "state:29",
+   "text": "i ll help you make sense"
+  },
+  {
+   "source": "state:29",
+   "text": "i ve been hoping someone like you would find this place"
+  },
+  {
+   "source": "state:29",
+   "text": "come let s walk in together"
+  },
+  {
+   "source": "state:30",
+   "text": "leave a note"
+  },
+  {
+   "source": "state:30",
+   "text": "meet yara"
+  },
+  {
+   "source": "state:0",
+   "text": "a loading screen displays the title yara"
+  },
+  {
+   "source": "state:0",
+   "text": "an anime style landscape"
+  },
+  {
+   "source": "state:0",
+   "text": "a valley at sunset"
+  },
+  {
+   "source": "state:0",
+   "text": "glowing lanterns"
+  },
+  {
+   "source": "state:0",
+   "text": "loading bar"
+  },
+  {
+   "source": "state:7",
+   "text": "a top down view"
+  },
+  {
+   "source": "state:7",
+   "text": "a grassy game environment"
+  },
+  {
+   "source": "state:7",
+   "text": "cartoon characters trees"
+  },
+  {
+   "source": "state:7",
+   "text": "a central stone path"
+  },
+  {
+   "source": "state:7",
+   "text": "plus sign"
+  },
+  {
+   "source": "state:7",
+   "text": "minus sign"
+  },
+  {
+   "source": "state:7",
+   "text": "brush icon"
+  },
+  {
+   "source": "state:7",
+   "text": "circle icon"
+  },
+  {
+   "source": "state:8",
+   "text": "a user input overlay is centered on a cartoon style meadow game background asking for the player s name"
+  },
+  {
+   "source": "state:8",
+   "text": "companion choice"
+  },
+  {
+   "source": "state:8",
+   "text": "before we walk in together"
+  },
+  {
+   "source": "state:8",
+   "text": "what should i call you"
+  },
+  {
+   "source": "state:12",
+   "text": "a top down 2d game interface shows a grassy path"
+  },
+  {
+   "source": "state:12",
+   "text": "a prompt asking for a user name"
+  },
+  {
+   "source": "state:12",
+   "text": "zoom controls"
+  },
+  {
+   "source": "state:16",
+   "text": "a 2d top down game scene"
+  },
+  {
+   "source": "state:16",
+   "text": "a soft color palette features a character creation overlay prompting for a name"
+  },
+  {
+   "source": "state:16",
+   "text": "pet selection"
+  },
+  {
+   "source": "state:16",
+   "text": "zoom controls"
+  },
+  {
+   "source": "state:28",
+   "text": "a top down 2d game interface shows a character"
+  },
+  {
+   "source": "state:28",
+   "text": "a yellow chick on a stone path in a grassy field"
+  },
+  {
+   "source": "state:28",
+   "text": "interactive ui elements"
+  }
+ ],
+ "mission": {
+  "title": "Find and Interact with Yara",
+  "objective": "Complete the full experience of entering the world, exploring your surroundings, locating Yara, and engaging in a conversation to see the outcome.",
+  "instructions": "1. Enter the world. 2. Explore the environment. 3. Locate Yara. 4. Initiate an interaction with Yara. 5. Observe and experience the outcome of that interaction. In your report, describe your experience in your own words, specifically noting the response you received from Yara.",
+  "targetSurface": "https://yara.garden/",
+  "criteria": [
+   "The user arrives in the world, the user explores the world, the user locates yara within the world and the user initiates an interaction with yara \u2014 reaching \"Yara.\" in the product's main experience",
+   "The user experiences the outcome of interacting with yara \u2014 a NEW result from \"Yara.\" that was not on screen beforehand"
+  ],
+  "evidenceList": [
+   "Describe how you reached \"Yara.\" and what you saw when it opened (name the screen you came from).",
+   "Say exactly what you did to \"Yara.\", and describe what appeared as a result \u2014 it must be something that was not on screen before."
+  ]
+ }
+}
