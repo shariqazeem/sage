@@ -186,3 +186,57 @@ d("the drill: hold, coach, revise, clear", () => {
     120_000,
   );
 });
+
+/**
+ * THE PERSON THIS HAS TO BE FAIR TO.
+ *
+ * The people most likely to do a $0.50 mission are not fluent technical writers. If the judge is
+ * really scoring English rather than evidence, it will pay the articulate and hold the beginner for
+ * doing the identical work — which is both unfair and, for a marketplace that recruits strangers,
+ * fatal. The bar is supposed to be evidence-shaped, not prose-shaped. These check that it is.
+ */
+d("fair to a beginner, not just to a good writer", () => {
+  it(
+    "rough, broken English with real observations CLEARS",
+    async () => {
+      const rough =
+        "i open the site. it say a gentle world to heal. i see today s path and i go. there is still " +
+        "pond and fountain plaza. after i walk lantern grove then i reach yara s grove. i find yara " +
+        "and i talk her. she reply me new thing what is not before on screen.";
+      const dec = await judge(rough);
+      const c = classify(dec, 1);
+      show("rough English", dec, c);
+      expect(dec.bar.pass).toBe(true);
+    },
+    120_000,
+  );
+
+  it(
+    "very short but specific CLEARS, because concision is not absence of evidence",
+    async () => {
+      const terse =
+        "still pond, fountain plaza, lantern grove, then yara s grove. talked to Yara, she answered " +
+        "something new that was not on screen before.";
+      const dec = await judge(terse);
+      const c = classify(dec, 1);
+      show("terse but specific", dec, c);
+      expect(dec.bar.pass).toBe(true);
+    },
+    120_000,
+  );
+
+  it(
+    "polished, fluent, and empty is REFUSED — the mirror image of the test above",
+    async () => {
+      const eloquent =
+        "What struck me most was the restraint of the whole experience. The pacing invites you to " +
+        "slow down, the visual language is coherent throughout, and the interaction model rewards " +
+        "patience in a way that feels genuinely considered. A quietly confident piece of design.";
+      const dec = await judge(eloquent);
+      const c = classify(dec, 1);
+      show("fluent but empty", dec, c);
+      expect(dec.bar.pass).toBe(false);
+    },
+    120_000,
+  );
+});

@@ -703,6 +703,32 @@ export const OBS_BAR = {
 export const CRITERIA_COMPLETE_MIN_MATCHES = 2;
 
 /**
+ * PHRASES FROM INSIDE THE PRODUCT ARE EVIDENCE ON THEIR OWN, above this many.
+ *
+ * The flat bar counts DISTINCT SOURCES, and a source is roughly a screen. A tester who explores one
+ * screen thoroughly can therefore write an unmistakably genuine account and still count as one
+ * source — at which point whether they get paid comes down to the LLM's corroboration bridge, which
+ * is the one non-deterministic part of the whole judgment.
+ *
+ * Measured: the identical genuine account, naming seven real product phrases, was run eight times
+ * against the live judge. The deterministic signal was the same every time (1 source, 7 anchors).
+ * The model returned 8 corroborations twice and ZERO the other six times, so the account passed
+ * 2 of 8. A right answer being paid on a coin flip is the single worst thing this system can do,
+ * and it was not visible from any single run.
+ *
+ * Seven two-word phrases from inside a product cannot be written by someone who never opened it —
+ * that is the same premise the anchor floor already rests on, and unlike a corroboration it involves
+ * no model judgment at all. So above this count the phrases carry the "enough evidence" question by
+ * themselves, and the bar stops depending on the weather.
+ *
+ * Deliberately conservative. Genuine accounts measured at 4-7 anchors; every fabrication, parrot and
+ * fluent-but-empty write-up measured at exactly 0. And like the criteria-complete pass, this may
+ * override the flat count and NOTHING else: a veto, a near-dup, a fraud signal, a thin corpus or an
+ * unproven criterion all still hold exactly as before.
+ */
+export const PHRASE_SUFFICIENT_ANCHORS = 4;
+
+/**
  * The BAR POLICY under which a stored verdict was computed. A verdict is only reusable under the SAME
  * policy: when the bar itself changes (e.g. arming the criteria-complete pass), every stored verdict
  * is stale by definition — a submission held under the old policy might pass under the new one, and
@@ -782,6 +808,17 @@ export function observationBar(s: ObservationSignals, cfg: typeof OBS_BAR = OBS_
     reasons.length > 0 &&
     s.criteriaAllProven === true &&
     s.distinctSources >= CRITERIA_COMPLETE_MIN_MATCHES &&
+    reasons.every((r) => r.startsWith("few_matches"))
+  ) {
+    return { pass: true, reasons: [] };
+  }
+  // THE PHRASE-SUFFICIENCY PASS — see PHRASE_SUFFICIENT_ANCHORS. Strong deterministic evidence
+  // should not need the model's agreement to be believed. Same override scope as the pass above: the
+  // flat count only, and only when the account also carries a real deterministic anchor.
+  if (
+    reasons.length > 0 &&
+    (s.phraseAnchors ?? 0) >= PHRASE_SUFFICIENT_ANCHORS &&
+    (s.deterministicSources ?? 0) >= cfg.minDeterministicSources &&
     reasons.every((r) => r.startsWith("few_matches"))
   ) {
     return { pass: true, reasons: [] };
