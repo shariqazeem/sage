@@ -134,6 +134,20 @@ export async function runInspectionJob(jobId: string): Promise<void> {
   // "anonymous" job can never carry canary authority.
   const canaryIdentity = resolveCanaryIdentity(job.founderWallet);
 
+  // WHAT EARLIER RUNS OF THIS JOB ALREADY SAW. A retry and a founder's clarification both re-run the
+  // whole pipeline, and browsing is not deterministic: across production, the same url and goal
+  // produced 0 to 36 states and 0 to 301 facts on different runs. Replacing the set each time means
+  // answering Sage's question can hand the founder a THINNER plan than the one that prompted it.
+  // Carrying the previous set forward makes a re-run strictly additive.
+  const priorObservations = (() => {
+    try {
+      const prev = (job.result as { map?: { observations?: unknown } } | null)?.map?.observations;
+      return (prev ?? null) as import("./observed-facts").ObservationSetV1 | null;
+    } catch {
+      return null;
+    }
+  })();
+
   try {
     const result = await inspectAndPlan(
       input,
@@ -142,7 +156,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         updateInspectionJob(jobId, stage as InspectionStatus, {});
       },
       0,
-      { inspectionId: jobId, canaryIdentity },
+      { inspectionId: jobId, canaryIdentity, priorObservations },
     );
 
     const serialized = serialize(result);

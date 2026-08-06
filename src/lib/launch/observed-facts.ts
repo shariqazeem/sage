@@ -505,3 +505,54 @@ export function publicObservationView(set: ObservationSetV1): {
     factIds: set.facts.map((f) => f.id).sort(),
   };
 }
+
+/**
+ * UNION TWO OBSERVATION SETS — what Sage saw across more than one look at the same product.
+ *
+ * A re-run today replaces the previous set outright, and re-running is a lottery: measured over the
+ * production jobs, the same url and goal produced anywhere from 0 to 36 browser states and 0 to 301
+ * facts on different runs. So a founder who answers Sage's clarifying question can be handed a
+ * WORSE plan than the one that prompted the question, because answering triggers a fresh browse that
+ * may see less. That is a bad trade for a founder and an unnecessary one: a fact Sage observed on
+ * Monday is not un-observed on Tuesday.
+ *
+ * Ids are content-derived (`stateDigest`, `factId`, `transitionId`), so the same screen seen twice
+ * yields the same id and the union is idempotent — merging cannot inflate the corpus with duplicates
+ * of one thing, and cannot invent anything neither run saw. The digest is recomputed over the union,
+ * which is exactly what should happen: a different set of evidence is a different key, and the
+ * verdict-reuse check keys off `corpusDigest` so a widened corpus correctly re-judges rather than
+ * silently reusing a verdict formed against less evidence.
+ *
+ * `captureVersion` takes the higher of the two — it is metadata about how recent the look was, and
+ * the union is at least as recent as its newest member.
+ */
+export function mergeObservationSets(
+  a: ObservationSetV1 | null | undefined,
+  b: ObservationSetV1 | null | undefined,
+): ObservationSetV1 | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+
+  const facts = new Map<string, ObservedFactV1>();
+  const transitions = new Map<string, ActionTransitionV1>();
+  // `b` is applied second so the NEWER look wins on any id collision. Same id means same content by
+  // construction, so this only ever refreshes metadata, never the observation itself.
+  for (const f of a.facts) facts.set(f.id, f);
+  for (const f of b.facts) facts.set(f.id, f);
+  for (const t of a.transitions) transitions.set(t.id, t);
+  for (const t of b.transitions) transitions.set(t.id, t);
+
+  const mergedFacts = [...facts.values()];
+  const mergedTransitions = [...transitions.values()];
+  const setCanonical = JSON.stringify({
+    f: mergedFacts.map((f) => f.id).sort(),
+    t: mergedTransitions.map((t) => t.id).sort(),
+  });
+  return {
+    version: OBS_SET_VERSION,
+    facts: mergedFacts,
+    transitions: mergedTransitions,
+    captureVersion: Math.max(a.captureVersion, b.captureVersion),
+    digest: sha(setCanonical).slice(0, 24),
+  };
+}

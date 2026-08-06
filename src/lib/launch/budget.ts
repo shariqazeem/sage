@@ -101,14 +101,35 @@ export function allocateBudget(
     });
     const othersSpend = otherAlloc.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
 
-    // The balancer takes a single completion whose reward is EXACTLY the remainder.
-    const balancerReward = B - othersSpend;
-    if (balancerReward >= MIN) {
+    // The balancer absorbs the EXACT remainder. It used to do that in a single completion, which is
+    // what guarantees the sum, and is fine at small budgets: a $10 plan pays its balancer $4.29 once.
+    // At founder scale it is absurd. Measured on a 3-mission plan (5, 20 and 60-minute tasks), a
+    // $50,000 budget paid ONE tester $16,666.67 for the five-minute task while the other two missions
+    // correctly funded 50 testers each — and $16,666 for five minutes is sixteen thousand times the
+    // overpay ceiling the sample policy exists to enforce.
+    //
+    // Spreading it fixes that without weakening the invariant, because exactness never depended on
+    // the count being 1 — it depended on the reward being the remainder DIVIDED by the count with
+    // nothing left over. So take the largest completion count within the mission's own cap that
+    // divides the remainder exactly. Searching downward from the cap prefers more testers at a lower
+    // reward, which is the direction fairness points; n = 1 always divides, so this can only ever
+    // improve on the old behaviour and never fails to find an answer.
+    const balancerRemainder = B - othersSpend;
+    const balancerCap = clampCap(balancer.suggestedMaxCompletions);
+    let balancerCount = BigInt(1);
+    for (let n = balancerCap; n >= BigInt(1); n--) {
+      if (balancerRemainder % n === BigInt(0) && balancerRemainder / n >= MIN) {
+        balancerCount = n;
+        break;
+      }
+    }
+    const balancerReward = balancerRemainder / balancerCount;
+    if (balancerRemainder >= MIN) {
       const missions: AllocatedMission[] = [
         {
           missionKey: balancer.missionKey,
           rewardBase: balancerReward,
-          maxCompletions: BigInt(1),
+          maxCompletions: balancerCount,
           weight: clampWeight(balancer.weight),
           effortMinutes: balancer.effortMinutes,
         },

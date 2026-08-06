@@ -21,7 +21,7 @@ import { buildObservationCorpus } from "./validate-mission";
 import { runMissionBrain, type MissionBrainResult } from "./mission-brain";
 import { inspectionReplayMode, runReplayShadow } from "./inspection-replay";
 import { missionGroundingMode } from "./mission-grounding-shadow";
-import { stateDigest } from "./observed-facts";
+import { mergeObservationSets, stateDigest } from "./observed-facts";
 import {
   compileGoalJourney,
   evaluateJourney,
@@ -154,6 +154,9 @@ export async function inspectAndPlan(
       egressAllowedPorts?: ReadonlySet<number>;
     };
     canaryIdentity?: CanaryIdentity | null;
+    /** What EARLIER runs of this same job already observed. Unioned into this run's set, so a retry
+     *  or a founder's clarification can only ever widen the evidence, never narrow it. */
+    priorObservations?: import("./observed-facts").ObservationSetV1 | null;
   } = {},
 ): Promise<LaunchResult> {
   // ONE INTENT, ZERO FORMS AFTER IT — and zero MANDATORY forms before it either. A founder who gave
@@ -257,6 +260,15 @@ export async function inspectAndPlan(
     input,
     fieldTest,
   );
+  // CARRY WHAT EARLIER LOOKS ALREADY SAW. Re-running is a lottery — measured across production, the
+  // same url and goal yielded anywhere from 0 to 36 states and 0 to 301 facts on different runs — so
+  // replacing the set on every run means a founder who answers Sage's clarifying question can be
+  // handed a thinner plan than the one that prompted the question. Ids are content-derived, so this
+  // union is idempotent and can only widen the evidence.
+  if (opts.priorObservations) {
+    const merged = mergeObservationSets(opts.priorObservations, map.observations ?? null);
+    if (merged && (merged.facts.length > 0 || merged.transitions.length > 0)) map.observations = merged;
+  }
   // EVALUATE the founder's ordered journey against what was ACTUALLY observed — deterministic and
   // evidence-cited (fact/transition ids), so a checkpoint can never be completed by text similarity.
   // Attached post-digest like `observations`, so hashes and old artifacts are unchanged.
