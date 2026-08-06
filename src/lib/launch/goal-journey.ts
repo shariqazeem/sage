@@ -645,11 +645,58 @@ const containsAny = (haystack: string, needle: string): boolean => {
  * checkpoint about an ENTITY needs Sage to have acted on that entity (or the entity to appear as a RESULT
  * of an action), never merely to have seen its name on an earlier screen.
  */
+/**
+ * Words a journey compiler reaches for when it means "the product" rather than a thing on screen.
+ * "Reach the main area" is a real requirement with no label to match; "purchase credits" is not.
+ */
+const CONCEPT_ENTITY =
+  /^(the\s+)?(world|experience|product|site|website|app|application|page|screen|interface|onboarding|conversation|flow|area|section|platform|service|system|environment|content|thing|it)s?$/i;
+
+/**
+ * Is this entity something the product WOULD have shown if it existed?
+ *
+ * The distinction decides whether "Sage never saw this" means "the label is a concept" or "the flow
+ * was never reached", and those must not be treated the same way.
+ */
+export function isConcreteEntity(entity: string | null | undefined): boolean {
+  const e = (entity ?? "").trim();
+  if (e.length < 3) return false;
+  if (CONCEPT_ENTITY.test(e)) return false;
+  // At least one substantive word. "a few" and "some of" are not things a product displays.
+  return e
+    .split(/\s+/)
+    .some((w) => w.replace(/[^a-z0-9]/gi, "").length >= 4 && !CONCEPT_ENTITY.test(w));
+}
+
+/**
+ * An ACTION checkpoint naming a concrete thing the product never showed cannot be completed.
+ *
+ * `entityIsObserved: false` exists so a compiler naming a concept ("the main area") does not create
+ * an unsatisfiable requirement, and for reaching a place that is fair. For an ACTION it was a
+ * disaster: the entity match was skipped entirely, so the checkpoint completed on any click that
+ * changed the view.
+ *
+ * Measured on clawup.org — a marketing site with four pages and no purchase surface anywhere — the
+ * goal "testers must purchase credits and launch an agent" compiled to nine checkpoints and Sage
+ * marked ALL NINE observed, including "Complete the purchase of credits using personal funds". It
+ * had bought nothing. The journey then looked complete, the gate had no objection to raise, and the
+ * plan that came back was about the logo.
+ *
+ * Sage has no basis to claim it acted on something it never saw. Not observed, and said out loud.
+ */
+export function actionEntityUnreachable(cp: GoalCheckpointV1): boolean {
+  if (cp.kind !== "interaction" && cp.kind !== "outcome") return false;
+  if (cp.entityIsObserved !== false) return false;
+  return isConcreteEntity(cp.targetEntity);
+}
+
 function stepCompletes(
   cp: GoalCheckpointV1,
   step: JourneyStep,
   prior: JourneyStep[],
 ): boolean {
+  // An action on a concrete thing Sage never saw is not something Sage can witness happening.
+  if (actionEntityUnreachable(cp)) return false;
   // PHASE GUARD — a requirement bound to a product phase can only be completed by a state in that phase
   // (or deeper). This is what stops an onboarding occurrence of an entity satisfying "go to [entity]".
   if (
@@ -739,6 +786,14 @@ export function evaluateJourney(
 ): GoalJourneyV1 {
   const checkpoints = journey.checkpoints.map((c) => ({
     ...c,
+    // Marked BEFORE the walk so the reason survives into the gate and the founder's question. The
+    // walk cannot overwrite it: `stepCompletes` refuses this checkpoint outright.
+    ...(actionEntityUnreachable(c)
+      ? {
+          status: "blocked" as const,
+          blockedReason: "entity_never_observed",
+        }
+      : {}),
     evidence: {
       factIds: [...c.evidence.factIds],
       transitionIds: [...c.evidence.transitionIds],

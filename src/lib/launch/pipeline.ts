@@ -692,10 +692,21 @@ export async function inspectAndPlan(
       });
     }
 
+    // THE PLAN FOR WHAT SAGE DID SEE, ALONGSIDE THE HONEST GAP.
+    //
+    // The founder's goal is not covered — that is real and the questions below say so. But arriving
+    // at "I could only reach your marketing pages" with nothing attached wastes the browsing that
+    // did succeed, and a founder who reads a question and sees no work at all cannot tell a careful
+    // agent from a broken one. Measured on clawup.org: four pages genuinely reached, three designable
+    // missions among them, and the founder was shown none of it.
+    //
+    // So: the gap is named AND the observed part is planned. `needs_input` still means their answer
+    // is wanted, and the plan is what Sage can stand behind in the meantime.
     return out("needs_input", "founder_goal_incomplete", {
       map,
       brain,
       allocation: legacy.allocation,
+      plan: legacy.plan,
       questions: [
         ...(goalJourneyQuestion ? [goalJourneyQuestion] : []),
         // An ACCESS gap and an EFFORT gap need different questions — see `journeyGapQuestion`.
@@ -709,7 +720,7 @@ export async function inspectAndPlan(
       canary: {
         status: "blocked",
         reason: `founder_goal_incomplete:${codes.join(",") || "uncovered"}`,
-        planSource: "none",
+        planSource: "legacy",
         planDigest: legacy.plan.missionPlanDigest,
       },
     });
