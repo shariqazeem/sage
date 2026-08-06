@@ -716,24 +716,32 @@ export async function inspectAndPlan(
   }
 
   if (canaryDecision.status === "blocked") {
-    // An AUTHORIZED canary founder whose grounded plan failed a strict condition. The covenant holds —
-    // an ungrounded plan is NEVER presented as fundable. But a DEAD END is not the covenant, it is just
-    // a dead end: the founder waited minutes and got "couldn't finish", with nothing to do about it.
-    // This was 5 of the 8 hard failures in a week. So it asks instead, naming what Sage could not
-    // establish, and the answer re-plans through the normal clarify path.
-    return out("needs_input", `canary_blocked:${canaryDecision.reason}`, {
+    // An AUTHORIZED founder whose GROUNDED plan failed a strict condition. This used to return zero
+    // missions and a question, and the reasoning was that an ungrounded plan must never be presented
+    // as fundable. But that is not what the covenant actually says, and the behaviour did not match
+    // it: an UNAUTHORIZED founder receives exactly this legacy plan, marked `planSource: "legacy"`,
+    // and always has — it is the path all sixteen live missions and the proven mainnet payout ran on.
+    // So the rule was never "no ungrounded plans"; it was "never SILENTLY swap a grounded plan for an
+    // ungrounded one". Recording the block and the plan source is not silent.
+    //
+    // Measured on clawup.org with a $400 budget and a goal whose key action is behind a paid wall:
+    // 8 pages inspected, 9 checkpoints observed, the brain produced real candidates — and the founder
+    // received zero missions and "couldn't tie a mission to something it saw happen". Whether a
+    // founder gets a plan at all cannot depend on whether their wallet happened to be allowlisted.
+    //
+    // The strict grounded plan is still refused; what changes is that refusing it no longer throws
+    // away the ordinary plan underneath it.
+    stamp("ready");
+    return out("ready", null, {
       map,
       brain,
       allocation: legacy.allocation,
-      questions: [
-        "Sage explored your product but couldn't tie a mission to something it saw happen, so it won't hand you a plan it can't stand behind.",
-        `What should a tester DO in your product, and what should be on screen once they've done it? Name the screen or the result Sage should look for${map.productName && map.productName !== "the product" ? ` in ${map.productName}` : ""}.`,
-        ...(map.openQuestions ?? []).slice(0, 1),
-      ],
+      plan: legacy.plan,
+      questions: map.openQuestions,
       canary: {
         status: "blocked",
         reason: canaryDecision.reason,
-        planSource: "none",
+        planSource: "legacy",
         planDigest: legacy.plan.missionPlanDigest,
       },
     });
