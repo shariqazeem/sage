@@ -171,13 +171,36 @@ export async function POST(
   return NextResponse.json(result as unknown as Record<string, unknown>, { headers: okHeaders });
 }
 
-/** GET — the tool's card, so a reviewer or crawler that pokes the path learns how to call it. */
+/**
+ * GET — the tool's card for a free tool, and the payment challenge for a priced one.
+ *
+ * GET is the canonical x402 verb: fetch a resource, get 402, pay, fetch again. OKX's own validator
+ * probes with GET unless it is given a request body, which is how a service could answer 402 to
+ * `curl -X POST` and still be reported as "HTTP 200, not a valid x402 service" by the tool the
+ * reviewer runs. Both verbs have to say the same thing about price, or the answer depends on which
+ * door you knock at.
+ */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ tool: string }> },
 ): Promise<Response> {
   if (!publicMcpEnabled()) return notFound();
   const { tool } = await ctx.params;
   if (!isPublicTool(tool)) return notFound();
+
+  if (isPaidTool(tool)) {
+    const gate = await okxPaywall(tool, req.headers, siteUrl());
+    if (gate.kind === "challenge" || gate.kind === "rejected") {
+      const problem = gate.kind === "rejected" ? gate.reason : undefined;
+      return NextResponse.json(challengeBody(gate.service, gate.challenge, problem), {
+        status: 402,
+        headers: challengeHeaders(gate.challenge),
+      });
+    }
+    // Paid, but a GET carries no arguments to act on — the card is what there is to give.
+    return NextResponse.json(toolCard(tool), {
+      headers: gate.free ? undefined : paidHeaders(gate.payer),
+    });
+  }
   return NextResponse.json(toolCard(tool));
 }
