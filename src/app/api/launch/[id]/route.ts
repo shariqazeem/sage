@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 
 import { getInspectionJob } from "@/lib/db/inspection";
-import { jobToView } from "@/lib/launch/job";
+import { jobToView, reapStalledJob, runInspectionJob } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,5 +12,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const job = getInspectionJob(id);
   if (!job) return NextResponse.json({ ok: false, error: "Inspection not found." }, { status: 404 });
-  return NextResponse.json({ ok: true, job: jobToView(job) });
+  // A runner killed mid-flight (deploy restart) leaves the job showing its last stage forever while
+  // the founder watches "Sage is working". The status poll is the heartbeat that always fires, so it
+  // reaps: an honestly-failed job with retries left resumes (prior observations are carried), one
+  // without shows a real failure the retry button can act on.
+  const reaped = reapStalledJob(job);
+  if (reaped === "retrying") after(() => runInspectionJob(id));
+  const fresh = reaped ? (getInspectionJob(id) ?? job) : job;
+  return NextResponse.json({ ok: true, job: jobToView(fresh) });
 }

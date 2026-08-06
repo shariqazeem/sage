@@ -238,6 +238,31 @@ export function supersedeJob(id: string): void {
 }
 
 /**
+ * CAS a STALLED non-terminal job to `failed` — and only the exact stall that was observed:
+ * the update matches id + status + updatedAt, so a run that advanced even one stage since the
+ * caller looked is never touched, and of N concurrent observers exactly one wins. The caller
+ * decides staleness; this function only performs the atomic transition.
+ */
+export function failStalledInspection(
+  id: string,
+  expect: { status: InspectionStatus; updatedAt: number },
+  reason: string,
+): boolean {
+  const res = db
+    .update(inspectionJobs)
+    .set({ status: "failed", failureReason: reason, updatedAt: nowSeconds() })
+    .where(
+      and(
+        eq(inspectionJobs.id, id),
+        eq(inspectionJobs.status, expect.status),
+        eq(inspectionJobs.updatedAt, expect.updatedAt),
+      ),
+    )
+    .run();
+  return (res.changes ?? 0) > 0;
+}
+
+/**
  * Reset a TERMINAL (failed/needs_input) job back to queued for a retry, atomically and
  * ONLY from a terminal state — so a duplicate retry click while a run is already in
  * flight is a no-op. Returns true only when THIS call performed the reset (the caller
