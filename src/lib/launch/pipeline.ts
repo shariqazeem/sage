@@ -39,7 +39,7 @@ import {
 } from "./mission-canary";
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget, MIN_REWARD_BASE } from "./budget";
-import { applySamplePolicy, splitCompletionsForSample } from "./sample-policy";
+import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import type {
@@ -145,6 +145,19 @@ export interface CanaryPipelineOutcome {
 /** The sample policy's ADVISORY note, when it produced one. Never blocking — see `withOverFunding`. */
 function sampleNoteFor(brain: MissionBrainResult): string | null {
   return (brain.groundingShadow as { sampleNote?: string | null } | undefined)?.sampleNote ?? null;
+}
+
+const usd = (base: bigint): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
+
+/** When the fair-capacity cap held part of the budget back, say exactly what the plan spends and what
+ *  stays with the founder. Supersedes the shadow's over-funding note: same fact, now acted on. */
+function unspentNoteFor(
+  unspentBase: bigint | null,
+  spentBase: bigint,
+  totalBudgetBase: bigint,
+): string | null {
+  if (unspentBase === null || unspentBase <= BigInt(0)) return null;
+  return `This plan pays fair rates for the work it contains, so it spends ${usd(spentBase)} of your ${usd(totalBudgetBase)} budget. The remaining ${usd(unspentBase)} stays with you. A broader goal, or more flows to test, would put it to work.`;
 }
 
 export async function inspectAndPlan(
@@ -388,8 +401,31 @@ export async function inspectAndPlan(
   const compileMissions = (
     missions: typeof brain.accepted,
     modelVersion: string,
+    mode: { capToFairCapacity?: boolean } = {},
   ) => {
-    const allocation = allocateBudget(
+    // FAIR-CAPACITY CAP (legacy path only). The over-funding note used to warn about inflated
+    // rewards while the allocator exhausted the whole budget anyway — measured on production,
+    // excalidraw at $913 paid 50 testers $18.26 each for 5-minute work, note attached. A budget
+    // beyond what the plan can spend at fair rates now STAYS WITH THE FOUNDER, disclosed, instead
+    // of inflating each reward. The canary path never passes this mode: a grounded plan still
+    // allocates the founder's exact budget and its strict equality check is unchanged.
+    let effectiveBudgetBase = input.totalBudgetBase;
+    let unspentBase: bigint | null = null;
+    if (mode.capToFairCapacity) {
+      const capacity = planFairCapacityBase(
+        missions.map((m) => ({
+          effortMinutes: m.effortMinutes,
+          maxCompletions: m.maxCompletions,
+          qualitative: m.verifiabilityClass !== "url-verifiable",
+        })),
+        MIN_REWARD_BASE,
+      );
+      if (capacity !== null && capacity < effectiveBudgetBase) {
+        effectiveBudgetBase = capacity;
+        unspentBase = input.totalBudgetBase - capacity;
+      }
+    }
+    let allocation = allocateBudget(
       missions.map((m) => ({
         missionKey: m.missionKey,
         weight: m.rewardWeight,
@@ -397,9 +433,9 @@ export async function inspectAndPlan(
         priority: m.priority,
         effortMinutes: m.effortMinutes,
       })),
-      input.totalBudgetBase,
+      effectiveBudgetBase,
     );
-    if (!allocation.ok) return { ok: false as const, allocation, plan: null };
+    if (!allocation.ok) return { ok: false as const, allocation, plan: null, unspentBase };
     // TESTER SAMPLE — a plural, qualitative request buys independent completions rather than one big
     // payout. The allocator's exactness strategy hands the balancer a single completion worth the whole
     // remainder; this re-expresses that same pot as N testers (rewardBase × maxCompletions unchanged,
@@ -414,10 +450,31 @@ export async function inspectAndPlan(
       })),
       {
         goal: input.goal,
-        totalBudgetBase: input.totalBudgetBase,
+        // the policy sizes samples from what is actually being ALLOCATED, not the raw ask.
+        totalBudgetBase: effectiveBudgetBase,
         minRewardBase: MIN_REWARD_BASE,
       },
     );
+    if (unspentBase !== null) {
+      // The cap fired, so the plan is being sized to fair capacity — let the allocator spread across
+      // the policy's fair sample counts instead of the model's suggestion. Without this the capped
+      // pot still concentrated: a mission the model suggested 15 testers for took its whole weight
+      // share at 15, and the divisor search could not re-express it (measured in the play2048 mirror:
+      // $3.88 per 5-minute completion where the fair ceiling is $1.00). Off the capped path the
+      // allocation is byte-identical to before.
+      const fairCounts = new Map(sample.missions.map((m) => [m.missionKey, m.maxCompletions]));
+      const spread = allocateBudget(
+        missions.map((m) => ({
+          missionKey: m.missionKey,
+          weight: m.rewardWeight,
+          suggestedMaxCompletions: fairCounts.get(m.missionKey) ?? m.maxCompletions,
+          priority: m.priority,
+          effortMinutes: m.effortMinutes,
+        })),
+        effectiveBudgetBase,
+      );
+      if (spread.ok) allocation = spread;
+    }
     allocation.missions = splitCompletionsForSample(
       allocation.missions,
       new Map(sample.missions.map((m) => [m.missionKey, m.maxCompletions])),
@@ -438,9 +495,10 @@ export async function inspectAndPlan(
         ok: false as const,
         allocation,
         plan: null,
+        unspentBase,
         error: compiled.error,
       };
-    return { ok: true as const, allocation, plan: compiled.plan };
+    return { ok: true as const, allocation, plan: compiled.plan, unspentBase };
   };
 
   // 5. CANARY DECISION — may the grounded V2 plan REPLACE legacy for this launch? Authority comes ONLY from the
@@ -600,7 +658,10 @@ export async function inspectAndPlan(
   }
 
   // 6. LEGACY compile (also the comparison artifact when an authorized canary is blocked).
-  const legacy = compileMissions(brain.accepted, brain.model);
+  const legacy = compileMissions(brain.accepted, brain.model, { capToFairCapacity: true });
+  const spendNote = legacy.ok
+    ? unspentNoteFor(legacy.unspentBase, legacy.allocation.totalBudgetBase, input.totalBudgetBase)
+    : null;
   if (!legacy.ok) {
     if ((legacy as { error?: string }).error)
       return out("failed", (legacy as { error?: string }).error!, {
@@ -690,6 +751,7 @@ export async function inspectAndPlan(
           // An access wall has an answer the founder can send in one line. Saying so is the
           // difference between a good explanation and a next step.
           ...(unblockAsk ? [unblockAsk] : []),
+          ...(spendNote ? [spendNote] : []),
         ],
         canary: {
           status: "blocked",
@@ -775,7 +837,7 @@ export async function inspectAndPlan(
               ...(wall.unblockAsk ? [wall.unblockAsk] : []),
             ]
           : []),
-        ...(sampleNoteFor(brain) ? [sampleNoteFor(brain)!] : []),
+        ...((spendNote ?? sampleNoteFor(brain)) ? [(spendNote ?? sampleNoteFor(brain))!] : []),
       ],
       canary: {
         status: "blocked",
@@ -790,9 +852,9 @@ export async function inspectAndPlan(
   stamp("ready");
   // An ADVISORY note from the sample policy rides along with the plan. It is deliberately not a
   // `question`: the pipeline turns questions into needs_input, and a founder who funded generously
-  // should never be handed "no plan" for it. Today this carries the over-funding disclosure — what
-  // the plan can spend at a fair rate when the budget exceeds it.
-  const sampleNote = sampleNoteFor(brain);
+  // should never be handed "no plan" for it. When the fair-capacity cap actually held budget back,
+  // its note replaces the shadow's over-funding warning (same fact, now acted on).
+  const sampleNote = spendNote ?? sampleNoteFor(brain);
   return out("ready", null, {
     map,
     brain,

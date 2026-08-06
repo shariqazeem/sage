@@ -83,6 +83,29 @@ describe("live inspection pipeline — Eyes V2 reachability", () => {
     expect(r.map!.replayShadow).toBeUndefined();
   });
 
+  it("FAIR-CAPACITY CAP: an over-funded budget ships a plan at fair rates and discloses the rest", async () => {
+    // The production defect this guards: excalidraw at $913 allocated $18.26 per 5-minute completion
+    // (the full budget force-exhausted), with only an advisory note saying the fair total was ~$50.
+    // Through the REAL pipeline: one 3-minute observation mission (ceiling $0.60 × 50 = $30 capacity)
+    // and a $913 ask must produce a $30 plan at exactly the ceiling, with the remainder named.
+    const rich = { ...input, totalBudgetBase: BigInt(913_000_000) };
+    const r = await inspectAndPlan(rich, "camp-cap", () => {}, 1, { inspectionId: "insp-cap" });
+    expect(r.stage).toBe("ready");
+    expect(r.plan!.totalBudgetBase).toBe(BigInt(30_000_000));
+    const alloc = r.allocation!.missions[0]!;
+    expect(alloc.rewardBase).toBe(BigInt(600_000)); // exactly the 3-minute fair ceiling
+    expect(alloc.maxCompletions).toBe(BigInt(50)); // the surplus bought testers, not inflation
+    expect(r.questions.join(" ")).toMatch(/stays with you/);
+    expect(r.questions.join(" ")).toContain("$883.00");
+  });
+
+  it("FAIR-CAPACITY CAP: a budget inside capacity is byte-identical to before (no cap, no note)", async () => {
+    const r = await inspectAndPlan(input, "camp-nocap", () => {}, 1, { inspectionId: "insp-nocap" });
+    expect(r.stage).toBe("ready");
+    expect(r.plan!.totalBudgetBase).toBe(input.totalBudgetBase);
+    expect(r.questions.join(" ")).not.toMatch(/stays with you/);
+  });
+
   it("SHADOW mode with no reachable target records the replay honestly (no synthetic success)", async () => {
     // mode shadow + a field test whose URLs aren't the local fixture → the real replay runs from the real
     // pipeline path and records an honest non-reproduced classification (or nothing if the engine is absent).
