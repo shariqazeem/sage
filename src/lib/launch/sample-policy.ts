@@ -63,7 +63,19 @@ export interface SamplePolicyResult<T extends SampleMission> {
     | "raised_to_sample"
     | "capped_to_sample"
     | "budget_limited"
+    | "over_funded"
     | "already_sampled";
+  /**
+   * The most this plan can pay at FAIR rates, in base units, when the budget exceeds it. A plan can
+   * only absorb so much honestly: every mission is capped at MAX_SAMPLE testers, and each tester is
+   * capped at the effort-derived ceiling, so the plan's honest capacity is the sum of those. Beyond
+   * it the surplus does not buy more testing, it simply inflates each reward.
+   *
+   * Measured on a real run: clawup.org at $401 produced a single 5-minute mission and paid 50
+   * testers $8.02 each — eight times the $0.20-per-minute ceiling the policy exists to hold. Nothing
+   * was wrong with the arithmetic; there was just more money than work. Null when the budget fits.
+   */
+  absorbableBase?: bigint | null;
 }
 
 const PLURAL =
@@ -241,15 +253,37 @@ export function applySamplePolicy<T extends SampleMission>(
       question: null,
       reason: "already_sampled",
     };
+  // OVER-FUNDING — more money than this plan can honestly spend. Each mission is bounded by
+  // MAX_SAMPLE testers at its own effort ceiling, so the plan has a real capacity, and a budget past
+  // it does not buy more testing. It is surfaced rather than silently absorbed: a founder who put up
+  // $401 for one five-minute mission should be told it will pay $8.02 a head, not discover it after.
+  // Only judged when EVERY mission carries effort data. Without it there is no fair rate to compare
+  // against, and guessing one would flag a perfectly sensible plan — $1.50 across three testers is
+  // $0.50 each, which is fine, and a fallback ceiling called it over-funded. An unsubstantiated
+  // warning about a founder's money is worse than no warning.
+  const ceilings = out.map((m) => effortCeilingBase(m.effortMinutes, opts.minRewardBase));
+  const absorbable = ceilings.every((c) => c !== null)
+    ? out.reduce(
+        (sum, m, i) => sum + ceilings[i]! * BigInt(Math.max(1, m.maxCompletions)),
+        BigInt(0),
+      )
+    : BigInt(0);
+  const overFunded = absorbable > BigInt(0) && opts.totalBudgetBase > absorbable;
+
   return {
     missions: out,
     adjusted: true,
-    question: null,
+    question: overFunded
+      ? `This budget is larger than the plan can spend at a fair rate — ${out.length} mission${out.length === 1 ? "" : "s"} can pay about $${(Number(absorbable) / 1_000_000).toFixed(2)} in total before each reward starts running well above the going rate for the effort involved. Do you want more missions covering more of the product, or a smaller budget to start with?`
+      : null,
     reason: budgetLimited
       ? "budget_limited"
-      : capped
-        ? "capped_to_sample"
-        : "raised_to_sample",
+      : overFunded
+        ? "over_funded"
+        : capped
+          ? "capped_to_sample"
+          : "raised_to_sample",
+    absorbableBase: overFunded ? absorbable : null,
   };
 }
 

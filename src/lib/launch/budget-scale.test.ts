@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { allocateBudget, MAX_COMPLETIONS, MIN_REWARD_BASE, type WeightedMission } from "./budget";
+import { applySamplePolicy } from "./sample-policy";
 
 /**
  * A BIG BUDGET MUST BUY MORE TESTERS, NOT ONE ENORMOUS REWARD.
@@ -94,5 +95,56 @@ describe("the small-budget behaviour it must not disturb", () => {
       if (!r.ok) continue;
       for (const x of r.missions) expect(x.rewardBase).toBeGreaterThanOrEqual(MIN_REWARD_BASE);
     }
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * MORE MONEY THAN WORK IS A QUESTION, NOT A BIGGER REWARD.
+ *
+ * A plan has a real capacity: every mission is bounded by MAX_SAMPLE testers at its own effort
+ * ceiling. Past that, extra budget does not buy more testing — it just inflates each payment.
+ * Measured on a live run: clawup.org at $401 produced one 5-minute mission and paid 50 testers
+ * $8.02 each, eight times the $0.20-per-minute ceiling the policy exists to hold.
+ */
+const sm = (missionKey: string, effortMinutes: number | undefined, maxCompletions = 1) => ({
+  missionKey, rewardWeight: 5, maxCompletions, qualitative: true, effortMinutes,
+});
+const policy = (budgetUsd: number, missions: ReturnType<typeof sm>[]) =>
+  applySamplePolicy(missions as never, {
+    goal: "have several users try it",
+    totalBudgetBase: BigInt(Math.round(budgetUsd * 1e6)),
+    minRewardBase: MIN_REWARD_BASE,
+  } as never);
+
+describe("over-funding is surfaced, not absorbed", () => {
+  it("$401 on a single five-minute mission asks the founder", () => {
+    const r = policy(401, [sm("logo", 5)]);
+    expect(r.reason).toBe("over_funded");
+    expect(r.question).toMatch(/larger than the plan can spend/i);
+    // It quotes the honest capacity: 50 testers x the $1.00 ceiling for five minutes.
+    expect(Number(r.absorbableBase) / 1e6).toBeCloseTo(50, 0);
+  });
+
+  it("a budget that fits is not flagged", () => {
+    // Two 20-minute missions at three testers each is a $24 capacity; $18 sits comfortably inside it.
+    const r = policy(18, [sm("a", 20), sm("b", 20)]);
+    expect(r.reason).not.toBe("over_funded");
+    expect(r.question).toBeNull();
+  });
+
+  it("says nothing when effort is unknown, rather than guessing a rate", () => {
+    // $1.50 across three testers is $0.50 each, which is fine. A fallback ceiling called that
+    // over-funded — an unsubstantiated warning about a founder's money is worse than none.
+    const r = policy(1.5, [sm("legacy", undefined)]);
+    expect(r.reason).not.toBe("over_funded");
+    expect(r.question).toBeNull();
+    expect(r.absorbableBase ?? null).toBeNull();
+  });
+
+  it("one mission without effort data suppresses the judgement for the whole plan", () => {
+    const r = policy(5_000, [sm("known", 5), sm("unknown", undefined)]);
+    expect(r.reason).not.toBe("over_funded");
   });
 });
