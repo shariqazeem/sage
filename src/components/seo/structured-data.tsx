@@ -90,7 +90,7 @@ export function StructuredData() {
             name: "Can I write my submission in my own words or my own language?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "Yes. Sage matches your account against phrases from inside the product rather than requiring particular wording, so a genuine account written in your own voice or another language still verifies. Copying the mission description back scores nothing.",
+              text: "Yes. Sage matches your account against phrases from inside the product rather than requiring particular wording, so a genuine account written in your own voice or another language still verifies. One thing to keep: write the product's own words for what you saw on screen, such as button and heading labels, because those are what Sage matches against. Copying the mission description back scores nothing.",
             },
           },
           {

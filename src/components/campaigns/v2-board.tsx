@@ -427,6 +427,12 @@ function EvidenceCoaching({
         )}
         <div className="tb-coach-row"><span className="ok">Clears</span><span>a specific, firsthand account in your own words — the exact screens, labels, and text you saw, and what happened when you acted. Details only someone who actually used it would know.</span></div>
         <div className="tb-coach-row"><span className="no">Won&apos;t clear</span><span>a vague summary, or repeating the mission card. Sage compares your account to what it saw exploring the product itself.</span></div>
+        {/* MEASURED, not assumed. Accounts written in Spanish and in Urdu both verify — but only
+            because the writer kept the product's own words for what was on screen. An account that
+            translates everything, including the labels, matches nothing and is held, and a tester
+            has no way to guess that. It is the one instruction that decides whether writing in your
+            own language works, so it belongs here rather than in an FAQ nobody opens mid-task. */}
+        <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Any language</span><span>Write in whatever language you think in. Keep the product&apos;s own words for the things you saw on screen — names, buttons, headings — because those are what Sage matches against.</span></div>
       </div>
     );
   }
