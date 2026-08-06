@@ -10,7 +10,7 @@ import {
   sanitizePublicArgs,
   isPublicTool,
 } from "@/lib/mcp/public";
-import { priceOf } from "@/lib/mcp/pricing";
+import { priceOf, isPaidTool } from "@/lib/mcp/pricing";
 import { siteUrl } from "@/lib/site";
 import {
   okxPaywall,
@@ -100,10 +100,24 @@ export async function POST(
   }
 
   let body: unknown = {};
+  let hasBody = true;
   try {
     body = await req.json();
   } catch {
-    // No body at all — treat it as a discovery probe and answer with the tool's card.
+    hasBody = false;
+  }
+
+  // A BARE `curl -i -X POST` IS THE MARKETPLACE'S OWN AVAILABILITY TEST, and for a priced service
+  // the only correct answer to it is 402.
+  //
+  // This branch used to return the tool card with a 200 to any bodiless POST, which was right when
+  // every tool was free and is wrong the moment one is not: the card short-circuited ahead of the
+  // paywall, so all four paid services answered 200 where the reviewer required 402 with a
+  // PAYMENT-REQUIRED header. Every one of them was rejected as "could not complete the official
+  // test", and the endpoints were working the whole time — they just never got as far as the gate.
+  //
+  // A free tool still gets its card, because for a free service 200 IS the correct answer.
+  if (!hasBody && !isPaidTool(tool)) {
     return NextResponse.json(toolCard(tool), { status: 200 });
   }
 
@@ -132,6 +146,10 @@ export async function POST(
       headers: challengeHeaders(gate.challenge),
     });
   }
+
+  // Paid, but nothing to act on: the caller cleared the gate with no arguments. Answer with the
+  // card rather than running the tool against an empty object and returning a validation error.
+  if (!hasBody) return NextResponse.json(toolCard(tool), { status: 200 });
 
   // Strips caller-supplied identity (founderOverride/clientRef) exactly as the JSON-RPC path does.
   const args = sanitizePublicArgs(inner, ref);

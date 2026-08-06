@@ -9,6 +9,8 @@ import {
   readPaymentHeader,
   verifyOkxPayment,
   okxPayTo,
+  OKX_REVIEW_ADDRESS,
+  okxReviewAddress,
   OKX_ASSET,
   OKX_CHAIN_ID,
   OKX_NETWORK,
@@ -269,5 +271,86 @@ describe("the rail is off unless there is somewhere to be paid", () => {
   it("checksums the address when it is valid", () => {
     process.env.OKX_X402_PAY_TO = PAY_TO.toLowerCase();
     expect(okxPayTo()).toBe(PAY_TO);
+  });
+});
+
+describe("OKX's own review probe must reach the service", () => {
+  it("reads the header name OKX's seller SDK actually sends", async () => {
+    // This was missing, and a missing header name is indistinguishable from an unpaid request:
+    // the reviewer signs correctly, we look under three other names, find nothing, and bill again.
+    const header = await signedHeader();
+    expect(readPaymentHeader(new Headers({ "PAYMENT-SIG": header }))).toBe(header);
+  });
+
+  it("accepts a micro-payment from the named review address", async () => {
+    // Their probe is deliberately under price. Refusing it fails the availability check for a
+    // service that works, which is exactly what happened to all four listings.
+    // Only OKX can sign as OKX, so the exemption is pointed at a key this test holds.
+    const REVIEWER = privateKeyToAccount(`0x${"07".repeat(32)}`);
+    process.env.OKX_X402_REVIEW_ADDRESS = REVIEWER.address;
+    const auth = {
+      from: REVIEWER.address,
+      to: PAY_TO,
+      value: "1", // far under the 50000 price
+      validAfter: "0",
+      validBefore: String(NOW + 300),
+      nonce: `0x${"ab".repeat(32)}`,
+    };
+    const signature = await REVIEWER.signTypedData({
+      domain: DOMAIN,
+      types: TYPES,
+      primaryType: "TransferWithAuthorization",
+      message: {
+        from: auth.from as `0x${string}`,
+        to: auth.to as `0x${string}`,
+        value: BigInt(auth.value),
+        validAfter: BigInt(0),
+        validBefore: BigInt(auth.validBefore),
+        nonce: auth.nonce as `0x${string}`,
+      },
+    });
+    const header = Buffer.from(
+      JSON.stringify({ scheme: "exact", network: OKX_NETWORK, payload: { signature, authorization: auth } }),
+    ).toString("base64");
+
+    const v = await verifyOkxPayment(header, { payTo: PAY_TO, minAmount: "50000" }, NOW);
+    delete process.env.OKX_X402_REVIEW_ADDRESS;
+    expect(v.ok).toBe(true);
+  });
+
+  it("defaults to the address OKX published", () => {
+    delete process.env.OKX_X402_REVIEW_ADDRESS;
+    expect(okxReviewAddress().toLowerCase()).toBe(OKX_REVIEW_ADDRESS.toLowerCase());
+  });
+
+  it("does NOT waive the amount for anyone else", async () => {
+    // The waiver is one named address, not a rule about small amounts.
+    const v = await verifyOkxPayment(await signedHeader({ value: "1" }), expected, NOW);
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.reason).toMatch(/less than/i);
+  });
+
+  it("still refuses a review-address payment that is not genuinely signed", async () => {
+    // Exempting the amount must not exempt the signature — otherwise anyone could claim to be them.
+    const header = Buffer.from(
+      JSON.stringify({
+        scheme: "exact",
+        network: OKX_NETWORK,
+        payload: {
+          signature: `0x${"11".repeat(65)}`,
+          authorization: {
+            from: OKX_REVIEW_ADDRESS,
+            to: PAY_TO,
+            value: "1",
+            validAfter: "0",
+            validBefore: String(NOW + 300),
+            nonce: `0x${"cd".repeat(32)}`,
+          },
+        },
+      }),
+    ).toString("base64");
+    const v = await verifyOkxPayment(header, { payTo: PAY_TO, minAmount: "50000" }, NOW);
+    expect(v.ok).toBe(false);
   });
 });

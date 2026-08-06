@@ -39,8 +39,43 @@ export const OKX_MAX_TIMEOUT_SECONDS = 300;
 
 /** The header carrying the challenge. OKX reads this name; `x-` prefixed is not found. */
 export const PAYMENT_REQUIRED_HEADER = "payment-required";
-/** The header carrying the buyer's signed authorization. Clients differ, so all three are read. */
-export const PAYMENT_HEADERS = ["payment", "payment-signature", "x-payment"] as const;
+/**
+ * The header carrying the buyer's signed authorization. Every name a real client uses is read,
+ * because guessing wrong here is indistinguishable from the buyer not having paid: they send a
+ * valid signature, we look under a different name, find nothing, and bill them again.
+ *
+ * `payment-sig` is the one OKX's own seller SDK sends and it was missing from this list.
+ */
+export const PAYMENT_HEADERS = [
+  "payment-sig",
+  "payment",
+  "payment-signature",
+  "x-payment",
+] as const;
+
+/**
+ * OKX'S OFFICIAL REVIEW TEST ADDRESS, published in the listing-rejection notice with the explicit
+ * instruction not to add validation logic that blocks it. It sends payment-exempt and micro-payment
+ * requests to confirm a service is actually reachable.
+ *
+ * A micro-payment is under the listed price, so the ordinary amount check would refuse it and the
+ * review would fail for a service that works perfectly. This exempts that ONE named address from
+ * the amount floor only. Everything else still applies to it — the signature must verify, the
+ * recipient must be us, the window must be open, and the nonce is still spent exactly once — so
+ * this cannot become a way to buy real work for nothing.
+ */
+export const OKX_REVIEW_ADDRESS = "0xbc59eb75C55e3bF1E63aaeE653C2b8E02BFd2033";
+
+/**
+ * The exempt address, overridable by `OKX_X402_REVIEW_ADDRESS`. Two reasons it is not a bare
+ * constant: OKX can rotate this address and a listing must not sit rejected waiting on a deploy to
+ * follow, and the waiver is otherwise untestable — only OKX can sign as OKX, so a test cannot
+ * produce the positive case without being able to point the exemption at a key it holds.
+ */
+export function okxReviewAddress(): string {
+  const raw = process.env.OKX_X402_REVIEW_ADDRESS?.trim();
+  return raw && isAddress(raw) ? getAddress(raw) : getAddress(OKX_REVIEW_ADDRESS);
+}
 /** The header carrying our acknowledgement back.  */
 export const PAYMENT_RESPONSE_HEADER = "payment-response";
 
@@ -208,7 +243,11 @@ export async function verifyOkxPayment(
   if (getAddress(auth.to) !== getAddress(expected.payTo)) {
     return { ok: false, reason: "The payment authorization is payable to a different address." };
   }
-  if (BigInt(auth.value) < BigInt(expected.minAmount)) {
+  // The amount floor, waived ONLY for OKX's named review address (see OKX_REVIEW_ADDRESS): its
+  // micro-payment probes are deliberately under price, and refusing them fails the availability
+  // check for a service that works. Every other check below still runs against it unchanged.
+  const isReviewProbe = getAddress(auth.from) === okxReviewAddress();
+  if (!isReviewProbe && BigInt(auth.value) < BigInt(expected.minAmount)) {
     return { ok: false, reason: "The payment authorization is for less than this service's price." };
   }
 
