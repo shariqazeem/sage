@@ -463,6 +463,8 @@ export interface GroundingShadowResult {
   sampleAdjusted?: boolean;
   sampleReason?: string;
   sampleQuestion?: string | null;
+  /** ADVISORY note from the sample policy — surfaced with a READY plan, never a reason to stop. */
+  sampleNote?: string | null;
 }
 
 const emptyTiers = (): Record<GroundingTier, number> => ({
@@ -1501,6 +1503,7 @@ export async function runGroundedShadow(
     sampleAdjusted: sample.adjusted,
     sampleReason: sample.reason,
     sampleQuestion: sample.question,
+    sampleNote: sample.note ?? null,
     ...(journeyCoverage
       ? {
           journeyCoverageOk: journeyCoverage.ok,

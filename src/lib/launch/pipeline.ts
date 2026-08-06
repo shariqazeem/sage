@@ -763,16 +763,22 @@ export async function inspectAndPlan(
 
   // disabled | unauthorized → legacy proceeds exactly as before.
   stamp("ready");
+  // An ADVISORY note from the sample policy rides along with the plan. It is deliberately not a
+  // `question`: the pipeline turns questions into needs_input, and a founder who funded generously
+  // should never be handed "no plan" for it. Today this carries the over-funding disclosure — what
+  // the plan can spend at a fair rate when the budget exceeds it.
+  const sampleNote = brain.groundingShadow?.sampleNote ?? null;
   return out("ready", null, {
     map,
     brain,
     allocation: legacy.allocation,
     plan: legacy.plan,
-    // A READY plan carries the map's ADVISORY open questions, never the brain's needs-input ones.
+    // A READY plan carries the map's ADVISORY open questions (plus any advisory sample note), never
+    // the brain's needs-input ones.
     // Those are written for a run that could NOT design missions ("Sage couldn't get far enough into
     // your product…") and handing them to a founder alongside a working plan contradicts the plan
     // itself — the fastest way to make a correct answer look untrustworthy.
-    questions: map.openQuestions,
+    questions: sampleNote ? [...map.openQuestions, sampleNote] : map.openQuestions,
     canary: {
       status: canaryDecision.status,
       reason: canaryDecision.reason,
