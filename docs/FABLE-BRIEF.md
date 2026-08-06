@@ -3,9 +3,12 @@
 You are working in the Sage repository. Your job is to find what is wrong with the agentic
 system and fix it, end to end, with your own judgement about what matters most.
 
-Read `CLAUDE.md` first for the product and the architecture. This document is the part that is
-not in the code: what "good" means here, how to measure it, what will destroy the system if you
-break it, and the specific traps that have already cost days.
+**Read `docs/FOUNDER-BRIEF.md` first.** That is the founder's own statement of what the agent has
+to be, and it is the standard every change is judged against. Then `CLAUDE.md` for the product and
+the architecture.
+
+This document is the part that is in neither: how to measure what the system actually does, what
+will destroy it if you break it, and the specific traps that have already cost days.
 
 ---
 
