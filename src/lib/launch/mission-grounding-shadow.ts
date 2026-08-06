@@ -1391,18 +1391,33 @@ export async function runGroundedShadow(
       }
     }
   }
-  const everyCriterionCriticSupported =
-    criticStatus === "ok" &&
+  // A fully COMPILER-SUPPORTED plan is supported by construction (each proof re-verified against the
+  // immutable inputs); the critic exists to catch a MODEL asserting what evidence doesn't support,
+  // and there is no model assertion to catch. A critic TRANSPORT failure (a 429, a timeout) must
+  // therefore not veto it — that blocked grounded selection on fully-observed journeys for provider
+  // weather, and is one reason the strong `grounded_v2` path was 20-of-234 in production. A critic
+  // that RESPONDED with a malformed or incomplete verdict (schema_invalid) still fails closed: a
+  // broken verdict is suspicious in a way an unreachable provider is not.
+  const allCompilerSupported =
     accepted.length > 0 &&
-    accepted.every(
-      (m) =>
-        supportedKeys.has(m.missionKey) || compilerSupported.has(m.missionKey),
-    );
+    accepted.every((m) => compilerSupported.has(m.missionKey));
+  const everyCriterionCriticSupported =
+    (criticStatus === "ok" &&
+      accepted.length > 0 &&
+      accepted.every(
+        (m) =>
+          supportedKeys.has(m.missionKey) || compilerSupported.has(m.missionKey),
+      )) ||
+    (allCompilerSupported && criticStatus === "provider_error");
+  const criticProvenanceOk =
+    !!(criticActual && criticProvider) ||
+    // the critic never reached a provider — for a compiler-supported plan its provenance is honestly
+    // "not consulted", which must not read as missing.
+    (allCompilerSupported && criticStatus === "provider_error");
   const provenancePresent = !!(
     architectActual &&
     architectProvider &&
-    criticActual &&
-    criticProvider
+    criticProvenanceOk
   );
   const signals: GroundedPlanSignals = {
     architectStrictValid: architectStatus === "ok",

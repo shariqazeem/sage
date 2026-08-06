@@ -113,16 +113,38 @@ export function applySamplePolicy<T extends SampleMission>(
     (opts.totalBudgetBase * BigInt(Math.max(1, m.rewardWeight))) /
     BigInt(totalWeight);
 
+  /** How many CEILING-RATE rewards this mission's pot funds (0 when the pot can't even pay one at
+   *  the fair ceiling — a small budget, which the fair-floor plural path then handles by preferring
+   *  fewer, better-paid testers or asking). Null without effort data. */
+  const byEffortCount = (m: T): number | null => {
+    const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase);
+    if (!ceiling) return null;
+    return Math.min(MAX_SAMPLE, Number(shareOf(m) / ceiling));
+  };
+
   /**
-   * The EFFORT-ANCHORED sample target: enough testers that each is paid fairly (share ÷ ceiling),
-   * never below the plural-preferred sample, never past the hard cap. Null ceiling (no effort data)
-   * → the plain preferred sample, exactly as before.
+   * The EFFORT-ANCHORED cap: never cap below the preferred sample; above it, the pot-supported
+   * ceiling-rate count is the cap. Null effort data → the plain preferred sample, as before.
    */
   const effortTarget = (m: T): number => {
-    const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase);
-    if (!ceiling) return preferred;
-    const byEffort = Number(shareOf(m) / ceiling);
-    return Math.max(preferred, Math.min(MAX_SAMPLE, byEffort));
+    const byEffort = byEffortCount(m);
+    if (byEffort === null) return preferred;
+    return Math.max(preferred, byEffort);
+  };
+
+  /**
+   * The LOWER bound of SATISFYING pay: $0.05 per estimated minute, never below the meaningful floor.
+   * A 20-minute mission paying $0.10 is technically "meaningful" and practically insulting — on a
+   * public marketplace an unattractive reward just sits unfilled, which serves nobody. Small budgets
+   * now prefer FEWER, fairly-paid testers, and ask the founder when even two fair rewards don't fit.
+   */
+  const FAIR_FLOOR_PER_MINUTE = BigInt(50_000);
+  const fairFloorBase = (m: T): bigint => {
+    if (!m.effortMinutes || !Number.isFinite(m.effortMinutes) || m.effortMinutes <= 0) {
+      return opts.minRewardBase;
+    }
+    const f = BigInt(Math.round(m.effortMinutes)) * FAIR_FLOOR_PER_MINUTE;
+    return f > opts.minRewardBase ? f : opts.minRewardBase;
   };
 
   // THE CAP applies whether or not the request was worded in the plural, because it is not about
@@ -147,11 +169,15 @@ export function applySamplePolicy<T extends SampleMission>(
     // without it `effortTarget` just returns the preferred sample — which would silently add testers
     // to every legacy mission, including on a singular goal where this module deliberately never
     // raised. Overpay protection must fire on evidence of overpay, not on its absence.
-    if (!effortCeilingBase(m.effortMinutes, opts.minRewardBase)) return m;
-    const target = effortTarget(m);
-    if (target <= m.maxCompletions) return m;
+    //
+    // AND: raise only toward what the pot GENUINELY FUNDS at the fair ceiling (`byEffortCount`),
+    // never toward the preferred sample. A small pot raised to "preferred" split $1.50 into
+    // 3 × $0.50 for 20-minute work — the exact unsatisfying reward the fair floor exists to prevent;
+    // the plural path below owns that decision (fewer fairly-paid testers, or an honest ask).
+    const byEffort = byEffortCount(m);
+    if (byEffort === null || byEffort <= m.maxCompletions) return m;
     adjusted = true;
-    return { ...m, maxCompletions: target };
+    return { ...m, maxCompletions: byEffort };
   };
 
   if (!requestsPluralSample(opts.goal)) {
@@ -168,8 +194,9 @@ export function applySamplePolicy<T extends SampleMission>(
     const m = raiseToFair(cap(raw));
     if (!m.qualitative) return m;
     if (m.maxCompletions >= preferred) return m;
-    // this mission's share of the budget, and how many meaningful rewards it can buy.
-    const affordable = Number(shareOf(m) / opts.minRewardBase); // whole meaningful rewards this share can fund
+    // this mission's share of the budget, and how many FAIR rewards it can buy (the fair floor is
+    // effort-derived when effort data exists — never split a share into rewards nobody would work for).
+    const affordable = Number(shareOf(m) / fairFloorBase(m)); // whole fair rewards this share can fund
     const target = Math.min(preferred, Math.max(1, affordable));
     if (target < preferred) budgetLimited = true;
     if (target > m.maxCompletions) {
@@ -194,11 +221,15 @@ export function applySamplePolicy<T extends SampleMission>(
     .filter((m) => m.qualitative)
     .reduce((min, m) => Math.min(min, m.maxCompletions), Infinity);
   if (worst < 2) {
-    const perTester = Number(opts.minRewardBase) / 1_000_000;
+    // quote the binding FAIR floor (effort-derived when known), not the bare meaningful floor.
+    const bindingFloor = out
+      .filter((m) => m.qualitative)
+      .reduce((max, m) => (fairFloorBase(m) > max ? fairFloorBase(m) : max), opts.minRewardBase);
+    const perTester = Number(bindingFloor) / 1_000_000;
     return {
       missions: out,
       adjusted,
-      question: `You asked about multiple users, but this budget only funds one meaningful reward (each tester needs at least $${perTester.toFixed(2)}). Do you want to raise the budget so ${preferred} people can each be paid, or run it with a single tester?`,
+      question: `You asked about multiple users, but this budget only funds one fair reward (each tester needs at least $${perTester.toFixed(2)} for this mission's effort). Do you want to raise the budget so ${preferred} people can each be paid fairly, or run it with a single tester?`,
       reason: "budget_limited",
     };
   }

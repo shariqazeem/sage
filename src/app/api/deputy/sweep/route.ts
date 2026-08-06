@@ -8,10 +8,14 @@ import {
   listPendingAutopilotSubmissionIds,
   releaseLock,
   resetStaleSettling,
+  listUnresolvedSubmissionsOlderThan,
+  hasStaleEvent,
+  recordEvent,
 } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
-import { ensureDecision } from "@/lib/deputy/decisions";
+import { ensureDecision, OBSERVATION_ABSTAIN_MODEL } from "@/lib/deputy/decisions";
+import { notifyTelegram } from "@/lib/deputy/notify";
 import { hasLlm } from "@/lib/deputy/brain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
@@ -46,16 +50,50 @@ async function runSweep() {
     autopilot: { settled: 0, held: 0, skipped: 0 },
     timelock: { settled: 0, other: 0 },
     fees: { settled: 0, pending: 0 },
+    /** never-arrives guard: unresolved submissions past the silence bound flagged this tick. */
+    stale: 0,
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
   summary.staleReset = resetStaleSettling(nowSeconds() - STALE_SETTLING_SEC);
 
+  // (0b) NEVER-ARRIVES GUARD — the standing invariant that no submission sits unresolved past the
+  // silence bound, WHATEVER the cause. The processing loop below rightly skips terminal campaigns
+  // (their vaults can never settle) — which is exactly how two testers sat "verifying" on the public
+  // board for 14–15 days until a human stumbled on them. A wrong answer is survivable; silence is
+  // not. This journals + notifies the operator once as each row crosses the bound (the crossing
+  // window matches the sweep cadence, so it fires ~once per row, without any new schema).
+  {
+    const STALE_SUBMISSION_SEC = 24 * 3600; // the silence bound
+    const now = nowSeconds();
+    for (const s of listUnresolvedSubmissionsOlderThan(now - STALE_SUBMISSION_SEC)) {
+      const age = now - s.createdAt;
+      summary.stale += 1;
+      // Fire once PER ROW, not once per time window. A window only fires for rows that cross the
+      // bound while the sweeper happens to be running, so an outage — the case most likely to leave
+      // a tester waiting — would produce no alert at all. The journal remembers instead.
+      if (!hasStaleEvent(s.id)) {
+        recordEvent({
+          campaignId: s.campaignId,
+          submissionId: s.id,
+          kind: "submission_stale",
+          // A tester can read this. It says what is true, and that it is our problem, not theirs.
+          detail: `Still unresolved after ${Math.round(age / 3600)}h. Flagged for a human to finish it.`,
+        });
+        void notifyTelegram(
+          `⚠️ <b>Stale submission</b>\n${s.id} unresolved for ${Math.round(age / 3600)}h (status ${s.status}, campaign ${s.campaignStatus}). No tester should wait in silence — resolve or refund it.`,
+        );
+      }
+    }
+  }
+
   // (ii)+(iii) run the pipeline over pending autopilot submissions it missed,
   // retrying a transient LLM failure (a heuristic receipt while a key exists).
   for (const id of listPendingAutopilotSubmissionIds()) {
     const dec = getDecisionBySubmission(id);
-    if (dec && dec.engine === "heuristic" && hasLlm()) {
+    // An observation-lane ABSTAIN is a correct FINAL receipt, not a degraded one — there is no LLM
+    // upgrade to buy. Without this exclusion the sweep would delete + reinsert it every tick.
+    if (dec && dec.engine === "heuristic" && dec.model !== OBSERVATION_ABSTAIN_MODEL && hasLlm()) {
       await ensureDecision(id, { force: true }).catch(() => null);
       summary.retried += 1;
     }

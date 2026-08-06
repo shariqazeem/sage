@@ -142,6 +142,11 @@ function holdForMissingMission(
   return row ? briefFromRow(row) : { ...brief, engine: "heuristic", model: null, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
 }
 
+/** The `model` marker on an observation-lane ABSTAIN receipt. The sweep's heuristic-retry must skip
+ *  these (there is no LLM upgrade to buy — the abstain IS the correct final receipt), and any reader
+ *  can recognize the lane from the row alone. */
+export const OBSERVATION_ABSTAIN_MODEL = "observation-abstain";
+
 /**
  * Compute — or return the already-stored — verification receipt for a
  * submission. Idempotent: an existing decision short-circuits the brain. The
@@ -218,6 +223,73 @@ export async function ensureDecision(
         `public identity mismatch: ${identityMismatchSummary(identity)}`,
       );
     }
+  }
+
+  // OBSERVATION MISSIONS — THE URL-EVIDENCE BRAIN HAS NO JURISDICTION HERE, SO IT ABSTAINS.
+  //
+  // It was built to fetch a link and verify quotes against fetched content. An observation mission
+  // HAS no link to fetch, so it voted `hold / no_evidence / HIGH fraud` on every honest tester — of
+  // the first 11 submissions ever, 4 carry a high-severity fraud signal for people who were
+  // correctly PAID, including the proven $1 mainnet payout (tx 0x8df776…0069, recorded at
+  // confidence 0 with a HIGH signal). The payout gate ignored the brief only because of lane
+  // ordering — luck, not design — while the STORED record poisoned every reader: founder surfaces,
+  // disputes, audits, anything trained on these rows later.
+  //
+  // The abstain is a neutral receipt that names the judge with jurisdiction. Nothing is weakened:
+  // the observation lane independently re-detects injection on the account (assembleObservationDecision),
+  // its own bar + validated-contradiction veto still gate the payout, and wallet freshness (a MEDIUM
+  // caution that can never block alone) is still recorded because it is lane-independent. The frozen
+  // brain-core is untouched — it simply is not consulted where it cannot judge.
+  if (mission?.verifiabilityClass === "observation-based") {
+    const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
+    const brief: StoredBrief = {
+      criteria: [],
+      fraudSignals: freshness ? [freshness] : [],
+      recommendation: "review",
+      reasonCode: "unknown",
+      confidence: 0,
+      summary:
+        "Observation mission — the URL-evidence brain abstains (no fetchable evidence is expected here). " +
+        "The observation judge decides this submission by matching the tester's account against Sage's own " +
+        "private browsing corpus; its verdict is the one that governs.",
+      provider: null,
+    };
+    const { row, inserted } = insertDecision({
+      submissionId,
+      campaignId: campaign.id,
+      engine: "heuristic",
+      model: OBSERVATION_ABSTAIN_MODEL,
+      brief,
+      contentSha256: null,
+      evidenceOk: false,
+      latencyMs: null,
+      costUsd: null,
+      x402PaymentTx: null,
+      x402Status: "not_required",
+      x402Reason: null,
+      ...(mission && campaign.campaignIdHash
+        ? {
+            commitmentVersion: 2,
+            missionIdHash: mission.missionIdHash,
+            vaultKind: "campaign_v2" as const,
+            missionSpecDigest: recomputeMissionSpecDigest(mission, campaign.campaignIdHash),
+          }
+        : {}),
+    });
+    if (inserted) {
+      recordEvent({
+        campaignId: campaign.id,
+        submissionId,
+        kind: "decision_recorded",
+        detail: encodeDetail(
+          `Observation lane · abstain · ${short(submission.wallet)}`,
+          { cid: opts?.cid },
+        ),
+      });
+    }
+    return row
+      ? briefFromRow(row)
+      : { ...brief, engine: "heuristic", model: OBSERVATION_ABSTAIN_MODEL, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
   }
 
   const judgeTitle = mission ? `${mission.title} — ${mission.objective}` : campaign.title;

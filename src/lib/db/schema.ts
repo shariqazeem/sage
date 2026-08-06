@@ -206,7 +206,10 @@ export type EventKind =
   | "autopay_settled"
   | "autopay_held"
   | "fee_settled"
-  | "fee_pending";
+  | "fee_pending"
+  /** the never-arrives guard fired: a submission has waited past the silence bound without a
+   *  resolution, whatever the cause. Not a verdict on the tester, a flag on us. */
+  | "submission_stale";
 
 /**
  * An append-only log of things that actually happened. Every row is emitted at

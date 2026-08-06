@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MCP_TOOLS } from "./server";
+import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import { publicMcpTools, PUBLIC_READ_TOOLS, PUBLIC_WORK_TOOLS } from "./public";
 
 /**
@@ -49,12 +50,16 @@ describe("the service's own numbers must agree with each other", () => {
     const secs = /(\d+)\s*-\s*(\d+)\s*min/.exec(start);
     expect(secs, "start_inspection must state a concrete range").not.toBeNull();
     const [, lo, hi] = secs!;
-    expect(Number(lo) * 60).toBeLessThanOrEqual(240);
-    expect(Number(hi) * 60).toBeGreaterThanOrEqual(660);
+    // Compared against THE ONE ESTIMATE rather than against literals, because literals here are how
+    // the description and the estimate drifted apart in the first place. The quoted range must
+    // contain the estimate: promising a tighter window than the service plans for is the same
+    // "results don't match the description" failure, just in the flattering direction.
+    expect(Number(lo) * 60).toBeLessThanOrEqual(START_INSPECTION_ESTIMATE.typical);
+    expect(Number(hi) * 60).toBeGreaterThanOrEqual(START_INSPECTION_ESTIMATE.upTo);
   });
 
   it("no public tool still promises the vague 'a few minutes'", () => {
-    // The measured reality is 240-660s. "A few minutes" is what the first rejection was about.
+    // "A few minutes" is what the first listing rejection was about — a range, or nothing.
     for (const t of publicMcpTools()) {
       expect(t.description, t.name).not.toMatch(/a few minutes/i);
     }

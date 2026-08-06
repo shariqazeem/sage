@@ -482,16 +482,36 @@ export async function runObservationDecision(input: {
     })
     .filter((g) => g.text.length > 0);
 
-  const judge: ObservationJudgeResult = preCouldPass
-    ? await judgeObservationAccount({
-        account: input.account,
-        missionObjective: input.missionObjective,
-        criteria: input.criteria,
-        privateObservations: input.key.observations.map((o) => o.text),
-        ...(criterionGroups.length > 0 ? { criterionGroups } : {}),
-        model: input.model,
-      })
+  const callJudge = () =>
+    judgeObservationAccount({
+      account: input.account,
+      missionObjective: input.missionObjective,
+      criteria: input.criteria,
+      privateObservations: input.key.observations.map((o) => o.text),
+      ...(criterionGroups.length > 0 ? { criterionGroups } : {}),
+      model: input.model,
+    });
+  let judge: ObservationJudgeResult = preCouldPass
+    ? await callJudge()
     : { obsConfidence: 0, contradictions: [], corroborations: [] };
+  // THE DOUBLE-CHECK — a degraded judge call is indistinguishable from a genuine zero: a provider
+  // hiccup or a parse failure returns exactly {confidence 0, no corroborations, no contradictions},
+  // which is the same shape as an account that genuinely earned nothing. For a tester who wrote in
+  // their own words the corroboration bridge IS the payout, so losing that call to provider weather
+  // costs a real person real money for a reason they can never see.
+  //
+  // One retry, only on that exact all-zero shape. Nothing is weakened: a fabrication retried once
+  // returns the same zeros, every claim is still validated to a verbatim account↔corpus pair, and
+  // the anchor floor below still requires a deterministic match or a product phrase — a second
+  // opinion from the model can add recall, never authorize a payout on its own.
+  if (
+    preCouldPass &&
+    judge.obsConfidence === 0 &&
+    judge.contradictions.length === 0 &&
+    (judge.corroborations?.length ?? 0) === 0
+  ) {
+    judge = await callJudge();
+  }
 
   return assembleObservationDecision({
     account: input.account,

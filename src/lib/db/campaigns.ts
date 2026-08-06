@@ -423,6 +423,53 @@ export function resetStaleSettling(staleBeforeSec: number): number {
   return res.changes;
 }
 
+/**
+ * THE NEVER-ARRIVES GUARD's eyes — every submission still awaiting a resolution past `cutoffSec`,
+ * INCLUDING those on terminal (stopped/expired) campaigns. That inclusion is the point: the sweep's
+ * processing list rightly excludes terminal campaigns (their vaults can never settle), which is
+ * exactly how two testers sat "verifying" on the public board for 14–15 days with nobody watching.
+ * A wrong answer is survivable; silence is not. Bounded; oldest first.
+ */
+export function listUnresolvedSubmissionsOlderThan(
+  cutoffSec: number,
+  limit = 50,
+): { id: string; campaignId: string; status: string; createdAt: number; campaignStatus: string }[] {
+  return db
+    .select({
+      id: submissions.id,
+      campaignId: submissions.campaignId,
+      status: submissions.status,
+      createdAt: submissions.createdAt,
+      campaignStatus: campaigns.status,
+    })
+    .from(submissions)
+    .innerJoin(campaigns, eq(submissions.campaignId, campaigns.id))
+    .where(
+      and(
+        inArray(submissions.status, ["pending", "settling"]),
+        lt(submissions.createdAt, cutoffSec),
+      ),
+    )
+    .orderBy(submissions.createdAt)
+    .limit(limit)
+    .all();
+}
+
+/**
+ * Has this submission already been flagged as stale? The never-arrives guard fires once per row, and
+ * "once" has to survive downtime: keying the alert off a time WINDOW means a row that crosses the
+ * bound while the sweeper is down is never flagged at all, which is precisely when a tester is most
+ * likely to be waiting on silence. The journal is the durable record of "already told someone".
+ */
+export function hasStaleEvent(submissionId: string): boolean {
+  return !!db
+    .select({ id: events.id })
+    .from(events)
+    .where(and(eq(events.submissionId, submissionId), eq(events.kind, "submission_stale")))
+    .limit(1)
+    .get();
+}
+
 /** Pending submissions on autopilot campaigns (the sweep's catch-up target). */
 export function listPendingAutopilotSubmissionIds(): string[] {
   return db

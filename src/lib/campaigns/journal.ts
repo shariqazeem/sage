@@ -32,6 +32,9 @@ const META: Record<EventKind, JournalMeta> = {
   autopay_held: { tone: "timelocked", label: "Held by Deputy" },
   fee_settled: { tone: "neutral", label: "Operator fee paid" },
   fee_pending: { tone: "timelocked", label: "Operator fee pending" },
+  // Public, deliberately. This journal is read by testers, and someone who has been waiting is
+  // better served by "we noticed" than by a board that says nothing at all.
+  submission_stale: { tone: "timelocked", label: "Waiting longer than it should" },
 };
 
 export function journalMeta(kind: EventKind): JournalMeta {

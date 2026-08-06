@@ -35,6 +35,7 @@ import {
   chooseForwardAffordance,
   chooseGoalTargetAffordance,
   chooseGoalPath,
+  chooseMenuAffordance,
   targetTerms,
   goalTerms,
   goalWantsConversation,
@@ -2363,6 +2364,8 @@ async function exploreInteractive(ctx: {
       let stall = 0;
       /** login walls hit after redirects — a couple mean the goal is gated behind auth; stop honestly. */
       let wallHits = 0;
+      /** one deterministic reveal-scroll per run, for a thin entry screen (below-the-fold content). */
+      let revealScrolled = false;
       /**
        * CYCLE DETECTION by state identity. Same-URL churn is already capped, but a 2-screen cycle
        * (fill → submit → login redirect → back → fill again) resets the churn counter on every hop
@@ -2561,6 +2564,19 @@ async function exploreInteractive(ctx: {
             navigations++;
             action = { kind: "open_path", path: next };
           }
+        }
+
+        // 0c. STARVED FOR PATHS → OPEN THE MENU / REVEAL THE PAGE. When the harvest found almost
+        //     nothing to navigate to, the map is usually hiding: behind a burger/nav toggle, or below
+        //     the fold. One deterministic menu click per screen, one reveal scroll per run — both are
+        //     what a person does on a page that looks empty, and both feed the next harvest. This is
+        //     the "could only reach the entry screen" lever (28% of all inspections stopped there).
+        if (!action && livePaths.size < 2) {
+          action = chooseMenuAffordance(elements, digest, tried, deadLabels);
+        }
+        if (!action && !revealScrolled && elements.length < 6) {
+          revealScrolled = true;
+          action = { kind: "scroll", direction: "down" };
         }
 
         // 1. linear onboarding: the obvious forward control (cheap + deterministic, no model call).
@@ -2835,10 +2851,10 @@ async function exploreInteractive(ctx: {
       ctx.discoveredPathsOut?.push(...livePaths.keys());
     };
 
-    const goalText = (ctx.goal ?? "").trim();
-    if (goalText) {
-      await runGoalLoop(goalText);
-    } else {
+    /** The scripted affordance ladder — the no-goal path, and now ALSO the FALLBACK when a
+     *  goal-directed run dies early (a controller outage, an instant wall): deterministic affordance
+     *  clicking beats returning a one-state inspection while budget remained. */
+    const runScriptedLadder = async (): Promise<void> => {
       // 3b. click start/continue controls, in order, capturing each new state.
       let noProgress = 0;
       while (canInteract() && noProgress < 2) {
@@ -2958,7 +2974,20 @@ async function exploreInteractive(ctx: {
           await capture("scrolled");
         }
       }
-    } // end legacy scripted ladder (no-goal path)
+    }; // end scripted ladder
+
+    const goalText = (ctx.goal ?? "").trim();
+    if (goalText) {
+      await runGoalLoop(goalText);
+      // NEAR-EMPTY GOAL RUN + BUDGET LEFT → the scripted ladder still explores generically. This is
+      // the "could only reach the entry screen" tail: an early controller failure or an instant wall
+      // used to end the whole exploration at 1–2 states while minutes of budget remained unspent.
+      if (states.length <= 2 && Date.now() < deadline) {
+        await runScriptedLadder();
+      }
+    } else {
+      await runScriptedLadder();
+    }
   } catch {
     /* exploration failed mid-way — keep whatever states we captured */
   }

@@ -103,6 +103,10 @@ function seedV2(opts?: {
       targetSurface: target,
       criteria: ["The fetched evidence contains SAGE_V2_AI_PIPELINE_OK"],
       evidenceList: ["The source URL", "The exact quoted phrase"],
+      // EXPLICIT, because these tests are about the URL-evidence brain and the column defaults to
+      // "observation-based" — on which that brain correctly abstains, so it would never be called
+      // and every assertion here would fail for a reason that has nothing to do with what it tests.
+      verifiabilityClass: "url-verifiable",
       rewardAmount: 100_000,
       maxCompletions: 1,
       // an empty target surface can't be a valid locked spec, so we mark it active

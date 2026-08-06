@@ -488,6 +488,49 @@ export function goalWantsSearch(goal: string): boolean {
 }
 
 /**
+ * A NAVIGATION MENU is where a product hides its map. On plenty of real sites (mobile-first
+ * marketing pages, SPAs, docs) the nav links exist only after a burger/menu toggle is opened — the
+ * explorer then sees a near-empty screen, harvests no paths, and stops to ask the founder a
+ * question the menu button could have answered ("could only reach the entry screen", 28% of all
+ * inspections). Deterministic, general, one click per screen: open the thing that names itself a
+ * menu, then let the normal harvest/choosers read what it revealed.
+ */
+const MENU_LABELS = new Set([
+  "menu",
+  "open menu",
+  "close menu",
+  "main menu",
+  "navigation",
+  "open navigation",
+  "nav",
+  "toggle menu",
+  "toggle navigation",
+  "hamburger",
+  "☰",
+  "≡",
+  "show menu",
+  "site menu",
+]);
+
+export function chooseMenuAffordance(
+  elements: MintedElement[],
+  stateDigest: string,
+  tried: ReadonlySet<string>,
+  deadLabels: ReadonlySet<string> = new Set(),
+): ControllerAction | null {
+  for (const el of elements) {
+    if (el.tag === "input" || el.tag === "textarea" || el.tag === "select") continue;
+    const key = affordanceKey(el.label);
+    if (!MENU_LABELS.has(key)) continue;
+    if (deadLabels.has(key)) continue;
+    const sig = actionSignature(stateDigest, { kind: "click_element", elementId: el.id });
+    if (tried.has(sig)) continue;
+    return { kind: "click_element", elementId: el.id };
+  }
+  return null;
+}
+
+/**
  * THE GOAL KNOWS WHERE TO GO — pick the discovered same-site PATH that most directly matches the
  * current checkpoint's terms ("playground" → /playground, or the path whose link label said
  * Playground). Links are the web's API: on a normal product the flow the founder named lives behind
