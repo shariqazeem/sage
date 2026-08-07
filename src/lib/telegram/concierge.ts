@@ -24,6 +24,7 @@ import {
   conciergeModel as model,
 } from "./concierge-config";
 import { withTransientRetry } from "@/lib/llm/retry";
+import { checkNarration, honestFallback } from "./narration-guard";
 
 /**
  * Sage's conversational front door on Telegram — its OWN agent, no third-party runtime.
@@ -476,6 +477,8 @@ async function runAgentTurn(
   const ctx: McpContext = { scheduleAfter, founderWallet, planningRequestId };
 
   let reply = "";
+  /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
+  const succeededTools = new Set<string>();
   // ONE budget for the whole turn, not per call: five tool rounds each retrying three times would
   // otherwise let a bad gateway spell run for minutes with the founder watching nothing happen.
   const turnDeadline = Date.now() + TURN_BUDGET_MS;
@@ -602,6 +605,19 @@ async function runAgentTurn(
           // was required" — which is exactly what it turned out to be. Bounded, and these tools carry
           // no secrets (the chat is bound server-side, never in args).
           console.log("[concierge:%s] tool=%s args=%s ok=%s -> %s", surface, tc.function.name, JSON.stringify(args).slice(0, 200), !result?.isError, text.slice(0, 140));
+          // A tool counts as having succeeded only when it did NOT error AND its own payload says
+          // ok — sage_fund_and_launch answers `{ok:false, needsGas}` through a non-error result, and
+          // treating that as success would license exactly the claim it is refusing to make.
+          if (result && !result.isError) {
+            let payloadOk = true;
+            try {
+              const parsed = JSON.parse(text) as { ok?: unknown };
+              if (typeof parsed?.ok === "boolean") payloadOk = parsed.ok;
+            } catch {
+              /* not JSON — the absence of an error is all we have, and it is enough */
+            }
+            if (payloadOk) succeededTools.add(tc.function.name);
+          }
 
           // Keep the "I'll let you know" promise on TELEGRAM (a push channel): follow a fresh inspection
           // to completion in the background and DM the plan. On web there's no push — the overlay polls
@@ -625,6 +641,21 @@ async function runAgentTurn(
   }
 
   if (!reply) reply = "I wasn't able to finish that one — try rephrasing?";
+
+  // NARRATION GUARD — see narration-guard.ts. Measured live: Sage reported a campaign stopped, 4.50
+  // USDC recovered and a 6.50 balance, with no stop call in the logs, the campaign still live and
+  // 2.00 actually on chain. A founder reads the sentence, not the ledger.
+  const verdict = checkNarration(reply, succeededTools);
+  if (!verdict.ok) {
+    console.warn(
+      "[concierge:%s] UNBACKED CLAIM blocked (%s) · tools that succeeded: [%s] · suppressed: %s",
+      surface,
+      verdict.unbacked.join(", "),
+      [...succeededTools].join(", "),
+      reply.slice(0, 200),
+    );
+    reply = honestFallback(verdict.unbacked);
+  }
 
   // Persist through the ATOMIC append: re-read current + append only THIS turn's user+assistant, so a
   // background notification that landed mid-turn is not overwritten. In shadow mode the shadow's task is
