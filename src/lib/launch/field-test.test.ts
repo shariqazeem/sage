@@ -18,6 +18,7 @@ import {
   fieldTestForMap,
   runFieldTest,
   turnedAwayLimitation,
+  classifyWallKind,
   type FieldTestCapture,
   type ProductSignals,
 } from "./field-test";
@@ -647,4 +648,57 @@ const WORLD_FIXTURE = `<!doctype html><html><head><title>Fixture World</title></
       await new Promise<void>((r) => server.close(() => r()));
     }
   }, 90_000);
+});
+
+/**
+ * WALL RECOGNITION — the boundary Sage stops at cleanly instead of flailing.
+ *
+ * A founder inspected sagepays.xyz and watched Sage re-click "Launch" three times and blind-click
+ * raw coordinates, because a connect-wallet modal opened (real change → the retired control was
+ * forgiven → it clicked again). Most web3 products put a wallet or sign-in wall on the path, so
+ * recognising one is not an edge case — it is the common case. The hard part is telling a real WALL
+ * from the "Connect Wallet" button a web3 app keeps in its header on every single page.
+ */
+describe("classifyWallKind", () => {
+  const nothing = { hasVisiblePassword: false, dialogText: "", bodyText: "" };
+
+  it("a visible password field is a login wall", () => {
+    expect(classifyWallKind({ ...nothing, hasVisiblePassword: true })).toBe("password");
+  });
+
+  it("a wallet-select modal offering two providers is a wallet wall", () => {
+    expect(
+      classifyWallKind({ ...nothing, dialogText: "Connect a Wallet\nMetaMask\nWalletConnect\nCoinbase Wallet" }),
+    ).toBe("wallet");
+  });
+
+  it("one provider plus a 'connect wallet' heading is a wallet wall", () => {
+    expect(classifyWallKind({ ...nothing, dialogText: "Connect your wallet\nMetaMask" })).toBe("wallet");
+  });
+
+  it("does NOT read a lone header 'Connect Wallet' button as a wall", () => {
+    // The exact allbirds-drawer trap, in web3 form: the control is on every page, so the whole run
+    // would abort at state ~3 if this fired. It must not.
+    expect(classifyWallKind({ ...nothing, bodyText: "Home  Docs  Connect Wallet  Turn your product into a paid testing plan" })).toBeNull();
+  });
+
+  it("does NOT fire on a single provider name mentioned in page copy", () => {
+    expect(classifyWallKind({ ...nothing, bodyText: "We support MetaMask and other wallets. Read the docs." })).toBeNull();
+  });
+
+  it("reads content that gates the flow behind connecting as a wallet wall", () => {
+    expect(classifyWallKind({ ...nothing, bodyText: "Connect your wallet to continue to the dashboard." })).toBe("wallet");
+  });
+
+  it("recognises a third-party sign-in wall in a dialog", () => {
+    expect(classifyWallKind({ ...nothing, dialogText: "Sign in\nContinue with Google\nContinue with GitHub" })).toBe("oauth");
+  });
+
+  it("is null on an ordinary product screen", () => {
+    expect(classifyWallKind({ ...nothing, bodyText: "Drag a shape onto the canvas. Your drawing is saved locally." })).toBeNull();
+  });
+
+  it("password takes precedence, so a login form inside a wallet-branded page is still a login", () => {
+    expect(classifyWallKind({ hasVisiblePassword: true, dialogText: "MetaMask WalletConnect", bodyText: "" })).toBe("password");
+  });
 });

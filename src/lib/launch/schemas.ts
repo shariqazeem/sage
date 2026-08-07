@@ -486,6 +486,7 @@ export type MissionValidationCode =
   | "evidence_cannot_prove_criteria"
   | "unsupported_evidence_type"
   | "worthless_presence_check"
+  | "volatile_criterion"
   | "unanchored_claim"
   | "prompt_injection_content"
   // Eyes V2 grounding gate (only fires when a mission carries a design-time grounding map):

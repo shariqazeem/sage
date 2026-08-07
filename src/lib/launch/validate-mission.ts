@@ -97,6 +97,33 @@ export function isWorthlessPresenceCheck(m: Pick<CandidateMission, "objective" |
   return looksLikePresence && !hasOutcome;
 }
 
+/* ── "will it still be true tomorrow?" gate: a mission that hinges on a VOLATILE value ── */
+
+// A criterion or evidence question that asks the tester to report a value which CHANGES over time —
+// a live count, an availability/stock/seats status, a current price/balance, or the presence/absence
+// of dynamic listings. The observation judge matches a submission against the corpus Sage pinned at
+// inspection time; a volatile target is guaranteed to diverge from that pin, so a genuine tester's
+// honest, current observation no longer matches and they are wrongly HELD.
+//
+// MEASURED live: Sage designed "Confirm Marketplace status clarity — report what is written about the
+// current availability of missions" for sagepays.xyz. The marketplace's mission count changes every
+// time a campaign launches or fills, so that mission would mis-judge a real tester within a day.
+const VOLATILE_CRITERION =
+  /\b(seats?\s+(left|remaining|available)|slots?\s+(left|remaining|available)|(currently|right now|at the moment|as of now)\b|current(ly)?\s+(available|availability|status|price|balance|count|number|reward|amount|stock|supply)|how many\b[^.\n]{0,30}\b(left|remaining|available|active|open|online|listed)|(number|count)\s+of\s+(active|open|available|live|current|listed|remaining)|(active|open|available|live|current|listed)\s+(missions?|campaigns?|listings?|items?|offers?|orders?|slots?)\b|in\s+stock|out\s+of\s+stock|sold\s+out|empty[- ]state|no\s+(missions?|campaigns?|listings?|items?|results?)\s+(available|open|right now|currently|yet)|live\s+(price|count|balance|status)|(price|balance|total|amount)\s+(is\s+)?(now|currently|right now))\b/i;
+
+/**
+ * True when a mission's success depends on a value that changes over time, so a genuine tester who
+ * submits later cannot match the corpus Sage pinned. Judged over criteria AND evidence — the two
+ * places that define what the tester must report. Pure and conservative: a stable fact that merely
+ * mentions a number (e.g. "quote the pricing tier names") does not match; a moving one does.
+ */
+export function dependsOnVolatileState(
+  m: Pick<CandidateMission, "criteria" | "evidenceRequirements">,
+): boolean {
+  const fields = [...(m.criteria ?? []), ...(m.evidenceRequirements ?? [])].map(norm).filter(Boolean);
+  return fields.some((f) => VOLATILE_CRITERION.test(f));
+}
+
 function urlOrNull(raw: string): URL | null {
   try {
     return new URL(raw.trim());
@@ -416,6 +443,13 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
   // asks the founder what verifiable outcome they want (needs_input) rather than confabulating.
   if (isWorthlessPresenceCheck(m))
     add("worthless_presence_check", "criteria", "mission only confirms an element is present in the DOM — not worth paying a tester for; require an action + observable outcome");
+
+  // 10b. WILL IT STILL BE TRUE TOMORROW — reject a mission whose success depends on a value that
+  // changes (a live count, availability, seats, current price). The judge matches against the corpus
+  // pinned at inspection; a volatile target guarantees a genuine tester's later, honest observation
+  // diverges from it and they are wrongly held. Anchor on stable facts instead.
+  if (dependsOnVolatileState(m))
+    add("volatile_criterion", "criteria", "mission hinges on a value that changes over time (availability, a live count, seats, current price) — a later submission cannot match the pinned corpus; anchor on a stable fact");
 
   // 11. ANCHOR GATE (anti-hallucination core) — when a corpus is supplied, every mission anchor MUST be
   // a verbatim substring of what Sage actually observed. A mission about a "Zoom Control" that was never

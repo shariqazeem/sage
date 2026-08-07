@@ -563,6 +563,56 @@ export function fieldTestForMap(summary: FieldTestSummary):
  * act on. Says only what was observed — that Sage was turned away — and never diagnoses the
  * product, because "your site blocks bots" is a guess and "Sage could not open it" is a fact.
  */
+/** The known wallet providers a connect modal offers. Two of these together in one dialog is the
+ *  reliable "this is a wallet wall" signal — one name anywhere in the chrome is not. */
+const WALLET_PROVIDERS = [
+  "metamask", "walletconnect", "coinbase wallet", "rainbow", "phantom",
+  "trust wallet", "ledger", "rabby", "okx wallet", "brave wallet", "argent", "safe",
+];
+
+export interface WallSignals {
+  hasVisiblePassword: boolean;
+  /** text of an OPEN, VISIBLE dialog (a wallet modal is one; a persistent header is not). */
+  dialogText: string;
+  /** the page's own visible text, first few kB. */
+  bodyText: string;
+}
+
+/**
+ * WHICH BOUNDARY, IF ANY, SAGE HAS REACHED — pure so the rules are provable without a browser.
+ *
+ * A boundary is one Sage must not cross: a login, a connect-wallet prompt, or a third-party sign-in.
+ * The hard part is telling a real WALL from a persistent affordance: a web3 app shows "Connect
+ * Wallet" in its header on every page, exactly as a shop keeps a hidden login drawer mounted
+ * everywhere. Neither is a wall Sage walked into. So the wallet signal requires a BLOCKING prompt —
+ * an open dialog offering two or more wallet providers (what appears after clicking Connect), or the
+ * page's own content asking to connect/sign in *to continue* — never a lone control.
+ */
+export function classifyWallKind(s: WallSignals): "password" | "wallet" | "oauth" | null {
+  if (s.hasVisiblePassword) return "password";
+  const dlg = (s.dialogText || "").toLowerCase();
+  if (dlg) {
+    const providerHits = WALLET_PROVIDERS.filter((w) => dlg.includes(w)).length;
+    if (providerHits >= 2 || (providerHits >= 1 && /connect\s+(a\s+|your\s+)?wallet/.test(dlg))) {
+      return "wallet";
+    }
+    if (/(sign in|continue|log in|sign up)\s+with\s+(google|github|apple|discord|twitter|x|facebook|microsoft)/.test(dlg)) {
+      return "oauth";
+    }
+  }
+  const body = (s.bodyText || "").toLowerCase().slice(0, 4000);
+  if (/connect\s+(a\s+|your\s+)?wallet\s+to\s+(continue|access|view|start|use|get started|launch|create)/.test(body)) {
+    return "wallet";
+  }
+  if (
+    /(sign in|log in|sign up)\s+to\s+(continue|access|view|start|use|get started)/.test(body) &&
+    /(sign in|continue|log in)\s+with\s+(google|github|apple|discord|twitter|x|facebook|microsoft)/.test(body)
+  ) {
+    return "oauth";
+  }
+  return null;
+}
+
 export function turnedAwayLimitation(
   entryBlocked: string | null,
   sawChallenge: boolean,
@@ -2859,23 +2909,29 @@ async function exploreInteractive(ctx: {
         prevOnboarding = isOnboarding && realChange;
         prevWordSig = newWordSig;
         prevUrl = page.url();
-        // AUTH-WALL RECOGNITION — a password field appearing on a screen that is NOT the entry means
-        // the last move crossed into gated territory (commonstack: submitting the playground bounced
-        // to /settings/login, and the explorer re-ran the whole cycle instead of recognising it).
-        // Deterministic: retire the move that led here, step back once, and after a few distinct
-        // walls stop honestly — the journey wall then words it as the access boundary it is.
+        // WALL RECOGNITION — a boundary Sage MUST NOT CROSS appearing on a screen that is not the
+        // entry means the last move reached gated territory. Three kinds, all handled identically:
+        //   · password  — a login form (commonstack bounced the playground to /settings/login).
+        //   · wallet    — a connect-wallet prompt. THIS IS THE NORM IN WEB3, and until now Sage did
+        //                 not recognise it: it clicked "Connect Wallet", a wallet modal opened (which
+        //                 reads as real progress and forgives the retired control), and it re-clicked
+        //                 forever — the "script bot" flailing a founder saw on sagepays' own launch.
+        //   · oauth     — "sign in with Google/GitHub/…", the other front door to a gated app.
+        //
+        // Reaching the wall is SUCCESS, not failure: Sage explored everything up to it, records the
+        // boundary as an observation the mission brain designs around, retires the move that led
+        // here, steps back, and after a few distinct walls stops honestly.
         if (page.url() !== entryUrl) {
-          // VISIBLE, not merely present. `querySelector('input[type=password]')` matches the login
-          // drawer that a shop or a chat app keeps mounted on EVERY page, hidden until opened — so
-          // every state read as a wall, wallHits hit 3, and exploration aborted after ~3 states.
-          // Measured: allbirds went 4 states -> 0 and web.telegram.org lost its plan entirely.
-          // A hidden drawer is not a wall Sage walked into; a wall is one it can actually see.
-          const authWall = await page
+          // VISIBLE, not merely present, and — for wallet/oauth — a real WALL, not a persistent header
+          // button. `querySelector('input[type=password]')` matched a hidden login drawer a shop keeps
+          // mounted on every page (allbirds went 4 states -> 0). The same trap applies to a nav
+          // "Connect Wallet": it is on every page and is not a wall. So the wallet/oauth signal
+          // requires a BLOCKING prompt — a dialog offering multiple wallet providers, or content that
+          // asks to connect/sign in to continue — never a lone header control.
+          // DOM extraction stays in the page; the CLASSIFICATION is a pure, unit-tested function
+          // (classifyWallKind) so the wallet/oauth/false-positive rules are provable without a browser.
+          const wallSignals = await page
             .evaluate(() => {
-              // `display` and `visibility` inherit, so the element's own computed style settles them.
-              // `opacity` does NOT — a child of an opacity:0 drawer computes opacity 1 — and neither
-              // does clipping, so a collapsed `max-height:0; overflow:hidden` panel still reports a
-              // full-size rect. Both need one walk up the ancestors.
               const shown = (el: Element) => {
                 const he = el as HTMLElement;
                 const rect = he.getBoundingClientRect?.();
@@ -2896,10 +2952,23 @@ async function exploreInteractive(ctx: {
                 }
                 return true;
               };
-              return Array.from(document.querySelectorAll('input[type="password"]')).some(shown);
+              const hasVisiblePassword = Array.from(
+                document.querySelectorAll('input[type="password"]'),
+              ).some(shown);
+              // The text of an OPEN, VISIBLE dialog only — a wallet modal is one, a persistent header
+              // is not — so a lone nav "Connect Wallet" never reads as a wall.
+              const dlg = Array.from(
+                document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]'),
+              ).find(shown);
+              return {
+                hasVisiblePassword,
+                dialogText: (dlg?.textContent || "").slice(0, 2000),
+                bodyText: (document.body?.innerText || "").slice(0, 4000),
+              };
             })
-            .catch(() => false);
-          if (authWall) {
+            .catch(() => null);
+          const wallKind = wallSignals ? classifyWallKind(wallSignals) : null;
+          if (wallKind) {
             wallHits++;
             if (actedLabel) deadLabels.add(actedLabel);
             try {
@@ -2908,11 +2977,19 @@ async function exploreInteractive(ctx: {
             } catch {
               /* keep going */
             }
-            history.push({ action: "auth_wall", changed: true, note: "login required past this point" });
+            const note =
+              wallKind === "wallet"
+                ? "connect-wallet required past this point"
+                : wallKind === "oauth"
+                  ? "third-party sign-in required past this point"
+                  : "login required past this point";
+            history.push({ action: "auth_wall", changed: true, note });
             if (wallHits >= 3) break;
             await page.goBack().catch(() => {});
             await page.waitForTimeout(400);
-            await capture("stepped back from the login wall", { kind: "back" });
+            const backNote =
+              wallKind === "wallet" ? "stepped back from the connect-wallet wall" : "stepped back from the login wall";
+            await capture(backNote, { kind: "back" });
             prevWordSig = wordSignature(states[states.length - 1]?.visibleTextExcerpt ?? "");
             prevUrl = page.url();
             continue;

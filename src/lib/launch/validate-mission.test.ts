@@ -5,6 +5,7 @@ import {
   buildObservationCorpus,
   anchorIssues,
   classifyVerifiability,
+  dependsOnVolatileState,
   type ValidationScope,
 } from "./validate-mission";
 import type { CandidateMission, FieldTestSummary, MissionValidationCode, ProductObservation } from "./schemas";
@@ -427,5 +428,70 @@ describe("classifyVerifiability — adversarial (a subjective mission can't be W
         evidenceRequirements: ["Provide the URL reached and quote the exact install command line"],
       }),
     ).toBe("url-verifiable");
+  });
+});
+
+/**
+ * A MISSION MUST STILL BE TRUE WHEN A TESTER SUBMITS IT — the "quality missions only" gate.
+ *
+ * The observation judge matches a submission against the corpus Sage pinned at inspection time. A
+ * mission whose success depends on a value that changes (a live count, availability, seats, a current
+ * price) is guaranteed to diverge from that pin, so a genuine tester's honest, current observation no
+ * longer matches and they are wrongly held — the "confused and buggy on submit" a founder fears.
+ *
+ * Measured live: Sage designed "Confirm Marketplace status clarity — report what is written about the
+ * current availability of missions" for sagepays.xyz. That count changes every time a campaign
+ * launches or fills.
+ */
+describe("dependsOnVolatileState", () => {
+  const m = (criteria: string[], evidenceRequirements: string[] = []) => ({ criteria, evidenceRequirements });
+
+  it("catches the real marketplace-availability mission", () => {
+    expect(
+      dependsOnVolatileState(
+        m(
+          ["The tester must confirm the text regarding availability of missions."],
+          ["What text is displayed regarding the current availability of missions?", "Does the page show any active missions or an empty state indicator?"],
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("catches seats/slots remaining", () => {
+    expect(dependsOnVolatileState(m(["State the current seats left for the campaign."]))).toBe(true);
+    expect(dependsOnVolatileState(m(["How many slots are remaining?"]))).toBe(true);
+  });
+
+  it("catches stock and current-price targets", () => {
+    expect(dependsOnVolatileState(m(["Report whether the item is in stock."]))).toBe(true);
+    expect(dependsOnVolatileState(m(["Quote the price displayed right now."]))).toBe(true);
+  });
+
+  it("catches a live count of active listings", () => {
+    expect(dependsOnVolatileState(m(["Report the number of active campaigns shown."]))).toBe(true);
+  });
+
+  // ── the false-positive guards: stable facts that merely mention numbers or the word "current" ──
+  it("does NOT flag a stable heading or value proposition", () => {
+    expect(dependsOnVolatileState(m(["The tester quotes the main headline shown on the page."]))).toBe(false);
+  });
+
+  it("does NOT flag naming pricing TIERS (stable) vs a live price", () => {
+    expect(dependsOnVolatileState(m(["List the names of the pricing tiers offered."]))).toBe(false);
+  });
+
+  it("does NOT flag reaching a page and describing what happened", () => {
+    expect(
+      dependsOnVolatileState(m(["The tester reaches the dashboard after signing in and describes the first screen."])),
+    ).toBe(false);
+  });
+
+  it("does NOT flag a fixed reward amount stated in the mission itself", () => {
+    // "the $1.50 reward" is set by the vault, not a volatile page value the tester reads.
+    expect(dependsOnVolatileState(m(["Confirm the mission was completed as described."]))).toBe(false);
+  });
+
+  it("does NOT flag counting steps in a flow (a fixed structural fact)", () => {
+    expect(dependsOnVolatileState(m(["Report which step indicator appears (e.g. Step 1 of 2)."]))).toBe(false);
   });
 });
