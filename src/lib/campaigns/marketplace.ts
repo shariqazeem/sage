@@ -4,6 +4,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campaigns, missions, submissions, type Campaign } from "@/lib/db/schema";
 import { isTestnetChain, tokenSymbol } from "@/lib/format";
+import { OBS_BAR } from "@/lib/deputy/observation-verify";
 
 /**
  * THE PUBLIC MARKETPLACE — every mission anyone can actually get paid for, right now.
@@ -231,6 +232,8 @@ export function marketplace(): MarketplaceView {
   const ids = live.map((c) => c.id);
   const missionRows = db.select().from(missions).where(inArray(missions.campaignId, ids)).all();
   const paidBy = paidCountsByMission(missionRows.map((m) => m.missionIdHash));
+  /** Distinct observations pinned to each campaign — what an observation account is judged against. */
+  const corpusSources = new Map(live.map((c) => [c.id, c.privateCorpusSources ?? 0]));
 
   const byCampaign = new Map<string, MarketplaceMission[]>();
   for (const m of missionRows) {
@@ -238,6 +241,23 @@ export function marketplace(): MarketplaceView {
     const paid = paidBy.get(m.missionIdHash) ?? 0;
     const remainingSlots = Math.max(0, m.maxCompletions - paid);
     if (remainingSlots === 0) continue; // full — nobody else can be paid for it
+    // OBSERVATION WORK WITH NOTHING TO JUDGE IT AGAINST CANNOT BE PAID, so it must not be advertised
+    // as paid work. `observationBar` hard-fails `thin_corpus` below OBS_BAR.minKeySources, which
+    // means every submission against such a mission is held — not occasionally, always.
+    //
+    // MEASURED live: launch-kyvernlabs-com-63rjdf sat on this board with THREE observation missions,
+    // eleven open slots and a corpus of zero. A stranger arriving from a founder DM would have done
+    // real work and waited forever, which is the single worst thing this product can do to someone.
+    // The url-verifiable lane is unaffected: it is judged by fetching the page the tester supplies,
+    // so it needs no corpus and stays listed.
+    //
+    // Same payability rule as a revoked vault, a filled slot, or a testnet campaign below.
+    if (
+      m.verifiabilityClass === "observation-based" &&
+      (corpusSources.get(m.campaignId) ?? 0) < OBS_BAR.minKeySources
+    ) {
+      continue;
+    }
     const list = byCampaign.get(m.campaignId) ?? [];
     list.push({
       missionKey: m.missionKey,

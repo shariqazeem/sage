@@ -8,7 +8,7 @@ import {
   createMission,
 } from "@/lib/db/campaigns";
 import { db } from "@/lib/db";
-import { missions, submissions } from "@/lib/db/schema";
+import { campaigns, missions, submissions } from "@/lib/db/schema";
 
 /**
  * THE MARKETPLACE MUST ONLY LIST WORK THAT CAN ACTUALLY PAY.
@@ -23,7 +23,9 @@ import { missions, submissions } from "@/lib/db/schema";
 let seq = 0;
 const wallet = () => `0x${(++seq).toString(16).padStart(40, "0")}`;
 
-function campaign(over: { status?: string; sandbox?: boolean; title?: string; chainId?: number } = {}) {
+function campaign(
+  over: { status?: string; sandbox?: boolean; title?: string; chainId?: number; corpusSources?: number } = {},
+) {
   const c = createCampaign({
     title: over.title ?? `camp-${++seq}`,
     rewardAmount: 1_000_000,
@@ -36,6 +38,14 @@ function campaign(over: { status?: string; sandbox?: boolean; title?: string; ch
     chainId: over.chainId ?? 2345,
   });
   setCampaignStatus(c.id, (over.status ?? "live") as never);
+  // A CORPUS BY DEFAULT, because the default mission below is observation-based and observation work
+  // is only payable when there is something pinned to judge it against. Leaving it at zero made
+  // every fixture here describe work that cannot settle — which is precisely what these tests exist
+  // to exclude, so they would have been asserting the exclusion by accident.
+  db.update(campaigns)
+    .set({ privateCorpusSources: over.corpusSources ?? 9 })
+    .where(eq(campaigns.id, c.id))
+    .run();
   return c;
 }
 
@@ -351,5 +361,61 @@ describe("testnet work is not paid work", () => {
     const c = campaign({ chainId: 2345 });
     mission(c.id, { rewardAmount: 5_000_000, maxCompletions: 20 });
     expect(ids()).toContain(c.id);
+  });
+});
+
+
+/**
+ * OBSERVATION WORK WITH NOTHING TO JUDGE IT AGAINST CANNOT BE PAID.
+ *
+ * `observationBar` hard-fails `thin_corpus` below OBS_BAR.minKeySources, so every submission against
+ * such a mission is held — not sometimes, always.
+ *
+ * MEASURED live: launch-kyvernlabs-com-63rjdf sat on this board with three observation missions,
+ * eleven open slots and a corpus of zero, while the board told testers "Sage assesses your account
+ * against what it saw itself and pays automatically when it clears". A stranger arriving from a
+ * founder DM would have done real work and waited forever.
+ */
+describe("a mission with no corpus to judge it against is not advertised", () => {
+  it("hides observation missions when the campaign has no pinned corpus", () => {
+    const c = campaign({ corpusSources: 0 });
+    mission(c.id);
+    expect(ids()).not.toContain(c.id);
+  });
+
+  it("hides them when the corpus is below the eligibility bar, not just at zero", () => {
+    const c = campaign({ corpusSources: 4 }); // OBS_BAR.minKeySources is 5
+    mission(c.id);
+    expect(ids()).not.toContain(c.id);
+  });
+
+  it("lists them the moment the corpus clears the bar", () => {
+    const c = campaign({ corpusSources: 5 });
+    mission(c.id);
+    expect(ids()).toContain(c.id);
+  });
+
+  it("still lists url-verifiable work, which needs no corpus to judge", () => {
+    const c = campaign({ corpusSources: 0 });
+    const m = mission(c.id);
+    db.update(missions)
+      .set({ verifiabilityClass: "url-verifiable" })
+      .where(eq(missions.missionKey, m.key))
+      .run();
+    expect(ids()).toContain(c.id);
+  });
+
+  it("drops only the unjudgeable mission, keeping the campaign's payable one", () => {
+    const c = campaign({ corpusSources: 0 });
+    mission(c.id); // observation-based, unjudgeable here
+    const url = mission(c.id);
+    db.update(missions)
+      .set({ verifiabilityClass: "url-verifiable" })
+      .where(eq(missions.missionKey, url.key))
+      .run();
+    const listed = marketplace().campaigns.find((x) => x.id === c.id);
+    expect(listed).toBeDefined();
+    expect(listed!.missions).toHaveLength(1);
+    expect(listed!.missions[0]!.verifiabilityClass).toBe("url-verifiable");
   });
 });
