@@ -149,6 +149,26 @@ function sampleNoteFor(brain: MissionBrainResult): string | null {
 
 const usd = (base: bigint): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
 
+/**
+ * A field-test run that saw at most one thing — the population that, combined with a thin static
+ * crawl, makes the mission brain interrogate the founder ("could only reach the entry screen",
+ * "no obvious signup surface"; together 30 of the last fortnight's 70 needs_input results). The
+ * predicate deliberately mirrors the question's own trigger in mission-brain.ts so the retry fires
+ * for exactly the runs that would otherwise end in a question, and no others.
+ */
+export function thinFieldRun(ft: FieldTestSummary | null): boolean {
+  return (ft?.states?.length ?? 0) <= 1 && (ft?.pages?.length ?? 0) <= 1;
+}
+
+/** How much a run saw. Used only to pick the RICHER of two looks — never to judge quality. */
+export function fieldRichness(ft: FieldTestSummary | null): number {
+  return (
+    (ft?.states?.length ?? 0) +
+    (ft?.pages?.length ?? 0) +
+    (ft?.visionObservations?.length ?? 0)
+  );
+}
+
 /** When the fair-capacity cap held part of the budget back, say exactly what the plan spends and what
  *  stays with the founder. Supersedes the shadow's over-funding note: same fact, now acted on. */
 function unspentNoteFor(
@@ -240,23 +260,51 @@ export async function inspectAndPlan(
     } catch {
       goalJourney = null;
     }
+    const fieldTestArgs = {
+      inspectionId: opts.inspectionId,
+      startUrl: inspection.startUrl,
+      host: inspection.host,
+      candidateLinks: rankPrimaryLinks(
+        inspection.observations,
+        inspection.host,
+        inspection.startUrl,
+        5,
+      ),
+      // the founder's exact goal drives the goal-directed browser controller (reach the goal, not decorations).
+      goal: typeof input.goal === "string" ? input.goal : undefined,
+      journey: goalJourney,
+    };
     try {
-      fieldTest = await runFieldTest({
-        inspectionId: opts.inspectionId,
-        startUrl: inspection.startUrl,
-        host: inspection.host,
-        candidateLinks: rankPrimaryLinks(
-          inspection.observations,
-          inspection.host,
-          inspection.startUrl,
-          5,
-        ),
-        // the founder's exact goal drives the goal-directed browser controller (reach the goal, not decorations).
-        goal: typeof input.goal === "string" ? input.goal : undefined,
-        journey: goalJourney,
-      });
+      fieldTest = await runFieldTest(fieldTestArgs);
     } catch {
       fieldTest = null;
+    }
+    // ONE MORE LOOK BEFORE ASKING THE FOUNDER. Browsing is a lottery — the comment further down
+    // already records 0 to 36 states from the same url on different runs, and allbirds.com measured
+    // 13 states in one run and 0 the next hour. When a run comes back thin, that nondeterminism cuts
+    // BOTH ways: a second attempt has real odds of landing on the good side of the coin.
+    //
+    // This matters because a thin inspection is what makes Sage interrogate the founder. Of the 70
+    // needs_input results in the last fourteen days, the two biggest buckets — "could only reach the
+    // entry screen" (15) and "no obvious signup surface" (15) — fire precisely when everything below
+    // yielded at most one page. Every retry that lands converts an interrogation into a plan, which
+    // is the difference between "the agent does the rest" and a form with extra steps.
+    //
+    // Bounded on purpose: one retry, only when BOTH the browser and the static crawl were thin (the
+    // exact population that triggers those questions), and the richer of the two runs wins — a
+    // retry can only ever add, never replace a good look with a worse one.
+    if (thinFieldRun(fieldTest) && inspection.observations.length <= 1) {
+      // Re-stamp before the second look. The sweep reaper treats 15 minutes without a stamp as a
+      // dead runner, and a slow first run plus a retry could legitimately exceed that in one stage —
+      // the retry must reset the clock it is about to spend. The duplicate trail entry is honest:
+      // Sage really is looking twice.
+      stamp("field_test");
+      try {
+        const secondLook = await runFieldTest(fieldTestArgs);
+        if (fieldRichness(secondLook) > fieldRichness(fieldTest)) fieldTest = secondLook;
+      } catch {
+        /* keep the first look — a failed retry must never cost what the first run saw */
+      }
     }
   }
 
