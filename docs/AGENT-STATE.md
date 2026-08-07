@@ -270,6 +270,85 @@ Being honest about the holes, because these are the ones that bite during growth
 
 ---
 
+## Update 2026-08-07 — the budget ceiling, and two fixed defects
+
+Measured across 7 live prod inspections in one battery run. All of it is new since the
+2026-08-06 pass above.
+
+### The ceiling: Sage cannot absorb a founder-scale budget
+
+This is the finding that matters most for growth, and nothing above caught it because it never
+looks like a failure. Plans come back `ready`, anchors 100%, with a polite note.
+
+| product | budget offered | plan spends | absorbed |
+| --- | --- | --- | --- |
+| yara.garden | $1,015 | $50 | **5%** |
+| play2048 | $1,014 | $80 | 8% |
+| motherfuckingwebsite | $1,010 | $80 | 8% |
+| excalidraw | $1,013 | $100 | 10% |
+| tailwindcss/docs | $1,011 | $60 | 6% |
+| plausible.io | $1,012 | $200 | 20% |
+| clawup.org | $120 | $65 | 54% |
+
+Capacity is `missions × effortMinutes × $0.20/min × testersPerMission`, and the last term is
+pinned by two hardcoded 50s — `MAX_SAMPLE` (`sample-policy.ts`) and `MAX_COMPLETIONS`
+(`budget.ts`). At the observed average of 2 missions per plan that puts the structural maximum
+at **$300 for 15-minute work, $500 for 25-minute work, whatever the founder offers.** A founder
+arriving with $10,000 gets a plan that spends $300 and hands back $9,700.
+
+Note the inversion: **yara.garden produced the most observation (20 browser states, 6 vision
+observations) and the fewest missions (1) and the lowest absorption (5%).** More looking is not
+currently converting into more work to pay for.
+
+Absorbing $10k means roughly 6 missions × 20 min × ~420 testers. That is not an absurd campaign
+for a founder with millions of users — 420 people through an onboarding flow is exactly what
+they would want to buy. The per-wallet payout cap (1 per campaign) is what makes a large slot
+count safe: 420 slots means 420 distinct people, not one person farming. Nothing on-chain
+hardcodes 50; the vault takes `maxCompletions` as data.
+
+Not changed yet — it moves real money at scale and deserves its own measured pass.
+
+### Fixed: the founder's own request was getting the leftovers
+
+Rewards always tracked difficulty (reward ∝ weight). Nothing tracked how the budget **splits**,
+because a mission's share is reward × count and the model picks the count. On clawup.org at $120
+the model asked for 3 testers on the 25-minute paid mission and 17 on a five-minute "quote the
+Terms of Service effective date" — so $20.80 went to the founder's actual request and $44.20 to
+reading back the same fixed string seventeen times.
+
+The balancer is the plan's top mission by construction, so the rule is now: no other single
+mission may out-spend it. Only counts are trimmed, only downward, so rewards still track
+difficulty and the exact-allocation invariant never moves. Same plan now pays $16.90 × 2 (52%)
+and $2.60 × 12 (48%).
+
+### Fixed: the paid-wall mission told the tester nothing
+
+Shipped instructions read: *"Start from simple, pay-as-you-go pricing. Carry the paid step
+through to completion using your own payment method."* The gate anchor is a page heading, so
+splicing it in bare is broken grammar naming no destination, and "the paid step" never says
+whether to buy credits, a subscription, or compute. This is the one mission that spends the
+tester's own money. The founder's own sentence was already on the mission and never reached the
+person doing the work.
+
+### Still open, measured not fixed
+
+- **Plans pay ~2.6–3.4× the $0.20/min fair ceiling**, because capacity is computed at 50
+  qualitative testers while plans actually run fewer, so the same pot spreads over fewer heads.
+  Fixing it means testers earn less and founders keep more — a values call, not a bug.
+- **Field-test mode is unstable on bot-walled sites.** allbirds.com and web.telegram.org each
+  flipped between `static` and `interactive` in both directions on 2026-08-06, before any recent
+  change. allbirds saw 13 browser states in one run and 0 the next hour. The same product gets a
+  materially different plan depending on which run you catch.
+- **`TELEGRAM_CHAT_ID` has never been set on prod**, so `notifyTelegram` (the stale-submission
+  alert — the one that says a tester is waiting unanswered) has had nowhere to send since launch.
+  One line in `.env` plus a restart.
+
+### The live ledger, which is the direct answer to "does a genuine tester get held"
+
+**8 paid, 3 rejected, 0 held, 0 pending.** Every submission ever made reached a terminal state.
+
+---
+
 ## What I would fix, in order
 
 Ranked by impact on the plan to DM founders and run funded campaigns.
