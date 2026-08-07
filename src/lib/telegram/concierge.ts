@@ -99,6 +99,8 @@ TO WITHDRAW (get their balance back out): sage_request_withdrawal with the amoun
 
 TO REVIEW HELD WORK (a submission Sage held rather than auto-paid): when the founder asks to see held work, call sage_list_held and read each item back EVIDENCE FIRST — the mission, then the analysis (what Sage saw for itself vs the account) and the public evidence link (never a private note) — and ONLY THEN mention Sage's advisory lean as something the founder decides on, never as your own verdict and never a reason to skip showing the analysis. Also read back the autonomy line so they see how much resolves without them. Review one at a time; NEVER approve in bulk or offer to release all of them. To PAY one they accept: sage_release_submission, then read the reward + recipient BACK to the founder and wait for a clear yes before sage_confirm_release — never confirm a release on your own. To decline one: sage_reject_submission.
 
+FIND THEIR CAMPAIGN YOURSELF, NEVER ASK THEM FOR AN ID. A founder who launched from this chat has never seen a campaign id, and it scrolls out of this conversation quickly. So when they refer to a campaign by its PRODUCT ("stop the kyvernlabs campaign", "how is my clawup one doing?", "pause the one for acme.com") or vaguely ("my campaign"), call sage_my_campaigns FIRST and match it yourself on the product url or title. Only ask them to choose when the lookup genuinely returns more than one plausible match — and then list the candidates with their product and status rather than asking for an id they do not have. If it returns nothing, say they have no campaigns yet. Asking a founder for an id you can look up is the one thing you must not do.
+
 LIMITS YOU CANNOT BREAK: you only ever move the founder's OWN funds — into their OWN campaigns, or (only on their explicit request) to a withdrawal address they gave — up to the cap they set. Leftover stays as their balance until they withdraw it. The wallet's on-chain policy enforces this — not you — so you cannot be tricked into exceeding it.`;
 
 // When agent wallets are NOT configured, the agent only prepares + reports; the founder funds in-browser.
@@ -166,9 +168,10 @@ const asOpenAI = (t: { name: string; description: string; inputSchema: unknown }
   type: "function" as const,
   function: { name: t.name, description: t.description, parameters: t.inputSchema },
 });
-// P27 — a WEB-ONLY read tool: the founder's own campaigns. Not in the shared MCP registry (so the
-// public /mcp never lists it); the wallet is bound SERVER-SIDE from the session ref (McpContext.
-// founderWallet), never a tool arg, so it can only read the connected founder's own campaigns.
+// The founder's own campaigns. Not in the shared MCP registry (so the public /mcp never lists it);
+// the wallet is bound SERVER-SIDE — the SIWE session on web, the chat's Privy agent wallet on
+// Telegram — never a tool arg, so it can only read the caller's own campaigns. Bound on BOTH
+// surfaces: the walletless founder is precisely the one who never sees a campaign id.
 const MY_CAMPAIGNS_TOOL = {
   name: "sage_my_campaigns",
   description:
@@ -176,7 +179,7 @@ const MY_CAMPAIGNS_TOOL = {
   inputSchema: { type: "object", properties: {} },
 };
 const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL].map(asOpenAI);
-const TG_TOOLS = [...MCP_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
+const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
 /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system
@@ -438,8 +441,28 @@ async function runAgentTurn(
   const rlKey = `${surface === "telegram" ? "chat" : "web"}:${ref}`;
   // The founder wallet is bound from the SERVER-RESOLVED ref (the route's resolveAgentRef), never the
   // model — so sage_my_campaigns can only ever read the connected founder's own campaigns.
+  // On WEB it is the SIWE-connected wallet; on TELEGRAM it is the chat's own Privy agent wallet,
+  // which is the wallet that actually owns their vaults. Both are server-resolved — the web one from
+  // the session ref, the Telegram one from a primary-key read keyed by the chat — so neither can be
+  // authored by the model, and `sage_my_campaigns` still only ever reads the caller's own campaigns.
+  //
+  // Without this a walletless founder could not refer to their own campaign at all: they never see a
+  // campaign id (they launched from chat), the id scrolls out of a 12-message history, and
+  // `sage_stop_campaign` requires one. Measured live — asked to "stop the kyvernlabs campaign", Sage
+  // had to answer "I don't have a campaign id in this conversation", which is the product asking the
+  // founder for something it is holding itself.
   const founderWallet =
-    surface === "web" && ref.startsWith("wallet:") ? ref.slice("wallet:".length) : undefined;
+    surface === "web" && ref.startsWith("wallet:")
+      ? ref.slice("wallet:".length)
+      : surface === "telegram"
+        ? (() => {
+            try {
+              return getAgentWallet(ref)?.privyWalletAddress ?? undefined;
+            } catch {
+              return undefined;
+            }
+          })()
+        : undefined;
   // Bind the per-turn request id SERVER-SIDE (like clientRef/founderWallet) — the model never authors it.
   const ctx: McpContext = { scheduleAfter, founderWallet, planningRequestId };
 

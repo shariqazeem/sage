@@ -409,7 +409,7 @@ export async function callSageTool(
               text: JSON.stringify({
                 ok: false,
                 error:
-                  "This only works for a founder connected on the web. Ask them to connect their wallet first.",
+                  "No founder wallet is bound to this session yet — on the web that means connecting a wallet, in chat it means setting up an agent wallet first.",
               }),
             },
           ],

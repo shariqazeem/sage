@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const h = vi.hoisted(() => ({
-  WALLET_TOOLS: ["sage_agent_wallet_status", "sage_setup_wallet", "sage_fund_and_launch"],
+  WALLET_TOOLS: ["sage_agent_wallet_status", "sage_setup_wallet", "sage_fund_and_launch", "sage_stop_campaign"],
   walletCalls: [] as { tool: string; args: Record<string, unknown>; ref: string }[],
   store: new Map<string, string>(),
   wallets: new Map<string, { chatId: string; privyWalletAddress: string }>(),
@@ -158,5 +158,56 @@ describe("walletless founders are isolated from each other", () => {
     expect(h.store.has(BOB)).toBe(true);
     expect(h.store.get(ALICE)).not.toContain("and this");
     expect(h.store.get(BOB)).not.toContain("remember this");
+  });
+});
+
+
+/**
+ * A FOUNDER MUST NEVER BE ASKED FOR AN ID SAGE IS HOLDING ITSELF.
+ *
+ * MEASURED live in the bot: asked to "stop the kyvernlabs campaign", Sage answered "I don't have a
+ * campaign id 'kyvernlabs' in this conversation... can you give me the campaign id?". It was telling
+ * the truth — `sage_my_campaigns` was bound on WEB ONLY, so on Telegram there was no way to list the
+ * founder's own campaigns at all, while `sage_stop_campaign` requires an id.
+ *
+ * The walletless founder is exactly the one who cannot supply it: they launched from chat, so they
+ * never saw an id, and it scrolls out of a twelve-message history. The lookup is now bound on both
+ * surfaces, with the wallet resolved server-side from the chat rather than from the model.
+ */
+describe("a Telegram founder can reach their own campaigns", () => {
+  it("binds the campaigns lookup on Telegram, not only on the web", async () => {
+    let toolNames: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_u: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { tools?: { function: { name: string } }[] };
+        toolNames = (body.tools ?? []).map((t) => t.function.name);
+        return new Response(
+          JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    await runConcierge(ALICE, "stop the kyvernlabs campaign", () => {}, "prid:a");
+    expect(toolNames).toContain("sage_my_campaigns");
+    expect(toolNames).toContain("sage_stop_campaign");
+  });
+
+  it("tells the model to look the campaign up rather than ask for an id", async () => {
+    let system = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_u: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { messages: { role: string; content: string }[] };
+        system = body.messages[0]!.content;
+        return new Response(
+          JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    await runConcierge(ALICE, "stop the kyvernlabs campaign", () => {}, "prid:a");
+    expect(system).toContain("sage_my_campaigns");
+    expect(system).toMatch(/never ask them for an id/i);
   });
 });
