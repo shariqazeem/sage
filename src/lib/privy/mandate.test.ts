@@ -125,3 +125,50 @@ describe("buildStopCampaignPolicy", () => {
     }
   });
 });
+
+/**
+ * PRIVY REJECTS A RULE NAME OVER 50 CHARACTERS, AND REJECTS THE WHOLE POLICY WITH IT.
+ *
+ * Measured live: stopping a campaign answered
+ *
+ *   privy 400: {"error":"Validation error: Rule name must be fewer than 50 characters ..."}
+ *
+ * because "withdraw remaining to the vault owner — this vault only" is 55. The policy was never
+ * created, so `revoke()` and `withdrawRemaining()` were never attached, so **stopping a campaign
+ * had never once worked** — the founder only ever saw "Couldn't stop the campaign". Every other
+ * rule was inside the limit, which is exactly why funding and launching worked and hid it.
+ *
+ * A name is display metadata — no condition, action or scope rides on it — so the guard is cheap.
+ * It covers every policy builder, because the next one added is where this recurs.
+ */
+describe("every policy rule name fits Privy's limit", () => {
+  const LIMIT = 50;
+  const policies: [string, Record<string, unknown>][] = [
+    ["mandate (walletless)", buildMandatePolicy({ name: "mandate:123456789", factory, usdc, perCampaignCapBase: CAP })],
+    ["mandate (with reclaim)", buildMandatePolicy({ name: "mandate:123456789", factory, usdc, reclaim, perCampaignCapBase: CAP })],
+    ["withdraw", buildWithdrawPolicy({ name: "mandate:123456789", factory, usdc, perCampaignCapBase: CAP }, reclaim, CAP)],
+    ["stop campaign", buildStopCampaignPolicy({ name: "mandate:123456789", factory, usdc, perCampaignCapBase: CAP }, reclaim)],
+  ];
+
+  it.each(policies)("%s — no rule name reaches the limit", (_label, policy) => {
+    for (const r of rulesOf(policy)) {
+      // Both, because the limit could be counted either way and an em dash is 1 char but 3 bytes.
+      expect(r.name.length, `"${r.name}" is ${r.name.length} chars`).toBeLessThan(LIMIT);
+      expect(Buffer.byteLength(r.name), `"${r.name}" is ${Buffer.byteLength(r.name)} bytes`).toBeLessThan(LIMIT);
+    }
+  });
+
+  it.each(policies)("%s — the policy's own name fits too", (_label, policy) => {
+    const name = policy.name as string;
+    expect(name.length).toBeLessThan(LIMIT);
+    expect(Buffer.byteLength(name)).toBeLessThan(LIMIT);
+  });
+
+  it("still pins the withdraw-remaining rule to the vault, name aside", () => {
+    const rules = rulesOf(buildStopCampaignPolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP }, reclaim));
+    const wr = rules.find((r) => r.name.includes("withdraw remaining"));
+    expect(wr).toBeDefined();
+    expect(wr!.action).toBe("ALLOW");
+    expect(JSON.stringify(wr!.conditions)).toContain(reclaim.toLowerCase());
+  });
+});

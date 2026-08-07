@@ -139,7 +139,11 @@ export function buildStopCampaignPolicy(m: MandateSpec, vault: Address): Record<
       conditions: [toCond(vault), { field_source: "ethereum_calldata", field: "function_name", abi: REVOKE_ABI, operator: "eq", value: "revoke" }],
     },
     {
-      name: "withdraw remaining to the vault owner — this vault only",
+      // PRIVY CAPS A RULE NAME AT 50 CHARACTERS. This one was 55, so /policies answered 400 and the
+      // policy was never created — meaning stopping a campaign has never once worked, and the founder
+      // saw only "Couldn't stop the campaign". The name is display metadata: no condition, action or
+      // scope changes with it. See the length test that now covers every rule name here.
+      name: "withdraw remaining — this vault only",
       method: "eth_signTransaction",
       action: "ALLOW",
       conditions: [toCond(vault), { field_source: "ethereum_calldata", field: "function_name", abi: WITHDRAW_REMAINING_ABI, operator: "eq", value: "withdrawRemaining" }],
