@@ -456,3 +456,42 @@ alerts the operator chat on failure. Its first run caught three real problems wi
 pre-corpus pipeline) is live with 2 observation missions and no corpus. It cannot be repinned (its
 source inspection holds zero observations) and only its founder wallet 0xb77e… can stop it from the
 web console. The marketplace hides it; the self-drive will keep flagging it until it is stopped.
+
+
+## Known rough edges before onboarding (2026-08-07, from a live self-inspection)
+
+A founder inspected sagepays.xyz and it felt slow and "script-like". The trail was diagnostic:
+browser finished in 94s, the whole run took ~10 min, all of it in two SILENT model phases
+(mapping +300s of sequential flash-lite vision calls; reviewing +289s of grounded architect +
+critic). No LLM retries — just slow sequential flash-lite on a slow gateway, with a frozen
+filmstrip in front. FIXED (view only): a "Sage is now designing / checking missions, this takes a
+minute or two" panel now shows in those two stages.
+
+Two items deliberately NOT fixed on launch eve — each needs the full P-GEN battery and touches
+frozen code, so they are the first work of the next building session, not a pre-launch scramble:
+
+1. **Tail-flailing on wallet/login/payment goal endpoints.** On sagepays' own launch flow the
+   controller re-clicked "Launch" 3x and blind-clicked raw coordinates (47%,78%). Cause: clicking
+   Launch opened a wallet-connect modal, which registered as a real state change, which CLEARS
+   `deadLabels` (field-test.ts ~2836) and un-retires the just-failed control. So a control that
+   opens a wall it cannot cross never stays retired. Fix direction: a GLOBAL repeated-label / blind-
+   coord cap that survives tiny state changes, ending the run with an honest stop-blocked instead of
+   flailing. Risky because the same deadLabels-clear-on-progress logic is what lets legit multi-step
+   forms keep going — measure against the battery's form-filling categories.
+
+2. **Volatile-page missions mis-judge over time.** One generated mission asked a tester to report the
+   marketplace's "no missions available" text. The observation judge matches against the corpus
+   pinned at inspection time, so when the page changes (a campaign launches, seats fill), a genuine
+   tester's honest observation no longer matches and they are HELD — the "confused/buggy on submit"
+   a founder fears. Fix direction: teach mission design to prefer STABLE observations (a heading, a
+   labelled control, a value proposition) over volatile counts/availability/seats.
+
+Also seen, harmless: Sage's form-fill submitted the launch wizard with example.com and started a
+real anonymous inspection of example.com (job Zg_oTdzC). Specific to products that are themselves
+job-launchers; the synthetic-value + no-credentials rules already keep it safe.
+
+SPEED, the broadest lever: mapping+reviewing are dominated by sequential FLASH-LITE calls (vision +
+grounded architect). Moving MISSION_MODEL to haiku would roughly halve the design wait and is more
+reliable (haiku 0/8 vs flash-lite 6/8 in a bad window) — BUT the grounded architect was specifically
+tuned for flash-lite (4 prompt/schema fixes), so it must be battery-verified for grounded_v2
+selection + anchor integrity before flipping, not done blind.
