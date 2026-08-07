@@ -234,6 +234,101 @@ describe("it must survive the FULL validator, not just the parts I remembered", 
   });
 
   /**
+   * A MISSION THAT MENTIONS PAYING IS NOT A MISSION THAT PAYS.
+   *
+   * Two clawup.org runs an hour apart, same product, same goal ("testers launch an agent, which
+   * needs topping up credits and paying for compute first"). One produced the gated-payment
+   * mission. The other produced none, and the founder's own stated requirement went unrepresented
+   * in silence.
+   *
+   * The cause was one regex doing two jobs. `FAMILY_PATTERNS` matches nouns — credits, billing,
+   * payment — because its job is finding the action in the FOUNDER'S sentence, where those nouns
+   * are how people ask. Reused to ask "does an existing mission already cover this?", it read a
+   * Terms-of-Service reading task and a privacy-policy audit as covering the purchase of credits.
+   *
+   * These are the two mission texts, verbatim from the run that lost its gated mission.
+   */
+  describe("a mission that only mentions paying does not count as covering it", () => {
+    const action: GatedAction = {
+      family: "payment",
+      sourcePhrase: "That needs them to top up credits and pay for compute first.",
+      gateAnchor: "simple, pay-as-you-go pricing",
+    };
+
+    const MENTIONS_ONLY = [
+      {
+        title: "Verify Platform Terminology and Service Scope",
+        objective:
+          "Examine the Terms of Service to clarify how ClawUp defines and scopes the agents users are paying to deploy.",
+        criteria: [
+          "The tester must identify and quote the specific sentence that defines what an 'Agent' is on the ClawUp platform.",
+          "The tester must confirm that the definition mentions the environment (e.g., containers/infrastructure) where the agent runs.",
+        ],
+      },
+      {
+        title: "Audit Data Handling Claims",
+        objective:
+          "Determine the transparency of ClawUp's data usage policies regarding billing and service telemetry.",
+        criteria: [
+          "Tester must list the two specific types of data collected related to financial/billing processes.",
+          "Tester must explain how the platform states it uses telemetry data.",
+        ],
+      },
+    ];
+
+    it("does not suppress the paid mission (the measured regression)", () => {
+      expect(alreadyCovered(action, MENTIONS_ONLY)).toBe(false);
+    });
+
+    it("still suppresses a mission that genuinely asks the tester to buy", () => {
+      expect(
+        alreadyCovered(action, [
+          {
+            title: "Purchase credits and confirm the balance",
+            objective: "Buy a credit pack and confirm the new balance appears on the dashboard.",
+            criteria: ["The tester completes the purchase."],
+          },
+        ]),
+      ).toBe(true);
+    });
+
+    it("recognises a gated mission already in the plan, so it is never added twice", () => {
+      const built = buildGatedActionMission(action, {
+        targetSurface: "https://clawup.org",
+        productName: "ClawUp",
+      });
+      expect(alreadyCovered(action, [built])).toBe(true);
+    });
+
+    it("holds for the other families too", () => {
+      const account: GatedAction = {
+        family: "account",
+        sourcePhrase: "testers must create an account",
+        gateAnchor: "Sign In / Sign Up",
+      };
+      // describing an account, not creating one
+      expect(
+        alreadyCovered(account, [
+          {
+            title: "Review account deletion policy",
+            objective: "Quote what the policy says about account data retention.",
+            criteria: ["The tester quotes the retention sentence."],
+          },
+        ]),
+      ).toBe(false);
+      expect(
+        alreadyCovered(account, [
+          {
+            title: "Sign up and reach the dashboard",
+            objective: "Register a new account and confirm the dashboard loads.",
+            criteria: ["The tester signs up."],
+          },
+        ]),
+      ).toBe(true);
+    });
+  });
+
+  /**
    * WHAT THE TESTER ACTUALLY READS. Shipped once and measured on the live clawup.org plan, the
    * instructions began:
    *

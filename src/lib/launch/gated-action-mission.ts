@@ -133,12 +133,42 @@ export function detectGatedActions(
   return out;
 }
 
-/** Is this action already covered by a mission the architect wrote? Cheap, lexical, conservative. */
+/**
+ * Words that mean the tester CARRIES THE ACTION OUT, as opposed to writing about it.
+ *
+ * `FAMILY_PATTERNS` deliberately matches nouns — "credits", "billing", "payment" — because its job
+ * is spotting the action in the FOUNDER'S sentence, where those nouns are exactly how a person asks
+ * for it. Using the same pattern to ask "does an existing mission already cover this?" answers a
+ * different question with the wrong instrument, and it silently dropped the mission that mattered.
+ *
+ * MEASURED on two clawup.org runs an hour apart, same product, same goal ("testers launch an agent,
+ * which needs topping up credits and paying for compute first"). One produced the gated-payment
+ * mission. The other did not, because the architect happened to write two missions that merely
+ * MENTION payment — "the agents users are paying to deploy" and "data usage policies regarding
+ * billing and service telemetry" — and the noun match read those as already covering it. A mission
+ * about what the privacy policy SAYS about billing is not a mission that makes anyone buy credits,
+ * so the founder's own stated requirement produced no mission at all, in silence.
+ *
+ * Deliberately biased toward NOT suppressing: a duplicate paid mission is a visible, cheap mistake
+ * a founder can delete, and a missing one is invisible.
+ */
+const FAMILY_ACTION: Record<GatedFamily, RegExp> = {
+  payment:
+    /\b(purchas\w+|buy\w*|pay(?:s|ing)?\s+for|top\s*s?\s*up|topping\s*up|check(?:s|ing)?\s*out|checkout|subscrib\w+|deposit\w*|complete[sd]?\s+the\s+paid)\b/i,
+  account:
+    /\b(sign\w*\s*up|signup|regist\w+|create[sd]?\s+an?\s+account|log\w*\s*in|login|sign\w*\s*in|complete[sd]?\s+the\s+account)\b/i,
+  wallet:
+    /\b(connect\w*\s+(?:their\s+|a\s+|the\s+|your\s+)?wallet|sign\w*\s+(?:the\s+)?transaction|complete[sd]?\s+the\s+wallet)\b/i,
+  approval:
+    /\b(approv\w+|authoriz\w+|authoris\w+|confirm\w*\s+the\s+transaction|complete[sd]?\s+the\s+approval)\b/i,
+};
+
+/** Is this action already covered by a mission that actually asks a tester to DO it? */
 export function alreadyCovered(
   action: GatedAction,
   missions: readonly Pick<CandidateMission, "objective" | "criteria" | "title">[],
 ): boolean {
-  const re = FAMILY_PATTERNS.find((f) => f.family === action.family)!.re;
+  const re = FAMILY_ACTION[action.family];
   return missions.some((m) => re.test(`${m.title} ${m.objective} ${m.criteria.join(" ")}`));
 }
 
