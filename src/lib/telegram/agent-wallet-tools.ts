@@ -19,6 +19,7 @@ import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
 import { GOAT_USDC } from "@/lib/deputy/networks";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
+import { getDeputyOverview } from "@/lib/campaigns/overview";
 import {
   listHeldSubmissions,
   releaseSubmission,
@@ -185,7 +186,7 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
     inputSchema: {
       type: "object",
       properties: {
-        campaignId: { type: "string", description: "The campaign id to stop (from sage_fund_and_launch or sage_get_campaign)." },
+        campaignId: { type: "string", description: "Which campaign to stop. A campaign id, or simply the product url / hostname / name the founder used (\"kyvernlabs.com\") — Sage resolves it against the campaigns this chat owns." },
       },
       required: ["campaignId"],
     },
@@ -195,6 +196,75 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
 const NAMES = new Set(AGENT_WALLET_TOOLS.map((t) => t.name));
 export function isAgentWalletTool(name: string): boolean {
   return NAMES.has(name);
+}
+
+/**
+ * WHAT THE FOUNDER SAYS, RESOLVED TO A CAMPAIGN THEY OWN.
+ *
+ * `sage_stop_campaign` and `sage_list_held` took a campaign id and nothing else, so a walletless
+ * founder could not use either: they launch from chat and never see an id, and it scrolls out of a
+ * twelve-message history.
+ *
+ * MEASURED live, twice. First Sage answered "I don't have a campaign id in this conversation" —
+ * fixed by binding the campaigns lookup on Telegram. Then, holding the list, it still failed with
+ * "That campaign wasn't found" on BOTH campaigns, because it passed what it had been showing the
+ * founder — the product, "kyvernlabs.com" — where an opaque id like
+ * `launch-kyvernlabs-com-63rjdf` was required. Two round trips, two dead ends, on a campaign the
+ * founder owns and Sage had just listed back to them.
+ *
+ * So the id stops being the only key. A product url, a hostname, or a fragment of the title all
+ * resolve, and the search runs ONLY over campaigns this chat's wallet owns — the same ownership set
+ * `ownsCampaign` enforces — so widening what can be said never widens what can be reached.
+ * Ambiguity is reported rather than guessed: stopping a campaign is irreversible, so two matches
+ * must come back to the founder, never a coin flip.
+ */
+export type CampaignMatch =
+  | { kind: "one"; id: string }
+  | { kind: "none" }
+  | { kind: "ambiguous"; candidates: { id: string; title: string; status: string }[] };
+
+export function resolveOwnedCampaign(wallet: string, raw: string): CampaignMatch {
+  const needle = (raw ?? "").trim().toLowerCase();
+  if (!needle) return { kind: "none" };
+
+  let owned: { id: string; title: string; status: string }[] = [];
+  try {
+    owned = getDeputyOverview(wallet).campaigns.map((c) => ({
+      id: c.id,
+      title: c.title ?? "",
+      status: String(c.status ?? ""),
+    }));
+  } catch {
+    return { kind: "none" };
+  }
+
+  // An exact id always wins, and is the only match that may bypass the fuzzier passes below.
+  const exact = owned.find((c) => c.id.toLowerCase() === needle);
+  if (exact) return { kind: "one", id: exact.id };
+
+  // "https://kyvernlabs.com/pricing" and "kyvernlabs.com" and "kyvernlabs" should all land.
+  const host = (() => {
+    try {
+      return new URL(needle.startsWith("http") ? needle : `https://${needle}`).hostname.replace(/^www\./, "");
+    } catch {
+      return needle;
+    }
+  })();
+  const stem = host.split(".")[0] ?? host;
+  const hit = (c: { id: string; title: string }) => {
+    const hay = `${c.id} ${c.title}`.toLowerCase();
+    return hay.includes(host) || (stem.length >= 4 && hay.includes(stem));
+  };
+
+  // Prefer campaigns that are still running: "stop my campaign" is about a live one, and a cancelled
+  // one matching the same product would otherwise make a clear request look ambiguous.
+  const live = owned.filter((c) => c.status === "live" || c.status === "paused");
+  for (const pool of [live, owned]) {
+    const matches = pool.filter(hit);
+    if (matches.length === 1) return { kind: "one", id: matches[0]!.id };
+    if (matches.length > 1) return { kind: "ambiguous", candidates: matches };
+  }
+  return { kind: "none" };
 }
 
 /** Dispatch an agent-wallet tool for a specific founder chat. Never throws. */
@@ -356,8 +426,21 @@ export async function callAgentWalletTool(
       case "sage_stop_campaign": {
         const b = founderBinding(chatId);
         if (!b) return err("There's no agent wallet yet, so there's no campaign to stop.");
-        const campaign = getCampaign(typeof args.campaignId === "string" ? args.campaignId : "");
-        if (!campaign) return err("That campaign wasn't found — double-check the campaign id.");
+        const asked = typeof args.campaignId === "string" ? args.campaignId : "";
+        const match = resolveOwnedCampaign(b.privyWalletAddress, asked);
+        if (match.kind === "ambiguous") {
+          return err(
+            `More than one of your campaigns matches "${asked}": ${match.candidates
+              .map((c) => `${c.title} (${c.status})`)
+              .join("; ")}. Ask the founder which one, naming the product and status — never guess, stopping is irreversible.`,
+          );
+        }
+        const campaign = match.kind === "one" ? getCampaign(match.id) : null;
+        if (!campaign) {
+          return err(
+            `No campaign of theirs matches "${asked}". Call sage_my_campaigns and read the list back to them rather than asking for an id.`,
+          );
+        }
         if (!ownsCampaign(campaign, b.privyWalletAddress)) {
           return err("That campaign wasn't launched from this chat, so this wallet can't stop it.");
         }
@@ -389,8 +472,17 @@ export async function callAgentWalletTool(
       case "sage_list_held": {
         const b = founderBinding(chatId);
         if (!b) return err("There's no agent wallet yet — set one up before reviewing campaigns.");
-        const campaign = getCampaign(typeof args.campaignId === "string" ? args.campaignId : "");
-        if (!campaign) return err("That campaign wasn't found.");
+        const askedFor = typeof args.campaignId === "string" ? args.campaignId : "";
+        const found = resolveOwnedCampaign(b.privyWalletAddress, askedFor);
+        if (found.kind === "ambiguous") {
+          return err(
+            `More than one of your campaigns matches "${askedFor}": ${found.candidates
+              .map((c) => `${c.title} (${c.status})`)
+              .join("; ")}. Ask which one.`,
+          );
+        }
+        const campaign = found.kind === "one" ? getCampaign(found.id) : null;
+        if (!campaign) return err(`No campaign of theirs matches "${askedFor}". Call sage_my_campaigns first.`);
         if (!ownsCampaign(campaign, b.privyWalletAddress))
           return err("That campaign isn't one you launched, so you can't review its submissions.");
         const held = listHeldSubmissions(campaign);

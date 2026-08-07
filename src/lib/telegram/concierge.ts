@@ -588,7 +588,11 @@ async function runAgentTurn(
           const text = result
             ? (result.content[0]?.text ?? "")
             : JSON.stringify({ ok: false, error: `unknown tool: ${tc.function.name}` });
-          console.log("[concierge:%s] tool=%s ok=%s -> %s", surface, tc.function.name, !result?.isError, text.slice(0, 140));
+          // ARGS TOO. A failing tool call was diagnosable only down to its error string, so "campaign
+          // wasn't found" could not be told apart from "the model passed the product name where an id
+          // was required" — which is exactly what it turned out to be. Bounded, and these tools carry
+          // no secrets (the chat is bound server-side, never in args).
+          console.log("[concierge:%s] tool=%s args=%s ok=%s -> %s", surface, tc.function.name, JSON.stringify(args).slice(0, 200), !result?.isError, text.slice(0, 140));
 
           // Keep the "I'll let you know" promise on TELEGRAM (a push channel): follow a fresh inspection
           // to completion in the background and DM the plan. On web there's no push — the overlay polls

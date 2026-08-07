@@ -29,7 +29,9 @@ describe("founder review tools — gating + two-step", () => {
     const owner = `0x${"a".repeat(40)}`;
     const other = `0x${"b".repeat(40)}`;
     const campaign = createCampaign({
-      title: "t",
+      // Distinctive on purpose: the leak assertion below is vacuous against a one-character title,
+      // which would match any sentence containing the letter.
+      title: "Owner Only Zebra Campaign",
       rewardAmount: 300_000,
       vaultAddress: `0x${"1".repeat(40)}`,
       posterWallet: owner,
@@ -44,7 +46,14 @@ describe("founder review tools — gating + two-step", () => {
 
     const asForeigner = await body(await callAgentWalletTool("sage_list_held", { campaignId: campaign.id }, "otherChat"));
     expect(asForeigner.ok).toBe(false);
-    expect(asForeigner.error).toMatch(/isn't one you launched|didn't launch/i);
+    // Asserted as a PROPERTY, not a phrase. Campaign lookup now runs over the chat's OWN campaigns
+    // (so a founder can say "kyvernlabs.com" instead of an opaque id), which means a foreign
+    // campaign is no longer merely rejected — it is not findable, and the wording moved with that.
+    // `ownsCampaign` still runs afterwards, so the refusal is defended twice over.
+    expect(asForeigner.error).toBeTruthy();
+    // and it must not leak anything about a campaign this chat cannot see
+    expect(asForeigner.error).not.toContain(campaign.title);
+    expect(asForeigner.error).not.toContain(owner);
   });
 
   it("sage_confirm_release refuses when nothing was prepared (two-step enforced)", async () => {
