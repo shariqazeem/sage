@@ -23,6 +23,7 @@ import {
   conciergeKey as key,
   conciergeModel as model,
 } from "./concierge-config";
+import { withTransientRetry } from "@/lib/llm/retry";
 
 /**
  * Sage's conversational front door on Telegram — its OWN agent, no third-party runtime.
@@ -44,7 +45,22 @@ import {
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_HISTORY = 12;
-const TIMEOUT_MS = 30_000;
+/**
+ * ONE ATTEMPT'S PATIENCE, not the turn's.
+ *
+ * MEASURED against the live gateway from the VM, same key, same model, seconds apart: 60s+ hang,
+ * then 1.9s, then 1.5s. Roughly one call in three stalls outright while healthy ones answer in
+ * under two seconds. With a single 30s shot and no retry, that stall was the whole turn — a founder
+ * asking for their wallet balance got "Something glitched" even though the tool had already
+ * returned the balance and we were only composing the sentence around it.
+ *
+ * 25s is far past a healthy call and leaves room for two more attempts inside the turn budget.
+ */
+const TIMEOUT_MS = 25_000;
+const LLM_ATTEMPTS = 3;
+/** The whole turn's LLM budget, across every tool round. The reply is sent from `after()`, so this
+ *  costs a founder waiting rather than a failed request — but it must still end. */
+const TURN_BUDGET_MS = 100_000;
 
 const BASE_PROMPT = `You are Sage, an autonomous product-testing agent, talking to a founder through your Telegram bot. Keep replies short and plain — this is a chat, not a document.
 
@@ -332,22 +348,45 @@ function maybeNotifyOnInspection(
   });
 }
 
-async function chatCompletion(messages: ChatMessage[], tools: ReturnType<typeof asOpenAI>[]): Promise<ChatResponse> {
-  const res = await fetch(`${base()}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model(),
-      temperature: 0.3,
-      max_tokens: 900,
-      messages,
-      tools,
-      tool_choice: "auto",
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`llm ${res.status}`);
-  return (await res.json()) as ChatResponse;
+/**
+ * One LLM call, retried through the gateway's stalls.
+ *
+ * Safe to retry by construction: this function only asks the model what to say. Tool calls are
+ * executed by the loop below, never in here, so an attempt that times out has moved nothing.
+ *
+ * The status is thrown as `llm_status_<code>` because that is the shape `isTransientLlmError`
+ * matches. It used to throw `llm <code>`, which matched nothing — so a 503 from the gateway was
+ * classified permanent and the founder was told to try again while the retry that would have
+ * worked was never attempted.
+ */
+async function chatCompletion(
+  messages: ChatMessage[],
+  tools: ReturnType<typeof asOpenAI>[],
+  budgetMs: number = TURN_BUDGET_MS,
+): Promise<ChatResponse> {
+  return withTransientRetry(
+    async () => {
+      const res = await fetch(`${base()}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: model(),
+          temperature: 0.3,
+          max_tokens: 900,
+          messages,
+          tools,
+          tool_choice: "auto",
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`llm_status_${res.status}${detail ? ` ${detail.slice(0, 120)}` : ""}`);
+      }
+      return (await res.json()) as ChatResponse;
+    },
+    { attempts: LLM_ATTEMPTS, budgetMs: Math.max(1, budgetMs) },
+  );
 }
 
 /** Whether the conversational agent is switched on (an LLM key is configured). */
@@ -405,9 +444,12 @@ async function runAgentTurn(
   const ctx: McpContext = { scheduleAfter, founderWallet, planningRequestId };
 
   let reply = "";
+  // ONE budget for the whole turn, not per call: five tool rounds each retrying three times would
+  // otherwise let a bad gateway spell run for minutes with the founder watching nothing happen.
+  const turnDeadline = Date.now() + TURN_BUDGET_MS;
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const data = await chatCompletion(messages, tools);
+      const data = await chatCompletion(messages, tools, turnDeadline - Date.now());
       const msg = data.choices?.[0]?.message;
       if (!msg) {
         reply = "I couldn't reach my brain just now — try again in a moment.";
