@@ -39,10 +39,20 @@ const PAID = [
  * Probe BOTH verbs. OKX's validator defaults to GET and the written guide shows a bodiless POST, so
  * a service can pass one and fail the other — which is exactly how a working endpoint got rejected
  * while answering 402 to every check we happened to run by hand.
+ *
+ * AND BOTH SHAPES. OKX's A2MCP guide accepts either "① Free endpoint — returns the result directly
+ * on call; no billing, no x402" or "② x402 pay-per-call endpoint", and after four rejections over
+ * payment verification the four services are listed as shape ①. A watcher that only knew about 402
+ * would have called a correct free endpoint broken, on a cron, forever — the same broken-instrument
+ * failure that has cost this listing more time than any real defect.
+ *
+ * So the probe reports what it OBSERVES and judges consistency, rather than asserting one shape:
+ * every verb must agree, and the whole catalogue must be one shape or the other.
  */
 async function probe(tool, priceUsd) {
   const url = `${ORIGIN}/mcp/public/${tool}`;
-  const out = { tool, ok: false, notes: [] };
+  const out = { tool, ok: false, shape: null, notes: [] };
+  const seen = [];
   for (const method of ["GET", "POST"]) {
     let res;
     try {
@@ -51,29 +61,44 @@ async function probe(tool, priceUsd) {
       out.notes.push(`${method} unreachable (${err?.message ?? err})`);
       return out;
     }
-    if (res.status !== 402) {
-      out.notes.push(`${method} returned ${res.status}, a priced service must return 402`);
-      continue;
-    }
-    const header = res.headers.get("payment-required");
-    if (!header) {
-      out.notes.push(`${method} 402 carries no payment-required header`);
-      continue;
-    }
-    let accepts = [];
-    try {
-      accepts = JSON.parse(Buffer.from(header, "base64").toString("utf8")).accepts ?? [];
-    } catch {
-      out.notes.push(`${method} payment-required header is not decodable`);
-      continue;
-    }
-    const a = accepts[0];
-    const want = String(Math.round(priceUsd * 1e6));
-    if (!a) out.notes.push(`${method} challenge has no accepts entry`);
-    else if (a.amount !== want) out.notes.push(`${method} quotes ${a.amount}, the listing says ${want}`);
-    else if (!/^0x[0-9a-fA-F]{40}$/.test(a.payTo ?? "")) out.notes.push(`${method} has no payTo address`);
+    seen.push({ method, status: res.status, res });
   }
-  out.ok = out.notes.length === 0;
+
+  const statuses = seen.map((x) => x.status);
+  if (statuses.every((c) => c === 200)) {
+    out.shape = "free";
+    out.ok = true;
+    return out;
+  }
+
+  if (statuses.every((c) => c === 402)) {
+    out.shape = "paid";
+    for (const { method, res } of seen) {
+      const header = res.headers.get("payment-required");
+      if (!header) {
+        out.notes.push(`${method} 402 carries no payment-required header`);
+        continue;
+      }
+      let accepts = [];
+      try {
+        accepts = JSON.parse(Buffer.from(header, "base64").toString("utf8")).accepts ?? [];
+      } catch {
+        out.notes.push(`${method} payment-required header is not decodable`);
+        continue;
+      }
+      const a = accepts[0];
+      const want = String(Math.round(priceUsd * 1e6));
+      if (!a) out.notes.push(`${method} challenge has no accepts entry`);
+      else if (a.amount !== want) out.notes.push(`${method} quotes ${a.amount}, the listing says ${want}`);
+      else if (!/^0x[0-9a-fA-F]{40}$/.test(a.payTo ?? "")) out.notes.push(`${method} has no payTo address`);
+    }
+    out.ok = out.notes.length === 0;
+    return out;
+  }
+
+  out.notes.push(
+    `verbs disagree: ${seen.map((x) => `${x.method} ${x.status}`).join(", ")} — a reviewer probing the other one sees a broken service`,
+  );
   return out;
 }
 
@@ -120,7 +145,13 @@ try {
 
 const endpointLine = badEndpoints.length
   ? `${badEndpoints.length}/${PAID.length} endpoints WRONG`
-  : `all ${PAID.length} endpoints answer 402 on GET and POST at the listed price`;
+  : (() => {
+      const shapes = [...new Set(probes.map((r) => r.shape))];
+      if (shapes.length > 1) return `MIXED SHAPES (${shapes.join(" + ")}) — every service must be free, or every service priced`;
+      return shapes[0] === "free"
+        ? `all ${PAID.length} endpoints return the result directly on GET and POST (free, OKX A2MCP shape 1)`
+        : `all ${PAID.length} endpoints answer 402 on GET and POST at the listed price`;
+    })();
 
 if (quiet) {
   console.log(`[okx] ${status.label} (display ${status.display}) · sold ${status.sold} · ${endpointLine}`);
@@ -133,7 +164,7 @@ if (quiet) {
   console.log();
 }
 
-if (badEndpoints.length) process.exit(4);
+if (badEndpoints.length || new Set(probes.map((r) => r.shape)).size > 1) process.exit(4);
 if (status.display === 5) process.exit(3);
 if (status.display === 2) process.exit(2);
 process.exit(0);
