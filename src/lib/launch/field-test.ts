@@ -549,6 +549,33 @@ export function fieldTestForMap(summary: FieldTestSummary):
   };
 }
 
+/**
+ * Why a run read HTML instead of driving the product — or null when "static" was a genuine
+ * classification of a genuine content site.
+ *
+ * Both arrive at mode "static", and both used to record `limitation: null` as long as the HTML
+ * crawl found any page, which makes them indistinguishable afterwards. Measured: allbirds.com and
+ * web.telegram.org each flipped between interactive and static in BOTH directions on 2026-08-06 —
+ * allbirds saw 13 browser states in one run and 0 the next hour, same URL, and the founder gets a
+ * materially different plan depending on which run they catch with nothing in the record saying so.
+ *
+ * A blocked door outranks "no page found": it is the more specific truth and the one a founder can
+ * act on. Says only what was observed — that Sage was turned away — and never diagnoses the
+ * product, because "your site blocks bots" is a guess and "Sage could not open it" is a fact.
+ */
+export function turnedAwayLimitation(
+  entryBlocked: string | null,
+  sawChallenge: boolean,
+): string | null {
+  if (entryBlocked) {
+    return `Sage could not open this product in a browser (${entryBlocked.slice(0, 80)}), so this run read its HTML only and saw less than a person would.`;
+  }
+  if (sawChallenge) {
+    return "Sage met a bot challenge on the entry page, so this run read the product's HTML rather than using it, and saw less than a person would.";
+  }
+  return null;
+}
+
 /* ────────────────────── the Playwright orchestration (lazy, isolated) ─────── */
 
 export interface FieldTestDeps {
@@ -741,6 +768,22 @@ export async function runFieldTest(
 
     let signals: ProductSignals | null = null;
     let entryRawTextLen = 0;
+    /**
+     * WHY THIS RUN MIGHT NOT HAVE DRIVEN THE PRODUCT.
+     *
+     * "static" arrives here two different ways: as a real classification of a real content site,
+     * and as a fallback when the browser never got a usable look. Both used to record
+     * `limitation: null` whenever the HTML crawl found any page at all, which makes them
+     * indistinguishable after the fact.
+     *
+     * MEASURED: allbirds.com and web.telegram.org each flipped between interactive and static in
+     * BOTH directions on 2026-08-06 — allbirds saw 13 browser states in one run and 0 the next
+     * hour, on the same URL. The founder gets a materially different plan depending on which run
+     * they catch, and nothing in the record says why. These two flags are the difference between
+     * "this product is a content site" and "Sage was turned away at the door".
+     */
+    let entryBlocked: string | null = null;
+    let sawChallenge = false;
     try {
       // ONE retry on a failed entry load — a transient network/TLS flake used to zero out the whole
       // field test (static degrade with no captures) when a second attempt would have worked.
@@ -768,6 +811,7 @@ export async function runFieldTest(
       // BOT-CHALLENGE PATIENCE — a WAF interstitial usually clears once its JS runs. Wait it out,
       // reload once, and continue with whatever landed; a real block degrades exactly as before.
       if (await looksLikeChallenge(entryPage)) {
+        sawChallenge = true;
         await entryPage.waitForTimeout(6_000);
         await entryPage
           .reload({ waitUntil: "domcontentloaded", timeout: PAGE_MS })
@@ -785,8 +829,10 @@ export async function runFieldTest(
         /* keep the caller's host */
       }
       signals = await gatherSignals(entryPage, entryRawTextLen);
-    } catch {
-      /* couldn't load entry — fall through to static (which will degrade honestly) */
+    } catch (err) {
+      // Fall through to static, but RECORD IT. Degrading quietly is what made a blocked run look
+      // exactly like a content site, and a founder cannot ask about a limitation nobody wrote down.
+      entryBlocked = err instanceof Error ? err.message : String(err);
     }
 
     // the founder's intent, decided ONCE from the compiled journey (authoritative) or the goal's words.
@@ -1052,9 +1098,9 @@ export async function runFieldTest(
       startUrl: opts.startUrl,
       captures,
       durationMs: Date.now() - started,
-      limitation: captures.length
-        ? null
-        : "Field test found no reachable page.",
+      limitation:
+        turnedAwayLimitation(entryBlocked, sawChallenge) ??
+        (captures.length ? null : "Field test found no reachable page."),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

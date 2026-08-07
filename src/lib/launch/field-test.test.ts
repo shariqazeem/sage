@@ -17,6 +17,7 @@ import {
   explorationCounts,
   fieldTestForMap,
   runFieldTest,
+  turnedAwayLimitation,
   type FieldTestCapture,
   type ProductSignals,
 } from "./field-test";
@@ -206,6 +207,49 @@ function state(trigger: string, over: Partial<FieldTestState> = {}): FieldTestSt
     ...over,
   };
 }
+
+/**
+ * A RUN THAT WAS TURNED AWAY MUST NOT LOOK LIKE A CONTENT SITE.
+ *
+ * "static" arrives two ways — a real classification of a real content site, and a fallback when the
+ * browser never got a usable look — and both recorded `limitation: null` whenever the HTML crawl
+ * found any page at all. Measured: allbirds.com and web.telegram.org each flipped between
+ * interactive and static in BOTH directions on 2026-08-06, allbirds seeing 13 browser states in one
+ * run and 0 the next hour on the same URL, with nothing in the record to tell the two apart.
+ */
+describe("turnedAwayLimitation", () => {
+  it("says so when the browser could not open the product at all", () => {
+    const l = turnedAwayLimitation("net::ERR_CONNECTION_RESET at https://example.com", false);
+    expect(l).toContain("could not open this product in a browser");
+    expect(l).toContain("ERR_CONNECTION_RESET");
+  });
+
+  it("says so when a bot challenge stood in the way", () => {
+    expect(turnedAwayLimitation(null, true)).toContain("bot challenge");
+  });
+
+  it("stays silent when static was a real classification", () => {
+    // a genuine content site must not be labelled as blocked
+    expect(turnedAwayLimitation(null, false)).toBeNull();
+  });
+
+  it("prefers the blocked door over the challenge, as the more specific truth", () => {
+    expect(turnedAwayLimitation("Timeout 30000ms exceeded", true)).toContain("could not open");
+  });
+
+  it("bounds the quoted browser error so a long stack cannot run away with the copy", () => {
+    const l = turnedAwayLimitation("x".repeat(500), false);
+    expect(l!.length).toBeLessThan(250);
+  });
+
+  it("never diagnoses the product, only what Sage did", () => {
+    // "your site blocks bots" is a guess; "Sage could not open it" is a fact.
+    for (const l of [turnedAwayLimitation("boom", false), turnedAwayLimitation(null, true)]) {
+      expect(l!.toLowerCase()).not.toMatch(/your (site|product) (blocks|is blocking)/);
+      expect(l!.startsWith("Sage ")).toBe(true);
+    }
+  });
+});
 
 describe("classifyMode", () => {
   it("interactive: a big WebGL canvas with thin text (a game/experience)", () => {
