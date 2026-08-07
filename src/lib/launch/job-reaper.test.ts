@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { nowSeconds } from "@/lib/db/keys";
 import { inspectionJobs } from "@/lib/db/schema";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { reapStalledJob } from "./job";
+import { reapStalledJob, reapStalledInspections } from "./job";
 
 /**
  * The stalled-job reaper (real in-memory SQLite). Measured on prod: three jobs sat in
@@ -80,5 +80,57 @@ describe("reapStalledJob", () => {
     const b = getInspectionJob(id)!;
     const results = [reapStalledJob(a), reapStalledJob(b)];
     expect(results.filter((r) => r !== null)).toHaveLength(1);
+  });
+});
+
+
+/**
+ * THE HEARTBEAT CANNOT BE THE FOUNDER'S ATTENTION.
+ *
+ * `reapStalledJob` fixes a dead job the moment someone looks at it, and the status poll was the
+ * only thing that ever looked — so a founder who closes the tab, which is exactly the founder who
+ * never comes back to un-stick it, leaves a job saying "Sage is working" forever.
+ *
+ * MEASURED on production: five jobs sat non-terminal past the threshold, idle for 108, 110, 778,
+ * 1371 and 3643 minutes. The oldest had been stuck for more than sixty hours. Two were killed by a
+ * deploy restart that same night — every deploy kills whatever `after()` work is in flight, so this
+ * is routine rather than exotic.
+ */
+describe("reapStalledInspections (the sweep's unconditional pass)", () => {
+  it("finds and resumes stalled jobs nobody is watching", () => {
+    const ids = [seedJob({ updatedAt: STALE }), seedJob({ updatedAt: STALE, status: "field_test" })];
+    const scheduled: string[] = [];
+    const out = reapStalledInspections((fn) => {
+      scheduled.push("ran");
+      void fn;
+    });
+    expect(out.retried).toBeGreaterThanOrEqual(2);
+    expect(scheduled.length).toBe(out.retried);
+    for (const id of ids) expect(getInspectionJob(id)!.status).toBe("queued");
+  });
+
+  it("fails a job that has spent its retries, rather than resuming it forever", () => {
+    const id = seedJob({ updatedAt: STALE, retryCount: 9 });
+    const out = reapStalledInspections(() => {}, 25);
+    expect(out.failed).toBeGreaterThanOrEqual(1);
+    expect(getInspectionJob(id)!.status).toBe("failed");
+  });
+
+  it("leaves a job that is still moving alone", () => {
+    const fresh = seedJob({ updatedAt: nowSeconds() }); // stamped just now
+    reapStalledInspections(() => {}, 25);
+    expect(getInspectionJob(fresh)!.status).toBe("generating_missions");
+  });
+
+  it("never touches a terminal job", () => {
+    const done = seedJob({ updatedAt: STALE, status: "ready" });
+    reapStalledInspections(() => {}, 25);
+    expect(getInspectionJob(done)!.status).toBe("ready");
+  });
+
+  it("batches, because each retry is a real browser run", () => {
+    for (let i = 0; i < 5; i++) seedJob({ updatedAt: STALE });
+    const out = reapStalledInspections(() => {}, 2);
+    expect(out.retried + out.failed).toBeLessThanOrEqual(2);
   });
 });

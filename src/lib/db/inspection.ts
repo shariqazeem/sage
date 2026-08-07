@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
 
@@ -100,6 +100,39 @@ export function getInspectionJob(id: string): InspectionJob | null {
 /** Look up the one job for a request-scoped id (stored in the unique `idempotency_key` column). */
 export function getInspectionJobByIdem(key: string): InspectionJob | null {
   return db.select().from(inspectionJobs).where(eq(inspectionJobs.idempotencyKey, key)).get() ?? null;
+}
+
+/**
+ * Non-terminal jobs whose last stage stamp is older than `olderThanSeconds` — the ones whose runner
+ * probably died. Bounded, oldest first, so one sweep tick cannot try to reap thousands.
+ *
+ * Exists because reaping used to happen ONLY when a founder loaded their status page. Measured on
+ * production: five jobs sat non-terminal past the threshold, the oldest idle for SIXTY HOURS, each
+ * still telling anyone who looked that Sage was working. A founder who closes the tab is exactly the
+ * founder who never comes back to un-stick it, so the heartbeat cannot be their attention.
+ */
+export function listStalledInspections(olderThanSeconds: number, limit = 25): InspectionJob[] {
+  const cutoff = nowSeconds() - olderThanSeconds;
+  return db
+    .select()
+    .from(inspectionJobs)
+    .where(
+      and(
+        inArray(inspectionJobs.status, [
+          "queued",
+          "fetching",
+          "field_test",
+          "analyzing",
+          "mapping",
+          "generating_missions",
+          "reviewing",
+        ]),
+        lt(inspectionJobs.updatedAt, cutoff),
+      ),
+    )
+    .orderBy(inspectionJobs.updatedAt)
+    .limit(limit)
+    .all();
 }
 
 export function listInspectionJobs(founderWallet: string): InspectionJob[] {

@@ -108,7 +108,7 @@ describe("the concierge rides out a gateway stall", () => {
         return okBody("Your wallet holds 0 USDC.");
       }),
     );
-    const reply = await runConcierge("chat1", "what is my wallet balance", () => {});
+    const reply = await runConcierge("chat1", "what is my wallet balance", () => {}, "prid:test");
     expect(calls).toBe(2);
     expect(reply).toBe("Your wallet holds 0 USDC.");
     expect(reply).not.toMatch(/glitched/i);
@@ -123,7 +123,7 @@ describe("the concierge rides out a gateway stall", () => {
         return okBody("Done.");
       }),
     );
-    const reply = await runConcierge("chat2", "status?", () => {});
+    const reply = await runConcierge("chat2", "status?", () => {}, "prid:test");
     expect(calls).toBe(3);
     expect(reply).toBe("Done.");
   });
@@ -139,7 +139,7 @@ describe("the concierge rides out a gateway stall", () => {
         return okBody("Back.");
       }),
     );
-    const reply = await runConcierge("chat3", "status?", () => {});
+    const reply = await runConcierge("chat3", "status?", () => {}, "prid:test");
     expect(calls).toBe(2);
     expect(reply).toBe("Back.");
   });
@@ -152,7 +152,7 @@ describe("the concierge rides out a gateway stall", () => {
         return new Response("unauthorized", { status: 401 });
       }),
     );
-    const reply = await runConcierge("chat4", "status?", () => {});
+    const reply = await runConcierge("chat4", "status?", () => {}, "prid:test");
     expect(calls).toBe(1);
     expect(reply).toMatch(/glitched|couldn't|could not/i);
   });
@@ -165,7 +165,7 @@ describe("the concierge rides out a gateway stall", () => {
         throw timeoutError();
       }),
     );
-    const reply = await runConcierge("chat5", "status?", () => {});
+    const reply = await runConcierge("chat5", "status?", () => {}, "prid:test");
     expect(calls).toBe(3); // LLM_ATTEMPTS, not unbounded
     expect(reply).toMatch(/glitched/i);
   });

@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import {
   acquireLock,
   getCampaign,
@@ -21,6 +21,7 @@ import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
+import { reapStalledInspections } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,8 @@ async function runSweep() {
     fees: { settled: 0, pending: 0 },
     /** never-arrives guard: unresolved submissions past the silence bound flagged this tick. */
     stale: 0,
+    /** inspection jobs whose runner died, recovered this tick. */
+    inspections: { retried: 0, failed: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -125,6 +128,13 @@ async function runSweep() {
       summary.timelock.other += 1;
     }
   }
+
+  // (ii) INSPECTION JOBS WHOSE RUNNER DIED. Reaping used to happen only when a founder loaded their
+  // status page, so a founder who closed the tab left a job saying "Sage is working" forever —
+  // measured on prod as five stuck jobs, the oldest idle for over sixty hours. Every deploy restart
+  // kills in-flight `after()` work, so this is routine, not exotic. `after()` keeps the retries off
+  // the sweep's own response; the batch is small because each retry is a real browser run.
+  summary.inspections = reapStalledInspections((fn) => after(fn));
 
   // RAIL 2 — pay every pending operator fee over the real x402 rail (live only).
   summary.fees = await payPendingFees();

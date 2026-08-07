@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { getInspectionJob, updateInspectionJob, resetInspectionForRetry, failStalledInspection } from "@/lib/db/inspection";
+import { getInspectionJob, updateInspectionJob, resetInspectionForRetry, failStalledInspection, listStalledInspections } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
@@ -146,6 +146,52 @@ export function reapStalledJob(job: InspectionJob): "retrying" | "failed" | null
   if (!won) return null;
   if (job.retryCount < MAX_AUTO_RETRIES && resetInspectionForRetry(job.id)) return "retrying";
   return "failed";
+}
+
+/**
+ * Reap stalled jobs on a HEARTBEAT THAT IS NOT THE FOUNDER'S ATTENTION.
+ *
+ * `reapStalledJob` fixes a dead job the moment someone looks at it, and the founder's status poll
+ * was the only thing that ever looked. So a founder who closes the tab — which is exactly the
+ * founder who does not come back to un-stick it — leaves the job saying "Sage is working" forever.
+ *
+ * MEASURED on production: five jobs sat non-terminal past the threshold, idle for 108, 110, 778,
+ * 1371 and **3643 minutes** — the oldest for more than sixty hours. Two of those were killed by a
+ * deploy restart earlier tonight, which is not a rare event: every deploy kills whatever `after()`
+ * work is in flight.
+ *
+ * The sweep already runs unconditionally every ~5 minutes under pm2, so it is the heartbeat this
+ * needed. Batched deliberately small: a retry re-runs a real field test in a real browser, and
+ * turning five of those loose at once on one box would be its own outage. The rest keep until the
+ * next tick, which is fine — they have already waited.
+ */
+export function reapStalledInspections(
+  schedule: (fn: () => void | Promise<void>) => void,
+  limit = 3,
+): { retried: number; failed: number } {
+  let retried = 0;
+  let failed = 0;
+  let stalled: InspectionJob[] = [];
+  try {
+    stalled = listStalledInspections(STALL_SECONDS, limit);
+  } catch {
+    return { retried, failed }; // a read failure must never take the whole sweep down
+  }
+  for (const job of stalled) {
+    let outcome: "retrying" | "failed" | null = null;
+    try {
+      outcome = reapStalledJob(job);
+    } catch {
+      continue;
+    }
+    if (outcome === "retrying") {
+      retried += 1;
+      schedule(() => runInspectionJob(job.id));
+    } else if (outcome === "failed") {
+      failed += 1;
+    }
+  }
+  return { retried, failed };
 }
 
 export async function runInspectionJob(jobId: string): Promise<void> {
