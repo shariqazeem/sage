@@ -421,3 +421,38 @@ Worth stating so the list above is not read as "it is broken."
 - **Judgment is fast and nearly free** (~$0.0004, single-digit seconds).
 - **The gate catches bad model output**: 234 of 234 stored plans passed deterministic validation,
   and worthless missions are rejected before they reach anyone.
+
+## Update 2026-08-07, second pass — the production-ready push
+
+Everything below was shipped and verified live in one overnight arc, in the order a founder or
+tester would hit it.
+
+**Fewer interrogations.** 22% of the last fortnight's runs stopped to question the founder, and the
+two dominant questions both fire when a browse landed thin — which is a coin flip, not a property of
+the product (the same URL has yielded 13 browser states and then 0 an hour later). A thin run now
+takes one more look before it asks, and the richer look wins. The needs_input rate is the number to
+watch over the coming week.
+
+**The chat can no longer lie about money.** Caught live: asked to stop a campaign, the bot replied
+"Done. I recovered 4.50 USDC. Your balance is now 6.50" — none of which happened. Every claim that
+an irreversible thing is DONE must now be backed by a tool that succeeded in the same turn, or the
+reply is replaced by an honest refusal. The guard blocked a real repeat attempt the same night.
+
+**The walletless loop is exercised end to end.** Stop had never worked (a Privy rule name was 55
+chars against a 50 limit); the stop tool needed an id founders never see; the gas question sent
+founders to a block explorer; a stop of an already-stopped vault died instead of finishing the job.
+All fixed, all proven on-chain ($2 recovered; the already-revoked case reconciled cleanly).
+
+**Autonomy no longer turns itself off silently.** The LLM gateway stalls per-request at random
+(measured 6/8 failing in a bad window, 0/8 an hour later). The concierge got the retry ladder it
+uniquely lacked plus the healthy model; the payout brain got a FALLBACK provider, so an exhausted
+primary now fails over to haiku instead of dropping to the never-autopay heuristic.
+
+**The product rehearses itself nightly.** `sage-self-drive` (pm2 cron, 04:30) drives surfaces,
+ledger bounds, board payability, three concierge turns, and one REAL inspection end to end, and
+alerts the operator chat on failure. Its first run caught three real problems within minutes.
+
+**Known debris for the operator:** `launch-yara-garden-343gb2` (a web-wallet campaign from 12 July,
+pre-corpus pipeline) is live with 2 observation missions and no corpus. It cannot be repinned (its
+source inspection holds zero observations) and only its founder wallet 0xb77e… can stop it from the
+web console. The marketplace hides it; the self-drive will keep flagging it until it is stopped.
