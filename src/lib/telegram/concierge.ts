@@ -54,13 +54,22 @@ const MAX_HISTORY = 12;
  * asking for their wallet balance got "Something glitched" even though the tool had already
  * returned the balance and we were only composing the sentence around it.
  *
- * 25s is far past a healthy call and leaves room for two more attempts inside the turn budget.
+ * RE-MEASURED after a live turn still timed out through all three attempts. The same model, same
+ * key, eight calls: 0 failures but a spread of 1.4s to 13.7s — several times slower than the
+ * 1.4-3.4s it answered in an hour earlier. A real turn carries ~10.6k chars of system prompt, ten
+ * tool schemas and up to twelve messages of history, and runs up to five rounds, so an attempt can
+ * exceed a 25s ceiling that a small probe never approached. That ceiling was calibrated on the
+ * probe, which is the mistake: 45s is roughly three times the worst call actually observed.
+ *
+ * Prod over the same window: 14 replies, 1 timeout. This is a slow gateway, not a broken one, so
+ * the answer is headroom rather than a rewrite.
  */
-const TIMEOUT_MS = 25_000;
+const TIMEOUT_MS = 45_000;
 const LLM_ATTEMPTS = 3;
 /** The whole turn's LLM budget, across every tool round. The reply is sent from `after()`, so this
- *  costs a founder waiting rather than a failed request — but it must still end. */
-const TURN_BUDGET_MS = 100_000;
+ *  costs a founder waiting rather than a failed request — but it must still end. Three 45s attempts
+ *  plus backoff fit inside it; past that a founder is better served by an honest failure. */
+const TURN_BUDGET_MS = 150_000;
 
 const BASE_PROMPT = `You are Sage, an autonomous product-testing agent, talking to a founder through your Telegram bot. Keep replies short and plain — this is a chat, not a document.
 
