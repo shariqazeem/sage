@@ -1,6 +1,6 @@
 import "server-only";
 
-import { erc20Abi, getAddress, type Address } from "viem";
+import { erc20Abi, formatEther, getAddress, type Address } from "viem";
 
 import type { McpToolDef, ToolResult } from "@/lib/mcp/server";
 import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
@@ -43,6 +43,23 @@ function appUrl(): string {
 const usd = (base: bigint): number => Number(base) / 1_000_000;
 const ok = (obj: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(obj) }], isError: false });
 const err = (message: string): ToolResult => ({ content: [{ type: "text", text: JSON.stringify({ ok: false, error: message }) }], isError: true });
+
+/**
+ * The native balance a deploy needs. GOAT's gas token is BTC, and the agent wallet signs and
+ * broadcasts four transactions to stand a campaign up, so a wallet short on gas fails PART WAY —
+ * vault created, then out of gas before it is funded.
+ *
+ * ONE constant, read by both the launch gate and the status read. They used to be the same number
+ * in only one place: the check existed inside sage_fund_and_launch and nowhere else, so a founder
+ * could not ask "how much BTC do I have?" and only discovered they were short when a launch failed.
+ * Two copies of this number is how status says "you're fine" and the launch then says otherwise.
+ */
+export const MIN_GAS_WEI = BigInt(3_000_000_000_000); // ~0.000003 BTC, the 4-tx deploy with headroom
+
+/** Native (BTC on GOAT) balance in wei. */
+async function nativeBalanceWei(address: string): Promise<bigint> {
+  return publicClient(2345).getBalance({ address: getAddress(address) });
+}
 
 async function usdcBalanceBase(address: string): Promise<bigint> {
   return publicClient(2345).readContract({
@@ -104,7 +121,7 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
   {
     name: "sage_agent_wallet_status",
     description:
-      "Check whether this founder has linked an agent wallet, its address, its USDC balance, and their per-campaign spending cap. Use before trying to fund + launch. Read-only.",
+      "Check this founder's agent wallet: whether it exists, its address, its USDC balance, its NATIVE GAS balance in BTC (GOAT charges gas in BTC, so a wallet full of USDC with no BTC cannot launch anything), whether that gas is enough to launch, and their per-campaign spending cap. Answers \"how much BTC / gas do I have?\" as well as \"what is my balance?\" — never tell a founder to go look at a block explorer, this tool has it. Use before trying to fund + launch. Read-only.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -303,12 +320,26 @@ export async function callAgentWalletTool(
       case "sage_agent_wallet_status": {
         const b = founderBinding(chatId);
         if (!b) return ok({ ok: true, linked: false, message: "No agent wallet yet — call sage_setup_wallet." });
-        const balance = await usdcBalanceBase(b.privyWalletAddress);
+        // BOTH balances. GOAT charges gas in native BTC, so a wallet holding plenty of USDC and no
+        // BTC cannot launch anything — and until now the gas number existed only inside
+        // sage_fund_and_launch, so asking "how much BTC do I have for gas?" got "I don't have a tool
+        // for that, check a block explorer". Telling a walletless founder to go read a block
+        // explorer is the walletless promise breaking in one sentence.
+        const [balance, gasWei] = await Promise.all([
+          usdcBalanceBase(b.privyWalletAddress),
+          nativeBalanceWei(b.privyWalletAddress).catch(() => null),
+        ]);
         return ok({
           ok: true,
           linked: true,
           walletAddress: b.privyWalletAddress,
           balanceUsdc: usd(balance),
+          // Native gas, in the same shape the launch gate judges it by — so "you have enough" here
+          // and "needs gas" there can never disagree.
+          gasSymbol: "BTC",
+          gasBalanceBtc: gasWei === null ? null : formatEther(gasWei),
+          enoughGasToLaunch: gasWei === null ? null : gasWei >= MIN_GAS_WEI,
+          minGasToLaunchBtc: formatEther(MIN_GAS_WEI),
           perCampaignCapUsdc: usd(BigInt(b.perCampaignCapBase)),
           reclaimAddress: b.founderAddress,
         });
@@ -347,9 +378,8 @@ export async function callAgentWalletTool(
         // GOAT gas is native (BTC). The wallet signs + broadcasts 4 txs itself, so it needs enough
         // native balance for the whole sequence — catch a zero/too-low balance here so we never do a
         // partial deploy (vault created, then out of gas before it's funded).
-        const gas = await publicClient(2345).getBalance({ address: getAddress(b.privyWalletAddress) });
-        const minGasWei = BigInt(3_000_000_000_000); // ~0.000003 BTC — covers the 4-tx deploy with headroom
-        if (gas < minGasWei) {
+        const gas = await nativeBalanceWei(b.privyWalletAddress);
+        if (gas < MIN_GAS_WEI) {
           return ok({
             ok: false,
             needsGas: true,
