@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { PAID_SERVICES, priceOf, isPaidTool, serviceEndpoint } from "./pricing";
+import { PAID_SERVICES, priceOf, isPaidTool, serviceEndpoint, serviceOf, servicesArePaid } from "./pricing";
 import { MCP_TOOLS } from "./server";
 import { PUBLIC_READ_TOOLS, PUBLIC_WORK_TOOLS } from "./public";
 import { priceToMinimal } from "@/lib/x402/okx";
@@ -70,5 +70,75 @@ describe("what stays free stays free", () => {
   ])("%s is not charged (%s)", (tool) => {
     expect(isPaidTool(tool)).toBe(false);
     expect(priceOf(tool)).toBeNull();
+  });
+});
+
+/**
+ * THE TWO COMPLIANT SHAPES, AND THE SWITCH BETWEEN THEM.
+ *
+ * OKX's A2MCP guide accepts either shape: "① Free endpoint — returns the result directly on call;
+ * no billing, no x402. ② x402 pay-per-call endpoint". Their reviewer rejected all four services
+ * four times over payment verification, so shape ① is the one that ships today.
+ *
+ * The switch has to move BOTH the endpoint and the listing together — OKX validates that a
+ * service's registered price matches what its endpoint actually asks for, and a mismatch reads as a
+ * broken service. These tests hold that the catalogue survives the switch (so the rail can be
+ * re-armed, and so a free listing still has names and summaries to advertise) and that the price
+ * is the only thing that moves.
+ *
+ * The previous tests here never asserted a paid tool WAS paid, so they passed in either shape and
+ * guarded nothing.
+ */
+describe("free-endpoint shape vs paid-endpoint shape", () => {
+  const PAY_TO = "0xDF70f6E8e656E5bb714fF0E8CA176d76F26890e3";
+  const before = process.env.OKX_X402_PAY_TO;
+  afterEach(() => {
+    if (before === undefined) delete process.env.OKX_X402_PAY_TO;
+    else process.env.OKX_X402_PAY_TO = before;
+  });
+
+  it("charges every catalogue service when the rail is armed", () => {
+    process.env.OKX_X402_PAY_TO = PAY_TO;
+    expect(servicesArePaid()).toBe(true);
+    for (const s of PAID_SERVICES) {
+      expect(isPaidTool(s.tool), `${s.tool} paid`).toBe(true);
+      expect(priceOf(s.tool)?.priceUsd, `${s.tool} price`).toBe(s.priceUsd);
+    }
+  });
+
+  it("charges nothing at all when the rail is disarmed", () => {
+    delete process.env.OKX_X402_PAY_TO;
+    expect(servicesArePaid()).toBe(false);
+    for (const s of PAID_SERVICES) {
+      expect(isPaidTool(s.tool), `${s.tool} must be free`).toBe(false);
+      expect(priceOf(s.tool), `${s.tool} must have no price`).toBeNull();
+    }
+  });
+
+  it("keeps the catalogue readable while free, so the listing still has a name and a summary", () => {
+    delete process.env.OKX_X402_PAY_TO;
+    for (const s of PAID_SERVICES) {
+      const entry = serviceOf(s.tool);
+      expect(entry?.serviceName).toBe(s.serviceName);
+      expect(entry?.summary).toBe(s.summary);
+      expect(entry?.priceUsd).toBe(s.priceUsd); // the price it WOULD charge, kept for re-arming
+    }
+  });
+
+  it("an empty or whitespace address is disarmed, not armed with a blank payee", () => {
+    for (const v of ["", "   "]) {
+      process.env.OKX_X402_PAY_TO = v;
+      expect(servicesArePaid()).toBe(false);
+      expect(isPaidTool(PAID_SERVICES[0]!.tool)).toBe(false);
+    }
+  });
+
+  it("never charges for a free tool in either shape", () => {
+    for (const v of [PAY_TO, undefined]) {
+      if (v === undefined) delete process.env.OKX_X402_PAY_TO;
+      else process.env.OKX_X402_PAY_TO = v;
+      expect(isPaidTool("sage_get_proof")).toBe(false);
+      expect(priceOf("sage_get_proof")).toBeNull();
+    }
   });
 });

@@ -68,13 +68,40 @@ const BY_TOOL: ReadonlyMap<string, PricedService> = new Map(
   PAID_SERVICES.map((s) => [s.tool, s]),
 );
 
-/** The price of one tool, or null when it is free. */
+/**
+ * IS THE PAID RAIL ARMED? Unset `OKX_X402_PAY_TO` and every service becomes a FREE endpoint.
+ *
+ * OKX's A2MCP guide gives two compliant shapes for a service, and free is a first-class one of
+ * them: "① Free endpoint — returns the result directly on call; no billing, no x402. ② x402
+ * pay-per-call endpoint". Their reviewer rejected all four services four times over payment
+ * verification, and the fix they ask for — the OKX Pay SDK talking to their facilitator — needs an
+ * API key from their developer portal that we do not have. A free endpoint has nothing for an
+ * availability test to fail on, so it is the shape that can actually ship today.
+ *
+ * ONE FLAG, BOTH SIDES. This module is the single source of truth for what the paywall charges AND
+ * what the listing advertises, and OKX validates that those match — so the switch has to live here
+ * rather than in the route, or the endpoint and the listing would drift apart and a mismatch reads
+ * as a broken service. `PAID_SERVICES` keeps its prices so the rail can be re-armed by setting the
+ * address again; nothing about the catalogue is deleted.
+ */
+export function servicesArePaid(): boolean {
+  return !!process.env.OKX_X402_PAY_TO?.trim();
+}
+
+/** The catalogue entry for a tool, whether or not the rail is armed. Names and summaries are used
+ *  by the listing in both shapes; only the PRICE is conditional. */
+export function serviceOf(tool: string): PricedService | null {
+  return BY_TOOL.get(tool) ?? null;
+}
+
+/** The price of one tool, or null when it is free (including when the rail is disarmed). */
 export function priceOf(tool: string): PricedService | null {
+  if (!servicesArePaid()) return null;
   return BY_TOOL.get(tool) ?? null;
 }
 
 export function isPaidTool(tool: string): boolean {
-  return BY_TOOL.has(tool);
+  return servicesArePaid() && BY_TOOL.has(tool);
 }
 
 /** The public URL a paid service is called at. Each service is its own resource. */
