@@ -481,18 +481,27 @@ export async function callAgentWalletTool(
         } catch {
           return err("That campaign's vault address looks invalid.");
         }
-        const recoverable = await usdcBalanceBase(vault);
         try {
+          // stopCampaignViaPrivy reads the vault balance itself now (it needs it to decide whether a
+          // withdraw is even worth sending), so the amount reported comes from the same read that
+          // gated the transaction — one number, not two that can disagree.
           const res = await stopCampaignViaPrivy(b, vault);
           setCampaignStatus(campaign.id, "cancelled"); // catalogue it as stopped so it leaves the running list
+          // Say only what actually happened. The chain may already have had the campaign stopped
+          // (a double-tap, or a revoke from the web card) — then this call just finished the job:
+          // recovered anything left, fixed the catalogue, and must not claim a revoke it never sent.
+          const recovered = res.withdraw ? usd(res.recoveredBase) : 0;
           return ok({
             ok: true,
             campaignId: campaign.id,
             stopped: true,
-            recoveredUsdc: usd(recoverable),
-            revokeTx: res.revoke.explorerUrl,
-            withdrawTx: res.withdraw.explorerUrl,
-            message: `Stopped "${campaign.title}" and returned ${usd(recoverable)} USDC to the founder's Sage wallet — it's in their balance now. They can withdraw it out with sage_request_withdrawal, or leave it for the next campaign.`,
+            alreadyStopped: res.alreadyRevoked,
+            recoveredUsdc: recovered,
+            revokeTx: res.revoke?.explorerUrl ?? null,
+            withdrawTx: res.withdraw?.explorerUrl ?? null,
+            message: res.alreadyRevoked
+              ? `That campaign was already stopped on-chain. ${res.withdraw ? `Recovered the remaining ${usd(res.recoveredBase)} USDC to the founder's Sage wallet and` : "Nothing was left to recover;"} the catalogue now shows it as stopped.`
+              : `Stopped "${campaign.title}" and returned ${usd(res.recoveredBase)} USDC to the founder's Sage wallet — it's in their balance now. They can withdraw it out with sage_request_withdrawal, or leave it for the next campaign.`,
           });
         } catch (e) {
           console.error("[agent-wallet-tools] stop campaign failed:", e);
