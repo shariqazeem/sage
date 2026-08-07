@@ -84,6 +84,21 @@
 .lx-discover { margin-top: 14px; font-size: 13.5px; color: var(--lx-muted); line-height: 1.6; }
 .lx-discover b { color: var(--lx-ink); font-weight: 600; }
 
+/* THE DESIGN-PHASE REASSURANCE — shown once browsing is done and the mission model is thinking, so a
+   frozen filmstrip does not read as a hang. A calm, breathing dot; no progress bar, because there is
+   no honest percentage to show. */
+.lx-designing {
+  margin-top: 14px; display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13.5px; color: var(--lx-muted); line-height: 1.6;
+  padding: 12px 14px; border: 1px solid var(--lx-line); border-radius: 10px; background: var(--lx-accent-soft);
+}
+.lx-designing-pulse {
+  flex: none; margin-top: 6px; width: 8px; height: 8px; border-radius: 999px; background: var(--lx-accent);
+  animation: lx-designing-breathe 1.6s ease-in-out infinite;
+}
+@keyframes lx-designing-breathe { 0%,100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .lx-designing-pulse { animation: none; } }
+
 /* LIVE BROWSER TRAIL — the screen Sage is looking at, right now. One frame per REAL captured
    state; the browser runs at 1280×800, so the viewport is exactly 16/10 and nothing is cropped. */
 .lbt { margin-top: 16px; border: 1px solid var(--lx-line); border-radius: 12px; overflow: hidden; background: var(--surface); }

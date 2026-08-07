@@ -48,6 +48,9 @@ const STAGE_LABELS: { key: Stage; label: string }[] = [
   { key: "generating_missions", label: "Designing testing missions" },
   { key: "reviewing", label: "Checking mission quality and budget" },
 ];
+/** The two stages that run AFTER the browser is done — silent, model-driven, and slow enough that a
+ *  motionless screen reads as a hang. The designing panel appears only here. */
+const DESIGNING = new Set<Stage>(["generating_missions", "reviewing"]);
 const RANK: Record<Stage, number> = {
   queued: 0, fetching: 1, field_test: 1.5, analyzing: 2, mapping: 3, generating_missions: 4, reviewing: 5,
   ready: 6, needs_input: 6, failed: 6, superseded: 7,
@@ -119,6 +122,21 @@ export function LaunchResults({ initial }: { initial: JobView }) {
               Found <b>{job.pagesInspected}</b> page{job.pagesInspected === 1 ? "" : "s"}
               {job.repoFilesInspected > 0 ? <> · <b>{job.repoFilesInspected}</b> repo files</> : null}
               {job.model ? <> · reviewing with <b>{job.model}</b></> : null}
+            </div>
+          )}
+          {/* THE DESIGN PHASE IS SILENT AND SLOW, and a frozen filmstrip reads as a hang. Once the
+              browser is done, the mission model does several sequential passes (draft, review against
+              what Sage saw, quality gate, budget split) that take a couple of minutes with nothing new
+              to show. This says, honestly, that the browsing is finished and Sage is now thinking —
+              turning "is this broken?" into "it's working." No fabricated progress: it appears only
+              in the real design stages and states only what already happened. */}
+          {DESIGNING.has(status) && (
+            <div className="lx-designing" role="status" aria-live="polite">
+              <span className="lx-designing-pulse" aria-hidden />
+              <span>
+                Done exploring{job.pagesInspected > 0 ? <> {hostOf(job.productUrl)}</> : null}. Sage is
+                now {status === "reviewing" ? "checking each mission is fair and pays for real work" : "designing missions from what it saw"} — this part is careful and usually takes a minute or two.
+              </span>
             </div>
           )}
         </div>
