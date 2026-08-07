@@ -300,13 +300,25 @@ Note the inversion: **yara.garden produced the most observation (20 browser stat
 observations) and the fewest missions (1) and the lowest absorption (5%).** More looking is not
 currently converting into more work to pay for.
 
-Absorbing $10k means roughly 6 missions × 20 min × ~420 testers. That is not an absurd campaign
-for a founder with millions of users — 420 people through an onboarding flow is exactly what
-they would want to buy. The per-wallet payout cap (1 per campaign) is what makes a large slot
-count safe: 420 slots means 420 distinct people, not one person farming. Nothing on-chain
-hardcodes 50; the vault takes `maxCompletions` as data.
+Absorbing $10k means roughly 6 missions × 20 min × ~420 testers. Mechanically that is easy: the
+two 50s are the only limits, nothing on-chain hardcodes them (the vault takes `maxCompletions` as
+data), and the per-wallet payout cap of 1 per campaign is what would keep a large slot count
+honest — 420 slots means 420 distinct people, not one person farming.
 
-Not changed yet — it moves real money at scale and deserves its own measured pass.
+**But raising the cap would be the wrong fix, and it took designing it to see why.** Today a
+founder offering $10,000 is told $9,700 stays with them and they never send it. After the change
+they would fund $10,000 into a vault, and it would sit there against a marketplace that has taken
+**11 submissions in its lifetime** and currently shows 13 open slots. Money never taken is not
+the same as money locked in a vault waiting for testers who do not exist yet, and the second is
+worse for the founder and worse for us.
+
+So the $300 ceiling is not the binding constraint on growth — **tester supply is**, and the
+ceiling is downstream of it. The honest sequencing is to grow the tester pool first and let
+absorption follow it, ideally by deriving the cap from real marketplace throughput rather than
+from a constant. A founder-scale budget should become fundable because there are people to pay,
+not because a number was raised.
+
+Not changed. Recorded so the next person does not "fix" it in the obvious direction.
 
 ### Fixed: the founder's own request was getting the leftovers
 
