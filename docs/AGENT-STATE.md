@@ -495,3 +495,86 @@ grounded architect). Moving MISSION_MODEL to haiku would roughly halve the desig
 reliable (haiku 0/8 vs flash-lite 6/8 in a bad window) — BUT the grounded architect was specifically
 tuned for flash-lite (4 prompt/schema fixes), so it must be battery-verified for grounded_v2
 selection + anchor integrity before flipping, not done blind.
+
+---
+
+# Session addendum · 8 Aug 2026 · the hands, not the eyes
+
+Written after a founder-visible failure that read as "our inspection is not intelligent, it feels
+like a script bot." It was not an intelligence defect. Four fixes shipped, all measured.
+
+## 1. Clicks were dying silently on CPU-heavy pages
+
+`locator.click({timeout: 2500, force: true})` needs a renderer round-trip for Playwright's
+actionability and hit-test work. On the 2-core VM a WebGL scene cannot answer that in 2.5s.
+Measured on the VM, useagora.vercel.app/square, same visible button: **0/4 via locator.click
+(2609/2501/2502/2501ms — the timeout wall itself), 4/4 once it falls through.** `force: true`
+does not save you; it skips the checks, not the round-trip. `boundingBox()` is the same starved
+channel. **`page.evaluate` stays responsive** because it runs in the JS context, so read geometry
+there and click the point with a real mouse. Real mouse before synthetic dispatch, because
+canvas/WebGL products ignore synthetic events.
+
+Blast radius over 69 real inspections: **17% had at least one dead click** (allbirds worst at
+3/run, then agora, cnn, linear).
+
+## 2. The executor's failure was being filed as a finding about the product
+
+An undelivered click and a delivered click on an inert control both produced
+`"attempted click_element (no effect)"`, so loop prevention permanently retired the ONE working
+door and then guessed at coordinates. Worse: `buildObservationCorpus`, the anti-hallucination
+gate, was pushing state triggers in, which made **Sage's own failure vocabulary admissible as
+proof about someone's product.** `executeAction` now returns a typed `ActionOutcome` carrying
+`delivered`; the corpus excludes an undelivered trigger and keeps everything the page genuinely
+showed. This is the third recurrence of the same shape (also: `static` meaning both content-site
+and turned-away; self-drive alerting on a testnet campaign) — hence the type, not a convention.
+
+Proof, same URL and goal, before → after: 5 states (4 identical) → **10**; stuck at the splash
+gate → clicked ENTER, BEGIN, opened THE LEDGER and served a station (0/5 → 1/5); corpus 30 facts
+→ **62**; 1 headline-reading mission → **3**; product understood as "interactive game" rather
+than a landing page.
+
+## 3. Caps now say what they cost — and immediately found something
+
+Every limit the mission brain sees through lives in `BRAIN_VIEW_CAPS`, and `viewTruncations`
+derives the report from those same constants so the two cannot drift. It lands in the artifact
+and prints in the battery as a `starved:` line.
+
+**It paid off on its first run.** Static products are losing roughly half of what Sage crawled:
+
+| product | starved |
+|---|---|
+| tailwindcss.com/docs | crawled pages **-2**, page text **-8000 chars** |
+| plausible.io | crawled pages **-2**, page text **-6000 chars** |
+| excalidraw.com | elements per state **-8** |
+
+**Open hypothesis worth testing:** this may be the cause of the long-standing "0 url-verifiable
+missions" drift. A url mission needs page TEXT to cite, and the brain is being handed 4 of 6
+pages with thousands of characters cut. Raising `BRAIN_VIEW_CAPS.pages`/`pageTextChars` is the
+obvious experiment — but it changes prompt cost and must be battery-verified, not done blind.
+
+## 4. Sage reads the docs when a wall stops it
+
+Previously: zero references to docs anywhere in the browsing layer, so a wallet-gated product
+yielded a plan built from its landing page. Now, **only** when a wall actually turned Sage away,
+it hunts the product's own documentation and reads up to three pages inside the existing
+3-minute clock. `docCandidates` is pure and ranked: what the product LINKED and NAMED beats
+convention, a walled route is never offered back, bounded so it cannot become a crawl.
+
+**Documented is not observed**, and the design turns on it. Docs live in their own field, carry
+the wall that sent Sage looking, and the mission prompt forbids implying Sage watched a gated
+screen work. Missions are designed for a tester who HAS an account, with that in `conditions`,
+and never ask for credentials, seed phrases or private keys.
+
+**Left deliberately alone:** `sameSiteHost` is an exact host match, so `docs.<product>.com` is
+outside the egress boundary and this covers same-host docs only. Widening that is an operator's
+security decision, not a side effect of a feature. **This is the one open question for the
+founder** — a large share of web3 products host docs on a subdomain.
+
+## 5. The battery was also lying
+
+One dropped connection in 72 polls aborted a row and printed `ERROR: fetch failed`, which reads
+exactly like a regression: on the first run that was 5 of 11 categories, every one healthy. Now
+tolerant, and when the wire genuinely dies it says so about the WIRE. Three expectations relaxed
+on evidence (29 recorded runs each for two of them), because a row that fails on a coin flip
+trains everyone to ignore the grid. Two categories added that could not have caught any of the
+above: **webgl-world** and **wallet-gated**.
