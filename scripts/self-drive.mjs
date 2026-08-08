@@ -78,15 +78,22 @@ try {
   if (stuckJobs === 0) note("ok   no inspection idle past the reaper bound");
   else fail(`${stuckJobs} inspection(s) idle past the reaper bound — is the sweep running?`);
 
+  // MIRROR THE MARKETPLACE'S OWN FILTER, or the check cries wolf. The board excludes TESTNET
+  // campaigns outright ("testnet work is not paid work"), so a testnet campaign with no corpus is
+  // never listable and can never mislead anyone. This check counted them anyway and woke the
+  // operator at 04:30 over a 12 July Metis-Sepolia campaign holding fake USDC. A guard that reports
+  // problems nobody can reach is how a real alert gets ignored.
+  const MAINNET_CHAINS = [2345, 1088]; // GOAT, Metis Andromeda — everything else here is a testnet
   const unpayable = db
     .prepare(
       `select count(*) c from missions m join campaigns c on c.id = m.campaign_id
        where c.status = 'live' and c.sandbox = 0 and m.status != 'closed'
+         and c.chain_id in (${MAINNET_CHAINS.join(",")})
          and m.verifiability_class = 'observation-based' and coalesce(c.private_corpus_sources, 0) < 5`,
     )
     .get().c;
   if (unpayable === 0) note("ok   nothing advertised that the judge cannot pay");
-  else fail(`${unpayable} live observation mission(s) with a corpus below the judging bar`);
+  else fail(`${unpayable} live MAINNET observation mission(s) with a corpus below the judging bar`);
   db.close();
 } catch (e) {
   fail(`db checks could not run (${e?.message ?? e})`);
