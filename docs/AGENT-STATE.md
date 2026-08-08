@@ -638,3 +638,63 @@ across 24 states, and returned only 2 missions from that.
 url-verifiable missions come back, does mission count rise on the rich products, and what does
 it cost per URL (the guard is 60k tokens). One weak supporting signal already: allbirds lost the
 least text of the static products and was the only one to produce a url-verifiable mission.
+
+
+---
+
+## The url-verifiable drought: two experiments, one refuted, one inconclusive
+
+Worth reading before anyone tries this again, because the obvious explanation was wrong.
+
+**Why it matters at all:** url-verifiable is the only class that AUTO-PAYS. Observation work
+needs a private corpus above the judging bar and otherwise holds. So a misclassification here
+suppresses autonomous payouts across every product, which is the single thing a tester notices.
+
+### Experiment 1 — page starvation. REFUTED.
+
+Hypothesis: url missions need page TEXT to cite, the brain was receiving 4 of 6 crawled pages,
+so restoring pages would restore url missions. `BRAIN_VIEW_CAPS.pages` 4 → 6, changed alone.
+
+Result: the page-count starvation disappeared from every row, and **all four retested products
+still returned 0url**. The hypothesis was wrong. The cap was nevertheless a real defect — the
+comment beside it budgets for "worst case 6 pages", so the slice contradicted its own documented
+intent — and it stays fixed on those grounds alone.
+
+### The actual mechanism, found by reading the code instead of guessing
+
+`classifyVerifiability` is a **regex over the mission's own wording**. It never had anything to do
+with how much Sage saw. Measured over 63 real generated missions:
+
+| condition | fails |
+|---|---|
+| `REACHES_URL` | **55 of 63** |
+| `FINDS_TEXT` | 51 of 63 |
+| `SUBJECTIVE` veto | 4 |
+| would classify url-verifiable | **1** |
+
+The rejected missions are good missions. "Identify the published resource limits for the Free
+tier" is provable by fetching a page and quoting it; it simply never said so in the phrasebook
+the gate recognises. **A vocabulary mismatch between the architect and the classifier.**
+
+### Experiment 2 — teach the architect the shape. INCONCLUSIVE.
+
+Fixed on the generation side deliberately: `classifyVerifiability` is a money gate documented to
+stay conservative, and loosening the regex would let observation work be WORDED into the auto-pay
+path, which is the attack it exists to prevent.
+
+Result across 6 categories: brittanychiang 0url → **1url**, tailwind 0url → **1url**, allbirds
+**1url → 0url**, plausible / gitlab / motherfuckingwebsite unchanged at 0url. Anchors 100%
+throughout, nothing broke.
+
+Two gained, one lost, three unchanged. **That is inside the noise band these products already
+have** (plausible alone returned 0url in 8 of 14 historical runs, and flipped static→interactive
+mid-experiment). The change is kept because it is theoretically grounded and demonstrably
+harmless, but it is NOT confirmed, and the two `lintSplit` checks stay informational until it is.
+
+### How to actually settle it
+
+Stop changing one thing and eyeballing one run. Establish a **rate**: run the same 6 categories
+3 times each at consecutive nonces, before and after, and compare url-mission frequency out of 18.
+Anything less cannot see past the mode flips. The remaining untested lever is
+`pageTextChars` (2000, still cutting 4,000-12,000 chars per product), which is the last input a
+url mission plausibly depends on — but test it against a rate, not a single run.
