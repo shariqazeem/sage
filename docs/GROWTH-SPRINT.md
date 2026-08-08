@@ -1,136 +1,303 @@
-# Growth Sprint · Aug 8–21
+# Growth Sprint · Sat 8 Aug → Fri 21 Aug 2026
 
-Building is paused. The next two weeks buy exactly three artifacts for Stage 2 (due Aug 21):
-the **Product Growth Report**, the **Seed User Feedback Report (10–20 users)**, and the
-**GEO Contribution Report**. Every action below feeds at least one of them.
+Building is done. This is the whole plan, day by day, so nothing is forgotten.
 
-**Seed user definition (write this into the report):** anyone who completes one real loop —
-a tester who submits evidence on a funded mission, or a founder who runs an inspection of
-their own product. Both are measurable in our DB; neither can be faked.
+**The spine, in the founder's words:** we market Sage by funding campaigns and asking
+founders. Everyone building anything is a founder of their own product, hackathon
+participants included. Two front doors, always named together: **sagepays.xyz** and
+**@sagedeputybot**. OKX.AI is parked for now, it is not part of the OpenClaw hackathon.
+
+**Two accounts, never the same words on both:** @sagepaysai (official, the product speaking)
+and the personal profile (opinion, story, build-in-public).
+
+**Sources.** Tactics below marked *TS §n* / *OM Play n* come from Ben Wynn's (CMO, GOAT
+Network) Growth Tip Sheet and AI Marketing Ops Manual, July 2026. We take the mechanics and
+run our own strategy on top.
 
 ---
 
-## Budget engineering ($50, stretch $100 only on evidence)
+## The edge, in one sentence (TS §0 — write it or nothing else works)
 
-Small budgets absorb fully (fair rate ~$0.20/min, rewards ~$0.30–2.50); the per-wallet cap
-of 1 payout per campaign means MORE campaigns = more people paid, not one person farming.
-Money in an untouched vault is recoverable via stop (proven live).
+> Sage is the only AI agent that browses your product live, designs paid testing missions
+> from what it actually saw, and pays testers USDC itself, inside on-chain limits it cannot
+> exceed.
 
-| # | campaign | budget | goal to give Sage (engineered: stable facts, no volatile counts, wall-aware) |
+The checkable part is the whole edge: **every payout has an on-chain receipt.** Nobody else
+in this cohort can say a machine moved their money and show the transaction.
+
+---
+
+## Stage 2 deliverables (due Fri 21 Aug) and what feeds them
+
+| deliverable | what fills it | filled by |
+|---|---|---|
+| Product Growth Report | funnel numbers straight from `var/sage.db` + on-chain payouts | Day 12 metrics pull |
+| Seed User Feedback Report (10-20 users) | every submission note and founder reply, verbatim, with what we changed | logged daily from Day 1 |
+| GEO Contribution Report | the GEO work in §GEO below, with before/after answers from four engines | Day 1 baseline, Day 12 re-test |
+
+**Seed user definition** (write this into the report): anyone who completes one real loop.
+A tester who submits evidence on a funded mission, or a founder who runs an inspection of
+their own product. Both are in our DB and neither can be faked.
+
+---
+
+## Budget: $50, stretch to $100 only on evidence
+
+Absorption is structurally 5-20%, so small budgets fill and large ones just sit locked. The
+per-wallet cap of 1 payout per campaign means **more campaigns beats bigger campaigns**:
+five $10 campaigns pay five different people; one $50 campaign pays one person five times.
+Untouched money is recoverable via stop, proven on-chain.
+
+| # | campaign | budget | goal text to give Sage |
 |---|---|---|---|
-| 1 | sagepays.xyz (dogfood) | $8 | "Verify a first-time tester can understand how earning works here, reach the marketplace, and open a mission board. Report what you actually saw." |
-| 2 | clawup.org | $10 | "Verify a first-time visitor understands what ClawUp offers, how its pricing works, and can reach the start of agent creation." |
-| 3 | www.goat.network | $8 | "Verify a newcomer can understand what GOAT Network is, learn that BTC is the gas token, and locate where to bridge or get started." |
-| 4 | www.metis.io | $8 | "Verify a first-time visitor can understand what Metis offers builders and find how to start building on it." |
-| 5 | SuperVega gift (his product, his campaign; we fund) | $10 | offered in DM; he sets the goal, we suggest: "Verify a trader can find the options beta, understand how an option is opened, and reach the trade screen." |
-| — | reserve (double the best performer in week 2) | $6 | — |
+| 1 | sagepays.xyz (dogfood) | $8 | "Verify a first-time tester understands how earning works here, reaches the marketplace, and opens a mission board. Report what you actually saw." |
+| 2 | one S2 cohort product | $10 | their words, engineered with them |
+| 3 | www.goat.network | $8 | "Verify a newcomer understands what GOAT Network is, learns BTC is the gas token, and locates where to bridge or get started." |
+| 4 | www.metis.io | $8 | "Verify a first-time visitor understands what Metis offers builders and finds how to start building on it." |
+| 5 | SuperVega options beta (his product, we fund) | $10 | he sets it; suggest "Verify a trader can find the options beta, understand how an option is opened, and reach the trade screen." |
+| — | reserve, doubles the best performer in week 2 | $6 | — |
 
-Both target sites verified reachable via `sage_first_look` on 2026-08-08, no auth walls.
-Launch 1–2 first (day 1), 3–4 on day 2–3, staggered so the marketplace never shows empty.
-Rule: a campaign untouched for 4 days gets stopped and its budget reallocated.
+**Rules.** Stagger them so the board is never empty while traffic is arriving. Any campaign
+untouched for 4 days gets stopped and reallocated. Founder picks the targets and the order.
+
+**Goal-writing rule to give any founder** (this is the coaching line that works):
+> Write it like you would brief a human tester: what should they do, and what should be true
+> on screen when they are done. Avoid anything that changes daily, like live counts or
+> prices, because an honest tester who submits tomorrow would be judged against yesterday.
 
 ---
 
-## Week 1 (Aug 8–14): seed the board, then drive people at it
+## Weekend 8-9 Aug: setup only (TS §1.3 — Saturday is the worst day, never launch into it)
 
-**Day 1 — the board is never empty again**
-- Launch campaigns 1 + 2. Screenshot the live marketplace.
-- @sagepaysai: campaign-live post (point 15 wording, cleaned): rewards, board link,
-  "walletless from Telegram too."
-- Personal: the "types of agents" take (point 13) quote-tweeting the campaign post.
+Nothing public ships on a weekend. Two hours of setup that makes every later day faster.
 
-**Day 2 — GOAT day**
-- Launch campaign 3. Post from @sagepaysai tagging GOAT: testing on GOAT, paid in USDC on
+- **`positioning.md` and `guardrails.md`** (OM Play 1 + 2). The edge sentence above, the
+  one-liner, who exactly, their pain, proof, activation moment, competitors, links. The
+  guardrails "never" list matters most: no em dashes, no superlatives without a source, no
+  unverifiable claims, plain professional wording, never the word "Deputy" in public copy.
+- **`llms.txt` + sitemap + Google Search Console + Bing Webmaster** (TS §4, OM Play 15).
+  Bing feeds ChatGPT's retrieval, so Bing is not optional. *I can build these.*
+- **GEO baseline**, so the report has a before: ask ChatGPT, Claude, Perplexity and Gemini
+  the same four questions and log the answers with the date. *I can run and log this.*
+  1. "What are the best tools for getting paid beta testers for a web3 product?"
+  2. "What is Sage / sagepays.xyz?"
+  3. "How can an AI agent pay people automatically for testing my product?"
+  4. "What tools pay testers in USDC with on-chain proof?"
+- **Idea inbox** (OM Play 14): one note, one line per idea, acted on the same day.
+- **S2 cohort message may go out now** — 16 people, warm, a group chat is not an algorithm.
+  The 485-member Builder Hub waits for Monday.
+
+---
+
+## Week 1 · the board fills and people are driven at it
+
+### Mon 10 Aug — directories and the quiet groundwork (OM Play 10 Monday)
+- Launch **campaign 1** (dogfood, $8). Screenshot the live board.
+- Submit to directories: AI-agent directories, DappRadar, any GOAT/Metis ecosystem list
+  (TS §12). Models read directories, so listings feed GEO as well as humans.
+- Post **GOAT Builder Hub** message (485 people). Monday morning, not Saturday night.
+- Personal account: point 13, the "types of agents" take. No link in body.
+
+### Tue 11 Aug — PEAK DAY, the real launch (TS §1.3 Tue/Wed peak, 13:00-17:00 UTC)
+- @sagepaysai launch thread, 3-5 posts, **no link in post 1**, ending "Link below". Post 2
+  is the self-reply carrying sagepays.xyz. Link penalty is 30-50% of reach (TS §1.1).
+- Post 1 is a **30-60 second screen recording** of Sage browsing a real product and
+  designing missions, outcome in the first 3 seconds, captions on, URL on the end card
+  (TS §2). Native video only, never a pasted link.
+- Launch **campaign 2**. Be online all afternoon answering every reply: a reply you respond
+  to is the single highest-leverage action on the platform (TS §1.2).
+- Personal: point 9, "you don't have to find beta testers anymore", different words.
+
+### Wed 12 Aug — GOAT day (still peak)
+- Launch **campaign 3** (goat.network). Post tagging GOAT: tested on GOAT, paid in USDC on
   GOAT, receipts on-chain. Personal account quote-tweets with the builder angle.
-- Send the Telegram-group message (template C) to GOAT/hackathon groups you're in.
+- **Reply habit begins and never stops:** 15 thoughtful replies a day under fresh launches
+  and founder posts (TS §10, point 11). Short, specific, never copy-paste:
+  > if you want paid beta testers on this, Sage can browse it and set up missions in a few
+  > minutes. happy to fund a small one.
 
-**Day 3 — Metis day**
-- Launch campaign 4. Same pattern tagging Metis.
-- DM ellibenson (template A) and SuperVega (template B). Log send time.
+### Thu 13 Aug — the 20 personal DMs (OM Play 10 Thursday, TS §15)
+- Launch **campaign 4** (metis.io). Post tagging Metis.
+- DM the first 20 target founders. **Personalise every one**, a template that reads like a
+  template converts like one. Three sentences: who you are and proof you did the work, the
+  concrete value to them, one small ask. Follow up once after 4 days adding one new piece
+  of value, then stop.
+- DM **ellibenson** (Starknet) and **SuperVega** (options beta just shipped).
+- Send the **Areej** reply and book the call.
 
-**Day 4 — organizers**
-- Ask 2–3 hackathon organizers (template D): "inspect your own product, it takes about 90
-  seconds, tell me what it got wrong." Their own-product inspection is the demo AND a seed
-  user event. Offer them a funded mission link so they can experience a payout.
-- Personal: "every user is becoming a builder" story (point 12).
-
-**Day 5–7 — follow-ups + the comment habit**
-- Follow up unanswered DMs once, politely, never twice.
-- Daily habit (point 11): comment under 2–3 fresh product launches from either account,
-  short and specific, never copy-paste: "if you want paid beta testers on this, Sage can
-  browse it and set up missions in a few minutes, happy to fund a small one."
-- @sagepaysai: proof post — first payout receipt of the week with the /proof link.
-
-**Every DM and reply ends with one question.** That's the feedback report filling itself.
-
-## Week 2 (Aug 15–21): scale what moved, write the reports
-
-- Double the best campaign with the reserve; stop the dead ones, recover funds.
-- Second wave of DMs only to warm signals (likes, replies, opens).
-- Aug 18–19: pull metrics from the DB (script below) and draft all three reports.
-- Aug 20: Seed User Feedback Report — every submission note + every founder reply, verbatim,
-  with what we changed because of it (we already fixed 11+ defects from live feedback; that
-  IS the report's spine).
-- GEO Contribution Report: OKX.AI listing live (agent #9211, 4 free services any agent can
-  call), funded testing campaigns for GOAT + Metis + ClawUp ecosystem products, x402 rails
-  on GOAT, ERC-8004 identity #79.
-
-**Metrics query (run on the VM, feeds the Growth Report):** inspections by non-operator
-founders, campaigns launched, submissions, payouts with tx hashes, marketplace payout total
-— all in `var/sage.db`, all verifiable on-chain.
+### Fri 14 Aug — ecosystem media and cross-launches (OM Play 10 Friday)
+- Pitch Metis / GOAT / ClawUp channels and crypto newsletters. Bootcamp projects are a
+  natural story for them and the worst case is silence (TS §12).
+- Coordinate a **cross-launch with another bootcamp team**: shared audience, doubled reach,
+  zero cost. This is the single most underused free amplifier in the sheet.
+- @sagepaysai: first payout receipt of the week with the /proof link. **A real receipt is
+  our best content and nobody else has one.**
 
 ---
 
-## DM templates (polite, concise, no hype; adjust names, never mass-send)
+## Week 2 · scale what moved, then write the reports
 
-**A — ellibenson (warm, Starknet founder):**
-> Hey, quick offer rather than a pitch. I built Sage, an AI agent that browses a product
-> and turns it into paid testing missions, then verifies testers' work and pays them in
-> USDC on its own. I'd like to fund a small testing campaign for any product you're
-> building, my budget, your product. If you send me a URL and what you'd want verified,
-> I'll send back the live mission board within the hour. If it's useless to you, that's
-> exactly the feedback I need.
+### Mon 17 Aug — read the funnel, cut the dead
+- Stop any campaign untouched for 4 days, recover the USDC on-chain, reallocate.
+- Double the **one** campaign that actually filled, using the $6 reserve.
+- Second wave of DMs, warm signals only (people who liked, replied, or opened).
 
-**B — SuperVega (options beta just launched):**
-> Congrats on shipping options on Starknet. Beta is exactly the moment structured testing
-> pays off, so here's a concrete offer: I'll fund a $10 USDC testing campaign for the beta
-> through Sage, my AI agent that browses your product, designs specific missions, verifies
-> testers' reports itself, and pays them automatically. You'd get real users walking the
-> flow and their firsthand reports, at no cost to you. Want me to set it up? I just need
-> the URL and what you most want verified.
+### Tue 18 Aug — the compounding content (peak day)
+- Publish the **comparison page** (OM Play 15): "Sage vs hiring beta testers" and "Sage vs
+  a bug bounty". Comparison pages rank for humans and get quoted by AI engines, and they
+  are one of the five content types that consistently earn citations (TS §3.3).
+- Publish the **FAQ/docs pages** built from the five questions people actually asked us in
+  the groups this week. Question-style headings, direct answer in the first 60 words.
 
-**C — Telegram groups (send once per group, not spam):**
-> We just funded paid testing campaigns on Sage. Real USDC on GOAT mainnet, paid by an AI
-> agent that checks your work itself, usually within minutes. Do a short mission, describe
-> what you actually saw, get paid to your wallet. Board: sagepays.xyz/marketplace. Founders:
-> it can inspect your product and build missions for it too, from Telegram, no wallet
-> needed: @sagedeputybot
+### Wed 19 Aug — the proof post (peak day)
+- The strongest asset we will ever have: a thread walking through one real payout end to
+  end. Product URL in, missions designed, tester submits, Sage judges, USDC moves, receipt
+  on-chain. Every claim clickable. Bookmarkable, which is the most overweighted signal on
+  the platform (TS §1.2).
+- Re-run the **GEO monitor** and log the four engines' answers against the Day 1 baseline.
 
-**D — organizers/judges:**
-> Would you try something for me? Paste any product you run into sagepays.xyz/launch and
-> watch what the agent does. It browses it in a real browser, live on screen, and designs
-> paid testing missions from what it saw, about 90 seconds. I want to know what it gets
-> wrong on YOUR product. And if you want to feel the payout side, do one mission from our
-> marketplace and the agent will pay you in USDC with an on-chain receipt.
+### Thu 20 Aug — write the reports
+- Pull metrics from `var/sage.db`: inspections by non-operator founders, campaigns launched,
+  submissions, payouts with tx hashes, total USDC paid.
+- Seed User Feedback Report: every note and reply verbatim, with what we changed because of
+  it. We have already fixed a long list of defects from live feedback and that history is
+  the report's spine.
+
+### Fri 21 Aug — submit
+- All three reports. Final screenshot of the board and the receipts.
 
 ---
 
-## Post map (their 15 points → calendar; one post per account per day max; never identical text on both accounts)
+## SEO + GEO, run properly (TS §3, §4 · OM Play 8, 15)
 
-- pt 15 (campaign live) → Day 1 official · pt 13 (types of agents) → Day 1 personal
-- GOAT tag post → Day 2 official · builder QT → Day 2 personal
-- Metis tag post → Day 3 official · pt 9 ("you don't have to find beta testers") → Day 3 personal
-- pt 12 (everyone-becomes-a-builder story) → Day 4 personal · organizer thank-you/proof → Day 4 official
-- pt 1 (give your growth agent Sage via OKX) + pt 8 (buy Claude → okx.ai) → Day 5, official, as one playful post
-- payout receipt proof post → whenever the first stranger is paid, both accounts, different words
-- pt 11 (comment under launches) → daily habit, personal account
-- pts 6/7 (Starknet/SuperVega) → only after he says yes; his campaign, his tag
+GEO matters more than SEO for us right now, and the numbers say why: AI-referred visitors
+convert at roughly 10-16% versus about 1.8% from classic organic search, and the overlap
+between Google's top 10 and what AI engines actually cite has collapsed to roughly 17-38%.
+Ranking on Google no longer buys AI visibility. It is a separate game and **early citations
+compound**, so a new category like "AI agents that pay testers" is a window that closes.
 
-## Rules (the engineering discipline)
+What measurably lifts citations, from the Princeton KDD 2024 study: quotations (+41%),
+statistics (+32%), inline source citations (+30%). Keyword stuffing performs **worse than
+doing nothing**.
 
-1. Max 5–10 DMs/day per account; personalized first line always; one follow-up ever.
-2. Stagger campaigns; the marketplace must never be empty while we drive traffic at it.
-3. Every payout gets a proof-link post. Every claim we make must be checkable on-chain.
-4. Feedback goes into one running doc the day it arrives, verbatim, with source.
-5. Stop-loss: untouched campaign after 4 days → stop, recover, reallocate.
-6. Stretch past $50 only when a campaign's slots actually fill.
+Our GEO work, in priority order:
+1. **One name everywhere.** "Sage" spelled identically across site, docs, GitHub, X,
+   directories. Inconsistent naming splits the entity in the models' eyes.
+2. **Lead with the answer** in the first 60 words of every page.
+3. **Publish citable assets.** We have something rare: real numbers. "Sage judged a tester's
+   report and paid $1 USDC on GOAT mainnet autonomously, transaction 0x8df776…0069." That
+   is a verifiable statistic with an inline citation, which is exactly the shape that gets
+   quoted.
+4. **Be where models look:** public docs, GitHub README, directories, ecosystem blogs.
+5. **Cover the pipes:** Bing Webmaster, `llms.txt`, crawlable docs.
+6. **Monitor weekly**, expect a 4-8 week lag. Perplexity cites sources most often, so it is
+   the fastest feedback loop for testing whether a change landed.
+
+SEO in parallel, one keyword-mapped post per week, targeting intent not volume: "how to get
+beta testers for a web3 product", "pay testers in USDC", "AI agent that tests my product".
+Judge it on impressions in Search Console, not clicks, for the first months.
+
+---
+
+## The three messages, ready to send
+
+Send as-is. The founder sends these, not the agent.
+
+### 1 · S2 cohort group (16 people)
+
+> Shariq here, building Sage (sagepays.xyz).
+>
+> Every one of us in this group is a founder of our own product, and we all hit the same
+> wall: getting real people to actually test it.
+>
+> Sage is an AI agent that solves that. You give it your product URL, what you want tested,
+> and a budget. It opens your product in a real browser and you watch it explore, live on
+> screen. From what it actually saw, it designs specific testing missions with clear pass
+> criteria. You fund it, and you get a shareable link.
+>
+> Then you post that link anywhere and say "earn USDC by testing this." People do the
+> missions, submit what they saw, and Sage verifies their work against what it saw itself
+> and pays the genuine ones automatically. You never review a submission manually.
+>
+> Two ways in, whichever you prefer:
+> • Web: sagepays.xyz
+> • Telegram: @sagedeputybot, fully walletless. It creates a wallet for you and funds the
+> campaign from it, so you never connect anything or leave Telegram.
+>
+> If you want to try it on your Stage 2 product, drop your URL and what you'd want tested.
+> Happy to help you get the first campaign live.
+
+### 2 · GOAT Builder Hub (485 people) — Monday morning
+
+> Sage is live on GOAT mainnet: sagepays.xyz
+>
+> If you're building something, Sage gets you beta testers. Give it your product URL, what
+> you want tested, and a budget. It opens your product in a real browser, designs testing
+> missions from what it actually saw, and you fund it. You get a link to share, and anyone
+> who completes a mission gets paid in USDC automatically once Sage verifies their report.
+> Every payout has an on-chain receipt.
+>
+> You can run the whole thing from Telegram without a wallet: @sagedeputybot creates one for
+> you and funds the campaign from it.
+>
+> Or web: sagepays.xyz
+>
+> Builders, this is the fastest way to turn a budget into real users testing your product.
+> Happy to answer anything here.
+
+### 3 · Areej reply
+
+> Hi Areej, a meeting works great. I'm UTC+5, free most days between 2pm and 9pm my time,
+> so pick whatever suits you.
+>
+> Yes to the Builder Livestream panel too. UTC+5, flexible on days.
+>
+> For the call: we've paused building and are all-in on growth for the final two weeks. Sage
+> is live and we're funding USDC testing campaigns for other builders' products to get real
+> seed users. Biggest help would be getting it in front of the right founders, plus the
+> ClawUp referral content.
+
+---
+
+## Post map — the founder's 15 points against the calendar
+
+One post per account per day maximum. Never identical text on both accounts.
+
+| point | account | day |
+|---|---|---|
+| 15 · campaign live | official | Tue 11 (launch thread) |
+| 13 · types of agents | personal | Mon 10 |
+| 9 · you don't have to find beta testers | personal | Tue 11 |
+| GOAT tag post | official | Wed 12 |
+| builder-angle quote tweet | personal | Wed 12 |
+| Metis tag post | official | Thu 13 |
+| 12 · everyone became a builder | personal | Thu 13 |
+| organiser thank-you + proof | official | Fri 14 |
+| 11 · comment under fresh launches | personal | daily habit from Wed 12 |
+| payout receipt proof | both, different words | whenever the first stranger is paid |
+| 6/7 · Starknet + SuperVega | both | only after he says yes, his campaign, his tag |
+| 1 + 8 · OKX.AI, buy Claude | — | **parked**, not part of this hackathon |
+
+---
+
+## Operating rhythm (OM closing section — about 90 minutes a day)
+
+- **Daily 10-15 min:** watchdog on the funnel numbers, replies on X, publish one piece from
+  the week's batch, capture ideas the moment they arrive.
+- **Weekly 90 min:** one source asset through the content engine producing five outputs (a
+  30-second clip, a thread, a blog/docs post, a newsletter section, an FAQ entry), the GEO
+  monitor, and two or three genuine outreach attempts.
+- **Per launch:** the runbook above.
+
+## The rules that decide whether this works
+
+1. Max 5-10 DMs a day per account. Personalised first line always. One follow-up, ever.
+2. The board must never be empty while we are driving traffic at it.
+3. Every claim we make is checkable on-chain. Every payout gets a proof link.
+4. Feedback goes into the running doc the day it arrives, verbatim, with its source.
+5. Never buy followers or engagement. It poisons the account score permanently and it
+   poisons our credibility with the AI engines that are now reading social signals.
+6. Never publish an unverified number. One wrong figure earns a Community Note, and a note
+   carries a 60-80% reach penalty plus lasting account damage.
+7. **Most people quit at week three, right before compounding starts.** The sprint ends
+   21 Aug; the habit should not.
