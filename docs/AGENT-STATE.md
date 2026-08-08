@@ -570,6 +570,27 @@ outside the egress boundary and this covers same-host docs only. Widening that i
 security decision, not a side effect of a feature. **This is the one open question for the
 founder** — a large share of web3 products host docs on a subdomain.
 
+## 4b. The doc hunt is BUILT but has never been seen to fire
+
+Stated plainly because the difference matters. `docCandidates` has 7 unit tests, the reader is
+typechecked and deployed, and nothing about it is speculative in code. But across the widened
+battery it never ran once, and the reasons are worth knowing:
+
+- **app.uniswap.org** correctly did not trigger it. Uniswap has no *blocking* wall; you can
+  browse the swap interface without connecting, so `classifyWallKind` rightly stayed null.
+  Sage explored it to **24 states**, the deepest run in the battery.
+- **web.telegram.org** could not trigger it. It came back `mode static, states 0`, and the doc
+  hunt lives inside `exploreInteractive`. **A product classified static can never reach it.**
+
+So the current coverage is "an interactive product that meets a wall part-way through", and the
+missing case is "the entire app is behind a connect screen", which is the common web3 shape.
+Completing it needs two things, not one: there is **no login/wallet wall classification on the
+static path at all** (`turnedAwayLimitation` only covers a blocked entry or a bot challenge), so
+that has to be added, and then the wall signal plus the hunt need hoisting so both paths share
+one implementation. Mode also flips between runs on the same product (telegram was
+interactive/3-states at nonce 50 and static/0-states at nonce 52), so a walled product can land
+on either path and both must work.
+
 ## 5. The battery was also lying
 
 One dropped connection in 72 polls aborted a row and printed `ERROR: fetch failed`, which reads
@@ -578,3 +599,42 @@ tolerant, and when the wire genuinely dies it says so about the WIRE. Three expe
 on evidence (29 recorded runs each for two of them), because a row that fails on a coin flip
 trains everyone to ignore the grid. Two categories added that could not have caught any of the
 above: **webgl-world** and **wallet-gated**.
+
+
+---
+
+## Battery of record · nonce 52, 13 categories, 8 Aug
+
+**Anchor integrity 100% on 13 of 13.** One FAIL cell: `heavy-slow/category`, CNN returning
+"product (uncategorized)", which is pre-existing and bot-wall correlated (6 of its last 10 runs,
+back to 6 Aug, every one of them a `static/0 states` run). Two informational `~` cells where the
+url-vs-observation split was relaxed on evidence. Nothing failed. ~204k tokens, ~16k per URL.
+
+The two new categories both passed on their first run: **webgl-world** (Agora) at 9 states and
+correctly categorised "interactive game", against 5 states and a headline-reading mission that
+morning; **wallet-gated** (Uniswap) at 24 states.
+
+### The starvation, now that it is visible
+
+| product | pages lost | text lost |
+|---|---|---|
+| app.uniswap.org | — | **32,704 chars** + 48 elements |
+| tailwindcss.com/docs | 2 | 8,000 |
+| cnn.com | 2 | 8,000 |
+| gitlab.com/fr-fr | 1 | 7,184 |
+| plausible.io | 2 | 6,000 |
+| brittanychiang.com | — | 4,000 |
+| allbirds.com | 1 | 3,833 |
+| motherfuckingwebsite.com | — | 1,308 |
+| yara.garden | — | 24 elements |
+| excalidraw.com | — | 8 elements |
+
+Roughly **71,000 characters and 8 whole pages** dropped before the mission brain read anything,
+across 10 of 13 products. Uniswap alone loses 32,704 characters to the 800-char-per-state cap
+across 24 states, and returned only 2 missions from that.
+
+**The experiment to run next, and it is one variable at a time:** raise
+`BRAIN_VIEW_CAPS.stateTextChars` first, alone, and re-run the battery. Watch three things — do
+url-verifiable missions come back, does mission count rise on the rich products, and what does
+it cost per URL (the guard is 60k tokens). One weak supporting signal already: allbirds lost the
+least text of the static products and was the only one to produce a url-verifiable mission.
