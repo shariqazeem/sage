@@ -425,6 +425,8 @@ export function buildFieldTestSummary(input: {
   captures: FieldTestCapture[];
   durationMs: number;
   limitation: string | null;
+  /** docs read because the product's front door was a wall — see the doc hunt. */
+  docs?: DocPage[];
 }): FieldTestSummary {
   const pages = input.captures.slice(0, MAX_PAGES).map((c) => ({
     url: c.url,
@@ -447,6 +449,7 @@ export function buildFieldTestSummary(input: {
     classification: null,
     limitation: input.limitation,
     durationMs: input.durationMs,
+    ...(input.docs && input.docs.length > 0 ? { docs: input.docs } : {}),
     ...(() => {
       const t = viewTruncations([], pages);
       return t.length > 0 ? { truncations: t } : {};
@@ -682,6 +685,10 @@ export function fieldTestForMap(summary: FieldTestSummary):
         jsOnly: boolean;
         visibleTextExcerpt?: string;
       }>;
+      /** DOCUMENTATION read because the product's FRONT DOOR was a wall. Same labelling rule as the
+       *  interactive branch: the brain must never mistake "the product documents this" for "Sage
+       *  watched this happen". */
+      docs?: Array<{ url: string; title: string; excerpt: string; soughtBecause: string }>;
     }
   | {
       mode: "interactive";
@@ -749,6 +756,12 @@ export function fieldTestForMap(summary: FieldTestSummary):
       brokenRequests: p.brokenRequests.slice(0, 5),
       jsOnly: p.jsOnly,
     })),
+    // A static run reaches here BECAUSE the front door was a wall, so its docs are the only account
+    // of what a signed-in user sees. Projecting them on the interactive branch alone meant the brain
+    // never received the very pages the hunt exists to fetch.
+    ...(summary.docs?.length
+      ? { docs: summary.docs.slice(0, BRAIN_VIEW_CAPS.pages) }
+      : {}),
   };
 }
 
@@ -814,6 +827,111 @@ export function classifyWallKind(s: WallSignals): "password" | "wallet" | "oauth
     return "oauth";
   }
   return null;
+}
+
+/**
+ * Read the wall signals off a loaded page. Extraction only — the RULES live in the pure
+ * {@link classifyWallKind}, so they stay provable without a browser. Shared by both paths: the
+ * explorer asks after each navigation, and the static path asks about the ENTRY page, because a
+ * product whose front door is the wall never reaches the explorer at all.
+ */
+async function wallSignalsOf(page: Page): Promise<WallSignals | null> {
+  return page
+    .evaluate(() => {
+      const shown = (el: Element) => {
+        const he = el as HTMLElement;
+        const rect = he.getBoundingClientRect?.();
+        if (!rect || rect.width < 8 || rect.height < 8) return false;
+        const st = getComputedStyle(he);
+        if (st.visibility === "hidden" || st.display === "none") return false;
+        if (Number(st.opacity) === 0) return false;
+        let p = he.parentElement;
+        for (let depth = 0; p && depth < 12; depth++) {
+          const ps = getComputedStyle(p);
+          if (Number(ps.opacity) === 0) return false;
+          const clip = `${ps.overflow}${ps.overflowX}${ps.overflowY}`;
+          if (clip.includes("hidden") || clip.includes("clip")) {
+            const pr = p.getBoundingClientRect();
+            if (pr.width < 8 || pr.height < 8) return false;
+          }
+          p = p.parentElement;
+        }
+        return true;
+      };
+      const hasVisiblePassword = Array.from(
+        document.querySelectorAll('input[type="password"]'),
+      ).some(shown);
+      // The text of an OPEN, VISIBLE dialog only — a wallet modal is one, a persistent header is
+      // not — so a lone nav "Connect Wallet" never reads as a wall.
+      const dlg = Array.from(
+        document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]'),
+      ).find(shown);
+      return {
+        hasVisiblePassword,
+        dialogText: (dlg?.textContent || "").slice(0, 2000),
+        bodyText: (document.body?.innerText || "").slice(0, 4000),
+      };
+    })
+    .catch(() => null);
+}
+
+/** The human-readable note for a wall Sage will not cross, used as the doc hunt's stated reason. */
+export function wallNoteFor(kind: "password" | "wallet" | "oauth"): string {
+  return kind === "wallet"
+    ? "connect-wallet required past this point"
+    : kind === "oauth"
+      ? "third-party sign-in required past this point"
+      : "login required past this point";
+}
+
+/**
+ * THE DOC HUNT — read what the product says about the half Sage cannot reach.
+ *
+ * Runs only when a wall actually stopped Sage, so no ordinary product pays for it. Shared by both
+ * paths on purpose: it first shipped inside the explorer, which meant a product classified `static`
+ * could never reach it, and "the whole app is behind a connect screen" is the single most common
+ * web3 shape. A wall at the front door is MORE deserving of the hunt, not less.
+ */
+async function huntDocs(ctx: {
+  page: Page;
+  startUrl: string;
+  wallNote: string;
+  linkedPaths: { path: string; label: string }[];
+  walledPaths: string[];
+  deadline: number;
+  sameOrigin: (u: string) => boolean;
+  /** the explorer records a state per doc read; the static path has no filmstrip to add to. */
+  onRead?: (path: string) => Promise<unknown>;
+}): Promise<DocPage[]> {
+  const docs: DocPage[] = [];
+  const candidates = docCandidates(ctx.linkedPaths, { exclude: ctx.walledPaths });
+  for (const p of candidates) {
+    if (Date.now() > ctx.deadline) break; // the wall clock still governs everything
+    try {
+      const target = new URL(p, ctx.startUrl);
+      if (!ctx.sameOrigin(target.toString())) continue; // the egress boundary is not negotiable
+      await ctx.page.goto(target.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: 10_000,
+      });
+      await ctx.page
+        .waitForLoadState("networkidle", { timeout: 4_000 })
+        .catch(() => {});
+      const excerpt = await renderedExcerpt(ctx.page);
+      // A doc page that renders nothing is not documentation — do not pad the map with empties.
+      if (excerpt.trim().length < 200) continue;
+      docs.push({
+        url: target.toString(),
+        title: (await ctx.page.title().catch(() => "")).slice(0, 140),
+        excerpt: excerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
+        soughtBecause: ctx.wallNote,
+      });
+      await ctx.onRead?.(p);
+    } catch {
+      /* a doc page that will not load is simply not evidence — carry on */
+    }
+  }
+  return docs;
 }
 
 export function turnedAwayLimitation(
@@ -1037,6 +1155,10 @@ export async function runFieldTest(
      */
     let entryBlocked: string | null = null;
     let sawChallenge = false;
+    /** Set when the ENTRY page is itself a login/connect wall — the static path's doc-hunt trigger. */
+    let staticWallKind: "password" | "wallet" | "oauth" | null = null;
+    /** path -> the link's own words, harvested from the entry DOM, for the doc hunt's ranking. */
+    const linkLabels = new Map<string, string>();
     try {
       // ONE retry on a failed entry load — a transient network/TLS flake used to zero out the whole
       // field test (static degrade with no captures) when a second attempt would have worked.
@@ -1252,14 +1374,28 @@ export async function runFieldTest(
       // where its navigation actually exists; harvest same-site links from it so a JS-rendered
       // product gets a real multi-page crawl instead of a one-page map.
       if (targets.length < MAX_PAGES) {
-        const rendered = await entryPage
+        const renderedLinks = await entryPage
           .evaluate(() =>
             Array.from(document.querySelectorAll("a[href]"))
-              .map((a) => (a as HTMLAnchorElement).href)
-              .filter(Boolean)
+              .map((a) => ({
+                href: (a as HTMLAnchorElement).href,
+                // the link's own words, so the doc hunt can find a "Documentation" link whose PATH
+                // gives nothing away (/resources/2), not only the conventional /docs spellings.
+                text: ((a as HTMLElement).innerText || "").replace(/\s+/g, " ").trim().slice(0, 80),
+              }))
+              .filter((l) => l.href)
               .slice(0, 40),
           )
-          .catch(() => [] as string[]);
+          .catch(() => [] as { href: string; text: string }[]);
+        for (const l of renderedLinks) {
+          try {
+            const u = new URL(l.href, entryPage.url());
+            if (sameOrigin(u.toString())) linkLabels.set(u.pathname + u.search, l.text);
+          } catch {
+            /* skip unparseable */
+          }
+        }
+        const rendered = renderedLinks.map((l) => l.href);
         for (const raw of rendered) {
           if (targets.length >= MAX_PAGES) break;
           try {
@@ -1274,6 +1410,13 @@ export async function runFieldTest(
           }
         }
       }
+      // IS THE FRONT DOOR ITSELF THE WALL? The explorer only asks this after a navigation, which is
+      // right for it — a nav "Connect Wallet" is not a wall Sage walked into. But a product whose
+      // entire app sits behind a sign-in never reaches the explorer at all: it classifies `static`,
+      // and the doc hunt used to live inside the explorer, so the one shape that needs docs most
+      // could never get them. Asked here, while the entry page is still loaded and settled.
+      const entryWall = await wallSignalsOf(entryPage);
+      staticWallKind = entryWall ? classifyWallKind(entryWall) : null;
     } catch {
       /* entry capture failed — keep going */
     } finally {
@@ -1357,6 +1500,42 @@ export async function runFieldTest(
       }
     }
 
+    // The front door was the wall, so read what the product says about the half behind it. Runs after
+    // the crawl, when every link the product actually offered is known, and on its own page so a
+    // navigation here can never disturb what was already captured.
+    let staticDocs: DocPage[] = [];
+    if (staticWallKind && Date.now() < deadline) {
+      const docPage = await context.newPage();
+      try {
+        staticDocs = await huntDocs({
+          page: docPage,
+          startUrl: opts.startUrl,
+          wallNote: wallNoteFor(staticWallKind),
+          linkedPaths: targets.map((t) => {
+            let p = t;
+            try {
+              const u = new URL(t);
+              p = u.pathname + u.search;
+            } catch {
+              /* keep the raw string */
+            }
+            return { path: p, label: linkLabels.get(p) ?? "" };
+          }),
+          walledPaths: (() => {
+            try {
+              return [new URL(opts.startUrl).pathname];
+            } catch {
+              return [];
+            }
+          })(),
+          deadline,
+          sameOrigin,
+        });
+      } finally {
+        await docPage.close().catch(() => {});
+      }
+    }
+
     return buildFieldTestSummary({
       startUrl: opts.startUrl,
       captures,
@@ -1364,6 +1543,7 @@ export async function runFieldTest(
       limitation:
         turnedAwayLimitation(entryBlocked, sawChallenge) ??
         (captures.length ? null : "Field test found no reachable page."),
+      docs: staticDocs,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -3268,43 +3448,7 @@ async function exploreInteractive(ctx: {
           // asks to connect/sign in to continue — never a lone header control.
           // DOM extraction stays in the page; the CLASSIFICATION is a pure, unit-tested function
           // (classifyWallKind) so the wallet/oauth/false-positive rules are provable without a browser.
-          const wallSignals = await page
-            .evaluate(() => {
-              const shown = (el: Element) => {
-                const he = el as HTMLElement;
-                const rect = he.getBoundingClientRect?.();
-                if (!rect || rect.width < 8 || rect.height < 8) return false;
-                const st = getComputedStyle(he);
-                if (st.visibility === "hidden" || st.display === "none") return false;
-                if (Number(st.opacity) === 0) return false;
-                let p = he.parentElement;
-                for (let depth = 0; p && depth < 12; depth++) {
-                  const ps = getComputedStyle(p);
-                  if (Number(ps.opacity) === 0) return false;
-                  const clip = `${ps.overflow}${ps.overflowX}${ps.overflowY}`;
-                  if (clip.includes("hidden") || clip.includes("clip")) {
-                    const pr = p.getBoundingClientRect();
-                    if (pr.width < 8 || pr.height < 8) return false;
-                  }
-                  p = p.parentElement;
-                }
-                return true;
-              };
-              const hasVisiblePassword = Array.from(
-                document.querySelectorAll('input[type="password"]'),
-              ).some(shown);
-              // The text of an OPEN, VISIBLE dialog only — a wallet modal is one, a persistent header
-              // is not — so a lone nav "Connect Wallet" never reads as a wall.
-              const dlg = Array.from(
-                document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]'),
-              ).find(shown);
-              return {
-                hasVisiblePassword,
-                dialogText: (dlg?.textContent || "").slice(0, 2000),
-                bodyText: (document.body?.innerText || "").slice(0, 4000),
-              };
-            })
-            .catch(() => null);
+          const wallSignals = await wallSignalsOf(page);
           const wallKind = wallSignals ? classifyWallKind(wallSignals) : null;
           if (wallKind) {
             wallHits++;
@@ -3315,12 +3459,7 @@ async function exploreInteractive(ctx: {
             } catch {
               /* keep going */
             }
-            const note =
-              wallKind === "wallet"
-                ? "connect-wallet required past this point"
-                : wallKind === "oauth"
-                  ? "third-party sign-in required past this point"
-                  : "login required past this point";
+            const note = wallNoteFor(wallKind);
             // Remember the wall for the doc hunt: Sage cannot walk through it, but the product almost
             // always documents what is behind it, and reading that is what keeps the plan useful.
             wallNote ??= note;
@@ -3494,39 +3633,22 @@ async function exploreInteractive(ctx: {
   // Sage cannot walk through a connect-wallet or sign-in gate, but the product almost always writes
   // down what is behind it. Reading that turns "I was blocked, here is a mission about your landing
   // page" into a plan that knows what a connected user is supposed to see.
-  const docs: DocPage[] = [];
-  if (wallNote) {
-    const candidates = docCandidates(linkedPaths, { exclude: walledPaths });
-    for (const path of candidates) {
-      if (Date.now() > deadline) break; // the 3-minute wall clock still governs everything
-      try {
-        const target = new URL(path, ctx.startUrl);
-        if (!sameOrigin(target.toString())) continue; // the egress boundary is not negotiable
-        await page.goto(target.toString(), {
-          waitUntil: "domcontentloaded",
-          timeout: 10_000,
-        });
-        await page
-          .waitForLoadState("networkidle", { timeout: 4_000 })
-          .catch(() => {});
-        const excerpt = await renderedExcerpt(page);
-        // A doc page that renders nothing is not documentation — do not pad the map with empties.
-        if (excerpt.trim().length < 200) continue;
-        docs.push({
-          url: target.toString(),
-          title: (await page.title().catch(() => "")).slice(0, 140),
-          excerpt: excerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
-          soughtBecause: wallNote,
-        });
-        await capture(`read the docs at ${path} (blocked by the wall)`, {
-          kind: "load",
-          label: path,
-        });
-      } catch {
-        /* a doc page that will not load is simply not evidence — carry on */
-      }
-    }
-  }
+  const docs: DocPage[] = wallNote
+    ? await huntDocs({
+        page,
+        startUrl: ctx.startUrl,
+        wallNote,
+        linkedPaths,
+        walledPaths,
+        deadline,
+        sameOrigin,
+        onRead: (p) =>
+          capture(`read the docs at ${p} (blocked by the wall)`, {
+            kind: "load",
+            label: p,
+          }),
+      })
+    : [];
 
   return {
     ...buildInteractiveSummary({

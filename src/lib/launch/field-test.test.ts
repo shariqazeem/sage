@@ -21,6 +21,7 @@ import {
   runFieldTest,
   turnedAwayLimitation,
   classifyWallKind,
+  wallNoteFor,
   type FieldTestCapture,
   type ProductSignals,
 } from "./field-test";
@@ -445,6 +446,22 @@ const FIXTURE = `<!doctype html><html><head><title>Fixture Product</title></head
 
 const RUN_INTEGRATION = process.env.FIELD_TEST_ENABLED === "1";
 
+/** A product whose FRONT DOOR is a login wall, with its own documentation one link away. */
+const WALL_FIXTURE = `<!doctype html><html><head><title>Vaultly — Sign in</title></head><body>
+  <h1>Sign in to continue</h1>
+  <p>Vaultly is a portfolio tracker for on-chain positions. Sign in to continue to your dashboard.</p>
+  <form>
+    <label>Email <input type="email" name="email"></label>
+    <label>Password <input type="password" name="password"></label>
+  </form>
+  <nav><a href="/docs">Documentation</a> <a href="/pricing">Pricing</a></nav>
+</body></html>`;
+
+const WALL_DOCS = `<!doctype html><html><head><title>Vaultly Docs</title></head><body>
+  <h1>What you see after signing in</h1>
+  <p>${"Once signed in, a connected user lands on the Portfolio view, which lists every tracked position with its current value and a 24-hour change column. The Positions tab groups holdings by chain. ".repeat(4)}</p>
+</body></html>`;
+
 (RUN_INTEGRATION ? describe : describe.skip)("runFieldTest integration (local fixture)", () => {
   it("browses a local page, screenshots it, and captures JS-only + broken-request findings", async () => {
     const server: Server = createServer((req, res) => {
@@ -532,6 +549,71 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
     });
   </script>
 </body></html>`;
+
+/**
+ * THE FRONT DOOR IS THE WALL — the shape that could never reach the doc hunt.
+ *
+ * The hunt first shipped inside the interactive explorer. A product whose entire app sits behind a
+ * sign-in classifies `static` with 0 states, never enters the explorer, and so was guaranteed NOT to
+ * get docs — while being exactly the web3 shape the hunt exists for. This drives the real browser
+ * against a login-walled fixture and asserts the docs come back attached to a STATIC summary.
+ */
+(RUN_INTEGRATION ? describe : describe.skip)("runFieldTest — a login wall at the entry still gets the docs read", () => {
+  it("classifies the wall, reads the linked documentation, and says which wall sent it there", async () => {
+    const server: Server = createServer((req, res) => {
+      const url = (req.url ?? "").split("?")[0];
+      if (url === "/" || url === "") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(WALL_FIXTURE);
+      } else if (url === "/docs") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(WALL_DOCS);
+      } else {
+        res.writeHead(404, { "content-type": "text/plain" });
+        res.end("not found");
+      }
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const addr = server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const publicDir = mkdtempSync(join(tmpdir(), "sage-ft-wall-"));
+
+    try {
+      const summary = await runFieldTest(
+        {
+          inspectionId: "walltest",
+          startUrl: `http://127.0.0.1:${port}/`,
+          host: `127.0.0.1:${port}`,
+          candidateLinks: [],
+        },
+        {
+          isPublicHost: async () => true,
+          allowUrl: () => ({ allow: true, reason: "test" }),
+          publicDir,
+          egressAllowLoopback: new Set([`127.0.0.1:${port}`]),
+          egressAllowedPorts: new Set([port]),
+        },
+      );
+
+      if (!summary.ran && /not installed/i.test(summary.limitation ?? "")) {
+        console.warn("[field-test.wall] chromium not installed — skipping deep asserts");
+        return;
+      }
+      // The whole point: a STATIC run, and it still came back with documentation.
+      expect(summary.mode).toBe("static");
+      expect(summary.docs?.length ?? 0).toBeGreaterThanOrEqual(1);
+      const doc = summary.docs![0];
+      expect(doc.soughtBecause).toBe("login required past this point");
+      expect(doc.excerpt).toContain("Portfolio view");
+      expect(doc.url).toContain("/docs");
+      // and the brain actually receives it
+      const view = fieldTestForMap(summary);
+      expect(JSON.stringify(view)).toContain("Portfolio view");
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }, 180_000);
+});
 
 (RUN_INTEGRATION ? describe : describe.skip)("runFieldTest interactive (local game fixture)", () => {
   it("classifies interactive, waits out loading, and captures states PAST the loading screen", async () => {
@@ -702,6 +784,60 @@ describe("classifyWallKind", () => {
 
   it("password takes precedence, so a login form inside a wallet-branded page is still a login", () => {
     expect(classifyWallKind({ hasVisiblePassword: true, dialogText: "MetaMask WalletConnect", bodyText: "" })).toBe("password");
+  });
+});
+
+/**
+ * A WALL AT THE FRONT DOOR must still reach the doc hunt.
+ *
+ * The hunt first shipped inside the interactive explorer, so a product whose entire app sits behind a
+ * sign-in — which classifies `static`, states 0 — could never reach it. That is the most common web3
+ * shape and the one the founder specifically asked about, so the shape that needs docs most was the
+ * one shape guaranteed not to get them. These pin the static path's ability to carry them.
+ */
+describe("the static path carries docs read at a front-door wall", () => {
+  const cap = (url: string): FieldTestCapture => ({
+    url, title: "Login", h1: "Sign in", ctas: [], forms: [],
+    consoleErrors: [], failedRequests: [], rawHtmlTextLen: 500, renderedTextLen: 500,
+    screenshot: null, visibleTextExcerpt: "Sign in to continue",
+  });
+  const doc = {
+    url: "https://x.test/docs", title: "Docs",
+    excerpt: "A connected user lands on the portfolio view.",
+    soughtBecause: "login required past this point",
+  };
+
+  it("names the boundary it could not cross, per kind", () => {
+    expect(wallNoteFor("wallet")).toMatch(/connect-wallet/);
+    expect(wallNoteFor("oauth")).toMatch(/third-party sign-in/);
+    expect(wallNoteFor("password")).toMatch(/login/);
+  });
+
+  it("a static summary carries the docs it read", () => {
+    const s = buildFieldTestSummary({
+      startUrl: "https://x.test", captures: [cap("https://x.test")],
+      durationMs: 1, limitation: null, docs: [doc],
+    });
+    expect(s.mode).toBe("static");
+    expect(s.docs).toHaveLength(1);
+    expect(s.docs?.[0].soughtBecause).toBe("login required past this point");
+  });
+
+  it("omits the key entirely when no wall sent Sage looking", () => {
+    const s = buildFieldTestSummary({
+      startUrl: "https://x.test", captures: [cap("https://x.test")], durationMs: 1, limitation: null,
+    });
+    expect(s.docs).toBeUndefined();
+  });
+
+  it("hands those docs to the mission brain, which is the whole point", () => {
+    const view = fieldTestForMap(
+      buildFieldTestSummary({
+        startUrl: "https://x.test", captures: [cap("https://x.test")],
+        durationMs: 1, limitation: null, docs: [doc],
+      }),
+    );
+    expect(view.docs?.[0].excerpt).toContain("portfolio view");
   });
 });
 
