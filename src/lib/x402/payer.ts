@@ -78,10 +78,13 @@ export function payAndCall<T>(opts: {
 export async function payOperatorFee(opts: {
   dappOrderId: string;
   amountUsd: number;
-}): Promise<{ paymentTx: string; orderId: string }> {
+  /** see runOperatorFee — fires the moment the transfer receipt confirms, before any polling. */
+  onTransferred?: (paymentTx: string, orderId: string) => void;
+}): Promise<{ paymentTx: string; orderId: string; confirmed: boolean }> {
   const client = goatClient();
   if (!client) throw new Error("x402 not live — no operator fee charged.");
   return runOperatorFee({
+    onTransferred: opts.onTransferred,
     dappOrderId: opts.dappOrderId,
     fromAddress: agentAddress(),
     tokenContract: GOAT_USDC,

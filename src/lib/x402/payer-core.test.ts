@@ -193,7 +193,80 @@ describe("runOperatorFee — RAIL 2 direct payment", () => {
     });
     expect(r.paymentTx).toBe("0xFEETX");
     expect(r.orderId).toBe("fee_ord");
+    expect(r.confirmed).toBe(true);
     expect(transfer).toHaveBeenCalledWith("0x00000000000000000000000000000000000ME12", "100000");
+  });
+
+  /**
+   * MONEY THAT MOVED MUST NEVER BE FORGOTTEN.
+   *
+   * This path used to THROW when the order had not reached a paid status inside 120s, discarding
+   * the txHash of a transfer that had already succeeded. The fee returned to the pending queue and
+   * was re-sent later. Measured on GOAT mainnet 2026-08-09: three fees each transferred 0.1 USDC
+   * (0xa6088ff5, 0xb283e1e7, 0xb175e98a), sat at CHECKOUT_VERIFIED past the timeout, and were
+   * recorded unpaid — 0.3 USDC gone with no record and queued to send a second time.
+   *
+   * Nothing guarded this, which is why it shipped. RAIL 1 is deliberately the opposite: there,
+   * refusing to serve an unpaid resource is correct, and its FAILED test above still holds.
+   */
+  const unconfirmedClient = (behaviour: () => Promise<{ status: string }>): MerchantClient => ({
+    createOrder: vi.fn(async () => ({
+      orderId: "fee_ord",
+      payToAddress: "0x00000000000000000000000000000000000ME12",
+      amountWei: "100000",
+      tokenContract: "0xUSDC",
+      flow: "ERC20_DIRECT",
+    })),
+    waitForConfirmation: vi.fn(behaviour),
+  });
+
+  const runWith = async (client: MerchantClient, onTransferred?: (t: string, o: string) => void) =>
+    runOperatorFee({
+      dappOrderId: "fee-1",
+      fromAddress: "0xagent",
+      tokenContract: "0xUSDC",
+      chainId: 2345,
+      amountWei: "100000",
+      transfer: vi.fn(async () => ({ txHash: "0xFEETX" })),
+      client,
+      onTransferred,
+    });
+
+  it("reports the tx with confirmed=false instead of throwing when the order lags", async () => {
+    const r = await runWith(unconfirmedClient(async () => ({ status: "CHECKOUT_VERIFIED" })));
+    expect(r.paymentTx).toBe("0xFEETX"); // the hash SURVIVES — this is the whole fix
+    expect(r.confirmed).toBe(false);
+  });
+
+  it("still reports the tx when the confirmation poll itself times out", async () => {
+    const r = await runWith(
+      unconfirmedClient(async () => {
+        throw new Error("x402: confirmation timeout for order fee_ord");
+      }),
+    );
+    expect(r.paymentTx).toBe("0xFEETX");
+    expect(r.confirmed).toBe(false);
+  });
+
+  it("fires onTransferred BEFORE confirmation, so a later failure cannot lose the payment", async () => {
+    const seen: string[] = [];
+    await runWith(
+      unconfirmedClient(async () => {
+        seen.push("confirm");
+        throw new Error("timeout");
+      }),
+      (tx) => seen.push(`transferred:${tx}`),
+    );
+    // order matters: the record is written first, then confirmation is attempted
+    expect(seen).toEqual(["transferred:0xFEETX", "confirm"]);
+  });
+
+  it("fires onTransferred on the happy path too, not only on failure", async () => {
+    const seen: string[] = [];
+    await runWith(unconfirmedClient(async () => ({ status: "INVOICED" })), (tx, ord) =>
+      seen.push(`${tx}/${ord}`),
+    );
+    expect(seen).toEqual(["0xFEETX/fee_ord"]);
   });
 });
 

@@ -260,6 +260,20 @@
       "when": 1786300000000,
       "tag": "0036_fee_retry_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1786310000000,
+      "tag": "0037_reconcile_paid_unrecorded_fees",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1786320000000,
+      "tag": "0038_fee_missing_hash",
+      "breakpoints": true
     }
   ]
 }

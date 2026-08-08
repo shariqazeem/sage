@@ -193,7 +193,12 @@ export async function runOperatorFee(opts: {
   transfer: TransferFn;
   client: MerchantClient;
   confirm?: boolean;
-}): Promise<{ paymentTx: string; orderId: string }> {
+  /**
+   * Fired the instant the transfer receipt confirms, BEFORE any confirmation polling. Money has
+   * left the wallet by this point and that fact must survive whatever happens next.
+   */
+  onTransferred?: (paymentTx: string, orderId: string) => void;
+}): Promise<{ paymentTx: string; orderId: string; confirmed: boolean }> {
   const order = await opts.client.createOrder({
     dappOrderId: opts.dappOrderId,
     chainId: opts.chainId,
@@ -208,16 +213,36 @@ export async function runOperatorFee(opts: {
     order.amountWei,
   );
   const pay = await opts.transfer(order.payToAddress, sendWei);
+  // MONEY HAS MOVED. Tell the caller now, before anything else can fail.
+  opts.onTransferred?.(pay.txHash, order.orderId);
+
+  /**
+   * THE RECEIPT IS THE PAYMENT; the order status is bookkeeping.
+   *
+   * This used to THROW when the order had not reached a paid status inside 120s, which discarded
+   * the txHash of a transfer that had already succeeded. The fee went back on the pending queue and
+   * was re-sent on a later sweep. Measured on GOAT mainnet 2026-08-09: three fees each transferred
+   * 0.1 USDC (0xa6088ff5, 0xb283e1e7, 0xb175e98a), sat at CHECKOUT_VERIFIED past the timeout, and
+   * were recorded `pending` — money gone, no record, queued to pay a second time.
+   *
+   * For a DIRECT merchant the funds go straight to `payToAddress`, and `transfer` only returns once
+   * its on-chain receipt confirms success. So the payment is already a fact; whether the facilitator
+   * has caught up is metadata. Report `confirmed` honestly and let the caller settle on the receipt,
+   * because the alternative — treating our own impatience as non-payment — double-spends.
+   */
+  let confirmed = true;
   if (opts.confirm !== false) {
-    const conf = await opts.client.waitForConfirmation(order.orderId, {
-      timeout: 120_000,
-      interval: 4_000,
-    });
-    if (settleStatus(conf.status) !== "paid") {
-      throw new Error(`x402: fee order not confirmed (${conf.status})`);
+    try {
+      const conf = await opts.client.waitForConfirmation(order.orderId, {
+        timeout: 120_000,
+        interval: 4_000,
+      });
+      confirmed = settleStatus(conf.status) === "paid";
+    } catch {
+      confirmed = false; // a timeout says nothing about whether the transfer landed
     }
   }
-  return { paymentTx: pay.txHash, orderId: order.orderId };
+  return { paymentTx: pay.txHash, orderId: order.orderId, confirmed };
 }
 
 export type FeeOutcome =

@@ -1007,6 +1007,22 @@ export function markFeeSettled(id: string, paymentTx: string, orderId: string): 
 }
 
 /**
+ * Record that a fee's USDC has ACTUALLY LEFT THE WALLET, before anything downstream can fail.
+ *
+ * Status deliberately stays `pending` — the sweep still wants to confirm it — but `payment_tx` is
+ * now set, and `payPendingFees` treats a row with a payment_tx as untouchable: it settles it rather
+ * than transferring again. Without this, a confirmation timeout discarded the hash of a completed
+ * transfer and the fee was re-sent on the next sweep. Three fees moved 0.1 USDC each that way on
+ * 2026-08-09 and were recorded as unpaid.
+ */
+export function recordFeePaid(id: string, paymentTx: string, orderId: string): void {
+  db.update(fees)
+    .set({ paymentTx, orderId, lastError: null })
+    .where(eq(fees.id, id))
+    .run();
+}
+
+/**
  * Claim the next attempt number for a fee, and return it.
  *
  * The returned value goes into the GOAT dappOrderId (`fee-<id>-<attempt>`), which MUST differ from

@@ -5,6 +5,7 @@ import {
   listPendingFees,
   markFeeSettled,
   nextFeeAttempt,
+  recordFeePaid,
   stuckFees,
   recordEvent,
   recordFeeFailure,
@@ -66,6 +67,14 @@ export async function payPendingFees(): Promise<{
   let settled = 0;
   let stillPending = 0;
   for (const fee of pending) {
+    // ALREADY PAID, JUST NOT CONFIRMED. A row keeps its payment_tx the instant the transfer receipt
+    // lands, so if we are here with one set, the USDC is already at the merchant and re-sending
+    // would be a genuine double-spend. Settle it on the receipt and move on.
+    if (fee.paymentTx) {
+      markFeeSettled(fee.id, fee.paymentTx, fee.orderId ?? "");
+      settled += 1;
+      continue;
+    }
     // A FRESH dappOrderId PER ATTEMPT. It used to be `fee-<id>`, fixed for the life of the fee, so
     // once the first order expired unpaid every later retry died on the facilitator's "order already
     // exists" before reaching the transfer — nine fees stranded from 6 July to 9 August, roughly
@@ -76,6 +85,9 @@ export async function payPendingFees(): Promise<{
       payOperatorFee({
         dappOrderId: `fee-${fee.id}-${attempt}`,
         amountUsd: OPERATOR_FEE_USD,
+        // Persist the tx BEFORE confirmation polling can fail. This is the whole guard: money that
+        // has moved must be recorded even if everything after it throws.
+        onTransferred: (paymentTx, orderId) => recordFeePaid(fee.id, paymentTx, orderId),
       }),
     );
     if (outcome.status === "settled") {
