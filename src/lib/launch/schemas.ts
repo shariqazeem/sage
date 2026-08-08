@@ -215,6 +215,11 @@ export interface FieldTestState {
     | "back";
   /** the label/entity Sage acted on, when the action targeted a named affordance. */
   actedLabel?: string;
+  /** false when Sage could NOT land the action meant to produce this state (the control was
+   *  unreachable, the channel timed out). That is a fact about SAGE, not about the product, so
+   *  evidence builders must exclude such a state's trigger from the observation corpus — otherwise
+   *  Sage's own failure vocabulary becomes citable proof about someone's product. Absent = delivered. */
+  delivered?: boolean;
 }
 
 export interface FieldTestSummary {

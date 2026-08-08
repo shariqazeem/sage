@@ -212,7 +212,12 @@ export function buildObservationCorpus(observations: ProductObservation[], field
       push(p.visibleTextExcerpt);
     }
     for (const s of fieldTest.states ?? []) {
-      push(s.trigger);
+      // A state Sage could not actually reach contributes NOTHING about the product. Its trigger is a
+      // sentence about Sage failing ("could not reach \"ENTER\""), and admitting that here would make
+      // Sage's own failure vocabulary a citable anchor — inside the very gate whose job is to prove a
+      // mission quotes something real. The rest of the state is still genuine: the page text and
+      // elements were observed, the action simply never landed.
+      if (s.delivered !== false) push(s.trigger);
       push(s.visibleTextExcerpt);
       for (const e of s.notableElements ?? []) push(e.text);
     }

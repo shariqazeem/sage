@@ -1877,10 +1877,107 @@ export async function findSubmitControl(
  * presented option, scrolls, drags, waits, or goes back. It never authors a selector/URL/JS, never
  * submits a form, and never types a credential or personal datum. Failure-isolated (returns a label).
  */
+/** Slow-channel click timeouts seen on this page — after two, stop paying the tax on every click. */
+const slowChannelTimeouts = new WeakMap<Page, number>();
+
+/**
+ * CLICK THROUGH WHICHEVER CHANNEL THE PAGE CAN ACTUALLY ANSWER.
+ *
+ * Playwright's own `click` needs a renderer round-trip for its actionability and hit-test work. On a
+ * CPU-starved box — the 2-core VM, a WebGL/3D product, an animated canvas — that round-trip blows any
+ * sane timeout while the page is perfectly clickable by hand. MEASURED on useagora.vercel.app/square,
+ * on the VM: 0/4 via `locator.click` (every attempt hit the 2.5s wall dead-on), 4/4 once we fall
+ * through. It cost that inspection its whole plan — Sage never got past the splash gate, so the
+ * mission brain only ever saw a landing page and wrote a mission about reading the headline.
+ *
+ * `page.evaluate` stays responsive throughout, because it runs in the JS context rather than waiting
+ * on the renderer. So read the geometry THERE and click the point with a real mouse.
+ *
+ * Order matters: a trusted mouse event first (canvas/WebGL products listen for real pointer events and
+ * ignore synthetic ones), a synthetic dispatch only as the last resort. Returns whether a click was
+ * actually DELIVERED — "no effect" must mean the page ignored a real click, never that we failed to
+ * land one, because the caller retires an affordance that produced no effect.
+ */
+async function clickThroughAnyChannel(page: Page, id: string): Promise<boolean> {
+  const sel = `[data-sage-eid="${id}"]`; // ids are minted "e0","e1",… — nothing to escape
+  if ((slowChannelTimeouts.get(page) ?? 0) < 2) {
+    try {
+      await page.locator(sel).first().click({ timeout: 2_500, force: true });
+      return true;
+    } catch {
+      slowChannelTimeouts.set(page, (slowChannelTimeouts.get(page) ?? 0) + 1);
+    }
+  }
+  // A REAL mouse click at the element's own centre, with the geometry read over the fast channel.
+  try {
+    const at = await page.evaluate((eid: string) => {
+      const el = document.querySelector(`[data-sage-eid="${eid}"]`);
+      if (!el) return null;
+      el.scrollIntoView({ block: "center", inline: "center" });
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return null;
+      return {
+        x: r.x + r.width / 2,
+        y: r.y + r.height / 2,
+        w: window.innerWidth,
+        h: window.innerHeight,
+      };
+    }, id);
+    // Only click a point that is genuinely on screen — off-viewport coordinates would land on
+    // whatever happens to sit at that spot, which is a fabricated interaction, not this one.
+    if (at && at.x >= 0 && at.y >= 0 && at.x <= at.w && at.y <= at.h) {
+      await page.mouse.click(at.x, at.y);
+      return true;
+    }
+  } catch {
+    /* fall through to the synthetic dispatch */
+  }
+  try {
+    return await page.evaluate((eid: string) => {
+      const el = document.querySelector(`[data-sage-eid="${eid}"]`);
+      if (!el) return false;
+      (el as HTMLElement).click();
+      return true;
+    }, id);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The outcome of one attempted action, with the two things kept SEPARATE on purpose.
+ *
+ * `trigger` is the human sentence for the filmstrip. `delivered` says whether Sage actually landed the
+ * action on the page. They must not be conflated: on 8 Aug a click that timed out and a click that
+ * landed on an inert button both produced the string "attempted click_element (no effect)", so the
+ * loop-preventer retired the ONE working door on Agora and the plan collapsed to a headline-reading
+ * mission. An executor's own failure is a fact about SAGE, never a fact about the product, and only
+ * facts about the product may become evidence (see buildObservationCorpus).
+ */
+export interface ActionOutcome {
+  trigger: string;
+  /** false ONLY when the action never reached the page — not when the page ignored it. */
+  delivered: boolean;
+}
+
 async function executeAction(
   page: Page,
   action: ControllerAction,
   elements: MintedElement[],
+): Promise<ActionOutcome> {
+  let delivered = true;
+  const trigger = await dispatchAction(page, action, elements, () => {
+    delivered = false;
+  });
+  return { trigger, delivered };
+}
+
+async function dispatchAction(
+  page: Page,
+  action: ControllerAction,
+  elements: MintedElement[],
+  /** call when the action could NOT be landed on the page at all. */
+  markUndelivered: () => void,
 ): Promise<string> {
   const vp = page.viewportSize() ?? { width: 1280, height: 720 };
   const loc = (id: string) => page.locator(`[data-sage-eid="${id}"]`).first();
@@ -1889,10 +1986,9 @@ async function executeAction(
   try {
     switch (action.kind) {
       case "click_element": {
-        try {
-          await loc(action.elementId).click({ timeout: 2_500, force: true });
+        if (await clickThroughAnyChannel(page, action.elementId))
           return `clicked "${labelOf(action.elementId)}"`;
-        } catch {
+        {
           // RESILIENT TARGETING (the SPA gap): a React re-render strips the minted data-sage-eid
           // between mint and click, and an open dropdown/overlay can swallow a hit — the trace then
           // reads "attempted click (no effect)" forever (measured: commonstack.ai, 3 dead clicks on
@@ -1902,12 +1998,21 @@ async function executeAction(
           const el = elements.find((e) => e.id === action.elementId);
           const label = (el?.label ?? "").trim();
           if (label && label.length <= 80) {
-            const retried = await page
+            const byLabel = page
               .locator(`a, button, [role=button], [role=link]`, { hasText: label })
-              .first()
+              .first();
+            const retried = await byLabel
               .click({ timeout: 2_000, force: true })
               .then(() => true)
-              .catch(() => false);
+              // the same starved-renderer story as above: dispatch in-page rather than give up
+              .catch(() =>
+                byLabel
+                  .evaluate((node) => {
+                    (node as HTMLElement).click();
+                    return true;
+                  })
+                  .catch(() => false),
+              );
             if (retried) return `clicked "${labelOf(action.elementId)}"`;
           }
           if (el?.href) {
@@ -1920,7 +2025,10 @@ async function executeAction(
               /* fall through to the honest no-effect label */
             }
           }
-          return `attempted click_element (no effect)`;
+          // Every channel refused. Say what is TRUE — Sage could not reach this control — rather than
+          // "no effect", which reads as a finding about the product and is how the Agora plan died.
+          markUndelivered();
+          return `could not reach "${labelOf(action.elementId)}"`;
         }
       }
       case "open_path": {
@@ -2047,7 +2155,8 @@ async function executeAction(
         return `stopped (${action.status})`;
     }
   } catch {
-    return `attempted ${action.kind} (no effect)`;
+    markUndelivered();
+    return `could not carry out ${action.kind}`;
   }
 }
 
@@ -2136,7 +2245,12 @@ async function exploreInteractive(ctx: {
 
   const capture = async (
     trigger: string,
-    action?: { kind: FieldTestState["actionKind"]; label?: string },
+    action?: {
+      kind: FieldTestState["actionKind"];
+      label?: string;
+      /** pass the executor's own verdict through — see FieldTestState.delivered. */
+      delivered?: boolean;
+    },
   ): Promise<number> => {
     const fp = await fingerprint(page);
     const delta = fingerprintDelta(prevFp, fp);
@@ -2172,6 +2286,7 @@ async function exploreInteractive(ctx: {
       // goal-journey evaluator reasons over these, so "sent" can never be mistaken for "received".
       ...(action?.kind ? { actionKind: action.kind } : {}),
       ...(action?.label ? { actedLabel: action.label.slice(0, 80) } : {}),
+      ...(action?.delivered === false ? { delivered: false } : {}),
     });
     return delta;
   };
@@ -2245,7 +2360,7 @@ async function exploreInteractive(ctx: {
         els,
       );
       interactions++;
-      if (/skipped/i.test(typed)) return "none"; // a sensitive field → never type, stay honest
+      if (/skipped/i.test(typed.trigger)) return "none"; // a sensitive field → never type, stay honest
       await page.waitForTimeout(300);
       await capture("typed the test message into the conversation", {
         kind: "type",
@@ -2330,7 +2445,7 @@ async function exploreInteractive(ctx: {
           els,
         );
         interactions++;
-        if (!/skipped|did not accept/i.test(outcome)) filled++;
+        if (!/skipped|did not accept/i.test(outcome.trigger)) filled++;
       }
       // 2. finish any REQUIRED field the mint never saw, and learn whether the form can be honestly
       //    submitted at all. This runs BEFORE the capture so the recorded trigger counts what was
@@ -2801,7 +2916,7 @@ async function exploreInteractive(ctx: {
             terms,
           ) > 0;
 
-        const trigger = await executeAction(page, action, elements);
+        const { trigger, delivered } = await executeAction(page, action, elements);
         interactions++;
         // a failed click that recovered by FOLLOWING the link's own href is a navigation — count it
         // against the same budget so the fallback can never out-travel an explicit open_path, and
@@ -2823,6 +2938,9 @@ async function exploreInteractive(ctx: {
         // kind so the journey evaluator never has to interpret English.
         await capture(trigger, {
           kind: actionKindOf(action),
+          // carry the executor's verdict onto the state, so downstream evidence builders can tell
+          // "the product behaved this way" from "Sage could not act here".
+          delivered,
           label:
             action.kind === "click_element"
               ? (elements.find((e) => e.id === action.elementId)?.label ?? "")

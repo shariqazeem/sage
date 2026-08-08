@@ -495,3 +495,42 @@ describe("dependsOnVolatileState", () => {
     expect(dependsOnVolatileState(m(["Report which step indicator appears (e.g. Step 1 of 2)."]))).toBe(false);
   });
 });
+
+/**
+ * An executor's own failure is a fact about SAGE, never about the product. On 8 Aug a click that could
+ * not be landed and a click that landed on an inert control were indistinguishable, which cost the
+ * Agora inspection its entire plan. The corpus is the anti-hallucination gate — if Sage's failure
+ * vocabulary lives in there, a mission can be "proved" by quoting Sage's own excuse.
+ */
+describe("the corpus admits observations, never Sage's own failures", () => {
+  const stateBase = {
+    screenshot: null,
+    notableElements: [{ tag: "button", text: "ENTER", role: "button" }],
+    pixelDeltaPct: 0,
+    url: "https://agora.example/square",
+  };
+  const FT: FieldTestSummary = {
+    ran: true, startUrl: "https://agora.example/square", mode: "interactive", pages: [],
+    states: [
+      { ...stateBase, trigger: 'clicked "ENTER"', visibleTextExcerpt: "Welcome to the Square." },
+      // the action never reached the page — the page text is still real, the trigger is not evidence
+      { ...stateBase, trigger: 'could not reach "MAP"', visibleTextExcerpt: "Welcome to the Square.", delivered: false },
+    ],
+    classification: null, limitation: null, durationMs: 1,
+  };
+  const corpus = buildObservationCorpus([], FT);
+
+  it("keeps a DELIVERED action's trigger — it describes something that really happened", () => {
+    expect(corpus).toContain('clicked "enter"');
+  });
+
+  it("drops an UNDELIVERED action's trigger, so it can never anchor a mission", () => {
+    expect(corpus).not.toContain("could not reach");
+    expect(anchorIssues(["could not reach \"MAP\""], corpus)).not.toEqual([]);
+  });
+
+  it("still keeps what the page genuinely showed on that state", () => {
+    expect(corpus).toContain("welcome to the square");
+    expect(corpus).toContain("enter");
+  });
+});
