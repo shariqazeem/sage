@@ -119,7 +119,14 @@ const BRAIN_VIEW_CAPS = {
   states: MAX_INTERACTIONS + 4,
   stateTextChars: 800,
   notableElementsPerState: 10,
-  pages: 4,
+  // 6, not 4, and this is a correction rather than a new bet: the pageView comment below already
+  // reasons "worst case 6 pages × 2000 ≈ 3k tokens of prompt, well inside the models' context and
+  // the battery's cost cap", so the budget was set for 6 while the slice said 4. The starvation
+  // report is what exposed the mismatch — every static product in the nonce-52 battery lost 1-2
+  // whole crawled pages, meaning the crawl really does produce 5-6. A url-verifiable mission needs
+  // page TEXT to cite, so pages the brain never receives are the most likely cause of the
+  // long-standing drift to observation-only plans. Changed ALONE, so the battery reads one variable.
+  pages: 6,
   pageTextChars: 2000,
   ctasPerPage: 8,
 } as const;
