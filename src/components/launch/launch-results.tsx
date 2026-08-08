@@ -69,6 +69,30 @@ interface FieldTestView {
     trigger: string; screenshot: string | null; visibleTextExcerpt: string; url: string;
     notableElements: { tag: string; text: string; role: string }[];
   }[];
+  docs?: { url: string; title: string; excerpt: string; soughtBecause: string }[];
+}
+
+/**
+ * When a wall stops Sage, this is the moment a founder most needs to see the work: their product
+ * is gated, and the honest question in their head is "did it get anywhere at all?". Saying "I was
+ * blocked, so I read your docs to understand what is behind it" is the difference between a plan
+ * that looks lazy and one that looks thorough. Silence here reads as failure even when it isn't.
+ */
+function DocsRead({ docs }: { docs: NonNullable<FieldTestView["docs"]> }) {
+  if (docs.length === 0) return null;
+  return (
+    <div className="lx-note" style={{ marginTop: 12 }}>
+      <b>Blocked, so Sage read your documentation.</b> {docs[0].soughtBecause}. It read{" "}
+      {docs.map((d, i) => (
+        <span key={d.url}>
+          {i > 0 ? (i === docs.length - 1 ? " and " : ", ") : ""}
+          <a href={d.url} target="_blank" rel="noopener noreferrer">{d.title || d.url}</a>
+        </span>
+      ))}{" "}
+      to understand what is behind the wall. Missions below are designed for a tester who has
+      their own account, and Sage never asks anyone for credentials.
+    </div>
+  );
 }
 interface MapView {
   productName: string; category: string; valueProp: string; founderTargetUsers: string;
@@ -244,6 +268,7 @@ function InteractiveFieldTest({ ft }: { ft: FieldTestView }) {
           ))}
         </details>
       )}
+      {ft.docs && <DocsRead docs={ft.docs} />}
     </section>
   );
 }
@@ -285,6 +310,7 @@ function StaticFieldTest({ ft }: { ft: FieldTestView }) {
           {brokenSamples.map((b, i) => <div key={`b${i}`} className="lx-field-line">HTTP {b.status || "failed"}: {b.url}</div>)}
         </details>
       )}
+      {ft.docs && <DocsRead docs={ft.docs} />}
     </section>
   );
 }
