@@ -333,6 +333,16 @@ export const fees = sqliteTable(
     /** the real GOAT x402 fee payment tx, set only when settled. */
     paymentTx: text("payment_tx"),
     orderId: text("order_id"),
+    /**
+     * How many times this fee has been attempted. It is part of the GOAT dappOrderId
+     * (`fee-<id>-<attempt>`), because that id is unique-per-order at the facilitator: reusing one
+     * after its order expires throws "order already exists" before the transfer is ever reached,
+     * which stranded nine fees for a month.
+     */
+    attempts: integer("attempts").notNull().default(0),
+    /** Why the last attempt failed. Overwritten in place, so the money path can never fail silently
+     *  again without journalling a line every five minutes. */
+    lastError: text("last_error"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [uniqueIndex("fees_settle_unq").on(t.settleTx)],

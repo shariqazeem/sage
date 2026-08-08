@@ -1001,9 +1001,49 @@ export function getFeeBySettleTx(settleTx: string): Fee | null {
 
 export function markFeeSettled(id: string, paymentTx: string, orderId: string): void {
   db.update(fees)
-    .set({ status: "settled", paymentTx, orderId })
+    .set({ status: "settled", paymentTx, orderId, lastError: null })
     .where(eq(fees.id, id))
     .run();
+}
+
+/**
+ * Claim the next attempt number for a fee, and return it.
+ *
+ * The returned value goes into the GOAT dappOrderId (`fee-<id>-<attempt>`), which MUST differ from
+ * every previous try: the facilitator rejects a repeated dappOrderId with "order already exists"
+ * before the transfer is reached, so reusing one strands the fee permanently once its first order
+ * expires. Incremented BEFORE the attempt, so a crash mid-payment still burns the number rather
+ * than risking a second order under an id that may already exist.
+ */
+export function nextFeeAttempt(id: string): number {
+  const row = db.select({ attempts: fees.attempts }).from(fees).where(eq(fees.id, id)).get();
+  const next = (row?.attempts ?? 0) + 1;
+  db.update(fees).set({ attempts: next }).where(eq(fees.id, id)).run();
+  return next;
+}
+
+/**
+ * Record why an attempt failed, in place on the row.
+ *
+ * Deliberately NOT a journal event: the sweep retries every five minutes, so journalling each
+ * failure would bury the campaign timeline. Overwriting one field keeps the current reason always
+ * readable without spam — which is the gap that let the fee rail fail silently for a month.
+ */
+export function recordFeeFailure(id: string, error: string): void {
+  db.update(fees)
+    .set({ lastError: error.slice(0, 300) })
+    .where(eq(fees.id, id))
+    .run();
+}
+
+/** Fees that keep failing, for the sweep summary and the nightly self-drive check. */
+export function stuckFees(minAttempts = 3): Array<{ id: string; attempts: number; lastError: string | null }> {
+  return db
+    .select({ id: fees.id, attempts: fees.attempts, lastError: fees.lastError })
+    .from(fees)
+    .where(eq(fees.status, "pending"))
+    .all()
+    .filter((f) => f.attempts >= minAttempts);
 }
 
 /** Aggregate fee state for the Wallet / Proof surfaces (real settled txs only). */

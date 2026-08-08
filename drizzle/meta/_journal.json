@@ -253,6 +253,13 @@
       "when": 1786000000000,
       "tag": "0035_x402_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1786300000000,
+      "tag": "0036_fee_retry_attempts",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,10 @@ import { short } from "@/lib/format";
 import {
   listPendingFees,
   markFeeSettled,
+  nextFeeAttempt,
+  stuckFees,
   recordEvent,
+  recordFeeFailure,
   recordPendingFee,
 } from "@/lib/db/campaigns";
 import { isX402Live, OPERATOR_FEE_USD } from "./facilitator";
@@ -51,14 +54,29 @@ export function chargeOperatorFee(
  * failed fee stays pending for the next sweep. A settlement journals `fee_settled`
  * with the real GOAT tx; nothing here ever records a fee that didn't move.
  */
-export async function payPendingFees(): Promise<{ settled: number; pending: number }> {
+export async function payPendingFees(): Promise<{
+  settled: number;
+  pending: number;
+  /** pending fees that have failed repeatedly, with the current reason — see below. */
+  stuck?: number;
+  stuckReason?: string | null;
+}> {
   if (!isX402Live()) return { settled: 0, pending: 0 };
   const pending = listPendingFees();
   let settled = 0;
   let stillPending = 0;
   for (const fee of pending) {
+    // A FRESH dappOrderId PER ATTEMPT. It used to be `fee-<id>`, fixed for the life of the fee, so
+    // once the first order expired unpaid every later retry died on the facilitator's "order already
+    // exists" before reaching the transfer — nine fees stranded from 6 July to 9 August, roughly
+    // 8,000 silent retries, and 67 unpayable invoices on the merchant dashboard. Our own fee.id
+    // remains the idempotency key, so this cannot charge the same fee twice.
+    const attempt = nextFeeAttempt(fee.id);
     const outcome = await guardedFee(() =>
-      payOperatorFee({ dappOrderId: `fee-${fee.id}`, amountUsd: OPERATOR_FEE_USD }),
+      payOperatorFee({
+        dappOrderId: `fee-${fee.id}-${attempt}`,
+        amountUsd: OPERATOR_FEE_USD,
+      }),
     );
     if (outcome.status === "settled") {
       markFeeSettled(fee.id, outcome.paymentTx, outcome.orderId);
@@ -74,8 +92,24 @@ export async function payPendingFees(): Promise<{ settled: number; pending: numb
       }
       settled += 1;
     } else {
-      stillPending += 1; // stays pending; no journal spam on repeated retries.
+      // Stays pending, and the REASON is now written to the row. Still no journal event per retry
+      // (that would bury the campaign timeline every five minutes), but discarding the error string
+      // entirely — which guardedFee had already captured — is what let this rail fail in complete
+      // silence for a month. A failure nobody can read is indistinguishable from work not done.
+      recordFeeFailure(fee.id, outcome.error);
+      stillPending += 1;
     }
   }
-  return { settled, pending: stillPending };
+  // What is STUCK, not merely pending. The watcher logged `"fees":{"settled":0,"pending":9}` every
+  // five minutes for a month and it read as ordinary backlog, because a count alone cannot
+  // distinguish "waiting its turn" from "has failed 8,000 times for the same reason". The reason
+  // itself now rides along, so the next rail failure is legible from one line of the sweep log.
+  const stuck = stuckFees(3);
+  return {
+    settled,
+    pending: stillPending,
+    ...(stuck.length > 0
+      ? { stuck: stuck.length, stuckReason: stuck[0].lastError?.slice(0, 120) ?? null }
+      : {}),
+  };
 }
