@@ -1,4 +1,5 @@
 import { siteUrl } from "@/lib/site";
+import { FAQ } from "@/lib/seo/faq";
 
 /**
  * STRUCTURED DATA — written for the engines that ANSWER rather than the ones that rank.
@@ -59,49 +60,16 @@ export function StructuredData() {
       },
       {
         "@type": "FAQPage",
-        "@id": `${site}/#faq`,
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: "How do I get paid to test products on Sage?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Open the Sage marketplace, pick a mission, do the short task it describes, and write what you actually saw. There is no application and no interview. Sage checks your account against what it observed exploring the product itself and pays in USDC.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Does Sage actually pay, or is it a claim?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Every payout is an on-chain transaction on GOAT Network and publishes a receipt page anyone can open and verify. The marketplace lists recent payouts with links to those transactions, so the total paid is read from settled transfers rather than typed in.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "What stops the AI agent from overspending?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "The agent proposes, a smart contract disposes. Each campaign has an on-chain vault that derives the exact reward, enforces the per-mission cap and completion limits, and rejects anything outside them. No model output can move money by itself.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Can I write my submission in my own words or my own language?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Yes. Sage matches your account against phrases from inside the product rather than requiring particular wording, so a genuine account written in your own voice or another language still verifies. One thing to keep: write the product's own words for what you saw on screen, such as button and heading labels, because those are what Sage matches against. Copying the mission description back scores nothing.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "What does a founder give Sage to start?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "A product URL, what you want proven, who should test it, and a budget in USDC. Sage browses the product itself and designs the missions, so there is nothing else to fill in.",
-            },
-          },
-        ],
+        // The visible /faq page renders this SAME list (see lib/seo/faq.ts). One entity, one source:
+        // maintaining the schema and the page separately is how a site ends up telling a model one
+        // thing and a reader another, and the schema is the copy that gets quoted.
+        "@id": `${site}/faq#faq`,
+        url: `${site}/faq`,
+        mainEntity: FAQ.map((e) => ({
+          "@type": "Question",
+          name: e.q,
+          acceptedAnswer: { "@type": "Answer", text: e.a },
+        })),
       },
     ],
   };

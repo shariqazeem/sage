@@ -1,0 +1,219 @@
+/**
+ * PROSE SURFACES — the comparison pages and the FAQ.
+ *
+ * Deliberately ONE stylesheet for all three rather than a folder each: the repo already carries
+ * around nine CSS systems and adding a tenth for three text pages would be the exact drift the
+ * design system section of CLAUDE.md is trying to stop.
+ *
+ * The P24 palette is declared HERE rather than borrowed. landing-v2.css scopes every token under
+ * `.slv2` on purpose ("so it never touches app surfaces"), so referencing them from an unrelated
+ * page resolves to nothing — measured: every var came back EMPTY and these pages rendered as
+ * unstyled prose while still looking perfectly plausible in a screenshot. Adding `.slv2` to the
+ * wrapper would have dragged the landing's IntersectionObserver motion rules onto a text page,
+ * which is worse. The values below are copied from landing-v2.css and must not drift; that
+ * duplication is the known `src/styles/tokens.css` debt in CLAUDE.md §5, and when that file exists
+ * this block should be deleted in favour of importing it. Font vars are NOT duplicated — next/font
+ * defines those on <html>, so they are genuinely global.
+ *
+ * CASCADE ORDER MATTERS AND IS DELIBERATE. Base element rules come first, component rules second,
+ * and every component rule is scoped under `.prose-page` so it scores (0,2,1) against the base
+ * (0,1,1) and wins regardless of order. Getting this wrong is not theoretical: the first version put
+ * `.prose-page p` last, which silently beat `.prose-answer p` and `.prose-eyebrow` on equal
+ * specificity — the lead answer block rendered at the body size with a stray 16px gap, and the
+ * eyebrow took the wrong ink. Nothing looked broken enough to notice by eye.
+ *
+ * Written for two readers at once. A person wants short lines and clear hierarchy. An answer engine
+ * wants a question-shaped heading immediately followed by its answer, which is why the answer block
+ * is a sibling of the heading and never nested in a decorative wrapper that separates them.
+ */
+
+/* ── root + tokens ───────────────────────────────────────────────────────── */
+
+.prose-page {
+  --canvas: #fbfaf6;
+  --canvas-2: #f4f2ea;
+  --ink: #171715;
+  --ink-2: #4a473f;
+  --ink-3: #8a8578;
+  --line: rgba(23, 23, 21, 0.1);
+  --line-2: rgba(23, 23, 21, 0.16);
+  --terra: #c2410c;
+  --terra-wash: rgba(194, 65, 12, 0.07);
+  --terra-line: rgba(194, 65, 12, 0.22);
+  --r-1: 8px;
+  --r-2: 14px;
+  --font-display: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  --font-body: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+  --pad-x: clamp(20px, 5vw, 88px);
+
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  padding: clamp(48px, 8vw, 104px) var(--pad-x) 96px;
+}
+
+/* ── base elements (lowest precedence; components override these) ────────── */
+
+.prose-page h1 {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 5vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 24px;
+}
+
+.prose-page h2 {
+  font-family: var(--font-display);
+  font-size: clamp(19px, 2.4vw, 23px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin: 40px 0 12px;
+}
+
+.prose-page h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 32px 0 10px;
+}
+
+.prose-page p {
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+
+.prose-page a {
+  border-bottom: 1px solid var(--terra-line);
+  color: var(--terra);
+  text-decoration: none;
+}
+
+.prose-page a:hover {
+  border-bottom-color: var(--terra);
+}
+
+.prose-page code {
+  background: var(--canvas-2);
+  border-radius: var(--r-1);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 2px 6px;
+}
+
+.prose-page table {
+  border-collapse: collapse;
+  font-size: 15px;
+  min-width: 520px;
+  width: 100%;
+}
+
+.prose-page th,
+.prose-page td {
+  border-bottom: 1px solid var(--line);
+  padding: 11px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose-page th {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.prose-page td:first-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ── components (scoped so they always beat the base rules) ──────────────── */
+
+.prose-page .prose-wrap {
+  margin: 0 auto;
+  max-width: 720px; /* ~75ch: long enough for a table, short enough to read */
+}
+
+.prose-page .prose-eyebrow {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+/* THE SHORT ANSWER — the block an extractor is most likely to lift, so it leads the page. */
+.prose-page .prose-answer {
+  background: var(--terra-wash);
+  border: 1px solid var(--terra-line);
+  border-radius: var(--r-2);
+  margin: 0 0 40px;
+  padding: 20px 22px;
+}
+
+.prose-page .prose-answer p {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Tables scroll inside their own box so the page body never scrolls sideways on a phone. */
+.prose-page .prose-table-scroll {
+  margin: 0 0 24px;
+  overflow-x: auto;
+}
+
+/* WHERE THE OTHER THING WINS. A comparison that never concedes anything reads as marketing and gets
+   discounted by readers and models alike, so this block is styled to be read, not buried. */
+.prose-page .prose-caveat {
+  background: var(--canvas-2);
+  border-left: 2px solid var(--line-2);
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  margin: 36px 0 0;
+  padding: 16px 20px;
+}
+
+.prose-page .prose-caveat p {
+  margin: 0;
+}
+
+.prose-page .prose-faq {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+
+.prose-page .prose-faq-item {
+  border-bottom: 1px solid var(--line);
+  padding: 22px 0;
+}
+
+.prose-page .prose-faq-item h2 {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+
+.prose-page .prose-faq-item p {
+  margin: 0;
+}
+
+.prose-page .prose-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 56px;
+  padding-top: 24px;
+}
+
+.prose-page .prose-footer p {
+  color: var(--ink-3);
+  font-size: 14px;
+  margin: 0;
+}

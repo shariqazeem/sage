@@ -32,7 +32,21 @@ const jetbrainsMono = JetBrains_Mono({
  * to a human and tells a model nothing.
  */
 const SITE = siteUrl();
-const TITLE = "Sage: hire an AI worker, give it a budget, not your keys";
+/**
+ * CATEGORY FIRST, BRAND LAST — and this is a search decision, not a copy preference.
+ *
+ * The previous title led with the bare word "Sage", which is owned by Sage Group (FTSE 100
+ * accounting software), Sage Pay/Opayo (a payments processor whose name our own domain echoes), and
+ * Ask Sage. Leading on it means competing with all three for our own homepage and losing. It also
+ * spent the rest of the tag on a metaphor nobody searches: people type "paid beta testers for my
+ * app", never "hire an AI worker".
+ *
+ * So the tag now opens on the CATEGORY, which has no incumbent, and closes on the brand. The
+ * "hire an AI worker, give it a budget, not your keys" line is still the hero headline, where it is
+ * strong — it just should not be the string we ask to be indexed on.
+ */
+const TITLE =
+  "AI agent that pays testers for verified product feedback · Sage";
 const DESCRIPTION =
   "Sage points an AI agent at your live product, designs paid user-testing missions from what it actually sees, and pays human testers in USDC for verified evidence. Every payout comes from an on-chain vault the agent cannot exceed and publishes a receipt anyone can check.";
 

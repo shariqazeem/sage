@@ -19,7 +19,10 @@ export const dynamic = "force-dynamic";
  * dashes, which read as machine-written and get mangled in snippets.
  */
 export const metadata: Metadata = {
-  title: "Sage: an AI agent that tests your product and pays real testers in USDC",
+  // CATEGORY FIRST, BRAND LAST. Same words as before, brand moved to the end — this is the page
+  // that has to win the query, and opening on the bare word meant opening against Sage Group,
+  // Sage Pay/Opayo and Ask Sage. The category has no incumbent, so lead on it.
+  title: "AI agent that tests your product and pays real testers in USDC · Sage",
   description:
     "Give Sage a product URL and a budget. It opens the product in a real browser, designs paid testing missions from what it actually saw, checks each tester's evidence against its own observations, and pays in USDC from an on-chain vault it cannot exceed. Every payout publishes a receipt you can verify.",
   alternates: { canonical: "/" },

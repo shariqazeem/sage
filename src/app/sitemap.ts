@@ -20,6 +20,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/marketplace`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${base}/launch`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/agents/sage`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    // The citable surfaces: an FAQ and two comparisons. Higher priority than the agent profile
+    // because these are the pages written to be quoted by an answer engine, and a page that is not
+    // in the sitemap is a page we are hoping gets found rather than asking for it to be.
+    { url: `${base}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${base}/vs/beta-testers`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/vs/bug-bounty`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
   ];
 
   let boards: MetadataRoute.Sitemap = [];
