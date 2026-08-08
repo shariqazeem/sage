@@ -1174,7 +1174,17 @@ export async function runFieldTest(
             durationMs: 0,
             limitation: null,
           }).pages;
-          return { ...summary, pages: [...(summary.pages ?? []), ...asPages] };
+          const pages = [...(summary.pages ?? []), ...asPages];
+          // RECOMPUTE the starvation report now that pages exist. buildInteractiveSummary ran before
+          // this crawl, so it measured an empty pages array — which is why interactive products only
+          // ever reported element loss and never the page-text loss that static products showed. A
+          // report that is silent about half the caps is the same invisibility it exists to end.
+          const t = viewTruncations(summary.states, pages);
+          return {
+            ...summary,
+            pages,
+            ...(t.length > 0 ? { truncations: t } : { truncations: undefined }),
+          };
         }
       } catch {
         /* the exploration stands on its own */
