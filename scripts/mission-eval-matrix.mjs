@@ -173,7 +173,7 @@ async function runOne(m, i) {
     lintSplit: missions.length === 0 ? "n/a" : (m.expectLint === "any" ? "PASS" : m.expectLint === "url" ? (urlV > 0 ? "PASS" : softLint(`0url/${obsV}obs`)) : (obsV > 0 ? "PASS" : softLint(`${urlV}url/0obs`))),
     needsInput: accept.includes(job.status) ? "PASS" : `FAIL(got-${job.status},want-${accept.join("|")})`,
   };
-  return { ...m, status: job.status, mode, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [] };
+  return { ...m, status: job.status, mode, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [], truncations: ft?.truncations ?? [] };
 }
 
 // ── run the battery (light concurrency; the prod server + LLM quota bound it) ──
@@ -187,6 +187,10 @@ for (const [i, m] of rows.entries()) {
   if (r.error) { console.log(`ERROR: ${r.error}`); continue; }
   console.log(`${r.status} · mode ${r.mode} · states ${r.statesN} · vision ${r.visionN} · ${r.missions} missions (${r.urlV}url/${r.obsV}obs) · anchors ${r.integrity}% · ~${Math.round(r.estTokens / 1000)}k tok`);
   console.log(`      cat="${r.category}" name="${r.name}"${r.questions.length ? ` · Q: ${r.questions[0].slice(0, 80)}` : ""}`);
+  // What the brain-view caps COST on this product. Not a failure — a fact that used to be invisible.
+  // A product starved here (thousands of characters dropped) explains a thin plan far better than
+  // "the model was weak", which is how the ClawUp pricing gap was misread for weeks.
+  if (r.truncations.length) console.log(`      starved: ${r.truncations.map((t) => `${t.at} -${t.dropped} ${t.unit}`).join(" · ")}`);
 }
 
 // ── the grid ──

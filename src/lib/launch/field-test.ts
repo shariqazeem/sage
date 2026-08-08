@@ -57,9 +57,11 @@ import {
 } from "./browser-controller";
 import type {
   FieldTestForm,
+  FieldTestPage,
   FieldTestState,
   FieldTestSummary,
   ProductMode,
+  Truncation,
 } from "./schemas";
 
 /** Raw per-page capture, before summarization (internal). */
@@ -103,6 +105,24 @@ const MAX_MODEL_CALLS = 12; // multimodal controller decisions (spec cap)
 const RESERVE_ACTIONS = 8; // actions guaranteed AFTER the main experience is reached
 const RESERVE_STATES = 5; // meaningful states guaranteed after that point
 const RESERVE_MODEL_CALLS = 3; // multimodal decisions guaranteed after that point
+/**
+ * EVERYTHING THE MISSION BRAIN IS ALLOWED TO SEE, in one place.
+ *
+ * Each of these silently drops product content, and a cap nobody can see is invisible until a founder
+ * finds the gap: a 900-char fold cap kept ClawUp's pricing out of every corpus for weeks, and nothing
+ * in any artifact said so. So these constants are the single source of truth for BOTH the view builder
+ * and {@link viewTruncations}, which reports what each one actually cost on this product. Change a
+ * number here and the report follows by construction — the two cannot drift apart.
+ */
+const BRAIN_VIEW_CAPS = {
+  states: MAX_INTERACTIONS + 4,
+  stateTextChars: 800,
+  notableElementsPerState: 10,
+  pages: 4,
+  pageTextChars: 2000,
+  ctasPerPage: 8,
+} as const;
+
 const EXT_MAX_INTERACTIONS = 40; // hard extension ceiling (actions)
 const EXT_MAX_STATES = 32; // hard extension ceiling (meaningful states)
 const EXT_MAX_MODEL_CALLS = 16; // hard extension ceiling (model decisions)
@@ -419,7 +439,106 @@ export function buildFieldTestSummary(input: {
     classification: null,
     limitation: input.limitation,
     durationMs: input.durationMs,
+    ...(() => {
+      const t = viewTruncations([], pages);
+      return t.length > 0 ? { truncations: t } : {};
+    })(),
   };
+}
+
+/**
+ * What the {@link BRAIN_VIEW_CAPS} actually cost on THIS product. Pure, and deliberately derived from
+ * the same constants the view builder uses, so the two can never disagree.
+ *
+ * Only real losses are reported: a product that fits under every cap returns an empty list, so a
+ * non-empty `truncations` always means the brain was reasoning about less than Sage saw.
+ */
+export function viewTruncations(
+  states: FieldTestState[],
+  pages: FieldTestPage[],
+): Truncation[] {
+  const out: Truncation[] = [];
+  const add = (
+    at: string,
+    kept: number,
+    dropped: number,
+    unit: Truncation["unit"],
+  ) => {
+    if (dropped > 0) out.push({ at, kept, dropped, unit });
+  };
+
+  add(
+    "states",
+    Math.min(states.length, BRAIN_VIEW_CAPS.states),
+    Math.max(0, states.length - BRAIN_VIEW_CAPS.states),
+    "states",
+  );
+  add(
+    "crawled pages",
+    Math.min(pages.length, BRAIN_VIEW_CAPS.pages),
+    Math.max(0, pages.length - BRAIN_VIEW_CAPS.pages),
+    "pages",
+  );
+
+  // Only states the brain will actually receive can lose anything — the rest are already counted above.
+  const shown = states.slice(0, BRAIN_VIEW_CAPS.states);
+  const textDropped = shown.reduce(
+    (n, s) =>
+      n + Math.max(0, s.visibleTextExcerpt.length - BRAIN_VIEW_CAPS.stateTextChars),
+    0,
+  );
+  const textKept = shown.reduce(
+    (n, s) =>
+      n + Math.min(s.visibleTextExcerpt.length, BRAIN_VIEW_CAPS.stateTextChars),
+    0,
+  );
+  add("state text", textKept, textDropped, "characters");
+
+  const elDropped = shown.reduce(
+    (n, s) =>
+      n +
+      Math.max(
+        0,
+        s.notableElements.length - BRAIN_VIEW_CAPS.notableElementsPerState,
+      ),
+    0,
+  );
+  const elKept = shown.reduce(
+    (n, s) =>
+      n +
+      Math.min(
+        s.notableElements.length,
+        BRAIN_VIEW_CAPS.notableElementsPerState,
+      ),
+    0,
+  );
+  add("elements per state", elKept, elDropped, "elements");
+
+  const pageTextDropped = pages
+    .slice(0, BRAIN_VIEW_CAPS.pages)
+    .reduce(
+      (n, p) =>
+        n +
+        Math.max(
+          0,
+          (p.visibleTextExcerpt?.length ?? 0) - BRAIN_VIEW_CAPS.pageTextChars,
+        ),
+      0,
+    );
+  const pageTextKept = pages
+    .slice(0, BRAIN_VIEW_CAPS.pages)
+    .reduce(
+      (n, p) =>
+        n +
+        Math.min(
+          p.visibleTextExcerpt?.length ?? 0,
+          BRAIN_VIEW_CAPS.pageTextChars,
+        ),
+      0,
+    );
+  add("page text", pageTextKept, pageTextDropped, "characters");
+
+  return out;
 }
 
 /** Build the durable INTERACTIVE summary from the observed state log. Pure. */
@@ -440,6 +559,10 @@ export function buildInteractiveSummary(input: {
       states.length > 0 ? interactiveClassification(states) : null,
     limitation: input.limitation,
     durationMs: input.durationMs,
+    ...(() => {
+      const t = viewTruncations(states, []);
+      return t.length > 0 ? { truncations: t } : {};
+    })(),
   };
 }
 
@@ -515,26 +638,37 @@ export function fieldTestForMap(summary: FieldTestSummary):
   const pageView = (p: FieldTestSummary["pages"][number]) => ({
     url: p.url,
     title: p.title,
-    ctas: p.ctas.slice(0, 8),
+    ctas: p.ctas.slice(0, BRAIN_VIEW_CAPS.ctasPerPage),
     ...(p.visibleTextExcerpt
-      ? { visibleTextExcerpt: p.visibleTextExcerpt.slice(0, 2000) }
+      ? {
+          visibleTextExcerpt: p.visibleTextExcerpt.slice(
+            0,
+            BRAIN_VIEW_CAPS.pageTextChars,
+          ),
+        }
       : {}),
   });
   if (summary.mode === "interactive") {
     return {
       mode: "interactive",
       classification: summary.classification,
-      states: summary.states.slice(0, MAX_INTERACTIONS + 4).map((s) => ({
+      states: summary.states.slice(0, BRAIN_VIEW_CAPS.states).map((s) => ({
         trigger: s.trigger,
-        visibleTextExcerpt: s.visibleTextExcerpt.slice(0, 800),
-        notableElements: s.notableElements.slice(0, 10),
+        visibleTextExcerpt: s.visibleTextExcerpt.slice(
+          0,
+          BRAIN_VIEW_CAPS.stateTextChars,
+        ),
+        notableElements: s.notableElements.slice(
+          0,
+          BRAIN_VIEW_CAPS.notableElementsPerState,
+        ),
         url: s.url,
       })),
       // The crawled pages ride along (bounded): an interactive product with readable pages can then
       // still be given a url-verifiable mission — the architect needs page TEXT to cite, and hiding
       // it here was why interactive plans drifted observation-only (the url-mission floor's cause).
       ...(summary.pages.length > 0
-        ? { pages: summary.pages.slice(0, 4).map(pageView) }
+        ? { pages: summary.pages.slice(0, BRAIN_VIEW_CAPS.pages).map(pageView) }
         : {}),
     };
   }

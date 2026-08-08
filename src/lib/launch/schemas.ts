@@ -222,6 +222,23 @@ export interface FieldTestState {
   delivered?: boolean;
 }
 
+/**
+ * One place where a cap dropped product content before the mission brain could read it.
+ *
+ * Caps are necessary — prompts have budgets. Caps that drop data in SILENCE are not: a 900-char fold
+ * cap kept ClawUp's pricing out of every corpus for weeks and no artifact said a word, so the missing
+ * pricing looked like the model's fault. Recording the loss turns an invisible starvation into a line
+ * a human (or the battery) can read.
+ */
+export interface Truncation {
+  /** what was cut, e.g. "state text", "elements per state", "crawled pages". */
+  at: string;
+  /** what the brain got, and what it never saw, in `unit`s. */
+  kept: number;
+  dropped: number;
+  unit: "characters" | "elements" | "pages" | "states";
+}
+
 export interface FieldTestSummary {
   /** true only when at least one page/state was actually browsed + captured. */
   ran: boolean;
@@ -238,6 +255,8 @@ export interface FieldTestSummary {
   /** an honest reason when the field test was skipped/degraded (null on success). */
   limitation: string | null;
   durationMs: number;
+  /** what the brain-view caps cost on THIS product (empty/absent = nothing was dropped). */
+  truncations?: Truncation[];
 }
 
 export interface ProductMapV1 {

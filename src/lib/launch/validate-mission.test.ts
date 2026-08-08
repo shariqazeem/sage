@@ -526,7 +526,7 @@ describe("the corpus admits observations, never Sage's own failures", () => {
 
   it("drops an UNDELIVERED action's trigger, so it can never anchor a mission", () => {
     expect(corpus).not.toContain("could not reach");
-    expect(anchorIssues(["could not reach \"MAP\""], corpus)).not.toEqual([]);
+    expect(anchorIssues({ anchors: ['could not reach "MAP"'] }, corpus)).not.toEqual([]);
   });
 
   it("still keeps what the page genuinely showed on that state", () => {

@@ -12,6 +12,7 @@ import {
   fingerprintDelta,
   buildFieldTestSummary,
   buildInteractiveSummary,
+  viewTruncations,
   interactiveClassification,
   canvasStrokes,
   explorationCounts,
@@ -700,5 +701,55 @@ describe("classifyWallKind", () => {
 
   it("password takes precedence, so a login form inside a wallet-branded page is still a login", () => {
     expect(classifyWallKind({ hasVisiblePassword: true, dialogText: "MetaMask WalletConnect", bodyText: "" })).toBe("password");
+  });
+});
+
+/**
+ * A cap that drops product content in silence is invisible until a founder finds the gap: a 900-char
+ * fold cap kept ClawUp's pricing out of every corpus for weeks and no artifact said a word. These lock
+ * the reporting in, and lock it to the SAME constants the view builder uses.
+ */
+describe("viewTruncations — the brain-view caps report what they cost", () => {
+  const st = (text: string, elements = 0): FieldTestState => ({
+    trigger: "clicked", screenshot: null, visibleTextExcerpt: text,
+    notableElements: Array.from({ length: elements }, (_, i) => ({ tag: "button", text: `b${i}`, role: "button" })),
+    pixelDeltaPct: 0, url: "https://x.test/",
+  });
+
+  it("reports NOTHING when the product fits under every cap (no false alarms)", () => {
+    expect(viewTruncations([st("short", 3)], [])).toEqual([]);
+  });
+
+  it("reports characters lost when a state's text overflows the fold", () => {
+    const t = viewTruncations([st("x".repeat(1000))], []);
+    const text = t.find((x) => x.at === "state text");
+    expect(text).toEqual({ at: "state text", kept: 800, dropped: 200, unit: "characters" });
+  });
+
+  it("sums the loss across every state the brain will actually receive", () => {
+    const t = viewTruncations([st("x".repeat(900)), st("y".repeat(1000))], []);
+    expect(t.find((x) => x.at === "state text")?.dropped).toBe(300);
+  });
+
+  it("reports elements the brain never sees on a control-dense screen", () => {
+    const t = viewTruncations([st("ok", 26)], []);
+    expect(t.find((x) => x.at === "elements per state")).toEqual({
+      at: "elements per state", kept: 10, dropped: 16, unit: "elements",
+    });
+  });
+
+  it("does not double-count text inside states that were themselves cut", () => {
+    // 40 states: 34 reach the brain, 6 do not — the 6 are reported as states, not again as text.
+    const many = Array.from({ length: 40 }, () => st("x".repeat(1000)));
+    const t = viewTruncations(many, []);
+    expect(t.find((x) => x.at === "states")).toEqual({ at: "states", kept: 34, dropped: 6, unit: "states" });
+    expect(t.find((x) => x.at === "state text")?.dropped).toBe(34 * 200);
+  });
+
+  it("rides on the built summary, so the loss lands in the artifact", () => {
+    const s = buildInteractiveSummary({
+      startUrl: "https://x.test/", states: [st("x".repeat(1000))], durationMs: 1, limitation: null,
+    });
+    expect(s.truncations?.find((x) => x.at === "state text")?.dropped).toBe(200);
   });
 });
