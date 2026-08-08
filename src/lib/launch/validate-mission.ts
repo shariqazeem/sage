@@ -221,6 +221,14 @@ export function buildObservationCorpus(observations: ProductObservation[], field
       push(s.visibleTextExcerpt);
       for (const e of s.notableElements ?? []) push(e.text);
     }
+    // Documentation Sage read because a wall blocked it. Sage genuinely fetched and read these pages,
+    // so their words ARE observed and may be cited — but they describe what is behind the wall, not
+    // what Sage watched happen. The mission gates still decide whether a criterion is checkable; this
+    // only makes honest documented text quotable instead of forcing the brain to invent.
+    for (const d of fieldTest.docs ?? []) {
+      push(d.title);
+      push(d.excerpt);
+    }
     for (const v of fieldTest.visionObservations ?? []) {
       push(v.sceneDescription);
       pushAll(v.visibleText);

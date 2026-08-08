@@ -56,6 +56,7 @@ import {
   affordanceKey,
 } from "./browser-controller";
 import type {
+  DocPage,
   FieldTestForm,
   FieldTestPage,
   FieldTestState,
@@ -446,6 +447,61 @@ export function buildFieldTestSummary(input: {
   };
 }
 
+/** Link text or path that names a product's own documentation. */
+const DOC_NAME =
+  /(^|[^a-z])(docs?|documentation|guide|guides|tutorial|learn|faq|help|whitepaper|litepaper|how[-\s]?it[-\s]?works|getting[-\s]?started|quickstart)([^a-z]|$)/i;
+/**
+ * Where a product's documentation conventionally lives, tried only when nothing was linked. Ordered
+ * by how likely each is to explain the product rather than the company.
+ */
+const DOC_FALLBACK_PATHS = [
+  "/docs",
+  "/documentation",
+  "/guide",
+  "/how-it-works",
+  "/learn",
+  "/faq",
+] as const;
+
+/**
+ * WHERE TO LOOK WHEN A WALL STOPS SAGE. Pure, so the ranking is testable without a browser.
+ *
+ * A wallet-connect or sign-in wall hides the half of a web3 product that actually matters. Sage
+ * cannot walk through it, but the product almost always DOCUMENTS what is behind it, and reading that
+ * is the difference between "I was blocked, here is a mission about your landing page" and "I was
+ * blocked, but your docs say a connected user lands on a portfolio view, so here is a mission for
+ * someone who has a wallet."
+ *
+ * Prefers paths the product itself LINKED (real navigation beats guessing), falls back to convention,
+ * and never returns the page Sage was already turned away from.
+ */
+export function docCandidates(
+  linked: { path: string; label: string }[],
+  opts: { exclude?: string[]; limit?: number } = {},
+): string[] {
+  const exclude = new Set(opts.exclude ?? []);
+  const limit = opts.limit ?? 3;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const take = (p: string) => {
+    const clean = p.split("#")[0];
+    if (!clean.startsWith("/") || seen.has(clean) || exclude.has(clean)) return;
+    seen.add(clean);
+    out.push(clean);
+  };
+  // 1. what the product linked and NAMED as documentation — the strongest signal there is.
+  for (const l of linked) {
+    if (out.length >= limit) break;
+    if (DOC_NAME.test(l.label) || DOC_NAME.test(l.path)) take(l.path);
+  }
+  // 2. convention, only to fill remaining slots.
+  for (const p of DOC_FALLBACK_PATHS) {
+    if (out.length >= limit) break;
+    take(p);
+  }
+  return out.slice(0, limit);
+}
+
 /**
  * What the {@link BRAIN_VIEW_CAPS} actually cost on THIS product. Pure, and deliberately derived from
  * the same constants the view builder uses, so the two can never disagree.
@@ -631,6 +687,9 @@ export function fieldTestForMap(summary: FieldTestSummary):
       }>;
       /** crawled PAGES that accompanied the exploration (url-anchored evidence for url missions). */
       pages?: Array<{ url: string; title: string; ctas: string[]; visibleTextExcerpt?: string }>;
+      /** DOCUMENTATION read because a wall blocked the product. Labelled separately so the brain can
+       *  never mistake "the product documents this" for "Sage watched this happen". */
+      docs?: Array<{ url: string; title: string; excerpt: string; soughtBecause: string }>;
     } {
   // 2000 chars per page for the architect (was 500): the missions must come from what Sage SAW, and
   // 500 chars is one hero section — pricing/features/how-it-works all live further down. Worst case
@@ -669,6 +728,9 @@ export function fieldTestForMap(summary: FieldTestSummary):
       // it here was why interactive plans drifted observation-only (the url-mission floor's cause).
       ...(summary.pages.length > 0
         ? { pages: summary.pages.slice(0, BRAIN_VIEW_CAPS.pages).map(pageView) }
+        : {}),
+      ...(summary.docs?.length
+        ? { docs: summary.docs.slice(0, BRAIN_VIEW_CAPS.pages) }
         : {}),
     };
   }
@@ -2368,6 +2430,13 @@ async function exploreInteractive(ctx: {
   const states: FieldTestState[] = [];
   let prevFp: StateFingerprint | null = null;
   let shotIdx = 0;
+  /** The wall that turned Sage away, if any — the trigger for the doc hunt after exploration ends. */
+  let wallNote: string | null = null;
+  /** Same-host paths the product LINKED, with their link text, harvested live. Raw material for
+   *  {@link docCandidates}; kept out here so it survives the exploration closure. */
+  const linkedPaths: { path: string; label: string }[] = [];
+  /** Routes Sage was turned away from — never offer them back to the doc hunt. */
+  const walledPaths: string[] = [];
 
   const sameOrigin = (u: string): boolean => {
     try {
@@ -3235,6 +3304,14 @@ async function exploreInteractive(ctx: {
                 : wallKind === "oauth"
                   ? "third-party sign-in required past this point"
                   : "login required past this point";
+            // Remember the wall for the doc hunt: Sage cannot walk through it, but the product almost
+            // always documents what is behind it, and reading that is what keeps the plan useful.
+            wallNote ??= note;
+            try {
+              walledPaths.push(new URL(page.url()).pathname);
+            } catch {
+              /* keep going */
+            }
             history.push({ action: "auth_wall", changed: true, note });
             if (wallHits >= 3) break;
             await page.goBack().catch(() => {});
@@ -3252,6 +3329,7 @@ async function exploreInteractive(ctx: {
       }
       // hand every discovered path back to the caller for the url-evidence crawl (bounded there).
       ctx.discoveredPathsOut?.push(...livePaths.keys());
+      for (const [path, label] of livePaths) linkedPaths.push({ path, label });
     };
 
     /** The scripted affordance ladder — the no-goal path, and now ALSO the FALLBACK when a
@@ -3395,15 +3473,56 @@ async function exploreInteractive(ctx: {
     /* exploration failed mid-way — keep whatever states we captured */
   }
 
-  return buildInteractiveSummary({
-    startUrl: ctx.startUrl,
-    states,
-    durationMs: Date.now() - ctx.started,
-    limitation:
-      states.length > 1
-        ? null
-        : "Interactive app detected, but exploration could not get past the first state.",
-  });
+  // THE DOC HUNT — only when a wall actually stopped Sage, so no ordinary product pays for it.
+  // Sage cannot walk through a connect-wallet or sign-in gate, but the product almost always writes
+  // down what is behind it. Reading that turns "I was blocked, here is a mission about your landing
+  // page" into a plan that knows what a connected user is supposed to see.
+  const docs: DocPage[] = [];
+  if (wallNote) {
+    const candidates = docCandidates(linkedPaths, { exclude: walledPaths });
+    for (const path of candidates) {
+      if (Date.now() > deadline) break; // the 3-minute wall clock still governs everything
+      try {
+        const target = new URL(path, ctx.startUrl);
+        if (!sameOrigin(target.toString())) continue; // the egress boundary is not negotiable
+        await page.goto(target.toString(), {
+          waitUntil: "domcontentloaded",
+          timeout: 10_000,
+        });
+        await page
+          .waitForLoadState("networkidle", { timeout: 4_000 })
+          .catch(() => {});
+        const excerpt = await renderedExcerpt(page);
+        // A doc page that renders nothing is not documentation — do not pad the map with empties.
+        if (excerpt.trim().length < 200) continue;
+        docs.push({
+          url: target.toString(),
+          title: (await page.title().catch(() => "")).slice(0, 140),
+          excerpt: excerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
+          soughtBecause: wallNote,
+        });
+        await capture(`read the docs at ${path} (blocked by the wall)`, {
+          kind: "load",
+          label: path,
+        });
+      } catch {
+        /* a doc page that will not load is simply not evidence — carry on */
+      }
+    }
+  }
+
+  return {
+    ...buildInteractiveSummary({
+      startUrl: ctx.startUrl,
+      states,
+      durationMs: Date.now() - ctx.started,
+      limitation:
+        states.length > 1
+          ? null
+          : "Interactive app detected, but exploration could not get past the first state.",
+    }),
+    ...(docs.length > 0 ? { docs } : {}),
+  };
 }
 
 /**

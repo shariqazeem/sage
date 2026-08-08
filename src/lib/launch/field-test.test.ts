@@ -13,6 +13,7 @@ import {
   buildFieldTestSummary,
   buildInteractiveSummary,
   viewTruncations,
+  docCandidates,
   interactiveClassification,
   canvasStrokes,
   explorationCounts,
@@ -751,5 +752,60 @@ describe("viewTruncations — the brain-view caps report what they cost", () => 
       startUrl: "https://x.test/", states: [st("x".repeat(1000))], durationMs: 1, limitation: null,
     });
     expect(s.truncations?.find((x) => x.at === "state text")?.dropped).toBe(200);
+  });
+});
+
+/**
+ * A wallet-connect or sign-in wall hides the half of a web3 product that matters. Sage cannot walk
+ * through it, but the product almost always documents what is behind it. These lock the RANKING: what
+ * the product itself linked and named beats convention, and a route Sage was just turned away from is
+ * never offered back as documentation.
+ */
+describe("docCandidates — where to look once a wall stops Sage", () => {
+  it("prefers a path the product LINKED and NAMED as documentation", () => {
+    const out = docCandidates([
+      { path: "/pricing", label: "Pricing" },
+      { path: "/developers", label: "Docs" },
+    ]);
+    expect(out[0]).toBe("/developers");
+  });
+
+  it("recognises documentation from the PATH even when the link text does not say so", () => {
+    expect(docCandidates([{ path: "/docs/getting-started", label: "Start here" }])[0]).toBe("/docs/getting-started");
+  });
+
+  it("falls back to convention only to fill the remaining slots", () => {
+    const out = docCandidates([{ path: "/learn", label: "Learn" }]);
+    expect(out[0]).toBe("/learn");
+    expect(out).toContain("/docs");
+  });
+
+  it("never offers back a route Sage was just walled out of", () => {
+    const out = docCandidates([{ path: "/docs", label: "Docs" }], { exclude: ["/docs"] });
+    expect(out).not.toContain("/docs");
+  });
+
+  it("ignores off-site and anchor-only links, and dedupes", () => {
+    const out = docCandidates([
+      { path: "https://docs.other.com", label: "Docs" },
+      { path: "/guide#top", label: "Guide" },
+      { path: "/guide", label: "Guide" },
+    ]);
+    expect(out.filter((p) => p === "/guide")).toHaveLength(1);
+    expect(out.every((p) => p.startsWith("/"))).toBe(true);
+  });
+
+  it("stays bounded — a doc hunt must never become a crawl", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ path: `/docs/${i}`, label: "Docs" }));
+    expect(docCandidates(many).length).toBeLessThanOrEqual(3);
+  });
+
+  it("does not mistake ordinary marketing words for documentation", () => {
+    const out = docCandidates([
+      { path: "/careers", label: "Careers" },
+      { path: "/blog", label: "Blog" },
+    ]);
+    expect(out).not.toContain("/careers");
+    expect(out).not.toContain("/blog");
   });
 });

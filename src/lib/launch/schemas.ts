@@ -223,6 +223,22 @@ export interface FieldTestState {
 }
 
 /**
+ * A documentation page Sage read BECAUSE a wall stopped it.
+ *
+ * Genuinely observed — Sage fetched and read this page — but it describes what lies BEHIND the wall
+ * rather than what Sage watched happen. Kept apart from `pages` on purpose: conflating "documented"
+ * with "observed" is how a mission comes to assert Sage saw a dashboard it only read about. The
+ * mission brain is told the difference, and criteria must still rest on something a tester can show.
+ */
+export interface DocPage {
+  url: string;
+  title: string;
+  excerpt: string;
+  /** the wall that sent Sage looking, e.g. "connect-wallet required past this point". */
+  soughtBecause: string;
+}
+
+/**
  * One place where a cap dropped product content before the mission brain could read it.
  *
  * Caps are necessary — prompts have budgets. Caps that drop data in SILENCE are not: a 900-char fold
@@ -257,6 +273,8 @@ export interface FieldTestSummary {
   durationMs: number;
   /** what the brain-view caps cost on THIS product (empty/absent = nothing was dropped). */
   truncations?: Truncation[];
+  /** documentation Sage read because a wall blocked the product itself (absent = none was sought). */
+  docs?: DocPage[];
 }
 
 export interface ProductMapV1 {
