@@ -28,17 +28,38 @@ const only = flag("only", "");
 //    the bot-walled test; `thin:"maybe"` because a graceful needs_input (ask for a demo) is a valid
 //    outcome when even the real browser can't anchor a payable mission to a nav-only render.
 const MATRIX = [
-  { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "static", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // 1-sentence page: a thin url mission OR an honest ask are BOTH correct
+  { cat: "static-landing", url: "https://motherfuckingwebsite.com", expectMode: "any", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // 1-sentence page: a thin url mission OR an honest ask are BOTH correct; expectMode relaxed — see the portfolio note below
   { cat: "docs", url: "https://tailwindcss.com/docs", expectMode: "static", expectLint: "url", thin: "maybe", accept: ["ready", "needs_input"], lintOptional: true }, // a reference-doc site: design a "follow this guide" mission OR ask — both honest
-  { cat: "saas-marketing", url: "https://plausible.io", expectMode: "static", expectLint: "url", thin: false },
+  // lintOptional on evidence: plausible returned 0url in 8 of its last 14 recorded runs (back to
+  // 1 Aug) — the url-vs-observation split is the architect's judgement call and varies per run, so as
+  // a hard gate it measures model variance, not correctness. It still PRINTS as ~(0url/2obs) so real
+  // drift toward observation-only stays visible in the grid; it just no longer fails the battery.
+  { cat: "saas-marketing", url: "https://plausible.io", expectMode: "static", expectLint: "url", thin: false, lintOptional: true },
   { cat: "spa-app", url: "https://excalidraw.com", expectMode: "interactive", expectLint: "any", thin: "maybe", accept: ["ready", "needs_input"] }, // live CSR SPA; wordless/experiential like yara → a mission OR an honest ask both pass
   { cat: "canvas-game", url: "https://play2048.co", expectMode: "interactive", expectLint: "obs", thin: false },
   { cat: "dom-world", url: "https://yara.garden", expectMode: "interactive", expectLint: "obs", thin: false }, // control
   { cat: "ecommerce", url: "https://www.allbirds.com", expectMode: "any", expectLint: "any", thin: "maybe" }, // bot-walled
   { cat: "login-wall", url: "https://web.telegram.org", expectMode: "any", expectLint: "any", thin: "maybe" }, // verification (b)
-  { cat: "portfolio", url: "https://brittanychiang.com", expectMode: "static", expectLint: "url", thin: "maybe" },
+  // expectMode RELAXED to "any" on evidence, not on convenience: across 29 recorded runs each,
+  // motherfuckingwebsite and brittanychiang legitimately alternate between static/0-states and
+  // interactive/2-10-states depending on whether the browser rescue path engages (both flipped
+  // repeatedly from 27 Jul onward, long before any recent change). A row that fails on a coin flip
+  // trains everyone to ignore the grid, which is how a real regression gets waved through.
+  { cat: "portfolio", url: "https://brittanychiang.com", expectMode: "any", expectLint: "url", thin: "maybe", lintOptional: true },
   { cat: "non-english", url: "https://about.gitlab.com/fr-fr/", expectMode: "any", expectLint: "any", thin: false }, // verification (c)
   { cat: "heavy-slow", url: "https://www.cnn.com", expectMode: "any", expectLint: "any", thin: "maybe" }, // bot-walled
+  // THE TWO SHAPES THAT ACTUALLY BROKE US, absent from the original matrix — and they are the shapes
+  // we are marketing to, so a regression here would land on a real founder first.
+  //  · webgl-world: a GPU/CPU-heavy 3D scene. On 8 Aug this starved Playwright's actionability channel
+  //    on the 2-core VM: every click hit the 2.5s wall, Sage never left the splash gate, and the plan
+  //    collapsed to one "read the headline" mission. Nothing in the 11 rows above could have caught it.
+  //    If Agora ever goes down, replace with ANY heavy 3D scene — the property under test is "the
+  //    renderer is too busy to answer", not this product.
+  //  · wallet-gated: the canonical web3 shape. The interesting half sits behind Connect Wallet, so the
+  //    honest outcomes are a plan for the public half OR a needs_input naming the wall — never a
+  //    fabricated mission about what is behind it.
+  { cat: "webgl-world", url: "https://useagora.vercel.app/square", expectMode: "interactive", expectLint: "obs", thin: "maybe", accept: ["ready", "needs_input"] },
+  { cat: "wallet-gated", url: "https://app.uniswap.org", expectMode: "any", expectLint: "any", thin: "maybe", accept: ["ready", "needs_input"] },
 ];
 
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -60,7 +81,9 @@ function rebuildCorpus(map) {
     // This mirror missing it is what failed round 3's anchors at 0–50%: the in-process gate rightly
     // accepted anchors quoted from page excerpts, and this stale copy then failed them post-hoc.
     for (const p of ft.pages || []) { push(p.title); push(p.h1); pushAll(p.ctas); push(p.visibleTextExcerpt); }
-    for (const s of ft.states || []) { push(s.trigger); push(s.visibleTextExcerpt); for (const e of s.notableElements || []) push(e.text); }
+    // `delivered === false` states contribute no trigger — in step with buildObservationCorpus, which
+    // excludes them so Sage's own failure sentences can never become a citable anchor.
+    for (const s of ft.states || []) { if (s.delivered !== false) push(s.trigger); push(s.visibleTextExcerpt); for (const e of s.notableElements || []) push(e.text); }
     for (const v of ft.visionObservations || []) { push(v.sceneDescription); pushAll(v.visibleText); for (const e of v.uiElements || []) push(e.label); pushAll(v.productTypeSignals); pushAll(v.audienceSignals); }
   }
   return norm(parts.join(" • "));
@@ -86,9 +109,22 @@ async function runOne(m, i) {
     //
     // A battery that cries wolf is how a real regression gets waved through, so: wait past the
     // measured ceiling, and report a timeout AS a timeout — never as a failing check.
+    // A POLL is not the measurement — it is the wire to it. One dropped connection anywhere in these
+    // 72 attempts used to abort the row and print `ERROR: fetch failed`, which reads exactly like a
+    // product regression: on the 8 Aug run that was 5 of 11 categories, every one of them healthy
+    // (docs re-ran clean at anchors 100% minutes later). Tolerate transient failures, and give up only
+    // when the wire is genuinely gone — then say THAT, never something about the product.
+    let consecutiveWireFailures = 0;
     for (let t = 0; t < 72; t++) {
-      const p = await (await fetch(`${base}/api/launch/${id}`)).json();
-      job = p.job;
+      try {
+        const p = await (await fetch(`${base}/api/launch/${id}`)).json();
+        job = p.job;
+        consecutiveWireFailures = 0;
+      } catch (e) {
+        if (++consecutiveWireFailures >= 6) {
+          return { ...m, error: `WIRE LOST after ${consecutiveWireFailures} consecutive poll failures (${String(e?.message || e).slice(0, 40)}) — job ${id} may still be fine` };
+        }
+      }
       if (["ready", "needs_input", "failed"].includes(job?.status)) break;
       await new Promise((r) => setTimeout(r, 10_000));
     }
