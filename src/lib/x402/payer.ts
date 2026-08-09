@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getAddress, type Address } from "viem";
 import type { GoatX402Client } from "goatx402-sdk-server";
 import { GOAT_CHAIN_ID, GOAT_USDC, isX402Live } from "./facilitator";
 import { agentAddress, transferUsdc, usdToWeiString } from "./goat-pay";
@@ -69,6 +70,47 @@ export function payAndCall<T>(opts: {
     transfer,
     client: client ? asMerchantClient(client) : null,
   });
+}
+
+/**
+ * RAIL 3 — open an order for a CAMPAIGN LAUNCH FEE and return where to pay it.
+ *
+ * Unlike the operator fee, Sage does not send this one: the FOUNDER does, from their own wallet, as
+ * the last call of the deploy bundle. So this opens the order and hands back `payToAddress`, and the
+ * bundle pays it.
+ *
+ * Going through the facilitator rather than transferring straight to our address is the whole point.
+ * An order means the payment registers at GOAT and appears in the merchant dashboard with an amount
+ * and a payer — revenue tracked without us building a ledger. A bare transfer would move the money
+ * and show up nowhere.
+ *
+ * Returns null when the rail is not configured, which the caller must treat as "do not charge"
+ * rather than "fail the launch": a founder should never be blocked by our billing being offline.
+ */
+export async function openCampaignFeeOrder(opts: {
+  dappOrderId: string;
+  amountBase: bigint;
+  fromAddress: Address;
+}): Promise<{ orderId: string; payToAddress: Address } | null> {
+  const client = goatClient();
+  if (!client) return null;
+  try {
+    const order = await client.createOrder({
+      dappOrderId: opts.dappOrderId,
+      chainId: GOAT_CHAIN_ID,
+      tokenSymbol: "USDC",
+      tokenContract: GOAT_USDC,
+      fromAddress: opts.fromAddress,
+      amountWei: opts.amountBase.toString(),
+    });
+    // An order with no payToAddress is the portal-vs-API parse failure, not a payable order. Paying
+    // a blank address would burn the founder's USDC, so refuse rather than guess.
+    if (!order?.payToAddress) return null;
+    return { orderId: order.orderId, payToAddress: getAddress(order.payToAddress) };
+  } catch {
+    // Billing being down must never cost a founder their launch.
+    return null;
+  }
 }
 
 /**
