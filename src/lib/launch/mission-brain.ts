@@ -574,6 +574,24 @@ export async function runMissionBrain(
         .filter((_m, i) => gatedReports[i].ok)
         .map((m) => ({ ...m, verifiabilityClass: classifyVerifiability(m) }));
       if (gatedAccepted.length > 0) r = { ...r, accepted: [...r.accepted, ...gatedAccepted] };
+
+      /**
+       * THE COVERAGE CONFESSION — a founder-named action with NO surviving mission is said out
+       * loud, never shipped around in silence.
+       *
+       * This exact silence is how the clawup founder asked "make an account and try to launch an
+       * agent" and received brand-asset trivia with no hint anything was missing: detection fired,
+       * synthesis was attempted, the validator dropped it (correctly — nothing anchorable), and the
+       * plan simply shipped smaller. Detection and synthesis are fixed upstream; this line covers
+       * the residue, because there will always be residue — a product whose docs never name the
+       * action, a wall with no doorway text. An advisory question costs the founder five seconds;
+       * discovering the gap after funding costs their trust.
+       */
+      const stillUncovered = uncovered.filter((a) => !alreadyCovered(a, r.accepted));
+      for (const a of stillUncovered) {
+        const q = `Your goal asks for "${a.sourcePhrase.slice(0, 120)}", but Sage could not anchor a mission for that step on anything it observed or read — the plan covers the rest of your goal without it. Reply if you want to proceed anyway, or tell Sage where that step lives (a URL or doc) and it will re-plan.`;
+        if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
+      }
     }
   } catch {
     /* a synthesized extra is a bonus, never a reason the whole plan fails */
