@@ -12,6 +12,8 @@
  * allocation invariant (Σ rewardBase × maxCompletions === total) is still enforced by allocateBudget.
  */
 
+import { TANGIBLE_REGIME_USD, TANGIBLE_SLOT_USD } from "./budget";
+
 /** How many independent testers a qualitative, plural request prefers. */
 export const PREFERRED_SAMPLE = 3;
 
@@ -209,10 +211,30 @@ export function applySamplePolicy<T extends SampleMission>(
   /** How many CEILING-RATE rewards this mission's pot funds (0 when the pot can't even pay one at
    *  the fair ceiling — a small budget, which the fair-floor plural path then handles by preferring
    *  fewer, better-paid testers or asking). Null without effort data. */
+  const maxBigint = (a: bigint, b: bigint): bigint => (a > b ? a : b);
   const byEffortCount = (m: T): number | null => {
     const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase);
     if (!ceiling) return null;
-    return Math.min(MAX_SAMPLE, Number(shareOf(m) / ceiling));
+    /**
+     * THE TANGIBLE FLOOR ON THE DIVISOR — the founder's overrule of the crowd philosophy.
+     *
+     * This function decides how many testers a pot funds, and dividing by the effort ceiling
+     * (~$0.20/min) meant a $110 pot "funded" ~40 completions of short missions at $0.60 each.
+     * Verbatim from the founder: "instead of paying 1 usdc to 20 people, no one will do — but if
+     * one will get 5 usdc, they still think to do." Measured tester supply (~11 lifetime
+     * submissions) agrees: those 40 slots were capacity for a crowd that does not exist.
+     *
+     * So inside the tangible regime (real campaigns; the measured absorption ceiling is ~$300) the
+     * divisor is floored at one tangible reward: "how many testers can this pot pay SOMETHING WORTH
+     * TAKING". Above the regime the effort ceiling still owns the answer — at $50k, $5 rewards
+     * would be the absurdity, and the crowd assertions in budget-scale.test.ts still hold.
+     */
+    const inTangibleRegime =
+      Number(opts.totalBudgetBase) / 1_000_000 <= TANGIBLE_REGIME_USD;
+    const divisor = inTangibleRegime
+      ? maxBigint(ceiling, BigInt(TANGIBLE_SLOT_USD * 1_000_000))
+      : ceiling;
+    return Math.min(MAX_SAMPLE, Number(shareOf(m) / divisor));
   };
 
   /**

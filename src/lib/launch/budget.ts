@@ -43,6 +43,62 @@ function ordered(missions: WeightedMission[]): WeightedMission[] {
   );
 }
 
+/** One slot per this many dollars — the founder's own sizing ("$20 → someone gets $5"). */
+export const TANGIBLE_SLOT_USD = 5;
+
+/**
+ * How many completions a budget can pay TANGIBLY: about one per $5, never fewer than 3 (a plan
+ * should not rest on a single data point), never more than 25 (past that, rewards thin out no
+ * matter the budget). $20 → 4 slots ≈ $5 each. $500 → 25 slots ≈ $20 each. Pure, so the policy is
+ * testable arithmetic rather than a model's mood.
+ */
+export function tangibleSlotTarget(totalBudgetBase: bigint): number {
+  const usd = Number(totalBudgetBase) / 1_000_000;
+  return Math.max(3, Math.min(25, Math.floor(usd / TANGIBLE_SLOT_USD)));
+}
+
+/**
+ * Trim the plan's total slots to the tangible target, lowest-priority missions first, each mission
+ * keeping at least 1. Never drops a mission (mission count is the architect's call) and never adds
+ * slots. Returns missions in their ORIGINAL order — the allocator re-orders for itself.
+ */
+/** Above this, the effort-anchored fairness machinery owns sizing: a $50k budget concentrated into
+ *  25 slots would pay $2,000 a person, which is absurd in the OTHER direction (and a Sybil magnet).
+ *  Measured absorption ceiling is ~$300, so every real campaign lives far below this line. */
+export const TANGIBLE_REGIME_USD = 600;
+
+export function applyTangibleCaps(missions: WeightedMission[], totalBudgetBase: bigint): WeightedMission[] {
+  if (Number(totalBudgetBase) / 1_000_000 > TANGIBLE_REGIME_USD) return missions;
+  const target = Math.max(tangibleSlotTarget(totalBudgetBase), missions.length);
+  const caps = new Map(missions.map((m) => [m.missionKey, Number(clampCap(m.suggestedMaxCompletions))]));
+  let total = [...caps.values()].reduce((s, c) => s + c, 0);
+  if (total <= target) return missions;
+  // Proportional first, floored, so relative sizes survive; then peel single slots off the
+  // lowest-priority end until the target holds exactly.
+  for (const m of missions) {
+    const c = caps.get(m.missionKey) ?? 1;
+    caps.set(m.missionKey, Math.max(1, Math.floor((c * target) / total)));
+  }
+  total = [...caps.values()].reduce((s, c) => s + c, 0);
+  const lowestFirst = ordered(missions).reverse();
+  let guard = 0;
+  while (total > target && guard < 10_000) {
+    guard++;
+    let trimmed = false;
+    for (const m of lowestFirst) {
+      const c = caps.get(m.missionKey) ?? 1;
+      if (c > 1) {
+        caps.set(m.missionKey, c - 1);
+        total--;
+        trimmed = true;
+        if (total <= target) break;
+      }
+    }
+    if (!trimmed) break; // every mission is at 1 — nothing left to concentrate
+  }
+  return missions.map((m) => ({ ...m, suggestedMaxCompletions: caps.get(m.missionKey) ?? 1 }));
+}
+
 const clampCap = (n: number): bigint => {
   const c = Math.max(1, Math.min(Number(MAX_COMPLETIONS), Math.floor(Number.isFinite(n) ? n : 1)));
   return BigInt(c);
@@ -71,6 +127,26 @@ export function allocateBudget(
   };
 
   if (input.length === 0) return { ...empty, reason: "no missions to fund" };
+
+  /**
+   * THE TANGIBLE-REWARD PASS — a payout has to feel earned, or nobody takes the mission.
+   *
+   * The compiler used to accept the architect's slot counts wholesale, so a $20 budget became
+   * $1 × 20 people: nobody does real testing work for a dollar, and the measured tester supply
+   * (~11 lifetime submissions) means those 20 slots were capacity for a crowd that does not exist.
+   * The founder's own sizing, verbatim: "instead of paying 1 usdc to 20 people, no one will do —
+   * but if one will get 5 usdc, they still think to do." One good mission paying something tangible
+   * beats three missions paying cents.
+   *
+   * So the PLAN's total slots are trimmed to a budget-derived target — about one slot per $5,
+   * never fewer than 3 (a plan should not be a single data point) and never more than 25 (past
+   * that, per-person rewards thin out no matter the budget). Caps scale down proportionally, each
+   * mission keeps at least 1, and when the mission COUNT alone exceeds the target nothing is
+   * dropped here — how many missions exist is the architect's call; how thin the money spreads is
+   * not. Everything downstream (share rule, balancer, exactness) is untouched: same B over fewer
+   * completions is precisely how each reward gets bigger.
+   */
+  input = applyTangibleCaps(input, B);
   if (B < MIN) {
     return {
       ...empty,

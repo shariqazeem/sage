@@ -38,15 +38,19 @@ const run = (missions: SampleMission[], budget: number, goal = "test my product"
     minRewardBase: MIN,
   });
 
-describe("the founder's exact case", () => {
-  it("turns $10 for 5-minute work into ten testers, not two at $5", () => {
+describe("the founder's exact case — OVERRULED 2026-08-10, and the overrule is the spec now", () => {
+  // This block once demanded $10 → 10 testers at $1.00, and called 2 × $5 "the bug". The founder
+  // reversed it verbatim: "instead of paying 1 usdc to 20 people, no one will do — but if one will
+  // get 5 usdc, they still think to do." Measured tester supply (~11 lifetime submissions) sides
+  // with them: $1 rewards sat unfilled. Inside the tangible regime a reward is never sliced below
+  // one worth taking; the ceiling half of the old rule (never $5/minute absurdity) lives on below.
+  it("turns $10 for 5-minute work into two tangibly-paid testers, not ten at $1", () => {
     const r = run([mission({ effortMinutes: 5, maxCompletions: 2 })], 10);
-    expect(r.missions[0]!.maxCompletions).toBe(10);
-    // $10 / 10 = $1.00 each — at the $0.20/minute ceiling for 5 minutes.
-    expect(USD(10) / BigInt(r.missions[0]!.maxCompletions)).toBe(USD(1));
+    expect(r.missions[0]!.maxCompletions).toBe(2);
+    expect(USD(10) / BigInt(r.missions[0]!.maxCompletions)).toBe(USD(5));
   });
 
-  it("was 2 under the old behaviour, which is the bug", () => {
+  it("no effort estimate keeps the pre-effort path exactly", () => {
     // Same mission with no effort estimate keeps the pre-effort path.
     const r = run([mission({ effortMinutes: undefined, maxCompletions: 2 })], 10);
     expect(r.missions[0]!.maxCompletions).toBe(2);
@@ -103,19 +107,22 @@ describe("bounds", () => {
 });
 
 describe("the overpay rule applies whether or not the goal is plural", () => {
-  it("fires on a singular goal", () => {
+  it("still bounds the count on a singular goal — at the TANGIBLE divisor, not the $1 ceiling", () => {
     const r = run([mission({ effortMinutes: 5, maxCompletions: 2 })], 10, "check the signup works");
-    expect(r.missions[0]!.maxCompletions).toBe(10);
-    expect(r.adjusted).toBe(true);
+    // $10 funds two $5 rewards; the pre-overrule assertion here was 10 × $1, which nobody took.
+    expect(r.missions[0]!.maxCompletions).toBe(2);
   });
 
-  it("fires on a plural goal too", () => {
+  it("a plural goal still buys its 3-person sample — the one case that outranks concentration", () => {
+    // The founder asked for PEOPLE, plural, and one or two accounts of a subjective flow is an
+    // anecdote. Three at $3.33 each stays well above cents while honoring the sample the goal
+    // itself requested; the min-3 floor in tangibleSlotTarget encodes the same judgement.
     const r = run(
       [mission({ effortMinutes: 5, maxCompletions: 2 })],
       10,
       "I want several users to try the signup",
     );
-    expect(r.missions[0]!.maxCompletions).toBe(10);
+    expect(r.missions[0]!.maxCompletions).toBe(3);
   });
 });
 
@@ -128,7 +135,8 @@ describe("a mission's share is what pays its sample, not the whole budget", () =
       ],
       10,
     );
-    // $5 each ÷ ($0.20 × 5) = 5 testers per mission, not 10.
-    for (const m of r.missions) expect(m.maxCompletions).toBe(5);
+    // $5 share each ÷ one TANGIBLE reward ($5) = 1 tester per mission — the share rule still holds
+    // (neither mission raids the other's pot), each tester simply earns something worth taking.
+    for (const m of r.missions) expect(m.maxCompletions).toBe(1);
   });
 });

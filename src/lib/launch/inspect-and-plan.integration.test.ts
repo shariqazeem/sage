@@ -93,8 +93,12 @@ describe("live inspection pipeline — Eyes V2 reachability", () => {
     expect(r.stage).toBe("ready");
     expect(r.plan!.totalBudgetBase).toBe(BigInt(30_000_000));
     const alloc = r.allocation!.missions[0]!;
-    expect(alloc.rewardBase).toBe(BigInt(600_000)); // exactly the 3-minute fair ceiling
-    expect(alloc.maxCompletions).toBe(BigInt(50)); // the surplus bought testers, not inflation
+    // OVERRULED 2026-08-10 (founder, verbatim: "instead of paying 1 usdc to 20 people, no one will
+    // do"): the capacity cap still bounds the SPEND at $30 (asserted above, unchanged) — but the
+    // surplus now buys TANGIBLE rewards, not fifty $0.60 slots for a tester crowd that measured
+    // ~11 lifetime submissions. Same $30, six people who actually take the mission.
+    expect(alloc.rewardBase).toBe(BigInt(5_000_000)); // one tangible reward
+    expect(alloc.maxCompletions).toBe(BigInt(6)); // 6 x $5 spends the $30 capacity exactly
     expect(r.questions.join(" ")).toMatch(/stays with you/);
     expect(r.questions.join(" ")).toContain("$883.00");
   });

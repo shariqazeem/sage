@@ -284,7 +284,9 @@ describe("the capped allocation chain lands at fair per-tester rewards", () => {
     return { effective, unspent: total - effective, missionsOut };
   }
 
-  it("the excalidraw case: $913 on one 5-minute mission pays $1.00 x 50, not $18.26 x 50", () => {
+  it("the excalidraw case: $913 on one 5-minute mission pays tangible rewards, not $18.26 x 50", () => {
+    // OVERRULED 2026-08-10: this pinned $1.00 × 50 — fifty rewards nobody took. Capacity still
+    // bounds the spend at $50; the tangible divisor now bounds the slots, so it pays $5 × 10.
     const r = compileChain(
       [{ missionKey: "canvas", weight: 3, suggestedMaxCompletions: 50, priority: "medium", effortMinutes: 5, qualitative: true }],
       913,
@@ -292,8 +294,8 @@ describe("the capped allocation chain lands at fair per-tester rewards", () => {
     expect(r.effective).toBe(BigInt(50_000_000));
     expect(r.unspent).toBe(BigInt(863_000_000));
     const m0 = r.missionsOut[0]!;
-    expect(m0.rewardBase).toBe(BigInt(1_000_000)); // exactly the 5-minute ceiling
-    expect(m0.maxCompletions).toBe(BigInt(50));
+    expect(m0.rewardBase).toBe(BigInt(5_000_000)); // one tangible reward, not fifty $1 slots
+    expect(m0.maxCompletions).toBe(BigInt(10)); // 10 x $5 spends the same $50 capacity exactly
   });
 
   it("the play2048 case: $914 across three short missions spends capacity exactly and nothing absurd", () => {
@@ -309,14 +311,19 @@ describe("the capped allocation chain lands at fair per-tester rewards", () => {
     expect(r.effective).toBe(BigInt(110_000_000));
     const spent = r.missionsOut.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
     expect(spent).toBe(r.effective); // exactness held at the capped budget
+    // FOUNDER OVERRULE (2026-08-10): this assertion used to demand >=100 slots — the budget "buys a
+    // crowd". Measured tester supply is ~11 lifetime submissions, and the founder's sizing is
+    // verbatim: "instead of paying 1 usdc to 20 people, no one will do — but if one will get 5
+    // usdc, they still think to do." Capacity still bounds the SPEND ($110, exactness held above);
+    // the tangible pass now bounds the SLOTS, so each tester earns something worth taking.
     const totalTesters = r.missionsOut.reduce((s, m) => s + Number(m.maxCompletions), 0);
-    expect(totalTesters).toBeGreaterThanOrEqual(100); // the budget buys a crowd, not a jackpot
+    expect(totalTesters).toBeLessThanOrEqual(25); // concentrated, not a crowd that does not exist
+    expect(totalTesters).toBeGreaterThanOrEqual(3); // and never a single data point
     for (const m of r.missionsOut) {
-      // The balancer's exact-remainder divisor search can still land one mission a few multiples of
-      // its ceiling (the remainder must divide exactly) — but never the measured absurdity: this
-      // exact plan shape allocated $66.47 per 3-minute completion on prod before the cap.
-      expect(Number(m.rewardBase), `${m.missionKey} pays $${Number(m.rewardBase) / 1e6}`).toBeLessThanOrEqual(3_000_000);
-      expect(m.rewardBase).toBeGreaterThanOrEqual(MIN_REWARD_BASE);
+      // Tangible but never absurd: the balancer's exact-remainder search stays bounded well under
+      // the $66.47-per-3-minutes measured on prod before the capacity cap existed.
+      expect(Number(m.rewardBase), `${m.missionKey} pays $${Number(m.rewardBase) / 1e6}`).toBeLessThanOrEqual(30_000_000);
+      expect(m.rewardBase).toBeGreaterThanOrEqual(BigInt(1_000_000)); // nothing pays cents anymore
     }
   });
 

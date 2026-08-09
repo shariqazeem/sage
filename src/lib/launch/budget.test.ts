@@ -131,3 +131,77 @@ describe("allocateBudget — infeasible + edge budgets", () => {
     expect(sum(r.missions)).toBe(BigInt(750_000));
   });
 });
+
+/**
+ * THE TANGIBLE-REWARD PASS — the founder's sizing, verbatim: "instead of paying 1 usdc to 20
+ * people, no one will do — but if one will get 5 usdc, they still think to do." Measured tester
+ * supply (~11 lifetime submissions) says the same thing: slots for a crowd that does not exist.
+ */
+import { applyTangibleCaps, tangibleSlotTarget, TANGIBLE_SLOT_USD, TANGIBLE_REGIME_USD } from "./budget";
+
+const usdc = (n: number) => BigInt(Math.round(n * 1_000_000));
+const wm = (key: string, cap: number, priority: "high" | "medium" | "low" = "medium", weight = 5) => ({
+  missionKey: key, suggestedMaxCompletions: cap, weight, effortMinutes: 10, priority,
+});
+
+describe("tangibleSlotTarget", () => {
+  it("is about one slot per $5, clamped to [3, 25]", () => {
+    expect(TANGIBLE_SLOT_USD).toBe(5);
+    expect(tangibleSlotTarget(usdc(20))).toBe(4);   // the founder's own example: ~$5 each
+    expect(tangibleSlotTarget(usdc(500))).toBe(25); // ~$20 each — feels earned
+    expect(tangibleSlotTarget(usdc(10))).toBe(3);   // floor: never a single data point
+    expect(tangibleSlotTarget(usdc(600))).toBe(25); // ceiling of the tangible regime
+  });
+});
+
+describe("applyTangibleCaps", () => {
+  it("turns $1 x 20 into concentrated rewards on a $20 budget", () => {
+    const out = applyTangibleCaps([wm("a", 20, "high")], usdc(20));
+    expect(out[0].suggestedMaxCompletions).toBe(4); // $20 / 4 = $5 per person
+  });
+
+  it("trims the LOWEST-priority mission first and keeps original order", () => {
+    const out = applyTangibleCaps(
+      [wm("low1", 10, "low"), wm("hi", 10, "high")],
+      usdc(20), // target 4
+    );
+    expect(out.map((m) => m.missionKey)).toEqual(["low1", "hi"]); // order untouched
+    const low = out[0].suggestedMaxCompletions;
+    const hi = out[1].suggestedMaxCompletions;
+    expect(low + hi).toBe(4);
+    expect(hi).toBeGreaterThanOrEqual(low); // the founder's ask keeps more of its slots
+  });
+
+  it("never drops a mission and never goes below 1 each, even when count exceeds the target", () => {
+    const five = ["a", "b", "c", "d", "e"].map((k) => wm(k, 6));
+    const out = applyTangibleCaps(five, usdc(20)); // target 4 < 5 missions
+    expect(out).toHaveLength(5);
+    for (const m of out) expect(m.suggestedMaxCompletions).toBe(1);
+  });
+
+  it("stands aside above the tangible regime — large budgets belong to the fairness machinery", () => {
+    expect(TANGIBLE_REGIME_USD).toBe(600);
+    const big = applyTangibleCaps([wm("a", 50), wm("b", 50)], usdc(50_000));
+    expect(big.map((m) => m.suggestedMaxCompletions)).toEqual([50, 50]); // untouched
+  });
+
+  it("is a no-op when the plan is already concentrated", () => {
+    const out = applyTangibleCaps([wm("a", 2), wm("b", 2)], usdc(20));
+    expect(out.map((m) => m.suggestedMaxCompletions)).toEqual([2, 2]);
+  });
+
+  it("keeps the exactness invariant end to end through allocateBudget", () => {
+    const alloc = allocateBudget(
+      [wm("hero", 20, "high", 8), wm("side", 10, "low", 3)],
+      usdc(20),
+    );
+    expect(alloc.ok).toBe(true);
+    const total = alloc.missions.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
+    expect(total).toBe(usdc(20)); // Σ(reward × slots) === budget, exactly
+    const slots = alloc.missions.reduce((s, m) => s + Number(m.maxCompletions), 0);
+    expect(slots).toBeLessThanOrEqual(4);
+    for (const m of alloc.missions) {
+      expect(m.rewardBase).toBeGreaterThanOrEqual(usdc(1)); // nothing pays cents anymore
+    }
+  });
+});
