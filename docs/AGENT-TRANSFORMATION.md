@@ -16,6 +16,7 @@ what the founder wants"; never fail, never hang, feel alive on both doors.*
 | Caps that starve in silence | FIXED | every brain-view cap self-reports; starvation visible per run |
 | Money rails (operator fee, launch fee) | FIXED + BUILT | 9/9 fees settled with receipts; 10% launch fee deployed, disarmed |
 | Revenue honesty | BUILT | self_funded split; third-party-only figure for GOAT |
+| Tangible rewards (founder overrule) | FIXED | $20 → 4×$5 not 20×$1; six old-philosophy pins rewritten; regime line at $600 |
 
 ## The model matrix (the "right model per job" ask)
 
