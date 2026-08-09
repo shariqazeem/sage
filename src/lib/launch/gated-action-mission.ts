@@ -28,10 +28,14 @@ import type { CandidateMission, MissionPriority, SourceRef } from "./schemas";
  *      surface, the purchase control — so it passes the same anchor gate as every other mission. The
  *      action happens beyond Sage's reach; the doorway does not.
  *
- *   3. VERIFIED BY AN ARTIFACT, NOT BY SAGE'S MEMORY. Sage has no corpus for a screen it never
- *      loaded, so an observation-based mission here would be unjudgeable. These are url-verifiable:
- *      the tester supplies a reachable page and quotes text from it, which the payout lane fetches
- *      and checks. That is the one verification route that works for something Sage did not witness.
+ *   3. VERIFIED AGAINST WHAT THE PRODUCT WROTE DOWN. Originally these were forced url-verifiable
+ *      ("Sage has no corpus for a screen it never loaded") — but a URL behind auth cannot be
+ *      fetched either; the payout lane would hit the login wall. Since 2026-08-10 the private key
+ *      is fed by the DOCUMENTATION Sage read (`doc:` sources in distillPrivateKey), so the
+ *      observation lane genuinely can judge these: the tester's own-words account must match the
+ *      product's documented labels and order, and read as lived experience. That is the founder's
+ *      explicit ask — "verify the evidence based on its learning of browsing and product
+ *      learning, not whether it browsed that part".
  */
 
 /** A boundary Sage must not cross. Mirrors `intent-guard`'s families, which is the point: the same
@@ -291,6 +295,13 @@ export function buildGatedActionMission(
     evidenceRequirements: [
       "The url of the page shown after the step completed.",
       "The exact heading or line of text on that page that shows the result.",
+      // THE QUESTIONS ONLY LIVED EXPERIENCE ANSWERS. Sage cannot walk through this gate, so its
+      // judge verifies the tester's words against what the product's own documentation says is
+      // behind it (the doc-fed private key) plus the account's coherence. A copy-paste of the
+      // mission text scores nothing; naming the actual screens, in order, with their real labels,
+      // is what a person who genuinely did it writes without trying.
+      `In your own words: what did the screen show immediately after ${noun} completed? Name the first thing you could do next, using the exact label shown.`,
+      "Which step tripped you up or took longest, and what did the product call it on screen?",
     ],
     whyItMatters: `The founder asked for this specifically: "${action.sourcePhrase}". Sage can see where it begins but must never pay, sign, or register on anyone's behalf, so this is the part only a person can carry out.`,
     // EVERY MISSION MUST CITE SOMETHING SAGE OBSERVED, and this one nearly shipped citing nothing.
@@ -325,7 +336,7 @@ export function buildGatedActionMission(
     // fairly.
     maxCompletions: 3,
     verificationMethod:
-      "Sage fetches the url the tester provides and checks that the quoted text is really on that page.",
+      "Sage judges the account against the product's own documentation of what lies behind this gate (its doc-fed private key) plus the coherence of a lived, in-order description — a URL behind auth cannot be fetched, so the tester's words carry the proof.",
     confidence: 0.9,
     anchors: [action.gateAnchor],
     assumptions: [

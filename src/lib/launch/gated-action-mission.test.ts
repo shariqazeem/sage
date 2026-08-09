@@ -90,11 +90,14 @@ describe("the mission survives the real gates", () => {
     productName: "ClawUp",
   });
 
-  it("classifies as url-verifiable, which is the only lane that can judge it", () => {
+  it("classifies as observation-based — the lane the doc-fed key can actually judge", () => {
+    // Flipped 2026-08-10 with the doc-fed private key: a URL behind auth cannot be fetched (the
+    // payout lane would hit the login wall), so the tester's own-words account judged against the
+    // documented labels IS the verification. The old url-verifiable pin predates doc sources.
     // Sage has no corpus for a screen it never loaded, so observation-based here is unjudgeable.
     // This is a deterministic regex gate over the mission's own text — it either reads as
     // reach-a-url-and-quote-text or it does not.
-    expect(classifyVerifiability(mission)).toBe("url-verifiable");
+    expect(classifyVerifiability(mission)).toBe("observation-based");
   });
 
   // `buildObservationCorpus` returns a NORMALIZED blob (lowercased, whitespace collapsed) and the
@@ -366,7 +369,7 @@ describe("it must survive the FULL validator, not just the parts I remembered", 
     it("is still judged in the only lane that can judge it", () => {
       // The objective is what `classifyVerifiability` reads, and it is deliberately fixed wording.
       // Founder text lands in the instructions precisely so it can never flip the lane.
-      expect(classifyVerifiability(m)).toBe("url-verifiable");
+      expect(classifyVerifiability(m)).toBe("observation-based");
     });
   });
 });

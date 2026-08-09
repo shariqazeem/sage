@@ -13,6 +13,8 @@ import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-s
 import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { executeSequenceViaPrivy } from "./executor";
+import { distillPrivateKey } from "@/lib/deputy/observation-verify";
+import { explorationCounts } from "@/lib/launch/field-test";
 import { campaignFeeBase, isSelfFunded } from "@/lib/x402/campaign-fee";
 import { campaignFeeEnabled, operatorChatId, operatorWallets } from "@/lib/x402/fee-config";
 import { openCampaignFeeOrder } from "@/lib/x402/payer";
@@ -178,9 +180,40 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
     rewardBase: BigInt(m.rewardBase),
     maxCompletions: BigInt(m.maxCompletions),
   }));
+  /**
+   * PIN THE PRIVATE ANSWER KEY — the walletless door was launching campaigns with NO corpus.
+   *
+   * The web attach route has always distilled the field test into the pinned key the observation
+   * judge verifies testers against; this path never did, so a campaign launched from Telegram
+   * carried privateCorpusSources = 0 — its observation missions could never clear the judging bar
+   * and the marketplace filter (rightly) hid them from the board. The two doors sold the same
+   * product with different guarantees, which is exactly the inconsistency the founder told us to
+   * kill. Same distiller, same public-string parrot exclusion, same exploration counts, byte for
+   * byte with the web route — including the doc-derived sources that make GATED missions judgeable.
+   */
+  const ftForKey =
+    (job?.result as { map?: { fieldTest?: import("@/lib/launch/schemas").FieldTestSummary | null } } | undefined)
+      ?.map?.fieldTest ?? null;
+  const publicStrings = loaded.plan.missions.flatMap((m) => [
+    m.title,
+    m.objective,
+    m.instructions,
+    m.targetSurface,
+    ...(m.criteria ?? []),
+    ...(m.evidenceRequirements ?? []),
+    ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
+  ]);
+  const privateKey = distillPrivateKey(ftForKey, publicStrings);
+  const explored = explorationCounts(ftForKey);
+
   const attach = await attachV2Campaign(
     {
       publicCampaignId: loaded.plan.publicCampaignId,
+      privateCorpus: privateKey.observations,
+      privateCorpusDigest: privateKey.digest,
+      privateCorpusSources: privateKey.distinctSources,
+      exploredScreens: explored.screens,
+      exploredElements: explored.elements,
       title: campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: settings.chainId,

@@ -162,6 +162,30 @@ export function distillPrivateKey(
       (v.visibleText ?? []).forEach((t) => add(s, t));
       (v.uiElements ?? []).forEach((e) => add(s, e.label));
     });
+    /**
+     * DOCUMENTATION SAGE READ — the only knowledge it has of the territory behind a wall, and
+     * therefore the only key that can ever verify a gated mission.
+     *
+     * Without these sources, a tester who genuinely creates an account and describes the real
+     * console can never match anything: Sage has no states from behind the wall, the account of
+     * lived experience scores zero, and the mission the founder most wanted holds forever. That is
+     * the exact inversion of the product's promise. With them, the words the product uses for its
+     * own gated screens — step names, button labels, the quickstart's phrasing — become matchable,
+     * which is what the founder asked for in so many words: "verify the evidence based on its
+     * learning of browsing and product learning, not whether it browsed that part".
+     *
+     * The honest trade, stated rather than hidden: docs are public, so a determined reader could
+     * mine them without touching the product. That is why doc observations carry their own `doc:`
+     * source prefix — the judge and the bar can see which kind of knowledge a match came from —
+     * and why the LLM coherence check (does this read as a lived account, in order, with friction?)
+     * still sits on top of every deterministic match. The alternative — never auto-paying gated
+     * work — was overruled by the founder explicitly.
+     */
+    (ft.docs ?? []).forEach((d, i) => {
+      const s = `doc:${i}`;
+      add(s, d.title);
+      add(s, d.excerpt);
+    });
   }
 
   // P20.0/P21 anti-inflation: a text that recurs across ≥ OBS_MAX_SOURCE_SPREAD distinct sources is
