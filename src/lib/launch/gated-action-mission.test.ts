@@ -370,3 +370,64 @@ describe("it must survive the FULL validator, not just the parts I remembered", 
     });
   });
 });
+
+/**
+ * THE CLAWUP RUN THAT SHIPPED TRIVIA — pinned so it cannot happen the same way again.
+ *
+ * Goal, verbatim from the founder's chat: "explore clawup, make an account and try to launch an
+ * agent and explore how it works". The plan came back "Verify Brand Asset Link Integrity" and
+ * "Review Service Definitions in Terms", because "make an account" matched no family (only "create")
+ * and "launch an agent" — the entire point of the campaign — had no family at all.
+ */
+describe("the clawup goal, verbatim", () => {
+  const GOAL = "explore clawup, make an account and try to launch an agent and explore how it works";
+  const OBSERVED = [
+    "Sign In / Sign Up",
+    "Launch your own agent in minutes",
+    "Product Docs",
+    "Start Free",
+  ];
+
+  it('"make an account" now triggers the account family', () => {
+    const fams = detectGatedActions(GOAL, OBSERVED).map((a) => a.family);
+    expect(fams).toContain("account");
+  });
+
+  it('"launch an agent" triggers core_action, anchored on the agent line, in the founder\'s words', () => {
+    const core = detectGatedActions(GOAL, OBSERVED).find((a) => a.family === "core_action");
+    expect(core).toBeDefined();
+    expect(core?.objectNoun).toBe("agent");
+    expect(core?.gateAnchor).toBe("Launch your own agent in minutes");
+    expect(core?.sourcePhrase).toContain("launch an agent");
+  });
+
+  it("core_action is NOT covered by a mission that merely mentions agents in passing", () => {
+    const core = detectGatedActions(GOAL, OBSERVED).find((a) => a.family === "core_action")!;
+    expect(
+      alreadyCovered(core, [
+        { title: "Review Service Definitions in Terms", objective: "Read the terms describing agents and services.", criteria: ["Quote the definition of agents"] },
+      ]),
+    ).toBe(false);
+    expect(
+      alreadyCovered(core, [
+        { title: "Launch an agent from the console", objective: "Create and launch an agent, then confirm it runs.", criteria: ["The agent page shows the launched state"] },
+      ]),
+    ).toBe(true);
+  });
+
+  it("does not fire core_action on generic objects or family-owned nouns", () => {
+    expect(detectGatedActions("create an account and explore", OBSERVED).find((a) => a.family === "core_action")).toBeUndefined();
+    expect(detectGatedActions("start it and look around", OBSERVED).find((a) => a.family === "core_action")).toBeUndefined();
+  });
+
+  it("builds a core_action mission that names the object, requires an account, and anchors on the gate", () => {
+    const core = detectGatedActions(GOAL, OBSERVED).find((a) => a.family === "core_action")!;
+    const m = buildGatedActionMission(core, { targetSurface: "https://clawup.org" });
+    expect(m.title).toContain("the agent step");
+    expect(m.instructions).toContain("Launch your own agent in minutes");
+    expect(m.instructions).toContain(core.sourcePhrase);
+    expect(m.conditions).toContain("Their own account on the product");
+    expect(m.anchors).toEqual(["Launch your own agent in minutes"]);
+    expect(m.effortMinutes).toBe(15);
+  });
+});

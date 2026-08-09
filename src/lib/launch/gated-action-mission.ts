@@ -35,8 +35,11 @@ import type { CandidateMission, MissionPriority, SourceRef } from "./schemas";
  */
 
 /** A boundary Sage must not cross. Mirrors `intent-guard`'s families, which is the point: the same
- *  actions that must never be INVENTED are the ones that must be PLANNED when genuinely requested. */
-export type GatedFamily = "payment" | "account" | "wallet" | "approval";
+ *  actions that must never be INVENTED are the ones that must be PLANNED when genuinely requested.
+ *  `core_action` is the one product-specific member: the thing the founder's own verb names doing
+ *  INSIDE the product ("launch an agent", "mint a badge") — always behind the account gate, named in
+ *  their words, never invented from ours. */
+export type GatedFamily = "payment" | "account" | "wallet" | "approval" | "core_action";
 
 const FAMILY_PATTERNS: { family: GatedFamily; re: RegExp }[] = [
   {
@@ -45,7 +48,10 @@ const FAMILY_PATTERNS: { family: GatedFamily; re: RegExp }[] = [
   },
   {
     family: "account",
-    re: /\b(sign\s*up|signup|register\w*|create\s+an?\s+account|log\s*in|login|sign\s*in)\b/i,
+    // "make an account" is how the clawup founder actually said it, and this pattern only knew
+    // "create". A founder's phrasing is the trigger, so the verbs here must cover how people talk:
+    // make / open / set up / get an account, alongside the formal ones.
+    re: /\b(sign\s*up|signup|register\w*|(?:create|make|open|set\s*up|get)\s+(?:an?\s+|your\s+)?account|log\s*in|login|sign\s*in)\b/i,
   },
   { family: "wallet", re: /\b(wallet|metamask|connect\s+wallet|sign\s+(?:the\s+)?transaction)\b/i },
   { family: "approval", re: /\b(approve|approval|authorize|confirm\s+the\s+transaction)\b/i },
@@ -58,6 +64,7 @@ const FAMILY_EFFORT: Record<GatedFamily, number> = {
   account: 12,
   wallet: 15,
   approval: 8,
+  core_action: 15, // signing up AND doing the product's central action — the longest mission here
 };
 
 /** Plain words for the mission text. Never a model's phrasing — this text has to pass a regex gate. */
@@ -66,7 +73,16 @@ const FAMILY_NOUN: Record<GatedFamily, string> = {
   account: "the account step",
   wallet: "the wallet step",
   approval: "the approval step",
+  core_action: "the core step", // overridden per action: the founder's own object word names it
 };
+
+/** The noun the mission text uses. core_action speaks in the founder's own object word, because
+ *  "complete the core step" tells a tester nothing and "complete the agent step" tells them a lot. */
+function nounFor(action: GatedAction): string {
+  return action.family === "core_action" && action.objectNoun
+    ? `the ${action.objectNoun} step`
+    : FAMILY_NOUN[action.family];
+}
 
 export interface GatedAction {
   family: GatedFamily;
@@ -74,6 +90,8 @@ export interface GatedAction {
   sourcePhrase: string;
   /** observed text marking the gate. A literal substring of the corpus, so the mission anchors. */
   gateAnchor: string;
+  /** core_action only: the founder's own object word ("agent"), used for anchoring and coverage. */
+  objectNoun?: string;
 }
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -130,6 +148,37 @@ export function detectGatedActions(
     if (!sourcePhrase) continue;
     out.push({ family, sourcePhrase, gateAnchor });
   }
+
+  /**
+   * THE PRODUCT'S OWN VERB — the reason most founders came.
+   *
+   * The fixed families cover the GATES (pay, sign up, connect, approve). They cannot cover what the
+   * founder wants done PAST the gate, because that is different for every product: "launch an
+   * agent", "mint a badge", "publish a store". On the clawup run the founder said "make an account
+   * and try to launch an agent" — the account half now matches above, but "launch an agent" matched
+   * nothing, so the one mission the whole campaign existed for was never even attempted, and the
+   * plan shipped brand-asset trivia instead.
+   *
+   * The founder's verb + object is extracted from THEIR sentence (rule 1 holds: never invented),
+   * and the anchor is any observed line naming the object — which, now that read documentation is
+   * part of the corpus, a docs page about agents satisfies even when the console itself is walled.
+   */
+  const CORE_RE =
+    /\b(launch|deploy|mint|publish|build|generate|start|run|creat(?:e|ing))\s+(?:an?\s+|the\s+|your\s+|new\s+)?([a-z][\w-]{2,24})\b/i;
+  const core = goal.match(CORE_RE);
+  if (core) {
+    const objectNoun = core[2].toLowerCase();
+    // words the fixed families already own, plus generic fillers that name no product feature
+    const NOT_AN_OBJECT = /^(account|accounts|wallet|wallets|transaction|payment|profile|password|it|them|one|thing|stuff|website|site|page)$/;
+    if (!NOT_AN_OBJECT.test(objectNoun)) {
+      const objectRe = new RegExp(`\\b${objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*\\b`, "i");
+      const gateAnchor = findGateAnchor(observedLines, objectRe);
+      const sourcePhrase = founderSentenceFor(goal, CORE_RE);
+      if (gateAnchor && sourcePhrase) {
+        out.push({ family: "core_action", sourcePhrase, gateAnchor, objectNoun });
+      }
+    }
+  }
   return out;
 }
 
@@ -153,6 +202,9 @@ export function detectGatedActions(
  * a founder can delete, and a missing one is invisible.
  */
 const FAMILY_ACTION: Record<GatedFamily, RegExp> = {
+  // core_action is handled in alreadyCovered directly — its regex depends on the founder's object
+  // word, which a static table cannot express. The entry here only satisfies the Record type.
+  core_action: /$^/,
   payment:
     /\b(purchas\w+|buy\w*|pay(?:s|ing)?\s+for|top\s*s?\s*up|topping\s*up|check(?:s|ing)?\s*out|checkout|subscrib\w+|deposit\w*|complete[sd]?\s+the\s+paid)\b/i,
   account:
@@ -168,6 +220,17 @@ export function alreadyCovered(
   action: GatedAction,
   missions: readonly Pick<CandidateMission, "objective" | "criteria" | "title">[],
 ): boolean {
+  if (action.family === "core_action" && action.objectNoun) {
+    // covered only by a mission that asks a tester to DO the action to the founder's object —
+    // both the object word and a doing-verb, in the same mission. A mission that merely mentions
+    // "agents" in passing does not cover "launch an agent" (the noun-regex trap, measured twice).
+    const obj = new RegExp(`\\b${action.objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+    const verb = /\b(launch\w*|deploy\w*|creat\w+|build\w*|start\w*|run(?:s|ning)?|mint\w*|publish\w*|generat\w+)\b/i;
+    return missions.some((m) => {
+      const text = `${m.title} ${m.objective} ${m.criteria.join(" ")}`;
+      return obj.test(text) && verb.test(text);
+    });
+  }
   const re = FAMILY_ACTION[action.family];
   return missions.some((m) => re.test(`${m.title} ${m.objective} ${m.criteria.join(" ")}`));
 }
@@ -193,7 +256,7 @@ export function buildGatedActionMission(
     index?: number;
   },
 ): CandidateMission {
-  const noun = FAMILY_NOUN[action.family];
+  const noun = nounFor(action);
   const product = opts.productName && opts.productName !== "the product" ? opts.productName : "the product";
   const spends = action.family === "payment";
 

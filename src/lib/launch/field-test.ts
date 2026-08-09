@@ -792,6 +792,8 @@ export interface WallSignals {
   dialogText: string;
   /** the page's own visible text, first few kB. */
   bodyText: string;
+  /** the URL path names an auth page (/login, /signin, /signup, /register, /auth). */
+  pathIsAuth?: boolean;
 }
 
 /**
@@ -806,6 +808,19 @@ export interface WallSignals {
  */
 export function classifyWallKind(s: WallSignals): "password" | "wallet" | "oauth" | null {
   if (s.hasVisiblePassword) return "password";
+  /**
+   * A LOGIN PAGE IS A WALL EVEN WITHOUT A PASSWORD FIELD. Measured on clawup.org: "Start Free" led
+   * to /login, which offers OAuth buttons / an email-first flow — no visible password, no blocking
+   * dialog — so nothing classified, no wallNote was set, the doc hunt never fired, and the explorer
+   * retreated via the site logo TWICE. The founder asked for "make an account and launch an agent";
+   * the plan came back about brand assets and terms, because those were the only pages Sage could
+   * anchor to. Path-based on purpose: a hidden login drawer is mounted on EVERY page (the allbirds
+   * 4-states→0 trap), but a URL whose path says /login names the page's own purpose, and auth
+   * affordances on THAT page are the page, not furniture.
+   */
+  if (s.pathIsAuth && /\b(sign in|log in|sign up|create (an |your )?account|continue with|get started)\b/i.test(s.bodyText || "")) {
+    return "password";
+  }
   const dlg = (s.dialogText || "").toLowerCase();
   if (dlg) {
     const providerHits = WALLET_PROVIDERS.filter((w) => dlg.includes(w)).length;
@@ -870,6 +885,7 @@ async function wallSignalsOf(page: Page): Promise<WallSignals | null> {
         hasVisiblePassword,
         dialogText: (dlg?.textContent || "").slice(0, 2000),
         bodyText: (document.body?.innerText || "").slice(0, 4000),
+        pathIsAuth: /(^|\/)(log-?in|sign-?in|sign-?up|register|auth)(\/|$)/i.test(location.pathname),
       };
     })
     .catch(() => null);
@@ -900,16 +916,41 @@ async function huntDocs(ctx: {
   walledPaths: string[];
   deadline: number;
   sameOrigin: (u: string) => boolean;
+  /** absolute doc-labeled links harvested during exploration — may live on a docs.<domain> subdomain. */
+  docUrls?: { url: string; label: string }[];
   /** the explorer records a state per doc read; the static path has no filmstrip to add to. */
   onRead?: (path: string) => Promise<unknown>;
 }): Promise<DocPage[]> {
   const docs: DocPage[] = [];
-  const candidates = docCandidates(ctx.linkedPaths, { exclude: ctx.walledPaths });
+  // The product's own labelled documentation links come FIRST — real navigation beats convention.
+  // Off-host is allowed ONLY for these, and only on the same registrable domain as the product:
+  // docs.clawup.org for clawup.org. The egress guard still validates every fetch as public https.
+  const registrable = (h: string) => h.toLowerCase().replace(/^www\./, "").split(".").slice(-2).join(".");
+  let productTail = "";
+  try {
+    productTail = registrable(new URL(ctx.startUrl).host);
+  } catch {
+    /* no absolute-doc reads without a parseable start */
+  }
+  const absolute = (ctx.docUrls ?? []).filter((d) => {
+    try {
+      return productTail !== "" && registrable(new URL(d.url).host) === productTail;
+    } catch {
+      return false;
+    }
+  });
+  const candidates = [
+    ...absolute.map((d) => d.url),
+    ...docCandidates(ctx.linkedPaths, { exclude: ctx.walledPaths }),
+  ];
   for (const p of candidates) {
     if (Date.now() > ctx.deadline) break; // the wall clock still governs everything
     try {
       const target = new URL(p, ctx.startUrl);
-      if (!ctx.sameOrigin(target.toString())) continue; // the egress boundary is not negotiable
+      // An absolute doc link already passed the registrable-domain filter above; a relative candidate
+      // must still be same-origin. The egress guard validates either as public https at fetch time.
+      const isAbsoluteDoc = absolute.some((d) => d.url === p);
+      if (!isAbsoluteDoc && !ctx.sameOrigin(target.toString())) continue;
       await ctx.page.goto(target.toString(), {
         waitUntil: "domcontentloaded",
         timeout: 10_000,
@@ -2632,6 +2673,15 @@ async function exploreInteractive(ctx: {
   /** Same-host paths the product LINKED, with their link text, harvested live. Raw material for
    *  {@link docCandidates}; kept out here so it survives the exploration closure. */
   const linkedPaths: { path: string; label: string }[] = [];
+  /** Doc-labeled links harvested ANYWHERE during exploration, absolute, including off-host links on
+   *  the same registrable domain — "Product Docs" almost always points at docs.<domain>, and the
+   *  same-host harvest silently dropped exactly the link that answers "what is behind the wall?".
+   *  Measured on clawup.org: /terms showed a CTA literally labelled "Product Docs" and docs read 0. */
+  const docLinkUrls = new Map<string, string>();
+  /** Did the founder's compiled journey end with unobserved checkpoints? Defaults to "yes" whenever
+   *  a journey exists at all, and the goal-directed runner refines it — if that runner never runs,
+   *  nothing was observed, which IS a gap. */
+  let journeyHadGap = (ctx.journey?.checkpoints?.length ?? 0) > 0;
   /** Routes Sage was turned away from — never offer them back to the doc hunt. */
   const walledPaths: string[] = [];
 
@@ -2984,12 +3034,35 @@ async function exploreInteractive(ctx: {
                 /* skip */
               }
             }
-            return out;
+            // doc-labeled links, including OFF-HOST ones on the same registrable domain — the
+            // same-host rule above rightly bounds exploration, but documentation conventionally
+            // lives on a subdomain, and dropping it here starved the doc hunt of its best source.
+            const docs: { url: string; label: string }[] = [];
+            const tail = (h: string) => strip(h).split(".").slice(-2).join(".");
+            const DOC = /(^|[^a-z])(docs?|documentation|guide|guides|tutorial|learn|faq|help|whitepaper|litepaper|getting[-\s]?started|quickstart)([^a-z]|$)/i;
+            for (const a of Array.from(document.querySelectorAll("a[href]"))) {
+              const el = a as HTMLAnchorElement;
+              try {
+                if (!el.host || tail(el.host) !== tail(location.host)) continue;
+                if (!/^https?:$/.test(el.protocol)) continue;
+                const label = (el.innerText || el.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().slice(0, 60);
+                if (!DOC.test(label) && !DOC.test(el.pathname) && !/^docs?\./i.test(el.host)) continue;
+                docs.push({ url: el.href.split("#")[0], label });
+                if (docs.length >= 5) break;
+              } catch {
+                /* skip */
+              }
+            }
+            return { out, docs };
           })
-          .catch(() => [] as { path: string; label: string }[]);
-        for (const f of found) {
+          .catch(() => ({ out: [] as { path: string; label: string }[], docs: [] as { url: string; label: string }[] }));
+        for (const f of found.out) {
           if (livePaths.size >= 20) break;
           if (!livePaths.has(f.path)) livePaths.set(f.path, f.label);
+        }
+        for (const d of found.docs) {
+          if (docLinkUrls.size >= 5) break;
+          if (!docLinkUrls.has(d.url)) docLinkUrls.set(d.url, d.label);
         }
       };
       const unvisitedPaths = (): string[] =>
@@ -3483,6 +3556,7 @@ async function exploreInteractive(ctx: {
         if (progress === "reached") break;
         if (stall >= 4) break; // several real-no-progress actions → a genuine stall, stop honestly.
       }
+      journeyHadGap = (liveJourney?.checkpoints ?? []).some((c) => c.status !== "observed");
       // hand every discovered path back to the caller for the url-evidence crawl (bounded there).
       ctx.discoveredPathsOut?.push(...livePaths.keys());
       for (const [path, label] of livePaths) linkedPaths.push({ path, label });
@@ -3633,15 +3707,22 @@ async function exploreInteractive(ctx: {
   // Sage cannot walk through a connect-wallet or sign-in gate, but the product almost always writes
   // down what is behind it. Reading that turns "I was blocked, here is a mission about your landing
   // page" into a plan that knows what a connected user is supposed to see.
-  const docs: DocPage[] = wallNote
+  // Fire on a WALL, or on a GOAL GAP with doc links in hand: the founder named steps Sage never
+  // observed and the product pointed at its own documentation. Waiting for a classified wall was the
+  // clawup failure — /login never classified, so "docs: 0" while /terms displayed "Product Docs".
+  const goalGap = journeyHadGap && docLinkUrls.size > 0;
+  const huntReason =
+    wallNote ?? "the founder's goal names steps Sage could not observe";
+  const docs: DocPage[] = (wallNote || goalGap)
     ? await huntDocs({
         page,
         startUrl: ctx.startUrl,
-        wallNote,
+        wallNote: huntReason,
         linkedPaths,
         walledPaths,
         deadline,
         sameOrigin,
+        docUrls: [...docLinkUrls].map(([url, label]) => ({ url, label })),
         onRead: (p) =>
           capture(`read the docs at ${p} (blocked by the wall)`, {
             kind: "load",
