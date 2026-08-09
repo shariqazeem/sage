@@ -12,7 +12,9 @@
  * allocation invariant (Σ rewardBase × maxCompletions === total) is still enforced by allocateBudget.
  */
 
-import { TANGIBLE_REGIME_USD, TANGIBLE_SLOT_USD } from "./budget";
+import { tangiblePerRewardUsd } from "./budget";
+
+const maxBigint = (a: bigint, b: bigint): bigint => (a > b ? a : b);
 
 /** How many independent testers a qualitative, plural request prefers. */
 export const PREFERRED_SAMPLE = 3;
@@ -159,8 +161,14 @@ function withOverFunding<T extends SampleMission>(
   if (ms.length === 0) return result;
   const ceilings = ms.map((m) => effortCeilingBase(m.effortMinutes, opts.minRewardBase));
   if (!ceilings.every((c) => c !== null)) return result;
+  // Capacity must use the SAME per-reward rate the counts were sized with — the tangible curve,
+  // floored by the effort ceiling. Mixing curve-sized COUNTS with ceiling-only RATES understated
+  // capacity ~10x the moment the curve landed ($401 read as "$17 absorbable": 17 curve-sized slots
+  // × the $1 ceiling), flagging well-sized budgets as over-funded and quoting founders a nonsense
+  // number. One rate, both places.
+  const curveBase = BigInt(Math.round(tangiblePerRewardUsd(opts.totalBudgetBase) * 1_000_000));
   const absorbable = ms.reduce(
-    (sum, m, i) => sum + ceilings[i]! * BigInt(Math.max(1, m.maxCompletions)),
+    (sum, m, i) => sum + maxBigint(ceilings[i]!, curveBase) * BigInt(Math.max(1, m.maxCompletions)),
     BigInt(0),
   );
   if (absorbable <= BigInt(0) || opts.totalBudgetBase <= absorbable) return result;
@@ -211,7 +219,6 @@ export function applySamplePolicy<T extends SampleMission>(
   /** How many CEILING-RATE rewards this mission's pot funds (0 when the pot can't even pay one at
    *  the fair ceiling — a small budget, which the fair-floor plural path then handles by preferring
    *  fewer, better-paid testers or asking). Null without effort data. */
-  const maxBigint = (a: bigint, b: bigint): bigint => (a > b ? a : b);
   const byEffortCount = (m: T): number | null => {
     const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase);
     if (!ceiling) return null;
@@ -229,11 +236,13 @@ export function applySamplePolicy<T extends SampleMission>(
      * TAKING". Above the regime the effort ceiling still owns the answer — at $50k, $5 rewards
      * would be the absurdity, and the crowd assertions in budget-scale.test.ts still hold.
      */
-    const inTangibleRegime =
-      Number(opts.totalBudgetBase) / 1_000_000 <= TANGIBLE_REGIME_USD;
-    const divisor = inTangibleRegime
-      ? maxBigint(ceiling, BigInt(TANGIBLE_SLOT_USD * 1_000_000))
-      : ceiling;
+    // The divisor is the tangible per-person rate for THIS budget (the monotone √ curve), floored
+    // by the effort ceiling. No regime gate: the curve itself keeps small budgets concentrated and
+    // lets large ones buy more people at higher — never lower — per-person pay.
+    const divisor = maxBigint(
+      ceiling,
+      BigInt(Math.round(tangiblePerRewardUsd(opts.totalBudgetBase) * 1_000_000)),
+    );
     return Math.min(MAX_SAMPLE, Number(shareOf(m) / divisor));
   };
 

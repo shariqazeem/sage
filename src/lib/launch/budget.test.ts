@@ -137,20 +137,41 @@ describe("allocateBudget — infeasible + edge budgets", () => {
  * people, no one will do — but if one will get 5 usdc, they still think to do." Measured tester
  * supply (~11 lifetime submissions) says the same thing: slots for a crowd that does not exist.
  */
-import { applyTangibleCaps, tangibleSlotTarget, TANGIBLE_SLOT_USD, TANGIBLE_REGIME_USD } from "./budget";
+import { applyTangibleCaps, tangibleSlotTarget, tangiblePerRewardUsd, TANGIBLE_SLOT_USD, TANGIBLE_MAX_REWARD_USD } from "./budget";
 
 const usdc = (n: number) => BigInt(Math.round(n * 1_000_000));
 const wm = (key: string, cap: number, priority: "high" | "medium" | "low" = "medium", weight = 5) => ({
   missionKey: key, suggestedMaxCompletions: cap, weight, effortMinutes: 10, priority,
 });
 
-describe("tangibleSlotTarget", () => {
-  it("is about one slot per $5, clamped to [3, 25]", () => {
+describe("the monotone tangible curve — both numbers grow with budget", () => {
+  // The founder's second correction, verbatim: "with more budget it should be slight more slots
+  // but per person payout should be more too — why would 4$ of payout with that much budget?"
+  // The first pass had a $600 cliff where a $1,000 campaign paid LESS per person than a $500 one.
+  it("per-person pay grows as sqrt(budget), anchored at $20 -> $5, capped at $50", () => {
     expect(TANGIBLE_SLOT_USD).toBe(5);
-    expect(tangibleSlotTarget(usdc(20))).toBe(4);   // the founder's own example: ~$5 each
-    expect(tangibleSlotTarget(usdc(500))).toBe(25); // ~$20 each — feels earned
-    expect(tangibleSlotTarget(usdc(10))).toBe(3);   // floor: never a single data point
-    expect(tangibleSlotTarget(usdc(600))).toBe(25); // ceiling of the tangible regime
+    expect(tangiblePerRewardUsd(usdc(20))).toBeCloseTo(5, 1);
+    expect(tangiblePerRewardUsd(usdc(100))).toBeCloseTo(11.18, 1);
+    expect(tangiblePerRewardUsd(usdc(500))).toBeCloseTo(25, 1);
+    expect(tangiblePerRewardUsd(usdc(1000))).toBeCloseTo(35.36, 1);
+    expect(tangiblePerRewardUsd(usdc(50_000))).toBe(TANGIBLE_MAX_REWARD_USD); // whale cap
+  });
+
+  it("slots ALSO grow with budget — never fewer people for more money", () => {
+    expect(tangibleSlotTarget(usdc(20))).toBe(4);
+    expect(tangibleSlotTarget(usdc(100))).toBe(8);
+    expect(tangibleSlotTarget(usdc(500))).toBe(20);
+    expect(tangibleSlotTarget(usdc(1000))).toBe(28);
+    expect(tangibleSlotTarget(usdc(10))).toBe(3); // floor: never a single data point
+  });
+
+  it("per-person pay is MONOTONE — a bigger budget never pays each person less", () => {
+    let prev = 0;
+    for (const b of [10, 20, 50, 100, 250, 500, 600, 601, 750, 1000, 5000, 50_000]) {
+      const per = tangiblePerRewardUsd(usdc(b));
+      expect(per, `$${b} pays $${per}/person, below $${prev} at a smaller budget`).toBeGreaterThanOrEqual(prev);
+      prev = per;
+    }
   });
 });
 
@@ -179,8 +200,8 @@ describe("applyTangibleCaps", () => {
     for (const m of out) expect(m.suggestedMaxCompletions).toBe(1);
   });
 
-  it("stands aside above the tangible regime — large budgets belong to the fairness machinery", () => {
-    expect(TANGIBLE_REGIME_USD).toBe(600);
+  it("a whale budget buys the full crowd at the $50 cap, not inflated rewards", () => {
+    // $50,000 at $50/person targets 1000 slots; two missions at 50 each are already inside it.
     const big = applyTangibleCaps([wm("a", 50), wm("b", 50)], usdc(50_000));
     expect(big.map((m) => m.suggestedMaxCompletions)).toEqual([50, 50]); // untouched
   });

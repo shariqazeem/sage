@@ -43,18 +43,37 @@ function ordered(missions: WeightedMission[]): WeightedMission[] {
   );
 }
 
-/** One slot per this many dollars — the founder's own sizing ("$20 → someone gets $5"). */
+/** The floor of a reward worth taking — the founder's own sizing ("$20 → someone gets $5"). */
 export const TANGIBLE_SLOT_USD = 5;
+/** The ceiling of a sane reward: past $50 a head, surplus is farm bait, not motivation. */
+export const TANGIBLE_MAX_REWARD_USD = 50;
 
 /**
- * How many completions a budget can pay TANGIBLY: about one per $5, never fewer than 3 (a plan
- * should not rest on a single data point), never more than 25 (past that, rewards thin out no
- * matter the budget). $20 → 4 slots ≈ $5 each. $500 → 25 slots ≈ $20 each. Pure, so the policy is
- * testable arithmetic rather than a model's mood.
+ * WHAT ONE PERSON SHOULD EARN, as a function of the budget — the monotone curve that replaced the
+ * regime cliff.
+ *
+ * The first tangible pass had two philosophies meeting at $600: concentrate below it, crowd above
+ * it. Measured at the seam, per-person pay was NON-MONOTONIC — a $1,000 campaign paid $3.75 a head
+ * while a $500 campaign paid $20+. The founder called it: "with more budget it should be slightly
+ * more slots but per person payout should be more too." Both numbers must grow with budget, neither
+ * at the other's expense.
+ *
+ * A square-root law does exactly that: per-person pay ∝ √budget (anchored at the founder's own
+ * $20 → $5 example), and the slot count — budget ÷ pay — then also grows as √budget. $20 → $5×4,
+ * $100 → ~$11×9, $500 → ~$25×20, $1,000 → ~$35×28, capped at $50 a head so a whale budget buys
+ * MORE people rather than absurd rewards. Pure arithmetic, testable, no cliff anywhere.
  */
+export function tangiblePerRewardUsd(totalBudgetBase: bigint): number {
+  const usd = Number(totalBudgetBase) / 1_000_000;
+  if (usd <= 0) return TANGIBLE_SLOT_USD;
+  const perReward = TANGIBLE_SLOT_USD * Math.sqrt(usd / 20);
+  return Math.max(TANGIBLE_SLOT_USD, Math.min(TANGIBLE_MAX_REWARD_USD, perReward));
+}
+
+/** How many completions the budget funds at the tangible per-person curve, never fewer than 3. */
 export function tangibleSlotTarget(totalBudgetBase: bigint): number {
   const usd = Number(totalBudgetBase) / 1_000_000;
-  return Math.max(3, Math.min(25, Math.floor(usd / TANGIBLE_SLOT_USD)));
+  return Math.max(3, Math.floor(usd / tangiblePerRewardUsd(totalBudgetBase)));
 }
 
 /**
@@ -62,13 +81,11 @@ export function tangibleSlotTarget(totalBudgetBase: bigint): number {
  * keeping at least 1. Never drops a mission (mission count is the architect's call) and never adds
  * slots. Returns missions in their ORIGINAL order — the allocator re-orders for itself.
  */
-/** Above this, the effort-anchored fairness machinery owns sizing: a $50k budget concentrated into
- *  25 slots would pay $2,000 a person, which is absurd in the OTHER direction (and a Sybil magnet).
- *  Measured absorption ceiling is ~$300, so every real campaign lives far below this line. */
-export const TANGIBLE_REGIME_USD = 600;
-
 export function applyTangibleCaps(missions: WeightedMission[], totalBudgetBase: bigint): WeightedMission[] {
-  if (Number(totalBudgetBase) / 1_000_000 > TANGIBLE_REGIME_USD) return missions;
+  // The curve is continuous, so there is no regime gate any more: at every budget the target is
+  // "how many people can earn the tangible rate for THIS budget", and the $50 per-person ceiling
+  // means a giant budget expands the crowd rather than inflating rewards. MAX_COMPLETIONS still
+  // bounds each mission, so slots can never exceed missions × 50 regardless.
   const target = Math.max(tangibleSlotTarget(totalBudgetBase), missions.length);
   const caps = new Map(missions.map((m) => [m.missionKey, Number(clampCap(m.suggestedMaxCompletions))]));
   let total = [...caps.values()].reduce((s, c) => s + c, 0);

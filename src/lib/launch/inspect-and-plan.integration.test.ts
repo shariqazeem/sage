@@ -97,8 +97,8 @@ describe("live inspection pipeline — Eyes V2 reachability", () => {
     // do"): the capacity cap still bounds the SPEND at $30 (asserted above, unchanged) — but the
     // surplus now buys TANGIBLE rewards, not fifty $0.60 slots for a tester crowd that measured
     // ~11 lifetime submissions. Same $30, six people who actually take the mission.
-    expect(alloc.rewardBase).toBe(BigInt(5_000_000)); // one tangible reward
-    expect(alloc.maxCompletions).toBe(BigInt(6)); // 6 x $5 spends the $30 capacity exactly
+    expect(alloc.rewardBase).toBe(BigInt(7_500_000)); // the curve at a $30 pot: $7.50 a head
+    expect(alloc.maxCompletions).toBe(BigInt(4)); // 4 x $7.50 spends the $30 capacity exactly
     expect(r.questions.join(" ")).toMatch(/stays with you/);
     expect(r.questions.join(" ")).toContain("$883.00");
   });
