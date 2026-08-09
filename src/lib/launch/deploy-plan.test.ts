@@ -97,3 +97,67 @@ describe("deploy-plan — safety guards", () => {
     expect(b.inputs.totalBudgetBase).toBe(BigInt(100_000));
   });
 });
+
+/**
+ * THE LAUNCH FEE CALL — new calldata that moves a founder's money to Sage.
+ *
+ * The four original steps move a founder's USDC into their OWN vault. This fifth one moves it to us,
+ * so it is held to the same standard as the rest of this file: derived only from the approved plan,
+ * absent unless explicitly configured, and never able to leak into a flow that cannot represent it.
+ */
+describe("buildDeployBundle — the launch fee call", () => {
+  const FEE_TO = getAddress("0x00000000000000000000000000000000000FEE01");
+  const feeCallOf = (b: { calls: { step: string }[] }) => b.calls.find((c) => c.step === "fee");
+
+  it("is absent when no fee destination is configured — the bundle is exactly as it was", () => {
+    const b = buildDeployBundle(plan(), settings);
+    expect(b.calls).toHaveLength(4);
+    expect(feeCallOf(b)).toBeUndefined();
+  });
+
+  it("appends one call when configured, and it goes LAST", () => {
+    const b = buildDeployBundle(plan(), { ...settings, feeTo: FEE_TO });
+    expect(b.calls).toHaveLength(5);
+    // last, so the campaign is live before Sage is paid: a failure leaves an unpaid fee (our
+    // problem) rather than a founder charged for a campaign that does not exist (theirs)
+    expect(b.calls[4].step).toBe("fee");
+  });
+
+  it("is an ERC20 transfer on the campaign token, not a native send", () => {
+    const b = buildDeployBundle(plan(), { ...settings, feeTo: FEE_TO });
+    const fee = b.calls[4];
+    expect(fee.to).toBe(TOKEN);
+    expect(fee.value).toBe("0");
+    expect(fee.data.startsWith("0xa9059cbb")).toBe(true); // transfer(address,uint256) selector
+  });
+
+  it("encodes the configured destination and 10% of the approved budget", () => {
+    const b = buildDeployBundle(plan(), { ...settings, feeTo: FEE_TO });
+    const data = b.calls[4].data.toLowerCase();
+    expect(data).toContain(FEE_TO.slice(2).toLowerCase());
+    // budget is derived from the plan; the fee must be exactly a tenth of it, floored at 0.1 USDC
+    const expected = b.inputs.totalBudgetBase / BigInt(10);
+    const floor = BigInt(100_000);
+    const want = expected < floor ? floor : expected;
+    expect(data).toContain(want.toString(16).padStart(64, "0"));
+  });
+
+  it("changes the calldata digest, so a fee bundle can never be mistaken for a free one", () => {
+    const free = buildDeployBundle(plan(), settings);
+    const paid = buildDeployBundle(plan(), { ...settings, feeTo: FEE_TO });
+    expect(paid.calldataDigest).not.toBe(free.calldataDigest);
+  });
+
+  it("still round-trips through the no-divergence check", () => {
+    // assertBundleMatchesPlan rebuilds from plan+settings; the fee must be reproducible, not ad hoc
+    const p = plan();
+    const b = buildDeployBundle(p, { ...settings, feeTo: FEE_TO });
+    expect(assertBundleMatchesPlan(b, p).ok).toBe(true);
+  });
+
+  it("leaves the vault prediction untouched — the fee must not move the CREATE2 address", () => {
+    const free = buildDeployBundle(plan(), settings);
+    const paid = buildDeployBundle(plan(), { ...settings, feeTo: FEE_TO });
+    expect(paid.predictedVault).toBe(free.predictedVault);
+  });
+});

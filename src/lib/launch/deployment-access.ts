@@ -124,7 +124,19 @@ export interface StepCall {
 }
 
 export function deploymentCalls(ctx: DeploymentContext): StepCall[] {
-  return ctx.bundle.calls.map((c) => ({ step: c.step, to: c.to, data: c.data, value: c.value, label: c.label }));
+  // THE FEE CALL IS EXCLUDED FROM THE WEB FLOW, structurally rather than by convention.
+  //
+  // This drives a DURABLE state machine whose statuses enumerate the four steps
+  // (deploying → approving → funding → activating). A fifth call has no state to occupy, so a
+  // browser deploy would either stall after activate or record a step the machine cannot name.
+  // Charging web founders needs that machine extended first — new statuses, a migration, and UI —
+  // which is deliberately not bundled with the walletless path that needs none of it.
+  //
+  // Filtering here rather than trusting the caller never to set `feeTo` means a future change on the
+  // web route cannot silently push an unrepresentable step into a live deployment.
+  return ctx.bundle.calls
+    .filter((c) => c.step !== "fee")
+    .map((c) => ({ step: c.step as DeployStep, to: c.to, data: c.data, value: c.value, label: c.label }));
 }
 
 export type AccessResult =

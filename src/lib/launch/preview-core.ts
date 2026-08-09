@@ -35,7 +35,8 @@ export interface PreviewChainReads {
 }
 
 export interface DeploymentStepView {
-  step: "create" | "approve" | "fund" | "activate";
+  // "fee" is the optional final call paying Sage's launch fee — present only when configured.
+  step: "create" | "approve" | "fund" | "activate" | "fee";
   to: Address;
   label: string;
 }
