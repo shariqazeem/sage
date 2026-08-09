@@ -27,7 +27,7 @@ money decision. Haiku has been the reliable workhorse everywhere it runs.
 | brain | calls/run | needs | model |
 |---|---|---|---|
 | Browser controller | ~30, with images | vision, cheap, stall-tolerant | `VISION_MODEL=google/gemini-3.1-flash-lite-preview` (pinned; resolves FIRST) |
-| Mission architect + critic | 2-3 | best reasoning per dollar | `MISSION_MODEL=deepseek/deepseek-v4-pro` ($0.44/$0.87 per M — a reasoning-tier model CHEAPER than flash-lite's $1.50 output; sonnet-5 at $2/$10 was considered and vetoed on cost until revenue) |
+| Mission architect + critic | 2-3 | fast AND reliable — the founder-facing wait | `MISSION_MODEL=anthropic/claude-haiku-4-5` (~$0.08/inspection). v4-pro was tried on price ($0.44/$0.87) and REVERTED on measurement: 780s median, 1797s worst vs haiku's 171-371s on the same three worst categories — 5-6x slower wall-clock is a worse product at any token price. Sonnet-5 remains vetoed on cost until revenue. |
 | Payout judgment | per submission | reliability, rubric adherence | `DEPUTY_MODEL=anthropic/claude-haiku-4-5` |
 | Failover | — | measured reliability | `LLM_FALLBACK_MODEL=anthropic/claude-haiku-4-5` (gemini-3.5-flash rejected: $1.50/$9 is PRICIER than haiku; the v4-pro architect failing over to haiku is the protection that matters) |
 | Concierge (both doors) | per turn | fast, alive | `CONCIERGE_MODEL=anthropic/claude-haiku-4-5` (unchanged) |
@@ -39,9 +39,7 @@ because 30 image calls on a frontier model per inspection is cost without eviden
 
 ## What "never stuck, decides for itself" still needs (ranked, honest)
 
-1. **Design-wait latency.** The 5-minute feel was flash-lite stalls inside architect calls.
-   The v4-pro architect + the retry ladder should roughly halve it; measure on the next 5 real inspections
-   before claiming it.
+1. **Design-wait latency: MEASURED AND FIXED.** flash-lite stalled; v4-pro was slower still (median 780s, worst 1797s). Haiku architect measured 171/311/371s on the three worst categories, anchors 100%, quality intact. The battery's poll ceiling is raised to 1500s so a slow-but-finishing run reads as a duration, never as a failure.
 2. **Concierge liveness during heavy VM load.** The 2 drill timeouts coincided with builds on the
    2-core box. The durable fix is a bigger VM, not more retries; until then, avoid building during
    founder-facing hours.

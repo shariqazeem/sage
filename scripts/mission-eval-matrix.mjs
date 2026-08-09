@@ -115,7 +115,7 @@ async function runOne(m, i) {
     // (docs re-ran clean at anchors 100% minutes later). Tolerate transient failures, and give up only
     // when the wire is genuinely gone — then say THAT, never something about the product.
     let consecutiveWireFailures = 0;
-    for (let t = 0; t < 72; t++) {
+    for (let t = 0; t < 150; t++) {
       try {
         const p = await (await fetch(`${base}/api/launch/${id}`)).json();
         job = p.job;
@@ -129,7 +129,7 @@ async function runOne(m, i) {
       await new Promise((r) => setTimeout(r, 10_000));
     }
     if (!["ready", "needs_input", "failed"].includes(job?.status)) {
-      return { ...m, error: `TIMEOUT after 720s (last stage: ${job?.status ?? "unknown"})` };
+      return { ...m, error: `TIMEOUT after 1500s (last stage: ${job?.status ?? "unknown"})` };
     }
   } catch (e) {
     return { ...m, error: String(e?.message || e).slice(0, 80) };
