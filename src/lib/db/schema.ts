@@ -348,6 +348,45 @@ export const fees = sqliteTable(
   (t) => [uniqueIndex("fees_settle_unq").on(t.settleTx)],
 );
 
+/**
+ * THE CAMPAIGN LAUNCH FEE — the first thing Sage charges anyone but itself.
+ *
+ * Separate from `fees` on purpose. That table is per-payout, fires after settlement, and was only
+ * just repaired after a month of silent failure; this one is per-campaign and fires at launch.
+ * Different lifecycle, different payer, and no reason to route a new money path through code whose
+ * bugs are still fresh.
+ *
+ * `payerAddress` + `selfFunded` keep the revenue figure honest: the operator funds seed campaigns
+ * from their own wallets, and those fees are charged but are NOT revenue. A number that quietly
+ * counts your own wallet is the kind of claim that gets checked.
+ */
+export const campaignFees = sqliteTable(
+  "campaign_fees",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id"),
+    inspectionId: text("inspection_id"),
+    /** what the founder funded, USDC base units (6dp) — kept so the rate is auditable after the fact. */
+    budgetBase: integer("budget_base").notNull(),
+    /** the fee charged on it, USDC base units. */
+    amountBase: integer("amount_base").notNull(),
+    /** 'pending' | 'settled' | 'waived'. */
+    status: text("status").notNull().default("pending"),
+    paymentTx: text("payment_tx"),
+    orderId: text("order_id"),
+    payerAddress: text("payer_address"),
+    /** true when the payer is one of the operator's own wallets: charged, never counted as revenue. */
+    selfFunded: integer("self_funded", { mode: "boolean" }).notNull().default(false),
+    /** part of the dappOrderId, for the same reason as `fees.attempts` — a reused id strands the fee. */
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("campaign_fees_campaign_unq").on(t.campaignId)],
+);
+
+export type CampaignFee = typeof campaignFees.$inferSelect;
+
 /** The lifecycle of one durable settlement attempt. */
 export type SettlementStatus =
   | "prepared" // row written, nothing signed or sent yet — safe to broadcast fresh

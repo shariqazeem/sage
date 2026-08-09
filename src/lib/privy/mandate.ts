@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Address } from "viem";
 import { privyPost } from "./client";
+import { campaignFeeBase } from "@/lib/x402/campaign-fee";
 
 /**
  * The founder's MANDATE, expressed as a Privy wallet policy — the deterministic safety core. The
@@ -51,6 +52,15 @@ export interface MandateSpec {
   reclaim?: Address;
   /** the max USDC (base units) the agent may approve/fund in a SINGLE campaign. */
   perCampaignCapBase: bigint;
+  /**
+   * Sage's own fee-receiving address. When set, the mandate permits a USDC transfer to THIS address
+   * and no other, capped at the fee on a maximum-size campaign — see the rule below.
+   *
+   * OPTIONAL AND FAIL-CLOSED on purpose. Leave it undefined and no fee rule exists, so a walletless
+   * founder is simply not charged. The alternative — a launch that dies at a permission the wallet
+   * was never granted — would break funding for a founder who did nothing wrong.
+   */
+  feeTo?: Address;
 }
 
 const toCond = (value: string) => ({ field_source: "ethereum_transaction", field: "to", operator: "eq", value });
@@ -72,6 +82,38 @@ export function buildMandatePolicy(m: MandateSpec): Record<string, unknown> {
       { field_source: "ethereum_calldata", field: "function_name", abi: ACTIVATE_ABI, operator: "eq", value: "activate" },
     ]),
   ];
+  /**
+   * THE LAUNCH FEE — the one rule that lets money reach Sage rather than the founder.
+   *
+   * Added deliberately and bounded twice over, because this is the only ALLOW in the mandate whose
+   * beneficiary is us. It is strictly MORE constrained than the withdraw rule already in use:
+   *
+   *   · the destination is a fixed address supplied by server config, never by the agent, never by
+   *     a caller, and never derived from anything a model produced. A compromised agent cannot
+   *     redirect it — the worst it can do is pay Sage, from which funds can be returned;
+   *   · the amount is capped at `campaignFeeBase(perCampaignCapBase)` — the fee on a maximum-size
+   *     campaign — so it is 10% of one campaign cap per transaction, not the whole cap. The bound
+   *     tracks the rate automatically and shrinks when a founder sets a smaller cap.
+   *
+   * Absent when `feeTo` is unset, which is why the founder's launch never depends on it existing.
+   */
+  if (m.feeTo) {
+    rules.push(
+      // Privy caps a rule name at 50 characters. The 55-char name on the withdraw rule is why
+      // stopping a campaign silently 400'd for weeks; this one is 23.
+      allow("pay the Sage launch fee", [
+        toCond(m.usdc),
+        { field_source: "ethereum_calldata", field: "transfer.to", abi: TRANSFER_ABI, operator: "eq", value: m.feeTo },
+        {
+          field_source: "ethereum_calldata",
+          field: "transfer.amount",
+          abi: TRANSFER_ABI,
+          operator: "lte",
+          value: toHex(campaignFeeBase(m.perCampaignCapBase)),
+        },
+      ]),
+    );
+  }
   // A pinned-reclaim account may sweep leftover home; a walletless account keeps it as balance.
   if (m.reclaim) {
     rules.push(

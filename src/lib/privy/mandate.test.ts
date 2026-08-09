@@ -9,7 +9,71 @@ const rulesOf = (p: Record<string, unknown>): Rule[] => p.rules as Rule[];
 const factory = getAddress("0x1111111111111111111111111111111111111111");
 const usdc = getAddress("0x2222222222222222222222222222222222222222");
 const reclaim = getAddress("0x3333333333333333333333333333333333333333");
+const feeTo = getAddress("0x4444444444444444444444444444444444444444");
 const CAP = BigInt(5_000_000); // $5 in 6dp base units
+
+/**
+ * THE LAUNCH FEE RULE — the only ALLOW in the mandate whose beneficiary is Sage.
+ *
+ * Every other rule moves a founder's money to their own vault or back to their own address. This one
+ * moves it to us, so it gets held to a higher standard than the rest: the destination must be
+ * unreachable by anything the agent decides, and the amount must be a fraction of one campaign, not
+ * the whole cap. These tests exist to make a future loosening of either bound loud.
+ */
+describe("buildMandatePolicy — the Sage fee rule", () => {
+  const feeRuleOf = (p: Record<string, unknown>) => rulesOf(p).find((r) => r.name.includes("fee"));
+
+  it("does NOT exist when no fee address is configured — fail closed", () => {
+    // an unconfigured deployment must still be able to launch; it simply does not charge
+    const p = buildMandatePolicy({ name: "m", factory, usdc, perCampaignCapBase: CAP });
+    expect(feeRuleOf(p)).toBeUndefined();
+    expect(rulesOf(p)).toHaveLength(4);
+  });
+
+  it("appears only when configured, and adds exactly one rule", () => {
+    const p = buildMandatePolicy({ name: "m", factory, usdc, feeTo, perCampaignCapBase: CAP });
+    expect(rulesOf(p)).toHaveLength(5);
+    expect(feeRuleOf(p)).toBeDefined();
+  });
+
+  it("pins the destination to the configured address and nothing else", () => {
+    const p = buildMandatePolicy({ name: "m", factory, usdc, feeTo, reclaim, perCampaignCapBase: CAP });
+    const to = feeRuleOf(p)!.conditions.find((c) => c.field === "transfer.to");
+    expect(to?.operator).toBe("eq"); // eq, never a range or a prefix
+    expect(String(to?.value).toLowerCase()).toBe(feeTo.toLowerCase());
+    // and it must not have become a general permission to move USDC to the founder's address
+    expect(String(to?.value).toLowerCase()).not.toBe(reclaim.toLowerCase());
+  });
+
+  it("caps the amount at the FEE on a max campaign, not the campaign cap itself", () => {
+    const p = buildMandatePolicy({ name: "m", factory, usdc, feeTo, perCampaignCapBase: CAP });
+    const amt = feeRuleOf(p)!.conditions.find((c) => c.field === "transfer.amount");
+    expect(amt?.operator).toBe("lte");
+    // $5 cap → $0.50 fee ceiling. If this ever equals CAP, the bound has been lost.
+    expect(BigInt(String(amt?.value))).toBe(BigInt(500_000));
+    expect(BigInt(String(amt?.value))).toBeLessThan(CAP);
+  });
+
+  it("shrinks the ceiling when the founder sets a smaller cap", () => {
+    const small = buildMandatePolicy({ name: "m", factory, usdc, feeTo, perCampaignCapBase: BigInt(20_000_000) });
+    const amt = small.rules ? (rulesOf(small).find((r) => r.name.includes("fee"))!.conditions.find((c) => c.field === "transfer.amount")) : undefined;
+    expect(BigInt(String(amt?.value))).toBe(BigInt(2_000_000)); // $20 cap → $2 ceiling
+  });
+
+  it("is restricted to the USDC contract, so it cannot move another token", () => {
+    const p = buildMandatePolicy({ name: "m", factory, usdc, feeTo, perCampaignCapBase: CAP });
+    const to = feeRuleOf(p)!.conditions.find((c) => c.field === "to");
+    expect(String(to?.value).toLowerCase()).toBe(usdc.toLowerCase());
+  });
+
+  it("rides along into the withdraw and stop policies without widening them", () => {
+    // both derive from the base mandate, so the fee rule must appear exactly once in each
+    const spec = { name: "m", factory, usdc, feeTo, perCampaignCapBase: CAP };
+    for (const p of [buildWithdrawPolicy(spec, reclaim, CAP), buildStopCampaignPolicy(spec, reclaim)]) {
+      expect(rulesOf(p).filter((r) => r.name.includes("fee"))).toHaveLength(1);
+    }
+  });
+});
 
 describe("buildMandatePolicy", () => {
   it("walletless (no reclaim) omits the sweep rule so leftover stays as balance", () => {
@@ -148,6 +212,8 @@ describe("every policy rule name fits Privy's limit", () => {
     ["mandate (with reclaim)", buildMandatePolicy({ name: "mandate:123456789", factory, usdc, reclaim, perCampaignCapBase: CAP })],
     ["withdraw", buildWithdrawPolicy({ name: "mandate:123456789", factory, usdc, perCampaignCapBase: CAP }, reclaim, CAP)],
     ["stop campaign", buildStopCampaignPolicy({ name: "mandate:123456789", factory, usdc, perCampaignCapBase: CAP }, reclaim)],
+    // the fee variant must be covered too, or the newest rule is the one nobody length-checked
+    ["mandate (with fee)", buildMandatePolicy({ name: "mandate:123456789", factory, usdc, feeTo, perCampaignCapBase: CAP })],
   ];
 
   it.each(policies)("%s — no rule name reaches the limit", (_label, policy) => {
