@@ -85,3 +85,51 @@ describe("honestFallback", () => {
     expect(msg.toLowerCase()).toContain("ask me again");
   });
 });
+
+/**
+ * CAPABILITY IS NOT COMPLETION — the 2026-08-10 misfires, pinned.
+ *
+ * Live, twice in one conversation: "what can you do?" was answered with a capability description
+ * ("I create paid testing missions and pay testers automatically...") and the guard blocked it as
+ * an unbacked payout; the founder got homework instead of an answer. The guard's job is fabricated
+ * COMPLETIONS. Descriptions of what Sage does, offers, and conditionals must pass with no tools.
+ */
+describe("capability descriptions pass with zero tools", () => {
+  const none = new Set<string>();
+
+  it("the exact live misfire: describing paid missions and automatic payouts", () => {
+    const v = checkNarration(
+      "I inspect your product, create paid testing missions, and pay testers USDC automatically when their work verifies. Every payout gets an on-chain receipt.",
+      none,
+    );
+    expect(v.ok).toBe(true);
+  });
+
+  it("'paid testing missions' is an adjective, not a payout event", () => {
+    expect(checkNarration("Your budget funds paid missions on the board.", none).ok).toBe(true);
+  });
+
+  it("offers and futures stay allowed", () => {
+    expect(checkNarration("Want me to stop it? That would return the remaining USDC to your wallet.", none).ok).toBe(true);
+    expect(checkNarration("I'll release the payout once the evidence verifies.", none).ok).toBe(true);
+    expect(checkNarration("When a tester's work verifies, the reward is paid out in USDC automatically.", none).ok).toBe(true);
+  });
+
+  it("a REAL fabricated completion is still blocked — the original yara lie", () => {
+    const v = checkNarration(
+      "Done. The yara.garden campaign is stopped. I recovered 4.50 USDC and returned it to your agent wallet.",
+      none,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign was stopped");
+  });
+
+  it("a fabricated past-tense payout is still blocked", () => {
+    expect(checkNarration("I paid 5 USDC to the tester for that submission.", none).ok).toBe(false);
+  });
+
+  it("the same sentences pass when the licensing tool ran", () => {
+    const ran = new Set(["sage_stop_campaign"]);
+    expect(checkNarration("Done. The campaign is stopped and I recovered 4.50 USDC to your agent wallet.", ran).ok).toBe(true);
+  });
+});

@@ -118,7 +118,17 @@ const HANDOFF_BLOCK = `YOUR JOB IN CHAT: prepare and report. You do NOT hold key
 
 const TAIL = `MONEY TRUTH: report the token EXACTLY as the tool returns it — "USDC" on GOAT mainnet is real money; "test mUSDC" on Metis Sepolia is testnet and has no value. Never merge them, never write "$" for a testnet payout, never invent an amount. Never claim a campaign is funded or a payout happened unless a tool result actually says so.
 
-STYLE: plain text only — no markdown symbols, no bold. Paste URLs raw; Telegram links them. Be concrete and honest. If a tool returns an error, say so plainly and do not retry it in a loop. If the founder asks about something you need an id for and don't have, ask for it.`;
+STYLE — you are an operator reporting status, not a chat companion. Lead with the answer or the action taken, in the first five words. One fact per line, short lines, blank line between blocks. Numbers, addresses and links stay bare on their own line. No greetings, no "great question", no restating what they asked, no offers of further help at the end, no apology padding. Plain text only — no markdown symbols, no bold. Paste URLs raw; Telegram links them.
+
+Examples of the register:
+"No open missions. All funded slots are filled.
+Board: https://sagepays.xyz/marketplace"
+"Inspection started. ~3 minutes.
+Watch live: <link>"
+"Wallet 0x12ab...34cd
+4.20 USDC, gas OK for 2 launches."
+
+Be concrete and honest. If a tool returns an error, say what failed in one line and what you are doing about it. If you need an id you don't have, ask in one line. Never pad a failure into a paragraph.`;
 
 /** P25 — the SINGLE additive paragraph for the web surface. The web agent reuses every steering +
  *  anti-hallucination block above unchanged; this only reframes the channel and the money handoff:
@@ -477,6 +487,8 @@ async function runAgentTurn(
   const ctx: McpContext = { scheduleAfter, founderWallet, planningRequestId };
 
   let reply = "";
+  /** one guard-triggered corrective round per turn — see the self-correct block below. */
+  let selfCorrected = false;
   /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
   const succeededTools = new Set<string>();
   // ONE budget for the whole turn, not per call: five tool rounds each retrying three times would
@@ -633,6 +645,27 @@ async function runAgentTurn(
       }
 
       reply = (msg.content ?? "").trim();
+
+      /**
+       * SELF-CORRECT INSTEAD OF CONFESSING. The guard used to fire after the loop, so a draft that
+       * claimed something no tool backed became the fallback text and the FOUNDER had to re-ask —
+       * measured live: "is there any live missions?" answered with "ask me again and I'll run it
+       * properly". An agent that knows exactly which tool it skipped should run that tool, not
+       * assign the founder homework. One corrective round, inside the same turn budget; if the
+       * retry still can't stand the claim up, the post-loop guard ships the honest fallback as
+       * before. Money safety unchanged: nothing here licenses a claim — it gives the model one
+       * chance to EARN the license by actually calling the tool.
+       */
+      const draftVerdict = checkNarration(reply, succeededTools);
+      if (!draftVerdict.ok && !selfCorrected && round < MAX_TOOL_ROUNDS - 1 && Date.now() < turnDeadline) {
+        selfCorrected = true;
+        console.warn("[concierge:%s] self-correct: draft claimed [%s] with no backing tool — retrying with the tool", surface, draftVerdict.unbacked.join(", "));
+        messages.push({
+          role: "user",
+          content: `SYSTEM CHECK: your draft stated ${draftVerdict.unbacked.join(" and ")} but no tool ran this turn to back it. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.`,
+        });
+        continue;
+      }
       break;
     }
   } catch (err) {

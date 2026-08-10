@@ -60,7 +60,10 @@ const CLAIMS: readonly Claim[] = [
   },
   {
     label: "a payout was released",
-    pattern: /\b(?:released|paid out|paid)\b[^!?\n]{0,60}\b(?:usdc|to the tester|the reward)\b/i,
+    // "paid" must not swallow the ADJECTIVE ("paid missions", "paid testing") — that reading blocked
+    // the bot's own capability answer ("I create paid testing missions…") live on 2026-08-10, and the
+    // founder got the fallback for asking "what can you do?".
+    pattern: /\b(?:released|paid out|paid(?!\s+(?:missions?|testing|test|work|beta|slots?|campaigns?)))\b[^!?\n]{0,60}\b(?:usdc|to the tester|the reward)\b/i,
     backedBy: ["sage_confirm_release", "sage_release_submission"],
   },
   {
@@ -84,8 +87,12 @@ const READ_CLAIMS: readonly Claim[] = [
   },
   {
     label: "how many campaigns are live",
-    pattern: /\b(?:no|zero)\s+(?:live|active|running)\s+campaigns?\b/i,
-    backedBy: ["sage_my_campaigns", "sage_stop_campaign"],
+    // "no open missions" is the tester-facing phrasing of the same read. And the MARKETPLACE tool
+    // licenses it: measured 2026-08-10, the model called sage_browse_missions, reported its result
+    // truthfully, and was blocked because this list only knew the founder-side tools — the agent
+    // punished for doing exactly the right thing.
+    pattern: /\b(?:no|zero)\s+(?:live|active|running|open)\s+(?:campaigns?|missions?)\b/i,
+    backedBy: ["sage_my_campaigns", "sage_stop_campaign", "sage_browse_missions"],
   },
 ];
 
@@ -95,12 +102,37 @@ export interface NarrationVerdict {
   unbacked: string[];
 }
 
+/**
+ * CAPABILITY IS NOT COMPLETION. "I pay testers automatically when their work verifies" describes
+ * what Sage DOES; "I paid the tester 5 USDC" claims something HAPPENED. The guard exists for the
+ * second and must never fire on the first — measured live on 2026-08-10, it blocked the bot's own
+ * answer to "what can you do?" because the capability description pattern-matched a money claim,
+ * and the founder got the fallback twice in one conversation for asking ordinary questions.
+ *
+ * The exemption is sentence-scoped and marker-based: a sentence whose match sits alongside a
+ * modal / future / conditional / habitual marker is a description, not a report. Deliberately a
+ * closed list — every marker here makes the sentence non-assertive about the PAST, so a fabricated
+ * "Done, I stopped it" can never hide behind one without stopping being a completion claim at all.
+ */
+const CAPABILITY_MARKERS =
+  /\b(?:can|could|will|would|may|might|shall|able to|allowed to|when(?:ever)?|once|if|after|automatically|autonomously|usually|typically|normally|per (?:mission|payout|completion)|i(?:'ll| will)|to (?:pay|release|stop|cancel|send|withdraw|launch|fund))\b/i;
+
+/** The sentence containing offset `i` — bounded by sentence punctuation or newlines. */
+function sentenceAround(text: string, i: number): string {
+  const start = Math.max(text.lastIndexOf(".", i), text.lastIndexOf("!", i), text.lastIndexOf("?", i), text.lastIndexOf("\n", i)) + 1;
+  const ends = [text.indexOf(".", i), text.indexOf("!", i), text.indexOf("?", i), text.indexOf("\n", i)].filter((x) => x >= 0);
+  const end = ends.length ? Math.min(...ends) : text.length;
+  return text.slice(start, end + 1);
+}
+
 /** Which completion claims in `reply` are not backed by a tool that succeeded this turn. */
 export function checkNarration(reply: string, succeededTools: ReadonlySet<string>): NarrationVerdict {
   const unbacked: string[] = [];
   for (const c of [...CLAIMS, ...READ_CLAIMS]) {
-    if (!c.pattern.test(reply)) continue;
+    const m = c.pattern.exec(reply);
+    if (!m) continue;
     if (c.backedBy.some((t) => succeededTools.has(t))) continue;
+    if (CAPABILITY_MARKERS.test(sentenceAround(reply, m.index))) continue;
     unbacked.push(c.label);
   }
   return { ok: unbacked.length === 0, unbacked };
