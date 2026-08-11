@@ -104,6 +104,27 @@ interface MapView {
 export function LaunchResults({ initial }: { initial: JobView }) {
   const router = useRouter();
   const [job, setJob] = useState<JobView>(initial);
+  /**
+   * A LIVE CLOCK ON THE THINKING, because a frozen banner reads as a hang no matter what it says.
+   * The first real campaign founder watched the filmstrip stop, then a static "takes a minute or
+   * two" for several minutes, and concluded Sage was stuck. Nothing here fabricates progress —
+   * it is a clock, counting the one thing that is genuinely happening: time Sage has spent on the
+   * design passes. Starts when the design phase is first observed, resets if the job leaves it.
+   */
+  const designSince = useRef<number | null>(null);
+  const [designElapsed, setDesignElapsed] = useState(0);
+  useEffect(() => {
+    const designing = DESIGNING.has(job.status);
+    if (!designing) {
+      designSince.current = null;
+      return;
+    }
+    designSince.current ??= Date.now();
+    const t = setInterval(() => {
+      if (designSince.current) setDesignElapsed(Math.floor((Date.now() - designSince.current) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [job.status]);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => { if (poll.current) { clearInterval(poll.current); poll.current = null; } };
 
@@ -159,7 +180,8 @@ export function LaunchResults({ initial }: { initial: JobView }) {
               <span className="lx-designing-pulse" aria-hidden />
               <span>
                 Done exploring{job.pagesInspected > 0 ? <> {hostOf(job.productUrl)}</> : null}. Sage is
-                now {status === "reviewing" ? "checking each mission is fair and pays for real work" : "designing missions from what it saw"} — this part is careful and usually takes a minute or two.
+                now {status === "reviewing" ? "checking each mission is fair and pays for real work" : "designing missions from what it saw"} — this part is careful and usually takes two to five minutes.
+                {designElapsed >= 5 ? <> Working for {Math.floor(designElapsed / 60) > 0 ? `${Math.floor(designElapsed / 60)}m ` : ""}{designElapsed % 60}s.</> : null}
               </span>
             </div>
           )}

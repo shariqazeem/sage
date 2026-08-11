@@ -945,25 +945,43 @@ async function huntDocs(ctx: {
   ];
   for (const p of candidates) {
     if (Date.now() > ctx.deadline) break; // the wall clock still governs everything
+    // ENOUGH IS ENOUGH: with three real doc pages in hand, another guess only delays the founder —
+    // and the guesses are where the 404s live. Real linked docs sort first, so this stops the
+    // conventional-path probing exactly when it stops buying anything.
+    if (docs.length >= 3) break;
     try {
       const target = new URL(p, ctx.startUrl);
       // An absolute doc link already passed the registrable-domain filter above; a relative candidate
       // must still be same-origin. The egress guard validates either as public https at fetch time.
       const isAbsoluteDoc = absolute.some((d) => d.url === p);
       if (!isAbsoluteDoc && !ctx.sameOrigin(target.toString())) continue;
-      await ctx.page.goto(target.toString(), {
+      const resp = await ctx.page.goto(target.toString(), {
         waitUntil: "domcontentloaded",
         timeout: 10_000,
       });
+      /**
+       * A 404 IS NOT DOCUMENTATION, and it must never reach the founder's filmstrip.
+       *
+       * Measured on the first real clawup campaign run: the true docs (docs.clawup.org, three
+       * pages of 2000 chars) were already in hand, and the hunt then tried the conventional
+       * /docs, /documentation and /guide guesses anyway. ClawUp's Next.js 404 renders 247 chars
+       * of nav + footer shell, which cleared the old 200-char floor — so THREE 404 screenshots
+       * were captured as "read the docs", and the last thing the founder watched during the
+       * multi-minute design wait was a dead page. Guard by HTTP status first (the truth), then
+       * by 404 wording (SPAs that soft-200 their not-found page), then a floor high enough that
+       * a nav shell cannot clear it.
+       */
+      if ((resp?.status() ?? 0) >= 400) continue;
       await ctx.page
         .waitForLoadState("networkidle", { timeout: 4_000 })
         .catch(() => {});
       const excerpt = await renderedExcerpt(ctx.page);
-      // A doc page that renders nothing is not documentation — do not pad the map with empties.
-      if (excerpt.trim().length < 200) continue;
+      const docTitle = await ctx.page.title().catch(() => "");
+      if (/\b(404|page (?:could )?not (?:be )?found|page doesn'?t exist)\b/i.test(`${docTitle} ${excerpt.slice(0, 300)}`)) continue;
+      if (excerpt.trim().length < 400) continue;
       docs.push({
         url: target.toString(),
-        title: (await ctx.page.title().catch(() => "")).slice(0, 140),
+        title: docTitle.slice(0, 140),
         excerpt: excerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
         soughtBecause: ctx.wallNote,
       });
@@ -1086,10 +1104,22 @@ export async function runFieldTest(
     }
   };
   const seenTargets = new Set<string>();
-  const targets = [opts.startUrl, ...opts.candidateLinks.filter(sameOrigin)]
+  /**
+   * LEGAL BOILERPLATE GOES LAST. The crawl took candidate links in document order, and a footer's
+   * /terms, /privacy and /brand-assets sit in every page's HTML — so the first real campaign run
+   * showed a founder "Surfaces: / · /brand-assets · /terms · /privacy" as what Sage inspected,
+   * while the product's actual pages lost their crawl slots to boilerplate. Stable partition, not
+   * a filter: legal pages still crawl when slots remain (a terms page can matter), they just never
+   * again displace the product.
+   */
+  const LEGAL_PATH = /\/(terms|privacy|legal|cookies?|imprint|disclaimer|brand-?assets?|press|licen[cs]e)(\/|$)/i;
+  const ordered = [opts.startUrl, ...opts.candidateLinks.filter(sameOrigin)]
     .map((u) => u.replace(/#.*$/, ""))
-    .filter((u) => (seenTargets.has(u) ? false : (seenTargets.add(u), true)))
-    .slice(0, MAX_PAGES);
+    .filter((u) => (seenTargets.has(u) ? false : (seenTargets.add(u), true)));
+  const targets = [
+    ...ordered.filter((u) => !LEGAL_PATH.test(u)),
+    ...ordered.filter((u) => LEGAL_PATH.test(u)),
+  ].slice(0, MAX_PAGES);
 
   const artifactDir = path.join(publicDir, "field-tests", opts.inspectionId);
   // Per-transition egress methods — the request interceptor records each allowed request's method, and

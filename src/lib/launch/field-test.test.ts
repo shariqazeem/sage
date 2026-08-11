@@ -568,6 +568,14 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
       } else if (url === "/docs") {
         res.writeHead(200, { "content-type": "text/html" });
         res.end(WALL_DOCS);
+      } else if (url === "/documentation") {
+        // a HARD 404 with a chatty shell — the clawup trap: 247 chars of nav/footer cleared the old floor
+        res.writeHead(404, { "content-type": "text/html" });
+        res.end("<html><head><title>Vaultly</title></head><body><nav>Home Docs Pricing Sign in</nav><h1>404</h1><p>This page could not be found.</p><footer>Vaultly Inc. Terms Privacy Brand assets Contact Careers Status</footer></body></html>");
+      } else if (url === "/guide") {
+        // a SOFT 404: HTTP 200 but not-found wording — SPAs do this constantly
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end("<html><head><title>Page not found - Vaultly</title></head><body><nav>Home Docs Pricing Sign in</nav><p>Sorry, this page could not be found. It may have moved.</p><footer>Vaultly Inc. Terms Privacy Brand assets Contact Careers Status More links here to pad the shell out past any small character floor for the test.</footer></body></html>");
       } else {
         res.writeHead(404, { "content-type": "text/plain" });
         res.end("not found");
@@ -602,6 +610,12 @@ const GAME_FIXTURE = `<!doctype html><html><head><title>Fixture Game</title></he
       // The whole point: a STATIC run, and it still came back with documentation.
       expect(summary.mode).toBe("static");
       expect(summary.docs?.length ?? 0).toBeGreaterThanOrEqual(1);
+      // AND NEVER A 404 DRESSED AS DOCUMENTATION — measured on the first real clawup campaign:
+      // three not-found shells were kept as docs and their screenshots led the founder's filmstrip.
+      for (const d of summary.docs ?? []) {
+        expect(d.url).not.toMatch(/\/(documentation|guide)$/); // the hard-404 and the soft-404
+        expect(`${d.title} ${d.excerpt}`).not.toMatch(/could not be found|page not found/i);
+      }
       const doc = summary.docs![0];
       expect(doc.soughtBecause).toBe("login required past this point");
       expect(doc.excerpt).toContain("Portfolio view");
