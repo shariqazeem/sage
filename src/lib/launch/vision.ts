@@ -16,6 +16,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { FieldTestState, VisionObservation } from "./schemas";
+import { recordFieldTestStep } from "./field-test-progress";
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -299,11 +300,33 @@ export async function describeStatesWithVision(
   const estTokens = withShots.length * EST_TOKENS_PER_IMAGE;
   log(`[field-test] vision: describing ${withShots.length} screenshot(s) — est ~${estTokens} prompt tokens (model=${provider?.model ?? "test"})`);
 
+  /**
+   * THE SILENT MINUTES, NARRATED. Browsing ends, and then THIS loop runs — a vision call per
+   * screenshot, on a model measured to stall at random. The founder watching the live trail saw
+   * the last doc page sit frozen for 3-4 minutes and concluded Sage was stuck, because nothing
+   * told them the studying had begun. The trail recorder existed the whole time; this pass just
+   * never wrote to it. Each entry reuses the REAL screenshot being studied, so the banner shows
+   * genuine work — never a fabricated frame.
+   */
+  const inspectionId = path.basename(artifactDir);
+  const narrate = (label: string, st?: FieldTestState) => {
+    if (!inspectionId || deps.describeImage) return; // test path has no trail
+    void recordFieldTestStep(inspectionId, {
+      label,
+      screenshot: st?.screenshot ?? null,
+      url: st?.url ?? "",
+    });
+  };
+  narrate(`browsing done — studying what it saw (${withShots.length} screenshots)`);
+
   const observations: VisionObservation[] = [];
   let promptTokensTotal = 0;
+  let studied = 0;
 
   for (const { s, i } of withShots) {
     try {
+      studied++;
+      narrate(`studying screenshot ${studied} of ${withShots.length}`, s);
       if (deps.describeImage) {
         const r = await deps.describeImage(s, i);
         promptTokensTotal += r.promptTokens;
@@ -322,7 +345,20 @@ export async function describeStatesWithVision(
         .catch(() => null);
       if (!jpeg) continue;
       const dataUri = `data:image/jpeg;base64,${jpeg.toString("base64")}`;
-      const r = await callVision(provider as VisionProvider, dataUri, s.trigger);
+      /**
+       * A STALLED EYE GETS A SECOND EYE. Measured on a live founder run: flash-lite finished 2 of
+       * 6 and 3 of 6 descriptions — the misses WERE the silent minutes, and every miss is corpus
+       * the judge never gets. One retry on the primary, then the reliable fallback model: a $0.002
+       * image description is not worth losing to a stall.
+       */
+      let r = await callVision(provider as VisionProvider, dataUri, s.trigger);
+      if (!r) r = await callVision(provider as VisionProvider, dataUri, s.trigger);
+      if (!r) {
+        const fb = (process.env.VISION_FALLBACK_MODEL ?? process.env.LLM_FALLBACK_MODEL ?? "").trim();
+        if (fb && fb !== (provider as VisionProvider).model) {
+          r = await callVision({ ...(provider as VisionProvider), model: fb }, dataUri, s.trigger);
+        }
+      }
       if (!r) continue;
       promptTokensTotal += r.promptTokens;
       const obs = parseVisionJson(r.content, { stateIndex: i, trigger: s.trigger });
