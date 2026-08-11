@@ -4,6 +4,28 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 
+/** Proven goal shapes — the exact wording styles that produced good plans in real campaigns:
+ *  action verbs the journey compiler recognizes, stable facts, no volatile counts. */
+const GOAL_CHIPS: { label: string; goal: string }[] = [
+  { label: "Let Sage decide", goal: "" },
+  {
+    label: "First impressions",
+    goal: "Can a first-time visitor understand what this product does and find where to start? Report what you actually saw on each screen.",
+  },
+  {
+    label: "Signup & onboarding",
+    goal: "Can a new user sign up and get through onboarding without getting stuck? Report each step and anything confusing.",
+  },
+  {
+    label: "Find pricing",
+    goal: "Can a visitor find the pricing and understand what it costs to get started? Report what you actually saw.",
+  },
+  {
+    label: "Docs vs reality",
+    goal: "Follow the getting-started guide and check the docs match the real product. Identify confusing or missing information.",
+  },
+];
+
 /**
  * Step 1 — describe the launch as a GUIDED, cinematic sequence, kept deliberately short (P26): the
  * product + what to learn on one screen, then the budget. The optional GitHub repo hides behind an
@@ -48,7 +70,10 @@ export function LaunchForm() {
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const stepValid = (i = step): boolean => {
-    if (i === 0) return isHttpUrl(form.productUrl) && form.goal.trim().length > 3;
+    // The goal is OPTIONAL — measured founder behavior: a paragraph-sized "what do you want to
+    // learn?" is where people stall or close the tab. An empty goal is a delegation, not a gap:
+    // the pipeline forces full exploration and Sage infers the first-visit goal from what it sees.
+    if (i === 0) return isHttpUrl(form.productUrl);
     return Number(form.budgetUsd) >= 0.5;
   };
 
@@ -118,10 +143,27 @@ export function LaunchForm() {
               value={form.productUrl}
               onChange={(e) => set("productUrl", e.target.value)}
             />
+            {/* ONE TAP INSTEAD OF ONE PARAGRAPH. Each chip writes a proven goal shape — the same
+                wording that produced good mission plans in real campaigns — so the founder who
+                cannot be bothered to write still hands Sage a sharp goal, and the founder who can
+                write gets a head start to edit. "Let Sage decide" is a first-class choice, not a
+                fallback: it clears the goal, and the pipeline treats that as full delegation. */}
+            <div className="lxo-chips" role="group" aria-label="Quick goals">
+              {GOAL_CHIPS.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  className={`lxo-chip${form.goal === c.goal ? " on" : ""}`}
+                  onClick={() => set("goal", c.goal)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
             <textarea
               className="lx-textarea"
               style={{ marginTop: 10 }}
-              placeholder="What do you want to learn? e.g. can a first-time user reach the dashboard without getting stuck?"
+              placeholder="Optional — pick a chip, write your own, or leave empty and Sage decides what to test from what it sees."
               value={form.goal}
               onChange={(e) => set("goal", e.target.value)}
             />

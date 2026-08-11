@@ -1282,7 +1282,18 @@ export async function runFieldTest(
     }
 
     // the founder's intent, decided ONCE from the compiled journey (authoritative) or the goal's words.
-    const requiresUse = goalRequiresUse(opts.goal, opts.journey ?? null);
+    /**
+     * NO GOAL MEANS SAGE DECIDES — and deciding requires LOOKING.
+     *
+     * The goal field is optional by design: a founder who gives only a URL is delegating the "what
+     * should be tested" judgment to Sage. But goalRequiresUse("") is false, so an empty goal used
+     * to fall through to whatever the entry-page signals happened to classify — on a JS-heavy
+     * product that meant a static HTML read, boilerplate surfaces, and missions invented from a
+     * landing page. An agent cannot decide what matters in a product it never used, so delegation
+     * FORCES exploration rather than excusing it.
+     */
+    const delegated = !(opts.goal ?? "").trim();
+    const requiresUse = delegated || goalRequiresUse(opts.goal, opts.journey ?? null);
     const mode: ProductMode = signals
       ? classifyMode(signals, requiresUse)
       : "static";

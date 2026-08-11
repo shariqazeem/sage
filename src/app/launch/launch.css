@@ -325,3 +325,13 @@
 .lx-field-details summary { cursor: pointer; color: var(--lx-accent); font-weight: 600; }
 .lx-field-line { font: 400 12px/1.5 var(--font-mono, monospace); color: var(--lx-muted); margin-top: 6px; word-break: break-all; }
 @media (max-width: 640px) { .lx-shots { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }
+
+/* Quick-goal chips — one tap replaces the paragraph nobody wants to write. */
+.lxo-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lxo-chip {
+  border: 1px solid var(--lx-line); border-radius: var(--r-pill); background: transparent;
+  padding: 6px 12px; font-size: 13px; color: inherit; cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.lxo-chip:hover { border-color: #c2410c; }
+.lxo-chip.on { border-color: #c2410c; background: rgba(194, 65, 12, 0.07); }
