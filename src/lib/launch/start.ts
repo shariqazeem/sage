@@ -63,7 +63,16 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
     return { ok: false, error: "Repository must be a public github.com URL." };
   }
 
-  const goal = validateText(input.goal, "Goal", { max: 1200 });
+  /**
+   * OPTIONAL — an empty goal is a DELEGATION, not an omission, and this validator was the door
+   * that never got the memo. The exact bug documented for targetUsers directly below, repeated:
+   * the concierge has instructed founders "pass goal as an empty string and Sage infers it" since
+   * the day it shipped, the launch form went goal-optional with quick chips, and this `min: 1`
+   * default rejected every one of those requests with "Goal is required." Measured live on the
+   * delegation proof run: the MCP call bounced at the entrance. Downstream is already safe — an
+   * empty goal forces full exploration and cannot trip the goal-incomplete gate.
+   */
+  const goal = validateOptionalText(input.goal, "Goal", 1200);
   if (!goal.ok) return { ok: false, error: goal.error };
   // OPTIONAL. The /launch wizard stopped asking for this when it went 3 steps → 2 ("the goal carries
   // intent"), but this validator was never updated — so every founder using the web front door sent

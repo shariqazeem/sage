@@ -49,8 +49,16 @@ describe("the founder's real input is accepted", () => {
 });
 
 describe("the genuinely required inputs are still required", () => {
-  it("rejects a missing goal", () => {
+  it("accepts an empty goal as DELEGATION — the same door-vs-form bug targetUsers had", () => {
+    // The concierge has said "pass goal as an empty string and Sage infers it" since it shipped,
+    // and the launch form is goal-optional with chips — yet this validator rejected every such
+    // request. An empty goal forces full exploration downstream and cannot trip the goal gate.
     const r = startInspection({ ...base(), goal: "", targetUsers: "" });
+    expect(r.ok).toBe(true);
+  });
+
+  it("still rejects an over-long goal", () => {
+    const r = startInspection({ ...base(), goal: "x".repeat(1300), targetUsers: "" });
     expect(r.ok).toBe(false);
   });
 
