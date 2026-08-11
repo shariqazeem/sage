@@ -49,7 +49,7 @@ const DEFAULTS: Required<InspectOptions> = {
 // non-English equivalents (FR/DE/ES/PT/IT) for signup / pricing / start / features / product, so the
 // crawler prioritizes the real journey on a non-English product instead of footer/legal pages.
 const HIGH = /\/(sign-?up|signup|register|onboard|get-?started|pricing|plans|app|dashboard|docs?|documentation|product|features?|demo|how-it-works|start|inscription|inscrire|tarifs|commencer|demarrer|essai|fonctionnalites|produit|anmelden|registrieren|preise|funktionen|starten|kostenlos|produkt|registro|registrarse|precios|comenzar|empezar|funciones|producto|cadastro|precos|prezzi|registrazione|funzionalita)(\/|$|\?)/i;
-const LOW = /\/(privacy|terms|legal|cookie|gdpr|dpa|about|careers?|jobs|press|blog\/|contact|imprint|status|sitemap)(\/|$|\?)/i;
+const LOW = /\/(privacy|terms|legal|cookie|gdpr|dpa|about|careers?|jobs|press|blog\/|contact|imprint|status|sitemap|brand-?assets?|licen[cs]e|media-?kit)(\/|$|\?)/i;
 const SOCIAL = /(twitter|x|facebook|linkedin|github|youtube|instagram|discord|t\.me|medium|producthunt)\.(com|co|me|io)/i;
 // Near-duplicate DETAIL pages (a proof/tx/id with a long hash) — one is representative;
 // crawling many wastes the page budget on interchangeable content.

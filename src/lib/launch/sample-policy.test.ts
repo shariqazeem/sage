@@ -44,10 +44,12 @@ describe("the founder's exact case — OVERRULED 2026-08-10, and the overrule is
   // get 5 usdc, they still think to do." Measured tester supply (~11 lifetime submissions) sides
   // with them: $1 rewards sat unfilled. Inside the tangible regime a reward is never sliced below
   // one worth taking; the ceiling half of the old rule (never $5/minute absurdity) lives on below.
-  it("turns $10 for 5-minute work into two tangibly-paid testers, not ten at $1", () => {
+  it("turns $10 for 5-minute work into three testers above the $3 floor, not ten at $1", () => {
+    // THIRD revision of this pin, each by the founder: crowd ($1x10) -> curve ($5x2) -> now the
+    // ARCHITECT's counts bounded only by the $3 tangible floor (2026-08-12: "let a model decide,
+    // not hardcoded"). $10 at the floor funds 3.
     const r = run([mission({ effortMinutes: 5, maxCompletions: 2 })], 10);
-    expect(r.missions[0]!.maxCompletions).toBe(2);
-    expect(USD(10) / BigInt(r.missions[0]!.maxCompletions)).toBe(USD(5));
+    expect(r.missions[0]!.maxCompletions).toBe(3);
   });
 
   it("no effort estimate keeps the pre-effort path exactly", () => {
@@ -107,10 +109,9 @@ describe("bounds", () => {
 });
 
 describe("the overpay rule applies whether or not the goal is plural", () => {
-  it("still bounds the count on a singular goal — at the TANGIBLE divisor, not the $1 ceiling", () => {
+  it("still bounds the count on a singular goal — at the $3 floor, not the $1 ceiling", () => {
     const r = run([mission({ effortMinutes: 5, maxCompletions: 2 })], 10, "check the signup works");
-    // $10 funds two $5 rewards; the pre-overrule assertion here was 10 × $1, which nobody took.
-    expect(r.missions[0]!.maxCompletions).toBe(2);
+    expect(r.missions[0]!.maxCompletions).toBe(3); // $10 / $3 floor — never ten $1 slots
   });
 
   it("a plural goal still buys its 3-person sample — the one case that outranks concentration", () => {

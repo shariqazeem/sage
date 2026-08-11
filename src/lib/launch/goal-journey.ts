@@ -1211,8 +1211,13 @@ function expressesCheckpoint(pair: string, cp: GoalCheckpointV1): boolean {
  * Deliberately conservative: a request to read, check or review a page has no action verb and stays a
  * crawl. Pure and product-agnostic — no product names, no per-site rules.
  */
+// STEMMED, because founders conjugate. "find the right starting point, and determine how to deploy
+// an AI agent" matched NOTHING here — "start" missed "starting", and deploy/follow/find/determine
+// were absent outright — so goalRequiresUse came back false, the mode classifier fell to static,
+// and Sage answered a hands-on goal without ever opening the browser. Measured live on the first
+// funded-campaign day, in front of the founder.
 const GOAL_ACTION_VERB =
-  /\b(launch|create|creat\w+|start|begin|open|click|tap|press|submit|send|sign[- ]?up|signup|register|log[- ]?in|login|onboard\w*|complete|finish|use|try|play|draw|type|enter|fill|upload|download|install|configure|set[- ]?up|connect|buy|purchase|checkout|check[- ]?out|order|book|pay|fund|claim|mint|swap|add|invite|share|post|publish|comment|vote|join|subscribe|search|filter|save|edit|delete|drag|swipe|talk|chat|message|reply|respond|interact|navigate|reach|walk|explore|get to|go to|land on)\b/i;
+  /\b(launch\w*|creat\w+|start\w*|begin\w*|open\w*|click\w*|tap|press\w*|submit\w*|send\w*|sign[- ]?up|signup|register\w*|log[- ]?in|login|onboard\w*|complet\w+|finish\w*|use|using|try|trying|play\w*|draw\w*|type|typing|enter\w*|fill\w*|upload\w*|download\w*|install\w*|configur\w+|set[- ]?up|connect\w*|buy\w*|purchas\w+|checkout|check[- ]?out|order\w*|book\w*|pay\w*|fund\w*|claim\w*|mint\w*|swap\w*|add\w*|invit\w+|shar\w+|post\w*|publish\w*|comment\w*|vote\w*|join\w*|subscrib\w+|search\w*|filter\w*|save|saving|edit\w*|delet\w+|drag\w*|swipe\w*|talk\w*|chat\w*|messag\w+|repl\w+|respond\w*|interact\w*|navigat\w+|reach\w*|walk\w*|explor\w+|deploy\w*|follow\w*|run|running|test\w*|verif\w+|determin\w+|find\w*|figure out|get to|go to|land on|get started)\b/i;
 
 export function goalRequiresUse(
   goal: string | null | undefined,

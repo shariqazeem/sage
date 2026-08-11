@@ -12,7 +12,7 @@
  * allocation invariant (Σ rewardBase × maxCompletions === total) is still enforced by allocateBudget.
  */
 
-import { tangiblePerRewardUsd } from "./budget";
+import "./budget";
 
 const maxBigint = (a: bigint, b: bigint): bigint => (a > b ? a : b);
 
@@ -166,9 +166,11 @@ function withOverFunding<T extends SampleMission>(
   // capacity ~10x the moment the curve landed ($401 read as "$17 absorbable": 17 curve-sized slots
   // × the $1 ceiling), flagging well-sized budgets as over-funded and quoting founders a nonsense
   // number. One rate, both places.
-  const curveBase = BigInt(Math.round(tangiblePerRewardUsd(opts.totalBudgetBase) * 1_000_000));
+  // The $3 tangible floor, matching byEffortCount's divisor exactly (architect-rules overrule):
+  // capacity and count must price a completion identically or over-funding math lies again.
+  const floorBase = BigInt(3_000_000);
   const absorbable = ms.reduce(
-    (sum, m, i) => sum + maxBigint(ceilings[i]!, curveBase) * BigInt(Math.max(1, m.maxCompletions)),
+    (sum, m, i) => sum + maxBigint(ceilings[i]!, floorBase) * BigInt(Math.max(1, m.maxCompletions)),
     BigInt(0),
   );
   if (absorbable <= BigInt(0) || opts.totalBudgetBase <= absorbable) return result;
@@ -239,10 +241,9 @@ export function applySamplePolicy<T extends SampleMission>(
     // The divisor is the tangible per-person rate for THIS budget (the monotone √ curve), floored
     // by the effort ceiling. No regime gate: the curve itself keeps small budgets concentrated and
     // lets large ones buy more people at higher — never lower — per-person pay.
-    const divisor = maxBigint(
-      ceiling,
-      BigInt(Math.round(tangiblePerRewardUsd(opts.totalBudgetBase) * 1_000_000)),
-    );
+    // The $3 tangible floor, not the curve: the architect's slots-vs-pay judgment rules (founder
+    // overrule 2026-08-12), and this divisor only stops a pot being sliced into pennies.
+    const divisor = maxBigint(ceiling, BigInt(3_000_000));
     return Math.min(MAX_SAMPLE, Number(shareOf(m) / divisor));
   };
 

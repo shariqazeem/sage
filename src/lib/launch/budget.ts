@@ -45,6 +45,11 @@ function ordered(missions: WeightedMission[]): WeightedMission[] {
 
 /** The floor of a reward worth taking — the founder's own sizing ("$20 → someone gets $5"). */
 export const TANGIBLE_SLOT_USD = 5;
+/** The hard floor under ANY reward the architect proposes: below this is pennies, and pennies sit
+ *  unfilled. The founder's second overrule (2026-08-12): the MODEL decides slots-vs-pay per mission
+ *  — deep work fewer slots at more pay, quick checks more slots at less — and the system only
+ *  enforces this floor and the exactness invariant. Curve-decided counts are gone. */
+export const TANGIBLE_MIN_PER_REWARD_USD = 3;
 /** The ceiling of a sane reward: past $50 a head, surplus is farm bait, not motivation. */
 export const TANGIBLE_MAX_REWARD_USD = 50;
 
@@ -82,11 +87,20 @@ export function tangibleSlotTarget(totalBudgetBase: bigint): number {
  * slots. Returns missions in their ORIGINAL order — the allocator re-orders for itself.
  */
 export function applyTangibleCaps(missions: WeightedMission[], totalBudgetBase: bigint): WeightedMission[] {
-  // The curve is continuous, so there is no regime gate any more: at every budget the target is
-  // "how many people can earn the tangible rate for THIS budget", and the $50 per-person ceiling
-  // means a giant budget expands the crowd rather than inflating rewards. MAX_COMPLETIONS still
-  // bounds each mission, so slots can never exceed missions × 50 regardless.
-  const target = Math.max(tangibleSlotTarget(totalBudgetBase), missions.length);
+  /**
+   * THE ARCHITECT'S COUNTS STAND — the founder's second overrule of this function.
+   *
+   * The first version derived the slot count from a budget curve and trimmed the architect to it,
+   * which made every $20 campaign 4×$5 regardless of what the missions WERE. The founder, watching
+   * real plans: "let a model decide that based on the work — more slots less pay or more pay less
+   * slots — whatever it proposes, it should be that, not hardcoded." So the model's per-mission
+   * judgment now rules, and this pass enforces exactly ONE thing: no reward may fall under the
+   * tangible floor ($3). Only when the proposed slots would slice the budget below that does it
+   * trim — lowest-priority first, never dropping a mission — because twenty $1 slots sit unfilled
+   * no matter who proposed them. Exactness, the share rule and the balancer are untouched.
+   */
+  const floorTarget = Math.floor(Number(totalBudgetBase) / (TANGIBLE_MIN_PER_REWARD_USD * 1_000_000));
+  const target = Math.max(Math.min(floorTarget, Number.MAX_SAFE_INTEGER), missions.length);
   const caps = new Map(missions.map((m) => [m.missionKey, Number(clampCap(m.suggestedMaxCompletions))]));
   let total = [...caps.values()].reduce((s, c) => s + c, 0);
   if (total <= target) return missions;

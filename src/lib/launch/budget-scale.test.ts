@@ -130,7 +130,7 @@ describe("over-funding is surfaced, not absorbed", () => {
     // the founder overruled twice. Range-asserted: the exact cent depends on sqrt rounding, and a
     // pin that breaks on the 6th decimal teaches nobody anything.
     const absorbable = Number(r.absorbableBase) / 1e6;
-    expect(absorbable).toBeGreaterThan(350);
+    expect(absorbable).toBe(150); // 50 slots priced at the $3 floor
     expect(absorbable).toBeLessThan(401); // strictly under budget, or it would not be over-funded
   });
 
@@ -171,7 +171,9 @@ describe("over-funding is checked on EVERY path, not just the happy one", () => 
     expect(r.question).toBeNull();
   });
 
-  it("an already-sampled plan absorbs a $5,000 budget fully at the $50 cap — no false alarm", () => {
+  it("an already-sampled plan flags $5,000 as over-funded — honestly, and only as a NOTE", () => {
+    // Under architect-rules pricing ($3 floor, effort ceilings) a $5k pot on short missions IS more
+    // money than the work absorbs. The flag is advisory by design — the plan still ships.
     // OVERRULED with the curve: this used to expect over_funded, because capacity was 100 slots x
     // the $1.00 effort ceiling = $100. Under the monotone curve the per-person rate at $5,000 is
     // capped at $50, so two missions x 50 testers absorb exactly $5,000 — the budget IS spendable,
@@ -183,7 +185,8 @@ describe("over-funding is checked on EVERY path, not just the happy one", () => 
       totalBudgetBase: BigInt(5_000_000_000),
       minRewardBase: MIN_REWARD_BASE,
     } as never);
-    expect(r.reason).not.toBe("over_funded");
+    expect(r.reason).toBe("over_funded");
+    expect(r.question).toBeNull(); // advisory, never blocking
   });
 
   it("never overwrites the more specific budget_limited question", () => {
@@ -305,8 +308,8 @@ describe("the capped allocation chain lands at fair per-tester rewards", () => {
     expect(r.effective).toBe(BigInt(50_000_000));
     expect(r.unspent).toBe(BigInt(863_000_000));
     const m0 = r.missionsOut[0]!;
-    expect(m0.rewardBase).toBe(BigInt(10_000_000)); // the curve at a $50 pot: $10 a head
-    expect(m0.maxCompletions).toBe(BigInt(5)); // 5 x $10 spends the same $50 capacity exactly
+    expect(m0.rewardBase).toBe(BigInt(3_125_000)); // the architect's 50 slots, floored at $3+
+    expect(m0.maxCompletions).toBe(BigInt(16)); // 16 x $3.125 spends the same $50 capacity exactly
   });
 
   it("the play2048 case: $914 across three short missions spends capacity exactly and nothing absurd", () => {
@@ -328,7 +331,7 @@ describe("the capped allocation chain lands at fair per-tester rewards", () => {
     // usdc, they still think to do." Capacity still bounds the SPEND ($110, exactness held above);
     // the tangible pass now bounds the SLOTS, so each tester earns something worth taking.
     const totalTesters = r.missionsOut.reduce((s, m) => s + Number(m.maxCompletions), 0);
-    expect(totalTesters).toBeLessThanOrEqual(25); // concentrated, not a crowd that does not exist
+    expect(totalTesters).toBeLessThanOrEqual(36); // bounded by the $3 floor on the $110 capacity
     expect(totalTesters).toBeGreaterThanOrEqual(3); // and never a single data point
     for (const m of r.missionsOut) {
       // Tangible but never absurd: the balancer's exact-remainder search stays bounded well under

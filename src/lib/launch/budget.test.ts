@@ -176,9 +176,10 @@ describe("the monotone tangible curve — both numbers grow with budget", () => 
 });
 
 describe("applyTangibleCaps", () => {
-  it("turns $1 x 20 into concentrated rewards on a $20 budget", () => {
+  it("respects the architect's count down to the $3 floor on a $20 budget", () => {
+    // Founder overrule 2026-08-12: the MODEL decides slots-vs-pay; this pass only stops pennies.
     const out = applyTangibleCaps([wm("a", 20, "high")], usdc(20));
-    expect(out[0].suggestedMaxCompletions).toBe(4); // $20 / 4 = $5 per person
+    expect(out[0].suggestedMaxCompletions).toBe(6); // $20 / $3 floor — the architect asked for 20
   });
 
   it("trims the LOWEST-priority mission first and keeps original order", () => {
@@ -189,7 +190,7 @@ describe("applyTangibleCaps", () => {
     expect(out.map((m) => m.missionKey)).toEqual(["low1", "hi"]); // order untouched
     const low = out[0].suggestedMaxCompletions;
     const hi = out[1].suggestedMaxCompletions;
-    expect(low + hi).toBe(4);
+    expect(low + hi).toBe(6);
     expect(hi).toBeGreaterThanOrEqual(low); // the founder's ask keeps more of its slots
   });
 
