@@ -11,7 +11,7 @@ import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
 import { payoutReplaySchemaReady } from "@/lib/deputy/canary-preflight";
 import { deserializePlan } from "@/lib/launch/serde";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
-import { distillPrivateKey, privateSignalSources, OBS_BAR } from "@/lib/deputy/observation-verify";
+import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
 import { stateDigest } from "@/lib/launch/observed-facts";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
@@ -143,19 +143,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
   ]);
   const privateKey = distillPrivateKey(fieldTest, publicStrings);
-  // PAYOUT SAFETY — a public-heavy corpus cannot tell a card-parrot from a real visit (the
-  // over-acceptance the live judge eval caught: a vague parrot scored 6 "sources" on the clawup
-  // frameworks corpus). So an observation-mission plan whose corpus lacks genuine PRIVATE signal must
-  // NOT auto-pay, regardless of the founder's wizard choice — it holds for their one-tap review
-  // instead. url-verifiable missions autopay without a corpus, so an all-url plan is untouched; this
-  // only ever HOLDS more, never rejects a real tester and never wrong-pays. The deterministic
-  // artifact/on-chain lane (src/lib/verify) is how such campaigns regain autonomy safely, next.
-  const hasObservationMission = loaded.plan.missions.some(
-    (m) => (m as { verifiabilityClass?: string }).verifiabilityClass === "observation-based",
-  );
-  const corpusCanAutopay =
-    !hasObservationMission || privateSignalSources(fieldTest, publicStrings) >= OBS_BAR.minKeySources;
-  const effectiveAutonomy: "manual" | "autopilot" = corpusCanAutopay ? autonomy : "manual";
   const explored = explorationCounts(fieldTest); // P23 — Sage's own exploration breadth, for the board
 
   const result = await attachV2Campaign(
@@ -176,7 +163,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       factoryAddress: getAddress(settings.factory),
       vaultAddress: getAddress(deployment.deployedVault),
       missions,
-      autonomy: effectiveAutonomy,
+      autonomy,
       perWalletCap,
     },
     deploymentAttachDeps(deployment, loaded.plan, settings),

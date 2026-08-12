@@ -7,7 +7,7 @@ import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { fieldTestEnabled } from "./field-test";
-import { distillPrivateKey, privateSignalSources, OBS_BAR } from "@/lib/deputy/observation-verify";
+import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
@@ -39,13 +39,11 @@ function computeCorpusReadiness(map: ProductMapV1 | null, plan: MissionPlanV1 | 
   ]);
   const fieldTest = (map?.fieldTest ?? null) as FieldTestSummary | null;
   const sources = distillPrivateKey(fieldTest, publicStrings).distinctSources;
-  // AUTONOMOUS ONLY WHEN THE CORPUS CAN TELL A PARROT FROM A REAL VISIT. The raw source COUNT passed
-  // the clawup public-heavy corpus (≥5) even though a card-parrot scored 6 there — so autonomy now
-  // rests on PRIVATE-SIGNAL sources (those carrying content absent from the public card), not the
-  // count. Weak corpus → founder reviews (safe); rich corpus → auto-pays. `sources` stays the display
-  // number; `autonomous` is the honest gate. The accept/reject matcher is untouched.
-  const signal = privateSignalSources(fieldTest, publicStrings);
-  return { observation: true, sources, autonomous: signal >= OBS_BAR.minKeySources };
+  // The operator's standing decision (2026-08-12): FULL AUTOPAY stays armed, bounded by the
+  // per-wallet cap, the daily submit limit, near-dup detection and the injection guard. A
+  // private-signal-based hold was built and REVERTED here because it silently overrode that choice;
+  // `privateSignalSources` remains available (and tested) for when hardening is deliberately armed.
+  return { observation: true, sources, autonomous: sources >= OBS_BAR.minKeySources };
 }
 
 /** JSON-safe serialization (bigint → string) for durable JSON columns + APIs. */
