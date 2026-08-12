@@ -7,6 +7,7 @@ import {
   validateOptionalText,
 } from "@/lib/campaigns/validate";
 import { createInspectionJob, RequestIdentityMismatchError } from "@/lib/db/inspection";
+import { sealTestAccount, validateTestAccount } from "./test-account-crypto";
 
 type InspectionJob = ReturnType<typeof createInspectionJob>["job"];
 
@@ -28,6 +29,9 @@ export interface StartInspectionInput {
   surface?: string;
   /** Trusted actor identity folded into the commitment (default: the founder namespace). */
   actor?: string;
+  /** OPTIONAL test-account credentials for the founder's OWN product, so Sage can sign in during the
+   *  field test and gain ground truth behind the login wall. Sealed immediately; never logged. */
+  testAccount?: unknown;
 }
 
 export type StartInspectionResult =
@@ -85,6 +89,19 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
   const targetUsers = validateOptionalText(input.targetUsers, "Target users", 800);
   if (!targetUsers.ok) return { ok: false, error: targetUsers.error };
 
+  // TEST ACCOUNT — validated and SEALED here, at the door, so a plaintext credential never travels
+  // further into the system than this function. A missing server secret refuses the seal rather than
+  // silently storing plaintext, so the founder is told instead of being quietly exposed.
+  const acct = validateTestAccount(input.testAccount);
+  if (!acct.ok) return { ok: false, error: acct.error };
+  let testAccountSealed: string | null = null;
+  if (acct.value) {
+    testAccountSealed = sealTestAccount(acct.value);
+    if (!testAccountSealed) {
+      return { ok: false, error: "This server cannot store credentials securely right now — omit the test account." };
+    }
+  }
+
   // budget in whole USDC → 6dp base units (capped, floored) via the shared validator.
   const budget = validateRewardUsd(input.budgetUsd);
   if (!budget.ok) return { ok: false, error: `Budget: ${budget.error}` };
@@ -110,6 +127,7 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
       planningRequestId: input.planningRequestId,
       surface: input.surface,
       actor: input.actor ?? input.founder,
+      testAccountSealed,
     });
     return { ok: true, job, created };
   } catch (e) {

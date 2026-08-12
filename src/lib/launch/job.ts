@@ -7,6 +7,7 @@ import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { fieldTestEnabled } from "./field-test";
+import { openTestAccount } from "./test-account-crypto";
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
@@ -209,6 +210,10 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     targetUsers: job.targetUsers,
     totalBudgetBase: BigInt(job.totalBudgetBase),
     tokenDecimals: job.tokenDecimals,
+    // Opened only here, at the moment the run needs it, and handed straight to the field test. A
+    // seal that cannot be opened (rotated secret, tampered row) degrades to null — the inspection
+    // simply runs logged-out, exactly as it did before this capability existed.
+    testAccount: openTestAccount(job.testAccountSealed),
   };
 
   // Phase 5 CANARY — a SERVER-VERIFIED identity, built ONLY from the SIWE-verified founder wallet the job was

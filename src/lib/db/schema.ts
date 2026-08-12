@@ -597,6 +597,9 @@ export const inspectionJobs = sqliteTable(
      *  new-schema rows). Threaded turn → approval so a notification/launch only presents a
      *  plan whose request id matches the originating founder turn. Nullable on legacy rows. */
     planningRequestId: text("planning_request_id"),
+    /** The founder's TEST-ACCOUNT credentials, AES-256-GCM sealed (test-account-crypto.ts). Optional;
+     *  used only to sign in to their own product during the field test. Never logged or returned. */
+    testAccountSealed: text("test_account_sealed"),
     /** Versioned canonical structured digest binding (schemaVersion, surface, actor,
      *  planningRequestId, url, repo, goalDigest, budgetBase, tokenDecimals). Reusing a
      *  request id with a DIFFERENT payload fails closed as request_identity_mismatch. */

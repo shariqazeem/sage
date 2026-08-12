@@ -160,6 +160,8 @@ export interface CreateInspectionInput {
    *  founder namespace when a distinct actor isn't available. */
   surface?: string;
   actor?: string;
+  /** AES-256-GCM sealed test-account credentials (sealed at the door in start.ts). Never plaintext. */
+  testAccountSealed?: string | null;
 }
 
 /**
@@ -227,6 +229,7 @@ export function createInspectionJob(input: CreateInspectionInput): { job: Inspec
     totalBudgetBase: Number(input.totalBudgetBase),
     tokenDecimals: input.tokenDecimals,
     inputDigest,
+    testAccountSealed: input.testAccountSealed ?? null,
     createdAt: now,
     updatedAt: now,
   };

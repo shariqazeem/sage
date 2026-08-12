@@ -33,6 +33,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     goal: body.goal,
     targetUsers: body.targetUsers,
     budgetUsd: body.budgetUsd,
+    // OPTIONAL test account for the founder's OWN product — sealed at the door in startInspection,
+    // never logged, never echoed back in any response.
+    testAccount: body.testAccount,
     founder: session ?? "anonymous",
     planningRequestId,
     surface: "web",
