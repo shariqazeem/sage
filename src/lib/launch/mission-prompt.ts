@@ -45,7 +45,7 @@ RULES — these are absolute:
 
 Design an artifact mission like this whenever the product map shows a signup/create/deploy/publish/mint flow (a "Start Free"/"Sign up"/"Create" control, a docs quick-start describing how to make something, a dashboard):
 - the tester signs up with THEIR OWN account and carries out the product's CORE ACTION (create the agent/project/store/post/item the product exists to make);
-- the mission's evidence is the PUBLIC URL of the thing they created (or its share link, or the transaction hash) PLUS the exact text shown on it;
+- the mission's evidence is the PUBLIC URL of the thing they created (or its share link, or the transaction hash) PLUS the exact text shown on it. PUBLIC means viewable while LOGGED OUT — a share/profile/published page. NEVER ask for a dashboard, account, settings, or inbox URL: Sage cannot open a page that requires a login, so a "dashboard url" makes the mission unverifiable and it will be rejected. If the product publishes nothing viewable logged-out, do not force it — ask first-hand questions (rule 6b) about what the screens showed instead;
 - criteria say plainly: the tester creates <the object> and provides the public URL of the created <object>, and that page shows <specific expected text/label>.
 This is the HIGHEST-VALUE mission type — it proves the product's actual promise, not its marketing copy. Never ask for a password, never ask them to pay unless the founder explicitly asked for a paid step, and never ask for private/logged-in screenshots — only the PUBLIC result.
 
@@ -78,7 +78,11 @@ Judge each candidate against this rubric:
 - objectively verifiable from the required evidence
 - acceptance criteria unambiguous and ordered
 - evidence requirements sufficient to prove the criteria
-- EVIDENCE CAPABILITY (hard): evidence must be provable from a public HTTPS URL + quoted/observed text. REJECT any mission whose evidence or criteria require a screenshot, image, photo, video, screen recording, uploaded file/document, or private/authenticated (logged-in) content — Sage cannot ingest those. When revising, replace such a requirement with a public-URL + quoted-text + observation requirement.
+- EVIDENCE CAPABILITY (hard): evidence must be provable from a public HTTPS URL + quoted/observed text. REJECT any mission whose evidence or criteria require a screenshot, image, photo, video, screen recording, uploaded file/document, or a page that can only be seen while logged in (a dashboard, an account settings page, an inbox) — Sage cannot ingest those. When revising, replace such a requirement with a public-URL + quoted-text + observation requirement.
+- ARTIFACT MISSIONS ARE VALID AND VALUABLE — DO NOT REJECT THEM FOR ASKING THE TESTER TO SIGN UP. A mission may absolutely require the tester to create their own account and carry out the product's core action (create an agent/project/store/post, deploy, publish, mint). Signing up is the TESTER'S action, not Sage's, and it is exactly the real work founders pay for. Such a mission is CORRECT as long as its EVIDENCE is something Sage can fetch without logging in: the PUBLIC url of the thing they created (a profile/share/published page viewable logged-out), or a transaction hash. So:
+  - ACCEPT an artifact mission whose evidence is the public URL of the created object + the text shown on it.
+  - REVISE (do not reject) an artifact mission that asks for a DASHBOARD or account-only URL: keep the same real work, and change the evidence to the created object's PUBLIC url (or, if the product truly publishes nothing, to first-hand questions about what the screens showed).
+  - Only REJECT it outright if the product has no create/signup flow at all in the map.
 - WORTH PAYING FOR (absolute): REJECT any mission whose success is merely that an element/control/button/icon/link/heading/text is PRESENT, visible, exists, or "is identifiable" in the page or DOM. Paying a human to confirm a button exists is worthless, and "revising" it into another presence check is not a fix — REJECT it outright. A valid mission requires a real ACTION and an observed OUTCOME (a flow completed, a state reached, a behavior triggered, a claim checked against reality).
 - no duplicate coverage of another mission
 - reward weight proportional to effort/priority
