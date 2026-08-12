@@ -172,6 +172,28 @@ async function runOne(m, i) {
     anchorInteg: missions.length === 0 ? "n/a" : (integrity === 100 ? "PASS" : `FAIL(${integrity}%)`),
     lintSplit: missions.length === 0 ? "n/a" : (m.expectLint === "any" ? "PASS" : m.expectLint === "url" ? (urlV > 0 ? "PASS" : softLint(`0url/${obsV}obs`)) : (obsV > 0 ? "PASS" : softLint(`${urlV}url/0obs`))),
     needsInput: accept.includes(job.status) ? "PASS" : `FAIL(got-${job.status},want-${accept.join("|")})`,
+    /**
+     * PLAN-QUALITY LINT (2026-08-12) — the founder-facing failures each found live, one product at
+     * a time, converted into checks that sweep every category at once:
+     *   templateLeak — internal skeleton/attribution strings on a founder's screen ("Reach the
+     *     target…" from an unresolved entity; "exactly what the founder asked" on a run whose goal
+     *     was Sage's own synthesis — the battery sends no goal, so ANY founder-attribution is a lie).
+     *   floor — no reward below the $3 tangible floor (three separate money-writers each violated
+     *     it once; the lint watches the OUTPUT, whichever writer is last).
+     *   coverage — a budget that tangibly funds 3+ missions collapsing onto ONE is thin coverage
+     *     (measured twice on clawup $20). Informational (~): one deep mission can be a fair call.
+     */
+    templateLeak: missions.length === 0 ? "n/a"
+      : missions.some((x) => /\bthe target\b/i.test(x.title || "") || /exactly what the founder asked/i.test(x.whyItMatters || ""))
+        ? "FAIL(template)" : "PASS",
+    floor: missions.length === 0 ? "n/a"
+      : missions.every((x) => Number(x.rewardBase ?? 3_000_000) >= 3_000_000) ? "PASS"
+      : `FAIL(${missions.filter((x) => Number(x.rewardBase ?? 0) < 3_000_000).map((x) => (Number(x.rewardBase) / 1e6).toFixed(2)).join(",")})`,
+    coverage: missions.length === 0 || job.status !== "ready" ? "n/a"
+      : (() => {
+          const budget = Number(plan?.totalBudgetBase ?? 0) / 1e6;
+          return budget >= 15 && missions.length === 1 ? `~(1-mission-on-$${Math.round(budget)})` : "PASS";
+        })(),
   };
   return { ...m, status: job.status, mode, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [], truncations: ft?.truncations ?? [] };
 }
@@ -194,7 +216,7 @@ for (const [i, m] of rows.entries()) {
 }
 
 // ── the grid ──
-const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput"];
+const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput", "templateLeak", "floor", "coverage"];
 console.log(`\n${"═".repeat(90)}\nGRID (category × check)\n`);
 console.log(["category".padEnd(16), ...CHECKS.map((c) => c.slice(0, 9).padEnd(10))].join(""));
 for (const r of results) {
