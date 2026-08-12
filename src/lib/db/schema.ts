@@ -892,3 +892,32 @@ export const x402Payments = sqliteTable(
 );
 
 export type X402PaymentRow = typeof x402Payments.$inferSelect;
+
+/**
+ * FOUNDER/TESTER FEEDBACK — the shortest path from "something felt wrong" to the operator's phone.
+ *
+ * Deliberately anonymous-first: no account, no required contact — the barrier to telling us a plan
+ * read oddly must be one textarea. Rows are write-once from the public API and read by the operator
+ * (Telegram notification + DB). `inspectionId` ties feedback to the exact plan being watched when
+ * it was written, which is the difference between "the missions were confusing" and knowing WHICH
+ * missions confused a real founder.
+ */
+export const feedback = sqliteTable(
+  "feedback",
+  {
+    id: text("id").primaryKey(),
+    /** the feedback itself — bounded at the API, never trusted as anything but text. */
+    message: text("message").notNull(),
+    /** optional reply-to the sender chose to leave (email / telegram / x handle). */
+    contact: text("contact"),
+    /** the app path it was left from (e.g. /launch/<id>), for context. */
+    page: text("page"),
+    /** the inspection being viewed when written, when the page was a plan. */
+    inspectionId: text("inspection_id"),
+    surface: text("surface").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("feedback_created_idx").on(t.createdAt)],
+);
+
+export type FeedbackRow = typeof feedback.$inferSelect;

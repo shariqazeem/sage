@@ -7,6 +7,7 @@ import { geist } from "./fonts";
 import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
 import { SceneWorkflow } from "./scene-workflow";
+import { ScenePartners } from "./scene-partners";
 import { SceneReplay } from "./scene-replay";
 import { ScenePolicy } from "./scene-policy";
 import { SceneProof } from "./scene-proof";
@@ -38,6 +39,8 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
           payoutCount={totals.payoutCount}
           networkName={network.name}
         />
+
+        <ScenePartners />
 
         <SceneWorkflow />
 

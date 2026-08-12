@@ -281,6 +281,13 @@
       "when": 1786330000000,
       "tag": "0039_campaign_fees",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1786330001000,
+      "tag": "0040_feedback",
+      "breakpoints": true
     }
   ]
 }

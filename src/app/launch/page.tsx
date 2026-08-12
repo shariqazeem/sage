@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./launch.css";
 import { LaunchForm } from "@/components/launch/launch-form";
+import { RecentInspectionsList } from "@/components/launch/recent-inspections-list";
 
 export const metadata: Metadata = {
   title: "Launch with Sage — turn your product into a paid testing plan",
@@ -27,6 +28,7 @@ export default function LaunchPage() {
         </div>
 
         <LaunchForm />
+        <RecentInspectionsList />
       </div>
     </div>
   );

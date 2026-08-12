@@ -7,6 +7,7 @@ import { MissionCard } from "./mission-card";
 import { BudgetBar } from "./budget-bar";
 import type { JobView, PlanView } from "./types";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
+import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { LiveBrowserTrail } from "./live-browser-trail";
 
 /**
@@ -113,6 +114,11 @@ export function LaunchResults({ initial }: { initial: JobView }) {
    */
   const designSince = useRef<number | null>(null);
   const [designElapsed, setDesignElapsed] = useState(0);
+  // Any visit to a plan page teaches THIS browser the way back — links opened from Telegram or a
+  // shared message land here too, so remembering on view (not only on create) covers every door.
+  useEffect(() => {
+    rememberInspection(initial.id, initial.productUrl);
+  }, [initial.id, initial.productUrl]);
   useEffect(() => {
     const designing = DESIGNING.has(job.status);
     if (!designing) {
@@ -155,6 +161,14 @@ export function LaunchResults({ initial }: { initial: JobView }) {
       {!TERMINAL.has(status) && (
         <div className="lx-card pad-lg">
           <div className="lx-kicker" style={{ marginBottom: 6 }}>Inspecting {hostOf(job.productUrl)}</div>
+          {/* Waiting is optional and the founder must KNOW that — the run is server-side and this
+              URL is the durable permalink. Without this line, closing the tab feels like losing
+              the work, so founders sit through minutes they didn't need to spend watching. */}
+          <p className="lx-comeback">
+            You don&apos;t have to wait here — Sage keeps working on our servers. This page is your
+            plan&apos;s permanent link; come back anytime, or find it under <b>Your inspections</b> on
+            the launch page.
+          </p>
           <ul className="lx-stages">
             {STAGE_LABELS.filter((s) => s.key !== "field_test" || job.fieldTestStage).map((s) => {
               const state = RANK[status] > RANK[s.key] ? "done" : RANK[status] === RANK[s.key] ? "active" : "";

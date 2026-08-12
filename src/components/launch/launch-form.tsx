@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { rememberInspection } from "@/lib/launch/recent-inspections";
 
 /** Proven goal shapes — the exact wording styles that produced good plans in real campaigns:
  *  action verbs the journey compiler recognizes, stable facts, no volatile counts. */
@@ -102,6 +103,7 @@ export function LaunchForm() {
         setSubmitting(false);
         return;
       }
+      rememberInspection(data.job.id, form.productUrl);
       router.push(`/launch/${data.job.id}`);
     } catch {
       setError("Could not reach Sage. Please try again.");

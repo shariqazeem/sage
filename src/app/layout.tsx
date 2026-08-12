@@ -5,6 +5,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
 import { AppShell } from "@/components/shell/app-shell";
+import { FeedbackWidget } from "@/components/shell/feedback-widget";
 import { geist } from "@/components/landing/fonts";
 
 const inter = Inter({
@@ -101,6 +102,7 @@ export default function RootLayout({
         <StructuredData />
         {children}
         <AppShell />
+        <FeedbackWidget />
       </body>
     </html>
   );

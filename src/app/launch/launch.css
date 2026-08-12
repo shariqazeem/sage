@@ -135,6 +135,38 @@
   padding: 1px 6px; border-radius: 999px; background: var(--lx-accent); color: #fff; flex: none;
 }
 
+/* "You can close this page" — quiet, informational, above the stage list. */
+.lx-comeback {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--lx-muted);
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--lx-line);
+  border-radius: 8px;
+  background: var(--lx-bg);
+}
+.lx-comeback b { color: var(--lx-ink); font-weight: 600; }
+
+/* "Your inspections" — the way back for anonymous founders. */
+.lx-recent { margin-top: 26px; }
+.lx-recent-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--lx-muted); margin-bottom: 8px;
+}
+.lx-recent-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--lx-line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.lx-recent-list li + li { border-top: 1px solid var(--lx-line); }
+.lx-recent-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px; text-decoration: none; font-size: 13.5px; color: var(--lx-ink);
+}
+.lx-recent-row:hover { background: var(--lx-bg); }
+.lx-recent-host { font-family: var(--font-mono), monospace; font-size: 12.5px; }
+.lx-recent-status { font-size: 11.5px; color: var(--lx-muted); border: 1px solid var(--lx-line); border-radius: 999px; padding: 1px 8px; }
+.lx-recent-status.ok { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
+.lx-recent-when { margin-left: auto; font-size: 11.5px; color: var(--lx-muted); font-variant-numeric: tabular-nums; }
+
 /* THE ACTION LOG — the agent's own activity feed. Newest line on top with the live pulse;
    mono timestamps; icons carry the verb (click / read / study / design). Receipt minimalism:
    1px lines, no shadows, terracotta only on the live line. */
