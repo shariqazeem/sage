@@ -5,7 +5,9 @@ import {
   PER_MINUTE_RATE_BASE,
   PREFERRED_SAMPLE,
   type SampleMission,
+  splitCompletionsForSample,
 } from "./sample-policy";
+import { MIN_REWARD_BASE } from "./budget";
 
 /**
  * REGRESSION — the founder's $10 became ONE mission × TWO testers × $5.00, for work Sage itself
@@ -139,5 +141,27 @@ describe("a mission's share is what pays its sample, not the whole budget", () =
     // $5 share each ÷ one TANGIBLE reward ($5) = 1 tester per mission — the share rule still holds
     // (neither mission raids the other's pot), each tester simply earns something worth taking.
     for (const m of r.missions) expect(m.maxCompletions).toBe(1);
+  });
+});
+
+/**
+ * THE THIRD MONEY-WRITER LEAK — measured on a live founder plan (clawup, URL-only, 2026-08-12):
+ * the allocator floored the plan at $3+, then splitCompletionsForSample re-divided a $4 pot into
+ * 10 × $0.40 using only the $0.10 floor. Every function that writes a reward carries the same
+ * tangible floor, or the last writer silently wins.
+ */
+describe("splitCompletionsForSample honors the tangible floor", () => {
+  const m = (rewardBase: bigint, maxCompletions: bigint) => ({ missionKey: "cta", rewardBase, maxCompletions });
+
+  it("refuses the exact live leak: a $4 pot must not become 10 x $0.40", () => {
+    const out = splitCompletionsForSample([m(BigInt(4_000_000), BigInt(1))], new Map([["cta", 10]]), MIN_REWARD_BASE);
+    expect(Number(out[0]!.rewardBase)).toBeGreaterThanOrEqual(3_000_000);
+    expect(Number(out[0]!.rewardBase) * Number(out[0]!.maxCompletions)).toBe(4_000_000); // exactness holds
+  });
+
+  it("still splits when the result stays tangible: $12 -> 4 x $3", () => {
+    const out = splitCompletionsForSample([m(BigInt(12_000_000), BigInt(1))], new Map([["cta", 4]]), MIN_REWARD_BASE);
+    expect(Number(out[0]!.maxCompletions)).toBe(4);
+    expect(Number(out[0]!.rewardBase)).toBe(3_000_000);
   });
 });

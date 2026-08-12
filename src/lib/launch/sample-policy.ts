@@ -382,7 +382,8 @@ export function applySamplePolicy<T extends SampleMission>(
  * exact remainder — so a one-mission plan always comes back as 1 × the whole budget. This pure transform
  * re-expresses that same pot as N independent completions: `rewardBase × maxCompletions` is UNCHANGED
  * (the exact-allocation invariant still holds bit for bit), it only ever splits when the division is
- * exact and every tester still clears the meaningful floor. Never touches budget math itself.
+ * exact and every tester still clears the TANGIBLE floor ($3) — not merely the $0.10 meaningful
+ * floor. Never touches budget math itself.
  */
 export function splitCompletionsForSample<
   T extends { missionKey: string; rewardBase: bigint; maxCompletions: bigint },
@@ -396,15 +397,27 @@ export function splitCompletionsForSample<
     if (!target || target <= Number(m.maxCompletions)) return m;
     const pot = m.rewardBase * m.maxCompletions;
     const floor = Number(m.maxCompletions);
-    // Take the LARGEST sample the pot divides exactly. $1.50 splits three ways; $2.00 does not —
-    // and a founder who asked about users should get two testers at $1.00 rather than one at $2.00
-    // because of a remainder. Exactness is never traded away: `rewardBase × maxCompletions` still
-    // equals the pot bit for bit, so the allocation invariant holds untouched.
+    // Take the LARGEST sample the pot divides exactly WITHOUT dropping a tester below the tangible
+    // floor. $9 splits three ways at $3; $10 doesn't divide by three, so two testers get $5 each
+    // rather than one getting $10 because of a remainder. Exactness is never traded away:
+    // `rewardBase × maxCompletions` still equals the pot bit for bit, the allocation invariant
+    // holds untouched — and a pot too small to buy two tangible rewards stays with one tester.
+    /**
+     * THE TANGIBLE FLOOR BINDS HERE TOO — this was the third money-writer, and the one that leaked.
+     *
+     * allocateBudget enforces the $3 floor; this split runs AFTER it and re-divided rewards with
+     * only the $0.10 meaningful floor. Measured on a live founder plan (clawup, URL-only run): the
+     * architect proposed 10 slots for a 3-minute check, the allocator floored the plan correctly,
+     * and this function then split a $4 pot into 10 × $0.40 — pennies on a founder-facing plan,
+     * hours after pennies were overruled. Every function that writes a reward must carry the same
+     * floor, or the last writer silently wins.
+     */
+    const tangibleFloor = BigInt(3_000_000) > minRewardBase ? BigInt(3_000_000) : minRewardBase;
     for (let k = target; k > floor; k--) {
       const n = BigInt(k);
       if (pot % n !== BigInt(0)) continue; // never introduce rounding
       const reward = pot / n;
-      if (reward < minRewardBase) continue; // never drop a tester below the meaningful floor
+      if (reward < tangibleFloor) continue; // never split a tester's pay below the tangible floor
       return { ...m, rewardBase: reward, maxCompletions: n };
     }
     return m;

@@ -139,7 +139,7 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
     expect(cov.mappings).toHaveLength(journey.checkpoints.length);
   });
 
-  it("the sample policy turns it into 3 × $0.50 = $1.50 exactly", () => {
+  it("the sample target stands, but the split refuses to break the tangible floor: $1.50 stays 1 × $1.50", () => {
     const r = compileGoalMission(compileInput());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -174,36 +174,44 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
       BigInt(fixture.totalBudgetBase),
     );
     expect(alloc.ok).toBe(true);
-    // the allocator's exactness strategy gives a single-mission plan 1 completion worth the whole pot;
-    // the sample split re-expresses that SAME pot as three independent testers.
+    /**
+     * OVERRULED (2026-08-12, the third money-writer leak): this pin used to celebrate the split —
+     * 3 × $0.50 from a $1.50 pot. On a live founder plan the same mechanism turned a $4 pot into
+     * 10 × $0.40, hours after pennies were overruled with a $3 tangible floor. The sample TARGET
+     * still stands (3 testers is the right ask), but the splitter now refuses any division that
+     * drops a tester below $3 — a $1.50 pot pays one tester $1.50 rather than three testers pennies.
+     */
     const split = splitCompletionsForSample(
       alloc.missions,
       new Map([[m.missionKey, sample.missions[0].maxCompletions]]),
       MIN_REWARD_BASE,
     );
-    expect(split[0].maxCompletions).toBe(BigInt(3));
-    expect(split[0].rewardBase).toBe(BigInt(500_000)); // $0.50 each
+    expect(split[0].maxCompletions).toBe(BigInt(1));
+    expect(split[0].rewardBase).toBe(BigInt(1_500_000)); // the whole pot, one tangible reward
     const total = split.reduce(
       (s, x) => s + x.rewardBase * x.maxCompletions,
       BigInt(0),
     );
-    expect(total).toBe(BigInt(1_500_000)); // exactly $1.50
+    expect(total).toBe(BigInt(1_500_000)); // exactly $1.50 — exactness never trades away
   });
 
   /**
-   * REGRESSION — a founder asked for "users" with a $2 budget and got ONE tester at $2.00, because
-   * 2,000,000 does not divide by three. Divisibility is an implementation detail; it must not
-   * decide how many people get paid. The split now takes the largest sample the pot divides
-   * exactly, and exactness itself is never traded away.
+   * REGRESSION (kept) + OVERRULE (2026-08-12) — divisibility is still an implementation detail
+   * that must not decide how many people get paid, and exactness is still never traded away. But
+   * the split now also carries the $3 tangible floor: it takes the largest sample the pot divides
+   * exactly WITHOUT dropping any tester below $3. Pots too small to buy two tangible rewards stay
+   * with one tester — the live leak was a $4 pot split into 10 × $0.40 on a founder-facing plan.
    */
-  it("falls back to the largest sample the pot divides exactly", () => {
+  it("falls back to the largest tangible sample the pot divides exactly", () => {
     const key = "m";
     const cases: [bigint, number, bigint][] = [
       // pot,        expected completions, expected reward each
-      [BigInt(1_500_000), 3, BigInt(500_000)], // $1.50 → 3 × $0.50 (unchanged)
-      [BigInt(2_000_000), 2, BigInt(1_000_000)], // $2.00 → 2 × $1.00 (was 1 × $2.00)
-      [BigInt(3_000_000), 3, BigInt(1_000_000)], // $3.00 → 3 × $1.00
-      [BigInt(250_000), 2, BigInt(125_000)], // $0.25 → 2 × $0.125, still over the floor
+      [BigInt(1_500_000), 1, BigInt(1_500_000)], // $1.50 → 1 × $1.50 (3 × $0.50 breaks the floor)
+      [BigInt(2_000_000), 1, BigInt(2_000_000)], // $2.00 → 1 × $2.00 (2 × $1.00 breaks the floor)
+      [BigInt(3_000_000), 1, BigInt(3_000_000)], // $3.00 → 1 × $3.00 (3 × $1.00 breaks the floor)
+      [BigInt(250_000), 1, BigInt(250_000)], // $0.25 → 1 × $0.25, never subdivided
+      [BigInt(9_000_000), 3, BigInt(3_000_000)], // $9.00 → 3 × $3.00, every reward tangible
+      [BigInt(10_000_000), 2, BigInt(5_000_000)], // $10 % 3 ≠ 0 → 2 × $5.00, tangible AND exact
     ];
     for (const [pot, n, each] of cases) {
       const split = splitCompletionsForSample(
