@@ -36,6 +36,7 @@ import { buildProductContext, derivePhases } from "./product-context";
 import {
   canaryPlanCommitment,
   evaluateCanarySelection,
+  resolveCanaryAuthority,
   type CanaryIdentity,
 } from "./mission-canary";
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
@@ -448,10 +449,19 @@ export async function inspectAndPlan(
   // Design-phase narration lands on the SAME live trail the field test writes, so the founder's
   // screen keeps moving through the 2-4 minutes of model work (it used to freeze at the last
   // screenshot — measured on a recorded run, and read as "stuck"). Best-effort by construction.
+  // THE 169s THE FOUNDER DOESN'T HAVE TO WAIT FOR. The grounded planner runs inside the brain; measured
+  // at 169s on a real clawup run and, when its output can't be selected, thrown away — pure waste on the
+  // founder's clock. It's worth the wait ONLY when it could be SELECTED (canary + this founder eligible)
+  // or in pure measurement mode (shadow). A URL-only inspection is an anonymous founder → never eligible
+  // → it used to run the full planner just to discard it, which is exactly the recording path. The PLAN
+  // outcome is identical either way (an ineligible founder always gets legacy); only the telemetry differs.
+  const groundingMode = missionGroundingMode();
+  const runGroundedShadow = groundingMode === "shadow" || resolveCanaryAuthority(groundingMode, opts.canaryIdentity ?? null).allowed;
   const brain = await runMissionBrain(map, input, scope, corpus, {
     narrate: opts.inspectionId
       ? (label) => void recordFieldTestStep(opts.inspectionId!, { label, screenshot: null, url: input.productUrl })
       : undefined,
+    runGroundedShadow,
   });
   stamp("reviewing");
   // compile a candidate mission set → exact allocation → canonical MissionPlanV1 (MissionSpecV1 + vault hashes).

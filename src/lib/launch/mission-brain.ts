@@ -422,8 +422,12 @@ export async function runMissionBrain(
   corpus: string,
   /** live-trail narration — the design phase is 2-4 minutes of real model work that used to render
    *  as a frozen screen; each phase announces itself. Best-effort, never affects the result. */
-  opts: { narrate?: (label: string) => void } = {},
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean } = {},
 ): Promise<MissionBrainResult> {
+  // The grounded planner is a 169s add on the founder's clock (measured, clawup -6uszdFt). It is worth
+  // that wait only when its output can be SELECTED or we're in pure measurement mode — the pipeline
+  // decides and passes the flag. Default true keeps every existing caller byte-identical.
+  const runGrounded = opts.runGroundedShadow !== false;
   const narrate = (label: string) => {
     try {
       opts.narrate?.(label);
@@ -474,6 +478,7 @@ export async function runMissionBrain(
   // a V2 failure is fully caught. dynamic import breaks the mission-brain ↔ shadow require cycle.
   const computeShadow = async (legacyCount: number): Promise<GroundingShadowResult | undefined> => {
     try {
+      if (!runGrounded) return undefined; // it could never be selected here — don't spend the founder's 169s on it
       const s = await import("./mission-grounding-shadow");
       return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
     } catch { return undefined; }
