@@ -2880,8 +2880,25 @@ async function exploreInteractive(ctx: {
     }
 
     let interactions = 0;
+    /**
+     * SIGNING IN OPENS A WHOLE PRODUCT — GIVE IT ROOM.
+     *
+     * The budget (30 actions / 3 minutes) was sized for a logged-OUT surface: a landing page, a wall,
+     * a few public routes. Behind a login there is a console, its sections, its forms — and Sage was
+     * exploring all of it on the clock it used for a homepage. That matters beyond thoroughness:
+     * every extra screen it genuinely reaches is corpus, and corpus is what lets a tester's honest
+     * account be VERIFIED and PAID instead of held. Measured on token-watcher: an authenticated run
+     * reached /app/endpoints and /app/models and submitted real forms, which is exactly the material
+     * the founder's missions are about.
+     *
+     * The extension is bounded and only ever granted once actually signed in, so a logged-out run is
+     * byte-identical to before.
+     */
+    const AUTH_EXTRA_INTERACTIONS = 20;
+    const AUTH_EXTRA_MS = 90_000;
     const canInteract = () =>
-      interactions < MAX_INTERACTIONS && Date.now() < deadline;
+      interactions < MAX_INTERACTIONS + (loggedIn ? AUTH_EXTRA_INTERACTIONS : 0) &&
+      Date.now() < deadline + (loggedIn ? AUTH_EXTRA_MS : 0);
 
     // 3a. dismiss a consent/cookie modal if present (once).
     if (canInteract()) {
