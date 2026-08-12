@@ -20,7 +20,17 @@ import { recordFieldTestStep } from "./field-test-progress";
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
-const VISION_TIMEOUT_MS = Math.max(15_000, Number(process.env.LLM_TIMEOUT_MS) || 60_000);
+/**
+ * A vision description is a ~3-second call; it must never inherit the 60s text-model timeout.
+ * Measured on a live founder run (clawup, recorded): screenshot #4 took 65s and #5 took 127s —
+ * each was ONE stalled call sitting out the full LLM_TIMEOUT_MS before the retry ladder moved,
+ * and together they were ~3 minutes of the "why is it stuck" the founder saw. A stall is
+ * abandoned at 15s now; the ladder (retry → fallback model) already recovers the description.
+ */
+const VISION_TIMEOUT_MS = Math.max(8_000, Number(process.env.VISION_TIMEOUT_MS) || 15_000);
+/** How many screenshots are studied at once — enough to collapse the pass to ~one call's latency,
+ *  small enough to never trip gateway rate limits. */
+const VISION_CONCURRENCY = 3;
 const MAX_IMAGES = 6;
 const DOWNSCALE_PX = 1024;
 /** rough per-image prompt-token cost measured against the gateway (a 320px probe was ~1125). */
@@ -319,55 +329,79 @@ export async function describeStatesWithVision(
   };
   narrate(`browsing done — studying what it saw (${withShots.length} screenshots)`);
 
-  const observations: VisionObservation[] = [];
+  /**
+   * STUDIED IN PARALLEL, RETURNED IN ORDER. The pass used to be strictly sequential, so one
+   * slow image stalled every image behind it — on the recorded clawup run the whole pass took
+   * ~4.5 minutes for six screenshots that each need ~3s. A small worker pool studies
+   * VISION_CONCURRENCY at once; results land in per-image slots so the returned order (and
+   * therefore the corpus and every digest downstream) is byte-identical to the sequential pass.
+   */
+  const slots: (VisionObservation | null)[] = new Array<VisionObservation | null>(withShots.length).fill(null);
   let promptTokensTotal = 0;
   let studied = 0;
 
-  for (const { s, i } of withShots) {
+  const studyOne = async (slot: number): Promise<void> => {
+    const { s, i } = withShots[slot];
     try {
       studied++;
       narrate(`studying screenshot ${studied} of ${withShots.length}`, s);
       if (deps.describeImage) {
         const r = await deps.describeImage(s, i);
         promptTokensTotal += r.promptTokens;
-        if (r.observation) observations.push(r.observation);
-        continue;
+        if (r.observation) slots[slot] = r.observation;
+        return;
       }
       const disk = diskPathFor(s, artifactDir);
-      if (!disk) continue;
+      if (!disk) return;
       const png = await fs.readFile(disk).catch(() => null);
-      if (!png) continue;
+      if (!png) return;
       const { default: sharp } = await import("sharp");
       const jpeg = await sharp(png)
         .resize({ width: DOWNSCALE_PX, withoutEnlargement: true })
         .jpeg({ quality: 72 })
         .toBuffer()
         .catch(() => null);
-      if (!jpeg) continue;
+      if (!jpeg) return;
       const dataUri = `data:image/jpeg;base64,${jpeg.toString("base64")}`;
       /**
        * A STALLED EYE GETS A SECOND EYE. Measured on a live founder run: flash-lite finished 2 of
        * 6 and 3 of 6 descriptions — the misses WERE the silent minutes, and every miss is corpus
        * the judge never gets. One retry on the primary, then the reliable fallback model: a $0.002
-       * image description is not worth losing to a stall.
+       * image description is not worth losing to a stall. Retries are narrated so a slow image
+       * reads as work, never as a hang.
        */
       let r = await callVision(provider as VisionProvider, dataUri, s.trigger);
-      if (!r) r = await callVision(provider as VisionProvider, dataUri, s.trigger);
+      if (!r) {
+        narrate(`screenshot ${slot + 1} is slow — retrying`, s);
+        r = await callVision(provider as VisionProvider, dataUri, s.trigger);
+      }
       if (!r) {
         const fb = (process.env.VISION_FALLBACK_MODEL ?? process.env.LLM_FALLBACK_MODEL ?? "").trim();
         if (fb && fb !== (provider as VisionProvider).model) {
+          narrate(`screenshot ${slot + 1} — switching to the backup eye`, s);
           r = await callVision({ ...(provider as VisionProvider), model: fb }, dataUri, s.trigger);
         }
       }
-      if (!r) continue;
+      if (!r) return;
       promptTokensTotal += r.promptTokens;
       const obs = parseVisionJson(r.content, { stateIndex: i, trigger: s.trigger });
-      if (obs) observations.push(obs);
+      if (obs) slots[slot] = obs;
     } catch {
       /* per-image failure — skip, keep going (failure-isolated) */
     }
-  }
+  };
 
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < withShots.length) {
+      const slot = next++;
+      await studyOne(slot);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(VISION_CONCURRENCY, withShots.length) }, () => worker()));
+
+  const observations = slots.filter((o): o is VisionObservation => o !== null);
+  narrate(`done studying — assembling the product map`);
   log(`[field-test] vision: described ${observations.length}/${withShots.length} screenshot(s)${promptTokensTotal ? ` — ${promptTokensTotal} prompt tokens actual` : ""}`);
   return observations;
 }

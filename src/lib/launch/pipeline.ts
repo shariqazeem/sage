@@ -41,6 +41,7 @@ import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
 import { compilePlan } from "./plan";
+import { recordFieldTestStep } from "./field-test-progress";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import type {
   BudgetAllocation,
@@ -441,7 +442,14 @@ export async function inspectAndPlan(
   // the observation corpus is every string Sage actually observed — the anchor gate matches each
   // mission's claimed anchors against it, so nothing can be invented from scraps.
   const corpus = buildObservationCorpus(inspection.observations, map.fieldTest);
-  const brain = await runMissionBrain(map, input, scope, corpus);
+  // Design-phase narration lands on the SAME live trail the field test writes, so the founder's
+  // screen keeps moving through the 2-4 minutes of model work (it used to freeze at the last
+  // screenshot — measured on a recorded run, and read as "stuck"). Best-effort by construction.
+  const brain = await runMissionBrain(map, input, scope, corpus, {
+    narrate: opts.inspectionId
+      ? (label) => void recordFieldTestStep(opts.inspectionId!, { label, screenshot: null, url: input.productUrl })
+      : undefined,
+  });
   stamp("reviewing");
   // compile a candidate mission set → exact allocation → canonical MissionPlanV1 (MissionSpecV1 + vault hashes).
   // Used identically for the legacy plan and (under canary) the grounded plan, so both traverse the SAME

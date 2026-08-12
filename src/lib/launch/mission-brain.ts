@@ -420,7 +420,17 @@ export async function runMissionBrain(
   founder: FounderLaunchInput,
   scope: ValidationScope,
   corpus: string,
+  /** live-trail narration — the design phase is 2-4 minutes of real model work that used to render
+   *  as a frozen screen; each phase announces itself. Best-effort, never affects the result. */
+  opts: { narrate?: (label: string) => void } = {},
 ): Promise<MissionBrainResult> {
+  const narrate = (label: string) => {
+    try {
+      opts.narrate?.(label);
+    } catch {
+      /* narration must never break design */
+    }
+  };
   if (!llmConfigured()) return EMPTY("llm_not_configured");
   // "Nothing inspected" only when the static crawl AND the real browser both saw nothing. A bot-walled
   // store or client-rendered SPA has 0 static pages but a field test — hand it to the SUFFICIENCY GATE
@@ -441,6 +451,7 @@ export async function runMissionBrain(
 
   const needsInputQuestions: string[] = [];
   const run = async (arch: Extract<ArchitectResult, { ok: true }>) => {
+    narrate(`reviewing ${arch.candidates.length} drafted mission(s) — independent critic pass`);
     const critiques = await critic(arch.candidates, map);
     const survivors = dedupeKeys(applyCritic(arch.candidates, critiques, needsInputQuestions));
     // the anchor gate runs mechanically over the observation corpus — an unanchored ("Zoom Control")
@@ -455,6 +466,7 @@ export async function runMissionBrain(
     return { critiques, survivors, reports, accepted };
   };
 
+  narrate("designing missions — drafting from everything Sage saw");
   let arch = await architect(map, founder);
   // The grounded-architect shadow (S2) is INDEPENDENT measurement: it runs whenever mode≠off and the
   // observations are sufficient, EVEN when the legacy architect returns empty / fails / produces zero
@@ -488,6 +500,7 @@ export async function runMissionBrain(
     const steer = criticIssues.length > 0
       ? "\nDesign DIFFERENT missions that survive that review: each must make the tester DO something and name the specific on-screen outcome that proves it happened — never a mission that only confirms text or elements exist."
       : "";
+    narrate("first draft rejected by the quality gate — redesigning from the exact reasons");
     const arch2 = await architect(map, founder, issues ? `${issues}${steer}` : "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
     if (arch2.ok) { arch = arch2; r = await run(arch2); }
   }
@@ -523,6 +536,7 @@ export async function runMissionBrain(
             ]
           : []),
       ].join("\n");
+      narrate("strengthening the plan — asking for the coverage the shape check found missing");
       const arch3 = await architect(map, founder, asks);
       if (arch3.ok) {
         const r3 = await run(arch3);
@@ -615,6 +629,7 @@ export async function runMissionBrain(
     for (const q of sufficiencyQuestions(map, founder.goal)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   }
 
+  if (r.accepted.length > 0) narrate("missions final — running the grounded-planner measurement");
   const groundingShadow = await computeShadow(r.accepted.length);
 
   return {

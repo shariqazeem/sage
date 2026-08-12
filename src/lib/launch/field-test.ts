@@ -920,6 +920,9 @@ async function huntDocs(ctx: {
   docUrls?: { url: string; label: string }[];
   /** the explorer records a state per doc read; the static path has no filmstrip to add to. */
   onRead?: (path: string) => Promise<unknown>;
+  /** live-trail narration for the hunt itself — every candidate probe is up to 14s of goto +
+   *  networkidle, and a run of walls/404s used to be a silent minute on the founder's screen. */
+  narrate?: (label: string) => void;
 }): Promise<DocPage[]> {
   const docs: DocPage[] = [];
   // The product's own labelled documentation links come FIRST — real navigation beats convention.
@@ -943,6 +946,7 @@ async function huntDocs(ctx: {
     ...absolute.map((d) => d.url),
     ...docCandidates(ctx.linkedPaths, { exclude: ctx.walledPaths }),
   ];
+  if (candidates.length > 0) ctx.narrate?.("blocked by a wall — hunting for public documentation");
   for (const p of candidates) {
     if (Date.now() > ctx.deadline) break; // the wall clock still governs everything
     // ENOUGH IS ENOUGH: with three real doc pages in hand, another guess only delays the founder —
@@ -955,6 +959,7 @@ async function huntDocs(ctx: {
       // must still be same-origin. The egress guard validates either as public https at fetch time.
       const isAbsoluteDoc = absolute.some((d) => d.url === p);
       if (!isAbsoluteDoc && !ctx.sameOrigin(target.toString())) continue;
+      ctx.narrate?.(`checking ${target.host}${target.pathname === "/" ? "" : target.pathname} for docs`);
       const resp = await ctx.page.goto(target.toString(), {
         waitUntil: "domcontentloaded",
         timeout: 10_000,
@@ -3633,7 +3638,16 @@ async function exploreInteractive(ctx: {
       const triedAff = new Set<string>();
       const affordancePass = async (budget: number): Promise<number> => {
         let explored = 0;
+        let attempts = 0;
         while (canInteract() && explored < budget) {
+          // A stretch of controls that can't be clicked produces no captured states, which on a
+          // recorded founder run read as "it stopped" — narrate the probing itself every few tries.
+          if (++attempts % 8 === 0)
+            void recordFieldTestStep(inspectionId, {
+              label: `probing controls — ${attempts} tried, ${explored} led somewhere`,
+              screenshot: null,
+              url: page.url(),
+            });
           const r = await clickAffordance(page, triedAff);
           if (!r.ok) {
             if (r.exhausted) break; // nothing left to try
@@ -3769,6 +3783,8 @@ async function exploreInteractive(ctx: {
             kind: "load",
             label: p,
           }),
+        narrate: (label) =>
+          void recordFieldTestStep(inspectionId, { label, screenshot: null, url: ctx.startUrl }),
       })
     : [];
 
