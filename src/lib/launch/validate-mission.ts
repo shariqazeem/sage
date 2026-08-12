@@ -264,8 +264,21 @@ export function anchorIssues(m: Pick<CandidateMission, "anchors">, corpus: strin
 // from it. These two patterns must recognize the phrasings the architect ACTUALLY writes — not just
 // "reach the page … contains the text", but the common "provide the URL of the … page" + "quote the
 // heading" form (real plausible.io / docs missions were mislabeled observation-based on that phrasing).
+// The ARTIFACT form (rule 6a) is the same money-gate shape from the other direction: instead of
+// reaching an EXISTING page, the tester CREATES the page and supplies its public URL. Sage fetches
+// that URL exactly as it fetches any other, so it is equally auto-verifiable — and this is what makes
+// real work behind a signup gate autonomously payable instead of falling to the judged lane. Requires
+// the URL to be OF the created object (not a bare "provide a url"), so it can't be reached by
+// bolting the word "url" onto a subjective task; SUBJECTIVE still overrides everything below.
+const CREATES_ARTIFACT =
+  /\b(url|link|address)\b[^.]{0,60}\b(of|for|to)\b[^.]{0,40}\b(created|new|their|the resulting|generated|published|deployed|minted)\b|\b(created|generated|published|deployed|minted|newly created)\b[^.]{0,40}\b(url|link|page|profile|share link)\b|\bpublic (url|link)\b[^.]{0,40}\b(of|for)\b/i;
 const REACHES_URL = /\b(leads? to|redirect(s|ed|ing)?|reach(es|ed|ing)? (the )?(\w+ )?(url|page)|navigat\w+ to (the )?(\w+ )?(url|https?|page)|results? in .*\b(url|page)\b|url of (the |a )?\w+ page|page titled)/i;
-const FINDS_TEXT = /\b(contains?|displays?|shows?|quote|quoting|provides?|providing|reports?|records?|capture) [^.]*\b(text|heading|h1|title|word|url|label|sentence|line|content)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b|\bpage titled\b|\bfound on the page\b/i;
+// Widened 2026-08-12 (measured): the clause-local form missed the two phrasings the architect most
+// often writes — "…and that page shows the store name" (text object separated by a clause) and
+// "quotes the text stating X". Both are genuine text-checks against a fetched page, and rejecting
+// them pushed real auto-payable work to the judged lane. The verb list is unchanged; only the
+// distance between the verb and its text-object is relaxed, and a text-ish object is still REQUIRED.
+const FINDS_TEXT = /\b(contains?|displays?|shows?|quote|quoting|quotes|provides?|providing|reports?|records?|capture)\b[^.]{0,80}\b(text|heading|h1|title|word|url|label|sentence|line|content|name|value|message|confirmation|status)\b|\bas (an? )?h1\b|the (reached|destination|resulting) page\b|\bpage titled\b|\bfound on the page\b/i;
 
 // SUBJECTIVE / experiential language — a mission that hinges on how something FELT, an impression, or a
 // UX vibe is OBSERVATION-BASED even if it also name-drops a URL + a heading. Since classifyVerifiability
@@ -284,7 +297,11 @@ export function classifyVerifiability(m: Pick<CandidateMission, "objective" | "c
   const blob = `${m.objective}\n${m.criteria.join("\n")}\n${m.evidenceRequirements.join("\n")}`;
   // Subjectivity forces the safe side, whatever url-verifiable phrasing sits next to it.
   if (SUBJECTIVE.test(blob)) return "observation-based";
-  return REACHES_URL.test(blob) && FINDS_TEXT.test(blob) ? "url-verifiable" : "observation-based";
+  // Either shape qualifies: REACH an existing page, or CREATE the page and hand over its public URL.
+  // Both end with Sage fetching a URL and checking specific text, which is the whole gate.
+  return (REACHES_URL.test(blob) || CREATES_ARTIFACT.test(blob)) && FINDS_TEXT.test(blob)
+    ? "url-verifiable"
+    : "observation-based";
 }
 
 /* ─────────── sufficiency: is there enough real observation to design paid work? ─────────── */
