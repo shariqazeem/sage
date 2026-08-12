@@ -458,8 +458,19 @@ export function buildFieldTestSummary(input: {
 }
 
 /** Link text or path that names a product's own documentation. */
+/**
+ * A LINK THAT NAMES DOCUMENTATION. This is Sage's answer key when a wall stops it, so a miss here is
+ * not cosmetic: it decides whether Sage has any ground truth about what lives behind the login, and
+ * therefore whether a tester's account of that place can ever be VERIFIED and PAID.
+ *
+ * MEASURED on token-watcher (AmtTLqredN1T): the homepage links "Read install notes" and calls itself
+ * "sdk-first". The old pattern knew docs/guide/tutorial/faq but not install/setup/sdk/api/reference,
+ * so Sage walked past the one page describing everything behind the wall, read 0 docs, and then
+ * designed three missions about the console and the request ledger it had never seen. Every one of
+ * those submissions would have HELD, because the corpus they'd be judged against was empty.
+ */
 const DOC_NAME =
-  /(^|[^a-z])(docs?|documentation|guide|guides|tutorial|learn|faq|help|whitepaper|litepaper|how[-\s]?it[-\s]?works|getting[-\s]?started|quickstart)([^a-z]|$)/i;
+  /(^|[^a-z])(docs?|documentation|guide|guides|tutorial|learn|faq|help|whitepaper|litepaper|how[-\s]?it[-\s]?works|getting[-\s]?started|quickstart|install\w*|setup|set[-\s]up|sdk|api|reference|readme|manual|integrat\w+|develop(?:er|ers|ment)|(?:install|release|setup)[-\s]?notes)([^a-z]|$)/i;
 /**
  * Where a product's documentation conventionally lives, tried only when nothing was linked. Ordered
  * by how likely each is to explain the product rather than the company.
