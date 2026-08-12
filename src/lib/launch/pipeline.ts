@@ -278,6 +278,9 @@ export async function inspectAndPlan(
       // the founder's exact goal drives the goal-directed browser controller (reach the goal, not decorations).
       goal: typeof input.goal === "string" ? input.goal : undefined,
       journey: goalJourney,
+      // The founder's TEST account, when they supplied one. This is what lets Sage see (and later
+      // PAY for) work behind a login instead of designing missions about a page it never reached.
+      testAccount: input.testAccount ?? null,
     };
     try {
       fieldTest = await runFieldTest(fieldTestArgs);

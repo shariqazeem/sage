@@ -23,6 +23,7 @@ import { resolvesPublic, sameSiteHost, BROWSER_UA } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { recordFieldTestStep } from "./field-test-progress";
+import { planLoginForm, loginSucceeded, redactSecrets } from "./authenticated-exploration";
 import { stateDigest } from "./observed-facts";
 import {
   evaluateJourney,
@@ -1057,6 +1058,9 @@ export async function runFieldTest(
     goal?: string;
     /** the founder's compiled ordered journey — drives WHICH target Sage pursues next. */
     journey?: GoalJourneyV1 | null;
+    /** The founder's OPTIONAL test account — password walls only. Values are never logged, never
+     *  captured into a state, and never reach a prompt; authenticated text is redacted at capture. */
+    testAccount?: { email: string; password: string } | null;
   },
   deps: FieldTestDeps = {},
 ): Promise<FieldTestSummary> {
@@ -1332,6 +1336,7 @@ export async function runFieldTest(
         entryErrors,
         goal: opts.goal,
         journey: opts.journey ?? null,
+        testAccount: opts.testAccount ?? null,
         // the routes the static crawl already found on this host, as paths. The explorer was
         // single-page: on a normal app the flow the founder named lives behind a link, and clicking
         // the hero button forever never gets there (13 identical clicks, one URL, zero progress).
@@ -2711,6 +2716,9 @@ async function exploreInteractive(ctx: {
   goal?: string;
   /** the founder's compiled ordered journey (checkpoint-driven targeting). */
   journey?: GoalJourneyV1 | null;
+  /** The founder's TEST account (optional). Used ONLY on a password wall; the values are never
+   *  logged, never captured into a state, and never reach a prompt. */
+  testAccount?: { email: string; password: string } | null;
   /** same-host pages the static crawl discovered — the only routes `open_path` may take. */
   candidatePaths?: readonly string[];
   /** OUT: every same-site path the explorer discovered in the live DOM — the caller feeds these to
@@ -2726,6 +2734,12 @@ async function exploreInteractive(ctx: {
   let prevFp: StateFingerprint | null = null;
   // the last pathname the TRAIL narrated — decoration state only, never part of any captured state.
   let lastTrailPath = "";
+  /** AUTHENTICATED EXPLORATION state: whether the founder's test account got us in, when that
+   *  happened (states at/after this index are authenticated → redacted), and a hard attempt cap so a
+   *  wrong credential can never become a login-retry loop against the founder's product. */
+  let loggedIn = false;
+  let loginAttempts = 0;
+  let authFrom = Number.POSITIVE_INFINITY;
   let shotIdx = 0;
   /** The wall that turned Sage away, if any — the trigger for the doc hunt after exploration ends. */
   let wallNote: string | null = null;
@@ -2799,11 +2813,24 @@ async function exploreInteractive(ctx: {
       screenshot,
       url: page.url(),
     });
+    /**
+     * REDACT EVERYTHING SEEN WHILE AUTHENTICATED. Anchors are published verbatim on the plan page
+     * and to testers, and anchors come from these strings — so a logged-in dashboard showing an API
+     * key or the founder's email would otherwise leak into public mission copy. Applied at the one
+     * place every state is born, so no authenticated path can bypass it. Logged-out states are
+     * untouched (byte-identical to before).
+     */
+    const authed = states.length >= authFrom;
+    const scrub = (t: string) => (authed ? redactSecrets(t, ctx.testAccount ?? undefined) : t);
+    const excerpt = scrub(await renderedExcerpt(page));
+    const els = (await notableElements(page)).map((e) =>
+      authed ? { ...e, text: scrub(e.text ?? "") } : e,
+    );
     states.push({
       trigger,
       screenshot,
-      visibleTextExcerpt: await renderedExcerpt(page),
-      notableElements: await notableElements(page),
+      visibleTextExcerpt: excerpt,
+      notableElements: els,
       pixelDeltaPct: delta,
       url: page.url(),
       networkMethods: methodsSinceCapture.splice(0), // the methods observed since the previous capture
@@ -3607,6 +3634,28 @@ async function exploreInteractive(ctx: {
             } catch {
               /* keep going */
             }
+            /**
+             * THE FOUNDER'S TEST ACCOUNT — the one thing that turns a wall into ground truth.
+             *
+             * Sage cannot pay for work it never saw, so on a product whose value is entirely behind
+             * a login it used to design missions about a console it had no observations of, and
+             * every honest submission would have HELD. When the founder supplies a TEST account, we
+             * log in here (password walls only — planLoginForm refuses OAuth/wallet/OTP forms) and
+             * keep exploring with real ground truth. Everything harvested afterwards is REDACTED
+             * before it can become corpus, because anchors are published verbatim.
+             */
+            if (wallKind === "password" && ctx.testAccount && !loggedIn && loginAttempts < 2) {
+              loginAttempts++;
+              const ok = await attemptLogin(page, ctx.testAccount, capture);
+              if (ok) {
+                loggedIn = true;
+                authFrom = states.length; // every state from here on is authenticated → redact it
+                wallHits = 0;
+                prevWordSig = wordSignature(states[states.length - 1]?.visibleTextExcerpt ?? "");
+                prevUrl = page.url();
+                continue; // explore the real product now
+              }
+            }
             const note = wallNoteFor(wallKind);
             // Remember the wall for the doc hunt: Sage cannot walk through it, but the product almost
             // always documents what is behind it, and reading that is what keeps the plan useful.
@@ -3829,6 +3878,75 @@ async function exploreInteractive(ctx: {
     }),
     ...(docs.length > 0 ? { docs } : {}),
   };
+}
+
+/**
+ * LOG IN WITH THE FOUNDER'S TEST ACCOUNT. Password walls only.
+ *
+ * Refuses anything that is not a real password form (planLoginForm returns null for OAuth, wallet
+ * and OTP walls), types the supplied credentials, submits, and honestly reports whether it landed.
+ * The credential VALUES are never logged, never captured into a state, and never reach a prompt —
+ * the only trace is the boolean outcome and the redacted page text.
+ */
+async function attemptLogin(
+  page: Page,
+  creds: { email: string; password: string },
+  capture: (trigger: string, action?: { kind: FieldTestState["actionKind"]; label?: string; delivered?: boolean }) => Promise<number>,
+): Promise<boolean> {
+  try {
+    const beforeUrl = page.url();
+    // read the form's fields from the live DOM (ids match the click/type executor's element ids)
+    const fields = await page.evaluate(() => {
+      const out: { id: string; tag: string; type: string; name: string; placeholder: string; autocomplete: string; label: string; typable: boolean }[] = [];
+      let i = 0;
+      for (const el of Array.from(document.querySelectorAll("input, textarea, button, [role=button]"))) {
+        const he = el as HTMLElement;
+        const r = he.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue; // invisible controls are not a login form
+        const tag = he.tagName.toLowerCase();
+        const type = (he as HTMLInputElement).type || "";
+        out.push({
+          id: `lf${i++}`,
+          tag,
+          type,
+          name: he.getAttribute("name") || "",
+          placeholder: he.getAttribute("placeholder") || "",
+          autocomplete: he.getAttribute("autocomplete") || "",
+          label: (he.getAttribute("aria-label") || he.textContent || "").trim().slice(0, 60),
+          typable: tag === "input" || tag === "textarea",
+        });
+        he.setAttribute("data-sage-lf", `lf${i - 1}`);
+      }
+      return out;
+    });
+    const plan = planLoginForm(fields);
+    if (!plan) return false; // not a password login — never type a credential into an unknown form
+
+    await page.fill(`[data-sage-lf="${plan.emailFieldId}"]`, creds.email, { timeout: 5_000 });
+    await page.fill(`[data-sage-lf="${plan.passwordFieldId}"]`, creds.password, { timeout: 5_000 });
+    if (plan.submitId) {
+      await page.click(`[data-sage-lf="${plan.submitId}"]`, { timeout: 5_000 }).catch(() => {});
+    } else {
+      await page.press(`[data-sage-lf="${plan.passwordFieldId}"]`, "Enter").catch(() => {});
+    }
+    await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+    await page.waitForTimeout(900);
+
+    const after = await page.evaluate(() => ({
+      url: location.href,
+      visibleText: (document.body?.innerText || "").slice(0, 4000),
+      stillHasPasswordField: !!document.querySelector('input[type="password"]'),
+    }));
+    const ok = loginSucceeded({ ...after, beforeUrl });
+    // The trail says what happened, never what was typed.
+    await capture(ok ? "signed in with the founder's test account" : "the test account did not sign in", {
+      kind: ok ? "load" : "back",
+      delivered: ok,
+    });
+    return ok;
+  } catch {
+    return false; // a login that throws is simply a wall Sage could not pass
+  }
 }
 
 /**

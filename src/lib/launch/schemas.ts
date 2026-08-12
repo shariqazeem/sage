@@ -15,6 +15,10 @@ import { type Hex, encodeAbiParameters, keccak256, stringToHex } from "viem";
 /* ─────────────────────────────────────────────────── founder input ──────── */
 
 export interface FounderLaunchInput {
+  /** The founder's OPTIONAL test account. Password logins only; the values are used solely to sign
+   *  in during the field test, are never logged, never captured into a state, and never reach a
+   *  prompt. Everything harvested while authenticated is redacted before it becomes corpus. */
+  testAccount?: { email: string; password: string } | null;
   /** the public HTTPS product URL to inspect. */
   productUrl: string;
   /** an optional public GitHub repository URL (read-only, bounded). */
