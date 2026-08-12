@@ -29,6 +29,7 @@ import {
   buildJourneySteps,
   journeyGapQuestion,
   describeJourneyWall,
+  DEFAULT_FIRST_VISIT_GOAL,
   type GoalJourneyV1,
 } from "./goal-journey";
 import { buildProductContext, derivePhases } from "./product-context";
@@ -58,9 +59,11 @@ import type {
  * content would open an injection channel. It names no producing verb, so a content site keeps
  * its crawl (and its url-verifiable mission) while a real app still classifies interactive from
  * its own signals. The founder's actual words, when specific, always win.
+ *
+ * The constant itself lives in goal-journey.ts (the leaf) so the mission compiler can recognize
+ * a delegated journey by identity; re-exported here for existing importers.
  */
-export const DEFAULT_FIRST_VISIT_GOAL =
-  "Verify a first-time visitor understands what this product is and can experience its primary flow, reporting specifically what they saw and did.";
+export { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 
 /** A goal too thin/generic to plan against — Sage infers instead of asking. */
 const GENERIC_GOAL_RE =

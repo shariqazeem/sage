@@ -57,6 +57,8 @@ const RANK: Record<Stage, number> = {
   ready: 6, needs_input: 6, failed: 6, superseded: 7,
 };
 const TERMINAL = new Set<Stage>(["ready", "needs_input", "failed", "superseded"]);
+/** Pages that are honest crawl output but poor headline material — sorted last and dimmed. */
+const LOW_SURFACE_RE = /terms|privacy|brand-?assets?|licen[cs]e|media-?kit|cookie|legal/i;
 
 interface FieldTestView {
   ran: boolean;
@@ -258,7 +260,10 @@ function MapSummary({ map, full }: { map: MapView; full?: boolean }) {
       <div className="lx-map-row"><span className="lx-map-k">Value proposition</span><span className="lx-map-v">{map.valueProp}</span></div>
       {map.primaryJourney.length > 0 && <div className="lx-map-row"><span className="lx-map-k">Primary journey</span><span className="lx-map-v">{map.primaryJourney.map((j) => j.value).join(" → ")}</span></div>}
       <div className="lx-map-row"><span className="lx-map-k">Pages inspected</span><span className="lx-map-v">{map.pagesInspected}{map.repoFilesInspected > 0 ? ` · ${map.repoFilesInspected} repo files` : ""}</span></div>
-      {full && map.routes.length > 0 && <div className="lx-map-row"><span className="lx-map-k">Surfaces</span><span className="lx-map-v"><span className="lx-chips">{map.routes.slice(0, 10).map((r, i) => <span className="lx-chip" key={i}>{r.value}</span>)}</span></span></div>}
+      {/* Legal/brand shells (terms, privacy, brand-assets) are real crawl output but they read as
+          "Sage studied the terms page" when they lead the row — product surfaces first, the rest
+          only if there's room in the same cap. */}
+      {full && map.routes.length > 0 && <div className="lx-map-row"><span className="lx-map-k">Surfaces</span><span className="lx-map-v"><span className="lx-chips">{[...map.routes].sort((a, b) => Number(LOW_SURFACE_RE.test(a.value)) - Number(LOW_SURFACE_RE.test(b.value))).slice(0, 10).map((r, i) => <span className="lx-chip" key={i} style={LOW_SURFACE_RE.test(r.value) ? { opacity: 0.55 } : undefined}>{r.value}</span>)}</span></span></div>}
       {map.limitations.length > 0 && <div className="lx-note"><b>What Sage could not see:</b> {map.limitations.join(" ")}</div>}
     </>
   );

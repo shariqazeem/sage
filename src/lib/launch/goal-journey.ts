@@ -35,6 +35,16 @@ import {
 
 export const GOAL_JOURNEY_VERSION = "goal-journey-v1" as const;
 
+/**
+ * The goal Sage plans against when the founder gave none — DELEGATION, substituted by the pipeline
+ * before any journey is compiled. Lives HERE (the leaf both sides import) so the mission compiler
+ * can recognize a delegated journey by identity and never claim "the founder asked for this" about
+ * words the founder never wrote. Measured leak (clawup, URL-only, plan 8_cU8M_D8oNu): the compiled
+ * mission's why-line asserted founder intent on a run whose goal field was empty.
+ */
+export const DEFAULT_FIRST_VISIT_GOAL =
+  "Verify a first-time visitor understands what this product is and can experience its primary flow, reporting specifically what they saw and did.";
+
 /** What kind of requirement a checkpoint expresses (ordered lifecycle of any product journey). */
 export type CheckpointKind =
   | "entry" // reach the product itself

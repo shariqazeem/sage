@@ -10,7 +10,7 @@ import {
   type JourneyStep,
   type MissionCoverageView,
 } from "./goal-journey";
-import { buildJourneySteps } from "./goal-journey";
+import { buildJourneySteps, DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { applySamplePolicy, splitCompletionsForSample } from "./sample-policy";
 import { allocateBudget, MIN_REWARD_BASE } from "./budget";
 import type { ProductContextV1, EntityInstanceV1 } from "./product-context";
@@ -412,5 +412,36 @@ describe("#3/#4/#5/#6 grouping, criteria and complete mapping", () => {
     expect(new Set(r.compiled.mappings.map((m) => m.checkpointId)).size).toBe(
       journey.checkpoints.length,
     );
+  });
+});
+
+/**
+ * DELEGATED RUNS OWN THEIR CHOICE — measured leak (clawup URL-only, plan 8_cU8M_D8oNu): with no
+ * founder goal, the compiled fallback mission said "This is exactly what the founder asked to be
+ * tested" about a goal Sage synthesized, and titled itself "Reach the target…" when no entity
+ * resolved. The compiler recognizes the delegation constant by identity and writes honest copy.
+ */
+describe("delegated journey — the fallback prose never attributes Sage's choice to the founder", () => {
+  it("uses first-visit copy and owns the provenance", () => {
+    const r = compileGoalMission({
+      ...compileInput(),
+      journey: { ...journey, goal: DEFAULT_FIRST_VISIT_GOAL },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const m = r.compiled.mission;
+    expect(m.title).toContain("yara.garden");
+    expect(m.title.toLowerCase()).toContain("first-time visitor");
+    expect(m.title).not.toContain("the target");
+    expect(m.whyItMatters.startsWith("No goal was given")).toBe(true);
+    expect(m.whyItMatters).not.toContain("founder asked");
+    expect(m.objective.startsWith("Complete a genuine first visit")).toBe(true);
+  });
+
+  it("a real founder goal keeps the original attribution untouched", () => {
+    const r = compileGoalMission(compileInput());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.mission.whyItMatters.startsWith("This is exactly what the founder asked")).toBe(true);
   });
 });

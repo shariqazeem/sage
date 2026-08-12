@@ -5,11 +5,12 @@ import type {
   ExperiencePhase,
 } from "./product-context";
 import { phaseAtLeast } from "./product-context";
-import type {
-  GoalCheckpointV1,
-  GoalJourneyV1,
-  JourneyStep,
-  CheckpointEvidenceMapping,
+import {
+  DEFAULT_FIRST_VISIT_GOAL,
+  type GoalCheckpointV1,
+  type GoalJourneyV1,
+  type JourneyStep,
+  type CheckpointEvidenceMapping,
 } from "./goal-journey";
 import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
 import type { CandidateMission, CriterionGroundingV1 } from "./schemas";
@@ -461,15 +462,47 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
     input.precedingRequirements && input.precedingRequirements.length > 0
       ? `Before this: ${input.precedingRequirements.map((r) => lower(r).replace(/\.$/, "")).join(", then ")}.\n\n`
       : "";
+  /**
+   * HONEST PROVENANCE IN THE FALLBACK PROSE. This deterministic copy is what ships when the model
+   * prose-refinement fails, and it leaked twice on one live delegated run (clawup, 8_cU8M_D8oNu):
+   * the title said "Reach the target…" (no resolved entity → the literal fallback label reached a
+   * founder's screen) and the why-line claimed "exactly what the founder asked" about a goal Sage
+   * synthesized itself. A delegated journey is recognized by identity with the shared constant —
+   * its copy must own the choice ("no goal was given, Sage chose this"), never attribute it.
+   */
+  const delegated = journey.goal === DEFAULT_FIRST_VISIT_GOAL;
+  const host = (() => {
+    try {
+      return new URL(input.productUrl).host.replace(/^www\./, "");
+    } catch {
+      return "the product";
+    }
+  })();
+  const entityResolved = !!(resolvedEntity?.label ?? targetCp?.targetEntity);
+  const title = delegated
+    ? `Experience ${host} as a first-time visitor — and report what you find`
+    : entityResolved
+      ? `Reach ${entityLabel} and have a real exchange`
+      : `Complete the founder's journey on ${host} end to end`;
+  const objectivePrefix = delegated
+    ? "Complete a genuine first visit end to end"
+    : "Complete the founder's journey end to end";
+  // "the response you received" presumes an exchange — only true when an outcome checkpoint exists.
+  const reportLine =
+    outcomeGroup.length > 0
+      ? "Report what actually happened in your own words — especially the response you received."
+      : "Report what actually happened in your own words — what you saw, what you did, and what the product did back.";
   const mission: CandidateMission = {
     missionKey: input.missionKey ?? "founder-goal-journey",
-    title: `Reach ${entityLabel} and have a real exchange`,
-    objective: `Complete the founder's journey end to end: ${joinRequirements(cps).toLowerCase()}.`,
-    instructions: `${priorText}${stepsText}\n\nReport what actually happened in your own words — especially the response you received.`,
+    title,
+    objective: `${objectivePrefix}: ${joinRequirements(cps).toLowerCase()}.`,
+    instructions: `${priorText}${stepsText}\n\n${reportLine}`,
     targetSurface: input.productUrl,
     criteria: criteria.map((c) => c.text),
     evidenceRequirements: criteria.map((c) => c.evidenceText),
-    whyItMatters: `This is exactly what the founder asked to be tested: ${journey.goal}`,
+    whyItMatters: delegated
+      ? `No goal was given, so Sage chose the first thing worth proving from its own exploration: ${journey.goal}`
+      : `This is exactly what the founder asked to be tested: ${journey.goal}`,
     sources: [
       { kind: "founder", ref: "goal", observation: journey.goal.slice(0, 200) },
     ],
