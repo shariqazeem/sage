@@ -110,3 +110,40 @@ describe("redactSecrets — the layer that stands between logging in and leaking
     expect(redactSecrets(once)).toBe(once);
   });
 });
+
+/**
+ * THE LEAK THIS SUITE MISSED (measured live on token-watcher vNHD6UOmojlm, with a real test account).
+ *
+ * The pure functions were correct; the WIRING was not. The redaction window opened AFTER the login
+ * attempt returned, but attemptLogin captures its own outcome state — the first authenticated screen,
+ * the one most likely to render "Signed in as <email>". That state fell outside the window and the
+ * credential reached the stored result. Docs read while signed in were harvested outside capture()
+ * entirely and were never redacted at all.
+ *
+ * These pin the RULE the wiring must satisfy: from the first keystroke of a credential onward, every
+ * piece of text that can become corpus — states AND doc excerpts — is redacted.
+ */
+describe("the redaction window covers the login moment itself", () => {
+  const creds = { email: "founder@startup.io", password: "S3cretLaunchPass" };
+
+  it("scrubs the FIRST authenticated screen (the login-outcome state)", () => {
+    const firstScreen = "Console — Signed in as founder@startup.io — API key sk-live-1111aaaa2222bbbb";
+    const out = redactSecrets(firstScreen, creds);
+    expect(out).not.toContain("founder@startup.io");
+    expect(out).not.toContain("sk-live-1111aaaa2222bbbb");
+    expect(out).toContain("Console");
+  });
+
+  it("scrubs a DOC read while signed in (harvested outside capture)", () => {
+    const doc = "Getting started — your key: sk-live-99998888777766665555. Contact founder@startup.io.";
+    const out = redactSecrets(doc, creds);
+    expect(out).not.toContain("sk-live-99998888777766665555");
+    expect(out).not.toContain("founder@startup.io");
+    expect(out).toContain("Getting started");
+  });
+
+  it("a failed login leaves public text untouched (window must close again)", () => {
+    const publicPage = "Sign in to Token Watcher — Invalid email or password";
+    expect(redactSecrets(publicPage, creds)).toBe(publicPage);
+  });
+});

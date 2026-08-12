@@ -935,6 +935,10 @@ async function huntDocs(ctx: {
   /** live-trail narration for the hunt itself — every candidate probe is up to 14s of goto +
    *  networkidle, and a run of walls/404s used to be a silent minute on the founder's screen. */
   narrate?: (label: string) => void;
+  /** true when the browser is SIGNED IN — doc text must then be redacted before it becomes corpus. */
+  authenticated?: boolean;
+  /** the credential values, so an echoed email/password is stripped too. Never logged. */
+  credentials?: { email: string; password: string };
 }): Promise<DocPage[]> {
   const docs: DocPage[] = [];
   // The product's own labelled documentation links come FIRST — real navigation beats convention.
@@ -996,10 +1000,16 @@ async function huntDocs(ctx: {
       const docTitle = await ctx.page.title().catch(() => "");
       if (/\b(404|page (?:could )?not (?:be )?found|page doesn'?t exist)\b/i.test(`${docTitle} ${excerpt.slice(0, 300)}`)) continue;
       if (excerpt.trim().length < 400) continue;
+      // A doc read while SIGNED IN can show account-specific content (an API key on a quick-start
+      // page, the signed-in email in a header). Docs are harvested outside capture(), so the
+      // redaction that protects states must be applied here explicitly — same rule, same reason:
+      // excerpts become corpus, and corpus becomes public mission anchors.
+      const safeTitle = ctx.authenticated ? redactSecrets(docTitle, ctx.credentials) : docTitle;
+      const safeExcerpt = ctx.authenticated ? redactSecrets(excerpt, ctx.credentials) : excerpt;
       docs.push({
         url: target.toString(),
-        title: docTitle.slice(0, 140),
-        excerpt: excerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
+        title: safeTitle.slice(0, 140),
+        excerpt: safeExcerpt.slice(0, BRAIN_VIEW_CAPS.pageTextChars),
         soughtBecause: ctx.wallNote,
       });
       await ctx.onRead?.(p);
@@ -3646,15 +3656,20 @@ async function exploreInteractive(ctx: {
              */
             if (wallKind === "password" && ctx.testAccount && !loggedIn && loginAttempts < 2) {
               loginAttempts++;
+              // THE WINDOW OPENS BEFORE THE FIRST KEYSTROKE. attemptLogin captures its own outcome
+              // state, so setting this afterwards left the first authenticated screen — the one most
+              // likely to show "signed in as <email>" — unredacted. Measured live (vNHD6UOmojlm):
+              // the credential reached the stored result through exactly that state.
+              authFrom = states.length;
               const ok = await attemptLogin(page, ctx.testAccount, capture);
               if (ok) {
                 loggedIn = true;
-                authFrom = states.length; // every state from here on is authenticated → redact it
                 wallHits = 0;
                 prevWordSig = wordSignature(states[states.length - 1]?.visibleTextExcerpt ?? "");
                 prevUrl = page.url();
                 continue; // explore the real product now
               }
+              authFrom = Number.POSITIVE_INFINITY; // login failed → back on public pages, stop redacting
             }
             const note = wallNoteFor(wallKind);
             // Remember the wall for the doc hunt: Sage cannot walk through it, but the product almost
@@ -3863,6 +3878,8 @@ async function exploreInteractive(ctx: {
           }),
         narrate: (label) =>
           void recordFieldTestStep(inspectionId, { label, screenshot: null, url: ctx.startUrl }),
+        authenticated: loggedIn,
+        credentials: ctx.testAccount ?? undefined,
       })
     : [];
 

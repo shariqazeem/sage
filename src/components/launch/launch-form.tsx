@@ -58,7 +58,8 @@ export function LaunchForm() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
-  const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5" });
+  const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5", testEmail: "", testPassword: "" });
+  const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
   // (one job, not two); a fresh form (new page/reload) is a new turn. The server namespaces it.
   const [requestId] = useState(() =>
@@ -95,7 +96,15 @@ export function LaunchForm() {
       const res = await fetch("/api/launch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...form, requestId }),
+        body: JSON.stringify({
+          ...form,
+          requestId,
+          // sent only when BOTH were provided; the server seals them before anything else happens.
+          testAccount:
+            form.testEmail.trim() && form.testPassword
+              ? { email: form.testEmail.trim(), password: form.testPassword }
+              : null,
+        }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -181,6 +190,41 @@ export function LaunchForm() {
             ) : (
               <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowRepo(true)}>
                 <Plus size={14} /> Add a GitHub repo <span className="muted">— optional</span>
+              </button>
+            )}
+            {/* THE TEST ACCOUNT. Sage can only design and auto-verify work it can actually reach, so on
+                a product whose value sits behind a login this is the difference between missions about
+                the homepage and missions about the real thing. Encrypted at rest, used only to sign in
+                during the inspection, and anything secret it sees is stripped before anyone reads it. */}
+            {showAuth ? (
+              <div style={{ marginTop: 10 }}>
+                <input
+                  className="lx-input"
+                  type="email"
+                  autoComplete="off"
+                  placeholder="Test account email"
+                  value={form.testEmail}
+                  onChange={(e) => set("testEmail", e.target.value)}
+                />
+                <input
+                  className="lx-input"
+                  style={{ marginTop: 8 }}
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Test account password"
+                  value={form.testPassword}
+                  onChange={(e) => set("testPassword", e.target.value)}
+                />
+                <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+                  Use a throwaway TEST account, never a real one. Sage signs in only during this
+                  inspection so it can design missions for what is actually behind your login.
+                  Stored encrypted, never shown again, and any keys or emails it sees are stripped
+                  before they reach a mission or a tester.
+                </p>
+              </div>
+            ) : (
+              <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowAuth(true)}>
+                <Plus size={14} /> Add a test login <span className="muted">— optional, unlocks work behind your login</span>
               </button>
             )}
           </>
