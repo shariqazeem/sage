@@ -158,7 +158,21 @@ const MIN_ANCHOR_LEN = 3;
 
 /** Normalize text for anchor matching: lowercase + collapse whitespace. */
 function normAnchorText(s: string): string {
-  return (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  // TYPOGRAPHY MUST NOT BREAK AN ANCHOR. A product renders "Don\u2019t have an account?" with a curly
+  // apostrophe while the model quotes it with a straight one (or vice-versa), and the substring test
+  // then calls a genuinely observed line "never observed" — measured live on token-watcher, where it
+  // rejected the signup mission and cost the plan. Fold smart quotes/dashes/nbsp to their ASCII form
+  // on BOTH sides (corpus and anchor go through this same function), so the comparison is about
+  // WORDS, not the font a site ships. Nothing is loosened: the text must still match verbatim.
+  return (s || "")
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u00A0\u2007\u202F]/g, " ")
+    .replace(/\u2026/g, "...")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**

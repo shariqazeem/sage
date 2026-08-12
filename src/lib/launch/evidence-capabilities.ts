@@ -35,12 +35,19 @@ export const EVIDENCE_CAPABILITY_PROMPT = [
 ].join("\n");
 
 /** The unsupported categories, matched conservatively against evidence-requirement prose. */
-const PATTERNS: { category: (typeof UNSUPPORTED_EVIDENCE)[number]; re: RegExp }[] = [
+const PATTERNS: { category: (typeof UNSUPPORTED_EVIDENCE)[number]; re: RegExp; evidenceOnly?: boolean }[] = [
   { category: "screenshot", re: /\bscreen[\s-]?shots?\b|\bscreen[\s-]?grabs?\b|\bscreen[\s-]?captures?\b/i },
   { category: "video / screen recording", re: /\bvideos?\b|\bscreen[\s-]?recordings?\b|\brecord(?:ing)?\s+(?:a|the|your)\s+\w+|\.mp4\b|\bgifs?\b/i },
   { category: "image upload", re: /\b(?:upload|attach|provide|submit|include|share|send|paste|capture|take)\b[^.]{0,40}\b(?:image|images|photo|photos|picture|pictures)\b|\.(?:png|jpe?g|gif|webp|heic)\b/i },
   { category: "arbitrary file / document upload", re: /\b(?:upload|attach|submit|provide|include)\b[^.]{0,40}\b(?:files?|documents?|attachments?|pdfs?|recordings?)\b|\.(?:pdf|docx?|xlsx?|zip)\b/i },
-  { category: "private or authenticated (logged-in) evidence", re: /\blogged[\s-]?in\b|\bauthenticated\b|\bcredentials?\b|\bbehind a (?:login|paywall)\b|\byour (?:account|dashboard) (?:screenshot|export|data)\b/i },
+  /**
+   * EVIDENCE-ONLY (see `evidenceOnly`). Sage cannot INGEST authenticated content — but the TESTER
+   * logging in is the real work founders pay for (rule 6a). Applying this to `instructions` rejected
+   * every signup mission for saying "once logged in, click Create": measured live on
+   * token-watcher (iL_bMe3wvC09), where it killed 3 of 4 candidates and the whole plan became
+   * needs_input. What matters is what SAGE must fetch, which is the evidence.
+   */
+  { category: "private or authenticated (logged-in) evidence", evidenceOnly: true, re: /\blogged[\s-]?in\b|\bauthenticated\b|\bcredentials?\b|\bbehind a (?:login|paywall)\b|\byour (?:account|dashboard) (?:screenshot|export|data)\b/i },
 ];
 
 export interface UnsupportedEvidenceHit {
@@ -66,7 +73,8 @@ export function detectUnsupportedEvidence(m: {
     ...(m.instructions ? [{ field: "instructions", text: m.instructions }] : []),
   ];
   for (const { field, text } of fields) {
-    for (const { category, re } of PATTERNS) {
+    for (const { category, re, evidenceOnly } of PATTERNS) {
+      if (evidenceOnly && !field.startsWith("evidenceRequirements")) continue;
       const found = text.match(re);
       if (found) return { category, match: found[0], field };
     }

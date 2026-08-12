@@ -277,7 +277,7 @@ const YARA_FT: FieldTestSummary = {
   ran: true, startUrl: "https://yara.example/", mode: "interactive", pages: [],
   states: [{
     trigger: "explored '+'", screenshot: null,
-    visibleTextExcerpt: "Oh — hello. I felt you arrive. I'm Yara.",
+    visibleTextExcerpt: "Oh \u2014 hello. I felt you arrive. I'm Yara.", // em-dash on purpose: the corpus folds typography
     notableElements: [{ tag: "button", text: "make a wish", role: "button" }],
     pixelDeltaPct: 20, url: "https://yara.example/",
   }],
@@ -294,7 +294,7 @@ describe("buildObservationCorpus + anchorIssues (the anti-hallucination gate)", 
 
   it("gathers observed static + field-test + vision text, normalized; excludes what was never seen", () => {
     expect(corpus).toContain("make a wish at the wishing tree");
-    expect(corpus).toContain("oh — hello. i felt you arrive. i'm yara.");
+    expect(corpus).toContain("oh - hello. i felt you arrive. i'm yara.");
     expect(corpus).toContain("breathe");
     expect(corpus).toContain("tap to step inside");
     expect(corpus).not.toContain("zoom control");
@@ -302,7 +302,7 @@ describe("buildObservationCorpus + anchorIssues (the anti-hallucination gate)", 
 
   it("passes anchors that appear verbatim in the corpus (case/whitespace-insensitive)", () => {
     expect(anchorIssues({ anchors: ["make a wish", "breathe"] }, corpus)).toEqual([]);
-    expect(anchorIssues({ anchors: ["Oh — hello. I felt you arrive"] }, corpus)).toEqual([]);
+    expect(anchorIssues({ anchors: ["Oh - hello. I felt you arrive"] }, corpus)).toEqual([]);
   });
 
   it("REJECTS a mission anchored to something never observed — the Zoom Control class", () => {
@@ -348,7 +348,7 @@ describe("classifyVerifiability (deterministic)", () => {
     expect(
       classifyVerifiability({
         objective: "confirm the arrival narrative triggers",
-        criteria: ["The text 'Oh — hello' appears after clicking the + control", "The tester can progress the dialogue"],
+        criteria: ["The text 'Oh - hello' appears after clicking the + control", "The tester can progress the dialogue"],
         evidenceRequirements: ["A written account of what appeared"],
       }),
     ).toBe("observation-based");
