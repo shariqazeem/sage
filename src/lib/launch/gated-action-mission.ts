@@ -213,6 +213,30 @@ export function detectGatedActions(
  * quick-start says "create your first agent", so Sage now builds "sign up and create your agent,
  * then submit the result" instead of "confirm the homepage mentions agents".
  */
+/** Qualifiers a create-phrase puts before its object ("create your FIRST AI agent"). */
+const QUALIFIER = /^(first|new|your|our|the|own|free|ai|initial|second|next|test|sample|demo|real|full|complete|simple|basic|another)$/;
+/** Grammar/filler a verb-phrase tail is full of ("Build AND POWER UP your AI agent"). */
+const PHRASE_STOP = new Set(
+  ("and or but with without into onto from for to of in on at by via using use uses used power powered up down over under " +
+    "more most best great better good all any some every each other same across within about after before while when where " +
+    "get gets got make makes made take takes let lets help helps then than there here now today").split(" "),
+);
+/** The ACTION VERBS themselves are never the object — "Launch project" must yield "project", not
+ *  "launch" (measured on keep.coffee, which produced the verb as the object noun). */
+const ACTION_VERB = /^(launch\w*|deploy\w*|creat\w*|build\w*|publish\w*|mint\w*|generat\w*|start\w*|run\w*|make\w*|add\w*|set\w*)$/;
+/** Is this token unusable as the product's core OBJECT? Shared so the two extractors can never drift. */
+function unusableObject(w: string, nameTokens: ReadonlySet<string>): boolean {
+  return (
+    NOT_AN_OBJECT.test(w) ||
+    DELEGATED_FILLER.test(w) ||
+    QUALIFIER.test(w) ||
+    ACTION_VERB.test(w) ||
+    PHRASE_STOP.has(w) ||
+    nameTokens.has(w) ||
+    w.length < 3
+  );
+}
+
 /**
  * THE MODEL NAMES THE ACTION; CODE BUILDS THE MISSION.
  *
@@ -246,9 +270,7 @@ export function coreActionFromCandidates(
     if (!m) continue;
     // "create your first AI agent" → CORE_RE's next-word grab lands on a QUALIFIER ("first", "ai"),
     // not the object. Walk forward to the first word that actually names a thing.
-    const QUALIFIER = /^(first|new|your|our|the|own|free|ai|initial|second|next|test|sample|demo|real|full|complete|simple|basic)$/;
-    const unusable = (w: string) =>
-      NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || QUALIFIER.test(w) || nameTokens.has(w) || w.length < 3;
+    const unusable = (w: string) => unusableObject(w, nameTokens);
     let objectNoun = m[2].toLowerCase();
     if (unusable(objectNoun)) {
       const after = text.slice(m.index + m[0].length - objectNoun.length);
@@ -285,17 +307,7 @@ export function inferDelegatedCoreAction(
    * each create-verb phrase, skipping qualifiers ("your", "first", "AI"), and let the most repeated
    * OBJECT win. Deterministic, and it does not depend on what the architect happened to propose.
    */
-  const QUALIFIER = /^(first|new|your|our|the|own|free|ai|initial|second|next|test|sample|demo|real|full|complete|simple|basic|another)$/;
-  // Grammar words a verb-phrase tail is full of ("Build AND POWER UP your AI agent"). Without these
-  // the extractor elected "and" — measured. Kept small and generic; the frequency floor below is what
-  // actually separates a product's core object from incidental nouns, in any vocabulary.
-  const STOP = new Set(
-    ("and or but with without into onto from for to of in on at by via using use uses used power powered up down over under " +
-      "more most best great better good all any some every each other same across within about after before while when where " +
-      "get gets got make makes made take takes let lets help helps start starts run runs then than there here now today").split(" "),
-  );
-  const unusable = (w: string) =>
-    NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || QUALIFIER.test(w) || STOP.has(w) || nameTokens.has(w) || w.length < 3;
+  const unusable = (w: string) => unusableObject(w, nameTokens);
   const VERB_PHRASE = /\b(launch|deploy|mint|publish|creat\w*|build|generate|start|run)\b([^.!?]{0,48})/gi;
   const freq = new Map<string, number>();
   const phraseOf = new Map<string, string>();

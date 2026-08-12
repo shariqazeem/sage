@@ -529,8 +529,26 @@ export async function runMissionBrain(
     // math the model sees; capped so the ask stays inside the architect's 3-6 design band.
     const fundable = Math.min(4, Number(founder.totalBudgetBase / BigInt(3_000_000)));
     const wantMore = r.accepted.length < Math.min(3, fundable);
-    if (wantUrl || wantMore) {
+    /**
+     * NO PLAN OF PURE READING. Measured across six live products (supervega, tokenwatcher, agora,
+     * sagepays, keep.coffee, goat): 14 of 17 shipped missions were "verify page X explains Y" —
+     * comprehension checks, which founders do not pay for and testers learn nothing from doing. The
+     * prompt now forbids them (rule 7), and this is the deterministic backstop: if NOT ONE accepted
+     * mission asks the tester to interact with the product, ask the architect for one before the plan
+     * ships. Only ever ADDS an ask — it can never delete a mission the gate accepted.
+     */
+    const INTERACTION = /\b(click\w*|tap\w*|type\w*|enter\w*|submit\w*|select\w*|choose|connect\w*|creat\w*|sign\s*up|log\s*in|upload\w*|search\w*|filter\w*|sort\w*|toggle\w*|switch\w*|drag\w*|send\w*|start\w*|launch\w*|deploy\w*|publish\w*|mint\w*|add\w*|paste\w*)\b/i;
+    const hasAction = r.accepted.some((m) =>
+      INTERACTION.test(`${m.instructions} ${m.criteria.join(" ")}`),
+    );
+    const wantAction = !hasAction && r.accepted.length > 0;
+    if (wantUrl || wantMore || wantAction) {
       const asks = [
+        ...(wantAction
+          ? [
+              "NOT ONE mission in this plan asks the tester to DO anything — every one is 'read a page and report what it says', which is a comprehension check nobody pays for. REPLACE the weakest mission with one where the tester INTERACTS with an observed control (click/type/submit/select/connect/create) and reports the STATE THAT RESULTED, anchored on real observed text.",
+            ]
+          : []),
         ...(wantMore
           ? [
               `The plan has only ${r.accepted.length} mission(s) but the budget funds ${Math.min(4, fundable)} DISTINCT ones. Keep the strongest existing mission(s) and ADD more that test DIFFERENT observed parts of the product (different pages, flows, or states — never a rephrasing of an existing mission).`,
@@ -549,7 +567,9 @@ export async function runMissionBrain(
         const url3 = r3.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
         const urlOk = !wantUrl || url3 >= 1;
         const moreOk = !wantMore || r3.accepted.length > r.accepted.length;
-        if (urlOk && moreOk && r3.accepted.length >= r.accepted.length) {
+        const action3 = r3.accepted.some((m) => INTERACTION.test(`${m.instructions} ${m.criteria.join(" ")}`));
+        const actionOk = !wantAction || action3;
+        if (urlOk && moreOk && actionOk && r3.accepted.length >= r.accepted.length) {
           arch = arch3;
           r = r3;
         }
