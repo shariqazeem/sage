@@ -6,6 +6,7 @@ import {
   findGateAnchor,
   alreadyCovered,
   inferDelegatedCoreAction,
+  coreActionFromCandidates,
   type GatedAction,
 } from "./gated-action-mission";
 import { classifyVerifiability, anchorIssues, validatePlanMissions } from "./validate-mission";
@@ -541,5 +542,58 @@ describe("inferDelegatedCoreAction — never picks the product name as the objec
     // agent and clawup both recur with verbs; the guard is what guarantees 'agent'. Here we only
     // assert it still returns a real object, not the specific tie-break.
     expect(a).not.toBeNull();
+  });
+});
+
+/**
+ * THE MODEL NAMES IT, CODE BUILDS IT. Verbatim architect titles from the live clawup runs — the
+ * architect named the core action correctly EVERY time, including in candidates the critic then
+ * rejected. Reading the object from its own words is what makes this robust across products, where
+ * corpus-frequency inference broke three different ways.
+ */
+describe("coreActionFromCandidates — reads the core action out of the architect's own candidates", () => {
+  const observed = ["Create your first agent and connect a messaging channel", "Start Free", "ClawUp"];
+
+  it("extracts 'agent' from the real rejected candidate (skipping 'first'/'AI' qualifiers)", () => {
+    const a = coreActionFromCandidates(
+      [
+        { title: "Verify a first-time visitor understands ClawUp's core promise from the homepage", objective: "read the homepage" },
+        { title: "Complete the signup flow and create your first AI agent; verify the deployment", objective: "sign up and create an agent" },
+      ],
+      observed,
+      "ClawUp",
+    );
+    expect(a).not.toBeNull();
+    expect(a!.objectNoun).toBe("agent");
+    expect(a!.delegated).toBe(true);
+  });
+
+  it("ignores read-only candidates (no real-work verb) and returns null", () => {
+    expect(
+      coreActionFromCandidates(
+        [{ title: "Verify the homepage headline", objective: "quote the h1 text shown on the homepage" }],
+        observed,
+        "ClawUp",
+      ),
+    ).toBeNull();
+  });
+
+  it("never returns the product name as the object", () => {
+    const a = coreActionFromCandidates(
+      [{ title: "Sign up and create your ClawUp workspace", objective: "create a workspace" }],
+      ["Create your workspace", "ClawUp"],
+      "ClawUp",
+    );
+    expect(a?.objectNoun).not.toBe("clawup");
+  });
+
+  it("requires an anchor Sage actually observed", () => {
+    expect(
+      coreActionFromCandidates(
+        [{ title: "Sign up and create your first agent", objective: "create an agent" }],
+        ["Home", "About", "Careers"],
+        "ClawUp",
+      ),
+    ).toBeNull();
   });
 });

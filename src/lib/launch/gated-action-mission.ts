@@ -213,6 +213,63 @@ export function detectGatedActions(
  * quick-start says "create your first agent", so Sage now builds "sign up and create your agent,
  * then submit the result" instead of "confirm the homepage mentions agents".
  */
+/**
+ * THE MODEL NAMES THE ACTION; CODE BUILDS THE MISSION.
+ *
+ * Measured across six live clawup runs: corpus-frequency inference of the core object was fragile
+ * (it picked "and", a quoted tagline's words, then the product name), while the ARCHITECT named it
+ * perfectly every single time — "Complete the signup flow and create your first AI agent". The
+ * architect understands the product; that is what a model is good at. What it is NOT reliable at is
+ * surviving the critic: the same artifact mission was rejected twice, once correctly (it asked for a
+ * dashboard URL Sage cannot fetch) and once for a product that genuinely publishes nothing.
+ *
+ * So the split is the project's own principle — the model proposes, deterministic code disposes.
+ * This reads the core action out of the architect's OWN candidates (accepted or rejected, since a
+ * rejected candidate still names the action correctly), and the caller then builds the mission with
+ * {@link buildGatedActionMission}, whose evidence shape is honest for a product that publishes
+ * nothing public: do the real work, then answer first-hand questions judged against the docs corpus.
+ * That path faces the deterministic gate ONLY, so a critic verdict can never silently delete the one
+ * mission the whole campaign exists for.
+ */
+export function coreActionFromCandidates(
+  candidates: readonly { title?: string; objective?: string; instructions?: string; missionKey?: string }[],
+  observedLines: readonly string[],
+  productName: string | null = null,
+): GatedAction | null {
+  const nameTokens = new Set((productName ?? "").toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? []);
+  // A candidate counts when it asks the tester to SIGN UP / CREATE — the real-work shape.
+  const REAL_WORK = /\b(sign\s*up|signup|register|create|creating|launch|deploy|publish|mint|generate|build)\b/i;
+  for (const c of candidates) {
+    const text = norm(`${c.title ?? ""}. ${c.objective ?? ""}`);
+    if (!REAL_WORK.test(text)) continue;
+    const m = CORE_RE.exec(text);
+    if (!m) continue;
+    // "create your first AI agent" → CORE_RE's next-word grab lands on a QUALIFIER ("first", "ai"),
+    // not the object. Walk forward to the first word that actually names a thing.
+    const QUALIFIER = /^(first|new|your|our|the|own|free|ai|initial|second|next|test|sample|demo|real|full|complete|simple|basic)$/;
+    const unusable = (w: string) =>
+      NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || QUALIFIER.test(w) || nameTokens.has(w) || w.length < 3;
+    let objectNoun = m[2].toLowerCase();
+    if (unusable(objectNoun)) {
+      const after = text.slice(m.index + m[0].length - objectNoun.length);
+      const better = (after.toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? []).find((w) => !unusable(w));
+      if (!better) continue;
+      objectNoun = better;
+    }
+    const objectRe = new RegExp(`\\b${objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*\\b`, "i");
+    const gateAnchor = findGateAnchor(observedLines, objectRe);
+    if (!gateAnchor) continue; // must anchor to something Sage observed, like every mission
+    return {
+      family: "core_action",
+      sourcePhrase: (c.title ?? text).slice(0, 140),
+      gateAnchor,
+      objectNoun,
+      delegated: true,
+    };
+  }
+  return null;
+}
+
 export function inferDelegatedCoreAction(
   observedLines: readonly string[],
   valuePropositions: readonly string[] = [],

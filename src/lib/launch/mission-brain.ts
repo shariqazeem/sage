@@ -20,7 +20,7 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
-import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction } from "./gated-action-mission";
+import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
@@ -583,7 +583,12 @@ export async function runMissionBrain(
     // founder gave a specific goal (intent-guard holds), or when nothing anchors (static pages).
     const delegatedRun = founder.goal === DEFAULT_FIRST_VISIT_GOAL;
     if (delegatedRun && !gated.some((a) => a.family === "core_action")) {
-      const inferred = inferDelegatedCoreAction(observedLines, [map.valueProp ?? ""].filter(Boolean), map.productName);
+      // THE ARCHITECT'S OWN NAMING FIRST — it understands the product and named the core action
+      // correctly on every measured run, including in candidates the critic later rejected. Corpus
+      // frequency is the fallback for the rare plan where no candidate describes real work.
+      const inferred =
+        coreActionFromCandidates(arch.candidates, observedLines, map.productName) ??
+        inferDelegatedCoreAction(observedLines, [map.valueProp ?? ""].filter(Boolean), map.productName);
       if (inferred) gated.push(inferred);
     }
     const uncovered = gated.filter((a) => !alreadyCovered(a, r.accepted));
