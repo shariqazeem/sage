@@ -38,7 +38,7 @@ import {
   type CanaryIdentity,
 } from "./mission-canary";
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
-import { allocateBudget, MIN_REWARD_BASE } from "./budget";
+import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
 import { compilePlan } from "./plan";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -482,6 +482,9 @@ export async function inspectAndPlan(
         effortMinutes: m.effortMinutes,
       })),
       effectiveBudgetBase,
+      // The tangible floor, not the $0.10 meaningful floor — mission count is the fourth
+      // money-decision, and the allocator's lift-and-drop is where it meets the budget.
+      { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
     );
     if (!allocation.ok) return { ok: false as const, allocation, plan: null, unspentBase };
     // TESTER SAMPLE — a plural, qualitative request buys independent completions rather than one big
@@ -520,6 +523,7 @@ export async function inspectAndPlan(
           effortMinutes: m.effortMinutes,
         })),
         effectiveBudgetBase,
+        { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
       );
       if (spread.ok) allocation = spread;
     }

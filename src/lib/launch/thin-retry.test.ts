@@ -56,7 +56,7 @@ const mission: CandidateMission = {
   verificationMethod: "the tester's account judged against the observation corpus", confidence: 0.85, assumptions: [], disallowed: [],
 };
 const brainResult = () => ({ ok: true, reason: null, candidates: [mission], critiques: [], accepted: [mission], reports: [], needsInputQuestions: [], model: "m", provider: "p", promptVersion: "mb-v1", latencyMs: 5 });
-const input = { productUrl: "https://yara.test/", goal: "explore + talk to Yara", targetUsers: "players", totalBudgetBase: BigInt(2_000_000), tokenDecimals: 6 };
+const input = { productUrl: "https://yara.test/", goal: "explore + talk to Yara", targetUsers: "players", totalBudgetBase: BigInt(10_000_000), tokenDecimals: 6 };
 
 const run = () => inspectAndPlan(input, "camp1", () => {}, 1, { inspectionId: "insp1" });
 

@@ -43,7 +43,7 @@ const mission: CandidateMission = {
   verificationMethod: "the tester's account judged against the observation corpus", confidence: 0.85, assumptions: [], disallowed: [],
 };
 const brainResult = () => ({ ok: true, reason: null, candidates: [mission], critiques: [], accepted: [mission], reports: [], needsInputQuestions: [], model: "google/gemini-3.1-flash-lite-preview", provider: "api.commonstack.ai", promptVersion: "mb-v1", latencyMs: 5 });
-const input = { productUrl: "https://yara.test/", goal: "explore + talk to Yara", targetUsers: "players", totalBudgetBase: BigInt(2_000_000), tokenDecimals: 6 };
+const input = { productUrl: "https://yara.test/", goal: "explore + talk to Yara", targetUsers: "players", totalBudgetBase: BigInt(10_000_000), tokenDecimals: 6 };
 
 beforeEach(() => {
   vi.mocked(inspectProduct).mockResolvedValue({ startUrl: "https://yara.test/", host: "yara.test", observations: [obs("https://yara.test/")], limitations: [], blocked: [] });

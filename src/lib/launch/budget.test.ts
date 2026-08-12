@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocateBudget, MIN_REWARD_BASE, type WeightedMission } from "./budget";
+import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE, type WeightedMission } from "./budget";
 import type { MissionPriority } from "./schemas";
 
 /**
@@ -225,5 +225,58 @@ describe("applyTangibleCaps", () => {
     for (const m of alloc.missions) {
       expect(m.rewardBase).toBeGreaterThanOrEqual(usdc(1)); // nothing pays cents anymore
     }
+  });
+});
+
+/**
+ * THE FOURTH MONEY-DECISION — found by hostile-category field probes on prod (2026-08-12), invisible
+ * to the whole unit suite: the architect designed 4 missions for a $10 budget (excalidraw) and
+ * 3 for $10 (Uniswap), and the allocator — lift-and-drop still wired to the $0.10 floor — shipped
+ * $2.00 and $2.86 rewards on founder-facing plans. With `minRewardBase` at the tangible floor, the
+ * SAME machinery lifts small rewards to $3 and drops lowest-priority missions when the budget truly
+ * cannot fund them all. The founder's rule: one tangible mission beats three paying cents.
+ */
+describe("allocateBudget with the tangible floor — mission count meets the budget", () => {
+  const m = (key: string, weight: number, priority: MissionPriority): WeightedMission => ({
+    missionKey: key,
+    weight,
+    suggestedMaxCompletions: 1,
+    priority,
+    effortMinutes: 5,
+  });
+
+  it("the excalidraw shape: 4 one-slot missions on $10 → nobody under $3, sum exact", () => {
+    const r = allocateBudget(
+      [m("a", 3, "high"), m("b", 2, "medium"), m("c", 3, "medium"), m("d", 2, "low")],
+      BigInt(10_000_000),
+      { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
+    );
+    expect(r.ok).toBe(true);
+    for (const a of r.missions) expect(a.rewardBase >= TANGIBLE_MIN_REWARD_BASE).toBe(true);
+    expect(r.allocatedBase).toBe(BigInt(10_000_000));
+    // $10 cannot fund four tangible rewards — the lowest-priority mission(s) drop, the rest survive.
+    expect(r.missions.length).toBeLessThan(4);
+    expect(r.missions.length).toBeGreaterThanOrEqual(2);
+    expect(r.missions.some((a) => a.missionKey === "a")).toBe(true); // the balancer never drops
+  });
+
+  it("the uniswap shape: 3 one-slot missions on $10 → all three kept, lifted to the floor", () => {
+    const r = allocateBudget(
+      [m("swap", 3, "high"), m("explore", 2, "medium"), m("home", 2, "medium")],
+      BigInt(10_000_000),
+      { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
+    );
+    expect(r.ok).toBe(true);
+    expect(r.missions.length).toBe(3);
+    for (const a of r.missions) expect(a.rewardBase >= TANGIBLE_MIN_REWARD_BASE).toBe(true);
+    expect(r.allocatedBase).toBe(BigInt(10_000_000));
+  });
+
+  it("a budget under the floor fails closed with an honest reason", () => {
+    const r = allocateBudget([m("only", 3, "high")], BigInt(2_000_000), {
+      minRewardBase: TANGIBLE_MIN_REWARD_BASE,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/budget too small/);
   });
 });

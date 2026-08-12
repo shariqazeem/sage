@@ -50,6 +50,18 @@ export const TANGIBLE_SLOT_USD = 5;
  *  — deep work fewer slots at more pay, quick checks more slots at less — and the system only
  *  enforces this floor and the exactness invariant. Curve-decided counts are gone. */
 export const TANGIBLE_MIN_PER_REWARD_USD = 3;
+/**
+ * The same floor in base units, for passing as `minRewardBase` into {@link allocateBudget}.
+ *
+ * THE FOURTH MONEY-DECISION — found by hostile-category field probes, not tests (2026-08-12).
+ * Mission COUNT also decides per-tester pay: the architect designed 4 missions for a $10 budget
+ * (excalidraw run) and the allocator, whose lift-and-drop machinery was still wired to the $0.10
+ * meaningful floor, dutifully spread the pot into two $2.00 rewards. With this floor the existing
+ * machinery does the right thing on its own: sub-$3 rewards lift to $3, and when the budget truly
+ * cannot fund every mission tangibly, the lowest-priority missions drop — the founder's own rule:
+ * "one good mission paying something tangible beats 3 missions paying cents."
+ */
+export const TANGIBLE_MIN_REWARD_BASE = BigInt(TANGIBLE_MIN_PER_REWARD_USD * 1_000_000);
 /** The ceiling of a sane reward: past $50 a head, surplus is farm bait, not motivation. */
 export const TANGIBLE_MAX_REWARD_USD = 50;
 
@@ -181,7 +193,7 @@ export function allocateBudget(
   if (B < MIN) {
     return {
       ...empty,
-      reason: `budget too small — a meaningful plan needs at least ${MIN.toString()} base units (one mission at the minimum reward)`,
+      reason: `budget too small — a meaningful plan needs at least $${(Number(MIN) / 1_000_000).toFixed(2)} (one mission at the minimum reward)`,
     };
   }
 
