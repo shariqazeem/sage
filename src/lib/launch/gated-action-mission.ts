@@ -276,46 +276,52 @@ export function inferDelegatedCoreAction(
   productName: string | null = null,
 ): GatedAction | null {
   const lines = [...valuePropositions, ...observedLines].map(norm).filter((l) => l.length >= 6 && l.length <= 240);
-  // The product NAME is the highest-frequency token in its own copy, so a naive frequency winner
-  // picks it ("create your clawup") — measured live (clawup KY0hI34nW7Fl → needs_input, the mission
-  // couldn't anchor). Exclude every token of the product name so the real OBJECT ("agent") wins.
-  const nameTokens = new Set(
-    (productName ?? "").toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [],
-  );
-  // The core OBJECT is the distinctive noun that (a) RECURS across the product's own copy — a central
-  // object appears many times, a passing word once — and (b) sits near a create/launch verb somewhere.
-  // Naive "the word after the verb" grabs adjectives and conjunctions ("Build AND Power…", "create
-  // your FIRST agent"); frequency + verb-co-occurrence finds "agent" instead. Fully deterministic.
+  const nameTokens = new Set((productName ?? "").toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? []);
+  /**
+   * PHRASE-BASED, not frequency-based. Frequency over the whole corpus kept electing the wrong word
+   * (the product name, a tagline verb) because a product's copy repeats its own name more than its
+   * object. What actually names the core action is the PHRASE the product writes in its own docs —
+   * "Create your first agent and connect a messaging channel" — so read the object straight out of
+   * each create-verb phrase, skipping qualifiers ("your", "first", "AI"), and let the most repeated
+   * OBJECT win. Deterministic, and it does not depend on what the architect happened to propose.
+   */
+  const QUALIFIER = /^(first|new|your|our|the|own|free|ai|initial|second|next|test|sample|demo|real|full|complete|simple|basic|another)$/;
+  // Grammar words a verb-phrase tail is full of ("Build AND POWER UP your AI agent"). Without these
+  // the extractor elected "and" — measured. Kept small and generic; the frequency floor below is what
+  // actually separates a product's core object from incidental nouns, in any vocabulary.
   const STOP = new Set(
-    ("the a an and or of to for your our their with new now free out up into on at is are be this that these those " +
-      "you we they it them us start started building build create creating make made get getting got launch launching " +
-      "deploy run running use using power ai app apps web").split(" "),
+    ("and or but with without into onto from for to of in on at by via using use uses used power powered up down over under " +
+      "more most best great better good all any some every each other same across within about after before while when where " +
+      "get gets got make makes made take takes let lets help helps start starts run runs then than there here now today").split(" "),
   );
+  const unusable = (w: string) =>
+    NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || QUALIFIER.test(w) || STOP.has(w) || nameTokens.has(w) || w.length < 3;
+  const VERB_PHRASE = /\b(launch|deploy|mint|publish|creat\w*|build|generate|start|run)\b([^.!?]{0,48})/gi;
   const freq = new Map<string, number>();
-  const withVerb = new Set<string>();
-  const wordPhrase = new Map<string, string>();
+  const phraseOf = new Map<string, string>();
   for (const l of lines) {
-    const words = l.toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [];
-    const hasVerb = CORE_RE.test(l);
-    for (const w of words) {
-      if (STOP.has(w) || NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || nameTokens.has(w)) continue;
-      freq.set(w, (freq.get(w) ?? 0) + 1);
-      if (!wordPhrase.has(w) || l.length < wordPhrase.get(w)!.length) wordPhrase.set(w, l);
-      if (hasVerb) withVerb.add(w);
+    for (const m of l.matchAll(VERB_PHRASE)) {
+      const tail = (m[2] ?? "").toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [];
+      const obj = tail.find((w) => !unusable(w));
+      if (!obj) continue;
+      freq.set(obj, (freq.get(obj) ?? 0) + 1);
+      if (!phraseOf.has(obj) || l.length < phraseOf.get(obj)!.length) phraseOf.set(obj, l);
     }
   }
-  // candidates: distinctive nouns that co-occur with a create-verb AND recur (≥2 mentions — a
-  // central object is repeated; a one-off "journey" in "start your journey" is not the product).
-  const candidates = [...withVerb].filter((w) => (freq.get(w) ?? 0) >= 2);
-  if (candidates.length === 0) return null;
-  const objectNoun = candidates.sort((a, b) => (freq.get(b) ?? 0) - (freq.get(a) ?? 0) || (a < b ? -1 : 1))[0]!;
+  // THE STRUCTURAL GUARD: a product's CORE object recurs across its own create-phrases ("create your
+  // agent", "deploy an agent", "your agent is live"); an incidental noun in one sentence ("start your
+  // journey") appears once. Requiring >=2 is what makes this robust in ANY vocabulary, instead of a
+  // word list I have to extend per product — the failure mode of every earlier version.
+  const recurring = [...freq.entries()].filter(([, n]) => n >= 2);
+  if (recurring.length === 0) return null;
+  const objectNoun = recurring.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]![0];
   const objectRe = new RegExp(`\\b${objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*\\b`, "i");
   const gateAnchor = findGateAnchor(observedLines, objectRe);
   if (!gateAnchor) return null; // must anchor to something Sage observed, like every mission
   return {
     family: "core_action",
     // the PRODUCT'S own phrase, verbatim from what Sage read — honest provenance, never founder words.
-    sourcePhrase: (wordPhrase.get(objectNoun) ?? gateAnchor).slice(0, 140),
+    sourcePhrase: (phraseOf.get(objectNoun) ?? gateAnchor).slice(0, 140),
     gateAnchor,
     objectNoun,
     delegated: true,
