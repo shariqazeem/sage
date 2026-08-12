@@ -513,3 +513,33 @@ describe("alreadyCovered core_action — a quoted tagline never suppresses the r
     ).toBe(true);
   });
 });
+
+/**
+ * THE PRODUCT-NAME TRAP (measured live, clawup KY0hI34nW7Fl → needs_input). The product name is the
+ * highest-frequency token in its own copy, so the frequency winner picked "clawup" and built an
+ * un-anchorable "create your clawup" mission. Excluding the product name lets the real object win.
+ */
+describe("inferDelegatedCoreAction — never picks the product name as the object", () => {
+  const corpus = [
+    "ClawUp — Build and Power Up Your AI Agent",
+    "Create your ClawUp account to get started",
+    "Create your first agent and connect a channel",
+    "Run your agent on ClawUp's infrastructure",
+    "ClawUp agents work with leading frameworks",
+    "Deploy an agent in minutes with ClawUp",
+  ];
+
+  it("picks 'agent', not 'clawup', even though the name recurs more", () => {
+    const a = inferDelegatedCoreAction(corpus, ["ClawUp — Build and Power Up Your AI Agent"], "ClawUp");
+    expect(a).not.toBeNull();
+    expect(a!.objectNoun).toBe("agent");
+    expect(a!.objectNoun).not.toBe("clawup");
+  });
+
+  it("without the product name it might wrongly pick the name (proves the guard matters)", () => {
+    const a = inferDelegatedCoreAction(corpus, [], null);
+    // agent and clawup both recur with verbs; the guard is what guarantees 'agent'. Here we only
+    // assert it still returns a real object, not the specific tie-break.
+    expect(a).not.toBeNull();
+  });
+});

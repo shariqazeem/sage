@@ -216,8 +216,15 @@ export function detectGatedActions(
 export function inferDelegatedCoreAction(
   observedLines: readonly string[],
   valuePropositions: readonly string[] = [],
+  productName: string | null = null,
 ): GatedAction | null {
   const lines = [...valuePropositions, ...observedLines].map(norm).filter((l) => l.length >= 6 && l.length <= 240);
+  // The product NAME is the highest-frequency token in its own copy, so a naive frequency winner
+  // picks it ("create your clawup") — measured live (clawup KY0hI34nW7Fl → needs_input, the mission
+  // couldn't anchor). Exclude every token of the product name so the real OBJECT ("agent") wins.
+  const nameTokens = new Set(
+    (productName ?? "").toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [],
+  );
   // The core OBJECT is the distinctive noun that (a) RECURS across the product's own copy — a central
   // object appears many times, a passing word once — and (b) sits near a create/launch verb somewhere.
   // Naive "the word after the verb" grabs adjectives and conjunctions ("Build AND Power…", "create
@@ -234,7 +241,7 @@ export function inferDelegatedCoreAction(
     const words = l.toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [];
     const hasVerb = CORE_RE.test(l);
     for (const w of words) {
-      if (STOP.has(w) || NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w)) continue;
+      if (STOP.has(w) || NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w) || nameTokens.has(w)) continue;
       freq.set(w, (freq.get(w) ?? 0) + 1);
       if (!wordPhrase.has(w) || l.length < wordPhrase.get(w)!.length) wordPhrase.set(w, l);
       if (hasVerb) withVerb.add(w);

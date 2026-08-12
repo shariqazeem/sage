@@ -583,7 +583,7 @@ export async function runMissionBrain(
     // founder gave a specific goal (intent-guard holds), or when nothing anchors (static pages).
     const delegatedRun = founder.goal === DEFAULT_FIRST_VISIT_GOAL;
     if (delegatedRun && !gated.some((a) => a.family === "core_action")) {
-      const inferred = inferDelegatedCoreAction(observedLines, [map.valueProp ?? ""].filter(Boolean));
+      const inferred = inferDelegatedCoreAction(observedLines, [map.valueProp ?? ""].filter(Boolean), map.productName);
       if (inferred) gated.push(inferred);
     }
     const uncovered = gated.filter((a) => !alreadyCovered(a, r.accepted));
@@ -619,6 +619,12 @@ export async function runMissionBrain(
        */
       const stillUncovered = uncovered.filter((a) => !alreadyCovered(a, r.accepted));
       for (const a of stillUncovered) {
+        // A DELEGATED inference is SAGE'S OWN guess (no goal was given), not the founder's ask. If it
+        // can't anchor, drop it in silence and let the plan ship with the missions that DID survive —
+        // never confess "your goal asks for X" about a step the founder never named, and never
+        // dead-end a URL-only run into a question about Sage's own failed inference. Measured live
+        // (clawup KY0hI34nW7Fl): a delegated run produced a needs_input about a "clawup" step.
+        if (a.delegated) continue;
         const q = `Your goal asks for "${a.sourcePhrase.slice(0, 120)}", but Sage could not anchor a mission for that step on anything it observed or read — the plan covers the rest of your goal without it. Reply if you want to proceed anyway, or tell Sage where that step lives (a URL or doc) and it will re-plan.`;
         if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
       }
