@@ -483,3 +483,33 @@ describe("inferDelegatedCoreAction — the product's own core action, when the f
     expect(inferDelegatedCoreAction(["Get started now", "Build something great", "Start your journey"], [])).toBeNull();
   });
 });
+
+/**
+ * THE VALUE-PROP TAGLINE TRAP (measured live, clawup 631QMbMNnL4O) — a homepage-comprehension mission
+ * quoted "Build and Power Up Your AI Agent", so "build" + "agent" were both present (5 words apart)
+ * and the OLD alreadyCovered suppressed the real "create your agent" core-action mission. Proximity
+ * separates a scattered tagline from a DO instruction.
+ */
+describe("alreadyCovered core_action — a quoted tagline never suppresses the real DO mission", () => {
+  const core: GatedAction = { family: "core_action", sourcePhrase: "create your first agent", gateAnchor: "Create your first agent", objectNoun: "agent", delegated: true };
+
+  it("a comprehension mission quoting 'Build and Power Up Your AI Agent' does NOT cover it", () => {
+    expect(
+      alreadyCovered(core, [
+        {
+          title: "Verify a first-time visitor understands ClawUp's core offer from the homepage",
+          objective: "The visitor can articulate ClawUp's value proposition: Build and Power Up Your AI Agent.",
+          criteria: ["The tester quotes the headline 'Build and Power Up Your AI Agent'."],
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("a real 'create your agent' DO mission still covers it (no duplicate)", () => {
+    expect(
+      alreadyCovered(core, [
+        { title: "Create your agent", objective: "Sign up and create your agent, then submit the result.", criteria: ["The agent page loads."] },
+      ]),
+    ).toBe(true);
+  });
+});

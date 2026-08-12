@@ -224,6 +224,37 @@ export function distillPrivateKey(
   return { observations, distinctSources, digest };
 }
 
+/**
+ * PRIVATE-SIGNAL SOURCES — how many distinct sources carry content a card-parrot could NOT reproduce.
+ *
+ * `distillPrivateKey` removes exact public STRINGS, but when a mission's criteria QUOTE the product's
+ * own vocabulary the residual observations still share it — the over-acceptance the live judge eval
+ * caught (a card-parrot scored 6 "sources" on the clawup frameworks corpus). So the raw distinct-source
+ * COUNT overstates how safely autonomous a corpus is. This measures the real thing: a source counts
+ * only if it carries >= {@link PRIVATE_SIGNAL_MIN_TOKENS} non-public content tokens — tokens absent from
+ * every public plan string, which a parrot echoing the card cannot supply.
+ *
+ * READINESS ONLY. It never touches the accept/reject matcher (legit acceptance is unchanged); it only
+ * decides whether a campaign AUTO-PAYS or HOLDS for the founder. A public-heavy corpus flips to
+ * founder-review; a corpus rich in private states a parrot never saw stays autonomous. Safe in one
+ * direction — it can only ever hold MORE, never wrong-pay and never reject a real tester.
+ */
+const PRIVATE_SIGNAL_MIN_TOKENS = 2;
+export function privateSignalSources(
+  fieldTest: FieldTestSummary | null | undefined,
+  publicStrings: string[],
+): number {
+  const key = distillPrivateKey(fieldTest, publicStrings);
+  const pub = publicTokenSet(publicStrings);
+  const strong = new Set<string>();
+  for (const o of key.observations) {
+    if (strong.has(o.source)) continue;
+    const nonPublic = contentTokens(o.text).filter((t) => !pub.has(t));
+    if (nonPublic.length >= PRIVATE_SIGNAL_MIN_TOKENS) strong.add(o.source);
+  }
+  return strong.size;
+}
+
 /** Ultra-common words dropped before overlap scoring so overlap reflects real signal, not grammar.
  *  Deliberately small — the goal is to ignore filler, not to stem or synonym-match (that stays the
  *  LLM judge's job). */

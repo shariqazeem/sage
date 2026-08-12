@@ -297,15 +297,20 @@ export function alreadyCovered(
   missions: readonly Pick<CandidateMission, "objective" | "criteria" | "title">[],
 ): boolean {
   if (action.family === "core_action" && action.objectNoun) {
-    // covered only by a mission that asks a tester to DO the action to the founder's object —
-    // both the object word and a doing-verb, in the same mission. A mission that merely mentions
-    // "agents" in passing does not cover "launch an agent" (the noun-regex trap, measured twice).
-    const obj = new RegExp(`\\b${action.objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
-    const verb = /\b(launch\w*|deploy\w*|creat\w+|build\w*|start\w*|run(?:s|ning)?|mint\w*|publish\w*|generat\w+)\b/i;
-    return missions.some((m) => {
-      const text = `${m.title} ${m.objective} ${m.criteria.join(" ")}`;
-      return obj.test(text) && verb.test(text);
-    });
+    // covered only by a mission that asks a tester to DO the action to the founder's object — a
+    // doing-verb and the object CLOSE TOGETHER ("create your agent", "launch an agent"), not merely
+    // co-present anywhere in the text. The noun-regex trap, measured a THIRD time (clawup, live):
+    // a homepage-comprehension mission that QUOTED the value-prop tagline "Build and Power Up Your AI
+    // Agent" carried "build" and "agent" five words apart, so obj+verb-anywhere falsely marked the
+    // real core-action mission "covered" and suppressed it. Proximity (verb, ≤2 words, object)
+    // separates a DO instruction from a scattered tagline: "create your agent" matches; the tagline
+    // (build … 4 words … agent) does not.
+    const obj = action.objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const doPhrase = new RegExp(
+      `\\b(?:launch|deploy|creat|build|start|run|mint|publish|generat)\\w*\\b(?:\\s+[\\w']+){0,2}\\s+\\b${obj}`,
+      "i",
+    );
+    return missions.some((m) => doPhrase.test(`${m.title} ${m.objective} ${m.criteria.join(" ")}`));
   }
   const re = FAMILY_ACTION[action.family];
   return missions.some((m) => re.test(`${m.title} ${m.objective} ${m.criteria.join(" ")}`));
