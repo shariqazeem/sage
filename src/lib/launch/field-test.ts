@@ -2713,6 +2713,8 @@ async function exploreInteractive(ctx: {
   const deadline = ctx.started + EXPLORE_MS;
   const states: FieldTestState[] = [];
   let prevFp: StateFingerprint | null = null;
+  // the last pathname the TRAIL narrated — decoration state only, never part of any captured state.
+  let lastTrailPath = "";
   let shotIdx = 0;
   /** The wall that turned Sage away, if any — the trigger for the doc hunt after exploration ends. */
   let wallNote: string | null = null;
@@ -2765,8 +2767,24 @@ async function exploreInteractive(ctx: {
     }
     // LIVE TRAIL — publish the step the moment it exists, so the founder watching the inspecting
     // page sees the work rather than a still spinner. Best-effort; never affects the run.
+    //
+    // The trail label narrates CONSEQUENCE, not just the act: "clicked X → /signup" reads as an
+    // agent using the product; "clicked X" alone read as pages flipping (the founder's own words).
+    // Decoration is TRAIL-ONLY — state.trigger is corpus and stays byte-identical.
+    let trailLabel = trigger;
+    try {
+      const path = new URL(page.url()).pathname;
+      if (path !== lastTrailPath && /^(clicked|explored|typed|chose|drew|sent)/i.test(trigger)) {
+        trailLabel = `${trigger} → ${path}`;
+      } else if (delta >= 18 && /^(clicked|explored|typed|chose|drew|sent)/i.test(trigger)) {
+        trailLabel = `${trigger} — the screen changed`;
+      }
+      lastTrailPath = path;
+    } catch {
+      /* decoration only */
+    }
     void recordFieldTestStep(inspectionId, {
-      label: trigger,
+      label: trailLabel,
       screenshot,
       url: page.url(),
     });

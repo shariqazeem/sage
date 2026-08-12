@@ -255,12 +255,16 @@ export function buildInspectionNotice(v: InspectionView): string {
       .slice(0, 6)
       .map((m) => `• ${m.title} — ${usdFrom(m.rewardBase)} × ${m.maxCompletions}`)
       .join("\n");
+    // THE LINK LIVES IN THE NOTICE ITSELF. This used to say "see the plan link" with no link in
+    // the message — the URL had gone out in a separate, earlier "watching it live" message that a
+    // founder scrolling to the plan would never connect. The one message that matters carries it.
+    const planUrl = `${siteUrl()}/launch/${v.inspectionId}`;
     const fieldLine =
       v.fieldTest && v.fieldTest.screenshots > 0
-        ? `\n\nI clicked through ${v.fieldTest.pages} page${v.fieldTest.pages === 1 ? "" : "s"} and took screenshots — see the plan link.`
+        ? `\n\nI clicked through ${v.fieldTest.pages} page${v.fieldTest.pages === 1 ? "" : "s"} and took screenshots — the full plan and everything I saw: ${planUrl}`
         : v.pagesInspected > 0
-          ? `\n\nI read ${v.pagesInspected} page${v.pagesInspected === 1 ? "" : "s"} of the product to design these — see the plan link.`
-          : "";
+          ? `\n\nI read ${v.pagesInspected} page${v.pagesInspected === 1 ? "" : "s"} of the product to design these — the full plan: ${planUrl}`
+          : `\n\nThe full plan: ${planUrl}`;
     // A plan that covers only PART of the ask must say so on the same screen as the missions. Sage
     // plans what it verified rather than dead-ending, and the founder learns the boundary here —
     // never by noticing later that something they asked for is missing.
@@ -634,7 +638,17 @@ async function runAgentTurn(
           // Keep the "I'll let you know" promise on TELEGRAM (a push channel): follow a fresh inspection
           // to completion in the background and DM the plan. On web there's no push — the overlay polls
           // sage_get_inspection, and the agent hands off the deploy link — so no server-side notify.
-          if (surface === "telegram" && tc.function.name === "sage_start_inspection" && result && !result.isError) {
+          //
+          // sage_answer_questions is the SAME promise: three separate places told the founder "you'll
+          // be messaged when the new plan is ready" and nothing was wired to send it — a founder who
+          // answered a needs-input question was never messaged again. The re-plan returns the same
+          // inspectionId/planningRequestId shape, so the same follower keeps the same promise.
+          if (
+            surface === "telegram" &&
+            (tc.function.name === "sage_start_inspection" || tc.function.name === "sage_answer_questions") &&
+            result &&
+            !result.isError
+          ) {
             maybeNotifyOnInspection(ref, text, scheduleAfter);
           }
 

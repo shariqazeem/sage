@@ -135,6 +135,23 @@
   padding: 1px 6px; border-radius: 999px; background: var(--lx-accent); color: #fff; flex: none;
 }
 
+/* THE ACTION LOG — the agent's own activity feed. Newest line on top with the live pulse;
+   mono timestamps; icons carry the verb (click / read / study / design). Receipt minimalism:
+   1px lines, no shadows, terracotta only on the live line. */
+.lbt-log { border-top: 1px solid var(--lx-line); padding: 6px 0; background: var(--surface); }
+.lbt-log-line {
+  display: flex; align-items: center; gap: 9px; padding: 5px 13px;
+  font-size: 12.5px; line-height: 1.35; color: var(--lx-muted);
+}
+.lbt-log-line.now { color: var(--lx-ink); }
+.lbt-log-line.now .lbt-log-icon { color: var(--lx-accent); animation: lbt-blink 1.4s ease-in-out infinite; }
+.lbt-log-icon { width: 13px; height: 13px; flex: none; color: var(--lx-muted); opacity: 0.85; }
+.lbt-log-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lbt-log-t {
+  margin-left: auto; flex: none; font-family: var(--font-mono), monospace;
+  font-size: 10.5px; font-variant-numeric: tabular-nums; opacity: 0.7;
+}
+
 .lbt-strip { display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto; border-top: 1px solid var(--lx-line); }
 .lbt-thumb {
   width: 72px; flex: none; aspect-ratio: 16 / 10; object-fit: cover; object-position: top center;

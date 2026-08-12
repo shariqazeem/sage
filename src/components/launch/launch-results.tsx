@@ -224,7 +224,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
             <CorpusReadinessBadge readiness={job.corpusReadiness} />
           )}
           {plan.missions.map((m) => (
-            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} onSaved={(j) => setJob(j)} />
+            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} autonomous={!!job.corpusReadiness?.autonomous} onSaved={(j) => setJob(j)} />
           ))}
         </section>
       )}

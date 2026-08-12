@@ -15,12 +15,16 @@ export function MissionCard({
   jobId,
   revision,
   locked,
+  autonomous,
   onSaved,
 }: {
   mission: MissionView;
   jobId: string;
   revision: number;
   locked: boolean;
+  /** the SERVER's corpus-readiness verdict — the autonomy note must follow it, never the mission's
+   *  class alone (the same rule the tester-facing boards already obey). Undefined → not ready. */
+  autonomous?: boolean;
   onSaved: (job: JobView) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -101,10 +105,26 @@ export function MissionCard({
         <span className="lx-tag">{mission.riskCategory.replace(/_/g, " ")}</span>
         <span className="lx-tag">max {reward(Number(mission.rewardBase) * Number(mission.maxCompletions))}</span>
       </div>
+      {/* The autonomy note follows the SERVER's readiness verdict, never the mission class alone —
+          the old line was hardcoded to "founder-approved" from the P16 era and undersold an armed
+          autonomous pipeline; asserting autonomy without readiness would be the same lie reversed. */}
       {mission.verifiabilityClass === "observation-based" && (
         <p style={{ fontSize: 12.5, color: "var(--lx-muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
-          Payouts on this mission are founder-approved after Sage&apos;s assessment — Sage auto-pays work
-          it can re-verify from a public URL, and holds a lived experience for your call.
+          {autonomous ? (
+            <>
+              Sage pays this mission autonomously too: it checks a tester&apos;s firsthand account
+              against what it observed and read itself during inspection — even for steps behind a
+              login Sage couldn&apos;t cross. Accounts that corroborate enough distinct details are
+              paid automatically; anything short of that bar is held for your call, never
+              auto-rejected.
+            </>
+          ) : (
+            <>
+              Payouts on this mission are founder-approved after Sage&apos;s assessment — its
+              inspection didn&apos;t capture enough distinct detail here to stand behind automatic
+              payouts, so every submission is held for your call.
+            </>
+          )}
         </p>
       )}
       <details className="lx-detail">

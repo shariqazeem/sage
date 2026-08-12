@@ -18,7 +18,9 @@ export interface MissionView {
   maxCompletions: string;
   missionIdHash: string;
   specDigest: string;
-  /** P16 money gate — "observation-based" missions are founder-approved (never auto-paid). */
+  /** P16 money gate, updated P23: "observation-based" missions auto-pay when the campaign's corpus
+   *  readiness is `autonomous` and the account clears the corroboration bar; otherwise they hold
+   *  for founder approval. The SERVER decides — UI must never infer autonomy from this class. */
   verifiabilityClass?: "url-verifiable" | "observation-based";
 }
 
