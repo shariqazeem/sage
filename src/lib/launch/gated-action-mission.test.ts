@@ -5,6 +5,7 @@ import {
   buildGatedActionMission,
   findGateAnchor,
   alreadyCovered,
+  inferDelegatedCoreAction,
   type GatedAction,
 } from "./gated-action-mission";
 import { classifyVerifiability, anchorIssues, validatePlanMissions } from "./validate-mission";
@@ -432,5 +433,53 @@ describe("the clawup goal, verbatim", () => {
     expect(m.conditions).toContain("Their own account on the product");
     expect(m.anchors).toEqual(["Launch your own agent in minutes"]);
     expect(m.effortMinutes).toBe(15);
+  });
+});
+
+/**
+ * DELEGATION IS CONSENT — a URL-only launch (no founder goal) should get a real "do the core action"
+ * mission inferred from the product's OWN docs, not homepage-reading missions. The exact ClawUp case:
+ * the quick-start says "create your first agent", so the object is "agent" and the mission is built.
+ */
+describe("inferDelegatedCoreAction — the product's own core action, when the founder delegated", () => {
+  const clawupCorpus = [
+    "Build and Power Up Your AI Agent",
+    "Quick Start - ClawUp",
+    "Create your account",
+    "Create your first agent and connect a messaging channel",
+    "Works with leading agent frameworks",
+    "Simple, pay-as-you-go pricing",
+  ];
+
+  it("infers 'agent' from ClawUp's docs and marks it delegated", () => {
+    const a = inferDelegatedCoreAction(clawupCorpus, ["ClawUp — Build and Power Up Your AI Agent"]);
+    expect(a).not.toBeNull();
+    expect(a!.family).toBe("core_action");
+    expect(a!.objectNoun).toBe("agent");
+    expect(a!.delegated).toBe(true);
+    // it anchors to a real observed line (the gate the mission cites)
+    expect(clawupCorpus.map((l) => l.toLowerCase())).toContain(a!.gateAnchor.toLowerCase());
+  });
+
+  it("builds a real 'do it + submit the result' mission that survives the gate", () => {
+    const a = inferDelegatedCoreAction(clawupCorpus, [])!;
+    const m = buildGatedActionMission(a, { targetSurface: "https://clawup.org/", productName: "ClawUp" });
+    // it speaks the product's voice, never claims the founder asked
+    expect(m.whyItMatters).toMatch(/core action/i);
+    expect(m.whyItMatters).not.toMatch(/founder asked/i);
+    expect(m.instructions).toMatch(/ClawUp describes this step/i);
+    // it's a real proof-of-work mission: reach the result page + give its url
+    expect(m.objective.toLowerCase()).toContain("url");
+    // and it anchors on text Sage genuinely observed (the same gate every mission faces)
+    const corpus = clawupCorpus.join(" • ").toLowerCase().replace(/\s+/g, " ").trim();
+    expect(anchorIssues(m, corpus)).toEqual([]);
+  });
+
+  it("returns null on a static page with no create-flow (stays on public missions, unchanged)", () => {
+    expect(inferDelegatedCoreAction(["Welcome to my portfolio", "Contact me", "About this blog"], [])).toBeNull();
+  });
+
+  it("ignores generic filler objects (get started, build something)", () => {
+    expect(inferDelegatedCoreAction(["Get started now", "Build something great", "Start your journey"], [])).toBeNull();
   });
 });

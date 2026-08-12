@@ -96,6 +96,10 @@ export interface GatedAction {
   gateAnchor: string;
   /** core_action only: the founder's own object word ("agent"), used for anchoring and coverage. */
   objectNoun?: string;
+  /** set when this action was INFERRED from the product (delegated launch, no founder goal). The
+   *  mission then speaks in the product's voice ("this is <product>'s core action"), never claims
+   *  "the founder asked for this" about words the founder never wrote. */
+  delegated?: boolean;
 }
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -136,6 +140,17 @@ export function findGateAnchor(
  * Returns at most one per family: two missions for "buy credits" and "purchase a plan" would be the
  * same work billed twice.
  */
+/** The product's core-action verb + object ("create your agent", "launch a bot"). Shared by the
+ *  founder-worded detector and the delegated inference. */
+const CORE_RE =
+  /\b(launch|deploy|mint|publish|build|generate|start|run|creat(?:e|ing))\s+(?:an?\s+|the\s+|your\s+|new\s+)?([a-z][\w-]{2,24})\b/i;
+/** Words the fixed families already own, plus generic fillers that name no product feature. */
+const NOT_AN_OBJECT =
+  /^(account|accounts|wallet|wallets|transaction|payment|profile|password|it|them|one|thing|stuff|website|site|page)$/;
+/** For the DELEGATED inference only: additionally reject filler verbs/nouns that a docs sentence
+ *  pairs with a core verb but that name no product object ("get started", "build something"). */
+const DELEGATED_FILLER = /^(started|something|anything|everything|more|out|up|into|with|your|our|the|new|now|free)$/;
+
 export function detectGatedActions(
   founderGoal: string | null | undefined,
   observedLines: readonly string[],
@@ -167,13 +182,9 @@ export function detectGatedActions(
    * and the anchor is any observed line naming the object — which, now that read documentation is
    * part of the corpus, a docs page about agents satisfies even when the console itself is walled.
    */
-  const CORE_RE =
-    /\b(launch|deploy|mint|publish|build|generate|start|run|creat(?:e|ing))\s+(?:an?\s+|the\s+|your\s+|new\s+)?([a-z][\w-]{2,24})\b/i;
   const core = goal.match(CORE_RE);
   if (core) {
     const objectNoun = core[2].toLowerCase();
-    // words the fixed families already own, plus generic fillers that name no product feature
-    const NOT_AN_OBJECT = /^(account|accounts|wallet|wallets|transaction|payment|profile|password|it|them|one|thing|stuff|website|site|page)$/;
     if (!NOT_AN_OBJECT.test(objectNoun)) {
       const objectRe = new RegExp(`\\b${objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*\\b`, "i");
       const gateAnchor = findGateAnchor(observedLines, objectRe);
@@ -184,6 +195,67 @@ export function detectGatedActions(
     }
   }
   return out;
+}
+
+/**
+ * DELEGATION IS CONSENT — the core action a first-time visitor is here to do, inferred from the
+ * PRODUCT'S OWN description when the founder said nothing.
+ *
+ * `detectGatedActions` reads the founder's words and, by intent-guard's rule, never invents an
+ * action they didn't name. But when the founder chose "let Sage decide" (a URL-only launch, no
+ * goal), they explicitly asked Sage to pick the goal — so inferring the product's core action is
+ * doing what was delegated, not inventing an unwanted step. The signal is grounded, never invented:
+ * the action is read from the product's OWN observed text (its docs' "create your agent", its value
+ * proposition), and it must anchor to an observed line exactly like every other mission — so a
+ * static page with no create-flow yields nothing and stays on its public missions, unchanged.
+ *
+ * This is the fix for the walled-product plan that shipped "read the homepage" missions: ClawUp's
+ * quick-start says "create your first agent", so Sage now builds "sign up and create your agent,
+ * then submit the result" instead of "confirm the homepage mentions agents".
+ */
+export function inferDelegatedCoreAction(
+  observedLines: readonly string[],
+  valuePropositions: readonly string[] = [],
+): GatedAction | null {
+  const lines = [...valuePropositions, ...observedLines].map(norm).filter((l) => l.length >= 6 && l.length <= 240);
+  // The core OBJECT is the distinctive noun that (a) RECURS across the product's own copy — a central
+  // object appears many times, a passing word once — and (b) sits near a create/launch verb somewhere.
+  // Naive "the word after the verb" grabs adjectives and conjunctions ("Build AND Power…", "create
+  // your FIRST agent"); frequency + verb-co-occurrence finds "agent" instead. Fully deterministic.
+  const STOP = new Set(
+    ("the a an and or of to for your our their with new now free out up into on at is are be this that these those " +
+      "you we they it them us start started building build create creating make made get getting got launch launching " +
+      "deploy run running use using power ai app apps web").split(" "),
+  );
+  const freq = new Map<string, number>();
+  const withVerb = new Set<string>();
+  const wordPhrase = new Map<string, string>();
+  for (const l of lines) {
+    const words = l.toLowerCase().match(/[a-z][a-z-]{2,24}/g) ?? [];
+    const hasVerb = CORE_RE.test(l);
+    for (const w of words) {
+      if (STOP.has(w) || NOT_AN_OBJECT.test(w) || DELEGATED_FILLER.test(w)) continue;
+      freq.set(w, (freq.get(w) ?? 0) + 1);
+      if (!wordPhrase.has(w) || l.length < wordPhrase.get(w)!.length) wordPhrase.set(w, l);
+      if (hasVerb) withVerb.add(w);
+    }
+  }
+  // candidates: distinctive nouns that co-occur with a create-verb AND recur (≥2 mentions — a
+  // central object is repeated; a one-off "journey" in "start your journey" is not the product).
+  const candidates = [...withVerb].filter((w) => (freq.get(w) ?? 0) >= 2);
+  if (candidates.length === 0) return null;
+  const objectNoun = candidates.sort((a, b) => (freq.get(b) ?? 0) - (freq.get(a) ?? 0) || (a < b ? -1 : 1))[0]!;
+  const objectRe = new RegExp(`\\b${objectNoun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*\\b`, "i");
+  const gateAnchor = findGateAnchor(observedLines, objectRe);
+  if (!gateAnchor) return null; // must anchor to something Sage observed, like every mission
+  return {
+    family: "core_action",
+    // the PRODUCT'S own phrase, verbatim from what Sage read — honest provenance, never founder words.
+    sourcePhrase: (wordPhrase.get(objectNoun) ?? gateAnchor).slice(0, 140),
+    gateAnchor,
+    objectNoun,
+    delegated: true,
+  };
 }
 
 /**
@@ -277,9 +349,11 @@ export function buildGatedActionMission(
       `Start from the part of ${product} labelled "${action.gateAnchor}".`,
       // And say what is actually being bought. The old text said only "the paid step", so a tester
       // could not tell credits from a subscription from compute — on a mission that spends their own
-      // money, and often the first English-language mission a beginner takes. The founder's sentence
-      // is already on this mission (whyItMatters); it just never reached the person doing the work.
-      `The founder described this step in their own words: "${action.sourcePhrase}".`,
+      // money, and often the first English-language mission a beginner takes. The sentence naming the
+      // step is already on this mission (whyItMatters); it just never reached the person doing the work.
+      action.delegated
+        ? `${product} describes this step as: "${action.sourcePhrase}".`
+        : `The founder described this step in their own words: "${action.sourcePhrase}".`,
       `Carry ${noun} through to completion${spends ? " using your own payment method" : ""}.`,
       "When it finishes, stay on the page that confirms the result.",
       "Give the url of that page and copy the exact heading or line of text on it that shows the result.",
@@ -303,7 +377,9 @@ export function buildGatedActionMission(
       `In your own words: what did the screen show immediately after ${noun} completed? Name the first thing you could do next, using the exact label shown.`,
       "Which step tripped you up or took longest, and what did the product call it on screen?",
     ],
-    whyItMatters: `The founder asked for this specifically: "${action.sourcePhrase}". Sage can see where it begins but must never pay, sign, or register on anyone's behalf, so this is the part only a person can carry out.`,
+    whyItMatters: action.delegated
+      ? `This is ${product}'s core action — what a first-time visitor signs up to do ("${action.sourcePhrase}"). No goal was given, so Sage chose the thing the product is actually for. Sage can see where it begins but must never sign up or act on anyone's behalf, so this is the part only a person can carry out.`
+      : `The founder asked for this specifically: "${action.sourcePhrase}". Sage can see where it begins but must never pay, sign, or register on anyone's behalf, so this is the part only a person can carry out.`,
     // EVERY MISSION MUST CITE SOMETHING SAGE OBSERVED, and this one nearly shipped citing nothing.
     // Built correctly, anchored correctly, and then dropped by the validator with
     // `unknown_source_ref` — in silence, exactly as the drop is designed to behave. So on clawup.org

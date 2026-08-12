@@ -20,7 +20,8 @@ import {
   buildCriticUser,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
-import { detectGatedActions, alreadyCovered, buildGatedActionMission } from "./gated-action-mission";
+import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction } from "./gated-action-mission";
+import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
@@ -575,6 +576,16 @@ export async function runMissionBrain(
     // then reject — the corpus is the definition of "what Sage observed", so read it directly.
     const observedLines = corpus.split(" • ").filter((l) => l.trim().length > 0);
     const gated = detectGatedActions(founder.goal, observedLines);
+    // DELEGATION IS CONSENT — a URL-only launch (no goal) asked Sage to choose. When the founder's
+    // words named no core action, infer the product's OWN core action from what Sage read (docs,
+    // value prop) and build the same anchored "do it + submit the result" mission — instead of the
+    // homepage-observation missions a walled product otherwise falls back to. Never fires when the
+    // founder gave a specific goal (intent-guard holds), or when nothing anchors (static pages).
+    const delegatedRun = founder.goal === DEFAULT_FIRST_VISIT_GOAL;
+    if (delegatedRun && !gated.some((a) => a.family === "core_action")) {
+      const inferred = inferDelegatedCoreAction(observedLines, [map.valueProp ?? ""].filter(Boolean));
+      if (inferred) gated.push(inferred);
+    }
     const uncovered = gated.filter((a) => !alreadyCovered(a, r.accepted));
     if (uncovered.length > 0) {
       const built = uncovered.map((a, i) =>
