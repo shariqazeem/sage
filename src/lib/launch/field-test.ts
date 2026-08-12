@@ -23,7 +23,7 @@ import { resolvesPublic, sameSiteHost, BROWSER_UA } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { recordFieldTestStep } from "./field-test-progress";
-import { planLoginForm, loginSucceeded, redactSecrets } from "./authenticated-exploration";
+import { planLoginForm, loginSucceeded, redactSecrets, redactFieldTestDeep } from "./authenticated-exploration";
 import { stateDigest } from "./observed-facts";
 import {
   evaluateJourney,
@@ -1059,7 +1059,7 @@ export interface FieldTestDeps {
  * (static) OR runs the interactive state machine (a client app / game). Never throws — any failure
  * returns a summary with `ran:false` (or partial output) and an honest `limitation`.
  */
-export async function runFieldTest(
+async function runFieldTestInner(
   opts: {
     inspectionId: string;
     startUrl: string;
@@ -3895,6 +3895,25 @@ async function exploreInteractive(ctx: {
     }),
     ...(docs.length > 0 ? { docs } : {}),
   };
+}
+
+/**
+ * THE BOUNDARY. If credentials were supplied for this run, NOTHING leaves the field test unswept.
+ *
+ * Per-capture redaction covers exploration states, but three other harvest paths reach the same
+ * artifact — the url-evidence page crawl (which reuses the signed-in session), those pages' CTA
+ * lists, and the VISION descriptions of authenticated screenshots, where the model reads the account
+ * email straight off the screen. All three leaked a real credential into a stored result (measured:
+ * token-watcher VQuT4qQSnEvl). Chasing each site is a losing game; sweeping the artifact once at the
+ * boundary is structural, so a harvest path added tomorrow is covered the day it ships.
+ */
+export async function runFieldTest(
+  opts: Parameters<typeof runFieldTestInner>[0],
+  deps: FieldTestDeps = {},
+): Promise<FieldTestSummary> {
+  const summary = await runFieldTestInner(opts, deps);
+  if (!opts.testAccount) return summary; // no credentials in play → byte-identical to before
+  return redactFieldTestDeep(summary, opts.testAccount);
 }
 
 /**

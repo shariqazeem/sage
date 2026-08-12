@@ -5,6 +5,7 @@ import {
   redactSecrets,
   containsSecret,
   REDACTED,
+  redactFieldTestDeep,
   type LoginCandidateField,
 } from "./authenticated-exploration";
 
@@ -145,5 +146,49 @@ describe("the redaction window covers the login moment itself", () => {
   it("a failed login leaves public text untouched (window must close again)", () => {
     const publicPage = "Sign in to Token Watcher — Invalid email or password";
     expect(redactSecrets(publicPage, creds)).toBe(publicPage);
+  });
+});
+
+/**
+ * THE BOUNDARY SWEEP. Per-capture redaction missed three harvest paths that reach the same artifact
+ * (the page crawl, its CTA lists, and vision descriptions of authenticated screenshots) — each leaked
+ * a real credential into a stored result. This pins the structural rule: given credentials, NOTHING
+ * in a field-test summary carries a secret, however deeply nested or newly added.
+ */
+describe("redactFieldTestDeep — nothing leaves the field test unswept", () => {
+  const creds = { email: "founder@startup.io", password: "S3cretLaunchPass" };
+
+  it("scrubs every nested path, including ones per-capture redaction never touched", () => {
+    const summary = {
+      mode: "interactive",
+      states: [{ trigger: "opened /app", visibleTextExcerpt: "Signed in as founder@startup.io" }],
+      pages: [
+        {
+          url: "https://x.test/app",
+          ctas: ["founder@startup.io", "Overview"],
+          visibleTextExcerpt: "api governance founder@startup.io NAVIGATION",
+        },
+      ],
+      visionObservations: [
+        { uiElements: [{ label: "founder@startup.io" }, { label: "Endpoints" }] },
+      ],
+      docs: [{ excerpt: "your key sk-live-aaaa1111bbbb2222 and S3cretLaunchPass" }],
+    };
+    const out = redactFieldTestDeep(summary, creds);
+    const blob = JSON.stringify(out);
+    for (const secret of [creds.email, creds.password, "sk-live-aaaa1111bbbb2222"]) {
+      expect(blob, `leaked: ${secret}`).not.toContain(secret);
+    }
+    // structure and product knowledge survive — a swept artifact must still be useful
+    expect(out.states[0].trigger).toBe("opened /app");
+    expect(out.pages[0].ctas[1]).toBe("Overview");
+    expect(out.visionObservations[0].uiElements[1].label).toBe("Endpoints");
+    expect(blob).toContain("NAVIGATION");
+  });
+
+  it("preserves non-string values and is idempotent", () => {
+    const once = redactFieldTestDeep({ n: 5, b: true, z: null, s: "founder@startup.io" }, creds);
+    expect(once).toEqual({ n: 5, b: true, z: null, s: "[redacted]" });
+    expect(redactFieldTestDeep(once, creds)).toEqual(once);
   });
 });

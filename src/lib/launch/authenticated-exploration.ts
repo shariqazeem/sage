@@ -161,3 +161,30 @@ export function redactSecrets(text: string, credentials?: { email?: string; pass
 export function containsSecret(text: string): boolean {
   return redactSecrets(text) !== text;
 }
+
+/**
+ * THE FINAL SWEEP — redact EVERY string in a field-test summary produced while credentials were in
+ * play. One choke point, applied at the boundary, instead of trusting each harvest site to remember.
+ *
+ * Measured live (token-watcher VQuT4qQSnEvl, real test account): per-capture redaction covered the
+ * exploration states, and the credential still reached the stored result through THREE other paths —
+ * the url-evidence page crawl (which reuses the signed-in session), those pages' CTA lists, and the
+ * VISION descriptions of authenticated screenshots, where the model simply read the account email off
+ * the screen. Every one of those is corpus, and corpus becomes public mission anchors.
+ *
+ * So the rule is structural: if credentials were supplied for this run, nothing leaves the field test
+ * unswept. Deep, total, and idempotent — a new harvest path added tomorrow is covered the day it
+ * ships, because it cannot route around the boundary.
+ */
+export function redactFieldTestDeep<T>(node: T, credentials?: { email?: string; password?: string }): T {
+  if (typeof node === "string") return redactSecrets(node, credentials) as unknown as T;
+  if (Array.isArray(node)) return node.map((v) => redactFieldTestDeep(v, credentials)) as unknown as T;
+  if (node && typeof node === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      out[k] = redactFieldTestDeep(v, credentials);
+    }
+    return out as unknown as T;
+  }
+  return node;
+}
