@@ -140,3 +140,29 @@ describe("credential and payment fields are untouched in a live DOM", () => {
     expect(stillRequired).toBe(true);
   });
 });
+
+/**
+ * THE "SAGE TEST" IN THE CODE BOX (ClawUp mzQGzfo_0J8s). After the emailed code was rejected, the
+ * form-filler typed the synthetic probe into the verification-code input. Guessing a security code is
+ * never useful, burns the product's rate limits, and reads as flailing on the founder's screenshots.
+ */
+describe("a verification-code box is never filled by the form-filler", () => {
+  it("treats code / OTP / 2FA inputs as sensitive", () => {
+    for (const el of [
+      { placeholder: "Verification code (1 min)" },
+      { name: "otp" },
+      { label: "One-time code" },
+      { placeholder: "Security code" },
+      { name: "confirmation_code" },
+      { label: "2FA code" },
+      { placeholder: "Enter the 6-digit PIN" },
+    ]) {
+      expect(isSensitiveField(el), `should refuse: ${JSON.stringify(el)}`).toBe(true);
+    }
+  });
+
+  it("still fills ordinary fields it is meant to", () => {
+    expect(isSensitiveField({ name: "displayName", label: "Your name" })).toBe(false);
+    expect(isSensitiveField({ name: "notes", label: "Notes" })).toBe(false);
+  });
+});

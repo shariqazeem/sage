@@ -246,8 +246,16 @@ export function normalizeFieldText(parts: Array<string | undefined>): string {
 }
 
 const SENSITIVE =
-  /pass(word)?|e-?mail|phone|\btel\b|mobile|card|\bcc\b|cvv|cvc|ccv|iban|routing|\bacct\b|\baccount\b|\bssn\b|social|secret|token|api ?key|seed|mnemonic|private ?key|wallet|address|street|\bzip\b|postal|postcode|\bdob\b|birth|passport|licen[sc]e|\btax\b/i;
+  /pass(word)?|e-?mail|phone|\btel\b|mobile|card|\bcc\b|cvv|cvc|ccv|iban|routing|\bacct\b|\baccount\b|\bssn\b|social|secret|token|api ?key|seed|mnemonic|private ?key|wallet|address|street|\bzip\b|postal|postcode|\bdob\b|birth|passport|licen[sc]e|\btax\b|\bcode\b|\botp\b|one[- ]?time|\bpin\b|\bfa\b|\bmfa\b/i;
 const SENSITIVE_TYPES = new Set(["password", "email", "tel", "number"]);
+/**
+ * A VERIFICATION-CODE BOX IS NOT A TEXT FIELD. Measured on ClawUp (job mzQGzfo_0J8s, caught by the
+ * founder reading the screenshots): after the emailed code was rejected, the form-filler treated the
+ * "Verification code (1 min)" input as an ordinary text box and typed the synthetic probe — "Sage
+ * Test" — into it. Guessing at a security code is never useful, it burns the product's rate limits,
+ * and on a screenshot it reads as the agent flailing. Only the OTP login flow may ever fill one, and
+ * it does so with a code it actually read from the mailbox.
+ */
 export function isSensitiveField(el: {
   type?: string;
   name?: string;
