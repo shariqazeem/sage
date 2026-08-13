@@ -4032,9 +4032,8 @@ async function attemptOtpLogin(
     }
 
     // The code box often only appears AFTER the request goes out — re-plan against the new DOM.
-    const after = planOtpForm(await readFields());
-    const codeFieldId = after?.codeFieldId ?? plan.codeFieldId;
-    if (!codeFieldId) return false;
+    const afterSend = planOtpForm(await readFields());
+    if (!afterSend?.codeFieldId && !plan.codeFieldId) return false;
 
     const code = await fetchOtpCode(creds.mailbox, sentAt);
     if (code) note(`read a sign-in code from the mailbox after ${Math.round((Date.now() - sentAt.getTime()) / 1000)}s`);
@@ -4044,8 +4043,25 @@ async function attemptOtpLogin(
       return false;
     }
 
+    /**
+     * RE-READ THE FORM AFTER THE WAIT, NOT BEFORE IT.
+     *
+     * The element markers (`data-sage-lf`) are stamped onto DOM NODES. Waiting ~16s for the mail is
+     * ample time for a React app to re-render — ClawUp starts a resend countdown on that very button
+     * — and a re-render REPLACES those nodes, taking the markers with them. The code was then typed
+     * at a target that no longer existed, which is why a correctly-read code still failed to sign in.
+     *
+     * So the plan used for typing is the one read AFTER the code is in hand.
+     */
+    const fresh = planOtpForm(await readFields());
+    const codeFieldId = fresh?.codeFieldId ?? afterSend?.codeFieldId ?? plan.codeFieldId;
+    if (!codeFieldId) {
+      note("the code box vanished before the code could be typed");
+      return false;
+    }
     await page.fill(`[data-sage-lf="${codeFieldId}"]`, code, { timeout: 5_000 });
-    const submitId = after?.submitId ?? plan.submitId;
+    const submitId = fresh?.submitId ?? afterSend?.submitId ?? plan.submitId;
+    await capture("entered the emailed code", { kind: "type" });
     if (submitId) await page.click(`[data-sage-lf="${submitId}"]`, { timeout: 5_000 }).catch(() => {});
     else await page.press(`[data-sage-lf="${codeFieldId}"]`, "Enter").catch(() => {});
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
