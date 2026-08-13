@@ -96,7 +96,11 @@ export function validateTestAccount(input: unknown): { ok: true; value: TestAcco
   // A PASSWORDLESS product (ClawUp, Privy) has no password — an email + a readable mailbox is the
   // whole credential there. Require a password only when no mailbox was supplied.
   if (!email) return { ok: false, error: "A test account needs an email." };
-  if (!password && !mailbox) return { ok: false, error: "A test account needs a password, or a mailbox Sage can read the sign-in code from." };
+  // A PASSWORDLESS product needs no password and no founder mailbox: Sage reads the sign-in code from
+  // its OWN inbox (SAGE_TEST_MAILBOX_*, applied at run time). Demanding one of the two here rejected
+  // exactly the credential the shared-mailbox design exists to accept — measured: the launch API
+  // refused an email-only test account and no job was ever created.
+  void password;
   if (email.length > 200 || password.length > 200) return { ok: false, error: "Test account values are too long." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Test account email looks invalid." };
   return { ok: true, value: { email, password, mailbox } };

@@ -37,9 +37,11 @@ describe("test-account credentials at rest", () => {
   it("validates founder input without echoing it", () => {
     expect(validateTestAccount(null)).toEqual({ ok: true, value: null });
     expect(validateTestAccount({ email: "", password: "" })).toEqual({ ok: true, value: null });
+    // email ALONE is valid: a passwordless product is signed into with a code Sage reads from its
+    // own mailbox, so neither a password nor a founder inbox is required.
     expect(validateTestAccount({ email: "a@b.co" })).toEqual({
-      ok: false,
-      error: "A test account needs a password, or a mailbox Sage can read the sign-in code from.",
+      ok: true,
+      value: { email: "a@b.co", password: "", mailbox: null },
     });
     expect(validateTestAccount({ email: "nope", password: "x" }).ok).toBe(false);
     const good = validateTestAccount({ email: "t@e.co", password: "pw" });
