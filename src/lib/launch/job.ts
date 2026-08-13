@@ -7,7 +7,27 @@ import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { fieldTestEnabled } from "./field-test";
-import { openTestAccount } from "./test-account-crypto";
+import { openTestAccount, type TestAccount } from "./test-account-crypto";
+
+/**
+ * SAGE OWNS THE MAILBOX, SO FOUNDERS NEVER HAND OVER ONE.
+ *
+ * An email-code product (ClawUp, Privy, most modern SaaS) has no password — the mailbox IS the second
+ * factor. Asking every founder for an IMAP app password to their own inbox is both a terrible ask and
+ * a real risk. Instead Sage keeps ONE throwaway mailbox: the founder registers a test account on
+ * their product using Sage's address, and Sage reads its own inbox.
+ *
+ * A founder-supplied mailbox still wins when they give one (they may prefer their own address); this
+ * only fills the gap. Configured by SAGE_TEST_MAILBOX_* — absent, behaviour is exactly as before.
+ */
+function withServerMailbox(acct: TestAccount | null): TestAccount | null {
+  if (!acct || acct.mailbox) return acct;
+  const host = (process.env.SAGE_TEST_MAILBOX_HOST ?? "").trim();
+  const user = (process.env.SAGE_TEST_MAILBOX_USER ?? "").trim();
+  const appPassword = (process.env.SAGE_TEST_MAILBOX_APP_PASSWORD ?? "").trim();
+  if (!host || !user || !appPassword) return acct;
+  return { ...acct, mailbox: { host, user, appPassword } };
+}
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
@@ -213,7 +233,7 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     // Opened only here, at the moment the run needs it, and handed straight to the field test. A
     // seal that cannot be opened (rotated secret, tampered row) degrades to null — the inspection
     // simply runs logged-out, exactly as it did before this capability existed.
-    testAccount: openTestAccount(job.testAccountSealed),
+    testAccount: withServerMailbox(openTestAccount(job.testAccountSealed)),
   };
 
   // Phase 5 CANARY — a SERVER-VERIFIED identity, built ONLY from the SIWE-verified founder wallet the job was

@@ -5,6 +5,11 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 
+/** The mailbox Sage owns and reads sign-in codes from. A founder registers their TEST account with
+ *  this address when their product has no password, so nobody ever hands Sage an inbox credential. */
+const SAGE_TESTER_EMAIL =
+  process.env.NEXT_PUBLIC_SAGE_TESTER_EMAIL ?? "briefaiagent@gmail.com";
+
 /** Proven goal shapes — the exact wording styles that produced good plans in real campaigns:
  *  action verbs the journey compiler recognizes, stable facts, no volatile counts. */
 const GOAL_CHIPS: { label: string; goal: string }[] = [
@@ -99,11 +104,12 @@ export function LaunchForm() {
         body: JSON.stringify({
           ...form,
           requestId,
-          // sent only when BOTH were provided; the server seals them before anything else happens.
-          testAccount:
-            form.testEmail.trim() && form.testPassword
-              ? { email: form.testEmail.trim(), password: form.testPassword }
-              : null,
+          // The EMAIL alone is enough: an email-code product has no password, and Sage reads the
+          // sign-in code from its own mailbox. Requiring both would have silently dropped exactly
+          // the credential this feature exists for. The server seals it before anything else.
+          testAccount: form.testEmail.trim()
+            ? { email: form.testEmail.trim(), password: form.testPassword }
+            : null,
         }),
       });
       const data = await res.json();
@@ -211,15 +217,25 @@ export function LaunchForm() {
                   style={{ marginTop: 8 }}
                   type="password"
                   autoComplete="new-password"
-                  placeholder="Test account password"
+                  placeholder="Test account password — leave empty for email-code logins"
                   value={form.testPassword}
                   onChange={(e) => set("testPassword", e.target.value)}
                 />
-                <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
-                  Use a throwaway TEST account, never a real one. Sage signs in only during this
-                  inspection so it can design missions for what is actually behind your login.
-                  Stored encrypted, never shown again, and any keys or emails it sees are stripped
-                  before they reach a mission or a tester.
+                <p className="muted" style={{ fontSize: 12, lineHeight: 1.55, marginTop: 8 }}>
+                  <b style={{ color: "var(--lx-ink)" }}>If your product uses a password:</b> put the
+                  test account&apos;s email and password above.
+                  <br />
+                  <b style={{ color: "var(--lx-ink)" }}>
+                    If it emails a sign-in code instead (no password):
+                  </b>{" "}
+                  create the test account using{" "}
+                  <span className="mono">{SAGE_TESTER_EMAIL}</span>, enter that address above, and
+                  leave the password empty — Sage reads the code from its own inbox.
+                </p>
+                <p className="muted" style={{ fontSize: 12, lineHeight: 1.55, marginTop: 6 }}>
+                  Always a throwaway TEST account, never a real one. Sage signs in only during this
+                  inspection, credentials are stored encrypted and never shown again, and any keys or
+                  emails it sees are stripped before they reach a mission or a tester.
                 </p>
               </div>
             ) : (
