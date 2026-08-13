@@ -82,7 +82,7 @@ export async function fetchOtpCode(
         ? timed
             .filter((m) => (m.at as Date).getTime() >= since.getTime() - 5_000)
             .sort((a, b) => (b.at as Date).getTime() - (a.at as Date).getTime())
-        : messages.slice().reverse();
+        : messages; // already newest-first (IMAP sequence order) — reversing would pick the OLDEST
     for (const m of candidates) {
       const code = extractOtpCode(m.subject ?? "", m.text ?? "");
       if (code) return code;
@@ -97,7 +97,7 @@ export async function fetchOtpCode(
 
 /** A single IMAP connection held open across polls, so each look costs a fetch and nothing else. */
 async function openImapSession(access: MailboxAccess): Promise<{
-  recent: (since: Date) => Promise<{ subject: string; text: string; at?: Date }[]>;
+  recent: (since: Date) => Promise<{ subject: string; text: string; at?: Date; seq?: number }[]>;
   close: () => Promise<void>;
 }> {
   const { ImapFlow } = (await import("imapflow")) as unknown as {
@@ -105,7 +105,8 @@ async function openImapSession(access: MailboxAccess): Promise<{
       connect(): Promise<void>;
       logout(): Promise<void>;
       getMailboxLock(name: string): Promise<{ release(): void }>;
-      fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string; date?: string }; source?: Buffer; internalDate?: string }>;
+      mailbox?: { exists?: number };
+      fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string; date?: string }; source?: Buffer; internalDate?: string; seq?: number }>;
     };
   };
   const client = new ImapFlow({
@@ -117,18 +118,37 @@ async function openImapSession(access: MailboxAccess): Promise<{
   });
   await client.connect();
   return {
+    /**
+     * THE NEWEST MESSAGES, BY ARRIVAL — not by date range.
+     *
+     * A SINCE search is DATE-granular and its results depend on `internalDate` being returned to sort
+     * them; when it is not, the ordering silently degrades and an OLD code gets picked. That is
+     * exactly what happens once a mailbox has collected several codes from earlier attempts — and it
+     * is why the very first run worked (one code in the box) and later ones did not (many).
+     *
+     * IMAP sequence numbers ARE arrival order, so the last N messages in the mailbox are the newest N,
+     * with no clock and no sort to get wrong. We read those, newest first, and the caller still checks
+     * freshness when a timestamp is available.
+     */
     recent: async (since: Date) => {
-      const out: { subject: string; text: string; at?: Date }[] = [];
+      const out: { subject: string; text: string; at?: Date; seq?: number }[] = [];
       const lock = await client.getMailboxLock("INBOX");
       try {
-        for await (const msg of client.fetch({ since }, { envelope: true, source: true, internalDate: true })) {
+        const total = client.mailbox?.exists ?? 0;
+        if (total === 0) return out;
+        const first = Math.max(1, total - 5); // the last handful is plenty; a code is always recent
+        for await (const msg of client.fetch(`${first}:${total}`, { envelope: true, source: true, internalDate: true })) {
           const raw = msg.source?.toString("utf8") ?? "";
-          const at = msg.internalDate ? new Date(msg.internalDate) : msg.envelope?.date ? new Date(msg.envelope.date) : undefined;
-          out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000), at });
+          const rawAt = msg.internalDate ?? msg.envelope?.date;
+          const at = rawAt ? new Date(rawAt as string | Date) : undefined;
+          out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000), at, seq: msg.seq });
         }
+        // highest sequence = most recently arrived, regardless of any clock
+        out.sort((a, b) => ((b as { seq?: number }).seq ?? 0) - ((a as { seq?: number }).seq ?? 0));
       } finally {
         lock.release();
       }
+      void since;
       return out;
     },
     close: async () => {

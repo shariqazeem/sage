@@ -13,11 +13,12 @@ describe("fetchOtpCode — reads the code it just caused, or nothing", () => {
     expect(code).toBe("123456");
   });
 
-  it("prefers the NEWEST message when several are present", async () => {
+  it("takes the first entry when the source is already newest-first and untimed", async () => {
+    // the real reader returns IMAP sequence order, newest FIRST — so no reversal is applied.
     const code = await fetchOtpCode(access, new Date(0), {
       fetchRecent: async () => [
-        { subject: "111111 is your verification code", text: "" },
         { subject: "999888 is your verification code", text: "" },
+        { subject: "111111 is your verification code", text: "" },
       ],
       sleep: noSleep,
     });
