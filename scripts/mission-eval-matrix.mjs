@@ -62,7 +62,21 @@ const MATRIX = [
   { cat: "wallet-gated", url: "https://app.uniswap.org", expectMode: "any", expectLint: "any", thin: "maybe", accept: ["ready", "needs_input"] },
 ];
 
-const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+// MUST MIRROR normAnchorText in src/lib/launch/validate-mission.ts, typography folding included.
+// When the gate learned to fold smart quotes/dashes (so a product rendering "Today\u2019s path" still
+// matches an anchor written "Today's path") this ruler did not, and it reported anchor integrity 50%
+// on yara.garden for an anchor the gate had CORRECTLY accepted. A measurement that disagrees with the
+// thing it measures is worse than no measurement — it argues for reverting a good change.
+const norm = (s) =>
+  (s || "")
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u00A0\u2007\u202F]/g, " ")
+    .replace(/\u2026/g, "...")
+    .replace(/\s+/g, " ")
+    .trim();
 const EST_TOKENS_PER_IMAGE = 1370; // measured on the yara run (8206/6)
 const EST_BRAIN_TOKENS = 15000; // architect + critic per inspection (rough)
 const PER_URL_CAP_TOKENS = 60000; // budget guard: log if a URL exceeds this
