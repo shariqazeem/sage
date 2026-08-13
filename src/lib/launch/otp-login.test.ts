@@ -141,3 +141,28 @@ describe("otpLoginSucceeded — an email-code attempt judged on its own evidence
     }
   });
 });
+
+/**
+ * THE WRONG NUMBER (ClawUp job 7Z1kLD2-7J-5, caught from the typed-code screenshot). The email's real
+ * code was 223827, and the first keyword-adjacent token was 81570827 — a tracking id. Sage typed
+ * that, so a chain that worked end to end (request, delivery, read at 18s) still failed at the last
+ * inch. Six digits is what products actually send; ranking beats first-match.
+ */
+describe("extractOtpCode picks the REAL code, not the first number near the word", () => {
+  it("prefers the 6-digit code over a longer id sitting closer to 'code'", () => {
+    const body = "Tracking code 81570827 — your verification code is 223827 — expires in 1 minute";
+    expect(extractOtpCode("ClawUp email verification code", body)).toBe("223827");
+  });
+
+  it("still reads a code straight from the subject", () => {
+    expect(extractOtpCode("656565 is your ClawUp verification code", "ref code 99887766")).toBe("656565");
+  });
+
+  it("accepts 4-5 digit codes when that is all there is", () => {
+    expect(extractOtpCode("", "Your code: 4821")).toBe("4821");
+  });
+
+  it("still refuses when no number is near a code word", () => {
+    expect(extractOtpCode("Welcome", "Join 200000 developers. Order 2024 total $42.19")).toBeNull();
+  });
+});

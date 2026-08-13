@@ -271,32 +271,54 @@ export function planOtpForm(fields: readonly LoginCandidateField[]): OtpFormPlan
  * code just fails the login, and inventing one wastes an attempt against a founder's product.
  */
 export function extractOtpCode(subject: string, body: string): string | null {
-  const KEYWORD = /(code|otp|pin|passcode|token|verification)/i;
-  // A code-shaped token: 4-8 digits, or 6-8 upper-alphanumeric (products use both).
+  const KEYWORD = /(code|otp|pin|passcode|verification)/i;
   const CANDIDATE = /\b([0-9]{4,8}|[A-Z0-9]{6,8})\b/g;
-  const WINDOW = 40; // chars either side that may carry the word "code"
+  const WINDOW = 40;
 
+  /**
+   * SCORE THE CANDIDATES — the first keyword-adjacent number is not good enough.
+   *
+   * Measured on a real ClawUp email: the body's true code was 223827, and the first token sitting
+   * near the word "code" was 81570827 — a tracking id. Sage typed that, and a perfectly working
+   * chain (request, delivery, read at 18s) still failed at the last inch. So every candidate is
+   * collected and ranked instead: SIX digits is the overwhelming convention for a sign-in code, and
+   * among equals the one physically closest to the word wins.
+   */
+  const scored: { value: string; score: number; distance: number }[] = [];
   for (const source of [subject ?? "", body ?? ""]) {
     if (!source) continue;
     CANDIDATE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = CANDIDATE.exec(source)) !== null) {
       const value = m[1];
-      // reject tokens that are plainly not codes: a year, a round marketing number
+      // a 4-digit year is a date, never a code
       if (/^[0-9]{4}$/.test(value) && Number(value) >= 1900 && Number(value) <= 2100) continue;
-      // The keyword may sit on EITHER side — "123456 is your code" and "your code is 123456" are
-      // both how products write it, and an after-only rule missed the first (and every subject that
-      // leads with the number, which is the most common shape of all).
       const before = source.slice(Math.max(0, m.index - WINDOW), m.index);
       const after = source.slice(m.index + value.length, m.index + value.length + WINDOW);
-      if (KEYWORD.test(before) || KEYWORD.test(after)) return value;
+      const kb = KEYWORD.exec(before);
+      const ka = KEYWORD.exec(after);
+      if (!kb && !ka) continue;
+      // distance from the number to the nearest keyword occurrence
+      const dBefore = kb ? before.length - (kb.index + kb[0].length) : Number.MAX_SAFE_INTEGER;
+      const dAfter = ka ? ka.index : Number.MAX_SAFE_INTEGER;
+      const distance = Math.min(dBefore, dAfter);
+      // 6 digits is what products actually send; 4/5 next; 7/8 is usually an id that happens to sit
+      // near the word. Subject matches outrank body matches, which is where products put the code.
+      const len = value.length;
+      const lengthScore = len === 6 ? 100 : len === 4 || len === 5 ? 60 : 20;
+      const placeScore = source === subject ? 30 : 0;
+      scored.push({ value, score: lengthScore + placeScore, distance });
     }
   }
-  // A subject that is ONLY the code, with no words at all around it.
+  if (scored.length > 0) {
+    scored.sort((a, b) => b.score - a.score || a.distance - b.distance);
+    return scored[0].value;
+  }
   const bare = (subject ?? "").trim();
   if (/^[0-9]{4,8}$/.test(bare)) return bare;
   return null;
 }
+
 
 
 /**
