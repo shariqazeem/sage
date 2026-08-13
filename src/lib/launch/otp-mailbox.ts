@@ -39,7 +39,7 @@ export async function fetchOtpCode(
   access: MailboxAccess,
   since: Date,
   deps: {
-    fetchRecent?: (a: MailboxAccess, since: Date) => Promise<{ subject: string; text: string }[]>;
+    fetchRecent?: (a: MailboxAccess, since: Date) => Promise<{ subject: string; text: string; at?: Date }[]>;
     now?: () => number;
     sleep?: (ms: number) => Promise<void>;
   } = {},
@@ -50,14 +50,30 @@ export async function fetchOtpCode(
   const deadline = now() + WAIT_MS;
 
   while (now() < deadline) {
-    let messages: { subject: string; text: string }[] = [];
+    let messages: { subject: string; text: string; at?: Date }[] = [];
     try {
       messages = await fetchRecent(access, since);
     } catch {
       return null; // unreadable mailbox is a wall, not a failure
     }
-    // newest first — the code we just triggered is the one that matters
-    for (const m of messages.slice().reverse()) {
+    /**
+     * NEWEST FIRST, AND ONLY WHAT ARRIVED AFTER WE ASKED. IMAP's SINCE is DATE-granular, so a
+     * mailbox that already received a code earlier the same day hands back that older mail too —
+     * and Sage typed it, producing a wrong code and a failed sign-in (ClawUp mzQGzfo_0J8s).
+     *
+     * When arrival times are available they are AUTHORITATIVE: stale mail is dropped and, if nothing
+     * fresh has landed yet, this round yields nothing and we poll again. Falling back to the raw
+     * list would hand back the very stale code the filter just rejected. Only when the server gave
+     * no timestamps at all do we fall back to server order (newest last, by convention).
+     */
+    const timed = messages.filter((m) => m.at instanceof Date);
+    const candidates =
+      timed.length > 0
+        ? timed
+            .filter((m) => (m.at as Date).getTime() >= since.getTime() - 5_000)
+            .sort((a, b) => (b.at as Date).getTime() - (a.at as Date).getTime())
+        : messages.slice().reverse();
+    for (const m of candidates) {
       const code = extractOtpCode(m.subject ?? "", m.text ?? "");
       if (code) return code;
     }
@@ -70,13 +86,13 @@ export async function fetchOtpCode(
 async function fetchRecentViaImap(
   access: MailboxAccess,
   since: Date,
-): Promise<{ subject: string; text: string }[]> {
+): Promise<{ subject: string; text: string; at?: Date }[]> {
   const { ImapFlow } = (await import("imapflow")) as unknown as {
     ImapFlow: new (o: Record<string, unknown>) => {
       connect(): Promise<void>;
       logout(): Promise<void>;
       getMailboxLock(name: string): Promise<{ release(): void }>;
-      fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string }; source?: Buffer }>;
+      fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string; date?: string }; source?: Buffer; internalDate?: string }>;
     };
   };
   const client = new ImapFlow({
@@ -86,17 +102,18 @@ async function fetchRecentViaImap(
     auth: { user: access.user, pass: access.appPassword },
     logger: false,
   });
-  const out: { subject: string; text: string }[] = [];
+  const out: { subject: string; text: string; at?: Date }[] = [];
   await client.connect();
   try {
     const lock = await client.getMailboxLock("INBOX");
     try {
       // SINCE is date-granular in IMAP, so the precise cutoff is re-applied by the caller's `since`
       // window through the code's own freshness — we still bound the scan to today's mail.
-      for await (const msg of client.fetch({ since }, { envelope: true, source: true })) {
+      for await (const msg of client.fetch({ since }, { envelope: true, source: true, internalDate: true })) {
         const raw = msg.source?.toString("utf8") ?? "";
+        const at = msg.internalDate ? new Date(msg.internalDate) : msg.envelope?.date ? new Date(msg.envelope.date) : undefined;
         // deliberately crude: we only ever want a short code, never the message
-        out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000) });
+        out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000), at });
       }
     } finally {
       lock.release();

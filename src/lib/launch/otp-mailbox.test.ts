@@ -52,3 +52,47 @@ describe("fetchOtpCode — reads the code it just caused, or nothing", () => {
     expect(code).toBeNull();
   });
 });
+
+/**
+ * THE STALE CODE (measured on ClawUp job mzQGzfo_0J8s): IMAP's SINCE is DATE-granular, so a mailbox
+ * that already received a code earlier the same day hands back that older mail too. Sage typed it,
+ * the sign-in failed, and — because success was judged on a password field an email-code form does
+ * not have — it reported "signed in" anyway. Both halves are pinned: here, and in otp-login.test.ts.
+ */
+describe("only the code that arrived AFTER the request is used", () => {
+  const requestedAt = new Date("2026-08-13T09:00:00Z");
+
+  it("ignores an older code from earlier the same day", async () => {
+    const code = await fetchOtpCode(access, requestedAt, {
+      fetchRecent: async () => [
+        { subject: "111111 is your verification code", text: "", at: new Date("2026-08-13T07:30:00Z") },
+        { subject: "656565 is your verification code", text: "", at: new Date("2026-08-13T09:00:04Z") },
+      ],
+      sleep: noSleep,
+    });
+    expect(code).toBe("656565");
+  });
+
+  it("picks the newest when several arrive after the request", async () => {
+    const code = await fetchOtpCode(access, requestedAt, {
+      fetchRecent: async () => [
+        { subject: "222222 is your verification code", text: "", at: new Date("2026-08-13T09:00:05Z") },
+        { subject: "333333 is your verification code", text: "", at: new Date("2026-08-13T09:00:20Z") },
+      ],
+      sleep: noSleep,
+    });
+    expect(code).toBe("333333");
+  });
+
+  it("keeps waiting when only stale mail is present", async () => {
+    let t = 0;
+    const code = await fetchOtpCode(access, requestedAt, {
+      fetchRecent: async () => [
+        { subject: "999999 is your verification code", text: "", at: new Date("2026-08-13T06:00:00Z") },
+      ],
+      sleep: noSleep,
+      now: () => (t += 10_000),
+    });
+    expect(code).toBeNull();
+  });
+});

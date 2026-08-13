@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planOtpForm, extractOtpCode, type LoginCandidateField } from "./authenticated-exploration";
+import { planOtpForm, extractOtpCode, otpLoginSucceeded, type LoginCandidateField } from "./authenticated-exploration";
 
 const f = (o: Partial<LoginCandidateField> & { id: string; tag: string }): LoginCandidateField => ({
   typable: /^(input|textarea)$/i.test(o.tag),
@@ -115,5 +115,29 @@ describe("the ClawUp-shaped wall: social buttons + a hidden email form", () => {
       (x) => !x.typable && /\b(sign|continue|log)\s*in?\s*with\s*email\b|\bemail\b/i.test(x.label ?? ""),
     );
     expect(reveal?.id).toBe("em-reveal");
+  });
+});
+
+/**
+ * FALSE SUCCESS — the bug the founder caught by reading the screenshots. `loginSucceeded` asks
+ * whether a PASSWORD field is still present; an email-code form has none, so it answered "true" for
+ * every attempt and Sage reported "signed in with the emailed code" after typing a WRONG code.
+ */
+describe("otpLoginSucceeded — an email-code attempt judged on its own evidence", () => {
+  const base = { beforeUrl: "https://clawup.org/login", visibleText: "Dashboard", stillHasCodeField: false };
+
+  it("true when the code box is gone / the page moved on", () => {
+    expect(otpLoginSucceeded({ ...base, url: "https://clawup.org/app" })).toBe(true);
+    expect(otpLoginSucceeded({ ...base, url: base.beforeUrl })).toBe(true);
+  });
+
+  it("FALSE when the code box is still sitting there (the wrong-code case)", () => {
+    expect(otpLoginSucceeded({ ...base, url: base.beforeUrl, stillHasCodeField: true })).toBe(false);
+  });
+
+  it("FALSE on an explicit error, even if the url changed", () => {
+    for (const t of ["Invalid verification code", "That code is incorrect", "Code expired — try again"]) {
+      expect(otpLoginSucceeded({ ...base, url: "https://clawup.org/login?e=1", visibleText: t })).toBe(false);
+    }
   });
 });

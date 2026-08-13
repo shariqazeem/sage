@@ -23,7 +23,7 @@ import { resolvesPublic, sameSiteHost, BROWSER_UA } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { recordFieldTestStep } from "./field-test-progress";
-import { planLoginForm, planOtpForm, loginSucceeded, redactSecrets, redactFieldTestDeep } from "./authenticated-exploration";
+import { planLoginForm, planOtpForm, loginSucceeded, otpLoginSucceeded, redactSecrets, redactFieldTestDeep } from "./authenticated-exploration";
 import { fetchOtpCode, type MailboxAccess } from "./otp-mailbox";
 import { stateDigest } from "./observed-facts";
 import {
@@ -3999,12 +3999,15 @@ async function attemptOtpLogin(
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
     await page.waitForTimeout(900);
 
-    const state = await page.evaluate(() => ({
+    // Judge the OTP attempt on ITS OWN evidence — the code box — never on a password field an
+    // email-code form does not have. That mistake reported "signed in" for a run that had entered a
+    // wrong code; the founder caught it by reading the screenshots.
+    const state = await page.evaluate((codeSel: string) => ({
       url: location.href,
       visibleText: (document.body?.innerText || "").slice(0, 4000),
-      stillHasPasswordField: !!document.querySelector('input[type="password"]'),
-    }));
-    const ok = loginSucceeded({ ...state, beforeUrl });
+      stillHasCodeField: !!document.querySelector(codeSel),
+    }), `[data-sage-lf="${codeFieldId}"]`);
+    const ok = otpLoginSucceeded({ ...state, beforeUrl });
     await capture(ok ? "signed in with the emailed code" : "the emailed code did not sign in", {
       kind: ok ? "load" : "back",
       delivered: ok,

@@ -298,3 +298,31 @@ export function extractOtpCode(subject: string, body: string): string | null {
   return null;
 }
 
+
+/**
+ * Did the EMAIL-CODE login land? Judged on its own evidence, never the password form's.
+ *
+ * `loginSucceeded` asks whether a PASSWORD field is still present — and an email-code form has none,
+ * so it answered "true" for every attempt, success or failure. That produced a false "signed in with
+ * the emailed code" on a run that had actually entered a wrong code (caught by the founder reading
+ * the screenshots, which is exactly the review a claim like this must survive).
+ *
+ * Success here means: no error on screen, AND either we left the login page or the code box is gone.
+ * A code box still sitting on the same page is a failed attempt, which is the common case.
+ */
+export function otpLoginSucceeded(after: {
+  url: string;
+  beforeUrl: string;
+  visibleText: string;
+  stillHasCodeField: boolean;
+}): boolean {
+  const text = (after.visibleText ?? "").toLowerCase();
+  if (
+    /\b(invalid|incorrect|wrong|expired|不正确)\b[^.]{0,28}\b(code|otp|pin|verification)\b|\bcode (is )?(invalid|incorrect|expired)\b|\btry again\b/.test(
+      text,
+    )
+  )
+    return false;
+  if (after.stillHasCodeField && after.url === after.beforeUrl) return false;
+  return after.url !== after.beforeUrl || !after.stillHasCodeField;
+}
