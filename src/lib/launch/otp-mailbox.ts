@@ -28,7 +28,14 @@ export interface MailboxAccess {
 }
 
 /** How long to wait for the mail to land, and how often to look. */
-const WAIT_MS = 45_000;
+/**
+ * MEASURED, NOT GUESSED. Sage reported "no code arrived" on runs where the code DID arrive — the
+ * mailbox showed ClawUp's mail landing at 07:24:42 and 07:32:21, each just past the old 45s window.
+ * Delivery through Gmail routinely takes the better part of a minute, so the wait has to outlast the
+ * post, not the other way round. The code is typed the instant it appears, so a longer ceiling costs
+ * nothing when mail is fast and is the whole difference when it is not.
+ */
+const WAIT_MS = 120_000;
 /**
  * Poll fast. The code usually lands in 3-10s and products expire it quickly — ClawUp's box literally
  * says "Verification code (1 min)" — so the whole cycle (request → fetch → type → submit) has to fit
