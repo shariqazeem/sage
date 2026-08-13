@@ -25,6 +25,9 @@ function key(): Buffer | null {
 export interface TestAccount {
   email: string;
   password: string;
+  /** OPTIONAL mailbox Sage may read the sign-in CODE from (passwordless email logins). A throwaway
+   *  account + an APP PASSWORD, never a real password. Sealed with everything else. */
+  mailbox?: { host: string; port?: number; user: string; appPassword: string } | null;
 }
 
 /** Seal credentials for storage. Returns null when no server secret is configured. */
@@ -34,7 +37,7 @@ export function sealTestAccount(acct: TestAccount): string | null {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", k, iv);
   const body = Buffer.concat([
-    cipher.update(JSON.stringify({ e: acct.email, p: acct.password }), "utf8"),
+    cipher.update(JSON.stringify({ e: acct.email, p: acct.password, m: acct.mailbox ?? null }), "utf8"),
     cipher.final(),
   ]);
   const tag = cipher.getAuthTag();
@@ -51,10 +54,15 @@ export function openTestAccount(sealed: string | null | undefined): TestAccount 
     const decipher = createDecipheriv("aes-256-gcm", k, Buffer.from(parts[1], "base64url"));
     decipher.setAuthTag(Buffer.from(parts[2], "base64url"));
     const out = Buffer.concat([decipher.update(Buffer.from(parts[3], "base64url")), decipher.final()]);
-    const parsed = JSON.parse(out.toString("utf8")) as { e?: unknown; p?: unknown };
+    const parsed = JSON.parse(out.toString("utf8")) as { e?: unknown; p?: unknown; m?: unknown };
     if (typeof parsed.e !== "string" || typeof parsed.p !== "string") return null;
     if (!parsed.e || !parsed.p) return null;
-    return { email: parsed.e, password: parsed.p };
+    const m = parsed.m as { host?: unknown; port?: unknown; user?: unknown; appPassword?: unknown } | null;
+    const mailbox =
+      m && typeof m.host === "string" && typeof m.user === "string" && typeof m.appPassword === "string"
+        ? { host: m.host, user: m.user, appPassword: m.appPassword, ...(typeof m.port === "number" ? { port: m.port } : {}) }
+        : null;
+    return { email: parsed.e, password: parsed.p, mailbox };
   } catch {
     return null; // tampered, wrong key, or not ours
   }
@@ -67,9 +75,25 @@ export function validateTestAccount(input: unknown): { ok: true; value: TestAcco
   const o = input as { email?: unknown; password?: unknown };
   const email = typeof o.email === "string" ? o.email.trim() : "";
   const password = typeof o.password === "string" ? o.password : "";
-  if (!email && !password) return { ok: true, value: null };
-  if (!email || !password) return { ok: false, error: "A test account needs both an email and a password." };
+  const rawMb = (o as { mailbox?: unknown }).mailbox as
+    | { host?: unknown; port?: unknown; user?: unknown; appPassword?: unknown }
+    | null
+    | undefined;
+  const mailbox =
+    rawMb && typeof rawMb.host === "string" && typeof rawMb.user === "string" && typeof rawMb.appPassword === "string"
+      ? {
+          host: rawMb.host.trim().slice(0, 200),
+          user: rawMb.user.trim().slice(0, 200),
+          appPassword: String(rawMb.appPassword).slice(0, 200),
+          ...(typeof rawMb.port === "number" ? { port: rawMb.port } : {}),
+        }
+      : null;
+  if (!email && !password && !mailbox) return { ok: true, value: null };
+  // A PASSWORDLESS product (ClawUp, Privy) has no password — an email + a readable mailbox is the
+  // whole credential there. Require a password only when no mailbox was supplied.
+  if (!email) return { ok: false, error: "A test account needs an email." };
+  if (!password && !mailbox) return { ok: false, error: "A test account needs a password, or a mailbox Sage can read the sign-in code from." };
   if (email.length > 200 || password.length > 200) return { ok: false, error: "Test account values are too long." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Test account email looks invalid." };
-  return { ok: true, value: { email, password } };
+  return { ok: true, value: { email, password, mailbox } };
 }

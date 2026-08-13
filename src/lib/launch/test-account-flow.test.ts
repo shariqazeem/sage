@@ -11,7 +11,7 @@ beforeAll(() => { process.env.SAGE_SESSION_SECRET = "test-secret-value-long-enou
  * the corpus that becomes public mission copy.
  */
 describe("a founder's test-account credentials never leak", () => {
-  const acct = { email: "founder@startup.io", password: "S3cretLaunchPass" };
+  const acct = { email: "founder@startup.io", password: "S3cretLaunchPass", mailbox: null };
 
   it("is unreadable at rest and recoverable only with the server secret", () => {
     const sealed = sealTestAccount(acct)!;

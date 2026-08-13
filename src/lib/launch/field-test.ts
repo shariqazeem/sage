@@ -23,7 +23,8 @@ import { resolvesPublic, sameSiteHost, BROWSER_UA } from "./inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 import { describeStatesWithVision } from "./vision";
 import { recordFieldTestStep } from "./field-test-progress";
-import { planLoginForm, loginSucceeded, redactSecrets, redactFieldTestDeep } from "./authenticated-exploration";
+import { planLoginForm, planOtpForm, loginSucceeded, redactSecrets, redactFieldTestDeep } from "./authenticated-exploration";
+import { fetchOtpCode, type MailboxAccess } from "./otp-mailbox";
 import { stateDigest } from "./observed-facts";
 import {
   evaluateJourney,
@@ -1070,7 +1071,7 @@ async function runFieldTestInner(
     journey?: GoalJourneyV1 | null;
     /** The founder's OPTIONAL test account — password walls only. Values are never logged, never
      *  captured into a state, and never reach a prompt; authenticated text is redacted at capture. */
-    testAccount?: { email: string; password: string } | null;
+    testAccount?: { email: string; password: string; mailbox?: MailboxAccess | null } | null;
   },
   deps: FieldTestDeps = {},
 ): Promise<FieldTestSummary> {
@@ -2728,7 +2729,7 @@ async function exploreInteractive(ctx: {
   journey?: GoalJourneyV1 | null;
   /** The founder's TEST account (optional). Used ONLY on a password wall; the values are never
    *  logged, never captured into a state, and never reach a prompt. */
-  testAccount?: { email: string; password: string } | null;
+  testAccount?: { email: string; password: string; mailbox?: MailboxAccess | null } | null;
   /** same-host pages the static crawl discovered — the only routes `open_path` may take. */
   candidatePaths?: readonly string[];
   /** OUT: every same-site path the explorer discovered in the live DOM — the caller feeds these to
@@ -3934,6 +3935,68 @@ export async function runFieldTest(
 }
 
 /**
+ * THE PASSWORDLESS EMAIL-CODE LOGIN — type the email, ask for the code, read it from the founder's
+ * mailbox, type it, submit.
+ *
+ * This is the shape most products ship now (ClawUp, and anything on Privy/Dynamic), so without it the
+ * single most common modern wall stays uncrossable. It runs ONLY when the founder supplied a mailbox
+ * Sage can read; the code is fetched in memory and never stored, and the attempt is bounded by the
+ * same 2-try cap as a password login.
+ */
+async function attemptOtpLogin(
+  page: Page,
+  creds: { email: string; mailbox?: MailboxAccess | null },
+  capture: (trigger: string, action?: { kind: FieldTestState["actionKind"]; label?: string; delivered?: boolean }) => Promise<number>,
+  readFields: () => Promise<{ id: string; tag: string; type: string; name: string; placeholder: string; autocomplete: string; label: string; typable: boolean }[]>,
+): Promise<boolean> {
+  if (!creds.mailbox) return false;
+  try {
+    const beforeUrl = page.url();
+    const plan = planOtpForm(await readFields());
+    if (!plan) return false; // not an email-code wall either — leave it alone
+
+    const sentAt = new Date();
+    await page.fill(`[data-sage-lf="${plan.emailFieldId}"]`, creds.email, { timeout: 5_000 });
+    if (plan.sendCodeId) {
+      await page.click(`[data-sage-lf="${plan.sendCodeId}"]`, { timeout: 5_000 }).catch(() => {});
+      await page.waitForTimeout(1_200);
+    }
+
+    // The code box often only appears AFTER the request goes out — re-plan against the new DOM.
+    const after = planOtpForm(await readFields());
+    const codeFieldId = after?.codeFieldId ?? plan.codeFieldId;
+    if (!codeFieldId) return false;
+
+    const code = await fetchOtpCode(creds.mailbox, sentAt);
+    if (!code) {
+      await capture("waited for the sign-in code, but none arrived", { kind: "back", delivered: false });
+      return false;
+    }
+
+    await page.fill(`[data-sage-lf="${codeFieldId}"]`, code, { timeout: 5_000 });
+    const submitId = after?.submitId ?? plan.submitId;
+    if (submitId) await page.click(`[data-sage-lf="${submitId}"]`, { timeout: 5_000 }).catch(() => {});
+    else await page.press(`[data-sage-lf="${codeFieldId}"]`, "Enter").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+    await page.waitForTimeout(900);
+
+    const state = await page.evaluate(() => ({
+      url: location.href,
+      visibleText: (document.body?.innerText || "").slice(0, 4000),
+      stillHasPasswordField: !!document.querySelector('input[type="password"]'),
+    }));
+    const ok = loginSucceeded({ ...state, beforeUrl });
+    await capture(ok ? "signed in with the emailed code" : "the emailed code did not sign in", {
+      kind: ok ? "load" : "back",
+      delivered: ok,
+    });
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * LOG IN WITH THE FOUNDER'S TEST ACCOUNT. Password walls only.
  *
  * Refuses anything that is not a real password form (planLoginForm returns null for OAuth, wallet
@@ -3943,13 +4006,13 @@ export async function runFieldTest(
  */
 async function attemptLogin(
   page: Page,
-  creds: { email: string; password: string },
+  creds: { email: string; password: string; mailbox?: MailboxAccess | null },
   capture: (trigger: string, action?: { kind: FieldTestState["actionKind"]; label?: string; delivered?: boolean }) => Promise<number>,
 ): Promise<boolean> {
   try {
     const beforeUrl = page.url();
     // read the form's fields from the live DOM (ids match the click/type executor's element ids)
-    const fields = await page.evaluate(() => {
+    const readFields = () => page.evaluate(() => {
       const out: { id: string; tag: string; type: string; name: string; placeholder: string; autocomplete: string; label: string; typable: boolean }[] = [];
       let i = 0;
       for (const el of Array.from(document.querySelectorAll("input, textarea, button, [role=button]"))) {
@@ -3972,8 +4035,15 @@ async function attemptLogin(
       }
       return out;
     });
+    const fields = await readFields();
     const plan = planLoginForm(fields);
-    if (!plan) return false; // not a password login — never type a credential into an unknown form
+    if (!plan) {
+      // NO PASSWORD FIELD — this may still be the passwordless EMAIL-CODE login that ClawUp and most
+      // Privy/Dynamic products ship. It is only attemptable when the founder also gave a mailbox
+      // Sage can read the code from; without one it stays a wall, exactly as before.
+      if (creds.mailbox) return await attemptOtpLogin(page, creds, capture, readFields);
+      return false;
+    }
 
     await page.fill(`[data-sage-lf="${plan.emailFieldId}"]`, creds.email, { timeout: 5_000 });
     await page.fill(`[data-sage-lf="${plan.passwordFieldId}"]`, creds.password, { timeout: 5_000 });

@@ -5,10 +5,15 @@ beforeAll(() => { process.env.SAGE_SESSION_SECRET = "test-secret-value-long-enou
 
 describe("test-account credentials at rest", () => {
   it("round-trips and never stores the plaintext", () => {
-    const acct = { email: "tester@example.com", password: "CorrectHorse9" };
+    const acct = {
+      email: "tester@example.com",
+      password: "CorrectHorse9",
+      mailbox: { host: "imap.gmail.com", user: "tester@example.com", appPassword: "mail-app-pw" },
+    };
     const sealed = sealTestAccount(acct)!;
     expect(sealed).not.toContain("CorrectHorse9");
     expect(sealed).not.toContain("tester@example.com");
+    expect(sealed).not.toContain("mail-app-pw"); // the mailbox secret is sealed too
     expect(openTestAccount(sealed)).toEqual(acct);
   });
 
@@ -32,9 +37,24 @@ describe("test-account credentials at rest", () => {
   it("validates founder input without echoing it", () => {
     expect(validateTestAccount(null)).toEqual({ ok: true, value: null });
     expect(validateTestAccount({ email: "", password: "" })).toEqual({ ok: true, value: null });
-    expect(validateTestAccount({ email: "a@b.co" })).toEqual({ ok: false, error: "A test account needs both an email and a password." });
+    expect(validateTestAccount({ email: "a@b.co" })).toEqual({
+      ok: false,
+      error: "A test account needs a password, or a mailbox Sage can read the sign-in code from.",
+    });
     expect(validateTestAccount({ email: "nope", password: "x" }).ok).toBe(false);
     const good = validateTestAccount({ email: "t@e.co", password: "pw" });
-    expect(good).toEqual({ ok: true, value: { email: "t@e.co", password: "pw" } });
+    expect(good).toEqual({ ok: true, value: { email: "t@e.co", password: "pw", mailbox: null } });
+
+    // PASSWORDLESS (ClawUp / Privy): an email + a readable mailbox IS the whole credential.
+    const otp = validateTestAccount({
+      email: "t@e.co",
+      mailbox: { host: "imap.gmail.com", user: "t@e.co", appPassword: "app-pw" },
+    });
+    expect(otp.ok).toBe(true);
+    expect((otp as { value: { mailbox: unknown } }).value.mailbox).toEqual({
+      host: "imap.gmail.com",
+      user: "t@e.co",
+      appPassword: "app-pw",
+    });
   });
 });

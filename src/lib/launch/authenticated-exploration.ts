@@ -188,3 +188,113 @@ export function redactFieldTestDeep<T>(node: T, credentials?: { email?: string; 
   }
   return node;
 }
+
+
+/* ─────────────────────── EMAIL-CODE (OTP) LOGIN — the passwordless wall ─────────────────────── */
+
+/**
+ * THE SHAPE MOST PRODUCTS ACTUALLY SHIP NOW. ClawUp, and every Privy/Dynamic-style product, offers
+ * "sign in with email" that sends a VERIFICATION CODE instead of taking a password. `planLoginForm`
+ * correctly refuses those (no password input), which left the single most common modern login
+ * unreachable — including the sponsor's own product, the anchor campaign.
+ *
+ * The flow has one more beat than a password form: type the email, press the control that SENDS the
+ * code, wait for it to arrive in a mailbox Sage can read, type it, submit. Everything here is the
+ * pure part — which controls to use, and how to read a code out of an email — so the fiddly bits are
+ * provable offline.
+ */
+export interface OtpFormPlan {
+  emailFieldId: string;
+  /** the control that requests the code ("Send Code"). Absent on forms that mail it automatically. */
+  sendCodeId: string | null;
+  /** the field the code goes in. May only appear AFTER the code is requested — see `codeFieldHint`. */
+  codeFieldId: string | null;
+  submitId: string | null;
+}
+
+const SEND_CODE_HINT = /\b(send|get|request|email)\b[^.]{0,16}\b(code|otp|link|pin)\b|\bsend\s*code\b|\bcontinue\s+with\s+email\b/i;
+const CODE_FIELD_HINT = /\b(verification|confirm\w*|security|one[-\s]?time|otp|pin|code)\b/i;
+
+/**
+ * Plan an EMAIL-CODE login. Returns null when the page is not one — in particular it refuses any form
+ * that has a password input (that is `planLoginForm`'s job) so the two can never both fire, and it
+ * refuses when there is no email field to start from.
+ *
+ * `codeFieldId` is allowed to be null: many products only reveal the code box after the code is sent,
+ * so the caller re-plans once the request has gone out.
+ */
+export function planOtpForm(fields: readonly LoginCandidateField[]): OtpFormPlan | null {
+  const typable = fields.filter((f) => f.typable !== false && /^(input|textarea)$/i.test(f.tag));
+  if (typable.some((f) => (f.type ?? "").toLowerCase() === "password")) return null; // password form
+  const email =
+    typable.find((f) => (f.type ?? "").toLowerCase() === "email") ??
+    typable.find(
+      (f) =>
+        has(f.autocomplete, /email|username/i) ||
+        has(f.name, EMAIL_HINT) ||
+        has(f.placeholder, EMAIL_HINT) ||
+        has(f.label, EMAIL_HINT),
+    );
+  if (!email) return null;
+
+  const codeField =
+    typable.find(
+      (f) =>
+        f.id !== email.id &&
+        (has(f.name, CODE_FIELD_HINT) || has(f.placeholder, CODE_FIELD_HINT) || has(f.label, CODE_FIELD_HINT) ||
+          has(f.autocomplete, /one-time-code/i)),
+    ) ?? null;
+
+  const text = (f: LoginCandidateField) => `${f.label ?? ""} ${f.name ?? ""} ${f.placeholder ?? ""}`;
+  const sendCode = fields.find((f) => f.typable === false && SEND_CODE_HINT.test(text(f))) ?? null;
+  // the submit is a sign-in control that is NOT the send-code button and not a social/signup route
+  const submit =
+    fields.find(
+      (f) =>
+        f.typable === false &&
+        f.id !== sendCode?.id &&
+        !NOT_SUBMIT.test(text(f)) &&
+        !SEND_CODE_HINT.test(text(f)) &&
+        (SUBMIT_HINT.test(text(f)) || (f.type ?? "").toLowerCase() === "submit"),
+    ) ?? null;
+
+  if (!sendCode && !codeField) return null; // nothing here says "we will email you a code"
+  return { emailFieldId: email.id, sendCodeId: sendCode?.id ?? null, codeFieldId: codeField?.id ?? null, submitId: submit?.id ?? null };
+}
+
+/**
+ * Read the verification code out of an email. Subject first (products put it there for exactly this
+ * reason), then the body, and only from a context that CLAIMS to be a code — a bare number in a
+ * marketing footer must never be mistaken for one.
+ *
+ * Returns the code, or null when nothing convincing is present. Null is the honest answer: a wrong
+ * code just fails the login, and inventing one wastes an attempt against a founder's product.
+ */
+export function extractOtpCode(subject: string, body: string): string | null {
+  const KEYWORD = /(code|otp|pin|passcode|token|verification)/i;
+  // A code-shaped token: 4-8 digits, or 6-8 upper-alphanumeric (products use both).
+  const CANDIDATE = /\b([0-9]{4,8}|[A-Z0-9]{6,8})\b/g;
+  const WINDOW = 40; // chars either side that may carry the word "code"
+
+  for (const source of [subject ?? "", body ?? ""]) {
+    if (!source) continue;
+    CANDIDATE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = CANDIDATE.exec(source)) !== null) {
+      const value = m[1];
+      // reject tokens that are plainly not codes: a year, a round marketing number
+      if (/^[0-9]{4}$/.test(value) && Number(value) >= 1900 && Number(value) <= 2100) continue;
+      // The keyword may sit on EITHER side — "123456 is your code" and "your code is 123456" are
+      // both how products write it, and an after-only rule missed the first (and every subject that
+      // leads with the number, which is the most common shape of all).
+      const before = source.slice(Math.max(0, m.index - WINDOW), m.index);
+      const after = source.slice(m.index + value.length, m.index + value.length + WINDOW);
+      if (KEYWORD.test(before) || KEYWORD.test(after)) return value;
+    }
+  }
+  // A subject that is ONLY the code, with no words at all around it.
+  const bare = (subject ?? "").trim();
+  if (/^[0-9]{4,8}$/.test(bare)) return bare;
+  return null;
+}
+
