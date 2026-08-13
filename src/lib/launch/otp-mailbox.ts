@@ -159,7 +159,7 @@ async function openImapSession(access: MailboxAccess): Promise<{
           const raw = msg.source?.toString("utf8") ?? "";
           const rawAt = msg.internalDate ?? msg.envelope?.date;
           const at = rawAt ? new Date(rawAt as string | Date) : undefined;
-          out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000), at, seq: msg.seq });
+          out.push({ subject: msg.envelope?.subject ?? "", text: bodyOf(raw), at, seq: msg.seq });
         }
         // highest sequence = most recently arrived, regardless of any clock
         out.sort((a, b) => ((b as { seq?: number }).seq ?? 0) - ((a as { seq?: number }).seq ?? 0));
@@ -173,6 +173,24 @@ async function openImapSession(access: MailboxAccess): Promise<{
       await client.logout().catch(() => {});
     },
   };
+}
+
+/**
+ * THE BODY, NOT THE ENVELOPE. A raw MIME message begins with routing headers — Message-ID, dmarc,
+ * Received — that are full of long digit runs, and the word "code" appears there too. Searching the
+ * whole source made a Message-ID fragment (157475) beat the real code (220322, sitting right after
+ * "Your ClawUp verification code is:"). Measured on the live mail.
+ *
+ * Headers end at the first blank line; everything after it is what a human would actually read.
+ * Quoted-printable soft breaks are unfolded so a code split across a line still reads as one token.
+ */
+function bodyOf(raw: string): string {
+  const split = raw.search(/\r?\n\r?\n/);
+  const body = split >= 0 ? raw.slice(split) : raw;
+  return body
+    .replace(/=\r?\n/g, "") // quoted-printable soft line break
+    .replace(/=3D/gi, "=")
+    .slice(0, 20_000);
 }
 
 /** The real IMAP read. Isolated so the logic above stays testable and this stays swappable. */

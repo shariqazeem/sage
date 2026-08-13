@@ -97,3 +97,30 @@ describe("only the code that arrived AFTER the request is used", () => {
     expect(code).toBeNull();
   });
 });
+
+/**
+ * THE MESSAGE-ID TRAP (ClawUp job -O1PL4k4ohhA, found by reading the live mail). Searching the raw
+ * MIME source let a Message-ID fragment — 157475, inside
+ * "<6a7d7ffc.574ab080.157475.15ee...@mx.google.com>" — beat the real code 220322, which sat right
+ * after "Your ClawUp verification code is:". Headers are routing metadata, not the message.
+ */
+describe("only the message BODY is searched for a code", () => {
+  const RAW = [
+    "Received: by mx.google.com with SMTP id 998877665544;",
+    "dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=eigen.market",
+    "Message-ID: <6a7d7ffc.574ab080.157475.15eeSMTPIN_ADDED_BROKEN@mx.google.com>",
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    "Your ClawUp verification code is: 220322",
+    "This code expires in 5 minutes.",
+  ].join("\r\n");
+
+  it("reads the code from the body, never a header fragment", async () => {
+    const code = await fetchOtpCode(access, new Date(0), {
+      fetchRecent: async () => [{ subject: "ClawUp email verification code", text: RAW.slice(RAW.search(/\r?\n\r?\n/)) }],
+      sleep: noSleep,
+    });
+    expect(code).toBe("220322");
+    expect(code).not.toBe("157475");
+  });
+});
