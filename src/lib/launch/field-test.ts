@@ -3701,6 +3701,21 @@ async function exploreInteractive(ctx: {
                 });
               if (ok) {
                 loggedIn = true;
+                /**
+                 * SIGNING IN CHANGES THE WORLD — FORGET WHAT THE PUBLIC SHELL TAUGHT.
+                 *
+                 * The explorer remembers which controls led nowhere (`deadLabels`) and which routes it
+                 * already saw (`visitedPaths`). Both were learned from the LOGGED-OUT site, where every
+                 * console link bounced off the wall — so after signing in Sage treated the entire
+                 * authenticated nav as already-tried and explored almost none of it. Measured on ClawUp
+                 * (RhAVng2GolGX): it signed in and then never opened Teams, Tools, Identity, Billing,
+                 * APIs, Audits or Quests, which is precisely the material its missions should come from.
+                 *
+                 * A successful login is a new product. Clearing this memory is what lets the same
+                 * exploration machinery work the authenticated app properly, with the extended budget.
+                 */
+                deadLabels.clear();
+                visitedPaths.clear();
                 wallHits = 0;
                 prevWordSig = wordSignature(states[states.length - 1]?.visibleTextExcerpt ?? "");
                 prevUrl = page.url();
