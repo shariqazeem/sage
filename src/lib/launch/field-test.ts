@@ -3672,7 +3672,11 @@ async function exploreInteractive(ctx: {
              * keep exploring with real ground truth. Everything harvested afterwards is REDACTED
              * before it can become corpus, because anchors are published verbatim.
              */
-            if (wallKind === "password" && ctx.testAccount && !loggedIn && loginAttempts < 2) {
+            // A wall classified "oauth" very often ALSO offers email sign-in beside the social buttons
+            // (ClawUp: Google / GitHub / SIGN IN WITH EMAIL). Gating on "password" alone meant the most
+            // common modern wall was never even attempted. The PLANNERS are the real gate — each refuses
+            // anything it does not recognise — so it is safe to try both kinds and let them decide.
+            if ((wallKind === "password" || wallKind === "oauth") && ctx.testAccount && !loggedIn && loginAttempts < 2) {
               loginAttempts++;
               // THE WINDOW OPENS BEFORE THE FIRST KEYSTROKE. attemptLogin captures its own outcome
               // state, so setting this afterwards left the first authenticated screen — the one most
@@ -4035,7 +4039,23 @@ async function attemptLogin(
       }
       return out;
     });
-    const fields = await readFields();
+    let fields = await readFields();
+    /**
+     * THE EMAIL FORM IS OFTEN ONE CLICK AWAY. ClawUp's wall shows Google / GitHub / "SIGN IN WITH
+     * EMAIL" and reveals the email box only after that last one is pressed — so a planner looking at
+     * the first screen sees no email field and correctly refuses, and Sage walks away from a wall it
+     * could have crossed. Press the reveal control once, then re-read the DOM.
+     */
+    if (!fields.some((f) => f.typable && /email/i.test(`${f.type} ${f.name} ${f.placeholder} ${f.autocomplete}`))) {
+      const reveal = fields.find(
+        (f) => !f.typable && /\b(sign|continue|log)\s*in?\s*with\s*email\b|\bemail\b/i.test(f.label ?? ""),
+      );
+      if (reveal) {
+        await page.click(`[data-sage-lf="${reveal.id}"]`, { timeout: 5_000 }).catch(() => {});
+        await page.waitForTimeout(900);
+        fields = await readFields();
+      }
+    }
     const plan = planLoginForm(fields);
     if (!plan) {
       // NO PASSWORD FIELD — this may still be the passwordless EMAIL-CODE login that ClawUp and most

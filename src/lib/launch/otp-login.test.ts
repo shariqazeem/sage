@@ -76,3 +76,44 @@ describe("extractOtpCode — read the code, or admit there isn't one", () => {
     expect(extractOtpCode("Your receipt", "Order 2024 total $42.19 — thanks!")).toBeNull();
   });
 });
+
+/**
+ * THE CLAWUP WALL, MEASURED (job tqUkeaoPTGAk): Sage stepped back without ever attempting the login.
+ * Two causes, both pinned here — the wall classifies as "oauth" (Google/GitHub buttons), and the
+ * email box only appears AFTER pressing "SIGN IN WITH EMAIL". A planner shown only the first screen
+ * must refuse; the caller is what reveals the form and re-plans.
+ */
+describe("the ClawUp-shaped wall: social buttons + a hidden email form", () => {
+  const firstScreen: LoginCandidateField[] = [
+    f({ id: "g", tag: "button", label: "GOOGLE" }),
+    f({ id: "gh", tag: "button", label: "GITHUB" }),
+    f({ id: "em-reveal", tag: "button", label: "SIGN IN WITH EMAIL" }),
+  ];
+  const afterReveal: LoginCandidateField[] = [
+    f({ id: "g", tag: "button", label: "GOOGLE" }),
+    f({ id: "gh", tag: "button", label: "GITHUB" }),
+    f({ id: "em", tag: "input", type: "email", placeholder: "you@company.com" }),
+    f({ id: "code", tag: "input", type: "text", placeholder: "Verification code (1 min)" }),
+    f({ id: "send", tag: "button", label: "Send Code" }),
+    f({ id: "go", tag: "button", label: "Sign in" }),
+  ];
+
+  it("correctly refuses the FIRST screen — there is no email field yet", () => {
+    expect(planOtpForm(firstScreen)).toBeNull();
+  });
+
+  it("plans the full email-code flow once the form is revealed", () => {
+    const plan = planOtpForm(afterReveal);
+    expect(plan).toEqual({ emailFieldId: "em", sendCodeId: "send", codeFieldId: "code", submitId: "go" });
+    // and it must never treat the social buttons as the way in
+    expect(plan?.submitId).not.toBe("g");
+    expect(plan?.submitId).not.toBe("gh");
+  });
+
+  it("the reveal control is findable on the first screen (what the caller clicks)", () => {
+    const reveal = firstScreen.find(
+      (x) => !x.typable && /\b(sign|continue|log)\s*in?\s*with\s*email\b|\bemail\b/i.test(x.label ?? ""),
+    );
+    expect(reveal?.id).toBe("em-reveal");
+  });
+});
