@@ -3683,7 +3683,22 @@ async function exploreInteractive(ctx: {
               // likely to show "signed in as <email>" — unredacted. Measured live (vNHD6UOmojlm):
               // the credential reached the stored result through exactly that state.
               authFrom = states.length;
+              // NARRATE THE ATTEMPT ITSELF. Two live ClawUp runs stepped back with no trace of why —
+              // the attempt fails silently by design, which is right for a founder and useless for
+              // diagnosis. The trail now records that Sage tried, so a wall it cannot cross is
+              // distinguishable from a wall it never reached for.
+              void recordFieldTestStep(inspectionId, {
+                label: `trying the founder's test account on the ${wallKind} wall`,
+                screenshot: null,
+                url: page.url(),
+              });
               const ok = await attemptLogin(page, ctx.testAccount, capture);
+              if (!ok)
+                void recordFieldTestStep(inspectionId, {
+                  label: "the test account could not get past this wall",
+                  screenshot: null,
+                  url: page.url(),
+                });
               if (ok) {
                 loggedIn = true;
                 wallHits = 0;

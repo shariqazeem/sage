@@ -56,7 +56,11 @@ export function openTestAccount(sealed: string | null | undefined): TestAccount 
     const out = Buffer.concat([decipher.update(Buffer.from(parts[3], "base64url")), decipher.final()]);
     const parsed = JSON.parse(out.toString("utf8")) as { e?: unknown; p?: unknown; m?: unknown };
     if (typeof parsed.e !== "string" || typeof parsed.p !== "string") return null;
-    if (!parsed.e || !parsed.p) return null;
+    // A PASSWORDLESS credential is legitimate: on an email-code product (ClawUp, Privy) there IS no
+    // password — the mailbox is the second factor. Requiring a non-empty password here silently
+    // returned null for exactly those, so the field test received no credential and never even
+    // attempted the wall (measured across three live ClawUp runs, XjoqChJj0YIm the last).
+    if (!parsed.e) return null;
     const m = parsed.m as { host?: unknown; port?: unknown; user?: unknown; appPassword?: unknown } | null;
     const mailbox =
       m && typeof m.host === "string" && typeof m.user === "string" && typeof m.appPassword === "string"

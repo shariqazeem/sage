@@ -58,3 +58,29 @@ describe("test-account credentials at rest", () => {
     });
   });
 });
+
+/**
+ * THE PASSWORDLESS SEAL (measured: three live ClawUp runs never attempted the wall). An email-code
+ * product has NO password — the mailbox is the second factor — and the opener rejected exactly that
+ * shape, so the field test received no credential at all.
+ */
+describe("a mailbox-only credential survives the round trip", () => {
+  it("opens an email + mailbox credential with no password", () => {
+    const acct = {
+      email: "briefaiagent@example.com",
+      password: "",
+      mailbox: { host: "imap.gmail.com", user: "briefaiagent@example.com", appPassword: "app-pw-here" },
+    };
+    const sealed = sealTestAccount(acct)!;
+    expect(sealed).not.toContain("app-pw-here");
+    const opened = openTestAccount(sealed);
+    expect(opened).not.toBeNull();
+    expect(opened!.email).toBe(acct.email);
+    expect(opened!.mailbox).toEqual(acct.mailbox);
+  });
+
+  it("still refuses a credential with no email at all", () => {
+    const sealed = sealTestAccount({ email: "", password: "pw" });
+    expect(sealed ? openTestAccount(sealed) : null).toBeNull();
+  });
+});
