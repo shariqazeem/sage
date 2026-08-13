@@ -4001,9 +4001,32 @@ async function attemptOtpLogin(
     const note = (label: string) =>
       void recordFieldTestStep(inspectionId, { label, screenshot: null, url: page.url() });
     if (plan.sendCodeId) {
+      /**
+       * TYPE LIKE A PERSON, THEN LOOK AT WHAT HAPPENED.
+       *
+       * `fill()` sets an input's value and dispatches one input event, which React usually accepts —
+       * but some forms only enable "Send Code" after a real keystroke/blur, and then the request goes
+       * out with an EMPTY email and no mail is ever sent. That matches what we measured: the founder
+       * can request a code by hand for the same address, while Sage's request produced nothing.
+       *
+       * So: click into the field, type a character-at-a-time, and blur — the sequence a human
+       * produces — then CAPTURE the form before pressing send, so the screenshot shows whether the
+       * address actually landed. An agent's own step must be inspectable, not assumed.
+       */
+      await page.click(`[data-sage-lf="${plan.emailFieldId}"]`, { timeout: 3_000 }).catch(() => {});
+      await page.fill(`[data-sage-lf="${plan.emailFieldId}"]`, "", { timeout: 3_000 }).catch(() => {});
+      await page.type(`[data-sage-lf="${plan.emailFieldId}"]`, creds.email, { delay: 25 }).catch(() => {});
+      await page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        el?.dispatchEvent(new Event("change", { bubbles: true }));
+        el?.blur();
+      }, `[data-sage-lf="${plan.emailFieldId}"]`).catch(() => {});
+      await page.waitForTimeout(400);
+      await capture("entered the email, about to request a sign-in code", { kind: "type" });
       await page.click(`[data-sage-lf="${plan.sendCodeId}"]`, { timeout: 5_000 }).catch(() => {});
       note("asked the product to email a sign-in code");
-      await page.waitForTimeout(1_200);
+      await page.waitForTimeout(1_800);
+      await capture("after requesting the sign-in code", { kind: "click" });
     } else {
       note("no send-code control found — the product may mail it automatically");
     }
