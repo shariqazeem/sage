@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   // better-sqlite3 is a native module — keep it external to the server bundle.
-  serverExternalPackages: ["better-sqlite3"],
+  // imapflow is a Node-only IMAP client (net/tls, dynamic requires) that the bundler cannot process;
+  // it is loaded lazily and only when a founder supplies a mailbox for passwordless login.
+  serverExternalPackages: ["better-sqlite3", "imapflow"],
   async redirects() {
     return [
       // The flagship campaign's legacy slug → its production slug. Permanent (308)
