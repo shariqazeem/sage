@@ -112,6 +112,7 @@ async function openImapSession(access: MailboxAccess): Promise<{
       connect(): Promise<void>;
       logout(): Promise<void>;
       getMailboxLock(name: string): Promise<{ release(): void }>;
+      noop(): Promise<void>;
       mailbox?: { exists?: number };
       fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string; date?: string }; source?: Buffer; internalDate?: string; seq?: number }>;
     };
@@ -141,6 +142,16 @@ async function openImapSession(access: MailboxAccess): Promise<{
       const out: { subject: string; text: string; at?: Date; seq?: number }[] = [];
       const lock = await client.getMailboxLock("INBOX");
       try {
+        /**
+         * ASK THE SERVER WHAT CHANGED. `client.mailbox.exists` is a SNAPSHOT taken when the mailbox
+         * was selected — on a connection held open across polls it never grows, so mail that arrives
+         * mid-wait is invisible and the wait times out beside a code sitting in the inbox. Measured:
+         * ClawUp's code landed at 07:45:36 inside the window and Sage still reported none.
+         *
+         * NOOP is the IMAP command that makes the server flush pending EXISTS updates to us. Without
+         * it the persistent connection is faster and blind, which is worse than slow and correct.
+         */
+        await client.noop().catch(() => {});
         const total = client.mailbox?.exists ?? 0;
         if (total === 0) return out;
         const first = Math.max(1, total - 5); // the last handful is plenty; a code is always recent
