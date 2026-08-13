@@ -137,7 +137,14 @@ const RETRYABLE_FAILURES = new Set([
   "invalid_json",
   "truncated_output",
 ]);
-const MAX_AUTO_RETRIES = 2;
+/**
+ * ONE retry, not two. A retry re-runs the WHOLE pipeline — browse, log in, vision, design — because
+ * only the design step is known to have failed, not the browsing. At 2 retries that is THREE full
+ * inspections stacked: the founder watches the same steps repeat, 84 states pile up, and 15 minutes
+ * later it fails anyway. One retry keeps the genuine "the provider blinked" rescue and halves the
+ * worst case a founder can ever sit through.
+ */
+const MAX_AUTO_RETRIES = 1;
 
 /** A job whose runner died (a deploy restart kills the in-flight `after()` work) shows its last
  *  stamped stage forever. Every real stage stamps `updatedAt`, and the longest legitimate gap
