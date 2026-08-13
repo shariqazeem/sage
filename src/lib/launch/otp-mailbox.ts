@@ -29,7 +29,13 @@ export interface MailboxAccess {
 
 /** How long to wait for the mail to land, and how often to look. */
 const WAIT_MS = 45_000;
-const POLL_MS = 3_000;
+/**
+ * Poll fast. The code usually lands in 3-10s and products expire it quickly — ClawUp's box literally
+ * says "Verification code (1 min)" — so the whole cycle (request → fetch → type → submit) has to fit
+ * inside that window. Combined with ONE reused connection below, a code that arrives at t+5s is
+ * typed at roughly t+6s instead of t+20s.
+ */
+const POLL_MS = 1_500;
 
 /**
  * Poll the mailbox for a verification code that arrived after `since`. Returns the code, or null.
@@ -49,10 +55,14 @@ export async function fetchOtpCode(
   const fetchRecent = deps.fetchRecent ?? fetchRecentViaImap;
   const deadline = now() + WAIT_MS;
 
+  // ONE CONNECTION FOR THE WHOLE WAIT. Reconnecting per poll cost 2-4s of connect+auth each time and
+  // was the difference between typing a live code and typing an expired one.
+  const session = deps.fetchRecent ? null : await openImapSession(access).catch(() => null);
+  try {
   while (now() < deadline) {
     let messages: { subject: string; text: string; at?: Date }[] = [];
     try {
-      messages = await fetchRecent(access, since);
+      messages = session ? await session.recent(since) : await fetchRecent(access, since);
     } catch {
       return null; // unreadable mailbox is a wall, not a failure
     }
@@ -80,6 +90,51 @@ export async function fetchOtpCode(
     await sleep(POLL_MS);
   }
   return null;
+  } finally {
+    await session?.close();
+  }
+}
+
+/** A single IMAP connection held open across polls, so each look costs a fetch and nothing else. */
+async function openImapSession(access: MailboxAccess): Promise<{
+  recent: (since: Date) => Promise<{ subject: string; text: string; at?: Date }[]>;
+  close: () => Promise<void>;
+}> {
+  const { ImapFlow } = (await import("imapflow")) as unknown as {
+    ImapFlow: new (o: Record<string, unknown>) => {
+      connect(): Promise<void>;
+      logout(): Promise<void>;
+      getMailboxLock(name: string): Promise<{ release(): void }>;
+      fetch(range: unknown, opts: Record<string, unknown>): AsyncIterable<{ envelope?: { subject?: string; date?: string }; source?: Buffer; internalDate?: string }>;
+    };
+  };
+  const client = new ImapFlow({
+    host: access.host,
+    port: access.port ?? 993,
+    secure: true,
+    auth: { user: access.user, pass: access.appPassword },
+    logger: false,
+  });
+  await client.connect();
+  return {
+    recent: async (since: Date) => {
+      const out: { subject: string; text: string; at?: Date }[] = [];
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        for await (const msg of client.fetch({ since }, { envelope: true, source: true, internalDate: true })) {
+          const raw = msg.source?.toString("utf8") ?? "";
+          const at = msg.internalDate ? new Date(msg.internalDate) : msg.envelope?.date ? new Date(msg.envelope.date) : undefined;
+          out.push({ subject: msg.envelope?.subject ?? "", text: raw.slice(0, 20_000), at });
+        }
+      } finally {
+        lock.release();
+      }
+      return out;
+    },
+    close: async () => {
+      await client.logout().catch(() => {});
+    },
+  };
 }
 
 /** The real IMAP read. Isolated so the logic above stays testable and this stays swappable. */
