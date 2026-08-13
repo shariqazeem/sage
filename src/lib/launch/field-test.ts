@@ -3692,7 +3692,7 @@ async function exploreInteractive(ctx: {
                 screenshot: null,
                 url: page.url(),
               });
-              const ok = await attemptLogin(page, ctx.testAccount, capture);
+              const ok = await attemptLogin(page, inspectionId, ctx.testAccount, capture);
               if (!ok)
                 void recordFieldTestStep(inspectionId, {
                   label: "the test account could not get past this wall",
@@ -3979,6 +3979,7 @@ export async function runFieldTest(
  */
 async function attemptOtpLogin(
   page: Page,
+  inspectionId: string,
   creds: { email: string; mailbox?: MailboxAccess | null },
   capture: (trigger: string, action?: { kind: FieldTestState["actionKind"]; label?: string; delivered?: boolean }) => Promise<number>,
   readFields: () => Promise<{ id: string; tag: string; type: string; name: string; placeholder: string; autocomplete: string; label: string; typable: boolean }[]>,
@@ -3991,9 +3992,20 @@ async function attemptOtpLogin(
 
     const sentAt = new Date();
     await page.fill(`[data-sage-lf="${plan.emailFieldId}"]`, creds.email, { timeout: 5_000 });
+    /**
+     * SAY WHICH STEP BROKE. Live runs reported only "the emailed code did not sign in" — true, but
+     * useless: it cannot distinguish "no code was ever requested" from "a code arrived and was
+     * rejected", and those have different fixes. Guessing between them costs a five-minute run each
+     * time. An agent's own failure must be legible, not merely reported.
+     */
+    const note = (label: string) =>
+      void recordFieldTestStep(inspectionId, { label, screenshot: null, url: page.url() });
     if (plan.sendCodeId) {
       await page.click(`[data-sage-lf="${plan.sendCodeId}"]`, { timeout: 5_000 }).catch(() => {});
+      note("asked the product to email a sign-in code");
       await page.waitForTimeout(1_200);
+    } else {
+      note("no send-code control found — the product may mail it automatically");
     }
 
     // The code box often only appears AFTER the request goes out — re-plan against the new DOM.
@@ -4002,7 +4014,9 @@ async function attemptOtpLogin(
     if (!codeFieldId) return false;
 
     const code = await fetchOtpCode(creds.mailbox, sentAt);
+    if (code) note(`read a sign-in code from the mailbox after ${Math.round((Date.now() - sentAt.getTime()) / 1000)}s`);
     if (!code) {
+      note("no code arrived in the mailbox within the wait");
       await capture("waited for the sign-in code, but none arrived", { kind: "back", delivered: false });
       return false;
     }
@@ -4043,6 +4057,7 @@ async function attemptOtpLogin(
  */
 async function attemptLogin(
   page: Page,
+  inspectionId: string,
   creds: { email: string; password: string; mailbox?: MailboxAccess | null },
   capture: (trigger: string, action?: { kind: FieldTestState["actionKind"]; label?: string; delivered?: boolean }) => Promise<number>,
 ): Promise<boolean> {
@@ -4094,7 +4109,7 @@ async function attemptLogin(
       // NO PASSWORD FIELD — this may still be the passwordless EMAIL-CODE login that ClawUp and most
       // Privy/Dynamic products ship. It is only attemptable when the founder also gave a mailbox
       // Sage can read the code from; without one it stays a wall, exactly as before.
-      if (creds.mailbox) return await attemptOtpLogin(page, creds, capture, readFields);
+      if (creds.mailbox) return await attemptOtpLogin(page, inspectionId, creds, capture, readFields);
       return false;
     }
 
