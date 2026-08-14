@@ -21,7 +21,8 @@ vi.mock("@/lib/db/campaigns", () => ({
   recordEvent: vi.fn(),
   getLatestSubmissionEvent: vi.fn(() => undefined), recordEventOnce: vi.fn(() => ({ inserted: true })), updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []), listSubmissionsForDedup: vi.fn(() => []), listEarlierSubmissionsForDedup: vi.fn(() => []),
-  countPaidByWalletInCampaign: vi.fn(() => 0), setObservationShadow: vi.fn(), getMissionByHash: vi.fn(), listMissions: vi.fn(() => []),
+  countPaidByWalletInCampaign: vi.fn(() => 0),
+  countPaidForMission: vi.fn(() => 0), setObservationShadow: vi.fn(), getMissionByHash: vi.fn(), listMissions: vi.fn(() => []),
 }));
 vi.mock("./observation-judge", () => ({ runObservationDecision: vi.fn(), observationAutopayEnabled: vi.fn(() => false), toObservationShadow: vi.fn(() => ({})) }));
 vi.mock("@/lib/deputy/chain", () => ({ getVaultState: vi.fn(), isVendorApproved: vi.fn() }));

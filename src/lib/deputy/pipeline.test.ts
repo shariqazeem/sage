@@ -22,6 +22,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   listSubmissionsForDedup: vi.fn(() => []),
   listEarlierSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
+  countPaidForMission: vi.fn(() => 0),
   setObservationShadow: vi.fn(),
   getMissionByHash: vi.fn(),
   listMissions: vi.fn(() => []),
@@ -66,7 +67,6 @@ import { runDeputyOnSubmission } from "./pipeline";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
-  updateSubmission,
   getCampaign,
   getDecisionBySubmission,
   getLatestSubmissionEvent,

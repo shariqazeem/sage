@@ -20,6 +20,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   listPaidSubmissionsForDedup: vi.fn(() => []),
   listSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
+  countPaidForMission: vi.fn(() => 0),
   setObservationShadow: vi.fn(),
 }));
 vi.mock("@/lib/deputy/chain", () => ({

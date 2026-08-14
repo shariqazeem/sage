@@ -7,6 +7,7 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
+  countPaidForMission,
   getCampaign,
   getDecisionBySubmission,
   getLatestSubmissionEvent,
@@ -384,6 +385,27 @@ export async function runDeputyOnSubmission(
   const mission = submission.missionIdHash
     ? getMissionByHash(campaign.id, submission.missionIdHash)
     : null;
+
+  /**
+   * IS THERE STILL A SLOT? Asked FIRST, before any judging.
+   *
+   * The mission-full check used to live in the settlement preflight, which is the last step — so
+   * every hold that short-circuits earlier (a retry, a review, a near-dup) kept its submission
+   * `pending` on a mission that had no slot left to give it. Measured on clawup: three people were
+   * still "waiting for Sage to decide" on missions whose every slot had been paid hours before, one
+   * of them being invited to spend a third attempt refining work that could never be paid.
+   *
+   * `maxCompletions` is enforced by the vault and never rises, so this answer cannot change. Asking
+   * it first also means no judge, no corpus match and no LLM call is spent on an unpayable slot.
+   */
+  if (mission && countPaidForMission(mission.missionIdHash) >= mission.maxCompletions) {
+    agentLog(cid, "mission_full", { missionKey: mission.missionKey });
+    if (submission.status === "pending") {
+      resolveTerminal(campaign, submission, TERMINAL_REASON.missionFull, cid);
+    }
+    return { action: "held", reason: TERMINAL_REASON.missionFull, correlationId: cid };
+  }
+
   const isObservation = mission?.verifiabilityClass === "observation-based";
   if (isObservation && mission) {
     const key: PrivateKey = {
