@@ -22,6 +22,7 @@ import {
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
+import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
@@ -525,9 +526,11 @@ export async function runMissionBrain(
     const urlAccepted = r.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
     const readablePages = map.pagesInspected + (map.fieldTest?.pages?.length ?? 0);
     const wantUrl = urlAccepted === 0 && readablePages >= 2;
-    // missions this budget funds at a modest ~$3 each (3 testers × ~$1) — a shape hint, not money
-    // math the model sees; capped so the ask stays inside the architect's 3-6 design band.
-    const fundable = Math.min(4, Number(founder.totalBudgetBase / BigInt(3_000_000)));
+    // missions this budget funds at the hard floor — a shape hint, not money math the model sees;
+    // capped so the ask stays inside the architect's 3-6 design band. At the $0.50 floor (2026-08-14)
+    // even a $5 budget clears the cap, so a small budget no longer collapses the plan onto one
+    // mission the way the $3 floor forced it to.
+    const fundable = Math.min(4, Number(founder.totalBudgetBase / TANGIBLE_MIN_REWARD_BASE));
     const wantMore = r.accepted.length < Math.min(3, fundable);
     /**
      * NO PLAN OF PURE READING. Measured across six live products (supervega, tokenwatcher, agora,

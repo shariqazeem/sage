@@ -176,27 +176,34 @@ describe("the monotone tangible curve — both numbers grow with budget", () => 
 });
 
 describe("applyTangibleCaps", () => {
-  it("respects the architect's count down to the $3 floor on a $20 budget", () => {
-    // Founder overrule 2026-08-12: the MODEL decides slots-vs-pay; this pass only stops pennies.
+  it("lets the architect's count STAND when the budget can pay it above the floor", () => {
+    // The MODEL decides slots-vs-pay; this pass only stops pennies. At the $0.50 floor a $20 budget
+    // funds 40 slots, so an ask of 20 is untouched — which is the whole point of the overrule.
     const out = applyTangibleCaps([wm("a", 20, "high")], usdc(20));
-    expect(out[0].suggestedMaxCompletions).toBe(6); // $20 / $3 floor — the architect asked for 20
+    expect(out[0].suggestedMaxCompletions).toBe(20);
+  });
+
+  it("still trims to the floor target when the ask genuinely outruns the budget", () => {
+    // $5 funds 10 slots at the floor; the architect asked for 20.
+    const out = applyTangibleCaps([wm("a", 20, "high")], usdc(5));
+    expect(out[0].suggestedMaxCompletions).toBe(10);
   });
 
   it("trims the LOWEST-priority mission first and keeps original order", () => {
     const out = applyTangibleCaps(
       [wm("low1", 10, "low"), wm("hi", 10, "high")],
-      usdc(20), // target 4
+      usdc(5), // 20 slots asked, $5 funds 10 at the floor → the trim binds
     );
     expect(out.map((m) => m.missionKey)).toEqual(["low1", "hi"]); // order untouched
     const low = out[0].suggestedMaxCompletions;
     const hi = out[1].suggestedMaxCompletions;
-    expect(low + hi).toBe(6);
+    expect(low + hi).toBe(10);
     expect(hi).toBeGreaterThanOrEqual(low); // the founder's ask keeps more of its slots
   });
 
   it("never drops a mission and never goes below 1 each, even when count exceeds the target", () => {
     const five = ["a", "b", "c", "d", "e"].map((k) => wm(k, 6));
-    const out = applyTangibleCaps(five, usdc(20)); // target 4 < 5 missions
+    const out = applyTangibleCaps(five, usdc(2)); // target 4 < 5 missions
     expect(out).toHaveLength(5);
     for (const m of out) expect(m.suggestedMaxCompletions).toBe(1);
   });
@@ -213,17 +220,18 @@ describe("applyTangibleCaps", () => {
   });
 
   it("keeps the exactness invariant end to end through allocateBudget", () => {
+    // mirrors the REAL call sites: the floor is an argument, not an ambient default
     const alloc = allocateBudget(
       [wm("hero", 20, "high", 8), wm("side", 10, "low", 3)],
       usdc(20),
+      { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
     );
     expect(alloc.ok).toBe(true);
     const total = alloc.missions.reduce((s, m) => s + m.rewardBase * m.maxCompletions, BigInt(0));
     expect(total).toBe(usdc(20)); // Σ(reward × slots) === budget, exactly
-    const slots = alloc.missions.reduce((s, m) => s + Number(m.maxCompletions), 0);
-    expect(slots).toBeLessThanOrEqual(4);
     for (const m of alloc.missions) {
-      expect(m.rewardBase).toBeGreaterThanOrEqual(usdc(1)); // nothing pays cents anymore
+      // nothing is sliced below the floor — the guard this pin exists for
+      expect(m.rewardBase).toBeGreaterThanOrEqual(TANGIBLE_MIN_REWARD_BASE);
     }
   });
 });
@@ -245,7 +253,7 @@ describe("allocateBudget with the tangible floor — mission count meets the bud
     effortMinutes: 5,
   });
 
-  it("the excalidraw shape: 4 one-slot missions on $10 → nobody under $3, sum exact", () => {
+  it("the excalidraw shape: 4 one-slot missions on $10 → nobody under the floor, sum exact", () => {
     const r = allocateBudget(
       [m("a", 3, "high"), m("b", 2, "medium"), m("c", 3, "medium"), m("d", 2, "low")],
       BigInt(10_000_000),
@@ -254,9 +262,11 @@ describe("allocateBudget with the tangible floor — mission count meets the bud
     expect(r.ok).toBe(true);
     for (const a of r.missions) expect(a.rewardBase >= TANGIBLE_MIN_REWARD_BASE).toBe(true);
     expect(r.allocatedBase).toBe(BigInt(10_000_000));
-    // $10 cannot fund four tangible rewards — the lowest-priority mission(s) drop, the rest survive.
-    expect(r.missions.length).toBeLessThan(4);
-    expect(r.missions.length).toBeGreaterThanOrEqual(2);
+    // At the $0.50 floor (lowered 2026-08-14 on measured tester supply) $10 comfortably funds all
+    // four, so nothing drops. The GUARD this pin exists for is unchanged and asserted above: every
+    // reward clears the floor and the sum is exact. Dropping only happens when the budget genuinely
+    // cannot fund the architect's missions — see the sub-floor case below.
+    expect(r.missions.length).toBe(4);
     expect(r.missions.some((a) => a.missionKey === "a")).toBe(true); // the balancer never drops
   });
 
@@ -273,7 +283,8 @@ describe("allocateBudget with the tangible floor — mission count meets the bud
   });
 
   it("a budget under the floor fails closed with an honest reason", () => {
-    const r = allocateBudget([m("only", 3, "high")], BigInt(2_000_000), {
+    // 25 cents cannot buy even one reward worth doing at the $0.50 floor.
+    const r = allocateBudget([m("only", 3, "high")], BigInt(250_000), {
       minRewardBase: TANGIBLE_MIN_REWARD_BASE,
     });
     expect(r.ok).toBe(false);

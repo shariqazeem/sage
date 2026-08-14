@@ -6,6 +6,7 @@ import {
   PREFERRED_SAMPLE,
   type SampleMission,
   splitCompletionsForSample,
+  tangibleRateBase,
 } from "./sample-policy";
 import { MIN_REWARD_BASE } from "./budget";
 
@@ -138,9 +139,10 @@ describe("a mission's share is what pays its sample, not the whole budget", () =
       ],
       10,
     );
-    // $5 share each ÷ one TANGIBLE reward ($5) = 1 tester per mission — the share rule still holds
-    // (neither mission raids the other's pot), each tester simply earns something worth taking.
-    for (const m of r.missions) expect(m.maxCompletions).toBe(1);
+    // $5 share each, and a $5 pot aims at $1.67 a head (three testers), so each mission buys 3.
+    // THE PROPERTY UNDER TEST IS THE SHARE, NOT THE NUMBER: a mission that raided the whole $10
+    // would come back with 6. Neither does — each sizes its sample from its own pot.
+    for (const m of r.missions) expect(m.maxCompletions).toBe(3);
   });
 });
 
@@ -155,7 +157,10 @@ describe("splitCompletionsForSample honors the tangible floor", () => {
 
   it("refuses the exact live leak: a $4 pot must not become 10 x $0.40", () => {
     const out = splitCompletionsForSample([m(BigInt(4_000_000), BigInt(1))], new Map([["cta", 10]]), MIN_REWARD_BASE);
-    expect(Number(out[0]!.rewardBase)).toBeGreaterThanOrEqual(3_000_000);
+    // A $4 pot aims at $1.33 a head, so the ten-way split is refused and the largest exact split
+    // that clears the aim wins: 2 x $2.00. The leak shape (10 x $0.40) can never come back.
+    expect(Number(out[0]!.maxCompletions)).toBe(2);
+    expect(Number(out[0]!.rewardBase)).toBeGreaterThanOrEqual(Number(tangibleRateBase(BigInt(4_000_000))));
     expect(Number(out[0]!.rewardBase) * Number(out[0]!.maxCompletions)).toBe(4_000_000); // exactness holds
   });
 

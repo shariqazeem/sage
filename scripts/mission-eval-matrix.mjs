@@ -77,6 +77,11 @@ const norm = (s) =>
     .replace(/\u2026/g, "...")
     .replace(/\s+/g, " ")
     .trim();
+/** The tangible reward floor in 6dp base units — MUST equal TANGIBLE_MIN_REWARD_BASE in
+ *  src/lib/launch/budget.ts. This is a ruler, and a ruler that disagrees with the product reports
+ *  a healthy product broken (it has happened here before: a stale norm() showed 50% anchor
+ *  integrity on a correct build). Change it in the same commit as the constant, never after. */
+const FLOOR_BASE = 500_000; // $0.50 (lowered from $3.00 on 2026-08-14)
 const EST_TOKENS_PER_IMAGE = 1370; // measured on the yara run (8206/6)
 const EST_BRAIN_TOKENS = 15000; // architect + critic per inspection (rough)
 const PER_URL_CAP_TOKENS = 60000; // budget guard: log if a URL exceeds this
@@ -192,8 +197,10 @@ async function runOne(m, i) {
      *   templateLeak — internal skeleton/attribution strings on a founder's screen ("Reach the
      *     target…" from an unresolved entity; "exactly what the founder asked" on a run whose goal
      *     was Sage's own synthesis — the battery sends no goal, so ANY founder-attribution is a lie).
-     *   floor — no reward below the $3 tangible floor (three separate money-writers each violated
-     *     it once; the lint watches the OUTPUT, whichever writer is last).
+     *   floor — no reward below the tangible floor (three separate money-writers each violated it
+     *     once; the lint watches the OUTPUT, whichever writer is last). Keep FLOOR_BASE equal to
+     *     TANGIBLE_MIN_REWARD_BASE in src/lib/launch/budget.ts — a stale ruler reports the product
+     *     broken when only the instrument is.
      *   coverage — a budget that tangibly funds 3+ missions collapsing onto ONE is thin coverage
      *     (measured twice on clawup $20). Informational (~): one deep mission can be a fair call.
      */
@@ -201,8 +208,8 @@ async function runOne(m, i) {
       : missions.some((x) => /\bthe target\b/i.test(x.title || "") || /exactly what the founder asked/i.test(x.whyItMatters || ""))
         ? "FAIL(template)" : "PASS",
     floor: missions.length === 0 ? "n/a"
-      : missions.every((x) => Number(x.rewardBase ?? 3_000_000) >= 3_000_000) ? "PASS"
-      : `FAIL(${missions.filter((x) => Number(x.rewardBase ?? 0) < 3_000_000).map((x) => (Number(x.rewardBase) / 1e6).toFixed(2)).join(",")})`,
+      : missions.every((x) => Number(x.rewardBase ?? FLOOR_BASE) >= FLOOR_BASE) ? "PASS"
+      : `FAIL(${missions.filter((x) => Number(x.rewardBase ?? 0) < FLOOR_BASE).map((x) => (Number(x.rewardBase) / 1e6).toFixed(2)).join(",")})`,
     coverage: missions.length === 0 || job.status !== "ready" ? "n/a"
       : (() => {
           const budget = Number(plan?.totalBudgetBase ?? 0) / 1e6;

@@ -139,7 +139,7 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
     expect(cov.mappings).toHaveLength(journey.checkpoints.length);
   });
 
-  it("the sample target stands, but the split refuses to break the tangible floor: $1.50 stays 1 × $1.50", () => {
+  it("the sample target stands and a $1.50 pot now buys all three testers at the $0.50 floor", () => {
     const r = compileGoalMission(compileInput());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -175,19 +175,22 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
     );
     expect(alloc.ok).toBe(true);
     /**
-     * OVERRULED (2026-08-12, the third money-writer leak): this pin used to celebrate the split —
-     * 3 × $0.50 from a $1.50 pot. On a live founder plan the same mechanism turned a $4 pot into
-     * 10 × $0.40, hours after pennies were overruled with a $3 tangible floor. The sample TARGET
-     * still stands (3 testers is the right ask), but the splitter now refuses any division that
-     * drops a tester below $3 — a $1.50 pot pays one tester $1.50 rather than three testers pennies.
+     * THIRD REVISION, each by the founder. Written as 3 × $0.50; overruled 2026-08-12 to 1 × $1.50
+     * when a $3 tangible floor answered a live leak ($4 → 10 × $0.40); and back to 3 × $0.50 on
+     * 2026-08-14, when the floor dropped to $0.50 on measured evidence — the first funded campaign
+     * filled four slots in ten hours, and the $3 floor was handing small pots to a single tester.
+     *
+     * The mechanism that stopped the leak is untouched and is what makes this safe: the splitter
+     * aims each pot at min($3, pot ÷ 3) and never divides below it, so $1.50 buys three testers at
+     * the floor while $4 still refuses the ten-way split. Exactness is never traded away.
      */
     const split = splitCompletionsForSample(
       alloc.missions,
       new Map([[m.missionKey, sample.missions[0].maxCompletions]]),
       MIN_REWARD_BASE,
     );
-    expect(split[0].maxCompletions).toBe(BigInt(1));
-    expect(split[0].rewardBase).toBe(BigInt(1_500_000)); // the whole pot, one tangible reward
+    expect(split[0].maxCompletions).toBe(BigInt(3));
+    expect(split[0].rewardBase).toBe(BigInt(500_000)); // three testers, each at the floor
     const total = split.reduce(
       (s, x) => s + x.rewardBase * x.maxCompletions,
       BigInt(0),
@@ -198,17 +201,18 @@ describe("OFFLINE REPLAY — retained production observations, zero provider cal
   /**
    * REGRESSION (kept) + OVERRULE (2026-08-12) — divisibility is still an implementation detail
    * that must not decide how many people get paid, and exactness is still never traded away. But
-   * the split now also carries the $3 tangible floor: it takes the largest sample the pot divides
-   * exactly WITHOUT dropping any tester below $3. Pots too small to buy two tangible rewards stay
-   * with one tester — the live leak was a $4 pot split into 10 × $0.40 on a founder-facing plan.
+   * the split also carries the pot's tangible RATE — min($3, pot ÷ 3), never under the $0.50 floor:
+   * it takes the largest sample the pot divides exactly WITHOUT dropping any tester below that.
+   * Pots too small to buy two rewards at the rate stay with one tester — the live leak was a $4 pot
+   * split into 10 × $0.40 on a founder-facing plan, and it still cannot happen.
    */
   it("falls back to the largest tangible sample the pot divides exactly", () => {
     const key = "m";
     const cases: [bigint, number, bigint][] = [
       // pot,        expected completions, expected reward each
-      [BigInt(1_500_000), 1, BigInt(1_500_000)], // $1.50 → 1 × $1.50 (3 × $0.50 breaks the floor)
-      [BigInt(2_000_000), 1, BigInt(2_000_000)], // $2.00 → 1 × $2.00 (2 × $1.00 breaks the floor)
-      [BigInt(3_000_000), 1, BigInt(3_000_000)], // $3.00 → 1 × $3.00 (3 × $1.00 breaks the floor)
+      [BigInt(1_500_000), 3, BigInt(500_000)], // $1.50 → 3 × $0.50, exactly the floor
+      [BigInt(2_000_000), 2, BigInt(1_000_000)], // $2.00 → 2 × $1.00 ($0.67 three ways isn't exact)
+      [BigInt(3_000_000), 3, BigInt(1_000_000)], // $3.00 → 3 × $1.00, the pot's aim is $1.00
       [BigInt(250_000), 1, BigInt(250_000)], // $0.25 → 1 × $0.25, never subdivided
       [BigInt(9_000_000), 3, BigInt(3_000_000)], // $9.00 → 3 × $3.00, every reward tangible
       [BigInt(10_000_000), 2, BigInt(5_000_000)], // $10 % 3 ≠ 0 → 2 × $5.00, tangible AND exact

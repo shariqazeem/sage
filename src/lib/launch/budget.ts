@@ -45,11 +45,22 @@ function ordered(missions: WeightedMission[]): WeightedMission[] {
 
 /** The floor of a reward worth taking — the founder's own sizing ("$20 → someone gets $5"). */
 export const TANGIBLE_SLOT_USD = 5;
-/** The hard floor under ANY reward the architect proposes: below this is pennies, and pennies sit
- *  unfilled. The founder's second overrule (2026-08-12): the MODEL decides slots-vs-pay per mission
- *  — deep work fewer slots at more pay, quick checks more slots at less — and the system only
- *  enforces this floor and the exactness invariant. Curve-decided counts are gone. */
-export const TANGIBLE_MIN_PER_REWARD_USD = 3;
+/**
+ * The hard floor under ANY reward the architect proposes. The MODEL decides slots-vs-pay per mission
+ * — deep work fewer slots at more pay, quick checks more slots at less — and the system enforces
+ * only this floor and the exactness invariant. Curve-decided counts are gone.
+ *
+ * LOWERED 3.00 → 0.50 (2026-08-14) on MEASURED evidence, having been raised to $3 on the theory
+ * that "pennies sit unfilled". The first funded campaign (clawup, $20) drew four wallets inside ten
+ * hours, so tester supply at these rewards is real — and the $3 floor was the binding constraint on
+ * SMALL budgets, where it is worst: a $5 campaign could fund exactly ONE slot, handing one person
+ * the entire pot. A founder testing with $5 wants several testers, not one.
+ *
+ * This does not make plans cheap by default: the architect still proposes the count, and its
+ * judgment stands. The floor only stops a pot being sliced past the point where the work is worth
+ * doing at all.
+ */
+export const TANGIBLE_MIN_PER_REWARD_USD = 0.5;
 /**
  * The same floor in base units, for passing as `minRewardBase` into {@link allocateBudget}.
  *
@@ -57,11 +68,25 @@ export const TANGIBLE_MIN_PER_REWARD_USD = 3;
  * Mission COUNT also decides per-tester pay: the architect designed 4 missions for a $10 budget
  * (excalidraw run) and the allocator, whose lift-and-drop machinery was still wired to the $0.10
  * meaningful floor, dutifully spread the pot into two $2.00 rewards. With this floor the existing
- * machinery does the right thing on its own: sub-$3 rewards lift to $3, and when the budget truly
- * cannot fund every mission tangibly, the lowest-priority missions drop — the founder's own rule:
- * "one good mission paying something tangible beats 3 missions paying cents."
+ * machinery does the right thing on its own: sub-floor rewards lift to the floor, and when the budget truly
+ * cannot fund every mission tangibly, the lowest-priority missions drop.
  */
 export const TANGIBLE_MIN_REWARD_BASE = BigInt(TANGIBLE_MIN_PER_REWARD_USD * 1_000_000);
+/**
+ * The rate a completion is AIMED at, as distinct from the hard floor above.
+ *
+ * Dropping the floor 3.00 → 0.50 also dropped the rate every derived sample was sized against, which
+ * would have quietly re-priced work that is already selling: the $20 clawup campaign paid $5 a head
+ * and filled four slots in ten hours, and a bare floor swap would have re-cut the same budget into
+ * twenty $1 slots — the exact "$1 to twenty people, nobody does it" shape the founder overruled
+ * twice. So the two ideas are now separate constants: aim to pay a tester THIS much, and yield
+ * toward the hard floor only when the pot genuinely cannot. Big budgets are unchanged; small ones
+ * fund a real sample instead of handing one person the entire pot.
+ */
+export const TANGIBLE_PREFERRED_PER_REWARD_USD = 3;
+export const TANGIBLE_PREFERRED_REWARD_BASE = BigInt(
+  TANGIBLE_PREFERRED_PER_REWARD_USD * 1_000_000,
+);
 /** The ceiling of a sane reward: past $50 a head, surplus is farm bait, not motivation. */
 export const TANGIBLE_MAX_REWARD_USD = 50;
 
@@ -107,9 +132,9 @@ export function applyTangibleCaps(missions: WeightedMission[], totalBudgetBase: 
    * real plans: "let a model decide that based on the work — more slots less pay or more pay less
    * slots — whatever it proposes, it should be that, not hardcoded." So the model's per-mission
    * judgment now rules, and this pass enforces exactly ONE thing: no reward may fall under the
-   * tangible floor ($3). Only when the proposed slots would slice the budget below that does it
-   * trim — lowest-priority first, never dropping a mission — because twenty $1 slots sit unfilled
-   * no matter who proposed them. Exactness, the share rule and the balancer are untouched.
+   * tangible floor ({@link TANGIBLE_MIN_PER_REWARD_USD}). Only when the proposed slots would slice
+   * the budget below that does it trim — lowest-priority first, never dropping a mission.
+   * Exactness, the share rule and the balancer are untouched.
    */
   const floorTarget = Math.floor(Number(totalBudgetBase) / (TANGIBLE_MIN_PER_REWARD_USD * 1_000_000));
   const target = Math.max(Math.min(floorTarget, Number.MAX_SAFE_INTEGER), missions.length);

@@ -12,12 +12,33 @@
  * allocation invariant (Σ rewardBase × maxCompletions === total) is still enforced by allocateBudget.
  */
 
-import "./budget";
+import { TANGIBLE_MIN_REWARD_BASE, TANGIBLE_PREFERRED_REWARD_BASE } from "./budget";
 
 const maxBigint = (a: bigint, b: bigint): bigint => (a > b ? a : b);
 
 /** How many independent testers a qualitative, plural request prefers. */
 export const PREFERRED_SAMPLE = 3;
+
+/**
+ * THE RATE A POT AIMS TO PAY — one rule, used by every writer that divides a pot into testers.
+ *
+ * Aim to pay a tester {@link TANGIBLE_PREFERRED_REWARD_BASE}; when the pot cannot pay a preferred
+ * sample that much, aim at what it CAN, never under the hard {@link TANGIBLE_MIN_REWARD_BASE}.
+ *
+ * This is what makes the 2026-08-14 floor drop safe. A flat floor is one number doing two jobs — the
+ * least a reward may be, and the rate samples are sized against — so lowering it to fund small
+ * budgets would have re-cut a working $20 campaign ($5 × 4, filled in ten hours) into twenty $1
+ * slots. Made pot-aware, a $20 pot still aims at $3+ a head and a $5 pot funds three testers at
+ * $1.67 instead of handing one person the lot.
+ */
+export function tangibleRateBase(
+  potBase: bigint,
+  sample: number = PREFERRED_SAMPLE,
+): bigint {
+  const affordable = potBase / BigInt(Math.max(1, Math.floor(sample)));
+  if (affordable >= TANGIBLE_PREFERRED_REWARD_BASE) return TANGIBLE_PREFERRED_REWARD_BASE;
+  return maxBigint(affordable, TANGIBLE_MIN_REWARD_BASE);
+}
 
 /**
  * EFFORT-ANCHORED REWARD CEILING — what a completion is WORTH, so a fat budget buys a larger sample
@@ -166,9 +187,13 @@ function withOverFunding<T extends SampleMission>(
   // capacity ~10x the moment the curve landed ($401 read as "$17 absorbable": 17 curve-sized slots
   // × the $1 ceiling), flagging well-sized budgets as over-funded and quoting founders a nonsense
   // number. One rate, both places.
-  // The $3 tangible floor, matching byEffortCount's divisor exactly (architect-rules overrule):
-  // capacity and count must price a completion identically or over-funding math lies again.
-  const floorBase = BigInt(3_000_000);
+  // The tangible floor, matching byEffortCount's divisor exactly: capacity and count must price a
+  // completion identically or over-funding math lies again. Derived from the ONE constant — a
+  // hardcoded copy here is how a floor change silently fails to reach every money-writer.
+  // The PREFERRED rate, not the hard floor: "what can this plan absorb at the going rate" is a
+  // statement about fair pay, and over-funding only fires on budgets far above it — exactly where
+  // the pot-aware rate byEffortCount uses equals this constant anyway. One rate, both places.
+  const floorBase = TANGIBLE_PREFERRED_REWARD_BASE;
   const absorbable = ms.reduce(
     (sum, m, i) => sum + maxBigint(ceilings[i]!, floorBase) * BigInt(Math.max(1, m.maxCompletions)),
     BigInt(0),
@@ -241,9 +266,10 @@ export function applySamplePolicy<T extends SampleMission>(
     // The divisor is the tangible per-person rate for THIS budget (the monotone √ curve), floored
     // by the effort ceiling. No regime gate: the curve itself keeps small budgets concentrated and
     // lets large ones buy more people at higher — never lower — per-person pay.
-    // The $3 tangible floor, not the curve: the architect's slots-vs-pay judgment rules (founder
-    // overrule 2026-08-12), and this divisor only stops a pot being sliced into pennies.
-    const divisor = maxBigint(ceiling, BigInt(3_000_000));
+    // The tangible RATE for this pot, not the curve: the architect's slots-vs-pay judgment rules,
+    // and this divisor only stops a pot being sliced below the point where the work is worth doing.
+    // Pot-aware since the floor dropped to $0.50 — a pot that can pay $3 a head still aims there.
+    const divisor = maxBigint(ceiling, tangibleRateBase(shareOf(m)));
     return Math.min(MAX_SAMPLE, Number(shareOf(m) / divisor));
   };
 
@@ -382,8 +408,8 @@ export function applySamplePolicy<T extends SampleMission>(
  * exact remainder — so a one-mission plan always comes back as 1 × the whole budget. This pure transform
  * re-expresses that same pot as N independent completions: `rewardBase × maxCompletions` is UNCHANGED
  * (the exact-allocation invariant still holds bit for bit), it only ever splits when the division is
- * exact and every tester still clears the TANGIBLE floor ($3) — not merely the $0.10 meaningful
- * floor. Never touches budget math itself.
+ * exact and every tester still clears the pot's TANGIBLE RATE (see {@link tangibleRateBase}) — not
+ * merely the $0.10 meaningful floor. Never touches budget math itself.
  */
 export function splitCompletionsForSample<
   T extends { missionKey: string; rewardBase: bigint; maxCompletions: bigint },
@@ -405,14 +431,14 @@ export function splitCompletionsForSample<
     /**
      * THE TANGIBLE FLOOR BINDS HERE TOO — this was the third money-writer, and the one that leaked.
      *
-     * allocateBudget enforces the $3 floor; this split runs AFTER it and re-divided rewards with
+     * allocateBudget enforces the tangible floor; this split runs AFTER it and re-divided with
      * only the $0.10 meaningful floor. Measured on a live founder plan (clawup, URL-only run): the
      * architect proposed 10 slots for a 3-minute check, the allocator floored the plan correctly,
      * and this function then split a $4 pot into 10 × $0.40 — pennies on a founder-facing plan,
      * hours after pennies were overruled. Every function that writes a reward must carry the same
      * floor, or the last writer silently wins.
      */
-    const tangibleFloor = BigInt(3_000_000) > minRewardBase ? BigInt(3_000_000) : minRewardBase;
+    const tangibleFloor = maxBigint(tangibleRateBase(pot), minRewardBase);
     for (let k = target; k > floor; k--) {
       const n = BigInt(k);
       if (pot % n !== BigInt(0)) continue; // never introduce rounding
