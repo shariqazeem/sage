@@ -15,6 +15,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   getDecisionBySubmission: vi.fn(),
   casSubmissionStatus: vi.fn(),
   recordEvent: vi.fn(),
+  getLatestSubmissionEvent: vi.fn(() => undefined),
   recordEventOnce: vi.fn(() => ({ inserted: true })),
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
@@ -67,8 +68,10 @@ import {
   countPaidByWalletInCampaign,
   getCampaign,
   getDecisionBySubmission,
+  getLatestSubmissionEvent,
   getMissionByHash,
   getSubmission,
+  recordEvent,
   listSubmissionsForDedup,
   setObservationShadow,
   updateSubmission,
@@ -80,6 +83,7 @@ import { entailmentMode, runEntailmentVeto } from "./entailment";
 import { __approveForTest, __clearTestApprovals } from "./model-policy";
 import { observationAutopayEnabled, runObservationDecision } from "./observation-judge";
 import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
+import { notifyTelegram } from "./notify";
 
 const campaign = {
   id: "c1",
@@ -173,6 +177,44 @@ describe("runDeputyOnSubmission — happy path", () => {
     expect(r.action).toBe("held");
     expect(r.reason).toMatch(/judge_identity_unapproved/);
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE HOLD-SPAM DRILL — measured on the first funded campaign (clawup, 2026-08-14): 239 identical
+ * `autopay_held` rows and 239 Telegram pushes for FOUR submissions in five hours, because the sweep
+ * re-runs this whole pipeline over every pending submission every ~5 minutes and the journal wrote
+ * unconditionally. A hold is a STATE. Re-observing it is not news; a CHANGE of reason is.
+ */
+describe("a repeated hold is journalled once, a changed hold is journalled again", () => {
+  it("does not re-journal or re-notify when the reason is unchanged", async () => {
+    __clearTestApprovals(); // any hold reason will do — this is about the journal, not the gate
+    await runDeputyOnSubmission("s1");
+    const firstCall = vi.mocked(recordEvent).mock.calls.find((c) => c[0]?.kind === "autopay_held");
+    expect(firstCall).toBeDefined();
+    expect(notifyTelegram).toHaveBeenCalledTimes(1);
+
+    // the sweep comes back five minutes later and nothing has changed
+    vi.mocked(getLatestSubmissionEvent).mockReturnValue({
+      detail: firstCall![0].detail,
+    } as never);
+    vi.mocked(recordEvent).mockClear();
+    vi.mocked(notifyTelegram).mockClear();
+
+    const again = await runDeputyOnSubmission("s1");
+    expect(again.action).toBe("held"); // the DECISION is unchanged — only the noise is gone
+    expect(vi.mocked(recordEvent).mock.calls.filter((c) => c[0]?.kind === "autopay_held")).toHaveLength(0);
+    expect(notifyTelegram).not.toHaveBeenCalled();
+  });
+
+  it("DOES journal again when the hold reason changes", async () => {
+    __clearTestApprovals();
+    vi.mocked(getLatestSubmissionEvent).mockReturnValue({
+      detail: JSON.stringify({ t: "0xaaaa…aaaa · some entirely different reason", cid: "old" }),
+    } as never);
+    await runDeputyOnSubmission("s1");
+    expect(vi.mocked(recordEvent).mock.calls.filter((c) => c[0]?.kind === "autopay_held").length).toBeGreaterThan(0);
+    expect(notifyTelegram).toHaveBeenCalledTimes(1);
   });
 });
 

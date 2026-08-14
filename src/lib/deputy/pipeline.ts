@@ -2,13 +2,14 @@ import "server-only";
 
 import { getAddress } from "viem";
 import { short, usd } from "@/lib/format";
-import { encodeDetail } from "@/lib/campaigns/journal";
+import { decodeDetail, encodeDetail } from "@/lib/campaigns/journal";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
   getCampaign,
   getDecisionBySubmission,
+  getLatestSubmissionEvent,
   getSubmission,
   listEarlierSubmissionsForDedup,
   listPaidSubmissionsForDedup,
@@ -239,20 +240,40 @@ async function preflightV2(
   return { ok: true, reason: "" };
 }
 
+/**
+ * A HOLD IS A STATE, NOT AN EVENT.
+ *
+ * This wrote a journal row AND pushed a Telegram message every time it ran, and the sweep runs the
+ * whole pipeline over every pending submission every ~5 minutes forever. Measured on the first
+ * funded campaign (clawup, 2026-08-14): **239 identical `autopay_held` rows for FOUR submissions**
+ * in five hours, each one also a push — the founder's phone buzzing every five minutes to repeat
+ * something that had not changed since 7am, on a campaign that was already fully paid out. Same
+ * family as the sweep re-judging stuck submissions forever ([[llm-cost-leak]]): a repeating
+ * evaluation must compare against what it already recorded before it records again.
+ *
+ * So: journal + notify only when this hold is NEW, or its REASON CHANGED (cap → review → retry are
+ * genuinely different things the founder wants to know about). A hold that is still the same hold
+ * is silent, and the existing event keeps its original timestamp — which also stops the activity
+ * feed from resurfacing five-hour-old holds as "just now".
+ */
 function journalHeld(
   campaign: Campaign,
   submission: Submission,
   reason: string,
   cid?: string,
 ): void {
+  const line = `${short(submission.wallet)} · ${reason}`;
+  const last = getLatestSubmissionEvent(submission.id, "autopay_held");
+  // `detail` is TEXT holding an encodeDetail envelope — decode it, never read `.t` off the string.
+  if (decodeDetail(last?.detail ?? null).text === line) return;
   recordEvent({
     campaignId: campaign.id,
     submissionId: submission.id,
     kind: "autopay_held",
-    detail: encodeDetail(`${short(submission.wallet)} · ${reason}`, { cid }),
+    detail: encodeDetail(line, { cid }),
   });
   void notifyTelegram(
-    `⏸️ <b>Held by Deputy</b>\n${campaign.title}\n${usd(campaign.rewardAmount / 1_000_000)} → ${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
+    `⏸️ <b>Held by Sage</b>\n${campaign.title}\n${usd(campaign.rewardAmount / 1_000_000)} → ${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
   );
 }
 

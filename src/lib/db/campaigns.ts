@@ -1122,6 +1122,28 @@ export function recordEventOnce(
   return { event: recordEvent(input), inserted: true };
 }
 
+/**
+ * The most recent event of a given kind for ONE submission, or undefined.
+ *
+ * Exists so a repeating evaluation can tell a NEW outcome from the SAME outcome it already
+ * journalled. The sweep re-runs the decision pipeline for every pending submission every ~5
+ * minutes, forever, and anything that writes unconditionally inside it writes forever: the first
+ * funded campaign accumulated 239 identical `autopay_held` rows (and Telegram pushes) for FOUR
+ * submissions in five hours.
+ */
+export function getLatestSubmissionEvent(
+  submissionId: string,
+  kind: EventKind,
+): CampaignEvent | undefined {
+  return db
+    .select()
+    .from(events)
+    .where(and(eq(events.submissionId, submissionId), eq(events.kind, kind)))
+    .orderBy(desc(events.createdAt))
+    .limit(1)
+    .get();
+}
+
 /** A campaign's events, newest first. */
 export function listCampaignEvents(campaignId: string): CampaignEvent[] {
   return db

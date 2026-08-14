@@ -15,6 +15,7 @@ vi.mock("@/lib/db/campaigns", () => ({
   getDecisionBySubmission: vi.fn(),
   casSubmissionStatus: vi.fn(),
   recordEvent: vi.fn(),
+  getLatestSubmissionEvent: vi.fn(() => undefined),
   updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []),
   listSubmissionsForDedup: vi.fn(() => []),

@@ -18,7 +18,8 @@ const log = (s: string) => console.log(s);
 
 vi.mock("@/lib/db/campaigns", () => ({
   getSubmission: vi.fn(), getCampaign: vi.fn(), getDecisionBySubmission: vi.fn(), casSubmissionStatus: vi.fn(() => true),
-  recordEvent: vi.fn(), recordEventOnce: vi.fn(() => ({ inserted: true })), updateSubmission: vi.fn(),
+  recordEvent: vi.fn(),
+  getLatestSubmissionEvent: vi.fn(() => undefined), recordEventOnce: vi.fn(() => ({ inserted: true })), updateSubmission: vi.fn(),
   listPaidSubmissionsForDedup: vi.fn(() => []), listSubmissionsForDedup: vi.fn(() => []), listEarlierSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0), setObservationShadow: vi.fn(), getMissionByHash: vi.fn(), listMissions: vi.fn(() => []),
 }));

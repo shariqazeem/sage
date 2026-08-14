@@ -5,6 +5,7 @@ import {
   listSubmissions,
 } from "@/lib/db/campaigns";
 import { projectActivity, type ActivityEvent } from "./activity";
+import { decodeDetail } from "./journal";
 import { reasonSentence } from "@/lib/deputy/reason-copy";
 
 export interface CampaignActivity {
@@ -51,17 +52,38 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
       .filter((e) => e.kind === "autopay_held" && e.submissionId === submissionId)
       .sort((a, b) => b.createdAt - a.createdAt)[0];
     // detail carries "<wallet> · <reason>"; the reason is the part the founder needs.
-    const t = (held?.detail as { t?: unknown } | null)?.t;
+    // It is a TEXT column holding an encodeDetail envelope, so it must be DECODED — reading `.t`
+    // off the string silently returned undefined for every hold, which is the other half of why
+    // the founder's page said "unknown" while the Telegram DM said "observation_review".
+    const t = decodeDetail(held?.detail ?? null).text;
     if (typeof t !== "string") return null;
     const token = t.includes("·") ? t.split("·").pop()!.trim() : t.trim();
     return token.length > 0 ? token : null;
   };
+  /**
+   * THE GATE'S REASON OUTRANKS THE BRAIN'S — including when the brain never gave one.
+   *
+   * This only looked up a reason when the DECISION recommended something other than pay, so every
+   * observation-lane hold read "Sage couldn't reach a confident decision (unknown)" on the founder's
+   * own campaign page. On the observation lane the brain deliberately ABSTAINS (the
+   * `observation-abstain` receipt is the correct final receipt — the deterministic corpus matcher
+   * decides, not the model), so `recommendation` is absent by design and the branch never fired.
+   * Meanwhile the true reason — per-wallet cap, observation_review, observation_retry — was sitting
+   * on the `autopay_held` event the whole time, and Telegram was already printing it correctly.
+   * Measured on clawup 2026-08-14: four holds, four "(unknown)" on the web, four accurate DMs.
+   *
+   * The gate line is also used AS-IS. It is already a rendered, enumerated sentence written by our
+   * own code, and passing it back through `reasonSentence` produced the double-wrapped nonsense
+   * "Sage couldn't reach a confident decision (observation-based work that needs your judgment …)".
+   */
   const heldReasons: Record<string, string> = {};
   for (const s of subs) {
     const d = getDecisionBySubmission(s.id);
-    if (d && d.brief?.recommendation && d.brief.recommendation !== "pay") {
-      heldReasons[s.id] = reasonSentence(gateReasonOf(s.id) ?? d.brief.reasonCode);
-    }
+    const recommendation = d?.brief?.recommendation;
+    if (recommendation === "pay") continue; // verified — never render a hold line
+    const gate = gateReasonOf(s.id);
+    if (gate) heldReasons[s.id] = gate;
+    else if (recommendation) heldReasons[s.id] = reasonSentence(d!.brief.reasonCode);
   }
 
   const activity = projectActivity(
