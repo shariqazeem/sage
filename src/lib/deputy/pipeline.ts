@@ -225,7 +225,7 @@ async function preflightV2(
     return { ok: false, reason: "this recipient has already been paid for this mission" };
   }
   if (readiness.missionRemaining <= 0) {
-    return { ok: false, reason: "this mission has no remaining completions" };
+    return { ok: false, reason: TERMINAL_REASON.missionFull };
   }
   if (readiness.budgetRemainingBase < mission.rewardAmount) {
     return { ok: false, reason: "not enough remaining budget" };
@@ -256,6 +256,17 @@ async function preflightV2(
  * is silent, and the existing event keeps its original timestamp — which also stops the activity
  * feed from resurfacing five-hour-old holds as "just now".
  */
+/**
+ * Reasons a submission can NEVER be paid, whatever happens next — the vault enforces both on-chain.
+ * Worded for the person who did the work: what happened, and that it is not about their work.
+ */
+const TERMINAL_REASON = {
+  missionFull:
+    "this mission filled up before your submission could be released \u2014 every slot has been paid to earlier submissions. This is not a judgement on your work",
+  walletCap: (cap: number) =>
+    `this campaign pays each wallet ${cap === 1 ? "once" : `${cap} times`}, and this wallet has already been paid \u2014 not a judgement on your work`,
+} as const;
+
 function journalHeld(
   campaign: Campaign,
   submission: Submission,
@@ -274,6 +285,39 @@ function journalHeld(
   });
   void notifyTelegram(
     `⏸️ <b>Held by Sage</b>\n${campaign.title}\n${usd(campaign.rewardAmount / 1_000_000)} → ${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
+  );
+}
+
+/**
+ * A HOLD THAT CAN NEVER BE RELEASED IS NOT A HOLD — it is an unpaid person waiting forever.
+ *
+ * Measured on the first funded campaign (clawup, 2026-08-14): the $20 budget was fully paid, both
+ * missions hit their completion caps, and FOUR submissions sat `pending` afterwards — re-evaluated
+ * by the sweep every five minutes, held again, notified again, with no possible outcome. The vault
+ * enforces `maxCompletions` and the per-wallet cap on-chain, so no top-up and no founder review can
+ * ever release them: the slots are gone. Leaving them "pending" tells a real person their work is
+ * still being considered when it is not.
+ *
+ * Same shape as the stranded testers a stopped campaign left behind: when the PARENT reaches a
+ * terminal state, its dependent rows must be resolved with an honest reason — and the reason must
+ * never read as a verdict on the work, because it isn't one. They lost a race, not a judgement.
+ */
+function resolveTerminal(
+  campaign: Campaign,
+  submission: Submission,
+  reason: string,
+  cid?: string,
+): void {
+  if (!casSubmissionStatus(submission.id, "pending", "rejected")) return;
+  updateSubmission(submission.id, { rejectReason: reason });
+  recordEvent({
+    campaignId: campaign.id,
+    submissionId: submission.id,
+    kind: "autopay_held",
+    detail: encodeDetail(`${short(submission.wallet)} · ${reason}`, { cid }),
+  });
+  void notifyTelegram(
+    `\u23f9\ufe0f <b>Closed by Sage</b>\n${campaign.title}\n${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
   );
 }
 
@@ -610,10 +654,12 @@ export async function runDeputyOnSubmission(
   // the founder can still release manually). Deterministic DB check, before any chain read or signing.
   const walletPaid = countPaidByWalletInCampaign(campaign.id, submission.wallet);
   if (walletPaid >= campaign.perWalletPayoutCap) {
-    const reason = `wallet reached its per-campaign payout cap (${campaign.perWalletPayoutCap})`;
+    const reason = TERMINAL_REASON.walletCap(campaign.perWalletPayoutCap);
     agentLog(cid, "wallet_cap", { walletPaid, cap: campaign.perWalletPayoutCap });
+    // TERMINAL: this wallet has been paid its maximum for this campaign and the count never
+    // decreases, so no sweep, top-up or manual release can change the answer. Close it honestly.
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-      journalHeld(campaign, submission, reason, cid);
+      resolveTerminal(campaign, submission, reason, cid);
       return { action: "held", reason, correlationId: cid };
     }
     return { action: "skipped", reason, correlationId: cid };
@@ -649,7 +695,14 @@ export async function runDeputyOnSubmission(
       : await preflight(campaign, submission);
   agentLog(cid, "preflight", { ok: pf.ok, reason: pf.reason });
   if (!pf.ok) {
-    journalHeld(campaign, submission, pf.reason, cid);
+    // A FULL MISSION IS TERMINAL. `maxCompletions` is enforced by the vault and never rises, so a
+    // submission that arrives after the last slot is paid can never be released — holding it just
+    // makes someone wait forever for an answer that already exists.
+    if (pf.reason === TERMINAL_REASON.missionFull) {
+      resolveTerminal(campaign, submission, pf.reason, cid);
+    } else {
+      journalHeld(campaign, submission, pf.reason, cid);
+    }
     return { action: "held", reason: pf.reason, correlationId: cid };
   }
 

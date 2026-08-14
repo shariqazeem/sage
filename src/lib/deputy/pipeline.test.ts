@@ -66,6 +66,7 @@ import { runDeputyOnSubmission } from "./pipeline";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
+  updateSubmission,
   getCampaign,
   getDecisionBySubmission,
   getLatestSubmissionEvent,
@@ -186,6 +187,29 @@ describe("runDeputyOnSubmission — happy path", () => {
  * re-runs this whole pipeline over every pending submission every ~5 minutes and the journal wrote
  * unconditionally. A hold is a STATE. Re-observing it is not news; a CHANGE of reason is.
  */
+/**
+ * TERMINAL HOLDS — a submission that can never be paid must be CLOSED, not held forever. Measured
+ * on clawup 2026-08-14: four people sat `pending` after both missions filled and the budget was
+ * fully paid, re-held every five minutes with no possible outcome.
+ */
+describe("a submission that can never be paid is resolved, not held forever", () => {
+  it("closes a wallet already at its per-campaign cap instead of re-holding it", async () => {
+    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1); // cap is 1 on the fixture
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.reason).toMatch(/pays each wallet once/);
+    // rejected, with the reason recorded — the sweep's pending query will never see it again
+    expect(casSubmissionStatus).toHaveBeenCalledWith("s1", "pending", "rejected");
+    expect(updateSubmission).toHaveBeenCalledWith("s1", expect.objectContaining({ rejectReason: expect.stringContaining("not a judgement on your work") }));
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("says it is not a verdict on the work — the tester lost a race, not a judgement", async () => {
+    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.reason).toContain("not a judgement on your work");
+  });
+});
+
 describe("a repeated hold is journalled once, a changed hold is journalled again", () => {
   it("does not re-journal or re-notify when the reason is unchanged", async () => {
     __clearTestApprovals(); // any hold reason will do — this is about the journal, not the gate
@@ -460,12 +484,15 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 
-  it("HOLDS once the wallet has reached its per-campaign payout cap", async () => {
+  it("never pays once the wallet has reached its per-campaign payout cap", async () => {
+    // 2026-08-14: the outcome is now CLOSED rather than held forever (the cap never resets, so the
+    // hold could never be released) — but the money property this pin guards is unchanged: the
+    // submission is never claimed for settlement and never settles.
     vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1); // cap is 1
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
-    expect(r.reason).toMatch(/per-campaign payout cap/i);
-    expect(casSubmissionStatus).not.toHaveBeenCalled();
+    expect(r.reason).toMatch(/pays each wallet once/i);
+    expect(casSubmissionStatus).not.toHaveBeenCalledWith("s1", "pending", "settling");
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 });
