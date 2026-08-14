@@ -9,6 +9,8 @@
  * observation_review). An unknown/absent token degrades honestly, never contradicts a confidence.
  */
 
+import { RETRY_RESERVATION_MINUTES } from "@/lib/campaigns/slot-reservation";
+
 const SENTENCE: Record<string, string> = {
   // brain reason codes
   all_criteria_met: "all criteria were met (all_criteria_met)",
@@ -60,7 +62,8 @@ export function observationCoaching(distinctMatched: number, keySources: number,
   return (
     `You matched ${distinctMatched} of the ${keySources} things Sage saw for itself. ` +
     `To clear it, describe more of what you actually did and saw — the specific screens you opened, ` +
-    `the exact labels and text you read, what happened when you clicked. Then resubmit (${left}).`
+    `the exact labels and text you read, what happened when you clicked. Then resubmit (${left}). ` +
+    `Your slot is held while you do — nobody else can take it for the next ${RETRY_RESERVATION_MINUTES} minutes.`
   );
 }
 
@@ -89,7 +92,8 @@ export function observationCriteriaCoaching(
   return (
     `Your account covers part of this mission, but Sage can't yet see evidence for:\n${list}\n\n` +
     `Add what you actually did for that part and what you saw happen — the screen you were on, the ` +
-    `exact text that appeared, what changed after you acted. Then resubmit (${left}).`
+    `exact text that appeared, what changed after you acted. Then resubmit (${left}).\n\n` +
+    `Your slot is held while you do — nobody else can take it for the next ${RETRY_RESERVATION_MINUTES} minutes.`
   );
 }
 

@@ -3,6 +3,7 @@ import "server-only";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
+import { decodeDetail } from "@/lib/campaigns/journal";
 import {
   campaigns,
   decisions,
@@ -1120,6 +1121,34 @@ export function recordEventOnce(
     if (existing) return { event: existing, inserted: false };
   }
   return { event: recordEvent(input), inserted: true };
+}
+
+/**
+ * Everyone with a live claim on a mission's slots, with the hold Sage last journalled for each —
+ * the raw material for `missionSlotStatus`. Only submissions that could still take a slot are
+ * returned (paid / settling / pending); rejected and blocked work has already let go of its place.
+ */
+export function listSlotClaimants(
+  missionIdHash: string,
+): { status: string; lastHoldReason: string | null; lastHeldAt: number | null }[] {
+  const rows = db
+    .select()
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.missionIdHash, missionIdHash),
+        inArray(submissions.status, ["paid", "settling", "pending"]),
+      ),
+    )
+    .all();
+  return rows.map((s) => {
+    const held = getLatestSubmissionEvent(s.id, "autopay_held");
+    return {
+      status: s.status,
+      lastHoldReason: held ? decodeDetail(held.detail).text : null,
+      lastHeldAt: held?.createdAt ?? null,
+    };
+  });
 }
 
 /**

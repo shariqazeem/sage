@@ -11,6 +11,7 @@ import {
 import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { observationCoaching, observationCriteriaCoaching } from "@/lib/deputy/reason-copy";
+import { RETRY_RESERVATION_MINUTES } from "@/lib/campaigns/slot-reservation";
 import { decodeDetail } from "@/lib/campaigns/journal";
 
 export const runtime = "nodejs";
@@ -89,6 +90,10 @@ export async function GET(
           maxAttempts: OBS_MAX_ATTEMPTS,
           attemptsLeft,
           retryable,
+          // THE INVITATION HAS A CLOCK, and the tester is told it. Sage holds their slot while they
+          // rewrite (slot-reservation.ts); saying so is what makes "take your time" honest, and it
+          // is also what stops a good tester from racing a half-finished account back in.
+          reservedMinutes: retryable ? RETRY_RESERVATION_MINUTES : null,
           coaching: retryable
             ? // Name the REQUIREMENT that has no evidence yet when the mission carries a criterion
               // contract — actionable, and leak-free (the criteria are printed on the card the tester

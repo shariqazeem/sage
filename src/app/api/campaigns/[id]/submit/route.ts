@@ -14,7 +14,7 @@ import {
   getMissionByKey,
   getWalletMissionSubmission,
   reviseSubmission,
-  countPaidForMission,
+  listSlotClaimants,
   countRecentSubmissionsByWallet,
   listSubmissions,
   recordEvent,
@@ -23,6 +23,8 @@ import { computeEvidenceDigest, verifyEvidenceClaim, type EvidenceClaim } from "
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
+import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reservation";
+import { nowSeconds } from "@/lib/db/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,8 +131,30 @@ export async function POST(
       }
     }
     // Completion cap gates only a NEW entry — a retry occupies its existing (unpaid, held) slot.
-    if (!reviseTargetId && countPaidForMission(mission.missionIdHash) >= mission.maxCompletions) {
-      return NextResponse.json({ error: "This mission has reached its completion limit." }, { status: 409 });
+    //
+    // A LIVE INVITATION HOLDS ITS PLACE. Sage tells a tester whose account fell short "refine this
+    // and resubmit"; until 2026-08-14 that promise was worthless, because slots were only consumed
+    // on PAYMENT and anyone could take the last one while they were rewriting. Measured on the first
+    // funded campaign: a tester submitted to the wrong mission, was invited back, and the mission
+    // filled while they fixed it — work done twice, paid nothing. The cost of the fix falls on
+    // someone who has not started yet and is told to come back, which is the right person to pay it.
+    if (!reviseTargetId) {
+      const slots = missionSlotStatus(
+        listSlotClaimants(mission.missionIdHash),
+        mission.maxCompletions,
+        nowSeconds(),
+      );
+      if (slots.open <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              slots.reserved > 0
+                ? slotsHeldMessage(slots, nowSeconds())
+                : "This mission has reached its completion limit.",
+          },
+          { status: 409 },
+        );
+      }
     }
     const claim = body.claim;
     const signature = body.signature;
