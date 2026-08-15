@@ -77,7 +77,9 @@ export interface ActionTransitionV1 {
   /** the request methods this transition actually involved, from the field test's per-state capture:
    *  `get_observed` (only GET/HEAD seen), `state_changing` (a mutating method seen), or `not_captured`
    *  (no per-transition network was recorded — safety is UNVERIFIED, not assumed safe). */
-  networkMethodSummary: "not_captured" | "get_observed" | "state_changing";
+  /** `none_observed` = capture WAS running and the action issued no request at all — a purely
+   *  client-side interaction. That is the strongest evidence of safety there is, not the weakest. */
+  networkMethodSummary: "not_captured" | "none_observed" | "get_observed" | "state_changing";
   /** safe-action classification. `safe` ONLY when positively established (get_observed); a mutating
    *  method → `state_changing`; no capture → `unverified` (NOT replayable). */
   safeClassification: "safe" | "unverified" | "state_changing" | "unsafe";
@@ -311,15 +313,34 @@ export function deriveObservations(
         added.length > 0 || removed.length > 0 || s.pixelDeltaPct >= 3;
       // network summary + safety from the after-state's captured methods. `safe` ONLY when we positively
       // observed GET/HEAD-only; a mutating method → state_changing; no capture → unverified (NOT safe).
+      /**
+       * NO REQUEST IS NOT NO EVIDENCE — IT IS THE BEST EVIDENCE.
+       *
+       * An empty method list was read as "not_captured" → `unverified` → never citable. But capture is
+       * always running, so an empty list overwhelmingly means the click made NO request: opening a
+       * modal, a tab, an accordion, a feedback panel — the cheapest and most common interactions in
+       * any product. An action that issued zero requests cannot have mutated anything server-side, so
+       * classifying it as "we don't know" excluded exactly the interactions Sage is most sure about.
+       *
+       * Measured on sagepays.xyz (2026-08-15): all 9 transitions of a run came back `unverified`, the
+       * citable list was EMPTY, and every mission the architect designed was rejected for having no
+       * groundable action. The founder asked four times for a mission about clicking a Feedback
+       * button that makes no network call at all.
+       *
+       * The genuinely unknown case is kept and still fails closed: when the field is ABSENT, capture
+       * did not run, and that stays `unverified`.
+       */
+      const captured = Array.isArray(s.networkMethods);
       const methods = (s.networkMethods ?? []).map((m) => m.toUpperCase());
-      const summary: ActionTransitionV1["networkMethodSummary"] =
-        methods.length === 0
-          ? "not_captured"
+      const summary: ActionTransitionV1["networkMethodSummary"] = !captured
+        ? "not_captured"
+        : methods.length === 0
+          ? "none_observed"
           : methods.every((m) => m === "GET" || m === "HEAD")
             ? "get_observed"
             : "state_changing";
       const safeClassification: ActionTransitionV1["safeClassification"] =
-        summary === "get_observed"
+        summary === "get_observed" || summary === "none_observed"
           ? "safe"
           : summary === "state_changing"
             ? "state_changing"

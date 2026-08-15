@@ -99,7 +99,10 @@ export function compileMissionProbe(input: CompileProbeInput): { probe: MissionP
 
   // safety — positively established (never assumed): safe classification + GET/HEAD-only observed.
   if (transition.safeClassification !== "safe") return { rejected: "unsafe_transition" };
-  if (transition.networkMethodSummary !== "get_observed") return { rejected: "methods_not_get_head" };
+  // `none_observed` (a client-side action that issued no request) is as safe to re-perform as a
+  // GET — safer, in fact. `not_captured` and `state_changing` still fail closed.
+  if (transition.networkMethodSummary !== "get_observed" && transition.networkMethodSummary !== "none_observed")
+    return { rejected: "methods_not_get_head" };
   // the replay must have ACTUALLY reproduced this transition (subtractive: no replay ⇒ no probe).
   if (!replayReproduced.has(transitionId)) return { rejected: "not_replay_reproduced" };
 
