@@ -27,9 +27,15 @@ describe("unwrapLoneFence — reads an equivalent shape, never a broken one", ()
     expect(unwrapLoneFence(t)).toBe(t);
   });
 
-  it("REFUSES two fences — commentary could be hiding between them", () => {
+  it("REFUSES two BLOCKS — two candidate answers, no principled way to choose", () => {
     const t = '```json\n{"a":1}\n```\nand also\n```json\n{"b":2}\n```';
     expect(unwrapLoneFence(t)).toBe(t);
+  });
+
+  it("READS one block with markdown commentary after it — the measured 2,241-char shape", () => {
+    // fenceCount 2, endsWithFence false, lastChar "*": a complete plan plus the model's own notes.
+    const t = '```json\n{"missions":[]}\n```\n\n**Notes:** I focused on the launch flow.';
+    expect(unwrapLoneFence(t)).toBe('{"missions":[]}');
   });
 
   it("READS a fence that never closes — finish_reason:stop already ruled out truncation", () => {

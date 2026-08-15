@@ -222,16 +222,18 @@ export function unwrapLoneFence(trimmed: string): string {
   const opener = trimmed.slice(3, nl).trim();
   // only a bare fence or a language tag may open it — never ``` followed by prose
   if (opener !== "" && !/^[a-z0-9_-]{1,12}$/i.test(opener)) return trimmed;
-  // The CLOSING fence is optional. Refusing an unclosed one was a second guess at truncation, and
-  // `finish_reason === "stop"` has already ruled truncation out one check earlier — a model that
-  // stopped normally wrote everything it meant to write. Measured 2026-08-15: after the first fix
-  // shipped, the architect failed AGAIN on a 455-token `stop` response whose fence never closed.
-  let inner = trimmed.slice(nl + 1);
-  if (inner.trimEnd().endsWith("```")) inner = inner.trimEnd().slice(0, -3);
-  inner = inner.trim();
-  // the fence must enclose the WHOLE payload: no second fence hiding commentary either side
-  if (inner.includes("```")) return trimmed;
-  return inner;
+  const rest = trimmed.slice(nl + 1);
+  const close = rest.indexOf("```");
+  // No closing fence: the remainder IS the payload. finish_reason === "stop" has already ruled out
+  // truncation one check earlier, so a model that stopped normally wrote all it meant to write.
+  if (close === -1) return rest.trim();
+  // EXACTLY ONE fenced block, or nothing. A second block means two candidate answers and no
+  // principled way to choose — that is the ambiguity the strictness exists for, so it fails closed.
+  // Trailing commentary after the ONE block is not ambiguity: measured 2026-08-15, the architect
+  // returned a 2,241-char reply that was ```json{…}``` followed by markdown notes (fenceCount 2,
+  // lastChar "*"), and refusing it dropped a complete, correct plan on the floor.
+  if (rest.indexOf("```", close + 3) !== -1) return trimmed;
+  return rest.slice(0, close).trim();
 }
 
 /**
