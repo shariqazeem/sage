@@ -241,6 +241,37 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dep?.next.phase, calls.length]);
 
+  /**
+   * A SUBMITTED-BUT-UNCONFIRMED STEP MUST SELF-HEAL.
+   *
+   * `/reconcile` re-reads the chain and advances a step whose tx has since confirmed, without ever
+   * re-broadcasting. It shipped with the deploy flow and NOTHING EVER CALLED IT — so a founder whose
+   * confirm loop was interrupted reloaded into "Setting up…" forever. Measured 2026-08-15: the create
+   * tx mined (status 0x1) and the vault was live on chain with 6,228 bytes of code, while the app sat
+   * in `deploying` and reloading changed nothing, because resuming only re-read the same stuck row.
+   *
+   * Every ordinary interruption lands here: a closed tab, a dropped request, a flaky RPC, or the app
+   * being redeployed mid-flow (which invalidates the in-flight server action the tab was waiting on).
+   * Polling while — and only while — a step is awaiting confirmation makes all of them recover on
+   * their own, and costs nothing on any other state.
+   */
+  useEffect(() => {
+    if (!dep || dep.next.mode !== "confirm" || busy) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      const { data } = await post(`/api/deployments/${dep.id}/reconcile`);
+      if (!stopped && data?.ok && data.deployment) setDep(data.deployment as DeploymentView);
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 6000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dep?.id, dep?.next.mode, dep?.next.step, busy]);
+
   /* ── execute: sequential wallet path (never resends a confirmed step) ───── */
   const runExecution = useCallback(
     async (start: DeploymentView) => {
