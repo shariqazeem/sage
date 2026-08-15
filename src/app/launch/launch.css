@@ -384,3 +384,17 @@
 }
 .lxo-chip:hover { border-color: #c2410c; }
 .lxo-chip.on { border-color: #c2410c; background: rgba(194, 65, 12, 0.07); }
+
+/* Public marker that feedback was left on THIS inspection — the fact a mission can be verified
+   against, so "tell us what you thought" is checkable from the page instead of taken on trust. */
+.lx-feedback-mark {
+  display: inline-block;
+  margin: 0 0 18px;
+  padding: 6px 12px;
+  border: 1px solid var(--lx-line, #e3ded4);
+  border-radius: 999px;
+  background: var(--lx-paper-2, #f5f3ee);
+  color: var(--lx-ink, #1a1d21);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}

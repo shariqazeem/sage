@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "./index";
 import { nowSeconds } from "./keys";
 import { feedback, type FeedbackRow } from "./schema";
@@ -37,6 +37,27 @@ export function recordFeedback(input: NewFeedback): FeedbackRow {
   };
   db.insert(feedback).values(row).run();
   return row;
+}
+
+/**
+ * When (if ever) feedback was left on a specific inspection.
+ *
+ * The feedback widget already records the inspection it was sent from, which makes "did this person
+ * actually use Sage AND tell us what they thought" a DETERMINISTIC pair rather than a claim: the
+ * inspection row proves the run, this row proves the feedback, and both are keyed to the same id.
+ * The plan page surfaces it so the fact is publicly checkable — which is what lets a mission ask for
+ * it and still be auto-payable, instead of resting on the tester's word.
+ *
+ * Returns the EARLIEST feedback timestamp: the first time they spoke, not the last.
+ */
+export function feedbackAtForInspection(inspectionId: string): number | null {
+  const rows = db
+    .select({ createdAt: feedback.createdAt })
+    .from(feedback)
+    .where(eq(feedback.inspectionId, inspectionId))
+    .all();
+  if (rows.length === 0) return null;
+  return rows.reduce((min, r) => (r.createdAt < min ? r.createdAt : min), rows[0].createdAt);
 }
 
 /** Newest-first listing for the operator (scoreboard / review tooling). */
