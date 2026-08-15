@@ -293,12 +293,41 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           const step = cur.next.step;
           setNote(`${STEP_LABELS[step]}…`);
           if (cur.next.mode === "broadcast") {
-            const call = calls.find((c) => c.step === step);
+            let call = calls.find((c) => c.step === step);
             const walletClient = wallet.getWalletClient(cur.chainId);
-            if (!call || !walletClient || !wallet.address) {
+            /**
+             * THREE CAUSES, ONE MESSAGE, AND IT NAMED THE WRONG ONE.
+             *
+             * This fired when the wallet was disconnected, when the wallet client could not be
+             * built, AND when the step's calldata was missing from `calls` — and always said
+             * "your wallet is not connected". Measured 2026-08-15: a founder reconnected their
+             * wallet, which is exactly what the message asked for, and got the same error again,
+             * because the actual fault was the third one. A message that names the wrong cause
+             * sends someone to fix something that was never broken.
+             */
+            if (!wallet.address || !walletClient) {
               setError("Your wallet is not connected. Reconnect to continue — nothing was lost.");
               break;
             }
+            if (!call) {
+              // the calldata is rebuilt server-side from the approved plan; re-fetch it rather
+              // than blaming the wallet, and say so if it still is not there.
+              const refreshed = await load(cur.id);
+              const retryCall = refreshed
+                ? (await (await fetch(`/api/deployments/${cur.id}`, { cache: "no-store" })).json())?.calls?.find(
+                    (c: { step: string }) => c.step === step,
+                  )
+                : null;
+              if (!retryCall) {
+                setError(
+                  `Sage could not rebuild the “${STEP_LABELS[step].toLowerCase()}” step. Nothing was lost and nothing was sent — reload the page, and tell us if it persists.`,
+                );
+                break;
+              }
+              calls.push(retryCall as (typeof calls)[number]);
+              call = retryCall as NonNullable<typeof call>;
+            }
+            if (!call) break; // unreachable: the branch above either recovers it or breaks
             let txHash: string;
             try {
               if (batchMarker) {
