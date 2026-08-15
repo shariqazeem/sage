@@ -34,15 +34,18 @@ export function FeedbackWidget() {
   const inspectionId = /^\/launch\/([A-Za-z0-9_-]{6,40})/.exec(pathname)?.[1] ?? null;
 
   /**
-   * CONTACT IS REQUIRED WHEN THE FEEDBACK IS ATTACHED TO AN INSPECTION.
+   * CONTACT IS REQUIRED, EVERYWHERE THIS BUTTON APPEARS.
    *
-   * A plan page is where a paid tester is sent, and feedback from there is the half of their mission
-   * that is traceable. Anonymous is right for a passer-by on /missions — the cost of telling us
-   * something read wrong should be one textarea — but a person asking to be PAID for feedback can
-   * say who they are, and one identity per payout is the cheapest Sybil friction there is: two
-   * wallets claiming to be two people now have to be two contactable people.
+   * Scoped first to plan pages only, and the founder overruled it: the button lives on the surfaces a
+   * paid tester passes through, so every one of them is a place someone can claim to be a second
+   * person. One identity per piece of feedback is the cheapest Sybil friction available — two wallets
+   * claiming to be two people now have to be two contactable people — and it makes every response a
+   * seed user the founder can actually follow up with.
+   *
+   * The cost is real and accepted: a passer-by with a one-line "this read wrong" now has to sign the
+   * note. If casual feedback dries up, that is the knob to reconsider first.
    */
-  const contactRequired = inspectionId !== null;
+  const contactRequired = true;
   const canSend = message.trim().length >= 3 && (!contactRequired || contact.trim().length >= 3);
 
   const submit = async () => {
@@ -96,7 +99,7 @@ export function FeedbackWidget() {
               />
               <input
                 className="fbw-contact"
-                placeholder={contactRequired ? "Your Telegram, X or email (required)" : "Reply-to (optional — email, Telegram, X)"}
+                placeholder="Your Telegram, X or email (required)"
                 value={contact}
                 maxLength={200}
                 onChange={(e) => setContact(e.target.value)}

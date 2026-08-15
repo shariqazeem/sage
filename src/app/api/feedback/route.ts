@@ -52,12 +52,13 @@ export async function POST(req: NextRequest) {
   }
 
   /**
-   * The server is the enforcement, not the button. Feedback tied to an INSPECTION is the traceable
-   * half of a paid mission, so it must carry a contact; anonymous stays right everywhere else.
+   * The server is the enforcement, not the button. EVERY piece of feedback carries a contact now:
+   * the widget only appears on surfaces a paid tester passes through, so each one is a place someone
+   * could claim to be a second person. Founder's call, 2026-08-16, overriding the narrower
+   * inspection-only rule shipped an hour earlier.
    */
-  const inspectionIdIn = asBounded(body.inspectionId, 64);
   const contactIn = asBounded(body.contact, 200);
-  if (inspectionIdIn && (!contactIn || contactIn.length < 3)) {
+  if (!contactIn || contactIn.length < 3) {
     return NextResponse.json(
       { ok: false, error: "Add your Telegram, X or email so we can reach you." },
       { status: 400 },
