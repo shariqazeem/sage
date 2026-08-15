@@ -23,6 +23,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ deploymen
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
   const { deployment, loaded, settings, tokenDecimals } = access.ctx;
 
+  let reason: string | null = null;
   const next = deploymentNextAction(deployment.state as DeploymentState);
   // Only a pending "confirm" step can be reconciled forward. A "broadcast" step waits for
   // the wallet; a claim/limits/attach/live/recovery state has nothing to reconcile here.
@@ -40,11 +41,23 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ deploymen
     }
     if (verdict.ok) {
       confirmStep(deploymentId, s, s === "create" ? { deployedVault: verdict.deployedVault } : {});
+    } else {
+      // A non-ok verdict here is NOT a failure — the tx may simply not be mined yet, and the UI
+      // keeps polling. But it was DISCARDED, and a founder whose step can never confirm (a real
+      // mismatch, not a slow block) then watched "Setting up…" forever with nothing, anywhere,
+      // saying why. Measured 2026-08-15: a create tx mined cleanly, sent to the right factory, both
+      // events present — and the deployment still would not advance. Diagnosing it meant reading
+      // the chain by hand because the one place that knew the reason threw it away.
+      reason = verdict.reason ?? "not_yet_confirmed";
+      console.warn(`[reconcile] ${deploymentId} step=${s} not confirmed: ${reason}`);
     }
-    // A non-ok verdict here is NOT a failure — the tx may simply not be mined yet; the UI
-    // keeps polling. (The explicit confirm route is what escalates a true mismatch.)
   }
 
   const fresh = getDeployment(deploymentId)!;
-  return NextResponse.json({ ok: true, deployment: deploymentView(fresh, tokenDecimals) });
+  return NextResponse.json({
+    ok: true,
+    deployment: deploymentView(fresh, tokenDecimals),
+    // present only while a step is still unconfirmed; the UI shows it once it has been a while.
+    ...(reason ? { pendingReason: reason } : {}),
+  });
 }
