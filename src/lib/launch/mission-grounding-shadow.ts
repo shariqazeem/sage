@@ -561,16 +561,33 @@ export function buildArchitectObservationView(
     transitions,
     journey,
   };
-  // total-size cap: drop transitions then facts until under budget (deterministic).
-  // drop the id-less journey context first (it is never citable), then transitions, then facts.
+  /**
+   * TOTAL-SIZE CAP — and the eviction ORDER decides what kind of missions can exist at all.
+   *
+   * It used to drop the id-less journey, then EVERY transition, and only then start on facts. On a
+   * real app that is not a tie-break, it is a policy: measured on sagepays.xyz (2026-08-15), the
+   * architect was handed 60 of 68 facts and **0 of 9 transitions**, so not one `action_outcome`
+   * criterion could be written — transitions are the only citable actions — and all six missions it
+   * designed were thrown out by the canonical gate (`unsupported_evidence_type` ×4,
+   * `worthless_presence_check` ×2). The founder's goal read as "unobserved" and the run fell back to
+   * legacy. That is the structural reason plans skew to "verify the page says X" instead of "do X".
+   *
+   * Transitions are the SCARCE resource (9 against 68 facts, already capped at MAX_TRANSITIONS) and
+   * the expensive one to earn — Sage had to perform the action to record one. Facts are abundant and
+   * cheap. So spend the abundant one first: journey, then facts down to a floor that still supports
+   * content criteria, then transitions, and only then facts below that floor.
+   */
+  const FACT_FLOOR = 24; // enough to still ground state/content criteria
   while (
     JSON.stringify(view).length > MAX_VIEW_CHARS &&
     (view.journey.length > 0 ||
-      view.transitions.length > 0 ||
-      view.facts.length > 8)
+      view.facts.length > 8 ||
+      view.transitions.length > 0)
   ) {
     if (view.journey.length > 0)
       view = { ...view, journey: view.journey.slice(0, -1) };
+    else if (view.facts.length > FACT_FLOOR)
+      view = { ...view, facts: view.facts.slice(0, -1) };
     else if (view.transitions.length > 0)
       view = { ...view, transitions: view.transitions.slice(0, -1) };
     else view = { ...view, facts: view.facts.slice(0, -1) };

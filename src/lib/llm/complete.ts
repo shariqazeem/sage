@@ -257,9 +257,17 @@ export function contentStructure(content: string | null | undefined): Record<str
     fenceCount: (t.match(/```/g) ?? []).length,
     firstChar: t.slice(0, 1),
     lastChar: t.slice(-1),
-    unwrappedIsObject: (() => {
+    ...(() => {
       const u = unwrapLoneFence(t);
-      return u.startsWith("{") && u.endsWith("}");
+      return {
+        unwrappedIsObject: u.startsWith("{") && u.endsWith("}"),
+        unwrappedLength: u.length,
+        unwrappedFirstChar: u.slice(0, 1),
+        unwrappedLastChar: u.slice(-1),
+        // whether unwrapping changed anything at all — separates "refused to unwrap" from
+        // "unwrapped, and what came out still is not an object".
+        unwrapped: u.length !== t.length,
+      };
     })(),
   };
 }
