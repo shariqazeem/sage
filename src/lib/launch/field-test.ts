@@ -29,6 +29,7 @@ import { stateDigest } from "./observed-facts";
 import {
   evaluateJourney,
   nextUnmetCheckpoint,
+  pursuableCheckpoints,
   buildJourneySteps,
   type GoalJourneyV1,
   goalRequiresUse,
@@ -3483,6 +3484,33 @@ async function exploreInteractive(ctx: {
             tried,
             deadLabels,
           );
+          /**
+           * A STUCK CHECKPOINT MUST NOT HIDE A LATER ONE THAT IS ON THIS SCREEN.
+           *
+           * Order still rules — the current checkpoint is tried first, above, and wins whenever it
+           * matches anything here. But when it matches NOTHING on this screen it is stuck, and
+           * holding the journey there costs every later checkpoint. Measured on sagepays.xyz: the
+           * goal was "start the inspection, then open the Feedback button", the inspection takes
+           * five minutes against a three-minute budget, so the feedback checkpoint was never even
+           * considered — while the Feedback button sat in the harvested elements on every screen.
+           * The grounded architect then wrote the right mission and the compiler correctly threw it
+           * away (`action_missing_after_state_fact`): Sage had never performed the click.
+           *
+           * Nothing is pulled ahead that is not literally here: a later checkpoint only wins if its
+           * own target is present and clickable on this screen right now.
+           */
+          if (!action && liveJourney) {
+            for (const later of pursuableCheckpoints(liveJourney).slice(1)) {
+              action = chooseGoalTargetAffordance(
+                elements,
+                targetTerms({ entity: later.targetEntity, context: later.requiredContext }),
+                digest,
+                tried,
+                deadLabels,
+              );
+              if (action) break;
+            }
+          }
         }
         let progress: ControllerDecision["goalProgress"] = "advancing";
         // 3. still nothing obvious ⇒ ask the multimodal controller (it sees the screenshot + goal targets).

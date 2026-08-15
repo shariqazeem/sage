@@ -568,6 +568,29 @@ export function bindJourneyToContext(
 /* ─────────────────────── the next unmet checkpoint (browser driver) ────────── */
 
 /** The next checkpoint Sage should pursue: the first `unmet` one whose dependencies are all observed. */
+/**
+ * EVERY unmet checkpoint whose dependencies are satisfied, in journey order — the first is what
+ * {@link nextUnmetCheckpoint} returns, the rest are what Sage may fall back to when the first one
+ * cannot be advanced on the screen it is standing on.
+ *
+ * Ordering exists so an entity named during onboarding cannot pull Sage ahead in the journey, and it
+ * should stay the default. But a STRICT reading dead-ends: measured on sagepays.xyz (2026-08-15),
+ * the goal was "start the inspection, then open the Feedback button", the inspection takes five
+ * minutes, and the browsing budget is three — so the inspection checkpoint could never be marked
+ * observed, the feedback checkpoint was never even considered, and the architect's one mission was
+ * rejected `action_missing_after_state_fact` because Sage had never performed the click. The
+ * Feedback button was on screen, in the harvested elements, the whole time.
+ */
+export function pursuableCheckpoints(
+  journey: GoalJourneyV1 | null | undefined,
+): GoalCheckpointV1[] {
+  if (!journey) return [];
+  const byId = new Map(journey.checkpoints.map((c) => [c.checkpointId, c]));
+  return journey.checkpoints.filter(
+    (c) => c.status === "unmet" && c.dependsOn.every((d) => byId.get(d)?.status === "observed"),
+  );
+}
+
 export function nextUnmetCheckpoint(
   journey: GoalJourneyV1 | null | undefined,
 ): GoalCheckpointV1 | null {
