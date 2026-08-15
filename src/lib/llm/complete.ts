@@ -190,11 +190,41 @@ function parseRetryAfterMs(h: string | null): number | null {
 /**
  * STRICT parse for the grounded-architect boundary — the same discipline the money path uses
  * (deputy/brain.ts), applied to a non-money generation path. The raw provider response must be a SINGLE,
- * explicitly-normal ("stop") completion whose trimmed content is a bare JSON object. It NEVER strips
- * fences, extracts braces from prose, drops trailing commas, appends delimiters, or calls repairJson: a
- * non-conforming response fails closed so a truncated/mangled/tool-call/refused reply can never be
- * salvaged into a plan.
+ * explicitly-normal ("stop") completion whose content is a JSON object — bare, or inside a single
+ * markdown fence wrapping the whole payload (see {@link unwrapLoneFence}). It NEVER extracts braces
+ * from prose, drops trailing commas, appends delimiters, or calls repairJson: a non-conforming
+ * response fails closed so a truncated/mangled/tool-call/refused reply can never be salvaged into a
+ * plan.
  */
+/**
+ * A MARKDOWN FENCE IS NOT A MALFORMATION.
+ *
+ * `parseStrict` refused any content that did not start with `{`, fences included. That is the right
+ * instinct for prose, arrays, truncation and tool calls — and the wrong one for a complete JSON
+ * object the gateway happened to wrap in ```json. Measured on prod (2026-08-15): the grounded
+ * architect returned `finish_reason: "stop"`, HTTP 200, 4,168 completion tokens, shape "fenced" —
+ * and every inspection since 13 Aug fell back to the LEGACY planner, which has no goal journey. The
+ * founder kept getting generic "verify the page communicates X" missions and no amount of rewriting
+ * their goal could have helped, because the planner that reads the goal was never running.
+ *
+ * So: unwrap EXACTLY ONE fence around the whole payload, and change nothing else. Everything the
+ * strictness exists for still fails closed — a non-"stop" finish, prose around the object, an array,
+ * a tool call, a refusal, any malformed JSON, a fence that does not enclose the entire content. The
+ * strictness lives in the schema gate, which is untouched; this only reads an equivalent shape.
+ */
+export function unwrapLoneFence(trimmed: string): string {
+  if (!trimmed.startsWith("```") || !trimmed.endsWith("```")) return trimmed;
+  const nl = trimmed.indexOf("\n");
+  if (nl === -1) return trimmed; // a one-line ```...``` is not a fenced document
+  const opener = trimmed.slice(3, nl).trim();
+  // only a bare fence or a language tag may open it — never ``` followed by prose
+  if (opener !== "" && !/^[a-z0-9_-]{1,12}$/i.test(opener)) return trimmed;
+  const inner = trimmed.slice(nl + 1, -3).trim();
+  // the fence must enclose the WHOLE payload: no second fence hiding commentary either side
+  if (inner.includes("```")) return trimmed;
+  return inner;
+}
+
 function parseStrict(data: ChatResponse): { json: unknown; finishReason: string } {
   const choices = data.choices ?? [];
   if (choices.length !== 1) throw new Error("llm_strict_choice_count");
@@ -208,8 +238,8 @@ function parseStrict(data: ChatResponse): { json: unknown; finishReason: string 
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) throw new Error("llm_strict_tool_calls");
   const content = message.content;
   if (!content || content.trim() === "") throw new Error("llm_empty");
-  const trimmed = content.trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // no fences/prose/arrays
+  const trimmed = unwrapLoneFence(content.trim());
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // prose/arrays still refused
   const json: unknown = JSON.parse(trimmed); // throws on ANY malformation (trailing comma, truncation) — no repair
   if (json === null || typeof json !== "object" || Array.isArray(json)) throw new Error("llm_strict_not_object");
   return { json, finishReason };

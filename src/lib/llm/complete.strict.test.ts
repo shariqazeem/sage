@@ -26,9 +26,27 @@ describe("llmCompleteJson — strict raw-completion boundary (fetch mocked, not 
     expect(r.responseModel).toBe("prov/model-x"); // actual provider model recorded
   });
 
+  /**
+   * OVERRULED 2026-08-15, on measured evidence: a lone markdown fence around the WHOLE payload is
+   * now READ, not refused. It was the only "rescue" on this list that is not a malformation — the
+   * object inside is complete and unmodified — and refusing it took the grounded architect down in
+   * production for two days (HTTP 200, finish_reason "stop", 4,168 tokens, shape "fenced"), silently
+   * dropping every inspection to the legacy planner that cannot read a founder's goal.
+   *
+   * Nothing else moved. Prose, arrays, truncation, trailing commas, tool calls, refusals and every
+   * non-"stop" finish still fail closed, and the fence itself must enclose the entire content — the
+   * cases are pinned in strict-fence.test.ts.
+   */
+  it("strict now ACCEPTS a lone fence around the whole payload — the shape that took prod down", async () => {
+    mockFetch(providerResponse('```json\n{"a":1}\n```', "stop"));
+    const r = await llmCompleteJson({ system: "s", user: "u", parsePolicy: "strict" });
+    expect(r.json).toEqual({ a: 1 });
+    expect(r.parsePolicy).toBe("strict");
+    expect(r.repaired).toBe(false); // read, not repaired — the distinction is the whole point
+  });
+
   // Everything a tolerant parser would rescue must FAIL under strict.
   const rejects: Array<[string, unknown]> = [
-    ["fenced JSON", providerResponse('```json\n{"a":1}\n```', "stop")],
     ["prose-wrapped JSON", providerResponse('Here is my answer: {"a":1}', "stop")],
     ["trailing comma", providerResponse('{"a":1,}', "stop")],
     ["truncated JSON (no closing brace)", providerResponse('{"a":1', "stop")],
@@ -112,7 +130,7 @@ describe("llmCompleteJson — provider-native structured output (json_schema) + 
     expect(r.json).toEqual({ missions: [] });
   });
 
-  for (const [name, content] of [["fenced", '```json\n{"missions":[]}\n```'], ["prose_wrapped", 'Here you go: {"missions":[]}'], ["truncated", '{"missions":[']] as const) {
+  for (const [name, content] of [["prose_wrapped", 'Here you go: {"missions":[]}'], ["truncated", '{"missions":[']] as const) {
     it(`structured output that is ${name} STILL fails strict (schema constrains generation, not the receiver)`, async () => {
       capturingFetch(providerResponse(content, "stop"));
       await expect(llmCompleteJson({ system: "s", user: "u", parsePolicy: "strict", responseSchema: SCHEMA })).rejects.toBeInstanceOf(LlmCompletionError);
@@ -120,7 +138,9 @@ describe("llmCompleteJson — provider-native structured output (json_schema) + 
   }
 
   it("a strict-parse failure preserves SAFE provenance (served model, usage, latency, contentShape) — no raw text", async () => {
-    const raw = '```json\n{"missions":["SECRET_LEAK_TOKEN"]}\n```';
+    // prose-wrapped, not fenced: a lone fence is now READ (see the overrule below), so the payload
+    // that proves "a failure never carries raw text" has to be one that still fails.
+    const raw = 'Here you go: {"missions":["SECRET_LEAK_TOKEN"]}';
     capturingFetch(providerResponse(raw, "stop"));
     let err: LlmCompletionError | null = null;
     try { await llmCompleteJson({ system: "s", user: "u", parsePolicy: "strict", responseSchema: SCHEMA }); } catch (e) { err = e as LlmCompletionError; }
@@ -130,7 +150,7 @@ describe("llmCompleteJson — provider-native structured output (json_schema) + 
     expect(err!.promptTokens).toBe(3);
     expect(err!.completionTokens).toBe(5);
     expect(err!.latencyMs).not.toBeNull();
-    expect(err!.contentShape).toBe("fenced");
+    expect(err!.contentShape).toBe("prose_wrapped");
     expect(err!.responseSchemaName).toBe("sage_test_v1");
     expect(err!.parsePolicy).toBe("strict");
     // NO raw content anywhere in the error (message or any field).
