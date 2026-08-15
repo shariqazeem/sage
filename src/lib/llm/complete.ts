@@ -152,6 +152,8 @@ export interface LlmCompletionErrorFields {
   parsePolicy: ParsePolicy | null;
   responseSchemaName: string | null;
   contentShape: ContentShape;
+  /** structural facts about a REFUSED payload — never its content. See {@link contentStructure}. */
+  contentStructure?: Record<string, unknown> | null;
   retryAfterMs: number | null;
 }
 
@@ -173,6 +175,7 @@ export class LlmCompletionError extends Error implements LlmCompletionErrorField
   declare parsePolicy: ParsePolicy | null;
   declare responseSchemaName: string | null;
   declare contentShape: ContentShape;
+  declare contentStructure?: Record<string, unknown> | null;
   declare retryAfterMs: number | null;
   constructor(f: LlmCompletionErrorFields) {
     super(f.code);
@@ -213,16 +216,50 @@ function parseRetryAfterMs(h: string | null): number | null {
  * strictness lives in the schema gate, which is untouched; this only reads an equivalent shape.
  */
 export function unwrapLoneFence(trimmed: string): string {
-  if (!trimmed.startsWith("```") || !trimmed.endsWith("```")) return trimmed;
+  if (!trimmed.startsWith("```")) return trimmed;
   const nl = trimmed.indexOf("\n");
   if (nl === -1) return trimmed; // a one-line ```...``` is not a fenced document
   const opener = trimmed.slice(3, nl).trim();
   // only a bare fence or a language tag may open it — never ``` followed by prose
   if (opener !== "" && !/^[a-z0-9_-]{1,12}$/i.test(opener)) return trimmed;
-  const inner = trimmed.slice(nl + 1, -3).trim();
+  // The CLOSING fence is optional. Refusing an unclosed one was a second guess at truncation, and
+  // `finish_reason === "stop"` has already ruled truncation out one check earlier — a model that
+  // stopped normally wrote everything it meant to write. Measured 2026-08-15: after the first fix
+  // shipped, the architect failed AGAIN on a 455-token `stop` response whose fence never closed.
+  let inner = trimmed.slice(nl + 1);
+  if (inner.trimEnd().endsWith("```")) inner = inner.trimEnd().slice(0, -3);
+  inner = inner.trim();
   // the fence must enclose the WHOLE payload: no second fence hiding commentary either side
   if (inner.includes("```")) return trimmed;
   return inner;
+}
+
+/**
+ * The STRUCTURE of a failed payload — never its content.
+ *
+ * Two fence fixes were shipped on guesses because a strict failure recorded only a coarse shape
+ * ("fenced") and the raw text is deliberately not stored (it can carry inspected-page content). These
+ * are structural booleans and lengths: enough to name the exact branch that refused a response,
+ * impossible to reconstruct a single character of it from.
+ */
+export function contentStructure(content: string | null | undefined): Record<string, unknown> {
+  const t = (content ?? "").trim();
+  const nl = t.indexOf("\n");
+  const opener = t.startsWith("```") && nl > 0 ? t.slice(3, nl).trim() : null;
+  return {
+    length: t.length,
+    startsWithFence: t.startsWith("```"),
+    endsWithFence: t.endsWith("```"),
+    // the opener token only when it is already a safe short tag; anything else is reported by class
+    openerToken: opener === null ? null : /^[a-z0-9_-]{1,12}$/i.test(opener) ? opener.toLowerCase() : "other",
+    fenceCount: (t.match(/```/g) ?? []).length,
+    firstChar: t.slice(0, 1),
+    lastChar: t.slice(-1),
+    unwrappedIsObject: (() => {
+      const u = unwrapLoneFence(t);
+      return u.startsWith("{") && u.endsWith("}");
+    })(),
+  };
 }
 
 function parseStrict(data: ChatResponse): { json: unknown; finishReason: string } {
@@ -311,7 +348,8 @@ export async function llmCompleteJson(opts: {
           requestedModel: p.model, responseModel: typeof data.model === "string" ? data.model : null,
           finishReason: choice0?.finish_reason ?? null, latencyMs: Date.now() - started,
           promptTokens: data.usage?.prompt_tokens ?? null, completionTokens: data.usage?.completion_tokens ?? null,
-          parsePolicy: "strict", responseSchemaName: schemaName, contentShape: classifyContentShape(choice0?.message?.content), retryAfterMs: null,
+          parsePolicy: "strict", responseSchemaName: schemaName, contentShape: classifyContentShape(choice0?.message?.content),
+          contentStructure: contentStructure(choice0?.message?.content), retryAfterMs: null,
         });
       }
     } else {

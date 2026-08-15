@@ -390,6 +390,8 @@ export interface GroundingShadowResult {
   /** structured-output provenance — the response SHAPE (enum, never text), the http status + retry-after on
    *  a transport failure, and the transport schema NAME actually requested per role. */
   architectContentShape: ContentShape | null;
+  /** structural facts about a REFUSED architect payload — never its content. */
+  architectContentStructure?: Record<string, unknown> | null;
   architectHttpStatus: number | null;
   architectRetryAfterMs: number | null;
   architectResponseSchemaName: string | null;
@@ -663,6 +665,7 @@ export async function runGroundedShadow(
     criticParsePolicy: null,
     criticRepaired: null,
     architectContentShape: null,
+    architectContentStructure: null,
     architectHttpStatus: null,
     architectRetryAfterMs: null,
     architectResponseSchemaName: ARCHITECT_SEMANTIC_DRAFT_TRANSPORT_SCHEMA.name,
@@ -708,6 +711,7 @@ export async function runGroundedShadow(
   let architectShape: ContentShape | null = null,
     architectHttp: number | null = null,
     architectRetry: number | null = null;
+  let architectStructure: Record<string, unknown> | null = null;
   let criticShape: ContentShape | null = null,
     criticHttp: number | null = null,
     criticRetry: number | null = null;
@@ -777,6 +781,7 @@ export async function runGroundedShadow(
       architectActual = e.responseModel;
       architectProvider = e.provider;
       architectShape = e.contentShape;
+      architectStructure = e.contentStructure ?? null;
       architectHttp = e.httpStatus;
       architectRetry = e.retryAfterMs;
       aMeta = {
@@ -828,6 +833,7 @@ export async function runGroundedShadow(
     criticParsePolicy: cMeta.parsePolicy,
     criticRepaired: cMeta.repaired,
     architectContentShape: architectShape,
+    architectContentStructure: architectStructure,
     architectHttpStatus: architectHttp,
     architectRetryAfterMs: architectRetry,
     criticContentShape: criticShape,

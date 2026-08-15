@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unwrapLoneFence } from "./complete";
+import { unwrapLoneFence, contentStructure } from "./complete";
 
 /**
  * THE OUTAGE THIS FIXES. Measured on prod 2026-08-15: the grounded architect returned HTTP 200,
@@ -32,9 +32,11 @@ describe("unwrapLoneFence — reads an equivalent shape, never a broken one", ()
     expect(unwrapLoneFence(t)).toBe(t);
   });
 
-  it("REFUSES a fence that does not close the payload (truncation)", () => {
-    const t = '```json\n{"a":1}';
-    expect(unwrapLoneFence(t)).toBe(t);
+  it("READS a fence that never closes — finish_reason:stop already ruled out truncation", () => {
+    // measured 2026-08-15: after the first fix shipped, the architect failed AGAIN on a 455-token
+    // `stop` response whose fence never closed. Refusing it was a second guess at truncation that
+    // the finish_reason check one line earlier had already answered.
+    expect(unwrapLoneFence('```json\n{"a":1}')).toBe('{"a":1}');
   });
 
   it("REFUSES a single-line fence — that is not a fenced document", () => {
@@ -50,5 +52,22 @@ describe("unwrapLoneFence — reads an equivalent shape, never a broken one", ()
   it("does not touch prose that merely mentions a fence", () => {
     const t = 'I cannot do that. ```json';
     expect(unwrapLoneFence(t)).toBe(t);
+  });
+});
+
+describe("contentStructure — enough to fix a refusal, never enough to reconstruct it", () => {
+  it("names the exact branch for an unclosed fence", () => {
+    const s = contentStructure('```json\n{"missions":[]}');
+    expect(s).toMatchObject({ startsWithFence: true, endsWithFence: false, openerToken: "json", fenceCount: 1, unwrappedIsObject: true });
+  });
+
+  it("names the branch for prose after the fence marker", () => {
+    expect(contentStructure('```here is your plan\n{"a":1}\n```')).toMatchObject({ openerToken: "other", unwrappedIsObject: false });
+  });
+
+  it("carries no content — only structure", () => {
+    const s = contentStructure('```json\n{"secret":"SECRET_LEAK_TOKEN"}\n```');
+    expect(JSON.stringify(s)).not.toContain("SECRET_LEAK_TOKEN");
+    expect(JSON.stringify(s)).not.toContain("secret");
   });
 });
