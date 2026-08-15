@@ -56,6 +56,7 @@ import {
   type MintedElement,
   type DecideDeps,
   affordanceKey,
+  type SyntheticValueKind,
 } from "./browser-controller";
 import type {
   DocPage,
@@ -2204,10 +2205,17 @@ async function filledFieldCount(page: Page): Promise<number> {
  * going where the goal pointed (measured: commonstack.ai — goal named the playground; Sage searched
  * "test" and got "No options"). Search fields count only when the founder's goal IS about searching.
  */
-async function hasEmptySafeField(page: Page, allowSearch = false): Promise<boolean> {
-  return (await pendingRequiredFields(page)).some(
-    (f) => !isSensitiveField(f) && (allowSearch || classifyFieldValue(f) !== "search"),
-  );
+async function hasEmptySafeField(
+  page: Page,
+  allowSearch = false,
+  opts: { onlyKinds?: readonly SyntheticValueKind[] } = {},
+): Promise<boolean> {
+  return (await pendingRequiredFields(page)).some((f) => {
+    if (isSensitiveField(f)) return false;
+    const kind = classifyFieldValue(f);
+    if (!allowSearch && kind === "search") return false;
+    return opts.onlyKinds ? opts.onlyKinds.includes(kind) : true;
+  });
 }
 
 /** One still-empty required field, as read from the live page. */
@@ -3314,14 +3322,39 @@ async function exploreInteractive(ctx: {
         // A marketing/onboarding screen has nothing fillable, so it is unaffected and the
         // deterministic forward affordance still wins there. The test is EMPTINESS, not presence: a
         // screen whose fields are already filled is finished, and Sage moves on.
+        /**
+         * THE GOAL SAYS WHAT TO LOOK FOR; THE SCREEN SAYS WHAT THIS SCREEN IS.
+         *
+         * `goalWantsConversation` fires on ordinary verbs — say, ask, tell, reply — which appear in
+         * goals that have nothing to do with chat. When it did, Sage took the conversation path on
+         * whatever screen it was standing on: type the probe into the first message-ish box, press
+         * Enter, done. Measured on Sage's own launch form (2026-08-15): it typed the probe into the
+         * "what do you want to learn?" textarea, pressed Enter, clicked Continue — and the form went
+         * nowhere, because the URL field one line above was still empty. Eight pages crawled, and the
+         * one journey the founder actually asked about was never completed.
+         *
+         * A chat screen is a message box and little else. A FORM is a message box among fields it
+         * also requires — a URL, a budget. So when one of THOSE is still empty, `completeForm` runs
+         * instead: it fills the message box too and submits through the form's own control, so
+         * nothing is skipped either way.
+         */
+        // Narrow on purpose: only a URL or a quantity still waiting to be filled overrides the goal's
+        // reading. Those are the two things a chat screen never asks for and a real form very often
+        // does, so the override cannot reach a genuine conversation — the proven "reach the target,
+        // send the probe, observe the reply" path is untouched — while still catching the measured
+        // failure, where the empty box one line above the textarea was the product URL.
+        const formFieldsPending =
+          wantsConversation &&
+          (await hasEmptySafeField(page, wantsSearch, { onlyKinds: ["url", "quantity"] }));
+        const conversationHere = wantsConversation && !formFieldsPending;
         const formReady =
           !formsDone.has(digest) &&
-          (wantsConversation
+          (conversationHere
             ? elements.some((e) => e.typable)
             : await hasEmptySafeField(page, wantsSearch));
         if (formReady) {
           formsDone.add(digest);
-          const outcome = wantsConversation
+          const outcome = conversationHere
             ? await completeConversation(elements)
             : await completeForm(elements);
           history.push({

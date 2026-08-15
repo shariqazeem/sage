@@ -38,6 +38,19 @@ import type {
   SourceRef,
 } from "./schemas";
 
+/**
+ * VERBS ONLY. `connect\w*` also matched the NOUN "connection", so "verify the wallet CONNECTION
+ * requirement and messaging" — a pure reading mission — passed the has-an-action check and the
+ * corrective ask never fired (measured on sagepays.xyz, 2026-08-15). `add\w*` matched "address",
+ * `creat\w*` matched "creation", `start\w*` matched "startup". A guard that a noun can satisfy
+ * is not a guard.
+ *
+ * Exported so the guard is pinned directly: an inline regex inside a long function is exactly the
+ * kind of check that drifts silently and is only noticed on a founder's screen.
+ */
+export const MISSION_INTERACTION =
+  /\b(click(?:s|ed|ing)?|tap(?:s|ped|ping)?|type[sd]?|typing|enter(?:s|ed|ing)?|submit(?:s|ted|ting)?|select(?:s|ed|ing)?|choose|chooses|connect(?:s|ed|ing)?|creat(?:e|es|ed|ing)|sign\s*up|log\s*in|upload(?:s|ed|ing)?|search(?:es|ed|ing)?|filter(?:s|ed|ing)?|sort(?:s|ed|ing)?|toggle[sd]?|toggling|switch(?:es|ed|ing)?|drag(?:s|ged|ging)?|send[s]?|sending|start(?:s|ed|ing)?|launch(?:es|ed|ing)?|deploy(?:s|ed|ing)?|publish(?:es|ed|ing)?|mint(?:s|ed|ing)?|add(?:s|ed|ing)?|paste[sd]?|pasting)\b/i;
+
 const RISK: MissionRiskCategory[] = [
   "critical_journey", "onboarding", "responsive", "wallet_payment", "claim_validation",
   "error_recovery", "accessibility", "cross_browser", "docs_consistency", "trust_safety", "regression",
@@ -417,6 +430,15 @@ export function rejectionQuestionsFor(
   return qs.slice(0, 2);
 }
 
+/**
+ * VERBS ONLY. `connect\w*` also matched the NOUN "connection", so "verify the wallet CONNECTION
+ * requirement and messaging" — a pure reading mission — passed the has-an-action check and the
+ * corrective ask never fired (measured on sagepays.xyz, 2026-08-15). `add\w*` matched "address",
+ * `creat\w*` matched "creation", `start\w*` matched "startup". A guard that a noun can satisfy
+ * is not a guard.
+ */
+const INTERACTION = /\b(click(?:s|ed|ing)?|tap(?:s|ped|ping)?|type[sd]?|typing|enter(?:s|ed|ing)?|submit(?:s|ted|ting)?|select(?:s|ed|ing)?|choose|chooses|connect(?:s|ed|ing)?|creat(?:e|es|ed|ing)|sign\s*up|log\s*in|upload(?:s|ed|ing)?|search(?:es|ed|ing)?|filter(?:s|ed|ing)?|sort(?:s|ed|ing)?|toggle[sd]?|toggling|switch(?:es|ed|ing)?|drag(?:s|ged|ging)?|send[s]?|sending|start(?:s|ed|ing)?|launch(?:es|ed|ing)?|deploy(?:s|ed|ing)?|publish(?:es|ed|ing)?|mint(?:s|ed|ing)?|add(?:s|ed|ing)?|paste[sd]?|pasting)\b/i;
+
 export async function runMissionBrain(
   map: ProductMapV1,
   founder: FounderLaunchInput,
@@ -540,7 +562,7 @@ export async function runMissionBrain(
      * mission asks the tester to interact with the product, ask the architect for one before the plan
      * ships. Only ever ADDS an ask — it can never delete a mission the gate accepted.
      */
-    const INTERACTION = /\b(click\w*|tap\w*|type\w*|enter\w*|submit\w*|select\w*|choose|connect\w*|creat\w*|sign\s*up|log\s*in|upload\w*|search\w*|filter\w*|sort\w*|toggle\w*|switch\w*|drag\w*|send\w*|start\w*|launch\w*|deploy\w*|publish\w*|mint\w*|add\w*|paste\w*)\b/i;
+    const INTERACTION = MISSION_INTERACTION;
     const hasAction = r.accepted.some((m) =>
       INTERACTION.test(`${m.instructions} ${m.criteria.join(" ")}`),
     );
