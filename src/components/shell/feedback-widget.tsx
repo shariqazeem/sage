@@ -33,8 +33,20 @@ export function FeedbackWidget() {
 
   const inspectionId = /^\/launch\/([A-Za-z0-9_-]{6,40})/.exec(pathname)?.[1] ?? null;
 
+  /**
+   * CONTACT IS REQUIRED WHEN THE FEEDBACK IS ATTACHED TO AN INSPECTION.
+   *
+   * A plan page is where a paid tester is sent, and feedback from there is the half of their mission
+   * that is traceable. Anonymous is right for a passer-by on /missions — the cost of telling us
+   * something read wrong should be one textarea — but a person asking to be PAID for feedback can
+   * say who they are, and one identity per payout is the cheapest Sybil friction there is: two
+   * wallets claiming to be two people now have to be two contactable people.
+   */
+  const contactRequired = inspectionId !== null;
+  const canSend = message.trim().length >= 3 && (!contactRequired || contact.trim().length >= 3);
+
   const submit = async () => {
-    if (message.trim().length < 3 || state === "sending") return;
+    if (!canSend || state === "sending") return;
     setState("sending");
     try {
       const res = await fetch("/api/feedback", {
@@ -84,7 +96,7 @@ export function FeedbackWidget() {
               />
               <input
                 className="fbw-contact"
-                placeholder="Reply-to (optional — email, Telegram, X)"
+                placeholder={contactRequired ? "Your Telegram, X or email (required)" : "Reply-to (optional — email, Telegram, X)"}
                 value={contact}
                 maxLength={200}
                 onChange={(e) => setContact(e.target.value)}
@@ -95,12 +107,15 @@ export function FeedbackWidget() {
                 </a>
                 <button
                   className="fbw-send"
-                  disabled={message.trim().length < 3 || state === "sending"}
+                  disabled={!canSend || state === "sending"}
                   onClick={() => void submit()}
                 >
                   {state === "sending" ? "Sending…" : "Send"}
                 </button>
               </div>
+              {contactRequired && message.trim().length >= 3 && contact.trim().length < 3 && (
+                <div className="fbw-err">Add your Telegram, X or email so we can reach you.</div>
+              )}
               {state === "error" && (
                 <div className="fbw-err">Couldn&apos;t send — try again in a moment.</div>
               )}

@@ -51,6 +51,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON body." }, { status: 400 });
   }
 
+  /**
+   * The server is the enforcement, not the button. Feedback tied to an INSPECTION is the traceable
+   * half of a paid mission, so it must carry a contact; anonymous stays right everywhere else.
+   */
+  const inspectionIdIn = asBounded(body.inspectionId, 64);
+  const contactIn = asBounded(body.contact, 200);
+  if (inspectionIdIn && (!contactIn || contactIn.length < 3)) {
+    return NextResponse.json(
+      { ok: false, error: "Add your Telegram, X or email so we can reach you." },
+      { status: 400 },
+    );
+  }
   const message = asBounded(body.message, 2000);
   if (!message || message.length < 3) {
     return NextResponse.json({ ok: false, error: "Say a little more — feedback needs at least a few words." }, { status: 400 });
