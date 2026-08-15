@@ -20,6 +20,11 @@ vi.mock("@/lib/deputy/chain", () => ({
   isIntentUsed: vi.fn(),
   findSettleTxByIntent: vi.fn(),
 }));
+vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
+  ...(await orig<typeof import("@/lib/deputy/chain-freshness")>()),
+  // a CURRENT chain is the assumed baseline everywhere; the stale-node drill overrides it explicitly.
+  readChainFreshness: vi.fn(async () => ({ fresh: true, blockNumber: 1, headAgeSeconds: 2, reason: "current" as const })),
+}));
 
 import {
   awaitSpendOutcome,

@@ -38,6 +38,11 @@ vi.mock("@/lib/deputy/chain", () => ({
   findSettleTxByIntent: vi.fn(async () => null),
   publicClient: vi.fn(),
 }));
+vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
+  ...(await orig<typeof import("@/lib/deputy/chain-freshness")>()),
+  // a CURRENT chain is the assumed baseline everywhere; the stale-node drill overrides it explicitly.
+  readChainFreshness: vi.fn(async () => ({ fresh: true, blockNumber: 1, headAgeSeconds: 2, reason: "current" as const })),
+}));
 vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
 // chargeOperatorFee is REAL here (DB-only, idempotent by settleTx) so the exactly-once
 // fee assertion is genuine; the actual x402 payment happens later in the sweep.

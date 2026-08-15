@@ -10,6 +10,11 @@ const { settleWithRecovery } = vi.hoisted(() => ({ settleWithRecovery: vi.fn(asy
 vi.mock("@/lib/campaigns/settle", () => ({ settleWithRecovery }));
 vi.mock("@/lib/db/campaigns", () => ({ getMissionByHash: vi.fn(), recordEventOnce: vi.fn(() => ({ inserted: true })), updateSubmission: vi.fn() }));
 vi.mock("@/lib/deputy/chain", () => ({ getVaultState: vi.fn(async () => ({ budget: 0, spent: 0, remaining: 0 })) }));
+vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
+  ...(await orig<typeof import("@/lib/deputy/chain-freshness")>()),
+  // a CURRENT chain is the assumed baseline everywhere; the stale-node drill overrides it explicitly.
+  readChainFreshness: vi.fn(async () => ({ fresh: true, blockNumber: 1, headAgeSeconds: 2, reason: "current" as const })),
+}));
 vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
 vi.mock("@/lib/telegram/bot", () => ({ announceCampaignSettled: vi.fn(), announceCampaignBlocked: vi.fn() }));
 vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn() }));

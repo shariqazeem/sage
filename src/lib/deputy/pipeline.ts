@@ -26,6 +26,7 @@ import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
 import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, deriveCriterionEvidence, verdictStillApplies, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
+import { freshnessHoldReason, readChainFreshness } from "@/lib/deputy/chain-freshness";
 import {
   replayHoldReason,
   requiresReplayProtection,
@@ -99,6 +100,9 @@ async function preflight(
   const amount = campaign.rewardAmount / 1_000_000; // whole USDC
   const vault = getAddress(campaign.vaultAddress);
 
+  const fresh = await readChainFreshness(campaign.chainId);
+  if (!fresh.fresh) return { ok: false, reason: freshnessHoldReason(fresh) };
+
   let state;
   try {
     state = await getVaultState(vault, campaign.chainId);
@@ -154,6 +158,17 @@ async function preflightV2(
   submission: Submission,
   deps: VaultStrategyDeps,
 ): Promise<{ ok: boolean; reason: string }> {
+  /**
+   * NEVER SIGN AGAINST A CHAIN WE CANNOT SHOW IS CURRENT.
+   *
+   * Every check below reads the vault, and a settlement's nonce comes from the node's account state.
+   * A node ten hours behind (measured 2026-08-15) answers all of it instantly and wrongly: the vault
+   * looks unfunded, completions look unused, and the nonce is long spent. Holding costs a few minutes;
+   * broadcasting real USDC on stale state is how a payout gets stuck, replaced, or sent twice.
+   */
+  const fresh = await readChainFreshness(campaign.chainId);
+  if (!fresh.fresh) return { ok: false, reason: freshnessHoldReason(fresh) };
+
   if (!submission.missionIdHash) {
     return { ok: false, reason: "submission has no mission — held for review" };
   }

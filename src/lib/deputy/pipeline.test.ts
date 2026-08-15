@@ -42,6 +42,11 @@ vi.mock("@/lib/deputy/chain", () => ({
   getVaultState: vi.fn(),
   isVendorApproved: vi.fn(),
 }));
+vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
+  ...(await orig<typeof import("@/lib/deputy/chain-freshness")>()),
+  // a CURRENT chain is the assumed baseline everywhere; the stale-node drill overrides it explicitly.
+  readChainFreshness: vi.fn(async () => ({ fresh: true, blockNumber: 1, headAgeSeconds: 2, reason: "current" as const })),
+}));
 vi.mock("@/lib/campaigns/settle-flow", () => ({
   settleApprovedSubmission: vi.fn(),
 }));
@@ -78,6 +83,7 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { getVaultState } from "@/lib/deputy/chain";
+import { readChainFreshness } from "@/lib/deputy/chain-freshness";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { ensureDecision } from "./decisions";
 import { entailmentMode, runEntailmentVeto } from "./entailment";
@@ -494,6 +500,38 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     expect(r.reason).toMatch(/pays each wallet once/i);
     expect(casSubmissionStatus).not.toHaveBeenCalledWith("s1", "pending", "settling");
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE STALE-NODE DRILL. Measured on prod 2026-08-15: a backend behind rpc.goat.network sat ten hours
+ * behind while reporting `eth_syncing: false`. Every vault read it served was wrong, and a payout's
+ * nonce comes from that same account state — broadcasting real USDC through it is how money gets
+ * stuck, replaced, or sent twice. The chain must be shown CURRENT before anything is signed.
+ */
+describe("DRILL: a stale chain view never settles", () => {
+  it("HOLDS with an honest reason when our node is ten hours behind", async () => {
+    vi.mocked(readChainFreshness).mockResolvedValueOnce({
+      fresh: false, blockNumber: 14_594_173, headAgeSeconds: 37_800, reason: "stale",
+    });
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/behind/i);
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("HOLDS when the node cannot be read at all — unreadable is not permission to proceed", async () => {
+    vi.mocked(readChainFreshness).mockResolvedValueOnce({
+      fresh: false, blockNumber: null, headAgeSeconds: null, reason: "unreadable",
+    });
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("a CURRENT chain settles exactly as before — the guard costs the happy path nothing", async () => {
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
   });
 });
 
