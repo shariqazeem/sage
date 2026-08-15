@@ -16,6 +16,7 @@ export function MissionCard({
   revision,
   locked,
   autonomous,
+  isOnlyMission,
   onSaved,
 }: {
   mission: MissionView;
@@ -25,6 +26,8 @@ export function MissionCard({
   /** the SERVER's corpus-readiness verdict — the autonomy note must follow it, never the mission's
    *  class alone (the same rule the tester-facing boards already obey). Undefined → not ready. */
   autonomous?: boolean;
+  /** the last mission standing cannot be removed — a plan with none can pay nobody. */
+  isOnlyMission?: boolean;
   onSaved: (job: JobView) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -32,20 +35,22 @@ export function MissionCard({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
-  const save = async () => {
+  /**
+   * `remove` has been a first-class edit in the revise API since it shipped, and no surface ever
+   * offered it — a founder could rewrite a mission word by word but not drop one. Measured on a real
+   * plan (2026-08-15): the architect designed a second mission the founder did not want, and the only
+   * routes left were to approve work they would rather not pay for, or throw away the whole
+   * inspection and run it again. The allocator reallocates the freed budget across what remains, so
+   * removing is a rebalance, never a refund.
+   */
+  const submitEdit = async (edit: Record<string, unknown>) => {
     setSaving(true); setErrors([]);
     try {
       const res = await fetch(`/api/launch/${jobId}/revise`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
           expectedRevision: revision,
-          edits: [{
-            missionKey: mission.missionKey,
-            title: draft.title, objective: draft.objective, instructions: draft.instructions,
-            targetSurface: draft.targetSurface, criteria: draft.criteria.filter(Boolean),
-            evidenceRequirements: draft.evidenceRequirements.filter(Boolean),
-            maxCompletions: Number(draft.maxCompletions),
-          }],
+          edits: [{ missionKey: mission.missionKey, ...edit }],
         }),
       });
       const data = await res.json();
@@ -60,6 +65,25 @@ export function MissionCard({
       setErrors(["Could not save. Please try again."]);
     }
     setSaving(false);
+  };
+
+  const save = () =>
+    submitEdit({
+      title: draft.title, objective: draft.objective, instructions: draft.instructions,
+      targetSurface: draft.targetSurface, criteria: draft.criteria.filter(Boolean),
+      evidenceRequirements: draft.evidenceRequirements.filter(Boolean),
+      maxCompletions: Number(draft.maxCompletions),
+    });
+
+  const removeMission = () => {
+    // A plan with no missions cannot pay anyone, so the last one is not removable — the founder
+    // wants a different plan at that point, not an empty one.
+    if (isOnlyMission) {
+      setErrors(["This is the only mission in the plan — a plan needs at least one. Edit it instead, or start a new inspection."]);
+      return;
+    }
+    if (!confirm(`Remove "${mission.title}"? Its budget is shared out across the remaining missions.`)) return;
+    void submitEdit({ remove: true });
   };
 
   const setList = (key: "criteria" | "evidenceRequirements", i: number, v: string) =>
@@ -85,6 +109,9 @@ export function MissionCard({
         <div className="lx-next" style={{ marginTop: 8 }}>
           <button className="lx-btn" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
           <button className="lx-btn ghost" onClick={() => { setEditing(false); setDraft(mission); setErrors([]); }} disabled={saving}>Cancel</button>
+          <button type="button" className="lx-edit-link lx-remove-mission" onClick={removeMission} disabled={saving}>
+            Remove this mission
+          </button>
         </div>
       </article>
     );

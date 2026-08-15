@@ -398,3 +398,12 @@
   font-size: 13px;
   letter-spacing: 0.01em;
 }
+
+/* Remove a mission from the plan — destructive, so it sits apart from Save/Cancel and carries the
+   money-outcome red the design system reserves for exactly this kind of irreversible action. */
+.lx-remove-mission {
+  margin-left: auto;
+  color: #dc2626;
+}
+.lx-remove-mission:hover { text-decoration: underline; }
+.lx-remove-mission:disabled { opacity: 0.5; cursor: not-allowed; }
