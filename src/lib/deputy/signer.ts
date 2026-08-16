@@ -120,6 +120,10 @@ async function bumpedGasPrice(chainId: number): Promise<bigint> {
  * CampaignVault V2 adapter passes the V2 ABI so `requestPayout` goes out through
  * the exact same operator + gas machinery. Exported so there is ONE signing path.
  */
+/** Gas limit used when the endpoint's estimator is unusable. Generous on purpose; unused gas is
+ *  refunded, and a payout that never broadcasts is worse than one that over-reserves. */
+export const VAULT_WRITE_GAS_FALLBACK = BigInt(600_000);
+
 export async function sendVaultWrite(
   chainId: number,
   req: {
@@ -162,7 +166,19 @@ export async function sendVaultWrite(
       });
       return (est * BigInt(3)) / BigInt(2);
     } catch {
-      return undefined; // estimation unavailable → let viem do what it did before
+      /**
+       * ESTIMATION FAILING MUST NOT TAKE THE PAYOUT WITH IT.
+       *
+       * Returning undefined here let viem estimate again on its own — against the same endpoint,
+       * the same way, with the same failure — so a node whose estimator we cannot use took the
+       * whole write down. Measured 2026-08-16: the settlement retries died in `eth_estimateGas`
+       * rather than reaching the chain at all.
+       *
+       * A guarded storage-writing `requestPayout` costs on the order of 100-250k gas. This ceiling
+       * is several times that, and unused gas is REFUNDED — the only cost of being generous is a
+       * larger reserved limit, while the cost of being absent is that nobody gets paid.
+       */
+      return VAULT_WRITE_GAS_FALLBACK;
     }
   };
   const gasLimit = await gasWithHeadroom();
