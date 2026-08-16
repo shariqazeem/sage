@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unwrapLoneFence, contentStructure } from "./complete";
+import { unwrapLoneFence, contentStructure, extractLoneObject } from "./complete";
 
 /**
  * THE OUTAGE THIS FIXES. Measured on prod 2026-08-15: the grounded architect returned HTTP 200,
@@ -75,5 +75,51 @@ describe("contentStructure — enough to fix a refusal, never enough to reconstr
     const s = contentStructure('```json\n{"secret":"SECRET_LEAK_TOKEN"}\n```');
     expect(JSON.stringify(s)).not.toContain("SECRET_LEAK_TOKEN");
     expect(JSON.stringify(s)).not.toContain("secret");
+  });
+});
+
+/**
+ * A REAL FOUNDER LOST FOUR MINUTES TO THIS. Measured on prod 2026-08-16: they pointed Sage at their
+ * product, waited for the inspection, and got "Sage's reviewer returned an unusable response" —
+ * because the model wrote a sentence before its JSON. The plan was complete and correct. Retrying
+ * does not help; the gateway's shape bias is per-prompt, so the same prompt returns the same shape.
+ */
+describe("extractLoneObject — one complete object, prose around it", () => {
+  it("reads the object the founder's failed run threw away", () => {
+    expect(extractLoneObject('Here is your plan:\n{"missions":[]}')).toBe('{"missions":[]}');
+  });
+
+  it("reads it with prose on BOTH sides", () => {
+    expect(extractLoneObject('Sure! {"a":1} — let me know if you want changes.')).toBe('{"a":1}');
+  });
+
+  it("leaves a bare object untouched — the common path never changes", () => {
+    expect(extractLoneObject('{"a":1}')).toBe('{"a":1}');
+  });
+
+  it("REFUSES two candidate objects — that is real ambiguity, not a wrapper", () => {
+    const t = 'first {"a":1} then {"b":2}';
+    expect(extractLoneObject(t)).toBe(t);
+  });
+
+  it("REFUSES an unbalanced object (truncated mid-write)", () => {
+    const t = 'here: {"a":{"b":1}';
+    expect(extractLoneObject(t)).toBe(t);
+  });
+
+  it("a brace inside a STRING cannot unbalance the scan", () => {
+    expect(extractLoneObject('note: {"tip":"use { and } freely","n":2}')).toBe('{"tip":"use { and } freely","n":2}');
+  });
+
+  it("an escaped quote inside a string does not end it", () => {
+    expect(extractLoneObject('x {"q":"say \\"hi\\" {","n":1}')).toBe('{"q":"say \\"hi\\" {","n":1}');
+  });
+
+  it("REFUSES an array — the wrong answer, not a wrapped right one", () => {
+    expect(extractLoneObject('[{"a":1}]')).toBe('[{"a":1}]');
+  });
+
+  it("prose with no object at all is returned unchanged", () => {
+    expect(extractLoneObject("I cannot help with that.")).toBe("I cannot help with that.");
   });
 });

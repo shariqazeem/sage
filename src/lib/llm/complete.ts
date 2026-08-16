@@ -272,6 +272,57 @@ export function contentStructure(content: string | null | undefined): Record<str
   };
 }
 
+/**
+ * ONE COMPLETE OBJECT, WITH PROSE AROUND IT.
+ *
+ * Same principle as {@link unwrapLoneFence}: a wrapper is not a malformation. Measured on prod
+ * 2026-08-16 — a real founder pointed Sage at their product, waited four minutes, and got "Sage's
+ * reviewer returned an unusable response" because the model wrote a sentence before its JSON
+ * (`architectContentShape: "prose_wrapped"`). The plan itself was complete and correct.
+ *
+ * Retrying does not rescue this: the gateway's shape bias is per-PROMPT, so the same prompt returns
+ * the same shape. The answer is to read the equivalent shape and keep the strictness in the gate.
+ *
+ * Deliberately narrow, because prose is where ambiguity actually lives. Exactly ONE balanced
+ * top-level `{...}` span may exist in the whole content; two candidate objects, or an unbalanced
+ * one, is refused. Braces inside JSON strings are tracked so a `{` in a quoted value cannot
+ * unbalance the scan, and the extracted span must still parse and still be an object.
+ */
+export function extractLoneObject(trimmed: string): string {
+  if (trimmed.startsWith("{")) return trimmed;
+  // An ARRAY is not an object with prose around it — it is the wrong answer, and it stays refused.
+  // Without this, `[{"a":1}]` would have one balanced span extracted out of it and quietly pass.
+  if (trimmed.startsWith("[")) return trimmed;
+  let depth = 0;
+  let start = -1;
+  let inStr = false;
+  let esc = false;
+  const spans: string[] = [];
+  for (let i = 0; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === "}") {
+      if (depth === 0) return trimmed; // unbalanced — refuse
+      depth--;
+      if (depth === 0 && start >= 0) {
+        spans.push(trimmed.slice(start, i + 1));
+        if (spans.length > 1) return trimmed; // two candidate answers — refuse
+      }
+    }
+  }
+  if (depth !== 0 || spans.length !== 1) return trimmed;
+  return spans[0];
+}
+
 function parseStrict(data: ChatResponse): { json: unknown; finishReason: string } {
   const choices = data.choices ?? [];
   if (choices.length !== 1) throw new Error("llm_strict_choice_count");
@@ -285,7 +336,7 @@ function parseStrict(data: ChatResponse): { json: unknown; finishReason: string 
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) throw new Error("llm_strict_tool_calls");
   const content = message.content;
   if (!content || content.trim() === "") throw new Error("llm_empty");
-  const trimmed = unwrapLoneFence(content.trim());
+  const trimmed = extractLoneObject(unwrapLoneFence(content.trim()));
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // prose/arrays still refused
   const json: unknown = JSON.parse(trimmed); // throws on ANY malformation (trailing comma, truncation) — no repair
   if (json === null || typeof json !== "object" || Array.isArray(json)) throw new Error("llm_strict_not_object");
