@@ -882,8 +882,21 @@ export async function settleWithRecoveryVia(strategy: VaultStrategy): Promise<Se
   // Fresh broadcast. `onPreflight` persists the broadcast IDENTITY (sender/nonce/
   // calldata) BEFORE submission; `onBroadcast` persists the tx hash the instant it is
   // sent. A crash in between leaves an ambiguous `broadcasting` attempt (above).
-  try {
-    const n = await strategy.broadcast({
+  /**
+   * RETRY A REFUSED BROADCAST IMMEDIATELY, NOT ON THE NEXT SWEEP.
+   *
+   * The nonce is read at preflight and used at broadcast. Under bursty traffic several payouts
+   * settle in the same tick, and an endpoint whose mempool view lags hands two of them the same
+   * number — the second is refused with "nonce too low". Measured on prod 2026-08-16 across a live
+   * campaign: it happened three times in an hour, and each cost the tester a full sweep cycle of
+   * waiting for something that could be resolved in milliseconds.
+   *
+   * A refusal of THIS kind proves nothing was accepted (see `definitivelyNotBroadcast`), so reading
+   * a fresh nonce and going again is safe — and bounded to one extra attempt, so a genuinely
+   * unhealthy endpoint still surfaces instead of spinning.
+   */
+  const broadcastOnce = () =>
+    strategy.broadcast({
       onPreflight: (meta) =>
         markBroadcasting(plan.payoutIntentHash, {
           senderAddress: meta.sender,
@@ -892,6 +905,15 @@ export async function settleWithRecoveryVia(strategy: VaultStrategy): Promise<Se
         }),
       onBroadcast: (h) => markBroadcast(plan.payoutIntentHash, h),
     });
+
+  try {
+    let n;
+    try {
+      n = await broadcastOnce();
+    } catch (first) {
+      if (!definitivelyNotBroadcast(first)) throw first;
+      n = await broadcastOnce(); // fresh nonce read inside; nothing was in flight
+    }
     // A settled/rejected on-chain result is decoded — integrity-check it (V2) before
     // it advances the attempt. A no-tx result (V1 needs-owner-add) leaves it prepared.
     if (n.status === "settled" || n.status === "rejected") assertRecoveredMatchesPlan(n, plan);

@@ -123,13 +123,62 @@ function slug(s: string): string {
 }
 
 /** Extract the missions array from the model's JSON, tolerating common shape variations. */
-function extractMissionArray(json: unknown): unknown[] {
+/**
+ * READ EVERY SHAPE THAT MEANS "HERE ARE THE MISSIONS".
+ *
+ * A shape this does not recognise costs a real founder their whole inspection: four minutes of
+ * browsing thrown away, and "Sage's reviewer returned an unusable response" on their screen.
+ * Measured on prod 2026-08-16, four such failures in twelve hours (~18% of runs), including
+ * www.jumia.com.ng — and retrying cannot help, because the gateway's shape preference is per-PROMPT,
+ * so five attempts return the same wrapper five times.
+ *
+ * So the reader searches instead of guessing: a known key first (cheap and exact), then ANY key
+ * holding an array of objects that look like missions, at either of the top two levels. Strictness
+ * is unaffected — every element still passes `coerceMission` and then the deterministic gate, which
+ * is where a bad mission is actually stopped. This only decides where to LOOK.
+ */
+const MISSION_KEYS = [
+  "missions", "Missions", "testingMissions", "testing_missions", "missionPlan",
+  "plan", "data", "result", "output", "response", "items", "tasks",
+];
+
+/** Does this look like a mission the coercer could accept? Deliberately loose — the gate decides. */
+function looksLikeMission(v: unknown): boolean {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.title === "string" && (typeof o.objective === "string" || typeof o.instructions === "string");
+}
+
+function missionArrayIn(v: unknown): unknown[] | null {
+  if (Array.isArray(v) && v.some(looksLikeMission)) return v;
+  return null;
+}
+
+export function extractMissionArray(json: unknown): unknown[] {
   if (Array.isArray(json)) return json;
   const o = (json ?? {}) as Record<string, unknown>;
-  for (const k of ["missions", "Missions", "testingMissions", "plan", "data", "result"]) {
-    const v = o[k];
-    if (Array.isArray(v)) return v;
-    if (v && typeof v === "object" && Array.isArray((v as Record<string, unknown>).missions)) return (v as { missions: unknown[] }).missions;
+
+  for (const k of MISSION_KEYS) {
+    const direct = missionArrayIn(o[k]);
+    if (direct) return direct;
+    const nested = o[k];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      for (const k2 of MISSION_KEYS) {
+        const deep = missionArrayIn((nested as Record<string, unknown>)[k2]);
+        if (deep) return deep;
+      }
+    }
+  }
+  // No known key matched: take ANY array of mission-shaped objects, top two levels.
+  for (const v of Object.values(o)) {
+    const hit = missionArrayIn(v);
+    if (hit) return hit;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      for (const v2 of Object.values(v as Record<string, unknown>)) {
+        const deep = missionArrayIn(v2);
+        if (deep) return deep;
+      }
+    }
   }
   // a single mission object returned bare (has a title + objective) → wrap it.
   if (typeof o.title === "string" && typeof o.objective === "string") return [o];
