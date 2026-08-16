@@ -622,6 +622,23 @@ export class CampaignVaultV2Strategy implements VaultStrategy {
   }
 }
 
+/**
+ * Did the node REFUSE this transaction outright, proving nothing was accepted?
+ *
+ * Deliberately a small allowlist of unambiguous rejections. Anything not matched here stays
+ * ambiguous and is reconciled against the chain — the default must remain "assume it might have
+ * landed", because the cost of guessing wrong in the other direction is paying somebody twice.
+ */
+export function definitivelyNotBroadcast(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    m.includes("nonce too low") ||
+    m.includes("is lower than the current nonce") ||
+    m.includes("replacement transaction underpriced") ||
+    m.includes("transaction underpriced")
+  );
+}
+
 /* ───────────────────────────────────────────────────── strategy select ──── */
 
 /**
@@ -889,7 +906,23 @@ export async function settleWithRecoveryVia(strategy: VaultStrategy): Promise<Se
     // If we already entered `broadcasting` (identity persisted, a tx MAY be in flight),
     // do NOT overwrite that ambiguous marker — recovery must reconcile it, not resend.
     const cur = getAttempt(plan.payoutIntentHash);
-    if (cur?.status !== "broadcasting") markFailed(plan.payoutIntentHash, errMsg(err));
+    /**
+     * A REJECTED TRANSACTION IS NOT AN AMBIGUOUS ONE.
+     *
+     * Leaving the attempt in `broadcasting` is right when a tx MAY be in flight — that is what the
+     * reconciler exists for. But some errors are the node telling us, definitively, that it refused
+     * the transaction: a nonce below the account's current nonce was never accepted into any
+     * mempool, and a rejected-underpriced tx was never accepted either. Treating those as ambiguous
+     * parks a payout that could simply be retried with a fresh nonce.
+     *
+     * Measured on prod 2026-08-16: six payouts settled in quick succession, a seventh had reserved
+     * nonce 103 at preflight, and by the time it broadcast the account had moved past it —
+     * "Nonce provided for the transaction (103) is lower than the current nonce of the account."
+     * The tester had cleared the bar and was parked behind a nonce that no longer existed.
+     */
+    if (cur?.status !== "broadcasting" || definitivelyNotBroadcast(err)) {
+      markFailed(plan.payoutIntentHash, errMsg(err));
+    }
     throw err;
   }
 }
