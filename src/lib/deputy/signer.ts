@@ -136,6 +136,36 @@ export async function sendVaultWrite(
   const account = operatorAccount(chainId);
   const chain = viemChainFor(chainId);
   const abi = req.abi ?? policyVaultAbi;
+  /**
+   * NEVER BROADCAST A PAYOUT AT THE BARE ESTIMATE.
+   *
+   * viem estimates gas and sends exactly that. `requestPayout` writes storage behind a reentrancy
+   * guard, and the guard's own sentry is charged LAST — so an estimate that is even slightly low
+   * does not merely cost more gas, it reverts the whole payout with "out of gas: not enough gas for
+   * reentrancy sentry". Measured on prod 2026-08-16, tx 0x378bf6…4138: a tester who had cleared the
+   * bar was not paid for exactly this reason, and the estimate came from an endpoint whose numbers
+   * ran low. Estimates vary by node, by state, and by whether a storage slot is cold — treating one
+   * as exact is the mistake.
+   *
+   * A 50% headroom costs a few cents of unused gas (unused gas is refunded; only the estimate is
+   * inflated) and removes a whole class of silent payout failure. It is applied to every vault write
+   * because they all take the same shape: guarded, storage-writing, and paying someone real money.
+   */
+  const gasWithHeadroom = async (): Promise<bigint | undefined> => {
+    try {
+      const est = await publicClient(chainId).estimateContractGas({
+        address: req.address,
+        abi,
+        functionName: req.functionName,
+        args: req.args,
+        account,
+      });
+      return (est * BigInt(3)) / BigInt(2);
+    } catch {
+      return undefined; // estimation unavailable → let viem do what it did before
+    }
+  };
+  const gasLimit = await gasWithHeadroom();
   const write = (gasPrice?: bigint) =>
     wallet.writeContract({
       address: req.address,
@@ -143,6 +173,7 @@ export async function sendVaultWrite(
       functionName: req.functionName,
       args: req.args,
       account,
+      ...(gasLimit != null ? { gas: gasLimit } : {}),
       chain,
       ...(req.nonce != null ? { nonce: req.nonce } : {}),
       ...(gasPrice != null ? { gasPrice } : {}),
