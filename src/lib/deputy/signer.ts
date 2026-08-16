@@ -96,7 +96,8 @@ function operatorWalletClient(chainId: number): WalletClient {
     w = createWalletClient({
       account: operatorAccount(chainId),
       chain: viemChainFor(chainId),
-      transport: http(chainConfig(chainId).rpcUrl),
+      // Broadcast endpoint when one is configured; otherwise the read endpoint, unchanged.
+      transport: http(chainConfig(chainId).writeRpcUrl ?? chainConfig(chainId).rpcUrl),
     });
     wallets.set(chainId, w);
   }

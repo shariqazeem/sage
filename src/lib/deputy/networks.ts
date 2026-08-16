@@ -26,6 +26,8 @@ export interface ChainConfig {
   /** short label for the UI network chip. */
   chipLabel: string;
   rpcUrl: string;
+  /** Endpoint used for BROADCASTING signed transactions, when it must differ from the read endpoint. */
+  writeRpcUrl?: string;
   explorerUrl: string;
   /** settlement token (USDC); null until deployed (Sepolia MockUSDC via env). */
   usdcAddress: Address | null;
@@ -83,6 +85,18 @@ export const CHAINS: Record<number, ChainConfig> = {
     name: "GOAT Network",
     chipLabel: "GOAT Mainnet",
     rpcUrl: process.env.GOAT_RPC_URL ?? "https://rpc.goat.network",
+    /**
+     * READS AND WRITES CAN NEED DIFFERENT ENDPOINTS, and pretending otherwise cost real payouts.
+     *
+     * 2026-08-15/16: one backend behind `rpc.goat.network`'s anycast froze ten hours while claiming
+     * `eth_syncing: false`, so reads from this host were a day stale. The explorer's JSON-RPC was
+     * current and unblocked every read — then failed under load on the write path, and seven testers
+     * who had cleared the bar could not be paid. Neither endpoint was good at both jobs.
+     *
+     * So the two are separable. `GOAT_WRITE_RPC_URL` broadcasts; `GOAT_RPC_URL` reads. Unset, they
+     * are the same endpoint and behaviour is byte-identical to before.
+     */
+    writeRpcUrl: process.env.GOAT_WRITE_RPC_URL ?? undefined,
     explorerUrl: "https://explorer.goat.network",
     usdcAddress: GOAT_USDC,
     nativeSymbol: "BTC",
