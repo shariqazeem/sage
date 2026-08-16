@@ -20,6 +20,7 @@ import {
 import { awaitSpendOutcome } from "@/lib/deputy/signer";
 import { operatorAddress } from "@/lib/deputy/signer";
 import { findSettleTxByIntent, isIntentUsed as v1IsIntentUsed } from "@/lib/deputy/chain";
+import { supportsIntentReplayProtection } from "@/lib/deputy/vault-capability";
 import { explorerTxUrl } from "@/lib/deputy/networks";
 import {
   campaignFailedCheckReason,
@@ -567,6 +568,30 @@ export class CampaignVaultV2Strategy implements VaultStrategy {
     ]);
     if (pending <= attempt.broadcastNonce && latest <= attempt.broadcastNonce) {
       return { kind: "resend" }; // nonce unused → no tx was accepted → safe to broadcast
+    }
+    /**
+     * A CONSUMED NONCE IS NOT PROOF THIS INTENT WAS PAID — AND THE VAULT, NOT THE NONCE, IS THE
+     * DOUBLE-PAY GUARD.
+     *
+     * Measured on prod 2026-08-16: THREE attempts each reserved nonce 94, because each read the
+     * pending nonce before any of them broadcast. One used it and reverted out of gas; the other two
+     * were then held forever on the reasoning "a consumed nonce means a tx was in flight" — true, but
+     * it was somebody else's tx. Seven testers who had done the work sat unpaid behind that.
+     *
+     * `resolveIntentOnChain()` has already returned `resend`, which means this intent has NO on-chain
+     * outcome. On a vault that enforces intent replay protection, re-broadcasting cannot double-pay
+     * even if a tx for this intent were somehow in flight: the vault itself refuses a second payout
+     * for the same intent hash, which is precisely the property mainnet autopay is gated on. So the
+     * nonce evidence is superseded by a stronger guarantee, and holding adds no safety — only delay.
+     *
+     * Without that protection the old conservative hold stands, unchanged.
+     */
+    const replayProtected = await supportsIntentReplayProtection(
+      getAddress(this.campaign.vaultAddress),
+      this.campaign.chainId,
+    ).catch(() => "unknown" as const);
+    if (replayProtected === "supported" && !(await this.isIntentUsed().catch(() => true))) {
+      return { kind: "resend" }; // the vault enforces once-only; a fresh nonce is safe
     }
     return {
       kind: "hold",
