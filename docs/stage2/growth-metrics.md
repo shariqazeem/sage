@@ -23,7 +23,7 @@ re-derived.
 | Inspections completed to a plan | **570** of 722 | status = ready |
 | Inspections, last 7 days | **197** | `inspection_jobs` |
 | Campaigns funded with real USDC | **12** | campaigns on chain 2345 |
-| External feedback submissions | **13** | feedback table, self-tests excluded |
+| Feedback from real users | **37** | 22 verified mission reports + 15 widget submissions |
 
 Full ledger: [`payout-ledger.md`](./payout-ledger.md) · Full feedback: [`feedback-log.md`](./feedback-log.md)
 

@@ -24,7 +24,7 @@ anyone can re-derive from [`docs/stage2/`](docs/stage2/).
 | Autonomous payouts on GOAT Mainnet | **20** |
 | People paid, none of them the operator | **15** |
 | Products inspected | **65** |
-| Feedback from real users | **13** |
+| Feedback from real users | **37** |
 | Bugs found by users, fixed same day | **2** |
 
 Two funded campaigns tell the story. [clawup.org](https://sagepays.xyz/c/launch-clawup-org-tf62c8)
