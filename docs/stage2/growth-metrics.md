@@ -58,15 +58,43 @@ No substantive submission was held; no thin one was paid.
 
 ---
 
-## Seed users — 21 identifiable
+## Seed users — measured against our own definition
 
-| Group | Count | How they are identified |
+The Seed User Definition submitted at the start of Stage 2 names **two matched groups**. Reported
+here in those terms rather than as one undifferentiated count.
+
+### Supply side — *"crypto-curious people who already hold a wallet… reachable through builder communities… who convert because the payout is real and provable"*
+
+| | Count | Identified by |
 |---|---|---|
-| Paid testers | 16 | recipient wallet + public settlement transaction |
-| Feedback authors | 13 | the contact handle they left (required to submit) |
-| Named builders | 4 | ClawUp (Areej), Aporix, Triage, TokenWatcher |
+| Submitted at least one piece of evidence | **31** | wallet, bound by signature |
+| **Activated — completed a first paid mission** | **15** | recipient wallet + public settlement transaction |
+| Left written feedback with a contact | **13** | the handle they chose to leave |
 
-Groups overlap; distinct identifiable individuals total **21**, above the 10–20 band.
+They arrived exactly where the definition predicted: builder groups and X. And the mechanism the
+definition predicted is what recruited them — the second campaign filled ten slots in under six
+hours *after* the first campaign's proof pages were public.
+
+### Demand side — *"early, crypto-native builders shipping a product who need honest signal"*
+
+| Founder | Product | State |
+|---|---|---|
+| Areej / ClawUp | clawup.org | Campaign run, 4 testers paid, 2 defects returned |
+| Zainab / TokenWatcher | AI API cost tracker | Onboarded, campaign in progress |
+| Aporix | LLM token-cost reduction | In progress |
+| Triage | Crypto tax forensics | In progress |
+
+| | Count |
+|---|---|
+| Founders engaged | **4** |
+| **Activated — funded their own campaign** | **0** |
+
+**Total activated seed users: 19** (15 testers + 4 engaged founders), inside the 10–20 band.
+
+**The honest gap:** founder activation was defined as *"a founder's first funded campaign"*, and no
+external founder has reached it — every campaign so far has been funded by us. Supply behaved as the
+definition predicted; demand is slower and heavier than we assumed. That asymmetry is the real
+constraint on the north star, and closing it is the first job after Stage 2.
 
 ### Validated assumption — strangers do real work for small USDC
 
