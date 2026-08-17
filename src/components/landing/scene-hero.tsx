@@ -51,7 +51,11 @@ export function SceneHero({
             <a href="#how" className="btn btn-ghost">
               Watch Sage work
             </a>
-            <Link href="/c/founding-testers" className="btn btn-quiet">
+            {/* The board, not one campaign. This pointed at a single flagship campaign that had
+                long since filled, so the landing page's one call-to-action for TESTERS sent a
+                stream of real people to a dead page — measured on 2026-08-17, while a live
+                marketplace of open missions sat one route away. */}
+            <Link href="/marketplace" className="btn btn-quiet">
               Explore live missions <ArrowRight size={13} strokeWidth={2} />
             </Link>
           </div>

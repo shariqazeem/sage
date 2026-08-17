@@ -30,7 +30,7 @@ export function SceneClose({
           <Link href="/dashboard" className="btn cl-cta-primary">
             Launch your first campaign <ArrowRight size={17} strokeWidth={2.2} />
           </Link>
-          <Link href="/c/founding-testers" className="btn cl-cta-ghost">
+          <Link href="/marketplace" className="btn cl-cta-ghost">
             Explore live missions
           </Link>
         </div>
