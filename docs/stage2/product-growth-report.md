@@ -113,17 +113,28 @@ The second campaign filled **10 slots in under six hours** from a single post, a
 campaign's payouts were public. The first took ten hours to fill four. The proof pages did the
 recruiting, exactly as the proposal predicted.
 
-### Unpaid feedback does not follow paid work — invalidated, then fixed
+### Feedback does not arrive as a reply — it arrives as the work
 
-Zero of four paid testers on the first campaign responded to a request for feedback afterwards. The
-proposal assumed a paid tester would be a willing feedback source; they were not. So feedback became
-the **paid work itself** — Sage designs a mission it can only settle after verifying the person used
-the product and left feedback with a contact.
+Zero of four paid testers on the first campaign responded to a request for feedback afterwards, and
+we recorded that as an invalidated assumption: paid testers are not willing feedback sources.
 
-Result: **13 pieces of real feedback** in a few hours, four containing genuine bugs, two fixed and
-deployed the same day.
+**That reading was wrong, and finding out why was the most valuable thing Stage 2 taught us.** All
+eight ClawUp testers had written detailed feedback — the exact pairing command, the three channel
+credential shapes, the deployment state sequence, a code-verification timing, a resend button with no
+countdown. It was in their submissions the entire time. Nobody was withholding anything. We had
+simply built no screen that showed a founder what the people they paid had written, and then
+concluded from that silence that the feedback did not exist.
 
-This is the single most valuable thing Stage 2 taught us, and it came from a metric failing.
+Two changes came out of it:
+
+1. **Feedback became the paid work itself** on the second campaign — a mission Sage can only settle
+   after verifying the person used the product and reported on it. Result: **13 pieces of real
+   feedback** in a few hours, four containing genuine bugs, two fixed and deployed the same day.
+2. **The founder console now shows every tester's written account**, including submissions Sage held
+   or refused. The feedback from the first campaign became readable weeks after it was given.
+
+The lesson generalises past this product: *a metric reading zero is a claim about your instrument
+before it is a claim about the world.*
 
 ### Small, real, fast beats large and promised — confirmed
 

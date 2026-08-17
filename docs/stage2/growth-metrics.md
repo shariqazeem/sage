@@ -103,11 +103,16 @@ Feishu → App ID + Secret; Slack → xoxb + xapp), the deployment state sequenc
 command. Two pasted their agent's own reply, and the two replies were unrelated — which is also how
 the anti-copy check cleared them.
 
-### Invalidated assumption — unpaid feedback follows paid work
+### Corrected assumption — feedback arrives as the work, not as a reply
 
-Zero of four paid ClawUp testers responded to a request for feedback afterwards. The second campaign
-was rebuilt around that: feedback became the paid deliverable itself, and a contact handle became
-mandatory. Thirteen feedback submissions followed.
+Zero of four paid ClawUp testers responded to a request for feedback afterwards, which we first read
+as "paid testers won't give feedback". Wrong: all eight had written detailed feedback inside their
+submissions — pairing commands, credential shapes, deployment states, a resend button with no
+countdown. We had built no screen showing a founder what the people they paid had written, and
+mistook that silence for absence.
+
+Both halves are now fixed: feedback is the paid work on newer campaigns (13 submissions followed),
+and the founder console shows every account, including held and refused ones.
 
 ---
 
