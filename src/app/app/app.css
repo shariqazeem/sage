@@ -1696,3 +1696,18 @@
     gap: 1.4rem;
   }
 }
+
+/* The tester's own words in the founder's console — the thing they actually bought. */
+.cw-subs-note { margin: 0 0 12px; font-size: 13.5px; line-height: 1.55; opacity: 0.7; max-width: 62ch; }
+.cw-sub-account {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  padding: 11px 14px;
+  border-left: 2px solid currentColor;
+  border-radius: 0 8px 8px 0;
+  background: rgba(127, 127, 127, 0.07);
+  font-size: 13.5px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  opacity: 0.92;
+}

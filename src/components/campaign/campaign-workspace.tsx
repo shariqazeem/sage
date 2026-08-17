@@ -29,6 +29,8 @@ export interface WorkspaceSubmission {
   reason: string | null;
   proofTx: string | null;
   at: number;
+  /** what the tester actually WROTE — the deliverable. Owner-only; never rendered publicly. */
+  account: string | null;
 }
 
 export interface WorkspaceMission {
@@ -261,6 +263,12 @@ function Console({ data }: { data: WorkspaceData }) {
 
       {/* submissions */}
       <div className="cw-sec-label">Tester submissions</div>
+      {data.submissions.length > 0 && (
+        <p className="cw-subs-note">
+          Everything a tester wrote is below — including submissions Sage held or refused. You paid
+          for the verified ones; you can read all of them.
+        </p>
+      )}
       {data.submissions.length === 0 ? (
         <div className="sage-agent-card cw-empty">
           No submissions yet. Share the tester link above — Sage reviews and pays each valid
@@ -289,6 +297,8 @@ function Console({ data }: { data: WorkspaceData }) {
                     <span className="cw-sub-reason">{s.reason ?? ""}</span>
                   )}
                 </div>
+                {/* What they wrote — the deliverable, not a footnote to it. */}
+                {s.account && <p className="cw-sub-account">{s.account}</p>}
               </div>
             );
           })}

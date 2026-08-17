@@ -82,6 +82,16 @@ export default async function CampaignConsolePage({
               : brief?.reasonCode ?? brief?.summary ?? null,
             proofTx: s.status === "paid" ? s.payoutTx : null,
             at: s.decidedAt ?? s.createdAt,
+            /**
+             * THE THING THE FOUNDER ACTUALLY BOUGHT.
+             *
+             * The console showed wallets, states and confidence — everything ABOUT the work and
+             * none OF it. A founder running a feedback campaign would fund it, get four testers,
+             * and never see a word any of them wrote. Owner-gated (`isOwner` guards this whole
+             * branch) and never public: the tester board and activity feed still show no submitter
+             * text, which is a standing safety rule.
+             */
+            account: s.note ?? null,
           };
         })
     : [];
