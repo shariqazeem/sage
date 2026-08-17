@@ -23,7 +23,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "Invalid JSON body." }, { status: 400 });
   }
 
+  /**
+   * AN INSPECTION IS SIGNED-IN WORK NOW.
+   *
+   * It was open to anyone, and each run costs real model spend with nothing attributable at the end
+   * of it: a quarter of all inspections came from `anonymous`, and when one of those people later
+   * left feedback there was no way to connect the two. Requiring a signed-in wallet fixes both at
+   * once — every inspection has an owner, every piece of feedback can be traced to the run it came
+   * from, and the cost is bounded by something we can see.
+   *
+   * Signing in is a free signature: no gas, no transaction, no funds moved.
+   */
   const session = await getSessionAddress();
+  if (!session) {
+    return NextResponse.json(
+      { ok: false, error: "Connect your wallet to run an inspection — it's a free signature, no gas and nothing spent." },
+      { status: 401 },
+    );
+  }
   // Request-scoped identity: the browser mints one UUID per launch form (a double-submit reuses
   // it → one job; a fresh form is a fresh turn). Junk/absent → a server-minted id. Never LLM-sourced.
   const planningRequestId = webRequestIdFrom(body.requestId);
@@ -36,10 +53,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // OPTIONAL test account for the founder's OWN product — sealed at the door in startInspection,
     // never logged, never echoed back in any response.
     testAccount: body.testAccount,
-    founder: session ?? "anonymous",
+    founder: session,
     planningRequestId,
     surface: "web",
-    actor: session ?? "anonymous",
+    actor: session,
   });
   if (!result.ok) {
     const status = result.error === "request_identity_mismatch" ? 409 : 400;

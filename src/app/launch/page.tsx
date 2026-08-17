@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./launch.css";
 import { LaunchForm } from "@/components/launch/launch-form";
 import { RecentInspectionsList } from "@/components/launch/recent-inspections-list";
+import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";
 
 export const metadata: Metadata = {
   title: "Launch with Sage — turn your product into a paid testing plan",
@@ -28,6 +29,9 @@ export default function LaunchPage() {
         </div>
 
         <LaunchForm />
+
+        {/* Proof of supply before they type a URL — the objection arrives before the plan does. */}
+        <TesterSupplyProof compact />
         <RecentInspectionsList />
       </div>
     </div>

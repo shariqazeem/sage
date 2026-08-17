@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
+import { useSiwe } from "@/lib/auth/use-siwe";
 
 /** The mailbox Sage owns and reads sign-in codes from. A founder registers their TEST account with
  *  this address when their product has no password, so nobody ever hands Sage an inbox credential. */
@@ -61,6 +62,18 @@ function isHttpUrl(u: string): boolean {
 
 export function LaunchForm() {
   const router = useRouter();
+  /**
+   * SIGN IN BEFORE INSPECTING — asked for HERE, not after four minutes of typing.
+   *
+   * An inspection costs real model spend and used to be open to anyone: a quarter came from
+   * `anonymous`, and when one of those people later left feedback there was no way to tell whose
+   * run it was. The server now refuses an unsigned request, so the form has to say so up front —
+   * discovering it at the submit button would be the worst possible moment.
+   *
+   * It is a free signature: no gas, no transaction, no funds moved. The copy says that, because
+   * "connect your wallet" reads like a charge to anyone who has not done it before.
+   */
+  const siwe = useSiwe();
   const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5", testEmail: "", testPassword: "" });
@@ -95,6 +108,18 @@ export function LaunchForm() {
 
   const submit = async () => {
     if (!stepValid()) return;
+    if (!siwe.authed) {
+      setError(null);
+      const ok = siwe.address ? await siwe.signIn() : (await siwe.connect(), false);
+      if (!ok) {
+        setError(
+          siwe.address
+            ? "Sign the message to start — it's free, no gas and nothing is spent."
+            : "Connect your wallet to start — it's a free signature, no gas and nothing is spent.",
+        );
+        return;
+      }
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -263,6 +288,12 @@ export function LaunchForm() {
         )}
 
         <div className="lxo-hint">{s.hint}</div>
+        {!siwe.authed && last && (
+          <p className="lxo-hint" style={{ marginTop: 6, opacity: 0.85 }}>
+            You&apos;ll sign a free message to start — no gas, no transaction, nothing spent. It just
+            ties this inspection to you so your plan and any feedback stay yours.
+          </p>
+        )}
       </div>
 
       {error && (
@@ -280,8 +311,14 @@ export function LaunchForm() {
           <span className="lxo-step-count">Step {step + 1} of {STEPS.length}</span>
         )}
         {last ? (
-          <button type="button" className="lx-btn" onClick={submit} disabled={submitting || !stepValid()}>
-            {submitting ? "Starting…" : "Let Sage inspect"}
+          <button type="button" className="lx-btn" onClick={submit} disabled={submitting || !stepValid() || siwe.connecting || siwe.signingIn}>
+            {submitting
+              ? "Starting…"
+              : siwe.connecting || siwe.signingIn
+                ? "Connecting…"
+                : siwe.authed
+                  ? "Let Sage inspect"
+                  : "Connect wallet & inspect"}
             <span aria-hidden>→</span>
           </button>
         ) : (

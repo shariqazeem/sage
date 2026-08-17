@@ -5,6 +5,7 @@ import { getInspectionJob } from "@/lib/db/inspection";
 import { feedbackAtForInspection } from "@/lib/db/feedback";
 import { jobToView } from "@/lib/launch/job";
 import { LaunchResults } from "@/components/launch/launch-results";
+import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";
 import type { JobView as ClientJobView } from "@/components/launch/types";
 
 export const runtime = "nodejs";
@@ -48,6 +49,9 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
         )}
 
         <LaunchResults initial={view as unknown as ClientJobView} />
+
+        {/* The founder decides HERE. Answer "will anyone come?" on the page where they approve. */}
+        {view.status === "ready" && <TesterSupplyProof />}
       </div>
     </div>
   );

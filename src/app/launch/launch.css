@@ -407,3 +407,63 @@
 }
 .lx-remove-mission:hover { text-decoration: underline; }
 .lx-remove-mission:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Tester supply proof ──────────────────────────────────────────────────────
+   The answer to the only question a founder actually has before funding: will
+   anyone come? Real numbers, recomputed per render, never a hopeful zero. */
+.tsp {
+  border: 1px solid var(--lx-line, #e3ded4);
+  border-radius: 12px;
+  background: var(--lx-paper-2, #f5f3ee);
+  padding: 20px 22px;
+  margin: 22px 0;
+}
+.tsp-compact { padding: 16px 18px; margin: 16px 0; }
+.tsp-eyebrow {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #15803d;
+  margin: 0 0 10px;
+}
+.tsp-lede { margin: 0 0 16px; font-size: 15.5px; line-height: 1.6; max-width: 60ch; }
+.tsp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px 20px;
+  margin: 0 0 14px;
+}
+.tsp-stats dt {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--lx-muted, #6b6560);
+  margin: 0 0 5px;
+}
+.tsp-stats dd {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--lx-ink, #1a1d21);
+}
+.tsp-note {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--lx-muted, #6b6560);
+  max-width: 62ch;
+}
+.tsp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 14px;
+  color: #c2410c;
+  text-decoration: none;
+}
+.tsp-link:hover { text-decoration: underline; }
