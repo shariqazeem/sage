@@ -20,8 +20,9 @@ anyone can re-derive from [`docs/stage2/`](docs/stage2/).
 
 | | |
 |---|---|
-| Autonomous USDC payouts | **22** |
-| People paid, none of them the operator | **16** |
+| USDC settled to external testers | **$47.55** |
+| Autonomous payouts on GOAT Mainnet | **20** |
+| People paid, none of them the operator | **15** |
 | Products inspected | **65** |
 | Feedback from real users | **13** |
 | Bugs found by users, fixed same day | **2** |

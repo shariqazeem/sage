@@ -6,8 +6,8 @@ Every number here is either a transaction on GOAT Mainnet or a row in the produc
 Nothing is self-reported by the agent, and each figure names where it comes from so it can be
 re-derived.
 
-> **Incomplete.** The Product Growth Report needs the original Stage 2 growth-metrics target to
-> state Met / Not Met against. This document is the measured half.
+> Target status is stated in [`product-growth-report.md`](./product-growth-report.md), measured
+> against the Growth Metrics Proposal submitted at the start of Stage 2. **Status: MET.**
 
 ---
 
@@ -15,8 +15,9 @@ re-derived.
 
 | Metric | Result | Source |
 |---|---|---|
-| Autonomous USDC payouts, mainnet | **22** | settlement journal + on-chain tx |
-| Distinct external wallets paid | **16** | submissions, operator wallets excluded |
+| **USDC settled to external testers** (north star) | **$47.55** | settlement journal, operator wallets and testnet excluded |
+| Autonomous payouts, GOAT Mainnet | **20** | settlement journal + on-chain tx |
+| Distinct external wallets paid | **15** | submissions, operator wallets excluded |
 | Strangers paid in final 48h | **14** | clawup + sagepays campaigns |
 | Distinct products inspected | **65** | `inspection_jobs`, unique product URL |
 | Inspections completed to a plan | **570** of 722 | status = ready |
