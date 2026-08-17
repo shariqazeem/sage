@@ -13,6 +13,31 @@ is wrong or jailbroken.
 
 ---
 
+## Proven, not promised
+
+Real money, real strangers, on GOAT Mainnet — every figure below is a public transaction or a row
+anyone can re-derive from [`docs/stage2/`](docs/stage2/).
+
+| | |
+|---|---|
+| Autonomous USDC payouts | **22** |
+| People paid, none of them the operator | **16** |
+| Products inspected | **65** |
+| Feedback from real users | **13** |
+| Bugs found by users, fixed same day | **2** |
+
+Two funded campaigns tell the story. [clawup.org](https://sagepays.xyz/c/launch-clawup-org-tf62c8)
+filled its 4 slots in ten hours; [sagepays.xyz](https://sagepays.xyz/c/launch-sagepays-xyz-w6ynbw)
+filled 10 slots in under six, from a single post. On the second, the agent paid every account
+running 293–1,457 characters and held every one running 35–142 — **and no human made any of those
+calls.**
+
+- [**Payout ledger**](docs/stage2/payout-ledger.md) — every payout with its public proof link
+- [**Feedback log**](docs/stage2/feedback-log.md) — every user's words, verbatim, with the contact they left
+- [**Growth metrics**](docs/stage2/growth-metrics.md) — each figure with the source it came from
+
+---
+
 ## Get started in 60 seconds
 
 No wallet app, no signup. Message **[@sagedeputybot](https://t.me/sagedeputybot)** on
@@ -47,11 +72,12 @@ DMs you a mission plan in about two minutes; **nothing is charged until you fund
   **Audited across 11 product categories** (marketing pages, SaaS, docs, canvas games, SPAs,
   bot-walled stores, a login wall, a non-English product): **zero hallucinated missions — every
   break found was a capability gap, and every one is closed** (`scripts/mission-eval-matrix.mjs`).
-- **Autonomy with judgment, not a rubber stamp.** Sage **pays what it can verify** (a public
-  URL + quoted text settles automatically) **and holds what it can't** — an interactive-app
-  result it can't prove from a URL is held for a one-tap founder approval from Telegram, never
-  auto-paid on a guess. Corpus cross-verification of written accounts (against what Sage saw
-  but the tester never did) closes that loop next.
+- **Autonomy with judgment, not a rubber stamp.** Sage **pays what it can verify and holds what
+  it can't.** A public URL with quoted text settles automatically; a written account is checked
+  against Sage's own private record of what it saw for itself while exploring — so a tester is paid
+  for corroborating things the agent independently observed, not for writing convincingly. Measured
+  on a live campaign: every account of 293–1,457 characters was paid, every one of 35–142 was held,
+  with no human in the loop.
 - **Verifiable, not vibes.** Every decision cites the exact evidence it read; every payout
   is a public `/proof/<tx>` page a stranger can re-check on-chain.
 - **Observable autonomy.** The tester board shows a live "Sage activity" feed — received,
