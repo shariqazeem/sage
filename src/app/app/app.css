@@ -1358,10 +1358,13 @@
 .cw-head { max-width: 1180px; }
 .cw-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; max-width: 1180px; }
 .cw-main { min-width: 0; }
-.cw-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; }
+.cw-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; min-width: 0; }
 .cw-side-card { margin: 0 !important; }
 .cw-side .cw-share { flex-direction: column; align-items: stretch; gap: 8px; }
-.cw-side .cw-share-url { overflow-x: auto; }
+/* In the 330px sidebar the link must TRUNCATE, not scroll and not push the card wider. A founder
+   copies this URL, they never read it — `flex: 1` + a 200px min-width from the wide layout was
+   enough to overflow the card edge, so both are reset here. */
+.cw-side .cw-share-url { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cw-side .cw-missions { grid-template-columns: 1fr; }
 .cw-foot { padding: 26px 2px 60px; max-width: 74ch; }
 @media (max-width: 1080px) {
