@@ -1,15 +1,23 @@
-# Sage — hire an AI worker. Give it a budget, not your keys.
+# Sage — an AI agent that finds real people to use your product, and pays them
 
-> A founder points Sage at a product URL with a budget. Sage inspects the product,
-> designs paid testing missions, deploys an on-chain vault, and then **autonomously
-> pays human testers USDC for verified evidence — inside hard on-chain limits it can
-> never exceed.** Every payout cites its evidence and is published as a verifiable
-> `/proof/<tx>` receipt.
+> You built something. Nobody's using it. Your friends said it looks nice.
+>
+> Point Sage at your product URL with a budget. It opens the product in a real browser and
+> **uses** it, writes testing missions from what it actually saw, then finds real strangers,
+> judges their work against its own observations, and **pays them USDC — without asking you.**
+> Every payout is a public transaction with a `/proof/<tx>` receipt.
 
-**The value is bounded autonomy over money.** The agent spends without a human in the
-loop, but the *vault* — not a prompt — enforces the limits. **The AI proposes; the vault
-disposes.** Anything off-policy is blocked on-chain *before* funds move, even if the model
-is wrong or jailbroken.
+**The agent does the whole job.** It inspects, it designs the work, it recruits, it judges, it
+pays. There are exactly two human moments in the entire lifecycle: approve the plan, and fund it.
+
+It is just as important that it can **refuse**. Sage held or rejected **45%** of submissions this
+week — thin accounts, near-duplicates, work it couldn't verify against what it saw. An agent that
+pays everyone isn't doing a job, it's a faucet.
+
+*(How it's safe to let it spend: the founder's USDC lives in a contract the founder owns. Sage can
+never withdraw from it — it can only ask the contract to settle a specific piece of work, and the
+contract computes the amount and checks its own limits. The agent proposes; the vault disposes.
+Details in [Architecture](#architecture).)*
 
 ---
 
