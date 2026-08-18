@@ -1303,6 +1303,58 @@
    them a generous reading measure in the main column and demotes vault/mission/admin controls
    to a sidebar that never competes with them. Single column under 1080px. */
 .cw-board { padding-top: 78px; }
+
+/* THE HERO — identical rhythm to .mk-hero on /marketplace so the two surfaces read as one app:
+   eyebrow, Geist display title, lede, headline numbers beside the title, one rule underneath.
+   Values are mirrored deliberately rather than imported, so neither page can silently restyle
+   the other. */
+.cw-hero {
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap;
+  gap: 1.5rem 2.5rem; padding: 0.4rem 0 1.4rem; margin-bottom: 0;
+  max-width: 1180px;
+}
+.cw-hero-main { min-width: 0; }
+.cw-title {
+  margin: 0.3rem 0 0.55rem;
+  font-size: clamp(1.7rem, 3vw, 2.4rem); line-height: 1.1; letter-spacing: -0.022em;
+}
+.cw-lede {
+  margin: 0; font-size: 0.95rem; line-height: 1.55;
+  color: var(--sage-ink-2, #4a4f57); max-width: 42rem;
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+}
+.cw-lede-desc { margin-top: 0.5rem; }
+.cw-hero-stats { display: flex; gap: 2.2rem; flex: none; margin: 0; }
+.cw-hero-stats div { display: flex; flex-direction: column; gap: 0.05rem; }
+.cw-hero-stats dd {
+  margin: 0; font-size: 1.45rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em; color: var(--sage-ink, var(--ink));
+}
+.cw-hero-stats dt { font-size: 0.74rem; letter-spacing: 0.02em; color: var(--sage-ink-3, #6b7280); }
+.cw-hstat-paid { color: var(--pos, var(--ok)) !important; }
+
+/* the funded→paid bar, reduced to a hairline directly under the rule */
+/* The funded→paid bar IS the rule under the hero — one line doing two jobs, so the header never
+   stacks a border and a progress track on top of each other. */
+.cw-bar {
+  max-width: 1180px; height: 2px; border-radius: 999px;
+  background: var(--sage-rule, rgba(26, 29, 33, 0.09)); overflow: hidden; margin: 0 0 11px;
+}
+.cw-bar span { display: block; height: 100%; background: var(--pos, var(--ok)); border-radius: 999px; }
+.cw-meta {
+  display: flex; align-items: center; gap: 0.55rem 1.1rem; flex-wrap: wrap;
+  margin: 0 0 26px; font-size: 12.5px; color: var(--ter, var(--sec)); max-width: 1180px;
+}
+.cw-meta > span { display: inline-flex; align-items: center; gap: 5px; }
+.cw-meta > span + span::before { content: "·"; margin-right: 0.55rem; color: var(--line, var(--border)); }
+.cw-meta-mandate svg { color: var(--accent); }
+.cw-testnote { margin: -18px 0 24px; font-size: 12.5px; color: var(--warn, #b45309); max-width: 60ch; }
+
+@media (max-width: 860px) {
+  .cw-hero { align-items: flex-start; }
+  .cw-hero-stats { gap: 1.6rem; }
+  .cw-hero-stats dd { font-size: 1.25rem; }
+}
 .cw-head { max-width: 1180px; }
 .cw-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; max-width: 1180px; }
 .cw-main { min-width: 0; }

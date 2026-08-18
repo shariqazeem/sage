@@ -153,70 +153,53 @@ function Console({ data }: { data: WorkspaceData }) {
 
   return (
     <main className="sb-board cw-board">
-      {/* header */}
-      <div className="sage-agent-card cw-head" style={{ marginBottom: 14 }}>
-        <div className="sage-eyebrow">
-          <ShieldCheck size={13} /> Founder console · you own this vault
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <h1 className="dash-display" style={{ fontSize: "clamp(1.7rem, 3.2vw, 2.4rem)", margin: "8px 0" }}>
-            {data.title}
-          </h1>
-          <span className={`cw-status ${statusClass}`}>{statusLabel}</span>
-        </div>
-        {isStopped && (
-          <p style={{ fontSize: 13.5, color: "var(--warn)", margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-            This campaign is stopped — the remaining funds were returned to your wallet.
-          </p>
-        )}
-        {isDone && (
-          <p style={{ fontSize: 13.5, color: "var(--ok)", margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-            All missions completed — every reward has been paid.
-          </p>
-        )}
-        {data.description && (
-          <p style={{ fontSize: 14.5, color: "var(--sec)", lineHeight: 1.55, margin: "2px 0 0" }}>
-            {data.description}
-          </p>
-        )}
-
-        {/* economics */}
-        <div className="v2-econ" style={{ marginTop: 14 }}>
-          <div className="v2-econ-row">
-            <div className="v2-econ-fig"><span className="k">Funded</span><span className="v mono">{reward(data.fundedBase, data.chainId)}</span></div>
-            <div className="v2-econ-fig"><span className="k">Paid</span><span className="v mono">{reward(data.paidBase, data.chainId)}</span></div>
-            <div className="v2-econ-fig"><span className="k">Remaining</span><span className="v mono">{reward(data.remainingBase, data.chainId)}</span></div>
+      {/*
+        THE PAGE HEADER follows the same shape as /dashboard and /marketplace — eyebrow, Geist
+        display title, lede, headline numbers BESIDE the title, one rule underneath. It used to be
+        a bordered card with a small heading, which is why this screen read as older and heavier
+        than every other surface in the app while showing more important information.
+      */}
+      <header className="cw-hero">
+        <div className="cw-hero-main">
+          <div className="sage-eyebrow">
+            <ShieldCheck size={13} /> Founder console · you own this vault
           </div>
-          <div className="v2-econ-bar"><span style={{ width: `${pct}%` }} /></div>
-          <div className="v2-econ-meta">
-            <span>{networkLabel(data.chainId)}</span>
-            <span>·</span>
-            <span>{data.missionCount} mission{data.missionCount === 1 ? "" : "s"}</span>
-            <span>·</span>
-            <span>{data.paidCompletions}/{data.totalCompletions} paid</span>
-          </div>
-          {data.isTestnet && (
-            <p className="v2-testnote">
-              Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.
-            </p>
-          )}
+          <h1 className="dash-display cw-title">{data.title}</h1>
+          <p className="cw-lede">
+            <span className={`cw-status ${statusClass}`}>{statusLabel}</span>
+            {isStopped
+              ? "Stopped — the remaining funds were returned to your wallet."
+              : isDone
+                ? "All missions completed — every reward has been paid."
+                : `${data.paidCompletions} of ${data.totalCompletions} slots paid. Sage keeps working until they are full.`}
+          </p>
+          {data.description && <p className="cw-lede cw-lede-desc">{data.description}</p>}
         </div>
 
-        {/* the mandate */}
-        <div className={`cw-mandate ${autopilot ? "cw-mandate-auto" : ""}`}>
-          {autopilot ? <Zap size={15} /> : <Hand size={15} />}
-          <div>
-            <div className="cw-mandate-t">
-              {autopilot ? "Autopilot — Sage pays verified work on its own" : "Manual — you confirm each payout"}
-            </div>
-            <div className="cw-mandate-s">
-              {autopilot
-                ? `Sage settles work it can verify on its own, inside your on-chain limits it can never exceed — url-verifiable missions clear a confidence bar, observation missions must match what Sage saw for itself.`
-                : "Sage verifies and recommends; you release each reward. Every spend still passes the vault's on-chain checks."}
-            </div>
-          </div>
-        </div>
-      </div>
+        <dl className="cw-hero-stats">
+          <div><dd className="mono">{reward(data.fundedBase, data.chainId)}</dd><dt>Funded</dt></div>
+          <div><dd className="mono cw-hstat-paid">{reward(data.paidBase, data.chainId)}</dd><dt>Released</dt></div>
+          <div><dd className="mono">{reward(data.remainingBase, data.chainId)}</dd><dt>Remaining</dt></div>
+        </dl>
+      </header>
+
+      <div className="cw-bar" aria-hidden><span style={{ width: `${pct}%` }} /></div>
+      <p className="cw-meta">
+        <span>{networkLabel(data.chainId)}</span>
+        <span>{data.missionCount} mission{data.missionCount === 1 ? "" : "s"}</span>
+        <span>{data.paidCompletions}/{data.totalCompletions} paid</span>
+        <span className="cw-meta-mandate">
+          {autopilot ? <Zap size={12} /> : <Hand size={12} />}
+          {autopilot
+            ? "Autopilot — Sage settles verified work inside your on-chain limits"
+            : "Manual — Sage recommends, you release each reward"}
+        </span>
+      </p>
+      {data.isTestnet && (
+        <p className="cw-testnote">
+          Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.
+        </p>
+      )}
 
       <div className="cw-grid">
       <div className="cw-main">
