@@ -11,6 +11,7 @@ import {
   listUnresolvedSubmissionsOlderThan,
   hasStaleEvent,
   recordEvent,
+  getSubmission,
 } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
@@ -30,6 +31,12 @@ export const maxDuration = 60;
 const LOCK = "deputy_sweep";
 const LOCK_TTL = 55; // < maxDuration and < the 5-minute cron interval
 const STALE_SETTLING_SEC = 300; // a 'settling' row older than this crashed
+/**
+ * How long a heuristic receipt stays eligible for a paid LLM upgrade. A transient provider outage
+ * resolves in minutes; anything still failing after two hours is persistent, and retrying it every
+ * five minutes forever is how ~$9 of credits burned on 2026-08-18 with nobody using the system.
+ */
+const LLM_UPGRADE_MAX_AGE_SEC = 2 * 3600;
 
 /**
  * Authorize a sweep. Accepts our own `x-deputy-cron-secret` (the local watcher /
@@ -53,6 +60,8 @@ async function runSweep() {
     fees: { settled: 0, pending: 0 },
     /** never-arrives guard: unresolved submissions past the silence bound flagged this tick. */
     stale: 0,
+    /** heuristic receipts too old to keep buying an LLM upgrade for — the spend ceiling working. */
+    upgradeExpired: 0,
     /** inspection jobs whose runner died, recovered this tick. */
     inspections: { retried: 0, failed: 0 },
   };
@@ -94,11 +103,34 @@ async function runSweep() {
   // retrying a transient LLM failure (a heuristic receipt while a key exists).
   for (const id of listPendingAutopilotSubmissionIds()) {
     const dec = getDecisionBySubmission(id);
+    /**
+     * THE UPGRADE RETRY IS BOUNDED BY AGE — because an unbounded one bills forever.
+     *
+     * MEASURED 2026-08-18: nine submissions on a dead campaign each carried a heuristic receipt
+     * (the brain kept returning output the strict brief parser rejected). This branch forced a
+     * fresh LLM decision on all nine every tick; each attempt retried 3× and then through the
+     * fallback provider, so ~650 CALLS AN HOUR were billed and discarded — around $9 of credits in
+     * a few hours with no user on the system. Nothing recorded it: a failed brain run writes no
+     * `decisions` row, so the loop was invisible to every DB-level check and showed up only in the
+     * error log.
+     *
+     * The retry exists for a TRANSIENT outage — the LLM is briefly down, a heuristic receipt gets
+     * written, and the upgrade lands minutes later. A failure still unresolved hours later is not
+     * transient, it is persistent, and paying to rediscover that on a five-minute cadence is pure
+     * waste. Past the bound the heuristic receipt stands (it can never auto-pay) and the
+     * never-arrives guard above already escalates the row to a human.
+     */
     // An observation-lane ABSTAIN is a correct FINAL receipt, not a degraded one — there is no LLM
     // upgrade to buy. Without this exclusion the sweep would delete + reinsert it every tick.
-    if (dec && dec.engine === "heuristic" && dec.model !== OBSERVATION_ABSTAIN_MODEL && hasLlm()) {
+    const wantsUpgrade =
+      !!dec && dec.engine === "heuristic" && dec.model !== OBSERVATION_ABSTAIN_MODEL && hasLlm();
+    const withinBound =
+      nowSeconds() - (getSubmission(id)?.createdAt ?? 0) < LLM_UPGRADE_MAX_AGE_SEC;
+    if (wantsUpgrade && withinBound) {
       await ensureDecision(id, { force: true }).catch(() => null);
       summary.retried += 1;
+    } else if (wantsUpgrade) {
+      summary.upgradeExpired += 1;
     }
     const r = await runDeputyOnSubmission(id).catch(() => null);
     if (r?.action === "settled") summary.autopilot.settled += 1;
