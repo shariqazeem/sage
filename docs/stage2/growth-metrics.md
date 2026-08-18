@@ -116,6 +116,15 @@ and the founder console shows every account, including held and refused ones.
 
 ---
 
+## Independent validation
+
+**#ClawToTheTop, 10–14 Aug — 2nd place cohort-wide.** A two-week bootcamp growth challenge scoring
+builders on promotion, reaching real users and public visibility, judged by the organizers across
+every Stage 2 team. Sage placed second of the full cohort. It is a separate challenge that does not
+affect the competition result, but it is an outside read on the same work this report measures.
+
+---
+
 ## Product changes made from user feedback
 
 | Reporter | What they found | Status |

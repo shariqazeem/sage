@@ -102,6 +102,7 @@ log are *generated from production data*, not written by hand.
 |---|---|
 | Future Caribbean Agentic AI Buildathon | Accepted — Finance, Payments & MSME Capital track |
 | Keep.coffee Early Builder Support Program | **Selected for Cohort 1** (14 Aug) — one of five projects named publicly from a $100K AI builder programme |
+| **#ClawToTheTop growth challenge** | **2nd of the whole cohort** (10–14 Aug) — a two-week bootcamp-wide challenge on promotion, reaching real users and public visibility, judged by the organizers |
 | Metis feature | Sage featured by @MetisL2 as an autonomous QA agent (12 Aug) |
 | GOAT recognition | GOAT CMO on the account's traction: "your twitter work is great, looks like you're getting traction" |
 
