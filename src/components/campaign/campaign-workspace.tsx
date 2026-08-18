@@ -12,7 +12,7 @@ import {
   Zap,
   Hand,
 } from "lucide-react";
-import { reward, networkLabel, short } from "@/lib/format";
+import { reward, networkLabel, short, since } from "@/lib/format";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
 import { StopWithdrawCard } from "@/components/campaign/stop-withdraw-card";
@@ -146,10 +146,12 @@ function Console({ data }: { data: WorkspaceData }) {
   const statusClass = isStopped ? "cw-status-stopped" : isDone ? "cw-status-done" : "cw-status-live";
   const autopilot = data.autonomy === "autopilot";
 
+  const wrote = data.submissions.filter((s) => s.account && s.account.trim().length > 0);
+
   return (
-    <main className="sb-shell">
+    <main className="sb-board cw-board">
       {/* header */}
-      <div className="sage-agent-card" style={{ marginBottom: 14 }}>
+      <div className="sage-agent-card cw-head" style={{ marginBottom: 14 }}>
         <div className="sage-eyebrow">
           <ShieldCheck size={13} /> Founder console · you own this vault
         </div>
@@ -213,124 +215,161 @@ function Console({ data }: { data: WorkspaceData }) {
         </div>
       </div>
 
-      <SageActivity campaignId={data.id} chainId={data.chainId} initial={data.activity} />
+      <div className="cw-grid">
+      <div className="cw-main">
 
-      {/* share the tester link */}
-      <div className="sage-agent-card" style={{ marginBottom: 14 }}>
-        <div className="cw-sec-k">Invite testers</div>
-        <div className="cw-share">
-          <code className="cw-share-url mono">{data.testerUrl}</code>
-          <button
-            className="sage-btn"
-            onClick={() => {
-              navigator.clipboard?.writeText(data.testerUrl).then(
-                () => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1600);
-                },
-                () => {},
-              );
-            }}
-          >
-            {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy link</>}
-          </button>
-          <Link href={`/c/${data.id}`} className="cw-link">
-            Open board <ExternalLink size={13} />
-          </Link>
-        </div>
-      </div>
-
-      {/* missions */}
-      <div className="cw-sec-label">Missions</div>
-      <div className="cw-missions">
-        {data.missions.map((m, i) => (
-          <div key={i} className={`cw-mission ${m.full ? "cw-mission-full" : ""}`}>
-            <div className="cw-mission-top">
-              <span className="cw-mission-title">{m.title}</span>
-              <span className="cw-mission-reward mono">{reward(m.rewardBase, data.chainId)}</span>
-            </div>
-            <div className="cw-mission-slots">
-              <span>{m.paid}/{m.maxCompletions} paid</span>
-              {m.full ? (
-                <span className="cw-slot-full">Full</span>
-              ) : (
-                <span className="cw-slot-open">{m.remainingSlots} open</span>
-              )}
-            </div>
+      {/*
+        THE FEEDBACK LOG — the reason a founder opens this page.
+        This used to be a compressed status list (wallet · state · confidence) with the tester's
+        words tucked underneath as a footnote, which is exactly backwards: the founder paid for
+        the words. Here each submission reads as an entry in a log — who, which mission, when,
+        what they wrote in full, and what Sage decided. Held and refused work is included on
+        purpose: a founder who only sees the paid ones is reading a filtered version of their
+        own campaign.
+      */}
+      <section className="cw-log-wrap">
+        <div className="cw-log-head">
+          <div>
+            <h2 className="cw-log-h">What your testers told you</h2>
+            <p className="cw-log-sub">
+              Every word, in the order it arrived — including the submissions Sage held or refused.
+              You paid for the verified ones. You get to read all of them.
+            </p>
           </div>
-        ))}
-      </div>
-
-      {/* submissions */}
-      <div className="cw-sec-label">Tester submissions</div>
-      {data.submissions.length > 0 && (
-        <p className="cw-subs-note">
-          Everything a tester wrote is below — including submissions Sage held or refused. You paid
-          for the verified ones; you can read all of them.
-        </p>
-      )}
-      {data.submissions.length === 0 ? (
-        <div className="sage-agent-card cw-empty">
-          No submissions yet. Share the tester link above — Sage reviews and pays each valid
-          submission automatically, inside your limits.
-        </div>
-      ) : (
-        <div className="cw-subs">
-          {data.submissions.map((s, i) => {
-            const meta = STATE_META[s.state];
-            return (
-              <div key={i} className="cw-sub">
-                <div className="cw-sub-main">
-                  <span className="cw-sub-wallet mono">{short(s.wallet)}</span>
-                  <span className="cw-sub-mission">{s.missionTitle}</span>
-                </div>
-                <div className="cw-sub-right">
-                  {s.confidence != null && (
-                    <span className="cw-sub-conf mono">{Math.round(s.confidence * 100)}%</span>
-                  )}
-                  <span className={`cw-sub-state ${meta.cls}`}>{meta.label}</span>
-                  {s.proofTx ? (
-                    <Link href={`/proof/${s.proofTx}`} className="cw-link">
-                      Proof <ExternalLink size={12} />
-                    </Link>
-                  ) : (
-                    <span className="cw-sub-reason">{s.reason ?? ""}</span>
-                  )}
-                </div>
-                {/* What they wrote — the deliverable, not a footnote to it. */}
-                {s.account && <p className="cw-sub-account">{s.account}</p>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* provenance — progressive disclosure */}
-      <button className="cw-tech-toggle" onClick={() => setShowTech((v) => !v)}>
-        <ChevronDown size={14} style={{ transform: showTech ? "rotate(180deg)" : "none" }} />
-        Vault & provenance
-      </button>
-      {showTech && (
-        <div className="sage-agent-card cw-tech">
-          <Row k="Vault">
-            <a href={data.vaultExplorerUrl} target="_blank" rel="noopener noreferrer" className="cw-link mono">
-              {short(data.vaultAddress)} <ExternalLink size={12} />
-            </a>
-          </Row>
-          {data.campaignIdHash && <Row k="Campaign id hash"><span className="mono cw-hash">{data.campaignIdHash}</span></Row>}
-          {data.missionPlanDigest && <Row k="Mission plan digest"><span className="mono cw-hash">{data.missionPlanDigest}</span></Row>}
-          <Row k="Operator authority"><span>Bounded payout role — six on-chain checks + replay protection</span></Row>
-          {data.proofBaseTx && (
-            <Row k="Latest proof">
-              <Link href={`/proof/${data.proofBaseTx}`} className="cw-link">Open receipt <ExternalLink size={12} /></Link>
-            </Row>
+          {data.submissions.length > 0 && (
+            <div className="cw-log-count">
+              <span className="cw-log-count-n mono">{wrote.length}</span>
+              <span className="cw-log-count-k">
+                {wrote.length === 1 ? "report" : "reports"}
+              </span>
+            </div>
           )}
         </div>
-      )}
 
-      <StopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+        {data.submissions.length === 0 ? (
+          <div className="sage-agent-card cw-empty">
+            No submissions yet. Share the tester link — Sage reviews and pays each valid submission
+            automatically, inside the limits you set.
+          </div>
+        ) : (
+          <ol className="cw-log">
+            {data.submissions.map((s, i) => {
+              const meta = STATE_META[s.state];
+              return (
+                <li key={i} className={`cw-entry cw-entry-${s.state}`}>
+                  <span className="cw-entry-node" aria-hidden />
+                  <div className="cw-entry-head">
+                    <span className="cw-entry-who mono">{short(s.wallet)}</span>
+                    <span className="cw-entry-sep">·</span>
+                    <span className="cw-entry-mission">{s.missionTitle}</span>
+                    <span className="cw-entry-when">{since(s.at)}</span>
+                  </div>
 
-      <footer className="sage-hint" style={{ padding: "22px 2px 60px" }}>
+                  {s.account ? (
+                    <blockquote className="cw-entry-account">{s.account}</blockquote>
+                  ) : (
+                    <p className="cw-entry-none">This tester submitted no written account.</p>
+                  )}
+
+                  <div className="cw-entry-foot">
+                    <span className={`cw-sub-state ${meta.cls}`}>{meta.label}</span>
+                    {s.confidence != null && (
+                      <span className="cw-entry-conf mono">
+                        {Math.round(s.confidence * 100)}% confidence
+                      </span>
+                    )}
+                    {s.reason && <span className="cw-entry-reason">{s.reason}</span>}
+                    {s.proofTx && (
+                      <Link href={`/proof/${s.proofTx}`} className="cw-link cw-entry-proof">
+                        Payment receipt <ExternalLink size={12} />
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+
+      <SageActivity campaignId={data.id} chainId={data.chainId} initial={data.activity} />
+      </div>
+
+      <aside className="cw-side">
+        {/* share the tester link */}
+        <div className="sage-agent-card cw-side-card">
+          <div className="cw-sec-k">Invite testers</div>
+          <div className="cw-share">
+            <code className="cw-share-url mono">{data.testerUrl}</code>
+            <button
+              className="sage-btn"
+              onClick={() => {
+                navigator.clipboard?.writeText(data.testerUrl).then(
+                  () => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1600);
+                  },
+                  () => {},
+                );
+              }}
+            >
+              {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy link</>}
+            </button>
+            <Link href={`/c/${data.id}`} className="cw-link">
+              Open board <ExternalLink size={13} />
+            </Link>
+          </div>
+        </div>
+
+        {/* missions */}
+        <div className="cw-sec-label">Missions</div>
+        <div className="cw-missions">
+          {data.missions.map((m, i) => (
+            <div key={i} className={`cw-mission ${m.full ? "cw-mission-full" : ""}`}>
+              <div className="cw-mission-top">
+                <span className="cw-mission-title">{m.title}</span>
+                <span className="cw-mission-reward mono">{reward(m.rewardBase, data.chainId)}</span>
+              </div>
+              <div className="cw-mission-slots">
+                <span>{m.paid}/{m.maxCompletions} paid</span>
+                {m.full ? (
+                  <span className="cw-slot-full">Full</span>
+                ) : (
+                  <span className="cw-slot-open">{m.remainingSlots} open</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* provenance — progressive disclosure */}
+        <button className="cw-tech-toggle" onClick={() => setShowTech((v) => !v)}>
+          <ChevronDown size={14} style={{ transform: showTech ? "rotate(180deg)" : "none" }} />
+          Vault & provenance
+        </button>
+        {showTech && (
+          <div className="sage-agent-card cw-tech">
+            <Row k="Vault">
+              <a href={data.vaultExplorerUrl} target="_blank" rel="noopener noreferrer" className="cw-link mono">
+                {short(data.vaultAddress)} <ExternalLink size={12} />
+              </a>
+            </Row>
+            {data.campaignIdHash && <Row k="Campaign id hash"><span className="mono cw-hash">{data.campaignIdHash}</span></Row>}
+            {data.missionPlanDigest && <Row k="Mission plan digest"><span className="mono cw-hash">{data.missionPlanDigest}</span></Row>}
+            <Row k="Operator authority"><span>Bounded payout role — six on-chain checks + replay protection</span></Row>
+            {data.proofBaseTx && (
+              <Row k="Latest proof">
+                <Link href={`/proof/${data.proofBaseTx}`} className="cw-link">Open receipt <ExternalLink size={12} /></Link>
+              </Row>
+            )}
+          </div>
+        )}
+
+        <StopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+      </aside>
+      </div>
+
+      <footer className="sage-hint cw-foot">
         You own the campaign vault; Sage is the bounded operator. It reviews each submission and
         pays eligible work within your on-chain limits — it can never exceed the budget, the
         per-mission reward, or the completion caps. You can stop the campaign and withdraw the
