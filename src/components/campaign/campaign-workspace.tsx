@@ -31,6 +31,8 @@ export interface WorkspaceSubmission {
   at: number;
   /** what the tester actually WROTE — the deliverable. Owner-only; never rendered publicly. */
   account: string | null;
+  /** the mission's reward, so a paid report can state its own value. */
+  rewardBase: number | null;
 }
 
 export interface WorkspaceMission {
@@ -147,6 +149,7 @@ function Console({ data }: { data: WorkspaceData }) {
   const autopilot = data.autonomy === "autopilot";
 
   const wrote = data.submissions.filter((s) => s.account && s.account.trim().length > 0);
+  const paidCount = data.submissions.filter((s) => s.state === "paid").length;
 
   return (
     <main className="sb-board cw-board">
@@ -228,63 +231,71 @@ function Console({ data }: { data: WorkspaceData }) {
         own campaign.
       */}
       <section className="cw-log-wrap">
-        <div className="cw-log-head">
-          <div>
-            <h2 className="cw-log-h">What your testers told you</h2>
-            <p className="cw-log-sub">
-              Every word, in the order it arrived — including the submissions Sage held or refused.
-              You paid for the verified ones. You get to read all of them.
-            </p>
-          </div>
+        <header className="cw-log-head">
+          <h2 className="cw-log-h">What your testers told you</h2>
+          <p className="cw-log-sub">
+            Every word, newest first — including the reports Sage held or refused. You paid for the
+            verified ones. You get to read all of them.
+          </p>
           {data.submissions.length > 0 && (
-            <div className="cw-log-count">
-              <span className="cw-log-count-n mono">{wrote.length}</span>
-              <span className="cw-log-count-k">
-                {wrote.length === 1 ? "report" : "reports"}
-              </span>
-            </div>
+            <dl className="cw-log-stats">
+              <div><dt>Reports</dt><dd className="mono">{wrote.length}</dd></div>
+              <div><dt>Paid</dt><dd className="mono">{paidCount}</dd></div>
+              <div><dt>Released</dt><dd className="mono">{reward(data.paidBase, data.chainId)}</dd></div>
+            </dl>
           )}
-        </div>
+        </header>
 
         {data.submissions.length === 0 ? (
-          <div className="sage-agent-card cw-empty">
-            No submissions yet. Share the tester link — Sage reviews and pays each valid submission
-            automatically, inside the limits you set.
+          <div className="cw-empty">
+            <p>No reports yet.</p>
+            <p>
+              Share the tester link — Sage reviews and pays each verified submission automatically,
+              inside the limits you set.
+            </p>
           </div>
         ) : (
           <ol className="cw-log">
             {data.submissions.map((s, i) => {
               const meta = STATE_META[s.state];
+              const prev = data.submissions[i - 1];
+              // The mission title repeats on nearly every row when a campaign has one mission.
+              // Printing it 14 times is noise, so it appears only when the mission CHANGES.
+              const showMission = !prev || prev.missionTitle !== s.missionTitle;
               return (
                 <li key={i} className={`cw-entry cw-entry-${s.state}`}>
-                  <span className="cw-entry-node" aria-hidden />
-                  <div className="cw-entry-head">
-                    <span className="cw-entry-who mono">{short(s.wallet)}</span>
-                    <span className="cw-entry-sep">·</span>
-                    <span className="cw-entry-mission">{s.missionTitle}</span>
-                    <span className="cw-entry-when">{since(s.at)}</span>
-                  </div>
-
-                  {s.account ? (
-                    <blockquote className="cw-entry-account">{s.account}</blockquote>
-                  ) : (
-                    <p className="cw-entry-none">This tester submitted no written account.</p>
-                  )}
-
-                  <div className="cw-entry-foot">
-                    <span className={`cw-sub-state ${meta.cls}`}>{meta.label}</span>
-                    {s.confidence != null && (
-                      <span className="cw-entry-conf mono">
-                        {Math.round(s.confidence * 100)}% confidence
+                  {showMission && <p className="cw-entry-mission">{s.missionTitle}</p>}
+                  <article className="cw-card">
+                    <header className="cw-card-top">
+                      <span className="cw-mono-badge" style={monogramStyle(s.wallet)} aria-hidden>
+                        {s.wallet.slice(2, 4).toUpperCase()}
                       </span>
+                      <span className="cw-card-who mono">{short(s.wallet)}</span>
+                      <span className={`cw-chip ${meta.cls}`}>{meta.label}</span>
+                      <time className="cw-card-when">{since(s.at)}</time>
+                    </header>
+
+                    {s.account ? (
+                      <blockquote className="cw-card-body">{s.account}</blockquote>
+                    ) : (
+                      <p className="cw-card-empty">No written account was submitted.</p>
                     )}
-                    {s.reason && <span className="cw-entry-reason">{s.reason}</span>}
-                    {s.proofTx && (
-                      <Link href={`/proof/${s.proofTx}`} className="cw-link cw-entry-proof">
-                        Payment receipt <ExternalLink size={12} />
-                      </Link>
-                    )}
-                  </div>
+
+                    <footer className="cw-card-foot">
+                      {s.state === "paid" && s.rewardBase != null && (
+                        <span className="cw-card-amt mono">{reward(s.rewardBase, data.chainId)}</span>
+                      )}
+                      {s.confidence != null && (
+                        <span className="cw-card-note mono">{Math.round(s.confidence * 100)}% confidence</span>
+                      )}
+                      {s.reason && <span className="cw-card-note">{s.reason}</span>}
+                      {s.proofTx && (
+                        <Link href={`/proof/${s.proofTx}`} className="cw-card-proof">
+                          Receipt <ExternalLink size={12} />
+                        </Link>
+                      )}
+                    </footer>
+                  </article>
                 </li>
               );
             })}
@@ -377,6 +388,21 @@ function Console({ data }: { data: WorkspaceData }) {
       </footer>
     </main>
   );
+}
+
+/**
+ * A stable colour per wallet. Fourteen identical grey rows read as a database dump; a founder is
+ * reading FOURTEEN PEOPLE. The hue is derived from the address so the same tester looks the same
+ * every time, and the tint is faint enough to identify without decorating.
+ */
+function monogramStyle(wallet: string): React.CSSProperties {
+  let h = 0;
+  for (let i = 2; i < wallet.length; i++) h = (h * 31 + wallet.charCodeAt(i)) % 360;
+  return {
+    color: `hsl(${h} 42% 38%)`,
+    background: `hsl(${h} 46% 94%)`,
+    borderColor: `hsl(${h} 34% 84%)`,
+  };
 }
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {

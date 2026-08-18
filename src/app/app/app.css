@@ -1319,47 +1319,118 @@
   .cw-side .cw-missions { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 }
 
-/* THE LOG. A tester's account is prose a founder sits and reads, so it gets prose treatment:
-   real measure, real line-height, and a quote mark that says "a person wrote this". The
-   status chip, confidence and reason sit UNDER it in small type — they qualify the report,
-   they are not the report. The rail + node make arrival order legible at a glance. */
-.cw-log-wrap { margin: 4px 0 18px; }
-.cw-log-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
-.cw-log-h { font-size: clamp(1.15rem, 2vw, 1.45rem); font-weight: 650; letter-spacing: -0.02em; color: var(--ink); margin: 0 0 4px; }
-.cw-log-sub { font-size: 13.5px; color: var(--sec); line-height: 1.55; margin: 0; max-width: 62ch; }
-.cw-log-count { text-align: right; flex-shrink: 0; line-height: 1.1; }
-.cw-log-count-n { display: block; font-size: 26px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.cw-log-count-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ter, var(--sec)); }
+/* ────────────────────────────────────────────────────────────────────────────
+   THE REPORT LOG — fourteen people wrote to this founder, and it should feel
+   like fourteen people. The first pass rendered them as identical grey rows
+   with the words squeezed underneath; correct data, no reason to read it.
 
-.cw-log { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; }
-.cw-log::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 1px; background: var(--line, var(--border)); }
-.cw-entry { position: relative; border: 1px solid var(--line, var(--border)); border-radius: var(--r-md); background: var(--surface); padding: 14px 18px 12px; margin-bottom: 12px; }
-.cw-entry-node { position: absolute; left: -22px; top: 20px; width: 9px; height: 9px; border-radius: 999px; background: var(--line, var(--border)); border: 2px solid var(--bg, var(--surface)); }
-.cw-entry-paid .cw-entry-node { background: var(--pos, var(--ok)); }
-.cw-entry-paid { border-left: 2px solid color-mix(in srgb, var(--pos, var(--ok)) 40%, transparent); }
-.cw-entry-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.cw-entry-who { font-size: 12.5px; color: var(--sec); }
-.cw-entry-sep { color: var(--ter, var(--sec)); }
-.cw-entry-mission { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-.cw-entry-when { font-size: 12px; color: var(--ter, var(--sec)); margin-left: auto; white-space: nowrap; }
-
-.cw-entry-account {
-  margin: 0; padding: 0 0 0 14px;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  font-size: 15px; line-height: 1.7; color: var(--ink);
-  white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch;
+   What changed and why:
+   · the account is set as PROSE — 15.5px, 1.75 line-height, a 68ch measure —
+     because it is the thing the founder bought and the only thing on the card
+     that deserves a reading size.
+   · a stable colour-per-wallet monogram, so a stack of reports reads as people
+     rather than rows. Tint only; it identifies, it does not decorate.
+   · a colour spine on the left edge carries paid / held at a glance, and a
+     paid report states its own amount in money instead of only a chip.
+   · the mission title prints once per RUN, not once per row. On a one-mission
+     campaign it was repeating fourteen times and drowning the reports.
+   ──────────────────────────────────────────────────────────────────────────── */
+.cw-log-wrap { margin: 2px 0 26px; }
+.cw-log-head { margin-bottom: 22px; }
+.cw-log-h {
+  font-size: clamp(1.45rem, 2.6vw, 2rem); font-weight: 600; letter-spacing: -0.028em;
+  color: var(--ink); margin: 0 0 6px; line-height: 1.15;
 }
-.cw-entry-none { margin: 0; font-size: 13.5px; color: var(--ter, var(--sec)); font-style: italic; }
-.cw-entry-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line, var(--border)); }
-.cw-entry-conf { font-size: 12px; color: var(--sec); }
-.cw-entry-reason { font-size: 12px; color: var(--ter, var(--sec)); line-height: 1.45; }
-.cw-entry-proof { margin-left: auto; }
+.cw-log-sub { font-size: 14px; color: var(--sec); line-height: 1.6; margin: 0; max-width: 60ch; }
+
+.cw-log-stats { display: flex; gap: 34px; margin: 18px 0 0; padding: 15px 0 0; border-top: 1px solid var(--line, var(--border)); }
+.cw-log-stats div { display: flex; flex-direction: column-reverse; gap: 3px; }
+.cw-log-stats dt { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.075em; color: var(--ter, var(--sec)); }
+.cw-log-stats dd { margin: 0; font-size: 21px; font-weight: 550; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; }
+
+.cw-log { list-style: none; margin: 0; padding: 0; }
+.cw-entry { margin: 0 0 14px; }
+.cw-entry-mission {
+  margin: 26px 0 9px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.085em; color: var(--ter, var(--sec));
+}
+.cw-entry:first-child .cw-entry-mission { margin-top: 0; }
+
+.cw-card {
+  position: relative; background: var(--surface); border: 1px solid var(--line, var(--border));
+  border-left: 3px solid var(--line, var(--border)); border-radius: var(--r-md);
+  padding: 17px 22px 14px; transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.cw-card:hover { box-shadow: 0 1px 3px rgb(0 0 0 / 0.05), 0 6px 18px -8px rgb(0 0 0 / 0.10); }
+.cw-entry-paid  .cw-card { border-left-color: var(--pos, var(--ok)); }
+.cw-entry-held  .cw-card { border-left-color: color-mix(in srgb, var(--warn, #b45309) 62%, transparent); }
+.cw-entry-reviewing .cw-card { border-left-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+.cw-card-top { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+.cw-mono-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.cw-card-who { font-size: 12.5px; color: var(--sec); }
+.cw-card-when { margin-left: auto; font-size: 11.5px; color: var(--ter, var(--sec)); white-space: nowrap; }
+
+/* The chip carries the outcome at a glance, so paid and held must not look alike. A tinted fill
+   reads across the page in a way a 1px outline does not — and green/red-amber stay reserved for
+   money outcomes exactly as the design system requires. */
+.cw-chip {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; padding: 3.5px 8px; border-radius: 999px;
+  border: 1px solid transparent; color: var(--sec); line-height: 1;
+  background: color-mix(in srgb, var(--sec) 8%, transparent);
+}
+.cw-chip.cw-st-paid {
+  color: var(--pos, var(--ok));
+  background: color-mix(in srgb, var(--pos, var(--ok)) 11%, transparent);
+  border-color: color-mix(in srgb, var(--pos, var(--ok)) 22%, transparent);
+}
+.cw-chip.cw-st-held {
+  color: var(--warn, #b45309);
+  background: color-mix(in srgb, var(--warn, #b45309) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warn, #b45309) 24%, transparent);
+}
+.cw-chip.cw-st-ver, .cw-chip.cw-st-rev {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.cw-card-body {
+  margin: 0; padding: 0; border: 0;
+  font-size: 15.5px; line-height: 1.75; color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch;
+}
+.cw-card-empty { margin: 0; font-size: 13.5px; color: var(--ter, var(--sec)); font-style: italic; }
+
+.cw-card-foot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 15px; padding-top: 11px; border-top: 1px solid var(--line, var(--border));
+}
+.cw-card-amt { font-size: 13.5px; font-weight: 600; color: var(--pos, var(--ok)); font-variant-numeric: tabular-nums; }
+.cw-card-note { font-size: 11.5px; color: var(--ter, var(--sec)); line-height: 1.45; }
+.cw-card-proof {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 500; color: var(--accent); text-decoration: none; white-space: nowrap;
+}
+.cw-card-proof:hover { text-decoration: underline; }
+
+.cw-empty {
+  border: 1px dashed var(--line, var(--border)); border-radius: var(--r-md);
+  padding: 30px 26px; color: var(--sec); font-size: 14px; line-height: 1.6;
+}
+.cw-empty p { margin: 0 0 6px; }
+.cw-empty p:first-child { color: var(--ink); font-weight: 550; }
+
 @media (max-width: 620px) {
-  .cw-log { padding-left: 0; }
-  .cw-log::before, .cw-entry-node { display: none; }
-  .cw-entry { padding: 13px 14px 11px; }
-  .cw-entry-account { font-size: 14.5px; }
-  .cw-entry-when { margin-left: 0; }
+  .cw-card { padding: 15px 16px 12px; }
+  .cw-card-body { font-size: 15px; }
+  .cw-log-stats { gap: 24px; }
 }
 .cw-link { display: inline-flex; align-items: center; gap: 5px; color: var(--accent, var(--accent)); font-size: 13px; text-decoration: none; font-weight: 500; }
 .cw-link:hover { text-decoration: underline; }

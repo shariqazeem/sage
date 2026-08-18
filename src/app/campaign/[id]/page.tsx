@@ -50,6 +50,7 @@ export default async function CampaignConsolePage({
 
   const e = v2Economics(campaign);
   const titleByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.title]));
+  const rewardByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.rewardBase]));
 
   // Submissions carry founder-visible tester detail — only compose them for the owner.
   const submissions: WorkspaceSubmission[] = isOwner
@@ -92,6 +93,8 @@ export default async function CampaignConsolePage({
              * text, which is a standing safety rule.
              */
             account: s.note ?? null,
+            /** what this report was worth — a paid report should say so in money, not just a chip. */
+            rewardBase: rewardByHash.get(s.missionIdHash ?? "") ?? null,
           };
         })
     : [];
