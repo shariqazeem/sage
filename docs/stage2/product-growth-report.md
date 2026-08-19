@@ -1,6 +1,6 @@
 # Sage — Product Growth Report
 
-*OpenClaw Summer Builder Bootcamp · Stage 2 · compiled 17 Aug 2026*
+*OpenClaw Summer Builder Bootcamp · Stage 2 · compiled 19 Aug 2026*
 
 Measured against the Growth Metrics Proposal submitted at the start of Stage 2. Every figure
 resolves to an on-chain transaction or a production database row; the full ledger is in
@@ -39,6 +39,17 @@ on a testnet, because the metric was defined as money that changed hands for rea
 
 Roughly **$45 of that $47.55 settled in the final 72 hours**, from two campaigns.
 
+### Why the final week is flat
+
+Settlement is **budget-constrained, not demand-constrained**, and the constraint is checkable: as of
+19 Aug every campaign vault on GOAT Mainnet holds **0 USDC**. The two August campaigns paid out
+their full budgets — $25.00 and $21.05 — and there is no unspent balance anywhere for the agent to
+settle against.
+
+The demand side did not slow down. Ten testers completed and were paid inside 45 minutes on 16 Aug,
+and the tester contact list has grown since. What ran out was money, not people. We state this
+rather than presenting the flat week as anything else.
+
 ---
 
 ## Acquisition & activation
@@ -66,10 +77,13 @@ is the single most important thing left to prove, and it is stated here rather t
 | Outcome | Count |
 |---|---|
 | Paid | **22** |
-| Rejected / closed | **11** |
-| Pending or held | **9** |
+| Refused, with a written reason | **20** |
+| Still pending or unresolved | **0** |
 
-**52% of submissions did not result in a payout.** On the final campaign the split was measurable
+**48% of submissions did not result in a payout, and nothing is left unresolved.** As of 17 Aug
+nine submissions were still sitting in a pending state; every one has since been closed with an
+honest written reason naming the real cause — the campaign ended, the mission filled, or the
+founder withdrew — rather than being left to expire silently. No tester is waiting on us. On the final campaign the split was measurable
 against effort: every account of **293–1,457 characters was paid**, every account of **35–142
 characters was held**, and no human made any of those calls. That is the metric doing exactly the
 job it was chosen for.
@@ -80,12 +94,13 @@ job it was chosen for.
 
 | | |
 |---|---|
-| **Median, submission → settled transaction** | **204 seconds** |
+| **Median, submission → settled transaction** | **175 seconds** |
+| Payouts settled in under 90 seconds | **11 of 22** |
 | Fastest | 15 seconds |
 | Slowest | 3.7 days *(an early campaign held for manual review before autopilot was armed)* |
 
-Three and a half minutes from a stranger submitting evidence to USDC arriving in their wallet, with
-no human in the loop.
+Under three minutes from a stranger submitting evidence to USDC arriving in their wallet, with no
+human in the loop. Half of all payouts landed inside 90 seconds.
 
 ---
 
@@ -151,11 +166,25 @@ constraint on the north star.**
 
 ## Still reachable before 21 August
 
-Two gaps, both addressable in the remaining days:
+Two gaps, both addressable in the remaining days, and both downstream of the same thing:
 
-1. **One external founder funding their own campaign** — this is the missing activation event.
-   Three builders are mid-onboarding; a single $5 self-funded campaign closes it.
-2. **One tester completing missions in two different campaigns** — 15 paid testers exist and have
-   contact handles on file; a second live campaign gives them somewhere to return to.
+1. **One external founder funding their own campaign** — the missing activation event. Outreach is
+   live with builders shipping on GOAT who need user-validation evidence for grant applications,
+   which is the clearest case where a funded Sage campaign pays for itself.
+2. **One tester completing missions in two different campaigns** — 18 paid testers exist with
+   contact handles on file. They have nowhere to return to until a vault holds money again.
 
-Neither changes the Met status of the original target. Both would strengthen the layers beneath it.
+Neither changes the Met status of the original target. Both are the same constraint: with every
+vault at zero, the agent has nothing to spend, and both gaps close the moment one does.
+
+---
+
+## Companion reports
+
+| Report | Covers |
+|---|---|
+| [`seed-user-validation.md`](./seed-user-validation.md) | The 20 seed testers, tracked per campaign, and every defect they found |
+| [`clawup-ecosystem-growth.md`](./clawup-ecosystem-growth.md) | The six ClawUp activations, the MCP server, and #ClawToTheTop |
+| [`payout-ledger.md`](./payout-ledger.md) | Every payout, transaction by transaction |
+| [`feedback-log.md`](./feedback-log.md) | Every word a real user wrote, verbatim |
+| [`geo-contribution.md`](./geo-contribution.md) | Public content and engagement |
