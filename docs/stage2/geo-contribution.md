@@ -1,8 +1,10 @@
 # Sage — GEO Contribution Report
 
-*OpenClaw Summer Builder Bootcamp · Stage 2 · compiled 17 Aug 2026*
+*OpenClaw Summer Builder Bootcamp · Stage 2 · compiled 17 Aug 2026 · updated 19 Aug 2026*
 
 **Complete.** Every post below carries its real engagement, read from analytics on 17 Aug 2026.
+Posts published on 18–19 Aug are listed in §7 without impression counts, because same-day analytics
+have not settled; we would rather leave a cell empty than estimate one.
 
 | | |
 |---|---|
@@ -29,6 +31,8 @@ Live at **https://github.com/shariqazeem/sage** — public repository, indexable
 | [feedback-log.md](https://github.com/shariqazeem/sage/blob/main/docs/stage2/feedback-log.md) | User research record | 16 Aug | All external user feedback verbatim, each with the contact its author left and a link to the inspection it came from |
 | [growth-metrics.md](https://github.com/shariqazeem/sage/blob/main/docs/stage2/growth-metrics.md) | Metrics & analysis | 16 Aug | Stage 2 results, each figure with the source it can be re-derived from |
 | [product-growth-report.md](https://github.com/shariqazeem/sage/blob/main/docs/stage2/product-growth-report.md) | Metrics & analysis | 17 Aug | Target status measured against the original proposal, with the gaps named |
+| [seed-user-validation.md](https://github.com/shariqazeem/sage/blob/main/docs/stage2/seed-user-validation.md) | User research record | 19 Aug | The 20 seed testers tracked per campaign, the original assumptions tested one by one, and the trail from each user-reported defect to the commit that fixed it |
+| [clawup-ecosystem-growth.md](https://github.com/shariqazeem/sage/blob/main/docs/stage2/clawup-ecosystem-growth.md) | Case study | 19 Aug | Six people paid in USDC to sign up to ClawUp, create agents and connect live messaging channels — with their verbatim reports and the three ClawUp issues they surfaced |
 | [docs/fable-review/](https://github.com/shariqazeem/sage/tree/main/docs/fable-review) | Architecture docs | Stage 2 | As-built design documentation of the three-brain architecture and the settlement core |
 
 **Why this counts for accuracy and discoverability:** every number published is traceable to a public
@@ -91,7 +95,7 @@ log are *generated from production data*, not written by hand.
 | **Sage Marketplace launch** | 6 Aug | Public board where anyone can find and complete paid missions |
 | **Paid testing campaign for ClawUp** | 13–14 Aug | Sage signed into the ClawUp console with a dedicated test account, created an agent, interacted with it, and designed missions from the real workflow. Four testers paid; testers returned two genuine ClawUp UX defects |
 | **Funded campaigns for other Stage 2 builders** | ongoing | Covering initial USDC so founders can run a first campaign at no cost — TokenWatcher onboarded, three more builders in progress |
-| **Builder Livestream panellist** | 19 Aug | "What Is the Next Wave of AI Builders Building?" — Metis, GOAT Network, LazAI |
+| **Builder Livestream panellist** | 19 Aug | **Delivered.** "What Is the Next Wave of AI Builders Building?" — hosted by @MetisL2, alongside Finality Labs, Triage, Aitch and Agora. Sage presented the five-step agent loop and the 48% refusal rate as the measure of real judgment. The host's announcement post reached **2,300 impressions** |
 | **Founder outreach** | ongoing | GOAT, Metis, ClawUp and OpenClaw builder ecosystems — free inspections and funded first campaigns |
 
 ---
@@ -108,11 +112,23 @@ log are *generated from production data*, not written by hand.
 
 ---
 
+## 7 · Published 18–19 August
+
+Listed for completeness; impression counts are omitted because same-day analytics have not settled.
+
+| Date | Account | Type | Description |
+|---|---|---|---|
+| 19 Aug | @shariq_ai | Live event | "We are live right now with @MetisL2 discussing AI agents, their future, and what we are actively building" |
+| 19 Aug | @sagepaysai | Recap | Post-livestream recap of what Sage does, as the five-step loop |
+| 18 Aug | @shariq_ai | Recognition | #ClawToTheTop leaderboard — Sage placed 2nd cohort-wide |
+
+---
+
 ## Summary
 
 | | |
 |---|---|
-| Technical documentation assets | 6 |
+| Technical documentation assets | 8 |
 | Public product surfaces | 7 |
 | X posts across two accounts | 16 |
 | Total impressions | 19,452 |
