@@ -1,392 +1,228 @@
-# Livestream — read this, don't prepare
+# Livestream — read this off a second screen
 
-*Wednesday 19 Aug, 9:00 AM EST · "What Is the Next Wave of AI Builders Building?"*
-*Host: Arshiya · Panel: Finality Labs, Triage, Sage, Aitch, Agora · ~60 min*
+*Wed 19 Aug, 9:00 AM EST · Panel: Finality Labs, Triage, Sage, Aitch, Agora*
 
-You are unwell. Do not memorise anything. Every answer below is written the way you talk, so you
-can read it off a second screen and it will still sound like you. Short sentences on purpose — you
-can breathe between them.
-
-**It is a panel, not a presentation.** You get 1–2 minutes per question. That is about one screen of
-text below. Read the bold answer, stop, and let the host come back to you. The extra bits are only
-if they ask a follow-up.
-
-**Rule for the whole hour: when you say a number, say where it can be checked.** "Eighteen people,
-and every payment is a public transaction you can go look at" beats any adjective.
+Read the bold block. Stop. Let the host come back to you. The small bits are only if they dig.
 
 ---
 
-## The only line to actually know
+## The loop — this is the answer to almost everything
 
-> **"Sage is an AI agent that finds real people to use your product, and pays them for honest
-> feedback."**
+Sage is an AI agent. This is what it does, in order:
 
-If your mind goes blank at any point, say that sentence and stop talking. Someone will ask a
-follow-up. Silence is fine.
+1. **It opens your product and uses it itself.** Real browser. Clicks, signs up, tries things.
+2. **It writes the testing missions** from what it actually saw in there.
+3. **Real people do those missions** and write up what happened.
+4. **It checks their report against what it saw with its own eyes.**
+5. **It pays them in USDC, or refuses them.**
 
----
-
-# Q1 — "Introduce yourself, your team, and what you're building" (1–2 min)
-
-> I'm Shariq. I built Sage, and it's just me.
->
-> So you know how you build something, you ship it, and then nothing happens? You send it to your
-> friends and they say "looks nice." Nobody actually uses it.
->
-> Sage fixes that. You give it your product link and a small budget. It goes and finds real
-> strangers to use your product, and it pays them in USDC for honest feedback.
->
-> The part I care about is that I'm not in the middle. The agent decides who did real work and who
-> didn't, and it pays them itself. I approve nothing.
->
-> I'm building it for solo builders and small teams. The people who have a product and no users, and
-> no budget for a research agency.
-
-*If they ask for one more beat:*
-
-> So far it's paid eighteen different people, around fifty dollars, all on GOAT Mainnet. And it
-> refused about half of what came in.
+**I am not in any of those five steps.** That sentence is the product.
 
 ---
 
-# Q2 — "What made you build this?" (1–2 min)
+# Q1 — Introduce yourself and what you're building
 
-**This is your best answer of the day. It's the one nobody else on the panel can give.**
-
-> Honestly it came from reading the purpose of this bootcamp before I joined.
+> I'm Shariq. I built Sage, on my own.
 >
-> It said real economic activity. Agents past the demo stage. And that hit something for me, because
-> I've built AI agents before, and they were the other kind.
+> Sage is an AI agent that gets real people to use your product and pays them for honest feedback.
 >
-> The one I was most proud of was a marketplace where AI agents could discover compute, negotiate
-> for it, and pay for it themselves, with no human involved. It was genuinely cool. I still think
-> that's the future.
+> What it actually does: it opens your product and uses it itself. It writes the testing missions
+> from what it saw. Real people do those missions. It reads their reports, checks them against what
+> it saw with its own eyes, and pays them in USDC.
 >
-> But I sat with it and realised something uncomfortable. There was no real economic activity in it.
-> Agents paying agents, in a loop. No actual person at either end. Nothing entering the system, and
-> nothing coming out.
+> That's the whole loop, and I'm not in any step of it.
 >
-> So this time I wanted the opposite. I wanted the money to come from a real person, and go to a
-> real person, and the agent to be the thing in the middle that does the judging. That's Sage.
-
-**Careful, and this is the generous version — Agora is on this panel building the compute
-marketplace.** Do not make it sound like you're saying their thing doesn't work. Say this:
-
-> And that's not a knock on that direction at all. Agora is building in that space and I think it's
-> where things are going. I just wanted to work on the part where the money enters from outside
-> first.
-
-### Follow-up: "What makes autonomous QA valuable compared with traditional testing tools?"
-
-> Traditional testing tools tell you if your code works. They don't tell you if a person can use it.
->
-> Your tests can be green and a stranger still can't find the signup button. There's no assertion for
-> confusion.
->
-> Sage covers the other half. Real humans, real confusion, in their own words. And an agent that
-> checks they actually did the work before paying them.
-
-### Follow-up: "Why can AI agents fundamentally change how software is tested?"
-
-> Because the expensive part of user testing was never the testing. It was the coordinating.
->
-> Finding people, writing the tasks, checking they did it, paying them. That's a person's whole job
-> and it's why only funded companies do it.
->
-> An agent can do all four of those, all day, for a ten dollar budget. That's the change. It's not
-> better testing, it's testing that small builders can actually afford.
-
-### Follow-up: "What did the bootcamp change about your assumptions?"
-
-> Two things.
->
-> I assumed the hard part would be paying people. It wasn't. Payment was the easy part.
->
-> The hard part was getting the agent to say no to somebody. And I assumed testers wouldn't write
-> real feedback for two or three dollars. They absolutely do. Some of it was better than what I get
-> from friends.
+> It's for solo builders. People with a product and no users.
 
 ---
 
-# Q3 — "What was the hardest part of building it?" (1–2 min)
+# Q2 — Why did you build this?
 
-**Lead with this one. It's short and it lands.**
+**Your strongest answer. Nobody else can give it.**
 
-> Getting the agent to say no.
+> I read the goal of this bootcamp before I joined. Real economic activity. Agents past the demo
+> stage.
 >
-> Anyone can build something that pays people. It's very hard to build something you'd trust to
-> refuse someone. Because the moment it refuses a real person who did real work, they're angry, and
-> they're right to be.
+> I've built agents before. My last one was a marketplace where AI agents found compute, negotiated
+> for it, and paid each other. No human anywhere.
 >
-> So most of my time didn't go into the payment side at all. It went into the agent's eyes.
+> It was cool. But no real money ever entered it. Agents paying agents in a circle.
 >
-> Before anyone tests your product, Sage opens it in a real browser and uses it itself. Clicks
-> around, signs up, tries the flows. Then when a tester writes up what they did, the agent compares
-> their words against what it saw with its own eyes.
->
-> That's the whole trick. It's not judging the writing. It's checking the writing against something
-> it independently knows is true.
+> So this time I wanted a real person putting money in at one end, a real person taking money out at
+> the other, and the agent doing all the work in between.
 
-### Follow-up: "Was there a moment you got it wrong?"
+**Agora is on this panel building the compute marketplace. Add this so it lands friendly:**
 
-**This is the story people will remember. Use it if there's room.**
+> That's not a knock on that direction. Agora's building there and I think it's where things go. I
+> just wanted the outside-money part first.
 
-> Yes, and it's embarrassing.
->
-> There was a point where the agent kept reporting that products were broken. Dead pages, nothing
-> working. And I believed it for a while.
->
-> The products were fine. The agent's clicking was broken. My server was too small, so the clicks
-> were silently timing out, and the agent was writing that down as "this product is dead."
->
-> It was recording its own failure as a fact about the world. That's the scariest bug I've ever
-> written, because nothing crashed. It just confidently told me something false.
->
-> Now there's a rule in the codebase. If the agent's own tools fail, that can never be recorded as a
-> finding about the product.
+*"Why is autonomous QA better than testing tools?"*
+> Testing tools tell you your code works. They don't tell you a person can use it. Your tests pass
+> and a stranger still can't find the signup button.
 
-### Follow-up: "Anything technical you had to figure out that you didn't expect?"
+*"Why can agents change how software is tested?"*
+> The expensive part was never the testing. It was the coordinating. Finding people, writing tasks,
+> checking the work, paying. The agent does all four, for a ten dollar budget.
 
-> Money bugs don't look like bugs.
->
-> I had a retry that kept asking the model to re-judge some stuck submissions. It never crashed,
-> nothing went red, and it quietly burned about nine dollars of my API credits overnight with nobody
-> even using the app.
->
-> I only found it because I read the raw error log. My database showed nothing, because a failed run
-> doesn't write a row.
->
-> Lesson I actually use now: if something touches money, it needs a ceiling. Not a retry.
+*"What changed your assumptions?"*
+> I thought paying people would be the hard part. It wasn't. The hard part was teaching the agent to
+> say no.
 
 ---
 
-# Q4 — "Now that real users have used it, what have you learned?" (1–2 min)
+# Q3 — Hardest part of building it
 
-> The main thing I learned is that I was measuring the wrong side.
+> Teaching the agent to refuse someone.
 >
-> Four people got paid early on, and afterwards I asked them for feedback and nobody replied. So I
-> wrote it down as a finding. Paid testers don't give feedback.
+> Paying people is easy. Refusing a real person who did real work is where you lose trust forever.
 >
-> That was completely wrong. They'd all written detailed feedback. Exact steps, real bugs, things I
-> didn't know about. It was sitting inside their submissions the whole time.
+> So the agent doesn't judge writing. Before any tester shows up, it goes into the product and uses
+> it itself. Then it compares the tester's report against what it saw.
 >
-> I'd just never built a screen that showed it to me.
->
-> So I'd concluded something about human behaviour when the real problem was my own dashboard. I
-> spent this week rebuilding that page so a founder reads every tester's words as one page.
+> It checks people against its own eyes. That's the whole trick.
 
-### Follow-up: "Who are your earliest users?"
+*"Any moment you got it badly wrong?"*
+> The agent kept telling me products were dead. They weren't. Its own clicking was broken, and it
+> was writing that down as a fact about the product. Nothing crashed. It just confidently told me
+> something false. Now there's a rule: the agent's own failure can never become a finding about the
+> product.
 
-> Two sides.
->
-> Testers, which is working. Eighteen people paid, they came from Telegram and X, and one campaign
-> filled ten slots in under six hours.
->
-> And founders, which is the newer side. Builders from this bootcamp, mostly. Small products,
-> ten to twenty five dollar budgets.
-
-### Follow-up: "Did any user feedback change how you think about the product?"
-
-> Yes. My anti-fraud rules were too strict in a way I couldn't see.
->
-> I had a rule that one wallet gets paid once. It was there to stop farming. But it also meant an
-> honest tester who did two different missions properly only got paid for one.
->
-> I was punishing my best users to block my worst ones. That was real people, not a theory.
-
-### Follow-up: "What surprised you most?"
-
-> How good the refusals were.
->
-> The agent has refused about half of everything submitted. Twenty out of forty two. Thin work,
-> copied work, people who clearly didn't open the product.
->
-> And it caught two submissions that were almost identical to each other. I didn't hand-check that.
-> It just held them.
->
-> An agent that pays everybody isn't doing a job. It's a faucet.
-
-### Follow-up: "What's the biggest assumption you're still validating?"
-
-**Say this before anyone digs for it. Saying it first sounds like someone who knows where they
-stand.**
-
-> Whether founders will fund it with their own money.
->
-> Every campaign so far, I funded. The tester side is proven, people show up and do real work and
-> get paid. The founder side isn't proven yet.
->
-> There's one starting this week. A builder from this bootcamp, his product, his ten dollars. That's
-> the number I want to be able to report next time, not the tester number.
+*"Anything technical you didn't expect?"*
+> Money bugs don't look like bugs. A retry loop quietly burned nine dollars of credits overnight
+> with nobody using the app. Nothing went red. Anything touching money needs a ceiling, not a retry.
 
 ---
 
-# Q5 — "What's next?" (1–2 min)
+# Q4 — What have you learned from real users?
 
-> Three things, in order.
+> Eighteen people have been paid. Around fifty dollars, on GOAT Mainnet. Every payment is a public
+> transaction you can go check.
 >
-> First, founders funding their own campaigns. That's the only thing that matters right now, and I
-> just said where I am with it.
+> The number I like more is that the agent refused half of them. Twenty out of forty two.
 >
-> Second, the agent should tell you what it learned, not just show you a list. Right now a founder
-> reads fifteen reports. It should be reading them for you and saying, four people got stuck at the
-> same screen, here's what they said.
->
-> Third, the loop should close. Fix the thing, and the agent should go and test whether the fix
-> actually worked, with new people, without you asking.
->
-> In six months, success for me is very simple. A founder I've never spoken to launches a campaign,
-> funds it themselves, and gets useful feedback, and I never touch it.
+> And the thing I learned about myself: testers write genuinely good feedback for two dollars. I
+> thought they didn't, for weeks. I'd just never built a screen that showed it to me. It was sitting
+> in their submissions the whole time.
 
-### Follow-up: "Where do AI agents play a bigger role in your product later?"
+*"Who are your earliest users?"*
+> Testers, which works. One campaign filled ten slots in six hours. And founders, which is newer.
+> Builders from this bootcamp, ten to twenty five dollar budgets.
 
-> The judging gets better and the agent gets more autonomous with the money over time.
->
-> Right now on mainnet I hold anything the agent isn't confident about, and a human looks at it. As
-> the evidence gets stronger, that ceiling can move up.
->
-> But it should move up because the agent earned it, not because I got impatient.
+*"Did feedback change the product?"*
+> I had a rule that one wallet gets paid once, to stop farming. It also punished honest testers who
+> did two missions properly. I was blocking my best users to stop my worst ones.
+
+*"What surprised you?"*
+> How good the refusals are. It caught two submissions that were nearly identical to each other. I
+> didn't check that by hand. It just held them.
+
+*"Biggest assumption you're still testing?"* — **say this before they ask**
+> Whether founders fund it with their own money. So far I funded every campaign. The tester side is
+> proven, the founder side isn't. There's one starting this week. His product, his ten dollars.
 
 ---
 
-# Q6 — "What's still missing from the AI agent ecosystem?" (1–2 min)
+# Q5 — What's next?
 
-**This closes the loop back to Q2. Strong finish.**
+> Three things.
+>
+> One, founders funding their own campaigns.
+>
+> Two, the agent should read the reports for you. Right now it hands you fifteen reports. It should
+> say "four people got stuck at the same screen."
+>
+> Three, close the loop. You fix the thing, and the agent goes and tests whether the fix worked,
+> with new people, without you asking.
+>
+> Success in six months is a founder I've never met running a campaign, and me never touching it.
 
-> I'll give an unpopular answer. I don't think what's missing is infrastructure.
->
-> We have a lot of rails now. Agents can pay each other, discover each other, negotiate. That part is
-> genuinely getting solved.
->
-> What's missing is a reason for money to enter the system in the first place.
->
-> Almost every agent economy I've seen, including the one I built myself, is a closed loop. Agents
-> paying agents. Very impressive, and no outside money in it. If you turn off the grant, it stops.
->
-> So the thing I'd want more people building is the edges. Agents where a real person pays money in
-> at one end because they got something they wanted, and a real person takes money out at the other
-> end because they did real work.
->
-> Get the edges working and the middle gets interesting on its own.
-
-### Follow-up: "What tooling or standards do builders still need?"
-
-> The one I hit constantly is limits.
->
-> It's easy to give an agent a key. There's nothing standard for giving an agent a budget. A thing
-> that says: you can spend this much, on this, and no more, and it's enforced somewhere the agent
-> can't reach.
->
-> I had to build that myself as a contract. It should be a primitive everybody gets.
-
-### Follow-up: "What's the biggest barrier to agents being useful in the real world?"
-
-> Trust, and specifically that agents fail quietly.
->
-> Mine didn't crash when it broke. It confidently told me products were dead. That's much worse than
-> an error.
->
-> Until an agent can prove what it actually did, no normal person is going to let one spend money.
-> That's why every payment mine makes ends up as a public receipt.
-
-### Follow-up: "What will the next wave of builders build?"
-
-> I think boring ones, and I mean that as a compliment.
->
-> The first wave was agents that could talk. The next one is agents that do one job, end to end,
-> where somebody's actually paying at the end of it.
->
-> Less general, more finished.
+*"Bigger role for agents later?"*
+> More autonomy over the money, earned slowly. Anything it's unsure about gets held for a human
+> today. That ceiling moves up when the agent earns it, not when I get impatient.
 
 ---
 
-# Closing — "One sentence people should remember" (30 sec)
+# Q6 — What's missing from the agent ecosystem?
 
-> **Sage is an AI agent that pays real strangers to use your product and tell you the truth, and it
-> decides who deserves the money, not me.**
+**This closes back to Q2. Good finish.**
 
-Then stop. Don't add anything after it.
+> Not infrastructure. We have rails now. Agents can pay each other.
+>
+> What's missing is a reason for money to enter in the first place.
+>
+> Most agent economies, including the one I built, are a closed circle. Agents paying agents. Turn
+> off the grant and the whole thing stops.
+>
+> So I'd build the edges. A real person paying in because they got something they wanted. A real
+> person getting paid because they did real work. The middle gets interesting on its own.
+
+*"What tooling is missing?"*
+> Limits. It's easy to give an agent a key. There's no standard way to give an agent a budget it
+> can't go over. I had to build that myself as a contract.
+
+*"Biggest barrier?"*
+> Agents fail quietly. Mine didn't crash, it lied confidently. Until an agent can prove what it
+> did, nobody sane lets one spend money.
+
+*"What will the next wave build?"*
+> Boring agents. One job, end to end, with someone actually paying at the end of it.
 
 ---
 
-## Spare answers, if the host goes off-script
+# Closing — one sentence (30 sec)
 
-**"How does it actually work?"**
+> **Sage is an AI agent that pays strangers to use your product and tell you the truth, and it
+> decides who deserves the money. Not me.**
 
-> Three steps and the agent does all of them.
->
-> It opens your product in a real browser and uses it, like a person would. Then it writes the
-> testing missions itself, based on what it actually saw in there. Then people do those missions,
-> and it checks their write-up against what it saw itself. If it lines up, they get paid. Usually in
-> about two and a half minutes.
+Stop there. Don't add anything.
 
-**"Isn't it risky to let an AI spend money?"** — *only if asked. Don't bring it up yourself.*
+---
 
-> Yes, and that's why the agent doesn't hold the money.
->
-> The money sits in a contract the founder owns. The agent can't take money out of it. All it can do
-> is say "this person did this work" — and the contract works out the amount itself and checks its
-> own limits.
->
-> The agent proposes, the contract decides. Even if someone stole my keys, they couldn't drain it.
-> They could only ask, same as the agent.
+## Spares
 
-**"Why GOAT and Metis?"**
+*"How does it work?"*
+> It uses your product itself. It writes missions from what it saw. People do them. It checks their
+> report against what it saw. It pays. About two and a half minutes.
 
-> Because the payments are tiny and they have to be provable.
->
+*"Isn't it risky letting an AI spend money?"* — only if asked
+> The agent doesn't hold the money. It sits in a contract the founder owns. All the agent can do is
+> say "this person did this work." The contract works out the amount and checks its own limits. The
+> agent proposes, the contract decides.
+
+*"Why GOAT and Metis?"*
 > I'm paying people two or three dollars. That only works if the fee is nearly nothing. And every
-> payout becomes a public transaction, which is the actual product. A tester can show someone their
-> receipt, and a founder can check I'm not making the numbers up.
+> payout becomes a public receipt, so nobody has to take my word for it.
 
-**"What's your business model?"**
-
-> A small fee on what settles. The agent only earns when a payout actually goes through.
->
-> Right now I'd rather have ten founders using it free than one paying, so I'm not pushing it yet.
+*"Business model?"*
+> A small fee on what settles. It only earns when a payout actually goes through.
 
 ---
 
-## Your numbers (checked on prod this morning)
+## Numbers (from prod this morning)
 
 | | |
 |---|---|
-| People paid | **18 different people** |
-| Payouts made | **22** |
-| USDC settled | **about $50**, all on GOAT Mainnet |
-| Refused by the agent | **20 out of 42 — about half** |
+| People paid | **18** |
+| Payouts | **22**, about **$50** USDC |
+| Refused by the agent | **20 of 42** |
 | Products inspected | **68** |
-| Typical time to payout | **about 2½ minutes** |
-| Campaign filled | **10 slots in under 6 hours** |
+| Time to payout | **~2½ min** |
 
-Say them plainly. Eighteen people and fifty dollars is small and real, and you sound better saying
-it flat than dressing it up. Small and real is the story — this bootcamp asked for real economic
-activity, and yours is real, just small.
+Say them flat. Small and real is the story.
 
 ---
 
-## If your mind blanks completely
+## If you blank
 
-Say this. It works for almost any question:
+> You build something and nobody uses it. Sage finds people who will, and pays them for telling you
+> the truth.
 
-> Honestly the simplest way to say it. You build something and nobody uses it. Sage goes and finds
-> people who will, and pays them for telling you the truth about it.
+Stop. Silence is the host's problem, not yours.
 
-Then stop.
+## Don't
 
----
+- Don't explain the contract unless asked.
+- Don't talk down the compute-marketplace idea. Agora is right there.
+- Don't round any number up.
 
-## Four things not to do
-
-- **Don't explain the contract unless asked.** Nobody on a livestream wants architecture. They want
-  to know what the agent does.
-- **Don't talk down the compute-marketplace idea.** Agora is on this panel. Say "I think that's the
-  future, I just wanted the outside-money part first."
-- **Don't oversell.** If you're tempted to round up, say the real number and say it's checkable.
-- **Don't fill silence.** If you finish and nobody speaks, that's the host's job, not yours.
-
----
-
-## Where to send people
-
-> sagepays.xyz — the inspection is free, you just point it at your product and watch it browse.
+**sagepays.xyz** — the inspection is free.
