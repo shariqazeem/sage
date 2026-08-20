@@ -62,3 +62,4 @@ neither is counted in any figure above.
 - Every payout, transaction by transaction: [payout ledger](https://github.com/shariqazeem/sage/blob/main/docs/stage2/payout-ledger.md)
 - Published case study with the full numbers: https://sagepays.xyz/case-studies/autonomous-paid-testing
 - Live product: https://sagepays.xyz · public repository: https://github.com/shariqazeem/sage
+- How it works, architecture and safety model: https://sagepays.xyz/docs

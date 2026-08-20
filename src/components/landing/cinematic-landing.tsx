@@ -65,6 +65,8 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
           <nav className="foot-nav" aria-label="Footer">
             <a href="#how">How Sage works</a>
             <a href="#proof">Live proof</a>
+            <Link href="/docs">Docs</Link>
+            <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
             <Link href="/dashboard">Dashboard</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>

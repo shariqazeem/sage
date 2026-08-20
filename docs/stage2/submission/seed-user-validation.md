@@ -70,4 +70,5 @@ rather than quietly closed.
 - Every word our users wrote, verbatim: [feedback log](https://github.com/shariqazeem/sage/blob/main/docs/stage2/feedback-log.md)
 - Full validation detail, per campaign: [seed user validation](https://github.com/shariqazeem/sage/blob/main/docs/stage2/seed-user-validation.md)
 - Published case study: https://sagepays.xyz/case-studies/autonomous-paid-testing
+- How it works, architecture and safety model: https://sagepays.xyz/docs
 - Public campaign boards: https://sagepays.xyz/c/launch-clawup-org-tf62c8 · https://sagepays.xyz/c/launch-sagepays-xyz-w6ynbw

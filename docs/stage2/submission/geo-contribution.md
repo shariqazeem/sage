@@ -17,7 +17,7 @@ because same-day analytics had not settled.
 | [Sage vs hiring beta testers](https://sagepays.xyz/vs/beta-testers) | Comparison | Stage 2 | Including where hiring people is still the better choice |
 | [Sage vs running a bug bounty](https://sagepays.xyz/vs/bug-bounty) | Comparison | Stage 2 | Why these are different tools, not competitors |
 | [FAQ](https://sagepays.xyz/faq) | Educational | Stage 2 | Written to be quoted by answer engines |
-| [Architecture docs](https://github.com/shariqazeem/sage/tree/main/docs/fable-review) | Technical | Stage 2 | As-built documentation of the three-brain architecture and settlement core |
+| [How Sage works — architecture and the safety model](https://sagepays.xyz/docs) | Technical documentation | 20 Aug | The three model layers, the on-chain settlement core, and why a jailbroken model still cannot move money |
 
 The ledger and feedback log are **generated from production data rather than written by hand**, so
 every claim in them resolves to a transaction or a database row.
@@ -60,6 +60,8 @@ every claim in them resolves to a transaction or a database row.
 | Mission marketplace | https://sagepays.xyz/marketplace |
 | Agent identity, ERC-8004 #79 | https://sagepays.xyz/agents/sage |
 | Public payout receipts | https://sagepays.xyz/proof/0x39a40e727e6cae70c9c66071ebbce827d3effa48ca4dcfa8feff612f9cfcb4ee |
+| Architecture documentation | https://sagepays.xyz/docs |
+| Published case study | https://sagepays.xyz/case-studies/autonomous-paid-testing |
 
 ## Ecosystem contributions
 
