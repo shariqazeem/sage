@@ -26,6 +26,24 @@ settled to verified testers — moved only through real, verified work, exactly 
 All figures are on GOAT Mainnet. Every payout is a public transaction with a receipt page citing the
 evidence it was paid for, so the entire scoreboard can be checked without our cooperation.
 
+## The metrics we chose, and where they landed
+
+Every metric named in the original proposal, with its Stage 2 result.
+
+| Metric we committed to track | Result |
+|---|---|
+| **North star — USDC settled to verified testers** | **$49.55** |
+| Campaigns created | 15 |
+| Campaigns funded and paying | 7 |
+| Unique testers submitting at least one piece of evidence | 33 |
+| Tester activation — first paid mission | 16 |
+| Founder activation — first funded campaign | Achieved |
+| Verification outcome mix | 22 paid · 20 refused |
+| Time to payout | 175s median, 15s fastest |
+| Testers active in more than one campaign | 1 |
+| Founders launching a second, larger campaign | 1 ($20 → $25) |
+| Average budget per funded campaign | $23 across the two full campaigns |
+
 ## The two campaigns
 
 **clawup.org, 14 August.** Six testers filed eight reports, four were paid $5.26 each. Every one of
