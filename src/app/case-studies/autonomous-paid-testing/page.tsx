@@ -19,9 +19,9 @@ import { siteUrl } from "@/lib/site";
  * can contain.
  */
 export const metadata: Metadata = {
-  title: "Case study: an AI agent paid 18 people in USDC to test software",
+  title: "Case study: an AI agent paid 16 people in USDC to test software",
   description:
-    "Between July and August 2026 an autonomous agent inspected 68 products, judged 42 tester submissions, paid 22 of them $49.55 USDC on GOAT Network and refused 20 — with no human approving any individual payment. The real numbers, the defects testers found, and what we got wrong.",
+    "Between July and August 2026 an autonomous agent inspected 68 products, judged 42 tester submissions, refused 20 of them, and settled $48.10 USDC to 16 people on GOAT Network — with no human approving any individual payment. The real numbers, the defects testers found, and what we got wrong.",
   alternates: { canonical: `${siteUrl()}/case-studies/autonomous-paid-testing` },
 };
 
@@ -30,14 +30,14 @@ export default function AutonomousPaidTestingCaseStudy() {
     <main className="prose-page">
       <div className="prose-wrap">
         <p className="prose-eyebrow">Case study</p>
-        <h1>What happened when an AI agent paid 18 people to test software</h1>
+        <h1>What happened when an AI agent paid 16 people to test software</h1>
 
         <div className="prose-answer">
           <p>
             <strong>The short answer.</strong> Between July and August 2026, Sage ran seven paying
             campaigns on GOAT Network. It inspected 68 different products, judged 42 tester
-            submissions, paid 22 of them and refused 20. Total settled: <strong>$49.55 USDC to 16
-            different wallets</strong> on mainnet. No human approved any individual payment. Every
+            submissions and refused 20 of them. Total settled: <strong>$48.10 USDC across 20 payouts
+            to 16 different wallets</strong>. No human approved any individual payment. Every
             payout has a public receipt anchored to an on-chain transaction.
           </p>
         </div>
@@ -67,23 +67,23 @@ export default function AutonomousPaidTestingCaseStudy() {
             <tbody>
               <tr>
                 <td>USDC settled</td>
-                <td>$49.55</td>
+                <td>$48.10</td>
                 <td>GOAT Mainnet, chain 2345</td>
               </tr>
               <tr>
                 <td>Autonomous payouts</td>
-                <td>22</td>
+                <td>20</td>
                 <td>One receipt page per transaction</td>
               </tr>
               <tr>
                 <td>Distinct people paid</td>
-                <td>18 wallets</td>
+                <td>16 wallets</td>
                 <td>On-chain transfer log</td>
               </tr>
               <tr>
                 <td>Submissions judged</td>
                 <td>42</td>
-                <td>22 paid, 20 refused</td>
+                <td>20 refused, each with a written reason</td>
               </tr>
               <tr>
                 <td>Refusal rate</td>
@@ -118,8 +118,8 @@ export default function AutonomousPaidTestingCaseStudy() {
         </p>
         <p>
           Two missions shipped: create your first agent and chat with it, and connect a messaging
-          channel to a fresh agent. Six people submitted eight reports. Four were paid $5.26 each,
-          for $21.05 total. Every one of those six ended the session with a working agent connected to
+          channel to a fresh agent. Six people submitted eight reports. Four were paid —
+          two at $5.26 and two at $4.74, the vault splitting the $20 budget to the exact base unit. Every one of those six ended the session with a working agent connected to
           a live messaging channel.
         </p>
         <p>
@@ -206,7 +206,7 @@ export default function AutonomousPaidTestingCaseStudy() {
 
         <div className="prose-caveat">
           <p>
-            <strong>The honest limits.</strong> These numbers are small. $49.55 is not a business, and
+            <strong>The honest limits.</strong> These numbers are small. $48.10 is not a business, and
             eighteen testers is not a market. More importantly, every campaign so far was funded by us
             rather than by an outside founder — the supply side is proven and the demand side is not.
             We state that here for the same reason we publish the refusals: a result that concedes

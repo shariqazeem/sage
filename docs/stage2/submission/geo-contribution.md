@@ -10,7 +10,7 @@ because same-day analytics had not settled.
 
 | Asset | Type | Date | What it is |
 |---|---|---|---|
-| [Case study: an AI agent paid 18 people in USDC to test software](https://sagepays.xyz/case-studies/autonomous-paid-testing) | Published case study | 20 Aug | The full Stage 2 result with every figure and its source, the defects real users found, and the assumption we got wrong |
+| [Case study: an AI agent paid 16 people in USDC to test software](https://sagepays.xyz/case-studies/autonomous-paid-testing) | Published case study | 20 Aug | The full Stage 2 result with every figure and its source, the defects real users found, and the assumption we got wrong |
 | [README](https://github.com/shariqazeem/sage/blob/main/README.md) | Project documentation | Ongoing | What Sage is, how bounded autonomy over money works, and the measured results |
 | [Payout ledger](https://github.com/shariqazeem/sage/blob/main/docs/stage2/payout-ledger.md) | Verifiable data | 16 Aug | Every autonomous payout with its public proof link |
 | [Feedback log](https://github.com/shariqazeem/sage/blob/main/docs/stage2/feedback-log.md) | User research | 17 Aug | All user feedback verbatim, generated from production data |

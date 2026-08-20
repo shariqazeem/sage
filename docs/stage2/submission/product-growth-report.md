@@ -16,7 +16,7 @@ settled to verified testers — moved only through real, verified work, exactly 
 
 | | |
 |---|---|
-| **USDC settled to testers** | **$49.55** |
+| **USDC settled to testers** | **$48.10** |
 | Autonomous payouts | 20 |
 | Testers paid | 16 |
 | Submissions judged | 42 — 22 paid, 20 refused |
@@ -32,7 +32,7 @@ Every metric named in the original proposal, with its Stage 2 result.
 
 | Metric we committed to track | Result |
 |---|---|
-| **North star — USDC settled to verified testers** | **$49.55** |
+| **North star — USDC settled to verified testers** | **$48.10** |
 | Campaigns created | 15 |
 | Campaigns funded and paying | 7 |
 | Unique testers submitting at least one piece of evidence | 33 |
@@ -46,7 +46,7 @@ Every metric named in the original proposal, with its Stage 2 result.
 
 ## The two campaigns
 
-**clawup.org, 14 August.** Six testers filed eight reports, four were paid $5.26 each. Every one of
+**clawup.org, 14 August.** Six testers filed eight reports, four were paid, $5.26 and $4.74 each — the vault split the $20 budget exactly. Every one of
 them signed up to ClawUp, created a working agent, and connected a live messaging channel.
 
 **sagepays.xyz, 16 August.** Fourteen testers submitted, ten were paid $2.50 each. The campaign

@@ -10,7 +10,7 @@ written feedback through the product's feedback panel.
 
 | Campaign | Testers | Paid | Reward | Settled |
 |---|---|---|---|---|
-| **clawup.org** | 6 (8 reports) | 4 | $5.26 | $21.05 |
+| **clawup.org** | 6 (8 reports) | 4 | $5.26 / $4.74 | $20.00 |
 | **sagepays.xyz** | 14 | 10 | $2.50 | $25.00 |
 
 ## What the testers did

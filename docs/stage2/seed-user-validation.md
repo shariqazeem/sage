@@ -19,7 +19,7 @@ matched sides: **founders** who need real product testing without handing over k
 | Distinct testers who submitted paid mission work | **33** all-time · **20** in the Stage 2 seed window |
 | Distinct testers who received real USDC | **18** wallets |
 | Autonomous payouts | **22** · 20 on GOAT Mainnet, 2 on Metis Sepolia |
-| **USDC settled on mainnet** | **$49.55** across 16 wallets |
+| **USDC settled on mainnet** | **$48.10** across 16 wallets |
 | Submissions judged | **42** — 22 paid, **20 refused (48%)** |
 | Written feedback through the widget | **15 messages from 13 distinct people** |
 | Products the agent inspected | **68** distinct URLs (733 inspection jobs) |
@@ -69,7 +69,7 @@ independent records of the same session.
 | Paid | **4** |
 | Refused | 4 |
 | Reward per mission | $5.263165 USDC |
-| **Total settled** | **$21.05 USDC** |
+| **Total settled** | **$20.00 USDC** |
 | Window | 14 Aug 2026, 05:34 → 07:23 UTC |
 
 Missions were *Create Your First ClawUp Agent and Chat With It* and *Connect a Messaging Channel to

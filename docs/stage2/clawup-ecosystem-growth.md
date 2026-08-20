@@ -12,7 +12,7 @@ Every payout below is a transaction on GOAT Mainnet that can be verified without
 | Contribution | Measure |
 |---|---|
 | **Real users driven onto ClawUp** | **6 people** — each signed up, created a working agent, and connected a live messaging channel |
-| **USDC we paid them to do it** | **$21.05** across 4 verified completions |
+| **USDC we paid them to do it** | **$20.00** across 4 verified completions |
 | Mission reports filed on ClawUp workflows | **8** |
 | ClawUp product issues surfaced by those testers | **3**, with verbatim evidence |
 | Sage's MCP server submitted to the ClawUp Marketplace | Built, **7/7 conformance**, blocked by a ClawUp-side HTTP 500 we reported |
@@ -38,8 +38,8 @@ a live messaging channel.
 | Distinct testers | **6** |
 | Mission reports filed | **8** |
 | Paid | **4** |
-| Reward per completion | $5.263165 USDC |
-| **Total settled** | **$21.05 USDC** |
+| Reward per completion | $5.263165 and $4.736835 — the vault's exact split |
+| **Total settled** | **$20.00 USDC** |
 
 ### The two missions
 

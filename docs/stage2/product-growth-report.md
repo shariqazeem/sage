@@ -31,7 +31,7 @@ resolves to an on-chain transaction or a production database row; the full ledge
 |---|---|
 | **Settled to external testers, GOAT Mainnet** | **$47.55** across **17** payouts |
 | Unique external wallets paid | **15** |
-| Including operator test wallets | $49.55 across 20 payouts |
+| Including operator test wallets | $48.10 across 20 payouts |
 | All chains including testnet | $51.05 across 22 payouts |
 
 **The headline figure is $47.55.** It excludes every payout to a wallet we control and every payout
@@ -43,7 +43,7 @@ Roughly **$45 of that $47.55 settled in the final 72 hours**, from two campaigns
 
 Settlement is **budget-constrained, not demand-constrained**, and the constraint is checkable: as of
 19 Aug every campaign vault on GOAT Mainnet holds **0 USDC**. The two August campaigns paid out
-their full budgets — $25.00 and $21.05 — and there is no unspent balance anywhere for the agent to
+their full budgets — $25.00 and $20.00 — and there is no unspent balance anywhere for the agent to
 settle against.
 
 The demand side did not slow down. Ten testers completed and were paid inside 45 minutes on 16 Aug,

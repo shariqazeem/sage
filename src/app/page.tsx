@@ -2,7 +2,7 @@ import "./landing-v2.css";
 import type { Metadata } from "next";
 import { getOperatorVaultState } from "@/lib/deputy/chain";
 import { chainConfig } from "@/lib/deputy/networks";
-import { getPublicReceipts } from "@/lib/erc8004/reputation";
+import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
 
@@ -43,13 +43,17 @@ export default async function HomePage() {
   // The deduped real journal (sandbox-excluded), not the vault's raw on-chain log
   // (which carried old test spends and rendered as phantom totals). The hero, proof
   // rail, and closing stats all read THIS.
+  // The RAIL is a display window (the most recent receipts). The TOTALS are the whole
+  // record. Summing the window was the bug: getPublicReceipts() caps at 12, so as payouts
+  // accumulated the hero total silently became "the last twelve" and drifted away from the
+  // real figure — it read $34.47 against a true $48.10. A number a visitor is invited to
+  // verify on-chain must come from the full journal, never from what fits on screen.
   const feed = getPublicReceipts().filter((h) => h.chainId === 2345);
-  const settled = feed.filter((h) => h.settled);
-  const blocked = feed.filter((h) => !h.settled);
+  const record = getAgentChainSplit().find((c) => c.chainId === 2345);
   const totals = {
-    paidUsd: settled.reduce((s, h) => s + h.amount, 0),
-    payoutCount: settled.length,
-    blockedCount: blocked.length,
+    paidUsd: record?.settledUsd ?? 0,
+    payoutCount: record?.payouts ?? 0,
+    blockedCount: record?.blocks ?? 0,
   };
 
   // The policy scene uses the live per-tx cap (a genuinely different concept from the
