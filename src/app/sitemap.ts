@@ -26,6 +26,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${base}/vs/beta-testers`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/vs/bug-bounty`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    // The case study: the one content shape that carries real numbers rather than an explanation of
+    // how the product works, which is what makes it the most quotable page on the site.
+    {
+      url: `${base}/case-studies/autonomous-paid-testing`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
   ];
 
   let boards: MetadataRoute.Sitemap = [];
