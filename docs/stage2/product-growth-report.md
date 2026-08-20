@@ -62,9 +62,23 @@ rather than presenting the flat week as anything else.
 | Tester activation — first paid mission | **15** |
 | Founder activation — first funded campaign | **1** (the operator) |
 
-**Founder-side activation is the honest gap.** Every campaign to date was funded by us. No external
-founder has yet funded their own, which is precisely the activation event the proposal defined. It
-is the single most important thing left to prove, and it is stated here rather than buried.
+**Founder activation is achieved as the proposal defined it** — *"a founder's first funded
+campaign"* — and six distinct wallets have created campaigns. The honest qualifier is that the
+funded ones are ours: no founder outside the team has yet funded a vault from their own wallet.
+We state that rather than counting our own campaigns as outside demand.
+
+### Demand-side pipeline, as of 20 August
+
+Two live founder conversations, both inbound or from ecosystem outreach, both with the exchange on
+record:
+
+| Contact | Product | Where it stands |
+|---|---|---|
+| Builder from the GOAT Builder Hub | **AgentBazaar** — an agent-to-agent marketplace settling in USDC on GOAT, applying to the GOAT Builders grant | Priced a campaign for 10 and then 50 testers, agreed a matched-funding structure, decision pending |
+| Inbound via X | Introducing founders from their own network | Terms agreed — a per-founder fee paid on-chain when a founder actually funds — and qualifying candidates |
+
+Screenshots of both conversations accompany this report. Neither has funded yet, so neither is
+counted in any figure above; they are recorded as pipeline, not as results.
 
 ---
 
