@@ -49,7 +49,8 @@ log are *generated from production data*, not written by hand.
 | Mission marketplace | Public board | https://sagepays.xyz/marketplace |
 | Agent identity | ERC-8004 #79, chain 2345 | https://sagepays.xyz/agents/sage |
 | Public proof receipts | On-chain payout pages | https://sagepays.xyz/proof/0x431f3948a01139724d9efdfe5e490ec8889d3dc12f16190fc67190f57dc51215 |
-| Comparison pages | Educational | https://sagepays.xyz/vs/beta-testers · https://sagepays.xyz/faq |
+| **Case study** | **Published case study** | **https://sagepays.xyz/case-studies/autonomous-paid-testing** — the full Stage 2 result with every figure and its source: 68 products inspected, 42 submissions judged, $49.55 settled to 16 wallets, 48% refused, the nine defects real users found, and the assumption we got wrong |
+| Comparison pages | Educational | https://sagepays.xyz/vs/beta-testers · https://sagepays.xyz/vs/bug-bounty · https://sagepays.xyz/faq |
 | ClawUp campaign board | Public tester board | https://sagepays.xyz/c/launch-clawup-org-tf62c8 |
 | Sage campaign board | Public tester board | https://sagepays.xyz/c/launch-sagepays-xyz-w6ynbw |
 
@@ -129,7 +130,7 @@ Listed for completeness; impression counts are omitted because same-day analytic
 | | |
 |---|---|
 | Technical documentation assets | 8 |
-| Public product surfaces | 7 |
+| Public product surfaces | 8 |
 | X posts across two accounts | 16 |
 | Total impressions | 19,452 |
 | Follower growth, @sagepaysai | 23 → 76 (+230%) |
