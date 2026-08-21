@@ -1,159 +1,193 @@
-# Sage — an AI agent that finds real people to use your product, and pays them
+<div align="center">
 
-> You built something. Nobody's using it. Your friends said it looks nice.
->
-> Point Sage at your product URL with a budget. It opens the product in a real browser and
-> **uses** it, writes testing missions from what it actually saw, then finds real strangers,
-> judges their work against its own observations, and **pays them USDC — without asking you.**
-> Every payout is a public transaction with a `/proof/<tx>` receipt.
+# Sage
 
-**The agent does the whole job.** It inspects, it designs the work, it recruits, it judges, it
-pays. There are exactly two human moments in the entire lifecycle: approve the plan, and fund it.
+**An AI agent that finds real people to test your product — and pays them in USDC.**
 
-It is just as important that it can **refuse**. Sage held or rejected **45%** of submissions this
-week — thin accounts, near-duplicates, work it couldn't verify against what it saw. An agent that
-pays everyone isn't doing a job, it's a faucet.
+[![Live](https://img.shields.io/badge/live-sagepays.xyz-c2410c?style=flat-square)](https://sagepays.xyz)
+[![Docs](https://img.shields.io/badge/docs-sagepays.xyz%2Fdocs-1a1d21?style=flat-square)](https://sagepays.xyz/docs)
+[![Network](https://img.shields.io/badge/GOAT%20Network-mainnet-15803d?style=flat-square)](https://explorer.goat.network)
+[![Telegram](https://img.shields.io/badge/telegram-@sagedeputybot-0088cc?style=flat-square)](https://t.me/sagedeputybot)
 
-*(How it's safe to let it spend: the founder's USDC lives in a contract the founder owns. Sage can
-never withdraw from it — it can only ask the contract to settle a specific piece of work, and the
-contract computes the amount and checks its own limits. The agent proposes; the vault disposes.
-Details in [Architecture](#architecture).)*
+[Website](https://sagepays.xyz) · [Documentation](https://sagepays.xyz/docs) · [Case study](https://sagepays.xyz/case-studies/autonomous-paid-testing) · [Live missions](https://sagepays.xyz/marketplace)
+
+</div>
+
+---
+
+You built something. Nobody is using it. Your friends said it looks nice.
+
+Point Sage at a product URL with a budget. It opens the product in a real browser and **uses**
+it, writes testing missions from what it actually saw, finds real strangers to do them, judges
+their reports against its own observations, and **pays them USDC without asking you.** Every
+payout is a public transaction with a `/proof/<tx>` receipt.
+
+There are exactly two human moments in the whole lifecycle: **approve the plan, and fund it.**
+
+It matters just as much that it can **refuse**. Roughly half of everything submitted so far has
+been refused — thin accounts, near-duplicates, work it could not verify against what it saw. An
+agent that pays everyone is not doing a job, it is a faucet.
+
+> **Why it is safe to let it spend.** The budget lives in a contract the founder owns. Sage can
+> never withdraw from it — it can only ask the contract to settle one specific piece of work, and
+> the contract computes the amount and checks its own limits. **The agent proposes; the vault
+> disposes.**
 
 ---
 
 ## Proven, not promised
 
-Real money, real strangers, on GOAT Mainnet — every figure below is a public transaction or a row
-anyone can re-derive from [`docs/stage2/`](docs/stage2/).
+Every figure below is a transaction on GOAT Network mainnet or a row in the production database,
+and each can be re-derived from the source named beside it.
 
-| | |
-|---|---|
-| USDC settled to external testers | **$47.55** |
-| Autonomous payouts on GOAT Mainnet | **20** |
-| People paid, none of them the operator | **15** |
-| Products inspected | **65** |
-| Feedback from real users | **37** |
-| Bugs found by users, fixed same day | **2** |
+| | | |
+|---|---|---|
+| **$48.10** | settled autonomously in USDC | [payout ledger](docs/stage2/payout-ledger.md) |
+| **16** | different people paid | on-chain transfer log |
+| **20** | autonomous payouts | one receipt page per transaction |
+| **42** | tester reports judged | 22 paid, **20 refused**, none unresolved |
+| **68** | distinct products inspected | 733 inspection jobs |
+| **175s** | median submission → USDC in wallet | fastest: 15 seconds |
 
-Two funded campaigns tell the story. [clawup.org](https://sagepays.xyz/c/launch-clawup-org-tf62c8)
-filled its 4 slots in ten hours; [sagepays.xyz](https://sagepays.xyz/c/launch-sagepays-xyz-w6ynbw)
-filled 10 slots in under six, from a single post. On the second, the agent paid every account
-running 293–1,457 characters and held every one running 35–142 — **and no human made any of those
-calls.**
+One campaign filled and paid **ten strangers in forty-five minutes**, with no human approving any
+of the ten payments.
 
-- [**Payout ledger**](docs/stage2/payout-ledger.md) — every payout with its public proof link
-- [**Feedback log**](docs/stage2/feedback-log.md) — every user's words, verbatim, with the contact they left
-- [**Growth metrics**](docs/stage2/growth-metrics.md) — each figure with the source it came from
+📄 **[Read the full case study →](https://sagepays.xyz/case-studies/autonomous-paid-testing)**
 
 ---
 
-## Get started in 60 seconds
-
-No wallet app, no signup. Message **[@sagedeputybot](https://t.me/sagedeputybot)** on
-Telegram and send `/start`. Then tell it what to test and a budget — e.g.
-`test my product at https://yourproduct.com, budget $10`. Sage inspects your product and
-DMs you a mission plan in about two minutes; **nothing is charged until you fund it.**
-
-## Live
-
-| | |
-|---|---|
-| **App** | https://sagepays.xyz |
-| **Walletless founder** | [@sagedeputybot](https://t.me/sagedeputybot) — run an entire campaign from Telegram: inspect → fund → autonomous payouts → review held work, no wallet app |
-| **A public tester board** | e.g. [`/c/<slug>`](https://sagepays.xyz) — do a mission, get paid real USDC on GOAT mainnet |
-| **Agent identity** | [`/agents/sage`](https://sagepays.xyz/agents/sage) · ERC-8004 **#79** on [8004scan (chain 2345)](https://8004scan.io/agents?chain=2345) |
-| **A real autonomous payout** | [proof receipt](https://sagepays.xyz/proof/0xd2483e5cfccd7dbe979683dfd8948cf9b022fe7348fa81fa127f91e785a8ffc4) — real USDC on GOAT mainnet (more on [`/agents/sage`](https://sagepays.xyz/agents/sage)) |
-
-## Why it's different
-
-- **The AI cannot be jailbroken into paying.** The judgment brain is hardened with
-  untrusted-data delimiters, an 8-family server-side injection detector, verbatim-quote
-  enforcement, and a confidence ceiling — and the vault is the final gate regardless.
-  The red-team suite (`tests/redteam/`) guards it in CI.
-- **It actually plays the product.** With the Field Test on, Sage explores the product in a
-  real headless Chromium *as a state machine* — waiting out loading screens, clicking into an
-  interactive app, and **reading each screen with a vision model**. It understands a wordless
-  game (yara.garden → *"interactive game, titled Yara"*), not a guess from the HTML.
-- **Missions can't be hallucinated.** Every mission carries verbatim anchors, and a
-  deterministic gate rejects any claim that isn't a literal substring of what Sage actually
-  observed — a *"Validate Zoom Control"* for a control that was never there cannot reach a
-  founder, whatever the model says. When observation is too thin, Sage asks instead of inventing.
-  **Audited across 11 product categories** (marketing pages, SaaS, docs, canvas games, SPAs,
-  bot-walled stores, a login wall, a non-English product): **zero hallucinated missions — every
-  break found was a capability gap, and every one is closed** (`scripts/mission-eval-matrix.mjs`).
-- **Autonomy with judgment, not a rubber stamp.** Sage **pays what it can verify and holds what
-  it can't.** A public URL with quoted text settles automatically; a written account is checked
-  against Sage's own private record of what it saw for itself while exploring — so a tester is paid
-  for corroborating things the agent independently observed, not for writing convincingly. Measured
-  on a live campaign: every account of 293–1,457 characters was paid, every one of 35–142 was held,
-  with no human in the loop.
-- **Verifiable, not vibes.** Every decision cites the exact evidence it read; every payout
-  is a public `/proof/<tx>` page a stranger can re-check on-chain.
-- **Observable autonomy.** The tester board shows a live "Sage activity" feed — received,
-  verified (with confidence), paid, held, blocked — projected only from real rows, never
-  fabricated, with a zero-evidence-leak guarantee.
-- **Accountable.** Reputation is derived from real on-chain settlements and anchored to an
-  ERC-8004 identity — a track record, not a self-assertion.
-
 ## How it works
 
-One intent, two human moments. The founder states **URL + goal + budget** once; the only
-two things they ever *do* are **approve the plan** and **fund it**. Everything else Sage
-does autonomously and narrates after acting, with an artifact behind every claim.
+Five steps. A human is in none of them.
 
-1. **Inspect** — Sage fetches (and, with the Field Test, really browses) the product and
-   builds a structured map.
-2. **Design** — the Mission Brain drafts specific missions (architect → critic → a
-   deterministic validation gate; model output is untrusted until it passes the gate).
-3. **Deploy** — a founder-owned `CampaignVault` is created and funded on-chain, with hard
-   per-mission rewards, completion caps, and a total budget the agent cannot exceed.
-4. **Pay** — testers submit a public evidence link + note (bound to their wallet by a free
-   EIP-712 signature). The Payout Brain judges the evidence against the criteria; on high
-   confidence the vault settles USDC automatically and publishes the proof. Borderline work
-   is **held** for the founder — who can release or reject it right from Telegram.
+1. **Opens your product in a real browser** — screenshots, rendered pages, console errors, the
+   states a visitor can actually reach.
+2. **Writes the testing missions** from what it observed, not from your marketing copy.
+3. **Real people complete them** on a public campaign board.
+4. **Checks every report against its own browsing** — an account that could have been written
+   without opening the product does not clear.
+5. **Pays in USDC, or refuses** — with a written reason either way.
+
+📚 **[Full documentation →](https://sagepays.xyz/docs)**
+
+---
 
 ## Architecture
 
-Three separate LLM "brains" + one on-chain settlement core — separate on purpose.
+Three model layers and one settlement core. They are separated on purpose: a single model that
+designs the work, judges the work and talks to the customer can be talked out of all three at once.
 
-| Component | Role |
-|---|---|
-| **Mission Brain** | *Designs* missions: architect → critic → deterministic validate gate. |
-| **Payout Brain** | *Judges* tester evidence and proposes pay / review / hold. **Never states an amount.** |
-| **Telegram Concierge** | The walletless front door — a hand-rolled tool loop that deliberately never imports the judgment layer. |
-| **Vaults + settlement** | `CampaignVault` derives the exact reward, enforces caps + replay protection, and emits the settlement event that is the single source of truth. |
+| Layer | Role | Forbidden to |
+|---|---|---|
+| **Mission Brain** | Designs missions from an inspected product — architect → critic → deterministic gate | Ship anything the gate rejects |
+| **Payout Brain** | Judges tester evidence, proposes pay / hold / refuse | State an amount, ever |
+| **Concierge** | Conversational front door (Telegram + web) | Do its own money arithmetic, or import the judging layer |
+| **CampaignVault** | Derives the reward, enforces caps, rejects replays, emits settlement | — it is the only thing that can move money |
 
-**Invariants the code enforces:** no model ever computes a money amount (rewards come from a
-deterministic budget compiler); quotes in a decision must be verbatim substrings of the
-fetched evidence; untrusted content stays inside `<<<UNTRUSTED_…>>>` markers; mainnet
-auto-pay is gated behind a flag and a confidence threshold; the activity feed never
-fabricates progress. The safety-critical pieces (injection detector, autopilot gate, mandate
-policy builder, vault ABIs, budget math) are treated as frozen and guarded by tests.
+**Autonomy is a stateless gate, not a running loop.** It fires when a tester submits, and again on
+an authenticated sweep that re-evaluates pending work. The pipeline never throws for control flow —
+any failure resets to pending for the next sweep.
 
-**Chains.** GOAT Network (chainId `2345`, real USDC, native gas BTC) is the production
-mainnet; Metis Sepolia (`59902`) is the testnet.
+📖 [Architecture](https://sagepays.xyz/docs/architecture) · [Judging](https://sagepays.xyz/docs/judging) · [Settlement](https://sagepays.xyz/docs/settlement) · [Safety model](https://sagepays.xyz/docs/safety)
 
-**Two front doors, one engine.** Web (`sagepays.xyz`): connect a browser wallet, SIWE,
-guided launch. Walletless Telegram (`@sagedeputybot`): Sage mints a policy-guarded server
-wallet and funds/launches/reviews from chat — no wallet app.
+---
+
+## The guarantees
+
+These are structural, not behavioural. "The agent is careful" is worth nothing; "the contract
+computes the amount" is checkable.
+
+- **No model ever computes a money amount.** Rewards come from a deterministic budget compiler
+  where `Σ(reward × completions) = the funded total`, exactly, in 6-decimal base units.
+- **Quotes must be verbatim.** Any quote in a decision must be an exact substring of the fetched
+  evidence. Anything else is dropped.
+- **Untrusted content stays marked untrusted.** Pages, evidence and tester notes are wrapped in
+  delimiters; forged delimiters are stripped; an eight-family injection detector runs over
+  everything a stranger wrote.
+- **With no model at all, it cannot auto-pay.** The system degrades to a transparent keyword
+  heuristic that can only *hold* work. Losing the model stops money moving — it never moves it
+  wrongly.
+- **Mainnet auto-pay is off unless explicitly armed.**
+
+---
 
 ## Run it
 
 ```bash
 npm install
-cp .env.example .env      # fill in what you have; missing integrations degrade honestly
-npm run dev               # http://localhost:3000
-npm run test              # unit/component + the red-team suite
-npm run build             # production build
-npm run preflight <chatId> # go/no-go check before a real campaign
+cp .env.example .env.local     # fill in what you need; missing keys degrade honestly
+npm run dev
 ```
 
-Sage degrades honestly: with no LLM key the judgment brain drops to a transparent keyword
-heuristic that **can never auto-pay**; with no x402 creds evidence verification falls back to
-unpaid; a missing integration means it's *pending*, not broken. See `CLAUDE.md` for the full
-spec and the environment table.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Next.js dev server (turbopack) |
+| `npm run build` | Production build |
+| `npm run typecheck` | `tsc --noEmit`, strict |
+| `npm run test` | Vitest — unit, component, and the red-team suite |
+| `npm run test:e2e` | Playwright |
+| `npm run lint` | ESLint |
+| `npm run deputy:watch` | The sweep watcher that drives autopilot |
 
-## Stage 1
+The optional Field Test (`FIELD_TEST_ENABLED=1`) browses the inspected product in a real headless
+browser and needs a browser engine once: `npx playwright install --with-deps chromium`.
 
-See **[STAGE1.md](STAGE1.md)** for the deliverables + proof, and **[GROWTH.md](GROWTH.md)**
-for the seed-user definition and growth metrics.
+Every integration is optional and fails *honestly*: a missing key means that capability is pending
+and the app says so, rather than pretending. See [`.env.example`](.env.example).
+
+---
+
+## Repository layout
+
+```
+src/app/            Next.js routes — landing, launch, campaign, docs, proof, api
+src/lib/launch/     Inspection, field test, mission brain, budget compiler
+src/lib/deputy/     Judging (brain-core), autopilot gate, vault clients, settlement
+src/lib/campaigns/  Campaign lifecycle and the settle flow
+src/lib/telegram/   The walletless concierge
+contracts/          CampaignVault (V2) and PolicyVault (V1)
+scripts/            Red-team, sweep watcher, MCP conformance, ERC-8004 registration
+tests/redteam/      The suite that guards the frozen judgement layer
+docs/               Architecture notes, Stage 2 reports, archived build history
+```
+
+---
+
+## Testing and safety
+
+The red-team suite in `tests/redteam/` guards the pieces that can silently unbound money movement:
+the judgement rubric, the injection detector, the confidence hardener and the autopilot gate. It
+must stay green — `lint` + `typecheck` + `test` are the gate before anything touching core logic
+ships.
+
+Any change to inspection, the field test, the mission brain or the gates also runs the P-GEN matrix
+battery (`scripts/mission-eval-matrix.mjs`). Anchor integrity below 100% is a hard stop.
+
+---
+
+## Interfaces
+
+- **Web** — [sagepays.xyz](https://sagepays.xyz): connect a wallet, launch, fund, watch it run.
+- **Walletless Telegram** — [@sagedeputybot](https://t.me/sagedeputybot): the whole loop from chat,
+  no wallet app. Sage mints a server wallet bound to a spending policy.
+- **Agent-to-agent** — an MCP server at `/mcp` with read and inspection-start tools. It *provably
+  cannot* sign or settle; a structural test fails the build if a money-moving capability is ever
+  exposed there.
+- **Identity** — a registered ERC-8004 on-chain agent identity.
+
+---
+
+## Links
+
+| | |
+|---|---|
+| Product | [sagepays.xyz](https://sagepays.xyz) |
+| Documentation | [sagepays.xyz/docs](https://sagepays.xyz/docs) |
+| Case study | [autonomous paid testing](https://sagepays.xyz/case-studies/autonomous-paid-testing) |
+| Live missions | [sagepays.xyz/marketplace](https://sagepays.xyz/marketplace) |
+| Agent record | [sagepays.xyz/agents/sage](https://sagepays.xyz/agents/sage) |
+| Telegram | [@sagedeputybot](https://t.me/sagedeputybot) |
+| X | [@sagepaysai](https://x.com/sagepaysai) |
+
+Build history, Stage reports and superseded working notes live in [`docs/`](docs/); the raw sprint
+patches are kept in [`docs/archive/`](docs/archive/) rather than the repository root.
