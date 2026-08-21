@@ -7,20 +7,22 @@ Record the two separately and cut them together — the demo is the part worth r
 
 ---
 
+Use **`Sage-DemoDay-Official.pptx`** — the organisers' own template, filled in. Their Golden Pitch
+Rule requires at least 40% of the runtime on the live demo, so the demo is a full 2:00 of the 5:00.
+
 ## Timing
 
-| Time | What's on screen |
+| Time | Slide |
 |---|---|
-| 0:00–0:20 | Slide 1 — title |
-| 0:20–0:55 | Slide 2 — the five steps |
-| 0:55–1:30 | Slide 3 — the problem |
-| 1:30–2:05 | Slide 4 — agent proposes, vault disposes |
-| 2:05–2:15 | Slide 5 — demo cue |
-| **2:15–4:00** | **Screen recording** |
-| 4:00–4:20 | Slide 6 — 48% refused |
-| 4:20–4:40 | Slide 7 — traction |
-| 4:40–4:55 | Slide 8 — what's next |
-| 4:55–5:00 | Slide 9 — close |
+| 0:00–0:25 | 1 · Title |
+| 0:25–0:40 | 2 · Contents |
+| 0:40–1:15 | 3 · Project & Agent Overview — the five steps |
+| 1:15–1:45 | 4 · Problem & Market Need |
+| 1:45–2:05 | 5 · Architecture — agent proposes, vault disposes |
+| **2:05–4:05** | **6 · Live Product Demo — screen recording (40%)** |
+| 4:05–4:30 | 7 · Traction |
+| 4:30–4:50 | 8 · Roadmap |
+| 4:50–5:00 | 9 · Thank You |
 
 Every slide's speaker notes contain the exact words, already timed. Read them; don't improvise.
 
