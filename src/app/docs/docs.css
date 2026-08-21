@@ -1,0 +1,299 @@
+/**
+ * DOCS SHELL — the two-column chrome for /docs/*.
+ *
+ * Deliberately NOT a tenth design system. This file carries the shell only: the grid, the sticky
+ * section nav, and the small bits of furniture a documentation set needs (page nav, callouts,
+ * on-this-page links). Everything inside the content column is still `.prose-page` from
+ * content.css, which is why `.prose-page.in-docs` exists — it strips the full-bleed page padding
+ * and min-height that make sense on a standalone comparison page and fight a two-column layout.
+ *
+ * Tokens are re-declared here for the same reason content.css re-declares them: landing-v2.css
+ * scopes its palette under `.slv2`, so referencing those vars from an unrelated surface resolves
+ * to nothing at all. When src/styles/tokens.css finally exists, this block and content.css's
+ * block both delete in favour of importing it.
+ *
+ * The founder AppShell rail is deliberately absent. It is app chrome for people who are logged in
+ * and spending money; docs are read by strangers, and giving a stranger a Dashboard rail is a nav
+ * that promises an account they do not have.
+ */
+
+.docs-shell {
+  --canvas: #fbfaf6;
+  --canvas-2: #f4f2ea;
+  --ink: #171715;
+  --ink-2: #4a473f;
+  --ink-3: #8a8578;
+  --line: rgba(23, 23, 21, 0.1);
+  --line-2: rgba(23, 23, 21, 0.16);
+  --terra: #c2410c;
+  --terra-wash: rgba(194, 65, 12, 0.07);
+  --terra-line: rgba(194, 65, 12, 0.22);
+  --r-1: 8px;
+  --r-2: 14px;
+  --font-display: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  --font-body: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  align-items: start;
+}
+
+/* ── sidebar ─────────────────────────────────────────────────────────────── */
+
+.docs-side {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--canvas-2);
+  padding: 28px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.docs-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.docs-brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--terra);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.docs-brand-tag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.docs-group-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 8px 10px;
+  font-weight: 600;
+}
+
+.docs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.docs-link {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--r-1);
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.35;
+  transition: background 0.13s ease, color 0.13s ease;
+}
+
+.docs-link:hover {
+  background: rgba(23, 23, 21, 0.045);
+  color: var(--ink);
+}
+
+.docs-link[aria-current="page"] {
+  background: var(--terra-wash);
+  color: var(--terra);
+  font-weight: 600;
+}
+
+.docs-side-foot {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docs-side-foot a {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: var(--r-1);
+}
+
+.docs-side-foot a:hover {
+  color: var(--terra);
+}
+
+/* ── content column ──────────────────────────────────────────────────────── */
+
+.docs-main {
+  min-width: 0;
+  padding: clamp(38px, 5vw, 72px) clamp(22px, 5vw, 76px) 96px;
+}
+
+.prose-page.in-docs {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.prose-page.in-docs .prose-wrap {
+  max-width: 780px;
+  margin: 0;
+}
+
+/* the small furniture a doc set needs and a single page never did */
+
+.docs-crumb {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 10px;
+}
+
+.docs-next {
+  margin-top: 52px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.docs-next a {
+  flex: 1 1 220px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: 14px 16px;
+  text-decoration: none;
+  background: #fff;
+  transition: border-color 0.14s ease;
+}
+
+.docs-next a:hover {
+  border-color: var(--terra-line);
+}
+
+.docs-next .lbl {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.docs-next .ttl {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--terra);
+}
+
+.docs-cards {
+  display: grid;
+  /* an explicit pair rather than auto-fit: four cards on auto-fit land 3 + 1, and the
+     orphan reads as a mistake rather than a layout */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0 8px;
+}
+
+@media (max-width: 640px) {
+  .docs-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.docs-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: #fff;
+  padding: 18px 18px 20px;
+  text-decoration: none;
+  display: block;
+  transition: border-color 0.14s ease;
+}
+
+.docs-card:hover {
+  border-color: var(--terra-line);
+}
+
+.docs-card h3 {
+  margin: 0 0 6px;
+  font-size: 15.5px;
+  font-weight: 650;
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+
+.docs-card p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* ── mobile: the sidebar becomes a scrolling strip above the content ─────── */
+
+@media (max-width: 900px) {
+  .docs-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docs-side {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 18px 16px 14px;
+    gap: 16px;
+  }
+
+  .docs-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+
+  .docs-link {
+    white-space: nowrap;
+    border: 1px solid var(--line);
+  }
+
+  .docs-side-foot {
+    display: none;
+  }
+}

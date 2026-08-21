@@ -24,7 +24,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // because these are the pages written to be quoted by an answer engine, and a page that is not
     // in the sitemap is a page we are hoping gets found rather than asking for it to be.
     { url: `${base}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${base}/docs`, lastModified: now, changeFrequency: "monthly", priority: 0.85 },
+    // The docs set: each page is its own answer to its own question, so each is worth
+    // submitting rather than hoping a crawler finds them from one index page.
+    ...[
+      "/docs",
+      "/docs/how-it-works",
+      "/docs/architecture",
+      "/docs/missions",
+      "/docs/judging",
+      "/docs/settlement",
+      "/docs/safety",
+      "/docs/interfaces",
+    ].map((path) => ({
+      url: `${base}${path}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: path === "/docs" ? 0.85 : 0.7,
+    })),
     { url: `${base}/vs/beta-testers`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/vs/bug-bounty`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     // The case study: the one content shape that carries real numbers rather than an explanation of
