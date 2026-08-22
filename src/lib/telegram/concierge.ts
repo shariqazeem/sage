@@ -316,20 +316,22 @@ function maybeNotifyOnInspection(
     return;
   }
 
+  // THE LINK CANNOT BE DEFERRED. Deferred jobs run SEQUENTIALLY and `runInspectionJob` is queued
+  // first, so a link sent from inside the block below arrives AFTER the ~3-minute inspection it
+  // exists to let the founder watch — measured, and reported as "it gave the link very late".
+  // Send it now, off the queue entirely, so it lands with the reply.
+  void sendTelegram(
+    chatId,
+    `Watching it live: ${siteUrl()}/launch/${inspectionId}`,
+    { html: false },
+  ).catch(() => false);
+
   scheduleAfter(async () => {
     // A LIVING VIEW FOR TELEGRAM. The web founder watches Sage move through their product; a Telegram
     // founder used to get one "I've started" line and then silence for minutes. Telegram cannot
     // stream, so one message is EDITED in place with the work as it happens — same trail, same real
     // captures, no fabricated steps. Entirely best-effort: it is created lazily on the first real
     // state, and every failure here is swallowed so it can never affect the inspection or the notice.
-    // THE TRACKING LINK IS NOT THE MODEL'S TO REMEMBER. It relayed the plan link on one run and
-    // silently dropped it on the next, leaving the founder with no way to watch their own inspection.
-    // Send it deterministically, the moment the run starts, so it is always there.
-    await sendTelegram(
-      chatId,
-      `Watching it live: ${siteUrl()}/launch/${inspectionId}`,
-      { html: false },
-    ).catch(() => false);
     let progressMsgId: number | null = null;
     let lastRendered = "";
     const renderProgress = async () => {
