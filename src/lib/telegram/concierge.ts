@@ -497,6 +497,9 @@ async function runAgentTurn(
   let selfCorrected = false;
   /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
   const succeededTools = new Set<string>();
+  // everything the tools returned this turn, so a link in the reply can be proven to have come
+  // from one of them rather than from the model's imagination.
+  let toolOutput = "";
   // ONE budget for the whole turn, not per call: five tool rounds each retrying three times would
   // otherwise let a bad gateway spell run for minutes with the founder watching nothing happen.
   const turnDeadline = Date.now() + TURN_BUDGET_MS;
@@ -636,6 +639,7 @@ async function runAgentTurn(
             }
             if (payloadOk) succeededTools.add(tc.function.name);
           }
+          toolOutput += text;
 
           // Keep the "I'll let you know" promise on TELEGRAM (a push channel): follow a fresh inspection
           // to completion in the background and DM the plan. On web there's no push — the overlay polls
@@ -672,7 +676,7 @@ async function runAgentTurn(
        * before. Money safety unchanged: nothing here licenses a claim — it gives the model one
        * chance to EARN the license by actually calling the tool.
        */
-      const draftVerdict = checkNarration(reply, succeededTools);
+      const draftVerdict = checkNarration(reply, succeededTools, toolOutput);
       if (!draftVerdict.ok && !selfCorrected && round < MAX_TOOL_ROUNDS - 1 && Date.now() < turnDeadline) {
         selfCorrected = true;
         console.warn("[concierge:%s] self-correct: draft claimed [%s] with no backing tool — retrying with the tool", surface, draftVerdict.unbacked.join(", "));
@@ -694,7 +698,7 @@ async function runAgentTurn(
   // NARRATION GUARD — see narration-guard.ts. Measured live: Sage reported a campaign stopped, 4.50
   // USDC recovered and a 6.50 balance, with no stop call in the logs, the campaign still live and
   // 2.00 actually on chain. A founder reads the sentence, not the ledger.
-  const verdict = checkNarration(reply, succeededTools);
+  const verdict = checkNarration(reply, succeededTools, toolOutput);
   if (!verdict.ok) {
     console.warn(
       "[concierge:%s] UNBACKED CLAIM blocked (%s) · tools that succeeded: [%s] · suppressed: %s",

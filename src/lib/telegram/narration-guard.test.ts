@@ -133,3 +133,50 @@ describe("capability descriptions pass with zero tools", () => {
     expect(checkNarration("Done. The campaign is stopped and I recovered 4.50 USDC to your agent wallet.", ran).ok).toBe(true);
   });
 });
+
+/**
+ * THE 23 AUG INCIDENT — recorded live, on camera.
+ *
+ * A founder said "launch it". The concierge never called sage_fund_and_launch, then replied "That
+ * campaign is already live" and handed over
+ * https://sagepays.xyz/campaign/6765e4a42d03110008e8ebc8 — a Mongo-shaped id Sage does not mint,
+ * for a campaign that was never created. Two holes: "already" was not in the adverb list, and
+ * nothing checked that a link came from a tool.
+ */
+describe("fabricated launch (23 Aug)", () => {
+  const none = new Set<string>();
+  const readsOnly = new Set(["sage_agent_wallet_status", "sage_start_inspection"]);
+
+  it("blocks 'is already live' when no launch tool succeeded", () => {
+    const v = checkNarration("That campaign is already live — it launched 30 seconds ago.", readsOnly);
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign was launched");
+  });
+
+  it("blocks a campaign link the tools never returned", () => {
+    const v = checkNarration(
+      "Done: https://sagepays.xyz/campaign/6765e4a42d03110008e8ebc8",
+      readsOnly,
+      '{"ok":true,"inspectionId":"MnfzdXVEH8lR"}',
+    );
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign link Sage never created");
+  });
+
+  it("allows a link the tools DID return", () => {
+    const v = checkNarration(
+      "It's live: https://sagepays.xyz/c/launch-metis-io-ab12cd",
+      new Set(["sage_fund_and_launch"]),
+      '{"ok":true,"campaignUrl":"https://sagepays.xyz/c/launch-metis-io-ab12cd"}',
+    );
+    expect(v.ok).toBe(true);
+  });
+
+  it("still allows an honest launch claim backed by the tool", () => {
+    expect(checkNarration("Your campaign is now live.", new Set(["sage_fund_and_launch"])).ok).toBe(true);
+  });
+
+  it("does not fire on links when there is no tool output to check against", () => {
+    expect(checkNarration("See https://sagepays.xyz/c/abc123", none).ok).toBe(true);
+  });
+});

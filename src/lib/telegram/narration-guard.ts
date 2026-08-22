@@ -45,7 +45,7 @@ const CLAIMS: readonly Claim[] = [
   {
     label: "a campaign was stopped",
     // "is stopped", "I stopped", "has been stopped/cancelled" — not "want me to stop it?"
-    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:now\s+)?(?:stopped|cancelled|canceled)\b/i,
+    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:stopped|cancelled|canceled)\b/i,
     backedBy: ["sage_stop_campaign"],
   },
   {
@@ -68,7 +68,12 @@ const CLAIMS: readonly Claim[] = [
   },
   {
     label: "a campaign was launched",
-    pattern: /\b(?:is|are|has been|have been|i(?:'ve| have)?)\s+(?:now\s+)?(?:live|launched|funded and launched)\b/i,
+    // THE ADVERB HOLE. This read `(?:now\s+)?` and a founder was told "That campaign is ALREADY
+    // live" — with an invented campaign id — because "already" is not "now", so the guard never
+    // fired on a launch that never happened. The adverb list is explicit, and deliberately excludes
+    // "still" and "currently": those describe an ongoing state a read tool can legitimately report,
+    // while "already"/"now" are what a fresh action gets dressed in.
+    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:live|launched|funded and launched)\b/i,
     backedBy: ["sage_fund_and_launch"],
   },
 ];
@@ -125,8 +130,35 @@ function sentenceAround(text: string, i: number): string {
   return text.slice(start, end + 1);
 }
 
+/**
+ * LINKS MUST COME FROM TOOLS, NOT FROM THE MODEL.
+ *
+ * Phrasing guards are a cat-and-mouse game — one adverb walked through the launch claim. An id is
+ * not: a founder was handed `sagepays.xyz/campaign/6765e4a42d03110008e8ebc8`, a shape Sage does not
+ * even mint, for a campaign that was never created. So every campaign/plan/proof link in a reply
+ * must appear verbatim in what the tools actually returned this turn. A model cannot invent its way
+ * around this one, whatever words it wraps around the link.
+ */
+const LINK_RE = /https?:\/\/[^\s)"']*\/(?:campaign|c|launch|proof)\/[A-Za-z0-9_-]+/gi;
+
+function fabricatedLinks(reply: string, toolOutput: string): string[] {
+  const seen = new Set<string>();
+  for (const m of reply.matchAll(LINK_RE)) {
+    const url = m[0].replace(/[.,;:]+$/, "");
+    const id = url.split("/").pop() ?? "";
+    // the id is what identifies it; a tool may have returned the same link with a different host.
+    if (id && !toolOutput.includes(id)) seen.add(url);
+  }
+  return [...seen];
+}
+
 /** Which completion claims in `reply` are not backed by a tool that succeeded this turn. */
-export function checkNarration(reply: string, succeededTools: ReadonlySet<string>): NarrationVerdict {
+export function checkNarration(
+  reply: string,
+  succeededTools: ReadonlySet<string>,
+  /** everything the tools returned this turn — used to prove any link the reply hands over. */
+  toolOutput = "",
+): NarrationVerdict {
   const unbacked: string[] = [];
   for (const c of [...CLAIMS, ...READ_CLAIMS]) {
     const m = c.pattern.exec(reply);
@@ -135,6 +167,8 @@ export function checkNarration(reply: string, succeededTools: ReadonlySet<string
     if (CAPABILITY_MARKERS.test(sentenceAround(reply, m.index))) continue;
     unbacked.push(c.label);
   }
+  if (toolOutput && fabricatedLinks(reply, toolOutput).length > 0)
+    unbacked.push("a campaign link Sage never created");
   return { ok: unbacked.length === 0, unbacked };
 }
 
