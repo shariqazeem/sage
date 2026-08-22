@@ -408,6 +408,8 @@ export interface GroundingShadowResult {
   /** semantic-draft compiler telemetry — bounded counts + enum codes only, never raw mission/observed text. */
   architectContractVersion: string;
   draftMissionCount: number;
+  /** missions the SCHEMA parse dropped while salvaging a partly-valid draft (0 on a clean parse). */
+  schemaDroppedMissionCount: number;
   draftCriterionCount: number;
   compiledMissionCount: number;
   compilerRejectedCount: number;
@@ -694,6 +696,7 @@ export async function runGroundedShadow(
     architectSchemaErrorPaths: [],
     architectContractVersion: GROUNDED_ARCHITECT_CONTRACT_VERSION,
     draftMissionCount: 0,
+    schemaDroppedMissionCount: 0,
     draftCriterionCount: 0,
     compiledMissionCount: 0,
     compilerRejectedCount: 0,
@@ -895,6 +898,7 @@ export async function runGroundedShadow(
     compileOutcome
       ? {
           draftMissionCount: compileOutcome.draftMissionCount,
+          schemaDroppedMissionCount: compileOutcome.schemaDroppedMissionCount,
           draftCriterionCount: compileOutcome.draftCriterionCount,
           compiledMissionCount: compileOutcome.compiledMissionCount,
           compilerRejectedCount: compileOutcome.compilerRejectedCount,
@@ -1040,6 +1044,7 @@ export async function runGroundedShadow(
         kind: "compiled",
         candidates,
         draftMissionCount: missions.length,
+        schemaDroppedMissionCount: 0,
         draftCriterionCount: missions.reduce(
           (s, m) => s + m.criteria.length,
           0,

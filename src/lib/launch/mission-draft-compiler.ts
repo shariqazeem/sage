@@ -218,11 +218,47 @@ export interface DraftCompileOutcome {
   compiledMissionCount: number;
   compilerRejectedCount: number;
   compilerRejectionCodes: Record<string, number>;
+  /** missions dropped by the SCHEMA parse (not the compiler) when the draft was salvaged per-mission. */
+  schemaDroppedMissionCount: number;
   derivedAnchorCount: number;
   derivedSourceCount: number;
   derivedTargetSurfaceCount: number;
 }
-const EMPTY_OUTCOME = (kind: DraftCompileOutcome["kind"], schemaErrorPaths: string[] = []): DraftCompileOutcome => ({ kind, schemaErrorPaths, candidates: [], draftMissionCount: 0, draftCriterionCount: 0, compiledMissionCount: 0, compilerRejectedCount: 0, compilerRejectionCodes: {}, derivedAnchorCount: 0, derivedSourceCount: 0, derivedTargetSurfaceCount: 0 });
+const EMPTY_OUTCOME = (kind: DraftCompileOutcome["kind"], schemaErrorPaths: string[] = []): DraftCompileOutcome => ({ kind, schemaErrorPaths, candidates: [], draftMissionCount: 0, draftCriterionCount: 0, compiledMissionCount: 0, compilerRejectedCount: 0, compilerRejectionCodes: {}, schemaDroppedMissionCount: 0, derivedAnchorCount: 0, derivedSourceCount: 0, derivedTargetSurfaceCount: 0 });
+
+/**
+ * SALVAGE A PARTLY-VALID DRAFT — one bad mission must not discard the good ones.
+ *
+ * Measured on production (metis.io, 2026-08-22): the architect returned four missions, the third
+ * carried an `action_outcome` criterion with no `transitionRef`, and the whole-object parse threw
+ * away all four. Grounding died and the launch fell back to the legacy planner silently — which is
+ * the exact failure this contract exists to prevent.
+ *
+ * The compiler below already drops a bad mission rather than the plan; the schema above it did not.
+ * This makes the two agree. Strictness is not reduced anywhere — each surviving mission passed the
+ * SAME `DraftMissionSchema`, and the canonical gate, critic support and exact allocation downstream
+ * are untouched. A draft where nothing survives still returns `schema_invalid` exactly as before.
+ */
+function salvageMissions(json: unknown): { missions: SemanticDraftMission[]; droppedPaths: string[] } {
+  const raw = (json as { missions?: unknown[] } | null)?.missions;
+  if (!Array.isArray(raw)) return { missions: [], droppedPaths: [] };
+  const missions: SemanticDraftMission[] = [];
+  const droppedPaths: string[] = [];
+  const seenKeys = new Set<string>();
+  for (let i = 0; i < raw.length; i++) {
+    const one = DraftMissionSchema.safeParse(raw[i]);
+    if (!one.success) {
+      for (const issue of one.error.issues.slice(0, 3))
+        droppedPaths.push(`missions.${i}.${issue.path.join(".") || "(mission)"}:${issue.code}`);
+      continue;
+    }
+    // the whole-object superRefine enforced key uniqueness; keep enforcing it across survivors.
+    if (seenKeys.has(one.data.missionKey)) { droppedPaths.push(`missions.${i}.missionKey:duplicate`); continue; }
+    seenKeys.add(one.data.missionKey);
+    missions.push(one.data);
+  }
+  return { missions, droppedPaths };
+}
 
 /** Strict Zod parse of the semantic draft → deterministic compile of each mission. `empty` (honest v2_empty)
  *  is distinguished from `schema_invalid`; a per-mission compiler rejection drops that mission (bounded codes
@@ -231,16 +267,33 @@ export function parseAndCompileArchitectDraft(json: unknown, set: ObservationSet
   const rawMissions = (json as { missions?: unknown[] } | null)?.missions;
   if (Array.isArray(rawMissions) && rawMissions.length === 0) return EMPTY_OUTCOME("empty");
   const parsed = SemanticDraftSchema.safeParse(json);
-  if (!parsed.success) return EMPTY_OUTCOME("schema_invalid", parsed.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`));
+  let missions: SemanticDraftMission[];
+  let schemaErrorPaths: string[] = [];
+  let schemaDroppedMissionCount = 0;
+  if (parsed.success) {
+    missions = parsed.data.missions;
+  } else {
+    const salvaged = salvageMissions(json);
+    if (salvaged.missions.length === 0)
+      return EMPTY_OUTCOME("schema_invalid", parsed.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}:${i.code}`));
+    missions = salvaged.missions;
+    schemaErrorPaths = salvaged.droppedPaths.slice(0, 12);
+    schemaDroppedMissionCount = salvaged.droppedPaths.length > 0 ? countDroppedMissions(salvaged.droppedPaths) : 0;
+  }
 
   const candidates: CandidateMission[] = [];
   const compilerRejectionCodes: Record<string, number> = {};
   let compilerRejectedCount = 0, draftCriterionCount = 0, derivedAnchorCount = 0, derivedSourceCount = 0;
-  for (const draft of parsed.data.missions) {
+  for (const draft of missions) {
     draftCriterionCount += draft.criteria.length;
     const r = compileGroundedMissionDraft(draft, set, view);
     if (r.ok) { candidates.push(r.value); derivedAnchorCount += r.value.anchors?.length ?? 0; derivedSourceCount += r.value.sources.length; }
     else { compilerRejectedCount++; compilerRejectionCodes[r.code] = (compilerRejectionCodes[r.code] ?? 0) + 1; }
   }
-  return { kind: "compiled", schemaErrorPaths: [], candidates, draftMissionCount: parsed.data.missions.length, draftCriterionCount, compiledMissionCount: candidates.length, compilerRejectedCount, compilerRejectionCodes, derivedAnchorCount, derivedSourceCount, derivedTargetSurfaceCount: candidates.length };
+  return { kind: "compiled", schemaErrorPaths, candidates, draftMissionCount: missions.length, draftCriterionCount, compiledMissionCount: candidates.length, compilerRejectedCount, compilerRejectionCodes, schemaDroppedMissionCount, derivedAnchorCount, derivedSourceCount, derivedTargetSurfaceCount: candidates.length };
+}
+
+/** How many distinct mission indices appear in the dropped-path list. */
+function countDroppedMissions(paths: readonly string[]): number {
+  return new Set(paths.map((p) => p.split(".")[1]).filter(Boolean)).size;
 }

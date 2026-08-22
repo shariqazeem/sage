@@ -160,3 +160,44 @@ describe("deterministic draft compiler matrix", () => {
     expect(r.ok).toBe(false); // rejected before any anchor/source is derived
   });
 });
+
+/**
+ * PARTIAL-DRAFT SALVAGE — measured on production (metis.io, 2026-08-22).
+ *
+ * The architect returned four missions; the third carried an `action_outcome` criterion with no
+ * `transitionRef`, and the whole-object parse discarded all four. Grounding died and the launch
+ * fell back to legacy silently. One bad mission must cost one mission, not the plan.
+ */
+describe("parseAndCompileArchitectDraft · partial salvage", () => {
+  const badCrit = () => stateCrit({ criterionKind: "action_outcome", transitionRef: null });
+
+  it("keeps the valid missions when one is malformed, instead of discarding the draft", () => {
+    const json = {
+      missions: [
+        draftMission([stateCrit()], { missionKey: "alpha" }),
+        draftMission([badCrit()], { missionKey: "broken" }),
+        draftMission([stateCrit()], { missionKey: "beta" }),
+      ],
+    };
+    expect(SemanticDraftSchema.safeParse(json).success).toBe(false); // whole-object contract still rejects
+
+    const out = parseAndCompileArchitectDraft(json, SET, allPresented);
+    expect(out.kind).not.toBe("schema_invalid");
+    expect(out.draftMissionCount).toBe(2);
+    expect(out.schemaDroppedMissionCount).toBe(1);
+    expect(out.schemaErrorPaths.some((path) => path.startsWith("missions.1."))).toBe(true);
+  });
+
+  it("still reports schema_invalid when nothing survives", () => {
+    const out = parseAndCompileArchitectDraft({ missions: [draftMission([badCrit()])] }, SET, allPresented);
+    expect(out.kind).toBe("schema_invalid");
+    expect(out.draftMissionCount).toBe(0);
+  });
+
+  it("drops a duplicate missionKey rather than the whole draft", () => {
+    const json = { missions: [draftMission([stateCrit()], { missionKey: "dup" }), draftMission([stateCrit()], { missionKey: "dup" })] };
+    const out = parseAndCompileArchitectDraft(json, SET, allPresented);
+    expect(out.draftMissionCount).toBe(1);
+    expect(out.schemaErrorPaths.some((path) => path.includes("missionKey:duplicate"))).toBe(true);
+  });
+});
