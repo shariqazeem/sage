@@ -74,21 +74,20 @@ SHOT 1 — IT LOOKS AT THE PRODUCT          [0:00-0:45]
 
 This is a product Sage has never seen.
 
-I give it a URL, and one thing I want to know — can a
+I give it a URL and one thing I want to know — can a
 first-time visitor find which apps are live on Metis, and
-actually get to one of them.
+get to one.
 
 >>> PAUSE. Say nothing for three seconds. Let it browse.
 
 That's it opening the site in a real browser. Not
-screenshots. It is moving through the product the way a
-person would.
+screenshots — it is using the product.
 
 And these missions — I didn't write them. It wrote them
 from what it just saw.
 
->>> SAY WHAT YOU SEE: read one mission title off the screen,
->>> then say why that is a fair thing to test. Your words.
+>>> SAY WHAT YOU SEE: read ONE mission title off the screen.
+>>> One short sentence only — this is where takes run long.
 
 
 >>>>>>>>>>  SHOT 2  <<<<<<<<<<
@@ -98,19 +97,17 @@ SHOT 2 — A REAL PERSON GETS PAID          [0:45-1:15]
 
 
 The budget is already split, too. What each tester earns,
-how many people can be paid. I never chose those numbers.
+how many get paid. I never chose those numbers.
 
-Here is someone who did one of the missions and wrote up
-what they found.
-
-Sage is checking that against what it saw itself.
+Someone has done one of the missions and written up what
+they found. Sage is checking it against what it saw itself.
 
 >>> PAUSE. Let it settle. Do not talk over this.
 
 Paid. Real USDC, on GOAT mainnet.
 
->>> SAY WHAT YOU SEE: read the amount, and point at the
->>> receipt. "And this names the exact evidence it paid for."
+>>> SAY WHAT YOU SEE: read the amount, then say
+>>> "and this names the exact evidence it paid for." 
 
 
 >>>>>>>>>>  SHOT 3  <<<<<<<<<<
@@ -122,9 +119,8 @@ SHOT 3 — NOW TRY TO CHEAT IT              [1:15-1:45]
 
 Now let me try to cheat it.
 
-I am sending in something that sounds about right, for work
-I never did. No detail. Nothing I could only know by
-actually using the product.
+Something that sounds about right, for work I never did.
+Nothing I could only know by using the product.
 
 >>> PAUSE. Let the judgement run.
 
