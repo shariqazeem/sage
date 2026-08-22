@@ -18,19 +18,25 @@ twelve seconds to plant that. It is written so you can drop it cleanly if the de
 
 ### Pick the product
 
-**Primary: `cal.com`.** Sage has never inspected it, it loads fast, the booking flow gives it a lot
-of real states to explore, and everyone recognises it.
+**Primary: `netswap.io`** — a real DEX in the Metis ecosystem. Sage has never inspected it, it is
+live and fast, and the nav (Trade · Earn · Launchpad · Bridge) gives it plenty of real states to
+walk. It also matters *who is watching*: demoing on a Metis ecosystem product in front of Metis
+judges reads as citizenship, not coincidence.
 
-**Backup: `dub.co`** — same reasons, and the core action (shorten a link) is visually instant.
+**Backup: `bridge.metis.io`** — also live, and bridging is where first-time users actually fall off.
 
-Do **not** use Triage, Agora, TokenWatcher, Aporix or ClawUp. Two are competitors in this bootcamp
-and all five are already in Sage's inspection history — a repeat run looks staged.
+Two things I checked so you don't find them out mid-recording: **hercules.exchange no longer
+resolves** — do not use it. And Triage, Agora, TokenWatcher, Aporix and ClawUp are all already in
+Sage's inspection history, two of them are your competitors, so all five are out.
 
 ### The goal to type
 
-Type this exactly. It is a real founder question, and it is what drives which missions get built:
+> **Can a first-time visitor understand what this does and reach the trade screen, without
+> connecting a wallet?**
 
-> **Can a first-time visitor book a meeting without creating an account first?**
+This is scoped to the part of the product a tester can actually reach. That is deliberate — it is a
+real founder question, and it lets Sage do honest work instead of pretending it can get past a
+wallet prompt.
 
 ### Rehearse it once, for real
 
@@ -71,94 +77,109 @@ If a slide's narration goes wrong, re-record only that slide. PowerPoint keeps t
 
 ## Part 2 · The demo capture, shot by shot
 
-Total: **2:00**. This is 40% of the video, which is what the organisers' Golden Pitch Rule asks for.
+Total: **2:00** — 40% of the video, which is what the organisers' Golden Pitch Rule asks for.
+
+> **How to use this script.** None of these lines assume a particular result, because you cannot
+> know what Sage will find until it runs. Where you see **[read what's on screen]**, just say what
+> is actually there in your own words. That is the part that sounds real — a scripted reaction to
+> an unscripted result is the one thing viewers always catch.
 
 ### Shot 1 — It looks at the product · 35 seconds
 
-**Do:** Open `sagepays.xyz` → **Launch a campaign** → paste `https://cal.com` → type the goal →
-Continue. Then **stop touching anything** and let the browsing play.
+**Do:** `sagepays.xyz` → Launch a campaign → paste the URL → type the goal → Continue. Then take
+your hands off the keyboard and let the browsing run.
 
 **Say:**
 
-> "This is a product Sage has never seen before. I'm giving it a URL and one question I want
-> answered — can a first-time visitor book a meeting without making an account.
+> "So this is a product Sage has never seen. I'm giving it a URL, and one thing I actually want to
+> know — can someone landing here for the first time figure out what it does, without connecting a
+> wallet.
 >
-> And now it's opening cal.com in a real browser. These aren't screenshots. It's clicking through
-> the product the way a person would, finding the states a visitor can actually reach."
+> And that's it opening the product in a real browser right now. That's not a screenshot. It's
+> moving through the site the way a person would, seeing what a visitor can actually reach."
 
-**Then let four or five seconds pass in silence** while the exploration plays. That silence is the
-most convincing part of the whole video. Do not fill it.
+**Then stop talking for four or five seconds.** Let it browse. That silence does more work than
+anything you could say over it.
+
+> **[read what's on screen]** — as pages go by, name one or two out loud. *"There's the trade
+> screen… it's found the bridge…"* Whatever is genuinely there.
 
 ### Shot 2 — It writes the missions itself · 25 seconds
 
-**Do:** Scroll the plan slowly. Stop on one mission. Then point at the budget row.
+**Do:** Scroll the plan slowly. Stop on one mission. Then the budget row.
 
 **Say:**
 
-> "I didn't write any of this. Every one of these missions came out of what it just saw — this one
-> exists because it found that booking flow, not because I told it to look there.
->
-> And it's already split the budget. Total, allocated, what each tester earns, how many people can
-> be paid. I never picked those numbers — a contract derives them, so the total always balances
-> exactly."
+> "Now — I didn't write any of this. These missions came out of what it just saw. It looked at the
+> product, and these are the things it decided are worth paying someone to check."
+
+> **[read what's on screen]** — pick any one mission and read its title, then say why that is a
+> reasonable thing to test. Whatever it wrote, it wrote it from the product.
+
+> "And the budget's already split. What each tester earns, how many people can be paid. I didn't
+> choose those numbers — they're derived, so the total always comes out exact."
 
 ### Shot 3 — A real person gets paid · 30 seconds
 
-**Do:** Open the campaign board. Submit genuine work from wallet one. **Stay quiet while it judges.**
+**Do:** Open the board. Submit genuine work from wallet one. Then be quiet while it judges.
 
 **Say:**
 
-> "Here's the public board a tester sees. Someone's done one of the missions and written up what
-> happened.
+> "This is the public board a tester sees. Someone's gone and done one of these and written up what
+> they found.
 >
-> Now Sage is checking their account against what it saw itself when it explored the product…"
+> And now Sage is checking what they wrote against what it saw itself when it went through the
+> product…"
 
-*(wait for it to settle — do not talk over this)*
+*(say nothing until it resolves)*
 
-> "Paid. That's real USDC on GOAT mainnet, and nobody approved it. Here's the receipt — it names
-> the exact evidence it paid for."
+> **[read what's on screen]** — when it settles: *"Paid."* Then read the amount and point at the
+> receipt. *"Real USDC, on GOAT mainnet, and nobody approved that. And this receipt names the exact
+> evidence it paid for."*
 
 ### Shot 4 — Now try to cheat it · 40 seconds ★
 
 **This is the shot that wins the video. Do not rush it.**
 
-**Do:** Switch to wallet two. Submit something thin — a plausible-sounding sentence about a task you
-did not actually do.
+**Do:** Second wallet. Submit something thin — a plausible sentence about work you did not do.
 
 **Say:**
 
-> "Now let me try to cheat it.
+> "Okay. Now let me try to cheat it.
 >
-> I'm going to submit something that sounds about right, for work I never did. No screenshots, no
-> real detail — just words that could have been written without ever opening cal.com."
+> I'm going to send in something that sounds about right, for work I never actually did. No detail,
+> nothing I could only know by using the product. Just words."
 
-*(let the judgement run)*
+*(let it run)*
 
-> "Refused. And it tells me exactly why.
+> **[read what's on screen]** — read the verdict and the reason out loud, exactly as written. Then:
 >
-> I built this thing, and it just said no to me."
+> "I built this thing. And it just said no to me."
 
-**Pause after that line.** One full beat of silence. Let it land.
+**Then stop.** One full beat of silence. Let it sit.
+
+> **If it pays instead of refusing:** say so, honestly — *"it let that through, and that's the kind
+> of thing the refusal rate is there to keep honest."* Then cut this shot in editing and lean on
+> Shot 3. Do not fake a refusal. If you need a guaranteed one, the live board already has real
+> refusals with written reasons you can show instead.
 
 ### Shot 5 — Verify it yourself · 10 seconds
 
-**Do:** Cut to the GOAT explorer tab, already on the transaction.
+**Do:** Cut to the GOAT explorer tab, already sitting on the transaction.
 
 **Say:**
 
-> "And that's the block explorer. Not my dashboard — the chain. Every number in this demo is a
-> transaction anyone can check without my cooperation."
+> "And that's the block explorer. Not my dashboard — the chain itself. Every number in this demo is
+> a transaction anyone can go and check without me."
 
 ### Shot 6 — Telegram · 12 seconds · optional
 
-**Do:** Show `@sagedeputybot`. Send a product URL. Show the reply. Do not run the whole loop.
+**Do:** `@sagedeputybot`. Send a URL, show the reply. Do not run the whole loop.
 
 **Say:**
 
-> "One last thing. Same agent, same money, from a chat — no wallet app anywhere. That's how a
-> founder with no crypto wallet at all runs the exact same campaign."
-
----
+> "Last thing. Same agent, same money, from a chat — no wallet app anywhere. That's how someone with
+> no crypto wallet at all runs exactly the same campaign."
 
 ## Part 3 · The slide narration
 
@@ -190,7 +211,7 @@ sixteen people. Speak like someone reporting a fact, not selling a maybe.
 starts, after the payout lands, and after *"it just said no to me."* Amateur demos fill every
 second. Silence signals you know the work speaks.
 
-**One line said slower than the rest.** Pick *"I built this thing, and it just said no to me."*
+**One line said slower than the rest.** Pick *"I built this thing. And it just said no to me."*
 Everything around it at normal pace, that line at half speed.
 
 ### What to avoid
@@ -210,7 +231,7 @@ Everything around it at normal pace, that line at half speed.
 - [ ] Total runtime is **at or under 5:00**
 - [ ] The demo segment is roughly **2:00** (the 40% rule)
 - [ ] The payout transaction is **visible and legible** on screen
-- [ ] The refusal reason is **readable** — pause long enough to read it
+- [ ] If a refusal was captured, its reason is **readable** — pause long enough to read it
 - [ ] No competitor named anywhere
 - [ ] Audio is even — no clipping on the loud parts
 - [ ] Exported at **1080p**
