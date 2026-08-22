@@ -55,18 +55,42 @@ export function chargeOperatorFee(
  * failed fee stays pending for the next sweep. A settlement journals `fee_settled`
  * with the real GOAT tx; nothing here ever records a fee that didn't move.
  */
+/**
+ * STOP RETRYING A FEE THAT CANNOT SUCCEED YET.
+ *
+ * Measured on production: ten $0.10 fees from the 16 Aug campaign each reached ~1,900 attempts,
+ * every one failing `ERC20: transfer amount exceeds balance` because the operator wallet cannot
+ * cover them. Because the loop was unbounded that cost 2,880 x402 quote requests a day and 19,000
+ * doomed transfer simulations, for a week, to re-learn one fact.
+ *
+ * The order-id fix and the `stuck` counter made this VISIBLE; neither made it STOP. Past the cap a
+ * fee is skipped before it costs a single network call. Nothing is written off — the row keeps its
+ * status, amount and reason, and {@link resumeDeferredFees} puts it back in the queue once the
+ * wallet can actually pay it.
+ */
+export const MAX_FEE_ATTEMPTS = 25;
+
 export async function payPendingFees(): Promise<{
   settled: number;
   pending: number;
   /** pending fees that have failed repeatedly, with the current reason — see below. */
   stuck?: number;
   stuckReason?: string | null;
+  /** fees past {@link MAX_FEE_ATTEMPTS}, skipped without touching the network. */
+  deferred?: number;
 }> {
   if (!isX402Live()) return { settled: 0, pending: 0 };
   const pending = listPendingFees();
   let settled = 0;
   let stillPending = 0;
+  let deferred = 0;
   for (const fee of pending) {
+    // Past the cap: skip BEFORE the quote and the transfer, so a wallet that cannot pay costs
+    // nothing per tick instead of two network calls per fee, forever.
+    if (fee.attempts >= MAX_FEE_ATTEMPTS && !fee.paymentTx) {
+      deferred += 1;
+      continue;
+    }
     // ALREADY PAID, JUST NOT CONFIRMED. A row keeps its payment_tx the instant the transfer receipt
     // lands, so if we are here with one set, the USDC is already at the merchant and re-sending
     // would be a genuine double-spend. Settle it on the receipt and move on.
@@ -123,5 +147,6 @@ export async function payPendingFees(): Promise<{
     ...(stuck.length > 0
       ? { stuck: stuck.length, stuckReason: stuck[0].lastError?.slice(0, 120) ?? null }
       : {}),
+    ...(deferred > 0 ? { deferred } : {}),
   };
 }

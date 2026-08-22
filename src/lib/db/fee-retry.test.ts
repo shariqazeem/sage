@@ -94,3 +94,28 @@ describe("operator fee retries", () => {
     expect(stuckFees(1).find((f) => f.id === fee.id)).toBeUndefined();
   });
 });
+
+/**
+ * THE ATTEMPT CAP — measured on production (16–22 Aug 2026).
+ *
+ * Ten $0.10 fees each reached ~1,900 attempts, every one failing `ERC20: transfer amount exceeds
+ * balance`. Unbounded, that cost 2,880 x402 quote requests a day to re-learn one fact. The cap
+ * stops the network calls; `resumeDeferredFees` is how they come back once the wallet is funded.
+ */
+describe("fee attempt cap", () => {
+  it("re-arms deferred fees so nothing is written off", async () => {
+    const { resumeDeferredFees, listPendingFees, recordFeeFailure, nextFeeAttempt } = await import("./campaigns");
+    const pending = listPendingFees();
+    if (pending.length === 0) return; // nothing seeded in this suite's fixture
+    const id = pending[0].id;
+    for (let i = 0; i < 3; i++) nextFeeAttempt(id);
+    recordFeeFailure(id, "ERC20: transfer amount exceeds balance");
+    expect(listPendingFees().find((f) => f.id === id)!.attempts).toBeGreaterThan(0);
+
+    const rearmed = resumeDeferredFees();
+    expect(rearmed).toBeGreaterThan(0);
+    const after = listPendingFees().find((f) => f.id === id)!;
+    expect(after.attempts).toBe(0);
+    expect(after.lastError).toBeNull();
+  });
+});

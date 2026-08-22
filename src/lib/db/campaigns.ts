@@ -1063,6 +1063,21 @@ export function stuckFees(minAttempts = 3): Array<{ id: string; attempts: number
     .filter((f) => f.attempts >= minAttempts);
 }
 
+/**
+ * Put deferred fees back in the queue — the counterpart to the attempt cap in `payPendingFees`.
+ *
+ * A fee is only ever capped because the world was not ready for it (an unfunded operator wallet is
+ * the measured case), so the recovery is: fund the wallet, run this, and the next sweep pays them.
+ * Returns how many rows were re-armed.
+ */
+export function resumeDeferredFees(): number {
+  return db
+    .update(fees)
+    .set({ attempts: 0, lastError: null })
+    .where(eq(fees.status, "pending"))
+    .run().changes;
+}
+
 /** Aggregate fee state for the Wallet / Proof surfaces (real settled txs only). */
 export function feeTotals(): {
   paidCount: number;
