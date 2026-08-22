@@ -87,8 +87,7 @@ SHOT 1 — I DON'T OPEN AN APP. I TEXT IT.   [0:00-0:22]
 
 I'm not going to open an app. I'm going to text it.
 
-Sage has its own wallet — I never handed over a key, and
-there's no wallet app on my phone.
+Sage has its own wallet. I never handed over a key.
 
 >>> SAY WHAT YOU SEE: read the balance off the screen.
 
@@ -101,15 +100,14 @@ One message. A product, and what I want to know.
 SHOT 2 — IT GOES AND LOOKS                 [0:22-0:46]
 
 
-It sends me a link straight away, and this is it working.
+It sends a link straight away. This is it working.
 
-Opening the product in a real browser — not screenshots.
-Actually using it.
+A real browser. Not screenshots — actually using it.
 
 >>> PAUSE. Three seconds. Let the browsing play.
 
 These missions came from what it just saw. I didn't write
-them, and I didn't pick the rewards.
+them.
 
 
 >>>>>>>>>>  SHOT 3  <<<<<<<<<<
@@ -122,8 +120,8 @@ I send it three dollars, and tell it to go.
 
 >>> PAUSE. Let Sage's confirmation land.
 
-That's it live. I didn't approve a transaction, or sign
-anything, or open a wallet. It did all of that itself.
+That's it live. I didn't approve anything, or sign
+anything. It did that itself.
 
 
 >>>>>>>>>>  SHOT 4  <<<<<<<<<<
@@ -132,8 +130,8 @@ anything, or open a wallet. It did all of that itself.
 SHOT 4 — A REAL PERSON GETS PAID           [1:04-1:26]
 
 
-Someone's done one of the missions and written up what they
-found. Sage is checking it against what it saw itself.
+Someone's done one and written up what they found. Sage
+checks it against what it saw itself.
 
 >>> PAUSE. Let it settle. Do not talk over this.
 
