@@ -1,0 +1,168 @@
+==========================================================
+SAGE — LIVE DEMO
+Voiceover script + capture plan.  Target 1:52.
+==========================================================
+
+
+>>> BEFORE YOU RECORD ANYTHING — SETUP
+>>>
+>>> URL to paste:
+>>>     https://www.metis.io/
+>>>
+>>> Goal to type (copy exactly):
+>>>     Can a first-time visitor find which apps are live on
+>>>     Metis and get through to one of them?
+>>>
+>>> Budget: $10
+>>> Two wallets ready — one honest, one for the cheat attempt.
+>>> GOAT explorer open in a second tab.
+>>> No bookmarks bar. No notifications. One window.
+
+
+==========================================================
+HOW THIS WORKS
+==========================================================
+
+Record the screen SILENTLY first. The inspection takes about
+three minutes and you only have 1:52, so you speed that part
+up afterwards. Then read the words below over the finished
+footage — exactly like you did the slides.
+
+Do not try to talk live while it runs. You will be waiting
+in silence for minutes.
+
+
+==========================================================
+PART A — WHAT TO CAPTURE (silent, retake freely)
+==========================================================
+
+>>> 1. sagepays.xyz  ->  Launch a campaign
+>>> 2. Paste the URL. Type the goal. Continue.
+>>> 3. LET IT BROWSE. Do not touch anything. Capture all of it.
+>>> 4. When the plan appears, scroll it slowly, top to bottom.
+>>>    Rest a moment on the budget row.
+>>> 5. Fund it. (Trim this out later - nobody watches a wallet popup.)
+>>> 6. Open the campaign board. Submit real work from wallet one.
+>>>    Capture it being judged, and the payout landing.
+>>> 7. Open the receipt page. Hold it still for three seconds.
+>>> 8. Wallet two. Submit something thin - a vague sentence for
+>>>    a task you did not do. Capture the refusal AND its reason.
+>>> 9. Cut to the GOAT explorer tab on the transaction.
+
+
+==========================================================
+PART B — THE EDIT (get it to 1:52)
+==========================================================
+
+>>> Browsing footage      -> speed up 4x, keep about 25 seconds
+>>> Plan scroll           -> keep about 20 seconds
+>>> Funding               -> cut entirely
+>>> Judging wait          -> cut down to 3 seconds
+>>> Payout + receipt      -> keep, real time
+>>> Cheat attempt         -> keep, real time. Do not rush this.
+>>> Refusal reason        -> hold long enough to READ it
+>>> Explorer              -> 7 seconds
+
+
+==========================================================
+PART C — READ THIS OVER THE FOOTAGE
+==========================================================
+
+
+SHOT 1 — IT LOOKS AT THE PRODUCT          [0:00-0:45]
+
+
+This is a product Sage has never seen.
+
+I give it a URL, and one thing I want to know — can a
+first-time visitor find which apps are live on Metis, and
+actually get to one of them.
+
+>>> PAUSE. Say nothing for three seconds. Let it browse.
+
+That's it opening the site in a real browser. Not
+screenshots. It is moving through the product the way a
+person would.
+
+And these missions — I didn't write them. It wrote them
+from what it just saw.
+
+>>> SAY WHAT YOU SEE: read one mission title off the screen,
+>>> then say why that is a fair thing to test. Your words.
+
+
+>>>>>>>>>>  SHOT 2  <<<<<<<<<<
+
+
+SHOT 2 — A REAL PERSON GETS PAID          [0:45-1:15]
+
+
+The budget is already split, too. What each tester earns,
+how many people can be paid. I never chose those numbers.
+
+Here is someone who did one of the missions and wrote up
+what they found.
+
+Sage is checking that against what it saw itself.
+
+>>> PAUSE. Let it settle. Do not talk over this.
+
+Paid. Real USDC, on GOAT mainnet.
+
+>>> SAY WHAT YOU SEE: read the amount, and point at the
+>>> receipt. "And this names the exact evidence it paid for."
+
+
+>>>>>>>>>>  SHOT 3  <<<<<<<<<<
+
+
+SHOT 3 — NOW TRY TO CHEAT IT              [1:15-1:45]
+*** This is the most important thirty seconds. Slow down. ***
+
+
+Now let me try to cheat it.
+
+I am sending in something that sounds about right, for work
+I never did. No detail. Nothing I could only know by
+actually using the product.
+
+>>> PAUSE. Let the judgement run.
+
+>>> SAY WHAT YOU SEE: read the verdict and the reason out
+>>> loud, exactly as written on screen.
+
+Refused. And it tells me why.
+
+I built this thing, and it just said no to me.
+
+>>> STOP. One full second of silence. Let it land.
+
+
+>>>>>>>>>>  SHOT 4  <<<<<<<<<<
+
+
+SHOT 4 — VERIFY IT                        [1:45-1:52]
+
+
+That's the block explorer. Not my dashboard — the chain
+itself.
+
+
+>>>>>>>>>>  END OF DEMO  <<<<<<<<<<
+
+
+==========================================================
+IF SOMETHING GOES WRONG
+==========================================================
+
+>>> IF IT PAYS THE FAKE SUBMISSION INSTEAD OF REFUSING IT:
+>>> Do not fake a refusal. Cut Shot 3 and end on Shot 2.
+>>> The live board already has real refusals with written
+>>> reasons - screen-record one of those instead.
+>>>
+>>> IF THE INSPECTION HANGS:
+>>> Use bridge.metis.io instead, same goal shape.
+>>>
+>>> IF YOU RUN LONG:
+>>> Cut the second half of the plan scroll in Shot 1.
+>>> Never cut Shot 3.
