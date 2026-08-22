@@ -1,73 +1,80 @@
 ==========================================================
-SAGE — LIVE DEMO
-Voiceover script + capture plan.  Target 1:52.
+SAGE — LIVE DEMO   (Telegram first, then the web app)
+Voiceover script + capture plan.  Target 1:50.
 ==========================================================
 
 
->>> SETUP — BEFORE YOU RECORD ANYTHING
+>>> SETUP — DO THIS BEFORE RECORDING
 >>>
->>> Telegram message to send (type it exactly):
->>>     test https://www.metis.io/ — can a first-time visitor
->>>     find which apps are live on Metis and get to one?
+>>> *** THE AGENT WALLET NEEDS GAS, NOT JUST USDC. ***
+>>> GOAT's gas token is BTC. Send a little native BTC to the
+>>> agent wallet as well as the $3 USDC, or the launch will
+>>> fail on camera. Do this the day before if you can.
 >>>
->>> Same URL + goal on the web when you fund:
->>>     https://www.metis.io/
->>>     Can a first-time visitor find which apps are live on
->>>     Metis and get through to one of them?
->>>
->>> Budget: $3   (that is what is in the wallet - it is enough)
->>> Two wallets - one honest, one for the cheat attempt.
->>> GOAT explorer open in a second tab.
->>> Telegram open in a clean window, no other chats visible.
+>>> Telegram: @sagedeputybot, clean window, no other chats.
+>>> Web: sagepays.xyz signed in, GOAT explorer in tab two.
+>>> Second wallet ready for the cheat attempt.
 >>> No bookmarks bar. No notifications.
 
 
 ==========================================================
-HOW THIS WORKS
+THE MESSAGES YOU TYPE INTO TELEGRAM
 ==========================================================
 
-Record silently first, then read the words over the footage.
-The inspection takes about three minutes and you have 1:52,
-so that part gets sped up in the edit. Do not narrate live -
-you will be talking into a progress bar.
+>>> Type these exactly. Sage replies in its own words, so
+>>> read what comes back rather than expecting set answers.
 
-$3 is fine. It funds a smaller plan, and a real agent paying
-real people three dollars is a better story than ten.
+>>> MESSAGE 1 — wallet + balance
+what's my agent wallet and what's in it?
+
+>>> MESSAGE 2 — the whole ask, one line
+test https://www.metis.io/ with $3 — can a first-time
+visitor find which apps are live on Metis and get to one?
+
+>>> Sage sends "Watching it live: sagepays.xyz/launch/<id>"
+>>> within seconds. That is your cut to the browser.
+
+>>> MESSAGE 3 — after you have sent the USDC + BTC
+sent it — go ahead and launch
+
+>>> Sage funds the vault and goes live on its own. You never
+>>> approve anything. Capture that message.
+
+>>> MESSAGE 4 — only if it stalls or asks for a cap
+cap it at $3
 
 
 ==========================================================
 PART A — WHAT TO CAPTURE (silent, retake freely)
 ==========================================================
 
->>> 1. TELEGRAM. Send the message above to @sagedeputybot.
->>>    Capture Sage replying and starting work.
->>> 2. WEB. sagepays.xyz -> Launch a campaign. Paste the URL,
->>>    type the goal, Continue.
->>> 3. LET IT BROWSE. Touch nothing. Capture all of it.
->>> 4. When the plan appears, scroll it slowly. Rest on the
->>>    budget row.
->>> 5. Fund with $3. (Trimmed out later.)
->>> 6. Campaign board. Submit real work from wallet one.
->>>    Capture the judging and the payout landing.
+>>> 1. Telegram: message 1, and the balance it reports.
+>>> 2. Telegram: message 2. Capture the reply AND the
+>>>    "Watching it live" link arriving.
+>>> 3. Open that link. LET IT BROWSE. Touch nothing.
+>>> 4. Plan page: scroll slowly, rest on the budget row.
+>>> 5. Telegram: message 3, and Sage confirming it is live.
+>>> 6. Web board: submit real work from wallet one. Capture
+>>>    the judging and the payout landing.
 >>> 7. Receipt page. Hold still three seconds.
->>> 8. Wallet two. Submit something thin. Capture the refusal
+>>> 8. Wallet two: submit something thin. Capture the refusal
 >>>    AND its written reason.
->>> 9. Cut to the GOAT explorer on the transaction.
+>>> 9. GOAT explorer on the transaction.
 
 
 ==========================================================
-PART B — THE EDIT (three minutes -> 1:52)
+PART B — THE EDIT (three minutes -> 1:50)
 ==========================================================
 
->>> Telegram exchange   -> keep ~15 seconds
->>> Browsing footage    -> speed 4x, keep ~20 seconds
->>> Plan scroll         -> keep ~18 seconds
->>> Funding             -> cut entirely
->>> Judging wait        -> cut to 3 seconds
->>> Payout + receipt    -> keep, real time
->>> Cheat attempt       -> keep, real time. Do not rush it.
->>> Refusal reason      -> hold long enough to READ it
->>> Explorer            -> 7 seconds
+>>> Telegram wallet + ask  -> keep ~20 seconds
+>>> Browsing footage       -> speed 4x, keep ~18 seconds
+>>> Plan scroll            -> keep ~14 seconds
+>>> Telegram fund + launch -> keep ~14 seconds
+>>> Judging wait           -> cut to 3 seconds
+>>> Payout + receipt       -> keep, real time
+>>> Cheat attempt          -> keep, real time. Do not rush.
+>>> Refusal reason         -> hold long enough to READ it
+>>> Explorer               -> 7 seconds
 
 
 ==========================================================
@@ -75,46 +82,58 @@ PART C — READ THIS OVER THE FOOTAGE
 ==========================================================
 
 
-SHOT 1 — I DON'T OPEN AN APP. I TEXT IT.   [0:00-0:20]
+SHOT 1 — I DON'T OPEN AN APP. I TEXT IT.   [0:00-0:22]
 
 
 I'm not going to open an app. I'm going to text it.
 
-One message. A URL, and what I want to know.
+Sage has its own wallet — I never handed over a key, and
+there's no wallet app on my phone.
 
-No wallet, no dashboard, no form.
+>>> SAY WHAT YOU SEE: read the balance off the screen.
 
->>> PAUSE. Let Sage's reply land on screen.
+One message. A product, and what I want to know.
 
 
 >>>>>>>>>>  SHOT 2  <<<<<<<<<<
 
 
-SHOT 2 — IT GOES AND LOOKS                 [0:20-0:58]
+SHOT 2 — IT GOES AND LOOKS                 [0:22-0:46]
 
 
-That's it working. Opening the product in a real browser —
-not screenshots. Actually using it.
+It sends me a link straight away, and this is it working.
+
+Opening the product in a real browser — not screenshots.
+Actually using it.
 
 >>> PAUSE. Three seconds. Let the browsing play.
 
-Here's what it did with that one message.
-
 These missions came from what it just saw. I didn't write
-them.
-
-The budget's already split — what each tester earns, how
-many get paid. I didn't choose those numbers.
+them, and I didn't pick the rewards.
 
 
 >>>>>>>>>>  SHOT 3  <<<<<<<<<<
 
 
-SHOT 3 — A REAL PERSON GETS PAID           [0:58-1:24]
+SHOT 3 — IT FUNDS ITSELF AND GOES LIVE     [0:46-1:04]
 
 
-Someone's done one and written up what they found. Sage is
-checking it against what it saw itself.
+I send it three dollars, and tell it to go.
+
+>>> PAUSE. Let Sage's confirmation land.
+
+That's it live. I didn't approve a transaction, or sign
+anything, or open a wallet. It did all of that itself.
+
+
+>>>>>>>>>>  SHOT 4  <<<<<<<<<<
+
+
+SHOT 4 — A REAL PERSON GETS PAID           [1:04-1:26]
+
+
+Someone's done one of the missions and written up what they
+found. Sage is checking it against what it saw itself.
 
 >>> PAUSE. Let it settle. Do not talk over this.
 
@@ -123,10 +142,10 @@ Paid. Real USDC, on GOAT mainnet.
 The receipt names the exact evidence it paid for.
 
 
->>>>>>>>>>  SHOT 4  <<<<<<<<<<
+>>>>>>>>>>  SHOT 5  <<<<<<<<<<
 
 
-SHOT 4 — NOW TRY TO CHEAT IT               [1:24-1:45]
+SHOT 5 — NOW TRY TO CHEAT IT               [1:26-1:43]
 *** The most important twenty seconds. Slow down. ***
 
 
@@ -143,10 +162,10 @@ I built this thing, and it just said no to me.
 >>> STOP. One full second of silence. Let it land.
 
 
->>>>>>>>>>  SHOT 5  <<<<<<<<<<
+>>>>>>>>>>  SHOT 6  <<<<<<<<<<
 
 
-SHOT 5 — VERIFY IT                         [1:45-1:52]
+SHOT 6 — VERIFY IT                         [1:43-1:50]
 
 
 That's the block explorer. Not my dashboard — the chain
@@ -160,17 +179,21 @@ itself.
 IF SOMETHING GOES WRONG
 ==========================================================
 
+>>> IF THE LAUNCH FAILS FOR GAS:
+>>> The agent wallet needs native BTC on GOAT, not just USDC.
+>>> Send a little, wait, then say "try the launch again".
+>>>
 >>> IF IT PAYS THE FAKE SUBMISSION INSTEAD OF REFUSING IT:
->>> Do not fake a refusal. Cut Shot 4, end on Shot 3.
+>>> Do not fake a refusal. Cut Shot 5 and end on Shot 4.
 >>> The live board already has real refusals with written
 >>> reasons - screen-record one of those instead.
 >>>
->>> IF THE TELEGRAM REPLY IS SLOW OR ODD:
->>> Cut Shot 1 entirely and open on the browsing. The demo
->>> still works - you just lose the walletless angle.
+>>> IF TELEGRAM IS SLOW OR ANSWERS ODDLY:
+>>> Cut Shots 1 and 3, open on the browsing, and fund on the
+>>> web instead. You lose the walletless angle, nothing else.
 >>>
 >>> IF THE INSPECTION HANGS:
 >>> Use bridge.metis.io, same goal shape.
 >>>
 >>> IF YOU RUN LONG:
->>> Trim the plan scroll. Never cut Shot 4.
+>>> Trim the plan scroll. Never cut Shot 5.
