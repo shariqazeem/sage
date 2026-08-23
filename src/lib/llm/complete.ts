@@ -347,6 +347,33 @@ function parseStrict(data: ChatResponse): { json: unknown; finishReason: string 
  * ONE JSON completion. Throws on any failure (bad status, empty, unparseable). The
  * caller owns retry / fallback / honest degradation — this never fabricates output.
  */
+/**
+ * ONE LLM REQUEST AT A TIME.
+ *
+ * The gateway key is capped at a single in-flight request — it answers a second one with
+ * `429 {"code":"rate_limit_exceeded","message":"Access key quota exceeded (cap 1)"}`. Everything
+ * shares that one key: the Telegram concierge, the mission architect and critic, the field test's
+ * vision pass, and judging. `LLM_FALLBACK_API_KEY` is the SAME key on this deployment, so failover
+ * lands on the identical quota and buys nothing.
+ *
+ * Measured 23 Aug: an inspection died `schema_mismatch` after 603s because a founder was chatting
+ * with the bot while it ran. The same goal, run with nothing else in flight, produced four good
+ * missions. The work was never wrong; two callers were fighting over one slot.
+ *
+ * Concurrency here was always an illusion, so queueing costs no throughput and removes the
+ * collisions this process causes itself. It cannot help against a caller outside this process,
+ * and it deliberately does not swallow errors — a failed call releases the slot and propagates.
+ */
+let llmChain: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(fn: () => Promise<T>): Promise<T> {
+  const run = llmChain.then(fn, fn);
+  llmChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export async function llmCompleteJson(opts: {
   system: string;
   user: string;
@@ -367,7 +394,7 @@ export async function llmCompleteJson(opts: {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(p.endpoint, {
+    const res = await oneAtATime(() => fetch(p.endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
       signal: controller.signal,
@@ -383,7 +410,7 @@ export async function llmCompleteJson(opts: {
           { role: "user", content: opts.user },
         ],
       }),
-    });
+    }));
     if (!res.ok) {
       // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.
       throw new LlmCompletionError({
