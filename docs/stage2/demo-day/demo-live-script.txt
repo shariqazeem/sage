@@ -41,14 +41,14 @@ SAY (to camera):
 
 SAY (while it answers):
 
-    Because this thing has its own wallet.
+    Because it has its own wallet.
 
 >>> WAIT for the reply.
 
 SAY (reading what came back):
 
-    Three dollars, and a cap of two per campaign. That cap is
-    on-chain. It can spend inside it. It cannot go past it.
+    Three dollars, capped at two per campaign — on-chain. It can
+    spend inside that. It cannot go past it.
 
 
 >>>>>>>>>>  3  <<<<<<<<<<
@@ -80,8 +80,8 @@ SAY:
 
 SAY:
 
-    And it's opening the product in a real browser.
-    Not screenshots. It's using it.
+    And it's opening the product in a real browser. Not
+    screenshots — it's using it.
 
 >>> WAIT. Hands off. Runs a few minutes, sped up 4x later.
 >>> SAY NOTHING. Don't touch Telegram.
@@ -139,7 +139,7 @@ SAY:
 
 SAY:
 
-    This is what a tester sees. Real people have done these.
+    This is what a tester sees.
 
 >>> DO: Paste SUBMISSION B. Submit.
 
