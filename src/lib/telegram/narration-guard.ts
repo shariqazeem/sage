@@ -96,7 +96,7 @@ const CLAIMS: readonly Claim[] = [
     // tester missions on www.metis.io ($2.00 total)" — sent while sage_fund_and_launch had just
     // answered ok:false on a failed gas estimate. Matches "missions live", never "live missions",
     // so the marketplace copy ("explore live missions") still passes.
-    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:live|launched|funded and launched)\b|\b(?:missions?|campaigns?)\s+(?:are\s+)?live\b/i,
+    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:live|launched|funded and launched)\b|\b(?:missions?|campaigns?)\s+(?:are\s+)?live\b|\blive\s+campaign\b|\b(?:launching|launched|funding \+ launching|went live|going live)\b/i,
     backedBy: ["sage_fund_and_launch"],
   },
 ];
@@ -179,8 +179,15 @@ function fabricatedLinks(reply: string, toolOutput: string): string[] {
 export function checkNarration(
   reply: string,
   succeededTools: ReadonlySet<string>,
-  /** everything the tools returned this turn — used to prove any link the reply hands over. */
-  toolOutput = "",
+  /**
+   * Everything the tools returned this turn, used to prove any link the reply hands over.
+   *
+   * `null` means "provenance unknown, don't judge links" — for callers that cannot supply it.
+   * An EMPTY STRING is not that: it means the tools returned nothing, and a campaign link in a
+   * turn where nothing ran is fabricated by definition. Skipping the check on empty was the hole
+   * that let `sagepays.xyz/campaign/metis-io` reach a founder on a turn with no tool calls at all.
+   */
+  toolOutput: string | null = null,
 ): NarrationVerdict {
   const unbacked: string[] = [];
   for (const c of [...CLAIMS, ...READ_CLAIMS]) {
@@ -190,7 +197,7 @@ export function checkNarration(
     if (CAPABILITY_MARKERS.test(sentenceAround(reply, m.index))) continue;
     unbacked.push(c.label);
   }
-  if (toolOutput && fabricatedLinks(reply, toolOutput).length > 0)
+  if (toolOutput !== null && fabricatedLinks(reply, toolOutput).length > 0)
     unbacked.push("a campaign link Sage never created");
   return { ok: unbacked.length === 0, unbacked };
 }

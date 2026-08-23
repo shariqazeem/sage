@@ -176,8 +176,15 @@ describe("fabricated launch (23 Aug)", () => {
     expect(checkNarration("Your campaign is now live.", new Set(["sage_fund_and_launch"])).ok).toBe(true);
   });
 
-  it("does not fire on links when there is no tool output to check against", () => {
-    expect(checkNarration("See https://sagepays.xyz/c/abc123", none).ok).toBe(true);
+  it("does not judge links when provenance is unknown (null)", () => {
+    expect(checkNarration("See https://sagepays.xyz/c/abc123", none, null).ok).toBe(true);
+  });
+
+  it("DOES flag a link when the tools returned nothing at all", () => {
+    // the 23 Aug case: the founder said "launch", no tool ran, and a link was invented anyway.
+    const v = checkNarration("See https://sagepays.xyz/c/abc123", none, "");
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign link Sage never created");
   });
 });
 
@@ -247,5 +254,39 @@ describe("fabricated launch · the verbless headline", () => {
   });
   it("does not block 'explore live missions'", () => {
     expect(checkNarration("You can explore live missions on the board.", none).ok).toBe(true);
+  });
+});
+
+/**
+ * THE 23 AUG "Funding + launching now" REPLY — the whole message, verbatim.
+ *
+ * The founder said "launch". No sage_fund_and_launch call appears in the logs for that turn. The
+ * reply announced a live campaign at https://sagepays.xyz/campaign/metis-io, a slug Sage never
+ * mints. Two holes: "launching" was not a launch word, and the link check was skipped whenever the
+ * tools returned nothing — which is exactly the case where every link is fabricated.
+ */
+describe("fabricated launch · 'Funding + launching now'", () => {
+  const real =
+    "Funding + launching now.\n\nLive campaign: https://sagepays.xyz/campaign/metis-io\nNetwork: GOAT mainnet, real USDC\nBudget: 2.00 USDC\nMissions: 1 open, 4 testers needed";
+
+  it("blocks it when no tool ran that turn", () => {
+    const v = checkNarration(real, new Set(["sage_start_inspection"]), "");
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign was launched");
+    expect(v.unbacked).toContain("a campaign link Sage never created");
+  });
+
+  it("allows the same shape when the launch tool really ran and returned that link", () => {
+    const v = checkNarration(
+      "Funding + launching now.\n\nLive campaign: https://sagepays.xyz/c/launch-metis-io-9f2a1b",
+      new Set(["sage_fund_and_launch"]),
+      '{"ok":true,"campaignUrl":"https://sagepays.xyz/c/launch-metis-io-9f2a1b"}',
+    );
+    expect(v.ok).toBe(true);
+  });
+
+  it("does not block the plan message telling a founder to reply launch", () => {
+    const plan = 'Nothing is approved or funded yet. When you\'re happy with it, reply "launch" — that approves this exact plan.';
+    expect(checkNarration(plan, new Set(), "{}").ok).toBe(true);
   });
 });
