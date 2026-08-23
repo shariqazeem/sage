@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Address, Hex } from "viem";
-import { publicClient } from "@/lib/deputy/chain";
+import { writePublicClient } from "@/lib/deputy/chain";
 import { explorerTxUrl } from "@/lib/deputy/networks";
 import { signGoatTransaction, type EvmTxRequest } from "./client";
 
@@ -42,7 +42,9 @@ export async function executeViaPrivy(
   call: PrivyCall,
   chainId: number = GOAT,
 ): Promise<PrivyExecResult> {
-  const client = publicClient(chainId);
+  // the node that will ACCEPT this transaction answers the gas estimate for it — the read
+  // endpoint cannot estimate gas at all, which is what failed every agent-wallet launch.
+  const client = writePublicClient(chainId);
   const value = call.value ?? BigInt(0);
   const bump = (n: bigint): bigint => (n * BigInt(12)) / BigInt(10); // +20% headroom
 

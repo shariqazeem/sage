@@ -114,6 +114,33 @@ export function publicClient(chainId?: number): PublicClient {
   return client;
 }
 
+/**
+ * THE CLIENT FOR WORK THAT PRECEDES A BROADCAST.
+ *
+ * `publicClient` reads through `GOAT_RPC_URL`, which on this deployment is the block explorer's
+ * JSON-RPC proxy — current and reliable for reads, and unable to answer `eth_estimateGas` at all
+ * ("Incorrect number of params."). Every agent-wallet launch estimates gas first, so every launch
+ * failed there while the read path looked perfectly healthy.
+ *
+ * `networks.ts` already separated the two endpoints for exactly this reason, but only the V1
+ * settlement signer ever used the write one. Anything that is about to broadcast should ask the
+ * node that will accept the transaction, so nonce, gas and base fee all come from one place.
+ */
+const writeClients = new Map<number, PublicClient>();
+export function writePublicClient(chainId?: number): PublicClient {
+  const id = chainId ?? defaultChainId();
+  let client = writeClients.get(id);
+  if (!client) {
+    const cfg = chainConfig(id);
+    client = createPublicClient({
+      chain: viemChainFor(id),
+      transport: http(cfg.writeRpcUrl ?? cfg.rpcUrl),
+    });
+    writeClients.set(id, client);
+  }
+  return client;
+}
+
 /** The active (default) network as a viem Chain — shared by read + write clients. */
 export function activeViemChain(): Chain {
   return viemChainFor(defaultChainId());
