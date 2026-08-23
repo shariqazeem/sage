@@ -92,7 +92,11 @@ const CLAIMS: readonly Claim[] = [
     // fired on a launch that never happened. The adverb list is explicit, and deliberately excludes
     // "still" and "currently": those describe an ongoing state a read tool can legitimately report,
     // while "already"/"now" are what a fresh action gets dressed in.
-    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:live|launched|funded and launched)\b/i,
+    // The verbless headline is the third wording this has arrived in: "**Missions live:** 3 x
+    // tester missions on www.metis.io ($2.00 total)" — sent while sage_fund_and_launch had just
+    // answered ok:false on a failed gas estimate. Matches "missions live", never "live missions",
+    // so the marketplace copy ("explore live missions") still passes.
+    pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:live|launched|funded and launched)\b|\b(?:missions?|campaigns?)\s+(?:are\s+)?live\b/i,
     backedBy: ["sage_fund_and_launch"],
   },
 ];

@@ -231,3 +231,21 @@ describe("fabricated inspection · the 'already running' variant", () => {
     expect(checkNarration("Inspection already running for metis.io.", new Set(["sage_start_inspection"])).ok).toBe(true);
   });
 });
+
+describe("fabricated launch · the verbless headline", () => {
+  const none = new Set<string>();
+  it("blocks '**Missions live:**' when the launch tool failed", () => {
+    const v = checkNarration(
+      "**Missions live:** 3 × tester missions on www.metis.io ($2.00 total)\n\nTesters will start joining within minutes.",
+      new Set(["sage_start_inspection", "sage_agent_wallet_status"]),
+    );
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("a campaign was launched");
+  });
+  it("allows it when the launch really succeeded", () => {
+    expect(checkNarration("**Missions live:** 3 × tester missions", new Set(["sage_fund_and_launch"])).ok).toBe(true);
+  });
+  it("does not block 'explore live missions'", () => {
+    expect(checkNarration("You can explore live missions on the board.", none).ok).toBe(true);
+  });
+});
