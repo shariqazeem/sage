@@ -1683,6 +1683,26 @@ const START_WORDS = [
   "next",
   "explore",
 ];
+/**
+ * DISMISS A CONSENT/DISCLAIMER OVERLAY WHENEVER ONE APPEARS — not once, at the start.
+ *
+ * Measured on metis.io, 23 Aug: Sage explored the homepage cleanly, opened /ecosystem, and met a
+ * "Disclaimer" modal whose only control is Accept. The one-shot dismissal at step 3a had already
+ * been spent on the homepage, where there was no modal — so nothing cleared this one, and the next
+ * SIX actions were clicked behind the overlay against a frozen screen. Nine states were reported
+ * and six of them were the same blocked page.
+ *
+ * A modal that appears on navigation is the common case, not the exception, so the check now runs
+ * after every navigation. It only ever clicks a control whose own label is a consent word, so it
+ * cannot wander into the product.
+ */
+async function dismissOverlayAfterNav(page: Page): Promise<string | null> {
+  const clicked = await clickByText(page, CONSENT_WORDS).catch(() => null);
+  if (!clicked) return null;
+  await page.waitForTimeout(600);
+  return clicked;
+}
+
 const CONSENT_WORDS = [
   "accept all",
   "allow all",
@@ -2536,7 +2556,8 @@ async function dispatchAction(
               const target = new URL(el.href, page.url());
               await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 12_000 });
               await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-              return `opened ${el.href} (following the "${label.slice(0, 32)}" link)`;
+              const gone = await dismissOverlayAfterNav(page);
+              return `opened ${el.href} (following the "${label.slice(0, 32)}" link)${gone ? ` · dismissed "${gone}"` : ""}`;
             } catch {
               /* fall through to the honest no-effect label */
             }
@@ -2553,7 +2574,8 @@ async function dispatchAction(
         const target = new URL(action.path, page.url());
         await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 12_000 });
         await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-        return `opened ${action.path}`;
+        const dismissed = await dismissOverlayAfterNav(page);
+        return `opened ${action.path}${dismissed ? ` · dismissed "${dismissed}"` : ""}`;
       }
       case "click_coords":
         await page.mouse.click(
