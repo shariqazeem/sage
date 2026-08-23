@@ -180,3 +180,39 @@ describe("fabricated launch (23 Aug)", () => {
     expect(checkNarration("See https://sagepays.xyz/c/abc123", none).ok).toBe(true);
   });
 });
+
+/**
+ * THE 23 AUG 14:11 INCIDENT — the entry point, unguarded.
+ *
+ * "Inspection started. ~90 seconds, up to 11 minutes. Sage is browsing metis.io now." No tool
+ * call, no inspection_jobs row, nothing running. The founder waited for a plan that was never
+ * coming, and the watching-it-live link was absent because it is sent from the tool result.
+ */
+describe("fabricated inspection (23 Aug)", () => {
+  const none = new Set<string>();
+  const started = new Set(["sage_start_inspection"]);
+  const real = "Inspection started. ~90 seconds, up to 11 minutes.\n\nSage is browsing metis.io now. I'll message you when the plan is ready.";
+
+  it("blocks the exact message that was sent", () => {
+    const v = checkNarration(real, none);
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("an inspection was started");
+  });
+
+  it("allows it once the tool has actually run", () => {
+    expect(checkNarration(real, started).ok).toBe(true);
+  });
+
+  it("blocks 'I'm inspecting it now' unbacked", () => {
+    expect(checkNarration("I'm inspecting it now.", none).ok).toBe(false);
+  });
+
+  it("does not block the welcome message describing what it can do", () => {
+    const welcome = "I inspect your product and DM you a mission plan in about 2 minutes. Nothing is charged until you fund it.";
+    expect(checkNarration(welcome, none).ok).toBe(true);
+  });
+
+  it("does not block a promise about the future", () => {
+    expect(checkNarration("I'll start inspecting as soon as you send a URL.", none).ok).toBe(true);
+  });
+});

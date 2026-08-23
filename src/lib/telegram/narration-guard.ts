@@ -67,6 +67,21 @@ const CLAIMS: readonly Claim[] = [
     backedBy: ["sage_confirm_release", "sage_release_submission"],
   },
   {
+    label: "an inspection was started",
+    /**
+     * THE ENTRY POINT, AND IT WAS UNGUARDED. 23 Aug 14:11 UTC: a founder was told "Inspection
+     * started. ~90 seconds, up to 11 minutes. Sage is browsing metis.io now." — no tool call in
+     * the logs, no row in inspection_jobs, nothing running. They sat waiting for a plan that was
+     * never coming, and the "watching it live" link was missing for the same reason: it is sent
+     * from the tool result, and there was no tool result.
+     *
+     * Every other claim here is about money. This one is about whether the product did anything
+     * at all, which is the first thing a founder ever asks it to do.
+     */
+    pattern: /\b(?:inspection (?:has (?:now )?)?started|started (?:the |your )?inspection|i(?:'m| am) (?:now )?(?:inspecting|browsing|looking at)|(?:sage|it) is (?:now )?(?:inspecting|browsing))\b/i,
+    backedBy: ["sage_start_inspection", "sage_answer_questions"],
+  },
+  {
     label: "a campaign was launched",
     // THE ADVERB HOLE. This read `(?:now\s+)?` and a founder was told "That campaign is ALREADY
     // live" — with an invented campaign id — because "already" is not "now", so the guard never
