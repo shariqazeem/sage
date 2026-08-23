@@ -216,3 +216,18 @@ describe("fabricated inspection (23 Aug)", () => {
     expect(checkNarration("I'll start inspecting as soon as you send a URL.", none).ok).toBe(true);
   });
 });
+
+describe("fabricated inspection · the 'already running' variant", () => {
+  const none = new Set<string>();
+  it("blocks the second wording, which no code in this repo produces", () => {
+    const v = checkNarration(
+      "Inspection already running for metis.io from your last message.\n\nWaiting for the plan. I'll send it in a few moments.",
+      none,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.unbacked).toContain("an inspection was started");
+  });
+  it("allows it when the tool really did run this turn", () => {
+    expect(checkNarration("Inspection already running for metis.io.", new Set(["sage_start_inspection"])).ok).toBe(true);
+  });
+});

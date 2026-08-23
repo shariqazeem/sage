@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
+import { clearChatMessages } from "@/lib/db/concierge-chats";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
 import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
@@ -51,6 +52,13 @@ export async function POST(req: Request): Promise<Response> {
   const chatId = String(msg.chatId);
   const cmd = parseCommand(msg.text);
   console.log("[telegram] chat=%s kind=%s enabled=%s", chatId, cmd.kind, conciergeEnabled());
+
+  // /start MEANS START. Wiping the chat in the Telegram app is client-side only, so Sage's own
+  // memory of the conversation survived it — a founder who cleared their history and pressed
+  // /start three times still got "Inspection already running for metis.io from your last message"
+  // about an inspection that had finished the day before. A plain /start (no deep-link payload)
+  // now forgets the conversation, which is what pressing it has always looked like it does.
+  if (cmd.kind === "start" && !cmd.payload) clearChatMessages(chatId);
 
   // Slash commands stay the fast, deterministic, grounded path. Free-form chat goes to the
   // conversational agent (CommonStack + Sage's in-process tools) — run AFTER we 200 so Telegram

@@ -77,8 +77,12 @@ const CLAIMS: readonly Claim[] = [
      *
      * Every other claim here is about money. This one is about whether the product did anything
      * at all, which is the first thing a founder ever asks it to do.
+     *
+     * It recurred an hour later wearing different words — "Inspection already running for
+     * metis.io from your last message" — a phrase that exists nowhere in this codebase, about a
+     * job that had finished the previous day. Hence "running / in progress / underway" here too.
      */
-    pattern: /\b(?:inspection (?:has (?:now )?)?started|started (?:the |your )?inspection|i(?:'m| am) (?:now )?(?:inspecting|browsing|looking at)|(?:sage|it) is (?:now )?(?:inspecting|browsing))\b/i,
+    pattern: /\b(?:inspection (?:has (?:now )?)?started|inspection (?:is )?(?:already )?(?:running|in progress|underway)|started (?:the |your )?inspection|i(?:'m| am) (?:now )?(?:inspecting|browsing|looking at)|(?:sage|it) is (?:now )?(?:inspecting|browsing))\b/i,
     backedBy: ["sage_start_inspection", "sage_answer_questions"],
   },
   {

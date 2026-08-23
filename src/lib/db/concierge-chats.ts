@@ -25,3 +25,14 @@ export function saveChatMessages(chatId: string, messagesJson: string): void {
     .onConflictDoUpdate({ target: conciergeChats.chatId, set: { messagesJson, updatedAt: now } })
     .run();
 }
+
+/**
+ * Forget everything said in this chat.
+ *
+ * Clearing history in the Telegram app is client-side only — Sage's own memory of the
+ * conversation lived on, so a founder who wiped the chat and pressed /start still met an agent
+ * that believed yesterday's inspection was in flight. /start has to mean start.
+ */
+export function clearChatMessages(chatId: string): void {
+  saveChatMessages(chatId, "[]");
+}
