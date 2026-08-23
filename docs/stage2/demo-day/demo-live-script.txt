@@ -1,197 +1,192 @@
 ================================================================
-SAGE - LIVE DEMO   facecam + screen, performed live
+SAGE — LIVE DEMO   facecam + screen, performed live
 Read the SAY lines. Do the DO lines. Sit still on the WAITs.
-Target after editing: 1:50
+Target after editing: 1:52
 ================================================================
 
 
 >>> OPEN BEFORE YOU HIT RECORD
 >>>
->>>   Telegram, clean window, only @sagedeputybot visible
->>>   Tab 1  sagepays.xyz
->>>   Tab 2  GOAT explorer
->>>   A notes file holding the two submission texts (page 2)
->>>   Wallet 1 connected. Wallet 2 ready to switch to.
+>>>   Telegram — clean window, only @sagedeputybot visible
+>>>   Tab 1  sagepays.xyz/c/launch-sagepays-xyz-w6ynbw   (a real
+>>>          campaign board with real paid + refused submissions)
+>>>   Tab 2  GOAT explorer, on a real payout transaction
+>>>   A notes file with SUBMISSION B (page 2) ready to copy
 >>>
->>> FACECAM: look at the lens on the SAY lines, at the screen
->>> on the DO lines. That switch is what makes it feel live.
+>>> DO NOT send any other message while it is inspecting. The LLM
+>>> key allows one request at a time — chatting mid-inspection is
+>>> what killed the earlier takes.
 >>>
->>> Every WAIT is cut or sped up later. Do not fill them with
->>> talking. Silence edits clean. Rambling does not.
->>>
->>> BUDGET IS $2. Your agent wallet caps each campaign at $2,
->>> so $3 will be refused. Say two.
+>>> FACECAM: lens on the SAY lines, screen on the DO lines.
+>>> Every WAIT gets cut or sped up. Don't fill them with talking.
 
 
 ================================================================
-1 - I DON'T OPEN AN APP. I TEXT IT.              ~14s
+1 — I DON'T OPEN AN APP. I TEXT IT.            ~10s
 ================================================================
+
+>>> DO: Telegram already open. Send  /start
 
 SAY (to camera):
 
-    I'm not going to open an app.
-    I'm going to text it.
+    I'm not going to open an app. I'm going to text it.
 
->>> DO: Paste into Telegram and send -
+
+>>>>>>>>>>  2  <<<<<<<<<<
+================================================================
+2 — IT HAS ITS OWN WALLET                      ~16s
+================================================================
+
+>>> DO: Send —   what's my balance?
+
+SAY (while it answers):
+
+    Because this thing has its own wallet.
+
+>>> WAIT for the reply.
+
+SAY (reading what came back):
+
+    Three dollars, and a cap of two per campaign. That cap is
+    on-chain. It can spend inside it. It cannot go past it.
+
+
+>>>>>>>>>>  3  <<<<<<<<<<
+================================================================
+3 — ONE MESSAGE                                ~14s
+================================================================
+
+>>> DO: Paste and send —
 >>>
->>>   test https://www.metis.io/ with $2 - can a first time
->>>   visitor find which apps are live on metis and get to one?
-
-SAY (while it sends):
-
-    One message. A URL, a budget, and what I want to know.
-
->>> WAIT for the reply. Say nothing.
-
-
-================================================================
-2 - IT GOES AND LOOKS                            ~18s
-================================================================
-
->>> DO: Open the "watching it live" link it just gave you.
+>>>   test https://www.metis.io/ with $2 — can a developer landing
+>>>   here for the first time work out how to start building on
+>>>   Metis and find what funding is available?
 
 SAY:
 
-    That's it opening the product in a real browser.
-    Not screenshots - actually using it.
+    One message. A URL, a budget, and what I want to know.
 
->>> WAIT. Hands off. This runs a couple of minutes and gets
->>> sped up 4x later. SAY NOTHING.
+>>> WAIT for the reply with the "watching it live" link.
+>>> That link is your green light — it only appears if a real
+>>> inspection started.
 
 
+>>>>>>>>>>  4  <<<<<<<<<<
 ================================================================
-3 - WHAT IT CAME BACK WITH                       ~30s
+4 — IT GOES AND LOOKS                          ~16s
+================================================================
+
+>>> DO: Open the "watching it live" link.
+
+SAY:
+
+    And it's opening the product in a real browser.
+    Not screenshots. It's using it.
+
+>>> WAIT. Hands off. Runs a few minutes, sped up 4x later.
+>>> SAY NOTHING. Don't touch Telegram.
+
+
+>>>>>>>>>>  5  <<<<<<<<<<
+================================================================
+5 — WHAT IT CAME BACK WITH                     ~24s
 ================================================================
 
 >>> RE-ENTRY after the cut. Start fresh.
->>> DO: Switch to Telegram. The plan message is waiting.
+>>> DO: Back to Telegram. The plan is waiting.
 
 SAY (to camera):
 
     Okay. It's done.
 
->>> DO: Scroll the plan message slowly.
+>>> DO: Scroll the plan slowly.
 
 SAY:
 
-    Four missions, two dollars split across them. I didn't
-    write any of it, and I didn't pick those numbers.
+    Four missions, two dollars split across them. I didn't write
+    any of it. I didn't pick those numbers.
 
->>> DO: Point at the part where it says what it could NOT verify.
+>>> DO: Point at the part saying what it could NOT verify.
 
-SAY (slower - this is a real moment):
+SAY (slower — this is a real moment):
 
-    And this bit matters - it's telling me what it couldn't
-    check itself. It won't pay automatically for something
-    it couldn't witness.
+    And this is the part I like — it's telling me what it
+    couldn't check itself. It won't pay for what it didn't see.
 
 
+>>>>>>>>>>  6  <<<<<<<<<<
 ================================================================
-4 - LAUNCH IT                                    ~12s
+6 — LAUNCH IT                                  ~14s
 ================================================================
 
->>> DO: Reply in Telegram -   launch
+>>> DO: Reply —   launch
 
 SAY:
 
     That's me approving it. It funds the vault from its own
-    wallet. I never touch a wallet.
+    wallet. I never touch one.
 
 >>> WAIT for the live campaign link. Say nothing.
 
->>> DO: Open the campaign link it returns.
 
-
+>>>>>>>>>>  7  <<<<<<<<<<
 ================================================================
-5 - A REAL PERSON GETS PAID                      ~24s
-================================================================
-
->>> DO: Do one of the missions for real. Then paste
->>> SUBMISSION A (page 2, filled in with what you saw). Submit.
-
-SAY:
-
-    Someone's done one and written up what they found.
-    Sage is checking it against what it saw.
-
->>> WAIT for the verdict. Do not talk over this.
-
-SAY (when it settles):
-
-    Paid. Real USDC, on GOAT mainnet.
-
->>> DO: Open the receipt. Hold it still.
-
-SAY:
-
-    And the receipt names the exact evidence it paid for.
-
-
-================================================================
-6 - NOW TRY TO CHEAT IT                          ~28s
+7 — NOW TRY TO CHEAT IT                        ~26s
 ================================================================
 *** SLOW DOWN. This is the shot that matters. ***
 
->>> DO: Switch to wallet 2.
-
-SAY (to camera):
-
-    Now let me try to cheat it.
-
->>> DO: Paste SUBMISSION B. Submit.
+>>> DO: Open Tab 1 — a live board with real submissions.
 
 SAY:
 
-    Something that sounds about right, for work I never did.
+    This is what a tester sees. Real people have done these.
+
+>>> DO: Paste SUBMISSION B. Submit.
+
+SAY (to camera):
+
+    Now let me try to cheat it. Something that sounds about
+    right, for work I never did.
 
 >>> WAIT for the verdict.
+>>> DO: Read the refusal reason off the screen, out loud.
 
->>> DO: Read the refusal reason off the screen, out loud,
->>> exactly as written.
-
-SAY (to camera, slower than everything else):
+SAY (slower than everything else):
 
     Refused. And it tells me why.
 
     I built this thing, and it just said no to me.
 
->>> STOP. One full second. Look at the lens. Say nothing.
+>>> STOP. One full second. Look at the lens.
 
 
+>>>>>>>>>>  8  <<<<<<<<<<
 ================================================================
-7 - VERIFY IT                                    ~8s
+8 — AND THE ONES THAT PASS, GET PAID           ~12s
 ================================================================
 
->>> DO: Switch to the GOAT explorer tab, on the transaction.
+>>> DO: Open a real paid receipt on that same board.
 
 SAY:
 
-    That's the block explorer. Not my dashboard -
-    the chain itself.
+    The ones that hold up get paid, in real USDC.
+
+>>> DO: Switch to Tab 2 — the GOAT explorer, on that transaction.
+
+SAY:
+
+    That's the chain. Not my dashboard. Anyone can check it.
 
 >>> DO: Stop recording.
 
 
 ================================================================
-PAGE 2 - THE TWO SUBMISSIONS
+PAGE 2 — SUBMISSION B (paste as-is)
 ================================================================
 
-SUBMISSION A - THE HONEST ONE
-
->>> Do the mission for real first, then fill these in with what
->>> you ACTUALLY saw. It is judged against Sage's own browsing,
->>> so an invented one gets refused and ruins the shot.
-
-    I opened metis.io and clicked ______ in the navigation.
-    The ______ page loaded and listed ______.
-    I selected ______ and saw ______.
-    Clicking through to ______ opened ______.
-
-
-SUBMISSION B - THE THIN ONE
-
->>> Paste as-is. Vague on purpose - nothing in it could only
->>> be known by actually using the product.
+>>> Vague on purpose. Nothing in it could only be known by
+>>> actually using the product — which is exactly what Sage
+>>> checks it against.
 
     Yes I checked this and everything works fine. The page
     loaded properly and I could see everything as expected.
@@ -203,20 +198,14 @@ IF SOMETHING GOES WRONG
 ================================================================
 
 >>> IT PAYS SUBMISSION B INSTEAD OF REFUSING IT
->>> Do not fake a refusal. Cut section 6, end on section 5.
->>> Screen-record a real refusal already on the live board.
+>>> Do not fake a refusal. Cut section 7 and end on section 8.
+>>> There are 20 real refusals on the board — record one.
 >>>
->>> IT SAYS THE CAMPAIGN IS LIVE BUT THE LINK 404s
->>> That was the 23 Aug bug and it is fixed - it can no longer
->>> hand you a link the tools did not return. If anything odd
->>> still happens, ask it "show my campaigns" and use that link.
+>>> THE INSPECTION HANGS OR TAKES TOO LONG
+>>> You sent another message while it ran. Don't. Start over.
 >>>
->>> TELEGRAM ANSWERS SLOWLY OR ODDLY
->>> Cut section 1, open on the browsing. You lose the
->>> walletless angle and nothing else.
->>>
->>> THE INSPECTION HANGS
->>> Use bridge.metis.io, same goal shape.
+>>> LAUNCH FAILS
+>>> Check the budget is $2, not $3 — the cap is two.
 >>>
 >>> YOU RUN LONG
->>> Trim section 3. Never cut section 6.
+>>> Trim section 5. Never cut section 7.
