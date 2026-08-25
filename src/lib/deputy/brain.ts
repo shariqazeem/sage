@@ -30,7 +30,11 @@ import { readCompletion, terminationRejectReason, type ChatCompletionResponse } 
  * finish_reason, a truncation (length/max_tokens), a content filter, or a refusal fails closed. Strictly a
  * SUBSET of what v2 accepted, so it can only reduce autopay recall, never increase autopay.
  */
-export const PARSER_POLICY_VERSION = "payout-parse-v3";
+// v4 = v3 (strict money parse + explicit normal-completion termination) + the reasoning-prefix
+// normalization (stripReasoningPrefix): exactly one leading CLOSED <think> block is removed before
+// the UNCHANGED strict parse. A parse-behavior change is a NEW identity — the registry's own rule —
+// so v3 approvals (there were none) can never silently cover v4 briefs.
+export const PARSER_POLICY_VERSION = "payout-parse-v4";
 
 /**
  * ============================================================================
@@ -128,6 +132,18 @@ function baseFrom(...candidates: (string | undefined)[]): string {
  * (→ the app runs on the honest heuristic).
  */
 function primaryProvider(): LlmProvider | null {
+  // PAYOUT-SCOPED PRIMARY — the payout brain can run on its OWN provider without moving anything
+  // else (observation judge, mission brains, concierge, vision all read the shared LLM_* chain).
+  // All three must be set (the same opt-in rule as the fallback) so a half-configured override can
+  // never silently splice a key from one provider onto another's endpoint. This is what lets the
+  // money judge run on a flat-rate provider while the shared chain stays on the tuned models.
+  const pKey = process.env.PAYOUT_API_KEY?.trim();
+  const pBase = process.env.PAYOUT_BASE_URL?.trim();
+  const pModel = process.env.PAYOUT_MODEL?.trim();
+  if (pKey && pBase && pModel) {
+    const base = pBase.replace(/\/+$/, "");
+    return { endpoint: `${base}/chat/completions`, key: pKey, model: pModel, host: hostOf(base) };
+  }
   const key = process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim();
   if (!key) return null;
   const base = baseFrom(process.env.LLM_BASE_URL, process.env.COMMONSTACK_BASE_URL);

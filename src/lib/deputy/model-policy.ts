@@ -61,8 +61,10 @@ export function identityKey(id: JudgeIdentity): string {
  * {@link ApprovalRecord} to PRODUCTION_APPROVED after a clean conclusive run — never automatically.
  */
 export const CANDIDATE_IDENTITIES: readonly JudgeIdentity[] = [
-  { provider: "api.commonstack.ai", model: "google/gemini-3.1-flash-lite-preview", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" },
-  { provider: "api.commonstack.ai", model: "anthropic/claude-haiku-4-5", promptVersion: "payout-v1", parserVersion: "payout-parse-v3" },
+  // payout-parse-v4 = v3 + reasoning-prefix normalization (brain.ts). The v3 combos are retired:
+  // nothing produces a v3 brief any more, and no v3 identity was ever approved.
+  { provider: "api.commonstack.ai", model: "anthropic/claude-haiku-4-5", promptVersion: "payout-v1", parserVersion: "payout-parse-v4" },
+  { provider: "api.minimax.io", model: "MiniMax-M3", promptVersion: "payout-v1", parserVersion: "payout-parse-v4" },
 ];
 
 /**
@@ -72,7 +74,19 @@ export const CANDIDATE_IDENTITIES: readonly JudgeIdentity[] = [
  * is a CANDIDATE only. Registration here is a deliberate code change accompanied by an ApprovalRecord.
  */
 const PRODUCTION_APPROVED: readonly ApprovalRecord[] = [
-  // (none yet — awaiting a clean, conclusive promotion report; see docs/agentic-v2-plan.md)
+  // THE FIRST APPROVED IDENTITY. 57/57 valid rows, zero wrong-autopays, zero provenance
+  // violations, zero provider failures, every outcome in-set, falseHold 0 — the first
+  // CONCLUSIVE battery in the registry's history (every prior run died rate-limited on the
+  // capped shared key). Full report + behavioral profile in the evidence doc.
+  {
+    provider: "api.minimax.io",
+    model: "MiniMax-M3",
+    promptVersion: "payout-v1",
+    parserVersion: "payout-parse-v4",
+    evalSuite: "P-JUDGE judge-eval.live · 19 fixtures × 3 runs (57 calls)",
+    approvedOn: "2026-08-25",
+    evidence: "docs/deputy-promotions/2026-08-25-minimax-m3.md",
+  },
 ];
 
 /** Model-membership helper input: the canonical models that appear as candidates or approvals. Weaker

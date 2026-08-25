@@ -75,6 +75,12 @@ const schema = z.object({
   LLM_FALLBACK_BASE_URL: httpUrl.optional(),
   LLM_FALLBACK_API_KEY: nonempty.optional(),
   LLM_FALLBACK_MODEL: nonempty.optional(),
+  // PAYOUT-scoped primary — the payout brain's OWN provider (brain.ts primaryProvider). All three
+  // arm it; everything else (observation judge, mission brains, concierge, vision) stays on the
+  // shared LLM_* chain. Lets the money judge run flat-rate while tuned models keep their lanes.
+  PAYOUT_BASE_URL: httpUrl.optional(),
+  PAYOUT_API_KEY: nonempty.optional(),
+  PAYOUT_MODEL: nonempty.optional(),
 
   // autonomy flags
   DEPUTY_AUTOPILOT_MAINNET: nonempty.optional(),
@@ -200,7 +206,13 @@ export function envSummary(): EnvSummary {
     chainId: CHAIN_IDS[network] ?? 59902,
     llm: {
       live: llm,
-      model: llm ? (e.LLM_MODEL ?? e.DEPUTY_MODEL ?? "deepseek/deepseek-v4-flash") : null,
+      // The boot line reports the PAYOUT brain's actual primary — the payout-scoped override when
+      // armed (all three set), else the shared-chain model, so the printed chain never lies.
+      model: llm
+        ? e.PAYOUT_API_KEY && e.PAYOUT_BASE_URL && e.PAYOUT_MODEL
+          ? e.PAYOUT_MODEL
+          : (e.LLM_MODEL ?? e.DEPUTY_MODEL ?? "deepseek/deepseek-v4-flash")
+        : null,
     },
     fallback: { live: fb, model: fb ? (e.LLM_FALLBACK_MODEL ?? null) : null },
     x402: { live: x402, merchant: x402 ? (e.GOATX402_MERCHANT_ID ?? null) : null },

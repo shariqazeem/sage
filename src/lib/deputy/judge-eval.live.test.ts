@@ -37,5 +37,9 @@ describe.runIf(LIVE)("P-JUDGE — live semantic battery (production path)", () =
     expect(metrics.unexpectedWrongAutopays, `unexpected wrong-autopay: ${metrics.violations.join("; ")}`).toBe(0);
     expect(metrics.provenanceViolations, "provenance violations").toBe(0);
     expect(metrics.violations, `violations: ${metrics.violations.join("; ")}`).toHaveLength(0);
-  }, 600_000);
+    // 40 min: sized for a REASONING candidate (~11s/call × 19 fixtures × 3 runs + bounded retries).
+    // The 10-min ceiling was calibrated on fast models and cut the first MiniMax-M3 promotion run
+    // off at 56/57 calls — a completed, clean battery discarded by the instrument's own clock.
+    // A longer ceiling changes nothing about the hard-stops; it only lets the evidence finish.
+  }, 2_400_000);
 });
