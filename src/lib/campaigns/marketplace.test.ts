@@ -419,3 +419,18 @@ describe("a mission with no corpus to judge it against is not advertised", () =>
     expect(listed!.missions[0]!.verifiabilityClass).toBe("url-verifiable");
   });
 });
+
+describe("WORK PROOF — allowlisted campaigns are invite-only, never advertised", () => {
+  it("a campaign with a recipient allowlist is excluded; clearing it re-lists", () => {
+    const c = campaign({ title: "grant-invite-only" });
+    mission(c.id, {});
+    db.update(campaigns)
+      .set({ allowlist: ["0x00000000000000000000000000000000000000aa"] })
+      .where(eq(campaigns.id, c.id))
+      .run();
+    expect(marketplace().campaigns.some((x) => x.id === c.id)).toBe(false);
+
+    db.update(campaigns).set({ allowlist: null }).where(eq(campaigns.id, c.id)).run();
+    expect(marketplace().campaigns.some((x) => x.id === c.id)).toBe(true);
+  });
+});

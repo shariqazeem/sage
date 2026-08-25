@@ -65,7 +65,7 @@ describe("extractTxHash — bare hash or explorer link, wherever it sits", () =>
 });
 
 describe("runWorkProof onchain_tx", () => {
-  const contract = { kind: "onchain_tx", chainId: GOAT, methodSelector: "0xa9059cbb" } as const;
+  const contract = { kind: "onchain_tx" as const, chainId: GOAT, methodSelector: "0xa9059cbb" };
 
   it("no hash in the submission → definitive (clear, actionable public reason)", async () => {
     const r = await runWorkProof(contract, { wallet: WALLET, evidenceUrl: null, note: "i did it" });
@@ -97,13 +97,13 @@ describe("runWorkProof onchain_tx", () => {
 
 describe("runWorkProof onchain_state", () => {
   const contract = {
-    kind: "onchain_state",
+    kind: "onchain_state" as const,
     chainId: GOAT,
     contract: "0x3022b87ac063DE95b1570F46f5e470F8B53112D8",
     callData: "0x70a08231" + "0".repeat(64),
     injectTesterArgWord: 0,
     minUint: "1",
-  } as const;
+  };
 
   it("splices the tester's wallet into the calldata word and verifies on ≥ min", async () => {
     let seenData = "";
@@ -135,7 +135,7 @@ describe("runWorkProof onchain_state", () => {
 
 describe("runWorkProof artifact_url + public_url", () => {
   it("artifact without a link → definitive; verified artifact carries the marker story in the report", async () => {
-    const contract = { kind: "artifact_url", allowedHosts: ["x.org"], markerKind: "wallet" } as const;
+    const contract = { kind: "artifact_url" as const, allowedHosts: ["x.org"], markerKind: "wallet" as const };
     const missing = await runWorkProof(contract, { wallet: WALLET, evidenceUrl: null, note: "made it" });
     expect(missing.outcome).toBe("definitive");
     const passed = await runWorkProof(
@@ -148,7 +148,7 @@ describe("runWorkProof artifact_url + public_url", () => {
   });
 
   it("public_url: expected text present → verified; missing → definitive; fetch throw → transient; 404 → definitive", async () => {
-    const contract = { kind: "public_url", expectedText: ["deployment complete"] } as const;
+    const contract = { kind: "public_url" as const, expectedText: ["deployment complete"] };
     const sub = { wallet: WALLET, evidenceUrl: "https://x.org/status", note: null };
     const respond = (status: number, body: string) =>
       (async () => new Response(body, { status })) as unknown as typeof fetch;

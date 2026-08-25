@@ -26,6 +26,8 @@ export interface MissionView {
 
 export interface PlanView {
   publicCampaignId: string;
+  /** WORK PROOF — absent ⇒ "testing" (a Sage-designed plan). */
+  campaignKind?: "testing" | "grant" | "gig";
   campaignIdHash: string;
   missionPlanDigest: string;
   missions: MissionView[];

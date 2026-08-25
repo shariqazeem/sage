@@ -11,7 +11,7 @@ import type { JobView as ClientJobView } from "@/components/launch/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Sage — your testing plan", robots: { index: false } };
+export const metadata: Metadata = { title: "Sage — your campaign plan", robots: { index: false } };
 
 /**
  * The durable, refresh-safe results route. The job is loaded from the database
@@ -23,6 +23,10 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
   const job = getInspectionJob(inspectionId);
   if (!job) notFound();
   const view = jobToView(job);
+  // WORK PROOF — a direct plan was authored by the operator, and the heading says so.
+  const planKind = (view.plan as { campaignKind?: "testing" | "grant" | "gig" } | null)?.campaignKind;
+  const readyHeading =
+    planKind === "grant" ? "Your grant campaign plan" : planKind === "gig" ? "Your gig campaign plan" : "Sage’s testing plan";
   // PUBLIC, CHECKABLE PROOF THAT THIS PERSON SPOKE. The feedback widget records the inspection it was
   // sent from, so this line is a fact about the run rather than a claim about it — a mission can ask
   // for feedback and still be verified from the page, with nothing taken on trust.
@@ -32,7 +36,7 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
     <div className="lx">
       <div className="lx-wrap">
         <div className="lx-hero" style={{ marginBottom: 18 }}>
-          <h1 className="lx-h1" style={{ fontSize: "clamp(24px, 4vw, 32px)" }}>{view.status === "ready" ? "Sage’s testing plan" : "Sage is inspecting your product"}</h1>
+          <h1 className="lx-h1" style={{ fontSize: "clamp(24px, 4vw, 32px)" }}>{view.status === "ready" ? readyHeading : "Sage is inspecting your product"}</h1>
           <p className="lx-sub" style={{ fontSize: 15 }}>{hostOf(view.productUrl)}</p>
         </div>
 

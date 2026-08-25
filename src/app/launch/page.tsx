@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./launch.css";
 import { LaunchForm } from "@/components/launch/launch-form";
 import { RecentInspectionsList } from "@/components/launch/recent-inspections-list";
@@ -29,6 +30,11 @@ export default function LaunchPage() {
         </div>
 
         <LaunchForm />
+
+        <p className="lx-crosslink">
+          Already know exactly what work you want done? <Link href="/launch/direct">Define milestones yourself →</Link>{" "}
+          Sage verifies each proof and pays — grants and gig payouts.
+        </p>
 
         {/* Proof of supply before they type a URL — the objection arrives before the plan does. */}
         <TesterSupplyProof compact />

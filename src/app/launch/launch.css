@@ -467,3 +467,23 @@
   text-decoration: none;
 }
 .tsp-link:hover { text-decoration: underline; }
+
+/* ── WORK PROOF: the direct (grant / gig) campaign form ─────────────────── */
+.lx-seg { display: inline-flex; border: 1px solid var(--lx-line-strong); border-radius: 10px; overflow: hidden; }
+.lx-seg button { appearance: none; border: none; background: transparent; color: var(--lx-muted); font: inherit; font-size: 14px; font-weight: 560; padding: 9px 16px; cursor: pointer; }
+.lx-seg button + button { border-left: 1px solid var(--lx-line); }
+.lx-seg button.on { background: var(--lx-ink); color: var(--lx-bg); }
+.lx-seg button:focus-visible { outline: 2px solid var(--lx-accent); outline-offset: -2px; }
+.lx-ms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.lx-ms-remove { appearance: none; border: none; background: none; color: var(--lx-muted); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.lx-ms-remove:hover { color: var(--lx-accent); }
+.lx-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 560px) { .lx-row-3 { grid-template-columns: 1fr; } }
+.lx-total { display: flex; align-items: baseline; justify-content: space-between; border-top: 1px solid var(--lx-line); margin-top: 6px; padding-top: 14px; }
+.lx-total-k { font-size: 13px; color: var(--lx-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.lx-total-v { font-size: 22px; font-weight: 680; font-variant-numeric: tabular-nums; }
+.lx-add-ms { appearance: none; width: 100%; border: 1px dashed var(--lx-line-strong); border-radius: 10px; background: transparent; color: var(--lx-muted); font: inherit; font-size: 14px; font-weight: 560; padding: 12px; cursor: pointer; margin: 4px 0 14px; }
+.lx-add-ms:hover { color: var(--lx-ink); border-color: var(--lx-ink); }
+.lx-crosslink { margin: 18px 0 0; font-size: 14px; color: var(--lx-muted); }
+.lx-crosslink a { color: var(--lx-accent); text-decoration: none; font-weight: 560; }
+.lx-crosslink a:hover { text-decoration: underline; text-underline-offset: 3px; }

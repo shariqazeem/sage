@@ -16,6 +16,7 @@ export function MissionCard({
   revision,
   locked,
   autonomous,
+  operatorAuthored,
   isOnlyMission,
   onSaved,
 }: {
@@ -26,6 +27,8 @@ export function MissionCard({
   /** the SERVER's corpus-readiness verdict — the autonomy note must follow it, never the mission's
    *  class alone (the same rule the tester-facing boards already obey). Undefined → not ready. */
   autonomous?: boolean;
+  /** WORK PROOF — a direct (grant/gig) plan the OPERATOR wrote; flips authorship copy. */
+  operatorAuthored?: boolean;
   /** the last mission standing cannot be removed — a plan with none can pay nobody. */
   isOnlyMission?: boolean;
   onSaved: (job: JobView) => void;
@@ -126,7 +129,7 @@ export function MissionCard({
           <div className="lx-reward-s">× {mission.maxCompletions} · ~{mission.effortMinutes}m</div>
         </div>
       </div>
-      <p className="lx-why"><b style={{ color: "var(--lx-ink)", fontWeight: 600 }}>Why Sage created this: </b>{mission.whyItMatters}</p>
+      <p className="lx-why"><b style={{ color: "var(--lx-ink)", fontWeight: 600 }}>{operatorAuthored ? "Why this is funded: " : "Why Sage created this: "}</b>{mission.whyItMatters}</p>
       <div className="lx-tags">
         <span className="lx-tag">{mission.priority}</span>
         <span className="lx-tag">{mission.riskCategory.replace(/_/g, " ")}</span>
@@ -166,8 +169,14 @@ export function MissionCard({
         <ul className="lx-list">{mission.evidenceRequirements.map((c, i) => <li key={i}>{c}</li>)}</ul>
         <div className="lx-sub-h">How Sage will verify</div>
         <p style={{ fontSize: 13.5, color: "var(--lx-muted)", margin: 0, lineHeight: 1.5 }}>{mission.verificationMethod}</p>
-        <div className="lx-sub-h">From what Sage observed</div>
-        {mission.sources.map((s, i) => <div className="lx-src" key={i}>{s.kind}: {s.ref}</div>)}
+        {/* WORK PROOF — a direct mission has no inspection behind it; "from what Sage observed"
+            would be a false provenance claim, so the section simply isn't there. */}
+        {!operatorAuthored && (
+          <>
+            <div className="lx-sub-h">From what Sage observed</div>
+            {mission.sources.map((s, i) => <div className="lx-src" key={i}>{s.kind}: {s.ref}</div>)}
+          </>
+        )}
       </details>
       {!locked && <button className="lx-edit-link" onClick={() => { setDraft(mission); setEditing(true); }}>Edit mission</button>}
     </article>

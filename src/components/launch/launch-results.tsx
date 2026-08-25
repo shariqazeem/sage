@@ -235,12 +235,17 @@ export function LaunchResults({ initial }: { initial: JobView }) {
 
       {plan && plan.missions.length > 0 && (
         <section aria-label="Mission plan" style={{ marginTop: 22 }}>
-          <div className="lx-kicker" style={{ margin: "0 0 6px" }}>Sage designed these missions from what it found</div>
+          {/* WORK PROOF — a direct plan was authored by the operator; saying Sage designed it would be a lie. */}
+          <div className="lx-kicker" style={{ margin: "0 0 6px" }}>
+            {plan.campaignKind === "grant" || plan.campaignKind === "gig"
+              ? "You defined this work — Sage verifies each proof and pays"
+              : "Sage designed these missions from what it found"}
+          </div>
           {status === "ready" && job.corpusReadiness?.observation && (
             <CorpusReadinessBadge readiness={job.corpusReadiness} />
           )}
           {plan.missions.map((m) => (
-            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} autonomous={!!job.corpusReadiness?.autonomous} isOnlyMission={plan.missions.length === 1} onSaved={(j) => setJob(j)} />
+            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} autonomous={!!job.corpusReadiness?.autonomous} operatorAuthored={plan.campaignKind === "grant" || plan.campaignKind === "gig"} isOnlyMission={plan.missions.length === 1} onSaved={(j) => setJob(j)} />
           ))}
         </section>
       )}

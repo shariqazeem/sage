@@ -229,8 +229,15 @@ export function marketplace(): MarketplaceView {
     };
   }
 
-  const ids = live.map((c) => c.id);
-  const missionRows = db.select().from(missions).where(inArray(missions.campaignId, ids)).all();
+  // WORK PROOF — an ALLOWLISTED campaign pays a named recipient list only. Listing it publicly
+  // would invite strangers to do real work the submit route must then refuse (403) — the exact
+  // "wasted work" failure this board exists to prevent. Same payability rule as a filled slot:
+  // if YOU can't be paid for it, it isn't advertised to you.
+  const open = live.filter((c) => !(Array.isArray(c.allowlist) && c.allowlist.length > 0));
+  const ids = open.map((c) => c.id);
+  const missionRows = ids.length
+    ? db.select().from(missions).where(inArray(missions.campaignId, ids)).all()
+    : [];
   const paidBy = paidCountsByMission(missionRows.map((m) => m.missionIdHash));
   /** Distinct observations pinned to each campaign — what an observation account is judged against. */
   const corpusSources = new Map(live.map((c) => [c.id, c.privateCorpusSources ?? 0]));
