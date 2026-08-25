@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { verifySubmission, type LlmProvider } from "./brain";
+import { stripReasoningPrefix, verifySubmission, type LlmProvider } from "./brain";
 import { judgeDecision } from "./judge-eval";
 import { isAutoPayQualifying, type BrainInput } from "./brain-core";
 
@@ -150,5 +150,57 @@ describe("explicit normal completion — the rule applies INDEPENDENTLY to the f
     const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: fallbackProv, fetchImpl: failoverTo({ content: PAY_JSON, finish_reason: "length" }) });
     expect(b.engine).toBe("heuristic");
     expect(judgeDecision(b).autopayQualified).toBe(false);
+  });
+});
+
+describe("reasoning-in-content — a leading <think> block is framing, and ONLY that is removed", () => {
+  // The MiniMax-M-series shape verified live 2026-08-25: response_format (json_object AND
+  // json_schema) is ignored and content opens with `<think>…</think>\n\n{…}`. The strip removes
+  // exactly one leading CLOSED block; the strict money parse then runs UNCHANGED on the remainder.
+  const think = (inner: string, rest: string) => `<think>${inner}</think>\n\n${rest}`;
+
+  it("think-prefixed strict PAY JSON + stop → parses as an LLM brief (the fallback becomes usable)", async () => {
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: null, fetchImpl: serve({ content: think("the tester did the thing", PAY_JSON), finish_reason: "stop" }) });
+    expect(b.engine).toBe("llm");
+    expect(b.recommendation).toBe("pay");
+  });
+
+  it("think block CONTAINING braces + strict JSON after → parses (the case a brace-scan could never survive)", async () => {
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: null, fetchImpl: serve({ content: think('I could answer {"recommendation":"hold"} but the evidence is real', PAY_JSON), finish_reason: "stop" }) });
+    expect(b.engine).toBe("llm");
+    expect(b.recommendation).toBe("pay");
+  });
+
+  it("UNCLOSED think prefix (truncated mid-reasoning) → fail closed, heuristic", async () => {
+    await expectFailClosed(serve({ content: "<think>hmm, the evidence sugg", finish_reason: "stop" }));
+  });
+
+  it("think prefix + FENCED JSON after → still rejected (the strip does not loosen the parse)", async () => {
+    await expectFailClosed(serve({ content: think("ok", "```json\n" + PAY_JSON + "\n```"), finish_reason: "stop" }));
+  });
+
+  it("think prefix + trailing garbage after the object → still rejected", async () => {
+    await expectFailClosed(serve({ content: think("ok", PAY_JSON + " approved!"), finish_reason: "stop" }));
+  });
+
+  it("a MID-content think block (prose before it) is NOT framing → rejected", async () => {
+    await expectFailClosed(serve({ content: "Answer below.\n<think>x</think>\n" + PAY_JSON, finish_reason: "stop" }));
+  });
+
+  it("think-prefixed PAY on the FALLBACK provider (the real MiniMax scenario) → llm with fallback provenance", async () => {
+    const failover = (async (url: string) => {
+      if (String(url).includes("primary.test")) throw new Error("primary down");
+      return completion({ content: think("checking the account against the criteria", PAY_JSON), finish_reason: "stop" });
+    }) as unknown as typeof fetch;
+    const b = await verifySubmission(INPUT, { provider: primaryProv, fallback: fallbackProv, fetchImpl: failover });
+    expect(b.engine).toBe("llm");
+    expect(b.provider).toBe("fallback.test");
+    expect(b.model).toBe("test/fallback");
+  });
+
+  it("stripReasoningPrefix unit shapes — leading whitespace tolerated, absent block untouched", () => {
+    expect(stripReasoningPrefix("  \n<think>a</think>X").trim()).toBe("X");
+    expect(stripReasoningPrefix(PAY_JSON)).toBe(PAY_JSON);
+    expect(stripReasoningPrefix("<think>never closed")).toBe("<think>never closed");
   });
 });

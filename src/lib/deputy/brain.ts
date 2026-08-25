@@ -59,7 +59,12 @@ const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const LLM_TIMEOUT_MS = 35_000;
 // Headroom for the structured summary + reasonCode so a concise model never
 // truncates its JSON (a truncation would fail the parse and force a fail-over).
-const MAX_TOKENS = 1200;
+// A ceiling, not a target: a non-thinking model stops at "stop" far below it, so raising it
+// changes nothing for the primary. Sized so a reasoning FALLBACK (MiniMax M-series spends
+// completion tokens on a `<think>` prefix before the brief) completes normally instead of
+// hitting finish_reason "length" on every single call — which would make the fallback
+// permanently useless while looking configured.
+const MAX_TOKENS = 3000;
 const LLM_ATTEMPTS = 3;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -179,6 +184,25 @@ function heuristicFallback(input: BrainInput, latencyMs: number | null): Decisio
  * remaining fields are shaped by the shared coercer over the already-strictly-parsed object (never the
  * transport). Returns null on any deviation — this can only REDUCE what autopays, never increase it.
  */
+/**
+ * REASONING-IN-CONTENT NORMALIZATION — some providers (MiniMax M-series; R1-style serving) prefix
+ * the answer with a `<think>…</think>` block inside `content` and honor `response_format` for
+ * neither `json_object` nor `json_schema` (verified live against api.minimax.io, 2026-08-25: both
+ * shapes still open with `<think>`). The block is transport framing around the answer — the
+ * provider's reasoning channel flattened into content — not part of the answer itself. So exactly
+ * ONE leading, CLOSED think block is removed; everything after it must still pass the UNCHANGED
+ * strict money parse. An UNCLOSED block (a completion truncated mid-think) is returned as-is and
+ * fails that parse — truncated reasoning stays fail-closed. This can only convert a guaranteed
+ * parse failure into a strict parse of the model's actual answer; the parse itself is not loosened.
+ */
+export function stripReasoningPrefix(content: string): string {
+  const t = content.trimStart();
+  if (!t.startsWith("<think>")) return content;
+  const close = t.indexOf("</think>");
+  if (close === -1) return content;
+  return t.slice(close + "</think>".length);
+}
+
 function parseMoneyBrief(content: string): DecisionBriefContent | null {
   let obj: unknown;
   try {
@@ -244,7 +268,8 @@ async function callProvider(
     if (reject) throw new Error(`non-normal completion: ${reject}`);
     if (!completion.content) throw new Error("empty completion");
 
-    const parsed = parseMoneyBrief(completion.content); // STRICT — no repair/salvage on the payout path
+    // Reasoning prefix off, THEN the strict parse — the parse itself never loosens.
+    const parsed = parseMoneyBrief(stripReasoningPrefix(completion.content));
     if (!parsed) throw new Error("unparseable or incomplete money brief");
 
     const { content: safe } = enforceQuotes(parsed, input.evidenceText);
