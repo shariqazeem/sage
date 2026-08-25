@@ -22,6 +22,12 @@ import type { Decision, Submission } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
+import {
+  WORKPROOF_VERIFIER_MODEL,
+  mergeWorkProofEvidence,
+  parseWorkProofContract,
+  runWorkProof,
+} from "./work-proof";
 import { walletFreshnessSignal } from "./wallet-signals";
 import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
@@ -225,6 +231,70 @@ export async function ensureDecision(
     }
   }
 
+  // WORK PROOF LANE (docs/work-proof-design.md §C) — a mission carrying an explicit OPERATOR
+  // contract is verified deterministically BEFORE any model or class-based routing. The contract
+  // outranks the inferred verifiabilityClass: it is authored, validated input, not a prose guess.
+  //   definitive fail → an honest heuristic HOLD decision (cached; engine "heuristic" never
+  //                     autopays; the sweep never re-buys it; the founder sees the exact reason).
+  //   transient fail  → no decision row; the submission stays pending and the next sweep retries.
+  //   verified        → the report joins the evidence the UNCHANGED brain judges below — an AND
+  //                     term in front of the frozen gate, so payouts only get stricter.
+  const workProofContract = parseWorkProofContract(mission?.verificationContract ?? null);
+  let workProofReport: string | null = null;
+  if (workProofContract) {
+    const wp = await runWorkProof(workProofContract, {
+      wallet: submission.wallet,
+      evidenceUrl: submission.evidenceUrl,
+      note: submission.note,
+    });
+    if (wp.outcome === "transient") return null; // pending — retried on the next sweep
+    if (wp.outcome === "definitive") {
+      const brief: StoredBrief = {
+        criteria: [],
+        fraudSignals: [],
+        recommendation: "hold",
+        reasonCode: "evidence_mismatch",
+        confidence: 0,
+        summary: `Work-proof verification failed (deterministic check, no model consulted): ${wp.result.publicDetail}`,
+        provider: null,
+      };
+      const { row, inserted } = insertDecision({
+        submissionId,
+        campaignId: campaign.id,
+        engine: "heuristic",
+        model: WORKPROOF_VERIFIER_MODEL,
+        brief,
+        contentSha256: null,
+        evidenceOk: false,
+        latencyMs: null,
+        costUsd: null,
+        x402PaymentTx: null,
+        x402Status: "not_required",
+        x402Reason: null,
+        ...(mission && campaign.campaignIdHash
+          ? {
+              commitmentVersion: 2,
+              missionIdHash: mission.missionIdHash,
+              vaultKind: "campaign_v2" as const,
+              missionSpecDigest: recomputeMissionSpecDigest(mission, campaign.campaignIdHash),
+            }
+          : {}),
+      });
+      if (inserted) {
+        recordEvent({
+          campaignId: campaign.id,
+          submissionId,
+          kind: "decision_recorded",
+          detail: encodeDetail(`Work-proof verifier · hold · ${short(submission.wallet)}`, { cid: opts?.cid }),
+        });
+      }
+      return row
+        ? briefFromRow(row)
+        : { ...brief, engine: "heuristic", model: WORKPROOF_VERIFIER_MODEL, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
+    }
+    workProofReport = wp.report;
+  }
+
   // OBSERVATION MISSIONS — THE URL-EVIDENCE BRAIN HAS NO JURISDICTION HERE, SO IT ABSTAINS.
   //
   // It was built to fetch a link and verify quotes against fetched content. An observation mission
@@ -240,7 +310,7 @@ export async function ensureDecision(
   // its own bar + validated-contradiction veto still gate the payout, and wallet freshness (a MEDIUM
   // caution that can never block alone) is still recorded because it is lane-independent. The frozen
   // brain-core is untouched — it simply is not consulted where it cannot judge.
-  if (mission?.verifiabilityClass === "observation-based") {
+  if (!workProofContract && mission?.verifiabilityClass === "observation-based") {
     const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
     const brief: StoredBrief = {
       criteria: [],
@@ -308,7 +378,7 @@ export async function ensureDecision(
 
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
-  const evidence = submission.evidenceUrl
+  const fetched = submission.evidenceUrl
     ? await verifyEvidence(submission.evidenceUrl)
     : {
         text: "",
@@ -319,6 +389,18 @@ export async function ensureDecision(
         x402Status: "not_required" as const,
         x402Reason: null,
       };
+
+  // WORK PROOF (verified) — the deterministic report becomes judgeable evidence, ahead of whatever
+  // the link fetch returned. `ok` is honestly true: the evidence (chain state / the artifact) WAS
+  // established — by Sage's own check, which the submitter cannot forge. The brain still judges;
+  // the frozen gate still gates. An onchain mission whose submitter pasted only a hash (no link)
+  // would otherwise carry evidenceOk=false and be confidence-capped for the wrong reason.
+  const merged = workProofReport
+    ? mergeWorkProofEvidence(workProofReport, { text: fetched.text ?? "", ok: fetched.ok })
+    : null;
+  const evidence = merged
+    ? { ...fetched, text: merged.text, ok: merged.ok, failReason: undefined, contentSha256: merged.contentSha256 }
+    : fetched;
 
   const brief = await verifySubmission({
     campaignTitle: judgeTitle,

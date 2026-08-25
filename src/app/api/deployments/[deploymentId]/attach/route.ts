@@ -124,6 +124,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       criteria: m.criteria,
       evidenceRequirements: m.evidenceRequirements,
     }),
+    // WORK PROOF — the operator contract from the approved IMMUTABLE revision (never recomputed:
+    // unlike the class it is authored input, validated at creation, not derivable from prose).
+    verificationContract: m.verificationContract,
     rewardBase: BigInt(m.rewardBase),
     maxCompletions: BigInt(m.maxCompletions),
   }));
@@ -165,6 +168,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       missions,
       autonomy,
       perWalletCap,
+      // WORK PROOF — kind + allowlist ride the approved plan (absent on model plans ⇒ unchanged).
+      campaignKind: loaded.plan.campaignKind,
+      allowlist: loaded.plan.allowlist,
     },
     deploymentAttachDeps(deployment, loaded.plan, settings),
   );

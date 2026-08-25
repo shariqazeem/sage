@@ -67,6 +67,16 @@ export async function POST(
   if (campaign.status !== "live") {
     return NextResponse.json({ error: "This campaign isn't accepting submissions." }, { status: 409 });
   }
+  // WORK PROOF — recipient allowlist (direct grant/gig campaigns). An application-level gate,
+  // stated honestly as such: the vault still enforces caps/budget/replay for whoever gets through.
+  if (Array.isArray(campaign.allowlist) && campaign.allowlist.length > 0) {
+    if (!campaign.allowlist.includes(wallet.toLowerCase())) {
+      return NextResponse.json(
+        { error: "This campaign pays a named recipient list, and your wallet isn't on it. Contact the operator." },
+        { status: 403 },
+      );
+    }
+  }
 
   let body: { evidence?: unknown; note?: unknown; missionKey?: unknown; claim?: EvidenceClaim; signature?: unknown };
   try {

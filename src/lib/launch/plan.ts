@@ -86,6 +86,8 @@ export function compilePlan(input: CompilePlanInput): CompilePlanResult {
       verificationMethod: m.verificationMethod,
       anchors: m.anchors ?? [],
       verifiabilityClass: m.verifiabilityClass ?? classifyVerifiability(m),
+      // WORK PROOF — operator-authored contract carried verbatim (NOT digested; absent on model plans).
+      ...(m.verificationContract ? { verificationContract: m.verificationContract } : {}),
       missionIdHash: mid,
       specDigest,
     };

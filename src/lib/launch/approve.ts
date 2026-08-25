@@ -34,7 +34,12 @@ export interface DeploymentReadyPlan {
     evidenceRequirements: string[];
     rewardBase: string;
     maxCompletions: string;
+    /** WORK PROOF — operator-authored contract (direct campaigns; absent on model plans). */
+    verificationContract?: unknown;
   }[];
+  /** WORK PROOF — campaign kind + optional recipient allowlist from the approved plan. */
+  campaignKind?: "testing" | "grant" | "gig";
+  allowlist?: string[];
 }
 
 function toCandidate(m: CompiledMission): CandidateMission {
@@ -44,6 +49,9 @@ function toCandidate(m: CompiledMission): CandidateMission {
     whyItMatters: m.whyItMatters, sources: m.sources, priority: m.priority, riskCategory: m.riskCategory,
     effortMinutes: m.effortMinutes, conditions: [], rewardWeight: 5, maxCompletions: Number(m.maxCompletions),
     verificationMethod: m.verificationMethod, confidence: 0.8, assumptions: [], disallowed: [],
+    // WORK PROOF — the operator contract survives the approval recompile (it is not digested,
+    // but dropping it here would strip it from the recompiled plan's missions).
+    ...(m.verificationContract ? { verificationContract: m.verificationContract } : {}),
   };
 }
 
@@ -108,7 +116,12 @@ export function verifyPlanForApproval(
       title: m.title, objective: m.objective, instructions: m.instructions, targetSurface: m.targetSurface,
       criteria: m.criteria, evidenceRequirements: m.evidenceRequirements,
       rewardBase: m.rewardBase.toString(), maxCompletions: m.maxCompletions.toString(),
+      ...(m.verificationContract ? { verificationContract: m.verificationContract } : {}),
     })),
+    // WORK PROOF — from the INPUT plan (compilePlan does not produce these; the direct
+    // compiler sets them on the plan after compilation, and they must survive the reload).
+    ...(plan.campaignKind ? { campaignKind: plan.campaignKind } : {}),
+    ...(plan.allowlist && plan.allowlist.length > 0 ? { allowlist: plan.allowlist } : {}),
   };
   const approvalRecord = {
     schemaVersion: APPROVAL_SCHEMA_VERSION,

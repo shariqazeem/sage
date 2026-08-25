@@ -12,6 +12,8 @@
 
 import { type Hex, encodeAbiParameters, keccak256, stringToHex } from "viem";
 
+import type { VerificationContract } from "@/lib/verify/contract";
+
 /* ─────────────────────────────────────────────────── founder input ──────── */
 
 export interface FounderLaunchInput {
@@ -418,6 +420,10 @@ export interface CandidateMission {
    *  support it, the evidence requirement that proves it, and how Sage can verify it. When present, the
    *  deterministic grounding gate checks it against the inspection's observation set. */
   groundingV1?: MissionGroundingV1;
+  /** WORK PROOF — an explicit, OPERATOR-authored verification contract (direct campaigns only; a model
+   *  never writes one). NOT part of any digest (like anchors/verifiabilityClass); carried verbatim into
+   *  the compiled plan → the mission row → the judge's deterministic pre-gate. */
+  verificationContract?: VerificationContract;
 }
 
 /** How a criterion can be verified: a deterministic substring of a public page, a semantic read of a
@@ -604,6 +610,8 @@ export interface CompiledMission {
   anchors?: string[];
   /** deterministic verifiability class (display only — NOT part of the spec digest). */
   verifiabilityClass?: "url-verifiable" | "observation-based";
+  /** WORK PROOF — the operator-authored verification contract (NOT part of any digest). */
+  verificationContract?: VerificationContract;
   /** bytes32 — missionIdHash(publicCampaignId, missionKey). */
   missionIdHash: Hex;
   /** bytes32 — the MissionSpecV1 digest. */
@@ -630,6 +638,10 @@ export interface MissionPlanV1 {
   /** plain-words disclosure of how the plan's missions are verified (the url-verifiable vs
    *  observation-based split) — honesty about what Sage can and cannot externally prove. */
   verifiabilityNote?: string;
+  /** WORK PROOF — what this campaign pays for. Absent ⇒ "testing" (every model-authored plan). */
+  campaignKind?: "testing" | "grant" | "gig";
+  /** WORK PROOF — optional recipient allowlist (lowercased wallets), enforced at the submit route. */
+  allowlist?: string[];
   /** the model + prompt schema version that produced the candidates. */
   modelVersion: string;
   promptVersion: string;

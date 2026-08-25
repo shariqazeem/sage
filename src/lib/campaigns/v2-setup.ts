@@ -47,6 +47,8 @@ export interface V2MissionSetupInput {
   verifiabilityClass?: "url-verifiable" | "observation-based";
   /** criterion → the pinned-key sources that prove it. Absent ⇒ the flat bar, exactly as before. */
   criterionEvidence?: { criterionIndex: number; keySources: string[] }[];
+  /** WORK PROOF — operator-authored verification contract from the approved plan. Absent ⇒ unchanged. */
+  verificationContract?: unknown;
   /** exact reward in token base units (6dp). */
   rewardBase: bigint;
   maxCompletions: bigint;
@@ -80,6 +82,10 @@ export interface V2SetupInput {
   /** P23 — Sage's exploration breadth (screens/elements) for the board's agent-star line. */
   exploredScreens?: number;
   exploredElements?: number;
+  /** WORK PROOF — campaign kind from the approved plan. Absent ⇒ "testing" (unchanged). */
+  campaignKind?: "testing" | "grant" | "gig";
+  /** WORK PROOF — optional recipient allowlist (lowercased at persist; enforced at submit). */
+  allowlist?: string[];
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -382,6 +388,12 @@ export async function attachV2Campaign(
           missionPlanDigest: preview.missionPlanDigest as string,
           settlementToken: getAddress(input.expectedToken),
           commitmentVersion: 2,
+          // WORK PROOF — kind + allowlist from the approved plan (labels + submit-route gate only).
+          kind: input.campaignKind ?? "testing",
+          allowlist:
+            input.allowlist && input.allowlist.length > 0
+              ? [...new Set(input.allowlist.map((w) => w.toLowerCase()))]
+              : null,
           createdAt: now,
         })
         .run();
@@ -405,6 +417,8 @@ export async function attachV2Campaign(
             // the same instant as the key and the plan, so a settle can check criteria rather than
             // count hidden details. Absent on legacy/model-authored missions → the flat bar, unchanged.
             criterionEvidence: m.criterionEvidence ?? null,
+            // WORK PROOF — the operator contract, pinned at the same instant as the plan.
+            verificationContract: m.verificationContract ?? null,
             rewardAmount: Number(m.rewardBase),
             maxCompletions: Number(m.maxCompletions),
             status: "active",

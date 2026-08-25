@@ -56,6 +56,13 @@ export const campaigns = sqliteTable("campaigns", {
    *  its missions). Default 1 (max farming resistance — a fresh payout needs a fresh wallet); a founder
    *  raises it at launch when they want trusted testers doing several missions. Enforced in preflight. */
   perWalletPayoutCap: integer("per_wallet_cap").notNull().default(1),
+  /** WORK PROOF — what this campaign pays for: product testing (default), milestone grants, or gig
+   *  deliverables. Copy/labels only; no economic or settlement behavior keys off it. */
+  kind: text("kind").$type<"testing" | "grant" | "gig">().notNull().default("testing"),
+  /** WORK PROOF — optional recipient allowlist (lowercased wallets). Enforced at the SUBMIT route
+   *  (application-level gate, documented honestly as such); caps/budget/replay stay vault-enforced.
+   *  NULL ⇒ open participation, exactly as before. */
+  allowlist: text("allowlist", { mode: "json" }).$type<string[] | null>(),
   /**
    * P16 PINNED PRIVATE ANSWER KEY — the distilled field-test observations (Sage's field-test corpus
    * MINUS every public plan/card string), for observation-mode verification. Pinned AT ATTACH, before
@@ -503,6 +510,15 @@ export const missions = sqliteTable(
     criterionEvidence: text("criterion_evidence", { mode: "json" }).$type<
       { criterionIndex: number; keySources: string[] }[] | null
     >(),
+    /**
+     * WORK PROOF — an explicit, operator-authored VerificationContract (src/lib/verify/contract.ts)
+     * carried from the approved immutable plan revision (direct campaigns). NULL on model-authored
+     * missions → exactly the pre-existing verifiability-class routing. When present, the judge runs
+     * the deterministic verifier as a PRE-gate before any model is consulted; a failed contract can
+     * never reach autopay. Shape is validated at authoring time (direct-campaign compiler), never
+     * trusted from a model.
+     */
+    verificationContract: text("verification_contract", { mode: "json" }).$type<unknown>(),
     /** legacy single free-text evidence requirement (V1-era), or null. */
     evidenceRequirements: text("evidence_requirements"),
     /** MissionSpecV1: ordered evidence requirements. */

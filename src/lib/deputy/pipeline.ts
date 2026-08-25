@@ -46,6 +46,7 @@ import {
 } from "@/lib/campaigns/public-identity";
 import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
+import { parseWorkProofContract } from "./work-proof";
 import { gateFromBrief } from "./autopilot";
 import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
@@ -421,7 +422,12 @@ export async function runDeputyOnSubmission(
     return { action: "held", reason: TERMINAL_REASON.missionFull, correlationId: cid };
   }
 
-  const isObservation = mission?.verifiabilityClass === "observation-based";
+  // WORK PROOF — an explicit operator contract outranks the inferred class: a direct grant/gig
+  // mission is decided by the deterministic verifier + the url-lane gate (see decisions.ts), never
+  // by the corpus judge (a direct campaign HAS no corpus — routing it there would freeze it).
+  const isObservation =
+    mission?.verifiabilityClass === "observation-based" &&
+    !parseWorkProofContract(mission?.verificationContract ?? null);
   if (isObservation && mission) {
     const key: PrivateKey = {
       observations: campaign.privateCorpus ?? [],
