@@ -3,6 +3,7 @@ import "server-only";
 import { runInspectionJob } from "@/lib/launch/job";
 import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
+import { listLaunchablePlans } from "@/lib/campaigns/launchable";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
 import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
@@ -591,6 +592,12 @@ export async function callSageTool(
         };
       }
       const o = getDeputyOverview(wallet);
+      // PLANS THAT ARE READY BUT NOT YET LAUNCHED — measured live 2026-08-27: a founder's "launch
+      // it" was answered "no campaign by that name, it did not launch" three times because the
+      // ready gig plan was invisible here, so the model read absence as evidence. Unlaunched plans
+      // must be findable BY NAME in the very listing the model consults, labeled with the tool
+      // that launches them.
+      const launchable = listLaunchablePlans(wallet);
       const summary = {
         ok: true,
         wallet: `${wallet.slice(0, 6)}…${wallet.slice(-4)}`,
@@ -606,6 +613,14 @@ export async function callSageTool(
           submissions: c.submissions,
           pendingReview: c.pending,
           paid: c.paid,
+        })),
+        readyToLaunch: launchable.map((p) => ({
+          title: p.title,
+          kind: p.kind,
+          budgetUsd: p.budgetUsd,
+          inspectionId: p.inspectionId,
+          planUrl: `${siteUrl()}/launch/${p.inspectionId}`,
+          note: "PLAN, not yet a campaign — nothing funded or live yet. On Telegram, launch it with sage_fund_and_launch; on the web the founder funds it at planUrl.",
         })),
       };
       return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }], isError: false };

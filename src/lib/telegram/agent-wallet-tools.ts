@@ -7,7 +7,7 @@ import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
-import { getInspectionJob, listInspectionJobs } from "@/lib/db/inspection";
+import { getInspectionJob } from "@/lib/db/inspection";
 import { putPendingWithdrawal, consumePendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { getCurrentRevision, approveRevision } from "@/lib/db/plan-revisions";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
@@ -20,6 +20,7 @@ import { publicClient } from "@/lib/deputy/chain";
 import { GOAT_USDC } from "@/lib/deputy/networks";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
+import { listLaunchablePlans } from "@/lib/campaigns/launchable";
 import {
   listHeldSubmissions,
   releaseSubmission,
@@ -89,15 +90,9 @@ async function usdcBalanceBase(address: string): Promise<bigint> {
  * server-side, so it can only ever pick a plan they own.
  */
 function latestLaunchablePlan(founderWallet: string): string | null {
-  for (const job of listInspectionJobs(founderWallet)) {
-    if (job.status !== "ready") continue;
-    const current = getCurrentRevision(job.id);
-    if (!current) continue;
-    // already live? the plan's public campaign id exists as a campaign row.
-    if (getCampaign(job.publicCampaignId)) continue;
-    return job.id;
-  }
-  return null;
+  // Shared with sage_my_campaigns' readyToLaunch listing — one definition of "launchable",
+  // so the launch tool and the listing can never disagree about what exists.
+  return listLaunchablePlans(founderWallet)[0]?.inspectionId ?? null;
 }
 
 /** Auto-approve the current plan revision (the standing mandate IS the founder's pre-authorization). */
