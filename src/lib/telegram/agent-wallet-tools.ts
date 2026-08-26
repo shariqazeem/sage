@@ -342,6 +342,13 @@ export async function callAgentWalletTool(
           minGasToLaunchBtc: formatEther(MIN_GAS_WEI),
           perCampaignCapUsdc: usd(BigInt(b.perCampaignCapBase)),
           reclaimAddress: b.founderAddress,
+          // NEVER LET THE MODEL DO THE SUBTRACTION. Measured on prod 2026-08-27: with a balance of
+          // exactly 1.00 USDC and a 1.00 USDC budget, the model compared the two itself, decided the
+          // wallet was "short", told the founder to send another dollar, and never called the launch
+          // tool at all — a campaign that was fully funded looked unfundable. Sufficiency is a money
+          // decision, so it belongs to the tool that can actually see both numbers at settle time.
+          sufficiencyNote:
+            "This balance is INFORMATIONAL. Never compare it to a campaign budget yourself and never conclude a wallet is short — sage_fund_and_launch performs that check and returns needsFunding with exact numbers when it is genuinely short. If the founder wants to launch, CALL IT.",
         });
       }
       case "sage_fund_and_launch": {

@@ -103,3 +103,30 @@ describe("wallet status answers the gas question", () => {
     expect(s.linked).toBe(false);
   });
 });
+
+describe("the model is never invited to do the money math", () => {
+  /**
+   * MEASURED on prod 2026-08-27. The founder had EXACTLY 1.00 USDC and asked to launch a 1.00 USDC
+   * gig. The model called wallet-status, saw `balanceUsdc: 1`, compared it to the budget ITSELF,
+   * announced "balance short — send 1 more USDC", and never called sage_fund_and_launch at all. A
+   * fully funded campaign looked unfundable, and the real run stalled on arithmetic the model was
+   * never supposed to perform.
+   *
+   * The balance therefore ships WITH its own instruction: informational, never a sufficiency
+   * verdict. (The launch tool's own `balance < budget` check is the one place that decides, and
+   * equality passes — pinned below so nobody "fixes" it into a `<=`.)
+   */
+  it("wallet status carries an explicit do-not-compare instruction", async () => {
+    h.usdc = BigInt(1_000_000);
+    const s = await status();
+    expect(s.balanceUsdc).toBe(1);
+    expect(String(s.sufficiencyNote)).toMatch(/never compare/i);
+    expect(String(s.sufficiencyNote)).toMatch(/sage_fund_and_launch/);
+  });
+
+  it("a balance EQUAL to the budget is sufficient — equality must never read as short", () => {
+    const balance = BigInt(1_000_000);
+    const budget = BigInt(1_000_000);
+    expect(balance < budget).toBe(false); // the launch tool's exact predicate
+  });
+});
