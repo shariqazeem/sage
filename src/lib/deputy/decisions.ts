@@ -465,8 +465,20 @@ export async function ensureDecision(
     }
   }
 
+  // PROVENANCE SPLIT (P-WORK finding, 2026-08-27): Sage's own verifier report goes to the judge as
+  // a TRUSTED server-authored block (`verifierReport`), and only the FETCHED page stays inside the
+  // untrusted markers. Merging both into evidenceText made the judge read "SAGE WORK-PROOF: PASSED"
+  // as a submitter self-claim — its rubric then (correctly!) discounted it, and honest gig
+  // deliverables held 15-18/18 in the battery. contentSha256 still hashes the MERGED pair, so the
+  // stored provenance of what informed the decision is unchanged.
   const evidence = merged
-    ? { ...fetched, text: merged.text, ok: merged.ok, failReason: undefined, contentSha256: merged.contentSha256 }
+    ? {
+        ...fetched,
+        text: (fetched.text ?? "").trim() ? (fetched.text as string) : "(no fetched page — Sage's own verification above is the evidence)",
+        ok: merged.ok,
+        failReason: undefined,
+        contentSha256: merged.contentSha256,
+      }
     : fetched;
 
   const brief = await verifySubmission({
@@ -480,6 +492,7 @@ export async function ensureDecision(
     evidenceOk: evidence.ok,
     evidenceFailReason: evidence.failReason,
     contentSha256: evidence.contentSha256,
+    verifierReport: workProofReport,
   });
 
   // P18 wallet heuristic — a recipient-freshness CAUTION signal recorded on the brief. NEVER high

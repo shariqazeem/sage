@@ -38,6 +38,9 @@ export interface JudgeFixture {
    *  2026-08-27: gig fixtures run under the testing frame held 18/18 honest deliverables — the
    *  frame is part of the input, so the instrument must carry it per fixture. */
   campaignTitle?: string;
+  /** Sage's server-authored verifier report (work-proof lanes) — rendered TRUSTED, outside the
+   *  untrusted markers, exactly as production passes it. Absent on P-JUDGE fixtures. */
+  verifierReport?: string;
   criteria: string[];
   note: string;
   evidenceOk: boolean;
@@ -184,6 +187,7 @@ export async function runJudgeEval(opts: {
         evidenceText: f.evidenceText,
         evidenceOk: f.evidenceOk,
         contentSha256: null,
+        verifierReport: f.verifierReport ?? null,
       };
       // BOUNDED retry: a heuristic result = the provider failed (rate-limit / timeout / refusal / malformed)
       // AFTER verifySubmission's own retries. Give it a few more chances (bounded backoff) so a transient
