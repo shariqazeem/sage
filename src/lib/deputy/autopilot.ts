@@ -57,7 +57,7 @@ export function autopilotGate(i: GateInput): GateResult {
   if (i.engine !== "llm") {
     return {
       pay: false,
-      reason: "LLM pending — the Deputy holds until verification is available",
+      reason: "LLM pending — Sage holds until verification is available",
     };
   }
   if (i.recommendation !== "pay") {

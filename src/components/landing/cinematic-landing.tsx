@@ -8,9 +8,6 @@ import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
 import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
-import { ScenePartners } from "./scene-partners";
-import { SceneReplay } from "./scene-replay";
-import { ScenePolicy } from "./scene-policy";
 import { SceneProof } from "./scene-proof";
 import { SceneClose } from "./scene-close";
 
@@ -18,18 +15,19 @@ interface Props {
   network: { name: string; chainId: number };
   totals: { paidUsd: number; payoutCount: number; blockedCount: number };
   feed: PayoutReceipt[];
-  perTxCap: number | null;
   now: number;
   ecosystem: EcosystemStatus;
 }
 
 /**
- * Sage landing V2 — a cinematic sequence following SEE → DESIGN → REPLAY → PAY. This
- * shell is a Server Component: it hands each scene its numbers, all derived from ONE
- * source (`feed`) so nothing on the page can contradict. Only motion leaves (Reveal,
- * nav toggle, replay toggle) are client islands.
+ * Sage landing V2 — TARGETED (FC Phase 2): one arc, five scenes — what it is (Hero) → how it
+ * works (Workflow) → one loop for any work, with real receipts (Loop) → live proof (Proof) →
+ * close. The Partners strip lives in the footer's ecosystem strip; the interactive Replay demo
+ * and the Policy panel were cut deliberately — their one-line essence lives in the hero, the Loop
+ * panel, and /docs/compliance. Showing everything is what an app does; infrastructure shows the
+ * primitive and the receipts. Server Component; numbers all derive from ONE source (`feed`).
  */
-export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosystem }: Props) {
+export function CinematicLanding({ network, totals, feed, now, ecosystem }: Props) {
   return (
     <div className={`slv2 ${geist.variable}`}>
       <LandingNav />
@@ -41,15 +39,9 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
           networkName={network.name}
         />
 
-        <ScenePartners />
-
         <SceneWorkflow />
 
         <SceneLoop />
-
-        <SceneReplay />
-
-        <ScenePolicy perTxCap={perTxCap} />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
 
@@ -67,7 +59,7 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
           </span>
           <nav className="foot-nav" aria-label="Footer">
             <a href="#how">How Sage works</a>
-            <a href="#proof">Live proof</a>
+            <Link href="/explorer">Explorer</Link>
             <Link href="/docs">Docs</Link>
             <Link href="/docs/compliance">Compliance</Link>
             <Link href="/case-studies/autonomous-paid-testing">Case study</Link>

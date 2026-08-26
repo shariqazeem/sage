@@ -5,6 +5,7 @@ import { encodeDetail } from "@/lib/campaigns/journal";
 import {
   deleteDecision,
   getCampaign,
+  findArtifactTwin,
   getDecisionBySubmission,
   getMissionByHash,
   getSubmission,
@@ -12,6 +13,7 @@ import {
   listMissions,
   recomputeMissionSpecDigest,
   recordEvent,
+  setSubmissionArtifactSha,
 } from "@/lib/db/campaigns";
 import {
   identityMismatchSummary,
@@ -24,6 +26,7 @@ import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
 import {
   WORKPROOF_VERIFIER_MODEL,
+  artifactTwinHash,
   mergeWorkProofEvidence,
   parseWorkProofContract,
   runWorkProof,
@@ -398,6 +401,70 @@ export async function ensureDecision(
   const merged = workProofReport
     ? mergeWorkProofEvidence(workProofReport, { text: fetched.text ?? "", ok: fetched.ok })
     : null;
+
+  // ARTIFACT TWIN CHECK (FC Phase 1) — the marker-swap collusion closer, deterministic and
+  // pre-judge. The wallet marker binds an artifact to ITS submitter, but is structurally blind to
+  // the same page resubmitted by a second wallet with only the marker changed. So: fingerprint the
+  // fetched content with all addresses stripped, persist it, and if another submission in this
+  // campaign already carries the fingerprint, HOLD without consulting any model. Content seen
+  // before is content seen before — whatever became of the earlier submission.
+  if (workProofReport && fetched.ok && (fetched.text ?? "").trim()) {
+    const twinSha = artifactTwinHash(fetched.text ?? "");
+    setSubmissionArtifactSha(submissionId, twinSha);
+    const twin = findArtifactTwin(campaign.id, twinSha, submissionId);
+    if (twin) {
+      const brief: StoredBrief = {
+        criteria: [],
+        fraudSignals: [
+          {
+            signal: "duplicate artifact content",
+            severity: "high",
+            reason: `The fetched page's content is identical to submission ${twin.id} on this campaign once wallet addresses are removed — the marker-swap shape.`,
+          },
+        ],
+        recommendation: "hold",
+        reasonCode: "spam",
+        confidence: 0,
+        summary:
+          "Held without consulting a model: this page's content matches an earlier submission on this campaign with only the wallet marker changed. The operator decides.",
+        provider: null,
+      };
+      const { row, inserted } = insertDecision({
+        submissionId,
+        campaignId: campaign.id,
+        engine: "heuristic",
+        model: WORKPROOF_VERIFIER_MODEL,
+        brief,
+        contentSha256: merged?.contentSha256 ?? null,
+        evidenceOk: false,
+        latencyMs: null,
+        costUsd: null,
+        x402PaymentTx: null,
+        x402Status: "not_required",
+        x402Reason: null,
+        ...(mission && campaign.campaignIdHash
+          ? {
+              commitmentVersion: 2,
+              missionIdHash: mission.missionIdHash,
+              vaultKind: "campaign_v2" as const,
+              missionSpecDigest: recomputeMissionSpecDigest(mission, campaign.campaignIdHash),
+            }
+          : {}),
+      });
+      if (inserted) {
+        recordEvent({
+          campaignId: campaign.id,
+          submissionId,
+          kind: "decision_recorded",
+          detail: encodeDetail(`Work-proof verifier · duplicate artifact · ${short(submission.wallet)}`, { cid: opts?.cid }),
+        });
+      }
+      return row
+        ? briefFromRow(row)
+        : { ...brief, engine: "heuristic", model: WORKPROOF_VERIFIER_MODEL, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
+    }
+  }
+
   const evidence = merged
     ? { ...fetched, text: merged.text, ok: merged.ok, failReason: undefined, contentSha256: merged.contentSha256 }
     : fetched;

@@ -28,8 +28,9 @@ const META: Record<EventKind, JournalMeta> = {
   blocked: { tone: "blocked", label: "Payout blocked" },
   revoked: { tone: "blocked", label: "Vault revoked" },
   decision_recorded: { tone: "neutral", label: "Deputy reviewed" },
-  autopay_settled: { tone: "settled", label: "Paid by Deputy" },
-  autopay_held: { tone: "timelocked", label: "Held by Deputy" },
+  autopay_settled: { tone: "settled", label: "Paid by Sage" },
+  autopay_held: { tone: "timelocked", label: "Held by Sage" },
+  campaign_quiet_nudge: { tone: "neutral", label: "Founder nudged" },
   fee_settled: { tone: "neutral", label: "Operator fee paid" },
   fee_pending: { tone: "timelocked", label: "Operator fee pending" },
   // Public, deliberately. This journal is read by testers, and someone who has been waiting is

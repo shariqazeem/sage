@@ -5,6 +5,7 @@ import {
   compileDirectCampaign,
   createDirectCampaign,
   directCampaignSchema,
+  lintDirectCampaign,
   type DirectCampaignInput,
 } from "./direct-campaign";
 import { loadApprovedPlan } from "./deployment-service";
@@ -200,5 +201,75 @@ describe("createDirectCampaign — persists what the UNCHANGED deploy flow consu
     expect(loaded.plan.allowlist).toEqual(["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
     const kinds = loaded.plan.missions.map((m) => (m.verificationContract as { kind: string } | undefined)?.kind);
     expect(kinds).toEqual(["onchain_tx", "artifact_url"]);
+  });
+});
+
+describe("lintDirectCampaign — verifiability lint (operator-side, warn-only)", () => {
+  it("flags boilerplate-only artifact criteria (the real proof-run gig shape) and stays quiet on substantive ones", () => {
+    const thin = grantInput();
+    thin.milestones = [
+      {
+        title: "Publish your deliverable page",
+        instructions: "Create a page on paste.rs containing your wallet address and submit the link.",
+        criteria: ["Page is published on paste.rs", "Page contains your wallet address"],
+        evidence: { kind: "artifact_url", allowedHosts: ["paste.rs"], markerKind: "wallet" },
+        rewardUsd: 0.5,
+        slots: 1,
+      },
+    ];
+    const notes = lintDirectCampaign(thin);
+    expect(notes.some((n) => n.includes("restates the automatic check"))).toBe(true);
+
+    const substantive = grantInput();
+    substantive.milestones = [
+      {
+        title: "Translate the menu",
+        instructions: "Publish the full menu translated into English on paste.rs, wallet in the footer.",
+        criteria: ["The page contains the menu translated into English — the actual items", "Page contains your wallet address"],
+        evidence: { kind: "artifact_url", allowedHosts: ["paste.rs"], markerKind: "wallet" },
+        rewardUsd: 5,
+        slots: 1,
+      },
+    ];
+    expect(lintDirectCampaign(substantive)).toHaveLength(0);
+  });
+
+  it("public_url: short generic text draws the hard warning; long unique text the softer one; big fetched-page rewards draw the size note", () => {
+    const weak = grantInput();
+    weak.milestones = [
+      {
+        title: "Announce the launch",
+        instructions: "Put the launch note on a public page and submit the link.",
+        criteria: ["The page shows the announcement"],
+        evidence: { kind: "public_url", expectedText: ["launched"] },
+        rewardUsd: 60,
+        slots: 1,
+      },
+    ];
+    const notes = lintDirectCampaign(weak);
+    expect(notes.some((n) => n.includes("short and generic"))).toBe(true);
+    expect(notes.some((n) => n.includes("$60"))).toBe(true);
+
+    const stronger = grantInput();
+    stronger.milestones = [
+      {
+        title: "Announce the launch",
+        instructions: "Publish the announcement with the program's full reference line.",
+        criteria: ["The page shows the announcement"],
+        evidence: { kind: "public_url", expectedText: ["Sunrise Bakery x Sehar Program grant milestone 2 complete"] },
+        rewardUsd: 5,
+        slots: 1,
+      },
+    ];
+    const notes2 = lintDirectCampaign(stronger);
+    expect(notes2.some((n) => n.includes("short and generic"))).toBe(false);
+    expect(notes2.some((n) => n.includes("could only exist if the work happened"))).toBe(true);
+  });
+
+  it("on-chain contracts draw zero notes, and createDirectCampaign carries the notes to the caller", () => {
+    expect(lintDirectCampaign(grantInput()).filter((n) => n.includes("Milestone 1"))).toHaveLength(0);
+    const r = createDirectCampaign(grantInput({ title: `lint-carry-${Date.now() % 100000}` }), `0x${"b".repeat(40)}`);
+    if (!r.ok) throw new Error(r.error);
+    expect(Array.isArray(r.strengthNotes)).toBe(true);
   });
 });

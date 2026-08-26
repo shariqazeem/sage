@@ -22,6 +22,12 @@ import {
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
 import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
+
+/** CORPUS READINESS FLOOR — observation autopay requires at least this many distinct private-corpus
+ *  sources. Measured on prod 2026-08-27: healthy live campaigns carry 6–11; only near-empty
+ *  corpuses (0–2), where the judge has almost nothing non-public to match, fall below. Exported
+ *  for tests; a floor change is a measured decision, never a tweak. */
+export const OBSERVATION_READINESS_MIN_SOURCES = 3;
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
 import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, deriveCriterionEvidence, verdictStillApplies, type PrivateKey } from "./observation-verify";
@@ -536,7 +542,17 @@ export async function runDeputyOnSubmission(
     const distinctSources = decision ? decision.publicView.distinctSources : reusable ? (priorShadow!.distinctSources ?? 0) : 0;
     const haveVerdict = !!decision || reusable;
 
-    const autopay = haveVerdict && observationAutopayEnabled() && barPass;
+    /**
+     * CORPUS READINESS FLOOR (FC Phase 1) — the measured fix for the judge-over-acceptance finding:
+     * on a thin private corpus the observation judge has almost nothing non-public to match, so
+     * parroting scores like witnessing. Below the floor, a bar-passing account HOLDS for the
+     * founder instead of autopaying — release stays one tap away, nothing is stranded, and the
+     * hold reason names the cause. Floor=3 measured against prod 2026-08-27: every healthy live
+     * campaign carries 6–11 sources (zero behavior change today); only near-empty corpuses gate.
+     */
+    const corpusReady = (campaign.privateCorpusSources ?? 0) >= OBSERVATION_READINESS_MIN_SOURCES;
+    const autopay = haveVerdict && observationAutopayEnabled() && barPass && corpusReady;
+    const barReasonsOut = haveVerdict && barPass && !corpusReady ? [...barReasons, "corpus_below_readiness_floor"] : barReasons;
     if (decision) {
       const shadow = toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>;
       // OBS JUDGE V2 SHADOW — an action/state-grounded verdict on the SAME submission (reconstructed from
@@ -554,8 +570,9 @@ export async function runDeputyOnSubmission(
     agentLog(cid, "observation", {
       barPass,
       distinct: distinctSources,
-      reasons: barReasons,
+      reasons: barReasonsOut,
       autopay,
+      corpusReady,
       reusedVerdict: !decision && reusable,
     });
     if (!autopay) {
@@ -798,7 +815,7 @@ export async function runDeputyOnSubmission(
         amountBase: outcome.amountBase,
       });
       void notifyTelegram(
-        `✅ <b>Paid by Deputy</b>\n${campaign.title}\n${usd(outcome.amountBase / 1_000_000)} → ${short(outcome.recipient)} · ${conf}% confidence\n${appUrl()}/proof/${outcome.txHash}`,
+        `✅ <b>Paid by Sage</b>\n${campaign.title}\n${usd(outcome.amountBase / 1_000_000)} → ${short(outcome.recipient)} · ${conf}% confidence\n${appUrl()}/proof/${outcome.txHash}`,
       );
       // WALLETLESS RECIPIENT: if this payout landed in a chat-bound wallet, tell the PERSON —
       // best-effort, never blocks or affects the settlement.

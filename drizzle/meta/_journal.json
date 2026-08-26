@@ -309,6 +309,13 @@
       "when": 1788076800000,
       "tag": "0043_recipient_wallets",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1788163200000,
+      "tag": "0044_artifact_twin",
+      "breakpoints": true
     }
   ]
 }

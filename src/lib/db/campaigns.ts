@@ -236,6 +236,24 @@ export function listPaidSubmissionsByWallet(wallet: string, limit = 200): Submis
     .all();
 }
 
+/** Write the normalized artifact fingerprint (work-proof lanes) — idempotent. */
+export function setSubmissionArtifactSha(id: string, sha: string): void {
+  db.update(submissions).set({ artifactSha256: sha }).where(eq(submissions.id, id)).run();
+}
+
+/** The marker-swap twin: another submission in this campaign whose fetched artifact normalizes to
+ *  the same fingerprint. Any status counts — content seen before is content seen before. */
+export function findArtifactTwin(campaignId: string, sha: string, excludeId: string): Submission | null {
+  return (
+    db
+      .select()
+      .from(submissions)
+      .where(and(eq(submissions.campaignId, campaignId), eq(submissions.artifactSha256, sha), ne(submissions.id, excludeId)))
+      .limit(1)
+      .get() ?? null
+  );
+}
+
 /** Decided-outcome counts for one wallet (case-insensitive, like the paid listing). "Decided"
  *  means a terminal judgment was recorded — paid or rejected; pending/settling are in flight and
  *  a HOLD is a decision action that leaves the row pending, so neither belongs in a pass rate. */

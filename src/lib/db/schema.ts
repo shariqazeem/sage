@@ -190,9 +190,14 @@ export const submissions = sqliteTable(
      * one row, one payout per wallet). createdAt stays the ORIGINAL time so causal near-dup is stable.
      */
     attempt: integer("attempt").notNull().default(1),
+    /** Normalized content hash of the fetched work-proof artifact (addresses stripped, whitespace
+     *  collapsed) — twins within a campaign are the marker-swap collusion shape. Nullable: only
+     *  fetchable work-proof lanes set it. */
+    artifactSha256: text("artifact_sha256"),
   },
   (t) => [
     uniqueIndex("sub_dedupe_unq").on(t.dedupeKey),
+    index("sub_artifact_twin_idx").on(t.campaignId, t.artifactSha256),
     // NULL evidence_url rows don't collide (SQLite treats NULLs as distinct).
     uniqueIndex("sub_evidence_unq").on(t.campaignId, t.evidenceUrl),
   ],
@@ -256,7 +261,9 @@ export type EventKind =
   | "fee_pending"
   /** the never-arrives guard fired: a submission has waited past the silence bound without a
    *  resolution, whatever the cause. Not a verdict on the tester, a flag on us. */
-  | "submission_stale";
+  | "submission_stale"
+  /** the lifecycle sense fired: live 48h with zero submissions — the founder was nudged ONCE. */
+  | "campaign_quiet_nudge";
 
 /**
  * An append-only log of things that actually happened. Every row is emitted at

@@ -226,6 +226,21 @@ export async function runWorkProof(
   }
 }
 
+/**
+ * ARTIFACT TWIN HASH (FC Phase 1) — the normalized fingerprint of a fetched artifact with every
+ * EVM address stripped and whitespace collapsed. Two submissions in one campaign sharing this hash
+ * are the marker-swap collusion shape: the same page resubmitted with only the wallet changed —
+ * the one clone the marker check is structurally blind to. Pure; deterministic; case-insensitive.
+ */
+export function artifactTwinHash(fetchedText: string): string {
+  const normalized = fetchedText
+    .toLowerCase()
+    .replace(/0x[0-9a-f]{40}/g, "<addr>")
+    .replace(/\s+/g, " ")
+    .trim();
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
 /** Merge the verified report with whatever the url lane fetched — both become judgeable evidence. */
 export function mergeWorkProofEvidence(
   report: string,

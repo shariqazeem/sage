@@ -34,7 +34,10 @@ export const SECTIONS: { label: string; items: { href: string; title: string }[]
   },
   {
     label: "Interfaces",
-    items: [{ href: "/docs/interfaces", title: "Web, Telegram & API" }],
+    items: [
+      { href: "/docs/interfaces", title: "Web, Telegram & API" },
+      { href: "/docs/build-on-sage", title: "Build on Sage" },
+    ],
   },
 ];
 

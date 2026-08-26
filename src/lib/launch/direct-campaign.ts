@@ -136,6 +136,51 @@ export const directCampaignSchema = z.object({
 
 export type DirectCampaignInput = z.infer<typeof directCampaignSchema>;
 
+/* ───────────────────────────── verifiability lint (Phase 1) ─────────────── */
+
+/** A criterion that only restates the deterministic layer (host + marker), adding nothing the
+ *  judge can check. "Page contains your wallet address" is verified before the judge ever runs. */
+const isBoilerplateCriterion = (c: string): boolean =>
+  /wallet address|contains your wallet|is published|is live|submit the link|on paste\.rs/i.test(c) &&
+  c.trim().split(/\s+/).length <= 8;
+
+/**
+ * VERIFIABILITY LINT — deterministic, OPERATOR-side steering computed at creation and surfaced
+ * BEFORE funding. Not a gate: it's the operator's money and their contract — but they fund knowing
+ * exactly how strong each milestone's proof is. Never shown to recipients and never derived from
+ * submissions, so it cannot become a key-mining oracle (the NO-ORACLE rule is about the answer
+ * key; this is about the question).
+ */
+export function lintDirectCampaign(input: DirectCampaignInput): string[] {
+  const notes: string[] = [];
+  input.milestones.forEach((m, i) => {
+    const label = `Milestone ${i + 1} ("${m.title}")`;
+    if (m.evidence.kind === "public_url") {
+      const longest = Math.max(...m.evidence.expectedText.map((t) => t.trim().length));
+      if (longest < 20) {
+        notes.push(
+          `${label}: the required text is short and generic — anyone can put it on a page they control. Use a phrase unique to this job, or switch to a wallet-marked artifact or an on-chain check.`,
+        );
+      } else {
+        notes.push(
+          `${label}: text-on-a-page proof — the page is the submitter's choice, so the required text must be something that could only exist if the work happened.`,
+        );
+      }
+    }
+    if (m.evidence.kind === "artifact_url" && !m.criteria.some((c) => !isBoilerplateCriterion(c))) {
+      notes.push(
+        `${label}: every criterion restates the automatic check (host + wallet marker). Sage's judge can only verify what the criteria name — say what must be VISIBLE on the page itself (the translated items, the commands, the image).`,
+      );
+    }
+    if ((m.evidence.kind === "public_url" || m.evidence.kind === "artifact_url") && m.rewardUsd >= 50) {
+      notes.push(
+        `${label}: pays $${m.rewardUsd} on a fetched-page proof — at this size consider adding an on-chain step, or a named recipient allowlist so only your person can claim it.`,
+      );
+    }
+  });
+  return notes;
+}
+
 /* ───────────────────────────────── deterministic compilation ───────────── */
 
 const usdToBase = (usd: number): bigint => BigInt(Math.round(usd * 100)) * BigInt(10_000);
@@ -307,7 +352,7 @@ export function compileDirectCampaign(input: DirectCampaignInput, publicCampaign
 /* ───────────────────────────────── persistence (job + revision) ────────── */
 
 export type CreateDirectResult =
-  | { ok: true; jobId: string; publicCampaignId: string; revisionId: string; totalBudgetBase: bigint; planUrl: string }
+  | { ok: true; jobId: string; publicCampaignId: string; revisionId: string; totalBudgetBase: bigint; planUrl: string; strengthNotes: string[] }
   | { ok: false; error: string };
 
 /**
@@ -395,5 +440,6 @@ export function createDirectCampaign(input: DirectCampaignInput, founderWallet: 
     revisionId: revision.id,
     totalBudgetBase,
     planUrl: `/launch/${job.id}`,
+    strengthNotes: lintDirectCampaign(input),
   };
 }

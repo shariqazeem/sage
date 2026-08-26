@@ -520,8 +520,11 @@ export async function callSageTool(
                   verifiedBy: m.evidence.kind,
                 })),
                 invitedRecipients: parsed.data.allowlist?.length ?? 0,
+                // VERIFIABILITY LINT — deterministic proof-strength notes for the OPERATOR. Relay
+                // them to the founder BEFORE funding (they may fund anyway; it's their contract).
+                strengthNotes: created.strengthNotes,
                 note:
-                  "The plan is compiled and already approved (the founder authored it). NOTHING is funded yet: the founder reviews it at planUrl and funds it there with their own wallet — or, on Telegram with a funded agent wallet, sage_fund_and_launch can fund + launch this inspectionId inside their mandate. Recite totalBudgetUsd exactly; never compute your own amounts.",
+                  "The plan is compiled and already approved (the founder authored it). NOTHING is funded yet: the founder reviews it at planUrl and funds it there with their own wallet — or, on Telegram with a funded agent wallet, sage_fund_and_launch can fund + launch this inspectionId inside their mandate. Recite totalBudgetUsd exactly; never compute your own amounts. If strengthNotes is non-empty, relay each note to the founder in one short sentence before they fund — they decide, you inform.",
               },
               null,
               2,

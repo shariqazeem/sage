@@ -68,7 +68,7 @@ vi.mock("./entailment", () => ({
   runEntailmentVeto: vi.fn(async () => ENTAILED),
 }));
 
-import { runDeputyOnSubmission } from "./pipeline";
+import { OBSERVATION_READINESS_MIN_SOURCES, runDeputyOnSubmission } from "./pipeline";
 import { SANCTIONS_HOLD_REASON } from "./sanctions";
 import { OFAC_SDN_ETH } from "./sanctions-data";
 import {
@@ -319,14 +319,28 @@ describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety 
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 
-  it("with OBSERVATION_AUTOPAY ARMED and the full bar passing, an observation mission SETTLES", async () => {
+  it("with OBSERVATION_AUTOPAY ARMED, the full bar passing, and a READY corpus, an observation mission SETTLES", async () => {
     vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    // corpus at the measured healthy floor (prod healthy range is 6–11 sources)
+    vi.mocked(getCampaign).mockReturnValue({ ...campaign, privateCorpusSources: 6 } as never);
     vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: [] } as never);
     vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] } } as never);
     vi.mocked(observationAutopayEnabled).mockReturnValue(true); // armed
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("settled");
     expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("CORPUS READINESS FLOOR: armed + bar-pass on a thin corpus HOLDS as verified-awaiting-release, never autopays", async () => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
+    vi.mocked(getCampaign).mockReturnValue({ ...campaign, privateCorpusSources: OBSERVATION_READINESS_MIN_SOURCES - 1 } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: [] } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] } } as never);
+    vi.mocked(observationAutopayEnabled).mockReturnValue(true); // armed — and still must not pay
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("observation_verified"); // honest: the WORK passed; the SYSTEM declined auto-release
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 });
 

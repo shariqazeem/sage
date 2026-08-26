@@ -147,8 +147,11 @@ export function matchArtifact(
     return fail("unparseable url", "That doesn't look like a valid URL.");
   }
   const allowed = c.allowedHosts.map((h) => norm(h).replace(/^www\./, ""));
+  // Name the actual requirement — measured live 2026-08-27: a stranger submitted an off-host link
+  // and the reason said "the product's own site", which names neither the host they used nor the
+  // one the mission requires. A refusal the recipient can act on states the rule it applied.
   if (!allowed.some((h) => host === h || host.endsWith(`.${h}`)))
-    return fail(`host ${host} not allowed`, "That link isn't on the product's own site.");
+    return fail(`host ${host} not allowed`, `That link is on ${host} — this mission requires a link on ${allowed.join(" or ")}.`);
   const hay = norm(input.bodyText);
   // THE MARKER — proof the artifact is THEIRS, not a generic page anyone could link. A parrot who
   // pastes the product's homepage fails here: the homepage doesn't carry their wallet/handle/nonce.

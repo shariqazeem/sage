@@ -89,6 +89,28 @@ export async function notifyFounderHeld(campaign: Campaign, submission: Submissi
 }
 
 /**
+ * QUIET-CAMPAIGN NUDGE (FC Phase 3) — the agent noticing, once, that a funded campaign has had
+ * zero submissions and saying so with the two actions it can take from chat. Returns whether a
+ * push was actually sent (false for campaigns not launched from chat), so the caller records the
+ * once-ever event only when someone was really told.
+ */
+export async function notifyFounderQuietCampaign(campaign: Campaign, nowSec: number): Promise<boolean> {
+  const chatId = founderChatId(campaign);
+  if (!chatId) return false;
+  const days = Math.max(2, Math.round((nowSec - (campaign.createdAt ?? nowSec)) / 86_400));
+  const lines = [
+    `🪁 Quiet campaign`,
+    campaign.title,
+    `Live ${days} days, no submissions yet — the budget is just waiting on reach.`,
+    `Board: ${appUrl()}/c/${campaign.id}`,
+    ``,
+    `Say "invite a recipient" and I'll mint a personal link for someone specific — or share the board link where your people are. Say "stop the campaign" to wind it down and reclaim the balance.`,
+  ];
+  await dmWithRetry(chatId, lines.join("\n"));
+  return true;
+}
+
+/**
  * WALLETLESS RECIPIENT paid-push (move 2): when a settlement lands in a chat-bound recipient
  * wallet, tell the person in their own chat — the receipt, the amount, where the money sits.
  * Best-effort and swallowed: a notification must never delay or affect a settlement.

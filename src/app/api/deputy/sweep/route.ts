@@ -22,6 +22,7 @@ import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
+import { runCampaignHealthNudges } from "@/lib/campaigns/health-nudge";
 import { reapStalledInspections } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
@@ -64,6 +65,8 @@ async function runSweep() {
     upgradeExpired: 0,
     /** inspection jobs whose runner died, recovered this tick. */
     inspections: { retried: 0, failed: 0 },
+    /** one-time quiet-campaign founder nudges sent this tick (48h, zero submissions). */
+    nudges: { nudged: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -170,6 +173,9 @@ async function runSweep() {
 
   // RAIL 2 — pay every pending operator fee over the real x402 rail (live only).
   summary.fees = await payPendingFees();
+
+  // LIFECYCLE SENSE (FC Phase 3) — one-time quiet-campaign nudges. Best-effort, never blocks.
+  summary.nudges = await runCampaignHealthNudges().catch(() => ({ nudged: 0 }));
 
   return summary;
 }

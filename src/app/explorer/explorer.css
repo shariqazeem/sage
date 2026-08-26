@@ -1,0 +1,44 @@
+/* The Sage Explorer — the receipts surface. Same receipt language as /proof + /record. */
+
+.exp { min-height: 100vh; background: var(--bg, #fbfbf9); color: var(--ink, #1a1d21); padding: 40px 18px 70px; }
+.exp-col { max-width: 780px; margin: 0 auto; }
+
+.exp-head { text-align: center; margin: 26px 0 8px; }
+.exp-title { font-size: clamp(24px, 4.5vw, 32px); font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
+.exp-sub { font-size: 14px; color: var(--ink-muted, #5a5f66); margin: 0 auto 22px; max-width: 52ch; line-height: 1.55; }
+
+.exp-search { display: flex; gap: 8px; margin: 0 0 10px; }
+.exp-input {
+  flex: 1; font: inherit; font-family: var(--font-mono), monospace; font-size: 13.5px;
+  color: var(--ink, #1a1d21); background: var(--surface, #fff);
+  border: 1px solid var(--border-strong, #d7d4cc); border-radius: 10px; padding: 11px 13px;
+}
+.exp-input:focus { outline: none; border-color: #c2410c; box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.09); }
+.exp-go {
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border: 0; border-radius: 10px;
+  background: #c2410c; color: #fff; padding: 0 18px;
+}
+.exp-hint { font-size: 12px; color: var(--ink-faint, #8a8f98); margin: 0 0 26px; text-align: center; }
+.exp-hint.err { color: #dc2626; }
+
+.exp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border, #e5e3dd); border: 1px solid var(--border, #e5e3dd); border-radius: 10px; overflow: hidden; margin-bottom: 26px; }
+.exp-stat { background: var(--bg, #fbfbf9); padding: 14px 12px; text-align: center; }
+.exp-stat-v { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 650; }
+.exp-stat-k { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint, #8a8f98); margin-top: 4px; }
+@media (max-width: 520px) { .exp-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.exp-sec { font-size: 12px; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-muted, #5a5f66); margin: 0 0 8px; }
+.exp-list { list-style: none; margin: 0 0 22px; padding: 0; border: 1px solid var(--border, #e5e3dd); border-radius: 10px; overflow: hidden; background: var(--bg, #fbfbf9); }
+.exp-list li + li { border-top: 1px solid var(--border, #e5e3dd); }
+.exp-row { display: flex; align-items: baseline; gap: 12px; padding: 12px 15px; text-decoration: none; color: inherit; }
+.exp-row:hover { background: rgba(0, 0, 0, 0.02); }
+.exp-amt { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 650; width: 74px; flex: none; }
+.exp-amt.ok { color: #15803d; }
+.exp-amt.no { color: #dc2626; }
+.exp-what { min-width: 0; flex: 1; }
+.exp-line { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-meta { font-family: var(--font-mono), monospace; font-size: 11px; color: var(--ink-faint, #8a8f98); margin-top: 2px; }
+.exp-when { flex: none; font-family: var(--font-mono), monospace; font-size: 11.5px; color: var(--ink-faint, #8a8f98); }
+
+.exp-trust { font-size: 13px; line-height: 1.55; color: var(--ink-muted, #5a5f66); border-top: 1px solid var(--border, #e5e3dd); padding-top: 16px; }
+.exp-trust a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }

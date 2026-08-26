@@ -33,6 +33,11 @@ export interface JudgeFixture {
   category: string;
   /** acceptable outcomes. "autopay" ∉ permitted ⇒ this fixture must NEVER autopay. */
   permitted: JudgeOutcome[];
+  /** The campaign/mission frame the judge sees (production: `"<mission title> — <objective>"`).
+   *  Default = the P-JUDGE testing frame, so existing fixtures are byte-identical. MEASURED
+   *  2026-08-27: gig fixtures run under the testing frame held 18/18 honest deliverables — the
+   *  frame is part of the input, so the instrument must carry it per fixture. */
+  campaignTitle?: string;
   criteria: string[];
   note: string;
   evidenceOk: boolean;
@@ -170,7 +175,7 @@ export async function runJudgeEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const input: BrainInput = {
-        campaignTitle: "Sage paid product-testing mission",
+        campaignTitle: f.campaignTitle ?? "Sage paid product-testing mission",
         criteria: f.criteria,
         conditionType: "approval",
         note: f.note,

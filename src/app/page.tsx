@@ -1,6 +1,5 @@
 import "./landing-v2.css";
 import type { Metadata } from "next";
-import { getOperatorVaultState } from "@/lib/deputy/chain";
 import { chainConfig } from "@/lib/deputy/networks";
 import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
@@ -59,11 +58,6 @@ export default async function HomePage() {
     blockedCount: record?.blocks ?? 0,
   };
 
-  // The policy scene uses the live per-tx cap (a genuinely different concept from the
-  // paid total). No fabricated fallback — null when the read fails.
-  const vault = await getOperatorVaultState("launch-growth");
-  const perTxCap = vault?.perTxCap ?? null;
-
   const ecosystem = await ecosystemStatus();
 
   return (
@@ -71,7 +65,6 @@ export default async function HomePage() {
       network={{ name: net.name, chainId: net.chainId }}
       totals={totals}
       feed={feed}
-      perTxCap={perTxCap}
       now={Date.now()}
       ecosystem={ecosystem}
     />
