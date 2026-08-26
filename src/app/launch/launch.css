@@ -487,3 +487,15 @@
 .lx-crosslink { margin: 18px 0 0; font-size: 14px; color: var(--lx-muted); }
 .lx-crosslink a { color: var(--lx-accent); text-decoration: none; font-weight: 560; }
 .lx-crosslink a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ONE FRONT DOOR (move 5) — the live hint when a founder is describing work rather than pasting a URL. */
+.lxo-handoff {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #c2410c;
+  background: rgba(194, 65, 12, 0.06);
+  border: 1px solid rgba(194, 65, 12, 0.18);
+  border-radius: 8px;
+  padding: 9px 12px;
+}

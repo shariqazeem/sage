@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./launch.css";
 import { LaunchForm } from "@/components/launch/launch-form";
 import { RecentInspectionsList } from "@/components/launch/recent-inspections-list";
@@ -22,19 +21,15 @@ export default function LaunchPage() {
     <div className="lx">
       <div className="lx-wrap">
         <div className="lx-hero">
-          <h1 className="lx-h1">Turn your product into a paid testing plan.</h1>
+          <h1 className="lx-h1">Pay real people for verified work.</h1>
           <p className="lx-sub">
-            Give Sage your product, what you want to learn, and a budget. Sage opens your product, understands it,
-            and designs specific testing missions real people get paid to complete — no generic bounty form.
+            Paste your product and Sage opens it, designs the testing missions, and pays people for verified
+            reports. Or describe work you want funded — a milestone grant, a gig, a deliverable — and Sage sets
+            that up instead. Every payout is checked first, and every one has a public receipt.
           </p>
         </div>
 
         <LaunchForm />
-
-        <p className="lx-crosslink">
-          Already know exactly what work you want done? <Link href="/launch/direct">Define milestones yourself →</Link>{" "}
-          Sage verifies each proof and pays — grants and gig payouts.
-        </p>
 
         {/* Proof of supply before they type a URL — the objection arrives before the plan does. */}
         <TesterSupplyProof compact />

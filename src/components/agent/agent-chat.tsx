@@ -183,6 +183,30 @@ export function AgentChat() {
     return () => clearTimeout(t);
   }, []);
 
+  /**
+   * ONE FRONT DOOR (move 5). /launch asks a single question and, when the founder describes work
+   * instead of pasting a URL, hands the sentence here as ?ask=… — the agent takes it from there and
+   * builds the campaign. The prefill is placed in the composer rather than auto-sent: the founder
+   * always sees their own words before Sage acts on them, and the URL is cleaned so a refresh can
+   * never replay it.
+   */
+  useEffect(() => {
+    const ask = new URLSearchParams(window.location.search).get("ask");
+    if (!ask) return;
+    setInput(ask.slice(0, 2000));
+    const url = new URL(window.location.href);
+    url.searchParams.delete("ask");
+    window.history.replaceState({}, "", url.toString());
+    setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 120);
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, busy, scrollToBottom]);

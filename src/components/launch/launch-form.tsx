@@ -42,8 +42,8 @@ const GOAL_CHIPS: { label: string; goal: string }[] = [
  */
 const STEPS = [
   {
-    q: "What should Sage test, and what do you want to learn?",
-    hint: "A public page Sage can open — it only reads your product, never signs in, buys, or changes anything. Then say what you want to learn; Sage designs the missions around exactly that.",
+    q: "What do you want done?",
+    hint: "Paste a product URL and Sage tests it — it opens your product, designs the missions, and pays people for verified reports. Or describe work you want paid for (a milestone grant, a gig, a deliverable) and Sage sets that up instead. Either way you approve the plan and fund it once.",
   },
   {
     q: "Set the testing budget.",
@@ -93,7 +93,7 @@ export function LaunchForm() {
     // The goal is OPTIONAL — measured founder behavior: a paragraph-sized "what do you want to
     // learn?" is where people stall or close the tab. An empty goal is a delegation, not a gap:
     // the pipeline forces full exploration and Sage infers the first-visit goal from what it sees.
-    if (i === 0) return isHttpUrl(form.productUrl);
+    if (i === 0) return isHttpUrl(form.productUrl) || describesWork();
     return Number(form.budgetUsd) >= 0.5;
   };
 
@@ -103,10 +103,29 @@ export function LaunchForm() {
   };
   const next = () => {
     setError(null);
+    // Describing work skips the budget step entirely — the agent asks for the money in its own words.
+    if (describesWork()) return handOffToAgent();
     if (stepValid()) setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
 
+  /**
+   * ONE FRONT DOOR (move 5). The founder answers ONE question. A URL is product testing — the path
+   * that won the bootcamp, byte-identical below. Anything else is work they are defining (a grant, a
+   * gig, a deliverable), which is the agent's job, not a second form: their own sentence is handed
+   * to Sage in chat, where it structures the milestones and compiles the campaign.
+   */
+  const describesWork = (): boolean => {
+    const t = form.productUrl.trim();
+    return t.length >= 12 && !isHttpUrl(t) && /\s/.test(t);
+  };
+
+  const handOffToAgent = () => {
+    const words = [form.productUrl.trim(), form.goal.trim()].filter(Boolean).join(" — ");
+    router.push(`/agent?ask=${encodeURIComponent(words)}`);
+  };
+
   const submit = async () => {
+    if (describesWork()) return handOffToAgent();
     if (!stepValid()) return;
     if (!siwe.authed) {
       setError(null);
@@ -179,12 +198,16 @@ export function LaunchForm() {
             <input
               autoFocus
               className="lx-input lxo-input"
-              type="url"
-              inputMode="url"
-              placeholder="https://yourproduct.com"
+              type="text"
+              placeholder="https://yourproduct.com — or: pay my designer $50 when the logo ships"
               value={form.productUrl}
               onChange={(e) => set("productUrl", e.target.value)}
             />
+            {describesWork() && (
+              <p className="lxo-handoff">
+                That&rsquo;s work you&rsquo;re defining, not a product to test — Sage will set it up with you in chat.
+              </p>
+            )}
             {/* ONE TAP INSTEAD OF ONE PARAGRAPH. Each chip writes a proven goal shape — the same
                 wording that produced good mission plans in real campaigns — so the founder who
                 cannot be bothered to write still hands Sage a sharp goal, and the founder who can
