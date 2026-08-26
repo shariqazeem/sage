@@ -7,7 +7,7 @@ import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
-import { getInspectionJob } from "@/lib/db/inspection";
+import { getInspectionJob, listInspectionJobs } from "@/lib/db/inspection";
 import { putPendingWithdrawal, consumePendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { getCurrentRevision, approveRevision } from "@/lib/db/plan-revisions";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
@@ -75,6 +75,31 @@ async function usdcBalanceBase(address: string): Promise<bigint> {
 // amount or recipient. It is stored DURABLY (pending_withdrawals table) so a pm2 restart between
 // request and confirm no longer drops it; consume is atomic + one-shot (see db/pending-withdrawals).
 
+/**
+ * NEVER ASK A FOUNDER — OR THE MODEL — FOR AN ID THE SERVER IS HOLDING.
+ *
+ * MEASURED on prod 2026-08-27 during the real run: a founder said "launch it with agent wallet"
+ * twice. The plan existed, was ready and fully funded, but the inspection id had scrolled out of
+ * the model's short history, so instead of launching it called sage_my_campaigns, found no campaign
+ * by that name, and reported "did not launch" — of a campaign that had never been attempted. The
+ * id was in the database the whole time.
+ *
+ * So `inspectionId` is now OPTIONAL: absent (or unresolvable), the launch resolves the founder's
+ * OWN most recent plan that is ready, approvable, and NOT already live. Bound to their wallet
+ * server-side, so it can only ever pick a plan they own.
+ */
+function latestLaunchablePlan(founderWallet: string): string | null {
+  for (const job of listInspectionJobs(founderWallet)) {
+    if (job.status !== "ready") continue;
+    const current = getCurrentRevision(job.id);
+    if (!current) continue;
+    // already live? the plan's public campaign id exists as a campaign row.
+    if (getCampaign(job.publicCampaignId)) continue;
+    return job.id;
+  }
+  return null;
+}
+
 /** Auto-approve the current plan revision (the standing mandate IS the founder's pre-authorization). */
 function autoApprove(jobId: string, approver: string): boolean {
   const job = getInspectionJob(jobId);
@@ -130,8 +155,13 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
       "Fund + launch a campaign from an APPROVED-READY inspection using the founder's own agent wallet, within their mandate — no browser, no signature. Only call after sage_start_inspection + sage_get_inspection show the plan is ready AND sage_agent_wallet_status shows a funded wallet. It creates + funds the vault and puts it live on autopilot. Returns the live campaign + links.",
     inputSchema: {
       type: "object",
-      properties: { inspectionId: { type: "string", description: "The ready inspection to launch." } },
-      required: ["inspectionId"],
+      properties: {
+        inspectionId: {
+          type: "string",
+          description:
+            "OPTIONAL. The ready plan to launch. Omit it and Sage launches the founder's own most recent ready plan — never ask the founder for an id, and never conclude a launch failed without calling this tool.",
+        },
+      },
     },
   },
   {
@@ -354,10 +384,21 @@ export async function callAgentWalletTool(
       case "sage_fund_and_launch": {
         const b = founderBinding(chatId);
         if (!b) return err("The founder hasn't set up an agent wallet yet — call sage_setup_wallet.");
-        const inspectionId = typeof args.inspectionId === "string" ? args.inspectionId : "";
-        if (!inspectionId) return err("inspectionId is required.");
+        const askedFor = typeof args.inspectionId === "string" ? args.inspectionId.trim() : "";
+        // Resolve the plan SERVER-SIDE when the model didn't carry an id, or carried one that is no
+        // longer launchable — the founder's own most recent ready, un-launched plan.
+        const resolved =
+          askedFor && autoApprove(askedFor, b.founderAddress)
+            ? askedFor
+            : latestLaunchablePlan(b.founderAddress);
+        if (!resolved) {
+          return err(
+            "There's no ready plan waiting to launch for this founder — plan one first (a product inspection, or a grant/gig campaign), then launch.",
+          );
+        }
+        const inspectionId = resolved;
         if (!autoApprove(inspectionId, b.founderAddress)) {
-          return err("That inspection has no ready plan to launch — start an inspection and wait until it's ready.");
+          return err("That plan can't be approved for launch — it may have changed since it was created; plan it again.");
         }
         const loaded = loadApprovedPlan(inspectionId);
         if (!loaded) return err("Couldn't load the approved plan.");
