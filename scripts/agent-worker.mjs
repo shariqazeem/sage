@@ -32,7 +32,10 @@ const arg = (name, fallback = undefined) => {
 
 const BASE = (arg("base", "http://localhost:3000")).replace(/\/$/, "");
 const CAMPAIGN = arg("campaign");
-const WORK_URL = arg("work-url");
+let WORK_URL = arg("work-url");
+/** --publish: the agent DOES the work itself (publishes a public artifact carrying its wallet),
+ *  instead of being handed a URL. This is what makes it an earner rather than a submitter. */
+const PUBLISH = process.argv.includes("--publish");
 const MISSION_KEY = arg("mission");
 // The default note NEVER claims work the agent may not have done — an overclaim is exactly what
 // Sage refuses (proven live 2026-08-27: an agent that said "I published the required page" over
@@ -41,8 +44,8 @@ const MISSION_KEY = arg("mission");
 const NOTE = arg("note", "Submitted autonomously by an AI agent. The linked URL is the deliverable for this mission — verify it directly.");
 const KEY = process.env.AGENT_WORKER_KEY;
 
-if (!KEY || !CAMPAIGN || !WORK_URL) {
-  console.error("need AGENT_WORKER_KEY env + --campaign + --work-url");
+if (!KEY || !CAMPAIGN || (!WORK_URL && !PUBLISH)) {
+  console.error("need AGENT_WORKER_KEY env + --campaign + (--work-url <url> | --publish)");
   process.exit(1);
 }
 
@@ -88,7 +91,25 @@ async function main() {
     throw new Error("campaign/mission identity incomplete — cannot build a claim");
   }
   log("🎯", `mission: "${mission.title}" — pays ${mission.reward}, ${mission.remainingSlots} slot(s) open`);
-  log("🛠", `my work: ${WORK_URL}`);
+
+  // ── 1b. DO THE WORK (--publish): produce a real public artifact carrying my own wallet ──────
+  if (PUBLISH) {
+    const body = [
+      `Deliverable for "${mission.title}"`,
+      `Campaign: ${camp.title} (${CAMPAIGN})`,
+      "",
+      "Produced autonomously by an AI agent working on Sage.",
+      `Agent wallet: ${account.address}`,
+      `Published: ${new Date().toISOString()}`,
+    ].join("\n");
+    const pub = await fetch("https://paste.rs/", { method: "POST", body });
+    const url = (await pub.text()).trim();
+    if (!pub.ok || !url.startsWith("http")) throw new Error(`could not publish the artifact: ${pub.status} ${url.slice(0, 120)}`);
+    WORK_URL = url;
+    log("🛠", `did the work: published my deliverable at ${WORK_URL} (it carries my wallet address, so only I can claim it)`);
+  } else {
+    log("🛠", `my work: ${WORK_URL}`);
+  }
 
   // ── 2. sign in — the SAME SIWE-lite flow the web board uses ───────────────
   res = await fetch(`${BASE}/api/auth/nonce`);
