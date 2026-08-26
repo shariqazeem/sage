@@ -236,6 +236,24 @@ export function listPaidSubmissionsByWallet(wallet: string, limit = 200): Submis
     .all();
 }
 
+/** Decided-outcome counts for one wallet (case-insensitive, like the paid listing). "Decided"
+ *  means a terminal judgment was recorded — paid or rejected; pending/settling are in flight and
+ *  a HOLD is a decision action that leaves the row pending, so neither belongs in a pass rate. */
+export function countDecidedSubmissionsByWallet(wallet: string): { paid: number; rejected: number } {
+  const rows = db
+    .select({ status: submissions.status, c: sql<number>`count(*)` })
+    .from(submissions)
+    .where(and(sql`lower(${submissions.wallet}) = ${wallet.toLowerCase()}`, inArray(submissions.status, ["paid", "rejected"])))
+    .groupBy(submissions.status)
+    .all();
+  const out = { paid: 0, rejected: 0 };
+  for (const r of rows) {
+    if (r.status === "paid") out.paid = r.c;
+    if (r.status === "rejected") out.rejected = r.c;
+  }
+  return out;
+}
+
 export function listSubmissions(campaignId: string): Submission[] {
   return db
     .select()

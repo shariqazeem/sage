@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SageMark } from "@/components/brand/sage-mark";
+import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { money, short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -43,8 +44,9 @@ const dateOf = (unix: number): string =>
 
 export default async function RecordPage({ params }: { params: Promise<{ wallet: string }> }) {
   const { wallet } = await params;
-  const record = buildWalletRecord(wallet);
-  if (!record) notFound();
+  const out = walletCreditSignals(wallet);
+  if (!out) notFound();
+  const { record, signals } = out;
 
   return (
     <div className="spp">
@@ -82,6 +84,53 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           </div>
         </section>
 
+        {/* SAGE SIGNALS (FC plan #1) — deterministic underwriting INPUTS over the receipt-anchored
+            rows below. No composite score: the same rule that keeps models away from money keeps
+            invented creditworthiness verdicts off this page. */}
+        {record.entries.length > 0 && (
+          <section className="rec-signals spp-reveal" aria-label="Sage Signals — underwriting inputs">
+            <div className="rec-sig-head">
+              <span className="rec-sig-title">Sage Signals</span>
+              <span className="rec-sig-v">{signals.formulaVersion}</span>
+            </div>
+            <dl className="rec-sig-grid">
+              <div className="rec-sig">
+                <dt>Verification pass rate</dt>
+                <dd>
+                  {signals.verificationPassRate === null
+                    ? "—"
+                    : `${Math.round(signals.verificationPassRate * 100)}%`}
+                  <small> of {signals.decidedSubmissions} judged</small>
+                </dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Verified inflow / active month</dt>
+                <dd>${signals.avgInflowPerActiveMonthUsd.toFixed(2)}</dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Months active</dt>
+                <dd>{signals.monthsActive}</dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Distinct funders</dt>
+                <dd>{signals.distinctPayers}</dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Tenure</dt>
+                <dd>{signals.tenureDays === null ? "—" : `${signals.tenureDays}d`}</dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Last verified</dt>
+                <dd>{signals.daysSinceLastVerified === null ? "—" : signals.daysSinceLastVerified === 0 ? "today" : `${signals.daysSinceLastVerified}d ago`}</dd>
+              </div>
+            </dl>
+            <p className="rec-sig-note">
+              Published deterministic formulas over the receipt-anchored entries below — inputs a
+              lender can underwrite on, never a score. Sage computes no creditworthiness verdict.
+            </p>
+          </section>
+        )}
+
         {record.entries.length === 0 ? (
           <p className="rec-empty spp-reveal">No verified work on this wallet yet.</p>
         ) : (
@@ -110,9 +159,12 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           Every entry above was <b>verified before it was paid</b> — checked against Sage&apos;s own
           observations, an on-chain fact, or the created artifact itself — and links to its public,
           on-chain settlement receipt. Sage refuses work it cannot verify, so a record here is
-          earned, not granted. Machine-readable:{" "}
-          <a href={`/api/record/${record.wallet}`}>JSON</a> · How it works:{" "}
-          <Link href="/docs">sagepays.xyz/docs</Link>
+          earned, not granted.
+          <br />
+          <b>For lenders &amp; programs:</b> this page and its signals are consumable as JSON —{" "}
+          <a href={`/api/record/${record.wallet}`}>api/record/{short(record.wallet)}</a> — the
+          cash-flow history collateral-based underwriting is missing, verified at the source. How it
+          works: <Link href="/docs">sagepays.xyz/docs</Link>
         </footer>
       </div>
     </div>
