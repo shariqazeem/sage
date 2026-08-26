@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripReasoningPrefix, verifySubmission, type LlmProvider } from "./brain";
+import { MAX_TOKENS, stripReasoningPrefix, verifySubmission, type LlmProvider } from "./brain";
 import { judgeDecision } from "./judge-eval";
 import { isAutoPayQualifying, type BrainInput } from "./brain-core";
 
@@ -202,5 +202,21 @@ describe("reasoning-in-content — a leading <think> block is framing, and ONLY 
     expect(stripReasoningPrefix("  \n<think>a</think>X").trim()).toBe("X");
     expect(stripReasoningPrefix(PAY_JSON)).toBe(PAY_JSON);
     expect(stripReasoningPrefix("<think>never closed")).toBe("<think>never closed");
+  });
+});
+
+describe("the completion ceiling leaves room for a REASONING judge", () => {
+  /**
+   * REGRESSION GUARD, measured not guessed (2026-08-27). The approved primary judge (MiniMax-M3)
+   * spends stochastic reasoning tokens before its brief: the SAME real submission measured 1756,
+   * 1884 and 2766 completion tokens across three runs. At a 3000 ceiling a live agent submission
+   * truncated on all three attempts and fell to the heuristic — which can NEVER autopay, so every
+   * real payout would have silently degraded to manual review. Anyone lowering this must re-measure
+   * against the current judge first; the ceiling only bounds a runaway, it costs a non-thinking
+   * model nothing (they finish around 300-900 tokens).
+   */
+  it("is at least 2x the measured worst-case reasoning completion", () => {
+    const MEASURED_WORST_CASE = 2766;
+    expect(MAX_TOKENS).toBeGreaterThanOrEqual(MEASURED_WORST_CASE * 2);
   });
 });

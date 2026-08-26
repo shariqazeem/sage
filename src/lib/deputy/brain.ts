@@ -61,14 +61,20 @@ export const PARSER_POLICY_VERSION = "payout-parse-v4";
 const DEFAULT_BASE_URL = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const LLM_TIMEOUT_MS = 35_000;
-// Headroom for the structured summary + reasonCode so a concise model never
-// truncates its JSON (a truncation would fail the parse and force a fail-over).
-// A ceiling, not a target: a non-thinking model stops at "stop" far below it, so raising it
-// changes nothing for the primary. Sized so a reasoning FALLBACK (MiniMax M-series spends
-// completion tokens on a `<think>` prefix before the brief) completes normally instead of
-// hitting finish_reason "length" on every single call — which would make the fallback
-// permanently useless while looking configured.
-const MAX_TOKENS = 3000;
+// Headroom for the structured summary + reasonCode so a model never truncates its JSON (a
+// truncation fails the parse, fails over, and lands on the heuristic — which can never autopay).
+//
+// A CEILING, NOT A TARGET: a non-thinking model stops at "stop" around 300-900 tokens, so this
+// costs nothing when the judge isn't a reasoning model.
+//
+// SIZED FROM MEASUREMENT, NOT INTUITION (2026-08-27). MiniMax-M3 is now the approved primary
+// judge, and its reasoning length is STOCHASTIC on identical input: the same real submission
+// measured 1756, 1884 and 2766 completion tokens across three runs. At 3000 there was
+// effectively no headroom — a live agent submission hit finish_reason "length" on all three
+// attempts and degraded to the heuristic, which would have silently disabled autopay for every
+// real payout. 8000 puts the measured worst case at ~35% of the ceiling and leaves room for the
+// longest evidence a brief can carry (EVIDENCE_CHARS), while still bounding a runaway.
+export const MAX_TOKENS = 8000;
 const LLM_ATTEMPTS = 3;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 

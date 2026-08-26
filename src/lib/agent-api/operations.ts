@@ -300,6 +300,7 @@ export interface CampaignView {
   status: string;
   network: string;
   chainId: number;
+  campaignIdHash: string | null;
   isTestnet: boolean;
   token: string;
   autonomy: string;
@@ -308,7 +309,11 @@ export interface CampaignView {
   remaining: { base: number; human: string };
   missions: Array<{
     title: string;
+    missionKey: string;
+    missionIdHash: string;
+    specDigest: string | null;
     reward: string;
+    rewardBase: number;
     paid: number;
     maxCompletions: number;
     remainingSlots: number;
@@ -369,6 +374,8 @@ export function opGetCampaign(id: string): OpResult<CampaignView> {
     status: campaign.status,
     network: networkLabel(e.chainId),
     chainId: e.chainId,
+    // PUBLIC IDENTITY (move 4) — the campaign's canonical hash, same rationale as the mission ids.
+    campaignIdHash: campaign.campaignIdHash ?? null,
     isTestnet: e.isTestnet,
     token: e.tokenSymbol,
     autonomy: campaign.autonomy,
@@ -377,7 +384,15 @@ export function opGetCampaign(id: string): OpResult<CampaignView> {
     remaining: { base: e.remainingBase, human: reward(e.remainingBase, e.chainId) },
     missions: e.missions.map((m) => ({
       title: m.title,
+      // PUBLIC IDENTITY (move 4): the mission's canonical ids + spec digest are public by design —
+      // they anchor every /proof page and are recomputable from the public campaign id. Exposing
+      // them lets ANY agent (human tooling or AI) construct the SAME signed evidence claim the web
+      // board builds, with no privileged endpoint.
+      missionKey: m.missionKey,
+      missionIdHash: m.missionIdHash,
+      specDigest: m.specDigest,
       reward: reward(m.rewardBase, e.chainId),
+      rewardBase: m.rewardBase,
       paid: m.paid,
       maxCompletions: m.maxCompletions,
       remainingSlots: m.remainingSlots,
