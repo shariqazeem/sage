@@ -1,0 +1,26 @@
+/* Verified Work Record — /record/[wallet]. Receipt minimalism, same token language as /proof (.spp). */
+
+.rec-head { text-align: center; margin-bottom: 30px; }
+.rec-title { font-size: clamp(24px, 4.5vw, 32px); font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px; }
+.rec-wallet { font-family: var(--font-mono), ui-monospace, monospace; font-size: 13px; color: var(--ink-muted); word-break: break-all; }
+
+.rec-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 26px; }
+.rec-stat { background: var(--bg); padding: 14px 12px; text-align: center; }
+.rec-stat-v { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 650; }
+.rec-stat-k { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-top: 4px; }
+@media (max-width: 520px) { .rec-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.rec-list { list-style: none; margin: 0 0 22px; padding: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg); }
+.rec-list li + li { border-top: 1px solid var(--border); }
+.rec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 13px 16px; text-decoration: none; color: inherit; }
+.rec-row:hover { background: var(--bg-subtle, rgba(0, 0, 0, 0.02)); }
+.rec-what { min-width: 0; }
+.rec-mission { font-size: 14.5px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-meta { font-size: 12px; color: var(--ink-faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-kind { display: inline-block; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; margin-right: 7px; color: var(--ink-muted); }
+.rec-amt { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; font-size: 14.5px; font-weight: 650; color: var(--ok, #15803d); white-space: nowrap; }
+.rec-amt small { font-weight: 500; color: var(--ink-faint); margin-left: 6px; font-size: 11px; }
+
+.rec-trust { font-size: 13px; line-height: 1.55; color: var(--ink-muted); border-top: 1px solid var(--border); padding-top: 16px; }
+.rec-trust a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.rec-empty { text-align: center; color: var(--ink-muted); padding: 42px 0; font-size: 14.5px; }

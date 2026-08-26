@@ -106,6 +106,7 @@ export async function notifyRecipientPaid(
       rw.chatId,
       `💸 You just got paid $${(outcome.amountBase / 1_000_000).toFixed(2)} USDC for "${mission?.title ?? campaign.title}".\n` +
         `Receipt: ${appUrl()}/proof/${outcome.txHash}\n` +
+        `Your verified work record just grew: ${appUrl()}/record/${rw.address}\n` +
         `It's in your Sage wallet — ask me "what's my balance?" anytime.`,
       { html: false },
     );

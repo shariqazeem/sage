@@ -73,7 +73,13 @@ export async function callRecipientTool(
     } catch {
       /* balance is a nicety — never block the answer on an RPC blip */
     }
-    return json({ ok: true, wallet: rw.address, balanceUsd, invited: campaigns });
+    return json({
+      ok: true,
+      wallet: rw.address,
+      balanceUsd,
+      recordUrl: `https://sagepays.xyz/record/${rw.address}`,
+      invited: campaigns,
+    });
   }
 
   if (name === "sage_submit_work") {

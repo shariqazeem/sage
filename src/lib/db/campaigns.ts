@@ -222,6 +222,17 @@ export function attachVerificationPolicyToCampaign(input: {
 
 /* ────────────────────────────────────────────────────── submissions ───── */
 
+/** WALLET RECORD (/record) — every PAID submission this wallet ever earned, newest first, bounded. */
+export function listPaidSubmissionsByWallet(wallet: string, limit = 200): Submission[] {
+  return db
+    .select()
+    .from(submissions)
+    .where(and(eq(submissions.wallet, wallet.toLowerCase()), eq(submissions.status, "paid")))
+    .orderBy(desc(submissions.decidedAt))
+    .limit(limit)
+    .all();
+}
+
 export function listSubmissions(campaignId: string): Submission[] {
   return db
     .select()

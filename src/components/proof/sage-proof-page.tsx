@@ -229,6 +229,14 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               #{proof.human.failedCheckIndex} · {proof.human.failedCheckReason}
             </Row>
           )}
+          {settled && proof.human.recipient && (
+            <Row k="Recipient">
+              {/* WORK PROOF move 3 — every receipt links to the earner's full verified record. */}
+              <Link className="lnk" href={`/record/${proof.human.recipient.toLowerCase()}`}>
+                {short(proof.human.recipient)} · verified record <ArrowUpRight size={12} />
+              </Link>
+            </Row>
+          )}
           <Row k={vaultContract}>{short(proof.chain.vault)}</Row>
           <Row k="Operator">{short(proof.chain.operator)}</Row>
           {proof.chain.attemptStatus && (
