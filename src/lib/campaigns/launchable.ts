@@ -1,6 +1,7 @@
 import { getCampaign } from "@/lib/db/campaigns";
 import { listInspectionJobs } from "@/lib/db/inspection";
 import { getCurrentRevision } from "@/lib/db/plan-revisions";
+import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 
 /**
  * THE FOUNDER'S PLANS THAT ARE READY TO LAUNCH — approved-or-approvable, not yet live.
@@ -47,10 +48,8 @@ export function listLaunchablePlans(founderWallet: string): LaunchablePlan[] {
       : job.publicCampaignId.startsWith("gig-")
         ? "gig"
         : "testing";
-    // Direct plans stamp their title into the job goal ("Direct gig campaign: <title>") — the one
-    // durable place the operator's own name for the campaign lives before launch.
-    const direct = /^Direct (?:grant|gig) campaign: /.exec(job.goal ?? "");
-    const title = direct ? (job.goal ?? "").slice(direct[0].length) : `${hostOf(job.productUrl)} testing plan`;
+    // Direct plans stamp their title into the job goal — parsed by the shared writer/parser pair.
+    const title = parseDirectTitle(job.goal) ?? `${hostOf(job.productUrl)} testing plan`;
     out.push({
       inspectionId: job.id,
       publicCampaignId: job.publicCampaignId,

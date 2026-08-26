@@ -15,6 +15,9 @@ import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { executeSequenceViaPrivy } from "./executor";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
+import { classifyVerifiability } from "@/lib/launch/validate-mission";
+import { stateDigest } from "@/lib/launch/observed-facts";
+import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 import { campaignFeeBase, isSelfFunded } from "@/lib/x402/campaign-fee";
 import { campaignFeeEnabled, operatorChatId, operatorWallets } from "@/lib/x402/fee-config";
 import { openCampaignFeeOrder } from "@/lib/x402/payer";
@@ -169,7 +172,31 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
   // Record the campaign — the SAME atomic attach the web app uses, which re-reads the on-chain
   // vault and fails closed unless it matches the approved plan. Deps `{}` = the real adapter.
   const job = getInspectionJob(jobId);
+  // THE PAYOUT GATE'S CONTRACT — byte-for-byte with the web attach route: the grounding shadow's
+  // criterion evidence translated into pinned-key source ids. Direct plans have no shadow → empty,
+  // exactly like the web.
+  const shadowEvidence =
+    (
+      job?.result as
+        | { brain?: { groundingShadow?: { criterionEvidence?: { missionKey: string; criterionIndex: number; stateIds: string[] }[] } } }
+        | undefined
+    )?.brain?.groundingShadow?.criterionEvidence ?? [];
+  const ftForIndex =
+    (job?.result as { map?: { fieldTest?: import("@/lib/launch/schemas").FieldTestSummary | null } } | undefined)?.map
+      ?.fieldTest ?? null;
+  const sourceByStateId = new Map<string, string>();
+  (ftForIndex?.states ?? []).forEach((st, i) => sourceByStateId.set(stateDigest(st), `state:${i}`));
+  const evidenceByMission = new Map<string, { criterionIndex: number; keySources: string[] }[]>();
+  for (const e of shadowEvidence) {
+    const keySources = [
+      ...new Set(e.stateIds.map((sid) => sourceByStateId.get(sid)).filter((s): s is string => !!s)),
+    ];
+    const list = evidenceByMission.get(e.missionKey) ?? [];
+    list.push({ criterionIndex: e.criterionIndex, keySources });
+    evidenceByMission.set(e.missionKey, list);
+  }
   const missions: V2MissionSetupInput[] = loaded.plan.missions.map((m) => ({
+    criterionEvidence: evidenceByMission.get(m.missionKey),
     missionKey: m.missionKey,
     title: m.title,
     objective: m.objective,
@@ -177,6 +204,18 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
     targetSurface: m.targetSurface,
     criteria: m.criteria,
     evidenceRequirements: m.evidenceRequirements,
+    // MEASURED live 2026-08-27, first real Telegram gig launch: this mapping dropped the class AND
+    // the operator contract, so v2-setup's safe defaults ("observation-based", null) landed in the
+    // DB — the gig's missions rendered as observation work, the submit route stored evidence_url
+    // NULL, and the AI worker's real deliverable page could not verify (held at 0%). The web door
+    // carried both all along: two doors, different guarantees — the exact divergence class the
+    // corpus-pinning fix below documents. An explicit operator contract outranks the prose
+    // classifier (same rule as the decision routing); model-authored missions recompute the class
+    // exactly like the web route.
+    verifiabilityClass: m.verificationContract
+      ? "url-verifiable"
+      : classifyVerifiability({ objective: m.objective, criteria: m.criteria, evidenceRequirements: m.evidenceRequirements }),
+    verificationContract: m.verificationContract,
     rewardBase: BigInt(m.rewardBase),
     maxCompletions: BigInt(m.maxCompletions),
   }));
@@ -214,7 +253,9 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
       privateCorpusSources: privateKey.distinctSources,
       exploredScreens: explored.screens,
       exploredElements: explored.elements,
-      title: campaignTitle(job?.productUrl ?? ""),
+      // A direct campaign is titled by its OPERATOR, not by the product host — without this the
+      // live gig recorded "Testing campaign · sagepays.xyz" instead of its own name.
+      title: parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: settings.chainId,
       expectedToken: getAddress(settings.token),
@@ -225,6 +266,11 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
       vaultAddress: bundle.predictedVault,
       missions,
       autonomy: "autopilot",
+      // WORK PROOF parity with the web attach — kind + allowlist ride the approved plan. Without
+      // these a Telegram-launched gig recorded kind "testing", and an invite-only campaign would
+      // have deployed OPEN to everyone.
+      campaignKind: loaded.plan.campaignKind,
+      allowlist: loaded.plan.allowlist,
     },
     {},
   );

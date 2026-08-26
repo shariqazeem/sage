@@ -213,6 +213,19 @@ export type CompileDirectResult =
  * PURE: validated operator input → a canonical, deployment-ready MissionPlanV1 (all identity
  * self-checks included via `compilePlan`). Deterministic — same input, same plan, same digests.
  */
+/**
+ * The one durable place a direct plan's own title lives before launch is the inspection job's goal,
+ * written as "Direct <kind> campaign: <title>". Writer and parser live TOGETHER so the format can
+ * never drift apart — the launchable listing and both attach doors parse it back for display.
+ */
+export function directGoal(kind: "grant" | "gig", title: string): string {
+  return `Direct ${kind} campaign: ${title}`;
+}
+export function parseDirectTitle(goal: string | null | undefined): string | null {
+  const m = /^Direct (?:grant|gig) campaign: /.exec(goal ?? "");
+  return m ? (goal as string).slice(m[0].length) : null;
+}
+
 export function compileDirectCampaign(input: DirectCampaignInput, publicCampaignId: string): CompileDirectResult {
   const taken = new Set<string>();
   const noun = input.kind === "grant" ? "milestone" : "deliverable";
@@ -316,7 +329,7 @@ export function createDirectCampaign(input: DirectCampaignInput, founderWallet: 
     publicCampaignId,
     productUrl: input.productUrl,
     repoUrl: null,
-    goal: `Direct ${input.kind} campaign: ${input.title}`,
+    goal: directGoal(input.kind, input.title),
     targetUsers: "",
     totalBudgetBase,
     tokenDecimals: 6,

@@ -11,6 +11,7 @@ import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
 import { payoutReplaySchemaReady } from "@/lib/deputy/canary-preflight";
 import { deserializePlan } from "@/lib/launch/serde";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
+import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
 import { stateDigest } from "@/lib/launch/observed-facts";
@@ -119,11 +120,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
     // P16 money gate — recompute the lint class deterministically from the same mission prose the plan
     // classified (the durable job doesn't carry it). Same inputs → the class the founder was shown, and
     // the persisted value the settle-time gate reads. Never trusts an absent field into the pay path.
-    verifiabilityClass: classifyVerifiability({
-      objective: m.objective,
-      criteria: m.criteria,
-      evidenceRequirements: m.evidenceRequirements,
-    }),
+    // An explicit OPERATOR contract outranks the prose classifier (the decision-routing rule applied at
+    // attach): a deterministic contract IS externally provable, and classifying its mission as
+    // observation work makes the board render the wrong submit form and null the evidence URL.
+    verifiabilityClass: m.verificationContract
+      ? "url-verifiable"
+      : classifyVerifiability({
+          objective: m.objective,
+          criteria: m.criteria,
+          evidenceRequirements: m.evidenceRequirements,
+        }),
     // WORK PROOF — the operator contract from the approved IMMUTABLE revision (never recomputed:
     // unlike the class it is authored input, validated at creation, not derivable from prose).
     verificationContract: m.verificationContract,
@@ -156,7 +162,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       privateCorpusSources: privateKey.distinctSources,
       exploredScreens: explored.screens,
       exploredElements: explored.elements,
-      title: campaignTitle(job?.productUrl ?? ""),
+      // A direct campaign is titled by its OPERATOR, not by the product host.
+      title: parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: settings.chainId,
       expectedToken: getAddress(settings.token),
