@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
 import { decodeDetail } from "@/lib/campaigns/journal";
@@ -222,12 +222,15 @@ export function attachVerificationPolicyToCampaign(input: {
 
 /* ────────────────────────────────────────────────────── submissions ───── */
 
-/** WALLET RECORD (/record) — every PAID submission this wallet ever earned, newest first, bounded. */
+/** WALLET RECORD (/record) — every PAID submission this wallet ever earned, newest first, bounded.
+ *  CASE-INSENSITIVE on the wallet: prod rows store checksummed addresses (the SIWE session casing),
+ *  recipient rows store lowercase — a TEXT `=` would silently miss one of them (found by the live
+ *  smoke on prod's top earner: 3 paid rows, 0 matched). */
 export function listPaidSubmissionsByWallet(wallet: string, limit = 200): Submission[] {
   return db
     .select()
     .from(submissions)
-    .where(and(eq(submissions.wallet, wallet.toLowerCase()), eq(submissions.status, "paid")))
+    .where(and(sql`lower(${submissions.wallet}) = ${wallet.toLowerCase()}`, eq(submissions.status, "paid")))
     .orderBy(desc(submissions.decidedAt))
     .limit(limit)
     .all();

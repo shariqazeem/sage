@@ -30,7 +30,7 @@ function seedCampaign(kind: "grant" | "testing", opts: { sandbox?: boolean } = {
   return c;
 }
 
-function paidSub(campaignId: string, missionKey: string, rewardBase: number, tx: string | null, at: number) {
+function paidSub(campaignId: string, missionKey: string, rewardBase: number, tx: string | null, at: number, walletOverride?: string) {
   const hash = missionIdHash(campaignId, missionKey);
   createMission({
     campaignId,
@@ -42,7 +42,7 @@ function paidSub(campaignId: string, missionKey: string, rewardBase: number, tx:
     displayOrder: 0,
     verifiabilityClass: "url-verifiable",
   });
-  const r = createSubmission({ campaignId, wallet: W, evidenceUrl: `https://x.org/${missionKey}-${n}`, note: "done", missionIdHash: hash, missionSpecDigest: null });
+  const r = createSubmission({ campaignId, wallet: walletOverride ?? W, evidenceUrl: `https://x.org/${missionKey}-${n}`, note: "done", missionIdHash: hash, missionSpecDigest: null });
   if (!r.ok) throw new Error("seed failed");
   updateSubmission(r.submission.id, { status: "paid", payoutTx: tx, decidedAt: at });
   return r.submission.id;
@@ -54,7 +54,8 @@ describe("buildWalletRecord — paid + anchored only, totals exact", () => {
     const testing = seedCampaign("testing");
     const sandbox = seedCampaign("grant", { sandbox: true });
 
-    paidSub(grant.id, "m1", 2_000_000, `0x${"a1".repeat(32)}`, 1_000);
+    // stored CHECKSUM-CASED, exactly how prod's SIWE sessions store wallets — the record must still find it
+    paidSub(grant.id, "m1", 2_000_000, `0x${"a1".repeat(32)}`, 1_000, "0x00000000000000000000000000000000000000AA");
     paidSub(testing.id, "m2", 1_500_000, `0x${"b2".repeat(32)}`, 2_000); // newer
     paidSub(grant.id, "m3", 500_000, null, 3_000); // paid but NO tx — inconsistency, excluded
     paidSub(sandbox.id, "m4", 9_000_000, `0x${"c3".repeat(32)}`, 4_000); // sandbox — excluded
