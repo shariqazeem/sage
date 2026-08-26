@@ -5,6 +5,7 @@ import { mintApiRequestId } from "@/lib/launch/planning-request";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
+import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
 import { capFirstLook, capCheckEvidence, capGoalCheckpoints } from "@/lib/agent-api/capabilities";
 import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import {
@@ -245,6 +246,61 @@ function toolResult<T>(r: OpResult<T>): ToolResult {
  * turns that into an SDK protocol error). `start_inspection` schedules the background run via
  * the context, so this stays free of request-context coupling.
  */
+
+/**
+ * Friendly model args → the direct-campaign compiler's exact input shape. Deliberately forgiving on
+ * TRANSPORT (criteria as a newline string, numbers as strings, "recipients" as the friendly name for
+ * the allowlist) and strict on SUBSTANCE (zod validates after; the artifact marker is FORCED to
+ * "wallet" server-side — v1 issues no handles/nonces, and the model doesn't get to pick).
+ */
+function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
+  const asArr = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.map((x) => String(x).trim()).filter(Boolean)
+      : typeof v === "string"
+        ? v.split("\n").map((x) => x.trim()).filter(Boolean)
+        : [];
+  const num = (v: unknown): number => (typeof v === "number" ? v : Number(v));
+  const milestones = Array.isArray(args.milestones)
+    ? args.milestones.map((raw) => {
+        const m = (raw ?? {}) as Record<string, unknown>;
+        const ev = (m.evidence ?? {}) as Record<string, unknown>;
+        const evidence =
+          ev.kind === "artifact_url"
+            ? { kind: "artifact_url", allowedHosts: asArr(ev.allowedHosts).map((h) => h.toLowerCase()), markerKind: "wallet" }
+            : ev.kind === "public_url"
+              ? { kind: "public_url", expectedText: asArr(ev.expectedText) }
+              : ev.kind === "onchain_tx"
+                ? {
+                    kind: "onchain_tx",
+                    chainId: num(ev.chainId),
+                    ...(typeof ev.to === "string" && ev.to ? { to: ev.to } : {}),
+                    ...(typeof ev.methodSelector === "string" && ev.methodSelector ? { methodSelector: ev.methodSelector } : {}),
+                    ...(typeof ev.minValueWei === "string" && ev.minValueWei ? { minValueWei: ev.minValueWei } : {}),
+                  }
+                : ev; // unknown kinds fall through to zod, which refuses them with a clear message
+        return {
+          title: typeof m.title === "string" ? m.title : "",
+          instructions: typeof m.instructions === "string" ? m.instructions : "",
+          criteria: asArr(m.criteria),
+          evidence,
+          rewardUsd: num(m.rewardUsd),
+          slots: num(m.slots),
+          ...(m.effortMinutes != null && Number.isFinite(num(m.effortMinutes)) ? { effortMinutes: num(m.effortMinutes) } : {}),
+        };
+      })
+    : [];
+  const recipients = asArr(args.recipients ?? args.allowlist);
+  return {
+    kind: args.kind === "gig" ? "gig" : "grant",
+    title: typeof args.title === "string" ? args.title : "",
+    productUrl: typeof args.productUrl === "string" ? args.productUrl : "",
+    ...(typeof args.whyItMatters === "string" && args.whyItMatters.trim() ? { whyItMatters: args.whyItMatters } : {}),
+    milestones,
+    ...(recipients.length > 0 ? { allowlist: recipients } : {}),
+  };
+}
+
 export async function callSageTool(
   name: string,
   args: Record<string, unknown>,
@@ -396,6 +452,81 @@ export async function callSageTool(
           })),
         })),
       });
+    }
+    case "sage_create_direct_campaign": {
+      // WORK PROOF, spoken (docs/work-proof-design.md §E + the agent-is-the-interface pivot).
+      // The founder DESCRIBES the work and the money in chat; the agent structures it; THIS tool
+      // compiles it deterministically into a ready, approved plan on the same rails as every
+      // campaign. Creating a plan is NOT money movement — funding still happens through the deploy
+      // wizard (web) or sage_fund_and_launch (Telegram, inside the mandate). The founder wallet is
+      // the SERVER-BOUND ctx value, NEVER a tool arg — a session can only author plans it owns.
+      const wallet = ctx.founderWallet;
+      if (!wallet) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                ok: false,
+                error:
+                  "No founder wallet is bound to this session yet — on the web that means connecting a wallet, in chat it means setting up an agent wallet first. Then I can create this campaign for you.",
+              }),
+            },
+          ],
+          isError: false,
+        };
+      }
+      const mapped = mapDirectCampaignArgs(args);
+      const parsed = directCampaignSchema.safeParse(mapped);
+      if (!parsed.success) {
+        const first = parsed.error.issues[0];
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                ok: false,
+                error: `The campaign isn't valid yet — ${first.path.join(".") || "(root)"}: ${first.message}. Fix that field (or ask the founder for the missing detail) and call again.`,
+              }),
+            },
+          ],
+          isError: false,
+        };
+      }
+      const created = createDirectCampaign(parsed.data, wallet);
+      if (!created.ok) {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: created.error }) }], isError: false };
+      }
+      const totalUsd = Number(created.totalBudgetBase) / 1_000_000;
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                ok: true,
+                planUrl: `${siteUrl()}${created.planUrl}`,
+                publicCampaignId: created.publicCampaignId,
+                inspectionId: created.jobId,
+                kind: parsed.data.kind,
+                totalBudgetUsd: totalUsd,
+                milestones: parsed.data.milestones.map((m) => ({
+                  title: m.title,
+                  paysUsd: m.rewardUsd,
+                  slots: m.slots,
+                  verifiedBy: m.evidence.kind,
+                })),
+                invitedRecipients: parsed.data.allowlist?.length ?? 0,
+                note:
+                  "The plan is compiled and already approved (the founder authored it). NOTHING is funded yet: the founder reviews it at planUrl and funds it there with their own wallet — or, on Telegram with a funded agent wallet, sage_fund_and_launch can fund + launch this inspectionId inside their mandate. Recite totalBudgetUsd exactly; never compute your own amounts.",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+        isError: false,
+      };
     }
     case "sage_my_campaigns": {
       // The founder wallet is the SERVER-BOUND ctx value, NEVER a tool arg — so this can only ever

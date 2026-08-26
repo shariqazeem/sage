@@ -133,7 +133,9 @@ Be concrete and honest. If a tool returns an error, say what failed in one line 
 /** P25 — the SINGLE additive paragraph for the web surface. The web agent reuses every steering +
  *  anti-hallucination block above unchanged; this only reframes the channel and the money handoff:
  *  no money tools exist on web, so funding is a hand-off (deep link for a connected wallet, else Telegram). */
-const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspect a product, plan its missions, and answer questions about a campaign, inspection, submission, or proof — but you have NO money tools here: you cannot create a wallet, fund, deploy, approve, or move anything. YOU KNOW THE FOUNDER'S OWN CAMPAIGNS: when they ask "how are my campaigns doing?", "anything to review?", or about their campaigns/payouts in general, call sage_my_campaigns (no arguments — it identifies them by their connected wallet) and answer from its real counts; if it says the wallet isn't connected, ask them to connect it. UNLIKE TELEGRAM, YOU CANNOT PUSH MESSAGES HERE: after you start an inspection, do NOT say you'll "message you when it's ready" — instead say it's building now and they can ask you "is it ready?" in a moment (you'll check it) or check back on this page. When the founder is ready to FUND + LAUNCH, hand off: give them the deploy link https://sagepays.xyz/launch/<inspectionId> (their own connected wallet approves + funds there), and mention they can also do it walletless from Telegram (@sagedeputybot). Never say you funded, deployed, launched, or moved money on the web — you didn't and can't.`;
+const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspect a product, plan its missions, and answer questions about a campaign, inspection, submission, or proof — but you have NO money tools here: you cannot create a wallet, fund, deploy, or move anything — but you CAN draft campaigns (sage_start_inspection for testing, sage_create_direct_campaign for milestone/gig work): drafting a plan moves no money, and the founder funds it themselves at its planUrl. YOU KNOW THE FOUNDER'S OWN CAMPAIGNS: when they ask "how are my campaigns doing?", "anything to review?", or about their campaigns/payouts in general, call sage_my_campaigns (no arguments — it identifies them by their connected wallet) and answer from its real counts; if it says the wallet isn't connected, ask them to connect it. UNLIKE TELEGRAM, YOU CANNOT PUSH MESSAGES HERE: after you start an inspection, do NOT say you'll "message you when it's ready" — instead say it's building now and they can ask you "is it ready?" in a moment (you'll check it) or check back on this page. When the founder is ready to FUND + LAUNCH, hand off: give them the deploy link https://sagepays.xyz/launch/<inspectionId> (their own connected wallet approves + funds there), and mention they can also do it walletless from Telegram (@sagedeputybot). Never say you funded, deployed, launched, or moved money on the web — you didn't and can't.`;
+
+const DIRECT_BLOCK = `YOU ALSO CREATE CAMPAIGNS FOR WORK THE FOUNDER DEFINES — milestone grants and gig payouts. When a founder describes paying someone for specific work ("fund my cousin's storefront in tranches", "pay a designer when the logo ships", "release $50 when the site is live") that is a DIRECT campaign, not a testing inspection: call sage_create_direct_campaign. YOU write the milestone titles, instructions and pass criteria FROM THE FOUNDER'S OWN WORDS (rephrase, never enlarge), and pick how each is verified: a public link to something the recipient created (their wallet address must appear on it), a public page showing required text, or an on-chain transaction they performed. Ask ONLY for what you genuinely cannot infer — usually the amount per milestone, and whether specific wallets are invited (recipients = named wallets keeps it off the public board; empty = anyone can do it). NEVER invent or compute amounts: the tool returns totalBudgetUsd — recite it exactly. The tool returns a planUrl: give it to the founder to review — the plan is theirs, already approved, but NOTHING is funded yet. Funding: on Telegram with a funded agent wallet, sage_fund_and_launch launches this plan's inspectionId exactly like a testing plan; on the web the founder funds at the planUrl with their own wallet. Testing ("test my product", "get feedback") stays sage_start_inspection — do not confuse the two.`;
 
 type Surface = "telegram" | "web";
 
@@ -155,13 +157,13 @@ function pageContextBlock(pc?: AgentPageContext): string {
  *  Web: the same blocks minus any money-tool steering, plus the one additive WEB_BLOCK + page context. */
 function systemPrompt(ref: string, surface: Surface, pageContext?: AgentPageContext): string {
   if (surface === "web") {
-    const blocks = [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, WEB_BLOCK, TAIL];
+    const blocks = [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, DIRECT_BLOCK, WEB_BLOCK, TAIL];
     const pc = pageContextBlock(pageContext);
     return `${blocks.join("\n\n")}${pc ? `\n\n${pc}` : ""}\n\nThis session's id (use as clientRef): ${ref}`;
   }
   const blocks = privyConfigured()
-    ? [BASE_PROMPT, READ_TOOLS, FUND_BLOCK, TAIL]
-    : [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, TAIL];
+    ? [BASE_PROMPT, READ_TOOLS, DIRECT_BLOCK, FUND_BLOCK, TAIL]
+    : [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, DIRECT_BLOCK, TAIL];
   return `${blocks.join("\n\n")}\n\nThis chat's id (use as clientRef): ${ref}`;
 }
 
@@ -198,8 +200,59 @@ const MY_CAMPAIGNS_TOOL = {
     "List THIS founder's own campaigns with live counts — status, reward, submissions, how many are pending review, and total released. Use when the founder asks about 'my campaigns', how they're doing, or whether anything needs their review. No arguments; the founder is identified by their connected wallet.",
   inputSchema: { type: "object", properties: {} },
 };
-const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL].map(asOpenAI);
-const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
+const DIRECT_CAMPAIGN_TOOL = {
+  name: "sage_create_direct_campaign",
+  description:
+    "Create a DIRECT campaign — a milestone grant or gig payout for work the FOUNDER defines (not product testing). You supply the milestones you structured from the founder's words; the server compiles them deterministically into a ready, APPROVED plan and returns its planUrl. Creating a plan moves NO money. The founder is identified by their connected wallet — never pass a wallet.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      kind: { type: "string", enum: ["grant", "gig"], description: "grant = tranche-funded milestones; gig = paid deliverables." },
+      title: { type: "string", description: "Campaign title, 4-80 chars." },
+      productUrl: { type: "string", description: "The https:// context URL the work is for (program page, product, brief)." },
+      whyItMatters: { type: "string", description: "Optional one-two sentences recipients see on every card." },
+      milestones: {
+        type: "array",
+        description: "1-12 milestones/deliverables. Each pays rewardUsd per completion, up to slots completions.",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            instructions: { type: "string", description: "Step by step, in the founder's intent: what to do and exactly what to submit." },
+            criteria: { type: "array", items: { type: "string" }, description: "1-8 acceptance criteria, one clause each." },
+            evidence: {
+              type: "object",
+              description:
+                "How Sage verifies it, exactly one kind: {kind:'artifact_url', allowedHosts:[bare hostnames]} — a public link the recipient created, checked to carry THEIR wallet address; {kind:'public_url', expectedText:[verbatim strings]} — a public page containing required text; {kind:'onchain_tx', chainId:2345, to?, methodSelector?, minValueWei?} — a transaction from the recipient's own wallet (needs at least one constraint).",
+              properties: {
+                kind: { type: "string", enum: ["artifact_url", "public_url", "onchain_tx"] },
+                allowedHosts: { type: "array", items: { type: "string" } },
+                expectedText: { type: "array", items: { type: "string" } },
+                chainId: { type: "number" },
+                to: { type: "string" },
+                methodSelector: { type: "string" },
+                minValueWei: { type: "string" },
+              },
+              required: ["kind"],
+            },
+            rewardUsd: { type: "number", description: "USDC per completion, min 0.5, max 2 decimals. From the founder — never invented." },
+            slots: { type: "number", description: "Max paid completions, 1-50." },
+            effortMinutes: { type: "number", description: "Optional estimated effort." },
+          },
+          required: ["title", "instructions", "criteria", "evidence", "rewardUsd", "slots"],
+        },
+      },
+      recipients: {
+        type: "array",
+        items: { type: "string" },
+        description: "Optional named recipient wallets (0x…). If set, ONLY they can submit and the campaign stays off the public board; empty = open to anyone.",
+      },
+    },
+    required: ["kind", "title", "productUrl", "milestones"],
+  },
+};
+const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL].map(asOpenAI);
+const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
 /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system
@@ -596,6 +649,17 @@ async function runAgentTurn(
                 ok: false,
                 error: "That action isn't available on the web — funding + launching happens in the deploy wizard or the Telegram bot.",
               }),
+            });
+            continue;
+          }
+
+          // Direct-campaign creation is deterministic (no model, no money) but writes rows — bound it
+          // with the same per-minute "create" limiter the HTTP route uses, keyed to this session.
+          if (tc.function.name === "sage_create_direct_campaign" && !rateLimit("create", rlKey).ok) {
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ ok: false, error: "Too many campaigns created in the last minute — wait a moment and try again." }),
             });
             continue;
           }
