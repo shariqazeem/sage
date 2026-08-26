@@ -4,6 +4,7 @@ import { getAddress } from "viem";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { SettleOutcome } from "@/lib/campaigns/settle";
 import { getAgentWalletByAddress } from "@/lib/db/agent-wallets";
+import { getRecipientWalletByAddress } from "@/lib/db/recipient-wallets";
 import { getMissionByHash } from "@/lib/db/campaigns";
 import { buildHeldTriage, triageLines, leanLabel } from "@/lib/campaigns/held-triage";
 import { reward, short } from "@/lib/format";
@@ -85,4 +86,30 @@ export async function notifyFounderHeld(campaign: Campaign, submission: Submissi
     `Board: ${appUrl()}/c/${campaign.id}`,
   ];
   await dmWithRetry(chatId, lines.join("\n"));
+}
+
+/**
+ * WALLETLESS RECIPIENT paid-push (move 2): when a settlement lands in a chat-bound recipient
+ * wallet, tell the person in their own chat — the receipt, the amount, where the money sits.
+ * Best-effort and swallowed: a notification must never delay or affect a settlement.
+ */
+export async function notifyRecipientPaid(
+  campaign: Campaign,
+  submission: Submission,
+  outcome: { recipient: string; amountBase: number; txHash: string },
+): Promise<void> {
+  try {
+    const rw = getRecipientWalletByAddress(outcome.recipient || submission.wallet);
+    if (!rw) return;
+    const mission = submission.missionIdHash ? getMissionByHash(campaign.id, submission.missionIdHash) : null;
+    await sendTelegram(
+      rw.chatId,
+      `💸 You just got paid $${(outcome.amountBase / 1_000_000).toFixed(2)} USDC for "${mission?.title ?? campaign.title}".\n` +
+        `Receipt: ${appUrl()}/proof/${outcome.txHash}\n` +
+        `It's in your Sage wallet — ask me "what's my balance?" anytime.`,
+      { html: false },
+    );
+  } catch (err) {
+    console.error("[recipient-notify] failed:", err instanceof Error ? err.message : err);
+  }
 }

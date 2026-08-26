@@ -302,6 +302,13 @@
       "when": 1787990400000,
       "tag": "0042_work_proof",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1788076800000,
+      "tag": "0043_recipient_wallets",
+      "breakpoints": true
     }
   ]
 }

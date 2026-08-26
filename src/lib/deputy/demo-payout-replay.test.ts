@@ -34,7 +34,7 @@ vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
 vi.mock("@/lib/campaigns/settle-flow", () => ({ settleApprovedSubmission: vi.fn() }));
 vi.mock("./decisions", () => ({ ensureDecision: vi.fn() }));
 vi.mock("./notify", () => ({ notifyTelegram: vi.fn() }));
-vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn() }));
+vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn(), notifyRecipientPaid: vi.fn() }));
 vi.mock("./agent-log", () => ({ newCorrelationId: () => "demo_cid", agentLog: vi.fn() }));
 vi.mock("./entailment", () => ({ entailmentMode: vi.fn(() => "off"), entailmentInputFromBrief: vi.fn(() => ({ criteria: [], note: null })), runEntailmentVeto: vi.fn(async () => ({ ran: false, vetoed: false, verdicts: [] })) }));
 

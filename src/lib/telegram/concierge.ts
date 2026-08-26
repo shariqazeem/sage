@@ -13,6 +13,7 @@ import {
   isAgentWalletTool,
   callAgentWalletTool,
 } from "@/lib/telegram/agent-wallet-tools";
+import { RECIPIENT_TOOLS, isRecipientTool, callRecipientTool } from "@/lib/telegram/recipient-tools";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
 import { siteUrl } from "@/lib/site";
@@ -137,6 +138,8 @@ const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspe
 
 const DIRECT_BLOCK = `YOU ALSO CREATE CAMPAIGNS FOR WORK THE FOUNDER DEFINES — milestone grants and gig payouts. When a founder describes paying someone for specific work ("fund my cousin's storefront in tranches", "pay a designer when the logo ships", "release $50 when the site is live") that is a DIRECT campaign, not a testing inspection: call sage_create_direct_campaign. YOU write the milestone titles, instructions and pass criteria FROM THE FOUNDER'S OWN WORDS (rephrase, never enlarge), and pick how each is verified: a public link to something the recipient created (their wallet address must appear on it), a public page showing required text, or an on-chain transaction they performed. Ask ONLY for what you genuinely cannot infer — usually the amount per milestone, and whether specific wallets are invited (recipients = named wallets keeps it off the public board; empty = anyone can do it). NEVER invent or compute amounts: the tool returns totalBudgetUsd — recite it exactly. The tool returns a planUrl: give it to the founder to review — the plan is theirs, already approved, but NOTHING is funded yet. Funding: on Telegram with a funded agent wallet, sage_fund_and_launch launches this plan's inspectionId exactly like a testing plan; on the web the founder funds at the planUrl with their own wallet. Testing ("test my product", "get feedback") stays sage_start_inspection — do not confuse the two.`;
 
+const RECIPIENT_BLOCK = `SOME CHATS ARE RECIPIENTS, NOT FOUNDERS. A person who opened a funder's invite link is here to GET PAID for defined work — Sage already minted their wallet (their chat IS their account). Recognize them: they talk about work they were invited to do, not about launching campaigns. Their tools: sage_my_work (their campaigns, open work, submission status, balance — no arguments) and sage_submit_work (when they send a link to what they made, a transaction hash, or say it's done). After submitting, say Sage is VERIFYING it — NEVER say or imply it's paid; if it verifies, the payment message arrives in this chat on its own, with a receipt. If verification refuses, relay the written reason kindly and say what to fix. Money questions: their balance lives in their Sage wallet (sage_my_work shows it); withdrawing from chat isn't available yet — the balance stays safely in their wallet. Never mix founder money tools into a recipient conversation.`;
+
 type Surface = "telegram" | "web";
 
 /** What page the founder is viewing, so "what's the status here?" just works. UNTRUSTED: the label is
@@ -162,8 +165,8 @@ function systemPrompt(ref: string, surface: Surface, pageContext?: AgentPageCont
     return `${blocks.join("\n\n")}${pc ? `\n\n${pc}` : ""}\n\nThis session's id (use as clientRef): ${ref}`;
   }
   const blocks = privyConfigured()
-    ? [BASE_PROMPT, READ_TOOLS, DIRECT_BLOCK, FUND_BLOCK, TAIL]
-    : [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, DIRECT_BLOCK, TAIL];
+    ? [BASE_PROMPT, READ_TOOLS, DIRECT_BLOCK, RECIPIENT_BLOCK, FUND_BLOCK, TAIL]
+    : [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, DIRECT_BLOCK, RECIPIENT_BLOCK, TAIL];
   return `${blocks.join("\n\n")}\n\nThis chat's id (use as clientRef): ${ref}`;
 }
 
@@ -251,8 +254,18 @@ const DIRECT_CAMPAIGN_TOOL = {
     required: ["kind", "title", "productUrl", "milestones"],
   },
 };
-const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL].map(asOpenAI);
-const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
+const INVITE_RECIPIENT_TOOL = {
+  name: "sage_invite_recipient",
+  description:
+    "Mint a personal invite link for ONE recipient of the founder's own campaign (grants/gigs). The founder forwards the t.me link to the person; opening it sets the person up walletless in Telegram (Sage mints their wallet — no app, no seed phrase) and, on an invite-only campaign, adds them to its recipient list. One link = one person; mint one per recipient. Requires the campaignId (find it with sage_my_campaigns).",
+  inputSchema: {
+    type: "object",
+    properties: { campaignId: { type: "string", description: "The founder's own campaign to invite this person to." } },
+    required: ["campaignId"],
+  },
+};
+const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL].map(asOpenAI);
+const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL, ...RECIPIENT_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
 /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system
@@ -679,9 +692,13 @@ async function runAgentTurn(
             continue;
           }
 
-          const result = isAgentWalletTool(tc.function.name)
-            ? await callAgentWalletTool(tc.function.name, args, ref)
-            : await callSageTool(tc.function.name, args, ctx);
+          const result = isRecipientTool(tc.function.name)
+            ? surface === "telegram"
+              ? await callRecipientTool(tc.function.name, args, ref, scheduleAfter)
+              : { content: [{ type: "text" as const, text: JSON.stringify({ ok: false, error: "Recipient tools live in the Telegram bot (@sagedeputybot) — that's where invited recipients chat." }) }], isError: false }
+            : isAgentWalletTool(tc.function.name)
+              ? await callAgentWalletTool(tc.function.name, args, ref)
+              : await callSageTool(tc.function.name, args, ctx);
           const text = result
             ? (result.content[0]?.text ?? "")
             : JSON.stringify({ ok: false, error: `unknown tool: ${tc.function.name}` });

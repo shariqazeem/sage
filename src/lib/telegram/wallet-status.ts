@@ -18,7 +18,7 @@ function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://sagepays.xyz";
 }
 
-async function usdcBalanceBase(address: string, chainId: number): Promise<bigint> {
+export async function usdcBalanceBase(address: string, chainId: number): Promise<bigint> {
   try {
     const usdc = chainConfig(chainId).usdcAddress;
     if (!usdc) return BigInt(0);

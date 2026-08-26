@@ -29,7 +29,7 @@ const { moneySpy } = vi.hoisted(() => ({ moneySpy: vi.fn(async () => ({ settled:
 vi.mock("@/lib/campaigns/settle", () => ({ settleWithRecovery: moneySpy }));
 vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
 vi.mock("@/lib/telegram/bot", () => ({ announceCampaignSettled: vi.fn(), announceCampaignBlocked: vi.fn() }));
-vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn() }));
+vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn(), notifyFounderHeld: vi.fn(), notifyRecipientPaid: vi.fn() }));
 vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
 
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";

@@ -6,6 +6,8 @@ import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
 import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
+import { createRecipientInvite } from "@/lib/db/recipient-wallets";
+import { getCampaign as getCampaignRow } from "@/lib/db/campaigns";
 import { capFirstLook, capCheckEvidence, capGoalCheckpoints } from "@/lib/agent-api/capabilities";
 import { START_INSPECTION_ESTIMATE } from "@/lib/agent-api/progress";
 import {
@@ -519,6 +521,47 @@ export async function callSageTool(
                 invitedRecipients: parsed.data.allowlist?.length ?? 0,
                 note:
                   "The plan is compiled and already approved (the founder authored it). NOTHING is funded yet: the founder reviews it at planUrl and funds it there with their own wallet — or, on Telegram with a funded agent wallet, sage_fund_and_launch can fund + launch this inspectionId inside their mandate. Recite totalBudgetUsd exactly; never compute your own amounts.",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+        isError: false,
+      };
+    }
+    case "sage_invite_recipient": {
+      // WALLETLESS RECIPIENT invite (move 2). Ownership is checked against the SERVER-BOUND founder
+      // wallet — a session can only invite people to campaigns it actually owns. The link is the
+      // founder's to forward; opening it mints the person's wallet and binds the code (write-once).
+      const wallet = ctx.founderWallet;
+      if (!wallet) {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "No founder wallet is bound to this session — connect a wallet (web) or set up the agent wallet (chat) first." }) }], isError: false };
+      }
+      const campaignId = asString(args.campaignId);
+      const campaign = campaignId ? getCampaignRow(campaignId) : null;
+      if (!campaign) {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "That campaign wasn't found — use sage_my_campaigns to get the right campaignId." }) }], isError: false };
+      }
+      if (campaign.posterWallet.toLowerCase() !== wallet.toLowerCase()) {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "Only this campaign's own founder can invite recipients to it." }) }], isError: false };
+      }
+      if (campaign.status !== "live" && campaign.status !== "draft") {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: `This campaign is ${campaign.status} — invites are for live campaigns.` }) }], isError: false };
+      }
+      const invite = createRecipientInvite(campaign.id, wallet);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                ok: true,
+                inviteLink: `https://t.me/sagedeputybot?start=${invite.code}`,
+                campaignId: campaign.id,
+                campaignTitle: campaign.title,
+                note:
+                  "ONE link = ONE person — the first chat to open it becomes the invited recipient (Sage mints their wallet; no app, no seed phrase needed). Mint a separate link per person. The founder forwards this link themselves.",
               },
               null,
               2,

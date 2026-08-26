@@ -53,7 +53,7 @@ vi.mock("@/lib/campaigns/settle-flow", () => ({
 vi.mock("./decisions", () => ({ ensureDecision: vi.fn() }));
 vi.mock("./canary-preflight", () => ({ payoutReplaySchemaReady: vi.fn(() => ({ ok: true, missing: [] })) }));
 vi.mock("./notify", () => ({ notifyTelegram: vi.fn() }));
-vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn() }));
+vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn(), notifyRecipientPaid: vi.fn() }));
 vi.mock("./agent-log", () => ({
   newCorrelationId: () => "cid_test",
   agentLog: vi.fn(),

@@ -75,6 +75,30 @@ export async function createServerWallet(policyIds: string[] = []): Promise<Serv
 
 /** The unsigned transaction fields Privy signs. Populate nonce/gas from the live GOAT client; the
  *  chain id is forced to GOAT here so a caller can never sign for the wrong network. */
+
+/** The EIP-712 payload shape Privy's RPC endpoint signs. `types` MUST include EIP712Domain (Privy
+ *  requires it; viem's recover omits it and the signatures still agree — proven live 2026-08-26:
+ *  a scratch wallet's eth_signTypedData_v4 recovered to its own address under viem). */
+export interface PrivyTypedData {
+  domain: Record<string, unknown>;
+  types: Record<string, { name: string; type: string }[]>;
+  primary_type: string;
+  message: Record<string, unknown>;
+}
+
+/** Sign EIP-712 typed data with a server wallet. Used by the walletless RECIPIENT path to sign the
+ *  SAME evidence claim every web tester signs — the payout-only-to-proven-control invariant stays
+ *  one path. Throws on any Privy refusal; the caller fails closed. */
+export async function signTypedDataViaPrivy(walletId: string, typedData: PrivyTypedData): Promise<`0x${string}`> {
+  const r = await privyPost<{ data?: { signature?: string } }>(`/wallets/${walletId}/rpc`, {
+    method: "eth_signTypedData_v4",
+    params: { typed_data: typedData },
+  });
+  const sig = r.data?.signature;
+  if (!sig || !sig.startsWith("0x")) throw new Error("privy: eth_signTypedData_v4 returned no signature");
+  return sig as `0x${string}`;
+}
+
 export interface EvmTxRequest {
   to: `0x${string}`;
   value?: `0x${string}`;

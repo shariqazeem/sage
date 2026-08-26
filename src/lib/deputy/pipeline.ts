@@ -53,7 +53,7 @@ import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payoutReplaySchemaReady } from "./canary-preflight";
 import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
-import { notifyFounderHeld } from "@/lib/telegram/founder-notify";
+import { notifyFounderHeld, notifyRecipientPaid } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
 import { mainnetAutopilotEnabled } from "@/lib/env";
 import { agentLog, newCorrelationId } from "./agent-log";
@@ -785,6 +785,9 @@ export async function runDeputyOnSubmission(
       void notifyTelegram(
         `✅ <b>Paid by Deputy</b>\n${campaign.title}\n${usd(outcome.amountBase / 1_000_000)} → ${short(outcome.recipient)} · ${conf}% confidence\n${appUrl()}/proof/${outcome.txHash}`,
       );
+      // WALLETLESS RECIPIENT: if this payout landed in a chat-bound wallet, tell the PERSON —
+      // best-effort, never blocks or affects the settlement.
+      void notifyRecipientPaid(campaign, submission, { recipient: outcome.recipient, amountBase: outcome.amountBase, txHash: outcome.txHash });
       return { action: "settled", reason: "paid", txHash: outcome.txHash, correlationId: cid };
     }
 

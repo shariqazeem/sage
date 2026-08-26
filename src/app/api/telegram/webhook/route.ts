@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
 import { clearChatMessages } from "@/lib/db/concierge-chats";
+import { handleRecipientStart } from "@/lib/telegram/recipient-onboarding";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
 import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
@@ -59,6 +60,17 @@ export async function POST(req: Request): Promise<Response> {
   // about an inspection that had finished the day before. A plain /start (no deep-link payload)
   // now forgets the conversation, which is what pressing it has always looked like it does.
   if (cmd.kind === "start" && !cmd.payload) clearChatMessages(chatId);
+
+  // WALLETLESS RECIPIENT invite (move 2): /start rcp_<code> — mint their wallet, bind the invite,
+  // welcome them with the work. Runs after the 200 (a Privy mint takes seconds); deterministic, no LLM.
+  if (cmd.kind === "start" && cmd.payload?.startsWith("rcp_")) {
+    const code = cmd.payload;
+    after(async () => {
+      const text = await handleRecipientStart(chatId, code);
+      await sendTelegram(chatId, text, { html: false });
+    });
+    return NextResponse.json({ ok: true });
+  }
 
   // Slash commands stay the fast, deterministic, grounded path. Free-form chat goes to the
   // conversational agent (CommonStack + Sage's in-process tools) — run AFTER we 200 so Telegram

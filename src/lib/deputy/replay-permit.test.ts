@@ -17,7 +17,7 @@ vi.mock("@/lib/deputy/chain-freshness", async (orig) => ({
 }));
 vi.mock("@/lib/campaigns/reconcile", () => ({ reconcileVendorEvents: vi.fn(async () => null) }));
 vi.mock("@/lib/telegram/bot", () => ({ announceCampaignSettled: vi.fn(), announceCampaignBlocked: vi.fn() }));
-vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn() }));
+vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderSettled: vi.fn(), notifyFounderHeld: vi.fn(), notifyRecipientPaid: vi.fn() }));
 vi.mock("@/lib/x402/fees", () => ({ chargeOperatorFee: vi.fn() }));
 
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";

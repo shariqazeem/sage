@@ -103,6 +103,22 @@ export function listLiveCampaigns(): Campaign[] {
     .all();
 }
 
+/**
+ * WALLETLESS RECIPIENTS — append one wallet to a campaign's allowlist (idempotent, lowercased).
+ * Called ONLY by invite redemption: the code was minted by the campaign's own founder, so the
+ * append is the founder's standing consent resolving to a concrete address. App-level gate only —
+ * caps/budget/replay stay vault-enforced, exactly as the allowlist is documented.
+ */
+export function appendToAllowlist(campaignId: string, wallet: string): boolean {
+  const c = getCampaign(campaignId);
+  if (!c) return false;
+  const cur = Array.isArray(c.allowlist) ? c.allowlist : [];
+  const w = wallet.toLowerCase();
+  if (cur.includes(w)) return true;
+  db.update(campaigns).set({ allowlist: [...cur, w] }).where(eq(campaigns.id, campaignId)).run();
+  return true;
+}
+
 export function setCampaignStatus(id: string, status: Campaign["status"]): void {
   db.update(campaigns).set({ status }).where(eq(campaigns.id, id)).run();
 }

@@ -198,6 +198,46 @@ export const submissions = sqliteTable(
   ],
 );
 
+
+/**
+ * WALLETLESS RECIPIENTS — the receiving side of the loop (move 2). One row per Telegram chat that
+ * redeemed a recipient invite: Sage minted them a Privy server wallet (policy-less; the app is the
+ * only signer, the key never leaves Privy — the same honest custody model as founder agent wallets,
+ * stated in the compliance doc). Their chat is their account; USDC payouts land at `address`.
+ */
+export const recipientWallets = sqliteTable(
+  "recipient_wallets",
+  {
+    chatId: text("chat_id").primaryKey(),
+    privyWalletId: text("privy_wallet_id").notNull(),
+    address: text("address").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("recipient_wallets_addr_unq").on(t.address)],
+);
+export type RecipientWallet = typeof recipientWallets.$inferSelect;
+
+/**
+ * One invite code = one invited person for one campaign, minted by that campaign's own founder
+ * (`sage_invite_recipient`). Redemption is WRITE-ONCE: the first chat to open the t.me link binds
+ * it; the same chat re-tapping is idempotent; a different chat is refused. On redemption the minted
+ * wallet is APPENDED to the campaign's allowlist (an app-level gate, honestly documented as such).
+ */
+export const recipientInvites = sqliteTable(
+  "recipient_invites",
+  {
+    code: text("code").primaryKey(),
+    campaignId: text("campaign_id").notNull(),
+    createdByWallet: text("created_by_wallet").notNull(),
+    createdAt: integer("created_at").notNull(),
+    redeemedChatId: text("redeemed_chat_id"),
+    redeemedWallet: text("redeemed_wallet"),
+    redeemedAt: integer("redeemed_at"),
+  },
+  (t) => [index("recipient_invites_campaign_idx").on(t.campaignId)],
+);
+export type RecipientInvite = typeof recipientInvites.$inferSelect;
+
 /** The real events that form a Deputy's work journal (§2d) — never fabricated. */
 export type EventKind =
   | "campaign_created"
