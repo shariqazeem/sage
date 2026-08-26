@@ -37,7 +37,7 @@ export function LandingNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/dashboard" className="nav-cta">
+          <Link href="/launch" className="nav-cta">
             Launch a campaign
           </Link>
         </nav>
@@ -58,7 +58,7 @@ export function LandingNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/dashboard" className="nav-sheet-cta" onClick={() => setOpen(false)}>
+          <Link href="/launch" className="nav-sheet-cta" onClick={() => setOpen(false)}>
             Launch a campaign
           </Link>
         </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { House, Rocket, Sparkles, Send, Wallet, Compass} from "lucide-react";
+import { BookOpen, House, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
@@ -17,6 +17,9 @@ const NAV = [
   { href: "/launch", label: "Launch", Icon: Rocket },
   { href: "/marketplace", label: "Marketplace", Icon: Compass },
   { href: "/agent", label: "Agent", Icon: Sparkles },
+  // The credibility surface — safety, compliance, settlement. Now that the product is broader
+  // than testing, "is this real and how does it work" needs a door inside the app too.
+  { href: "/docs", label: "Docs", Icon: BookOpen },
 ] as const;
 
 function short(a: string): string {

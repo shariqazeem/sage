@@ -6,6 +6,7 @@ import { SageMark } from "@/components/brand/sage-mark";
 import { geist } from "./fonts";
 import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
+import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
 import { ScenePartners } from "./scene-partners";
 import { SceneReplay } from "./scene-replay";
@@ -44,6 +45,8 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
 
         <SceneWorkflow />
 
+        <SceneLoop />
+
         <SceneReplay />
 
         <ScenePolicy perTxCap={perTxCap} />
@@ -66,6 +69,7 @@ export function CinematicLanding({ network, totals, feed, perTxCap, now, ecosyst
             <a href="#how">How Sage works</a>
             <a href="#proof">Live proof</a>
             <Link href="/docs">Docs</Link>
+            <Link href="/docs/compliance">Compliance</Link>
             <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
             <Link href="/dashboard">Dashboard</Link>
             <Link href="/agents/sage">Agent record</Link>

@@ -22,12 +22,12 @@ export function SceneHero({
   networkName: string;
 }) {
   return (
-    <section className="hero" aria-label="Sage — autonomous product testing">
+    <section className="hero" aria-label="Sage — verified work, paid autonomously">
       <div className="hero-in">
         <div className="hero-copy">
           <span className="hero-eyebrow eyebrow">
             <span className="dot" aria-hidden />
-            Autonomous product testing
+            Verified work, paid autonomously
           </span>
 
           <h1 className="display">
@@ -39,13 +39,13 @@ export function SceneHero({
           </h1>
 
           <p className="lede hero-lede">
-            Give Sage a product and a budget. It explores the product, creates paid
-            testing missions from what it actually observed, independently replays
-            verifiable actions, and settles successful work on-chain.
+            Point Sage at a product to test, or tell it who to pay and for what — a gig, a
+            bounty, a milestone grant. It verifies every claim itself, in a real browser or
+            on-chain, and settles only what checks out, from a vault it can never exceed.
           </p>
 
           <div className="hero-actions">
-            <Link href="/dashboard" className="btn btn-primary">
+            <Link href="/launch" className="btn btn-primary">
               Launch a campaign <ArrowRight size={17} strokeWidth={2.2} />
             </Link>
             <a href="#how" className="btn btn-ghost">

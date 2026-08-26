@@ -22,14 +22,17 @@ export const metadata: Metadata = {
   // CATEGORY FIRST, BRAND LAST. Same words as before, brand moved to the end — this is the page
   // that has to win the query, and opening on the bare word meant opening against Sage Group,
   // Sage Pay/Opayo and Ask Sage. The category has no incumbent, so lead on it.
-  title: "AI agent that tests your product and pays real testers in USDC · Sage",
+  // Still category-first, brand-last — and the WINNING category words ("tests your product",
+  // "pays real testers") stay in the sentence: the broadened frame extends the query surface
+  // (gigs, milestone grants, verified work) without abandoning the one category we already rank in.
+  title: "AI agent that pays for verified work — product testing, gigs, milestone grants · Sage",
   description:
-    "Give Sage a product URL and a budget. It opens the product in a real browser, designs paid testing missions from what it actually saw, checks each tester's evidence against its own observations, and pays in USDC from an on-chain vault it cannot exceed. Every payout publishes a receipt you can verify.",
+    "Give Sage work to fund: it tests your product and pays real testers in USDC, or pays a gig, bounty, or milestone grant when the deliverable verifies. It checks every claim itself — in a real browser, against the published artifact, or on-chain — screens every recipient against the OFAC sanctions list, and settles from an on-chain vault it cannot exceed. Every payout publishes a receipt you can verify, and every earner builds a permanent verified work record.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Sage: it looks at your product, then pays people to test it",
+    title: "Sage: say the work once. It verifies, then pays.",
     description:
-      "An AI agent with a budget it cannot exceed. It explores your product, writes the missions, judges the evidence, and settles in USDC on-chain. Every payout is a public receipt.",
+      "An AI agent with a budget it cannot exceed. Product tests, gigs, and milestone grants run the same loop: define, verify, pay or refuse — every payout a public on-chain receipt, every earner a verified work record.",
     type: "website",
   },
 };
