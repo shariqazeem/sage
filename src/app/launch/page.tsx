@@ -5,9 +5,9 @@ import { RecentInspectionsList } from "@/components/launch/recent-inspections-li
 import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";
 
 export const metadata: Metadata = {
-  title: "Launch with Sage — turn your product into a paid testing plan",
+  title: "Launch with Sage — pay real people for verified work",
   description:
-    "Give Sage your product, your goal, and a budget. Sage inspects the real product and designs specific, payable testing missions — ready to fund.",
+    "Test your product with paid missions, or fund a gig, a bounty, or a milestone grant. Sage verifies every claim before it pays — and every payout has a public receipt.",
 };
 
 /**
@@ -23,9 +23,8 @@ export default function LaunchPage() {
         <div className="lx-hero">
           <h1 className="lx-h1">Pay real people for verified work.</h1>
           <p className="lx-sub">
-            Paste your product and Sage opens it, designs the testing missions, and pays people for verified
-            reports. Or describe work you want funded — a milestone grant, a gig, a deliverable — and Sage sets
-            that up instead. Every payout is checked first, and every one has a public receipt.
+            Testing missions, gigs, bounties, milestone grants — say it once, and Sage verifies the
+            work before a cent moves. Every payout lands with a public receipt.
           </p>
         </div>
 

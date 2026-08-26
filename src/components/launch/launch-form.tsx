@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { HandCoins, Plus, ScanSearch } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
 
@@ -34,6 +34,51 @@ const GOAL_CHIPS: { label: string; goal: string }[] = [
 ];
 
 /**
+ * THE SECOND DOOR — "Pay for work" (a gig, a bounty, a milestone grant). Nobody should have to
+ * derive the structured paragraph the campaign compiler wants, so the founder finishes a SENTENCE
+ * instead: who / $ / what must be true / how Sage verifies. The sentence compiles to the exact ask
+ * the agent needs and is handed to chat — the form never grows a schema.
+ */
+const VERIFY_OPTIONS = [
+  {
+    value: "link",
+    label: "the link they publish",
+    ask: "fetching the public link each worker submits and checking it shows the finished work and carries their own wallet address",
+  },
+  {
+    value: "page",
+    label: "text on a public page",
+    ask: "fetching the public page they submit and checking the required text appears on it",
+  },
+  {
+    value: "onchain",
+    label: "an on-chain transaction",
+    ask: "reading the transaction they performed on-chain from the wallet they submit with",
+  },
+];
+
+type PayDraft = { who: string; amount: string; deliverable: string; verify: string; slots: string };
+
+/** Tap-to-fill examples — the blank-page killer. Each writes a complete working sentence the
+ *  founder edits, the same way the goal chips write proven goal shapes. */
+const PAY_EXAMPLES: { label: string; fill: Partial<PayDraft> }[] = [
+  { label: "Design gig", fill: { who: "my designer", amount: "50", deliverable: "the new logo page is live", verify: "link", slots: "1" } },
+  { label: "Translation job", fill: { who: "a translator", amount: "20", deliverable: "my menu is published in English as a public page", verify: "link", slots: "1" } },
+  { label: "Open bounty", fill: { who: "anyone", amount: "5", deliverable: "they publish a working setup guide for my product", verify: "page", slots: "3" } },
+];
+
+/** Multi-tranche grants don't fit a one-payment sentence — that conversation belongs to the agent.
+ *  The handoff carries a complete worked example, so the founder edits a paragraph, never writes one. */
+const MILESTONE_ASK =
+  "Set up a milestone grant: fund my cousin's shop $60 in three milestones — $20 when the shop page is published, $20 when the first product is listed, $20 when the first sale is announced on the page. Verify each milestone by fetching the public link they submit and checking it carries their own wallet address.";
+
+/** The one-line trust hint under each door — everything longer was deleted, not moved. */
+const MODE_HINT = {
+  test: "Sage only reads your product. Approve the plan, fund once — payouts run themselves, each with a public receipt.",
+  pay: "Your sentence goes to Sage in chat — it writes the plan, you approve and fund once. Work that fails verification is never paid.",
+} as const;
+
+/**
  * Step 1 — describe the launch as a GUIDED, cinematic sequence, kept deliberately short (P26): the
  * product + what to learn on one screen, then the budget. The optional GitHub repo hides behind an
  * "add repo" affordance so it never taxes the common path. On the final step it creates (or reuses) a
@@ -43,7 +88,7 @@ const GOAL_CHIPS: { label: string; goal: string }[] = [
 const STEPS = [
   {
     q: "What do you want done?",
-    hint: "Paste a product URL and Sage tests it — it opens your product, designs the missions, and pays people for verified reports. Or describe work you want paid for (a milestone grant, a gig, a deliverable) and Sage sets that up instead. Either way you approve the plan and fund it once.",
+    hint: "", // step 0 renders MODE_HINT — the two doors carry the explanation structurally
   },
   {
     q: "Set the testing budget.",
@@ -77,6 +122,10 @@ export function LaunchForm() {
   const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5", testEmail: "", testPassword: "" });
+  /** THE TWO DOORS (move 5): "test" = the bootcamp-winning inspection flow, byte-identical.
+   *  "pay" = the sentence composer for funder-defined work. Both drafts survive a mode switch. */
+  const [mode, setMode] = useState<"test" | "pay">("test");
+  const [pay, setPay] = useState<PayDraft>({ who: "", amount: "", deliverable: "", verify: "link", slots: "1" });
   const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
   // (one job, not two); a fresh form (new page/reload) is a new turn. The server namespaces it.
@@ -88,6 +137,7 @@ export function LaunchForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const setP = (k: keyof PayDraft, v: string) => setPay((p) => ({ ...p, [k]: v }));
 
   const stepValid = (i = step): boolean => {
     // The goal is OPTIONAL — measured founder behavior: a paragraph-sized "what do you want to
@@ -119,9 +169,23 @@ export function LaunchForm() {
     return t.length >= 12 && !isHttpUrl(t) && /\s/.test(t);
   };
 
-  const handOffToAgent = () => {
-    const words = [form.productUrl.trim(), form.goal.trim()].filter(Boolean).join(" — ");
+  const handOffToAgent = (ask?: string) => {
+    const words = ask ?? [form.productUrl.trim(), form.goal.trim()].filter(Boolean).join(" — ");
     router.push(`/agent?ask=${encodeURIComponent(words)}`);
+  };
+
+  const payValid = (): boolean =>
+    pay.who.trim().length >= 2 && Number(pay.amount) >= 0.5 && pay.deliverable.trim().length >= 8;
+
+  /** The finished sentence IS the spec — compiled verbatim into the ask the agent plans from. */
+  const composePayAsk = (): string => {
+    const v = VERIFY_OPTIONS.find((o) => o.value === pay.verify) ?? VERIFY_OPTIONS[0]!;
+    const slots = Math.max(1, Math.min(50, Math.round(Number(pay.slots) || 1)));
+    return (
+      `Set up a gig campaign: pay ${pay.who.trim()} $${Number(pay.amount)} when ${pay.deliverable.trim().replace(/\.+$/, "")}. ` +
+      (slots === 1 ? "One person can earn it. " : `Up to ${slots} people can each earn it. `) +
+      `Verify it by ${v.ask}.`
+    );
   };
 
   const submit = async () => {
@@ -174,6 +238,10 @@ export function LaunchForm() {
     if (e.key !== "Enter") return;
     if ((e.target as HTMLElement).tagName === "TEXTAREA" && !e.metaKey) return;
     e.preventDefault();
+    if (mode === "pay" && step === 0) {
+      if (payValid()) handOffToAgent(composePayAsk());
+      return;
+    }
     if (step < STEPS.length - 1) next();
     else void submit();
   };
@@ -184,22 +252,53 @@ export function LaunchForm() {
   return (
     <div className="lxo" onKeyDown={onKeyDown}>
       <div className="lxo-progress" aria-hidden>
-        {STEPS.map((_, i) => (
-          <span key={i} className={`lxo-pip${i === step ? " on" : ""}${i < step ? " done" : ""}`} />
-        ))}
+        {mode === "test" &&
+          STEPS.map((_, i) => (
+            <span key={i} className={`lxo-pip${i === step ? " on" : ""}${i < step ? " done" : ""}`} />
+          ))}
       </div>
 
-      {/* key=step remounts the panel so the entrance animation replays each step */}
-      <div className="lxo-step" key={step}>
+      {/* key remounts the panel so the entrance animation replays on each step AND door switch */}
+      <div className="lxo-step" key={`${step}-${mode}`}>
         <h2 className="lxo-q">{s.q}</h2>
 
+        {/* THE TWO DOORS (move 5). The paths are STRUCTURE, not prose: two tappable answers to the
+            one question. Picking one reframes the card — the explainer paragraph this replaced was
+            deleted, not moved. */}
         {step === 0 && (
+          <div className="lxo-modes" role="tablist" aria-label="What kind of work">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "test"}
+              className={`lxo-mode${mode === "test" ? " on" : ""}`}
+              onClick={() => setMode("test")}
+            >
+              <ScanSearch size={17} aria-hidden />
+              <span className="lxo-mode-t">Test my product</span>
+              <span className="lxo-mode-c">Sage opens it, designs paid missions, verifies every report.</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "pay"}
+              className={`lxo-mode${mode === "pay" ? " on" : ""}`}
+              onClick={() => setMode("pay")}
+            >
+              <HandCoins size={17} aria-hidden />
+              <span className="lxo-mode-t">Pay for work</span>
+              <span className="lxo-mode-c">A gig, a bounty, a milestone grant — verified, then paid.</span>
+            </button>
+          </div>
+        )}
+
+        {step === 0 && mode === "test" && (
           <>
             <input
               autoFocus
               className="lx-input lxo-input"
               type="text"
-              placeholder="https://yourproduct.com — or: pay my designer $50 when the logo ships"
+              placeholder="https://yourproduct.com"
               value={form.productUrl}
               onChange={(e) => set("productUrl", e.target.value)}
             />
@@ -294,6 +393,89 @@ export function LaunchForm() {
           </>
         )}
 
+        {/* PAY FOR WORK — a sentence you finish, not a form (and never a paragraph to derive).
+            The tokens compose the exact structured ask the agent needs; the examples fill the
+            sentence in one tap. Continue hands the founder's finished sentence to Sage in chat. */}
+        {step === 0 && mode === "pay" && (
+          <div className="lxs">
+            <div className="lxs-line">
+              <span className="lxs-word">Pay</span>
+              <input
+                autoFocus
+                className="lxs-token lxs-who"
+                type="text"
+                placeholder="my designer"
+                value={pay.who}
+                onChange={(e) => setP("who", e.target.value)}
+                aria-label="Who gets paid"
+              />
+              <span className="lxs-word">$</span>
+              <input
+                className="lxs-token lxs-amt"
+                type="number"
+                min="0.5"
+                step="0.5"
+                placeholder="50"
+                value={pay.amount}
+                onChange={(e) => setP("amount", e.target.value)}
+                aria-label="Amount in USDC"
+              />
+              <span className="lxs-word">when</span>
+              <input
+                className="lxs-token lxs-when"
+                type="text"
+                placeholder="the new logo page is live"
+                value={pay.deliverable}
+                onChange={(e) => setP("deliverable", e.target.value)}
+                aria-label="What must be true when the work is done"
+              />
+            </div>
+            <div className="lxs-line">
+              <span className="lxs-word">Sage verifies</span>
+              <select
+                className="lxs-token lxs-sel"
+                value={pay.verify}
+                onChange={(e) => setP("verify", e.target.value)}
+                aria-label="How Sage verifies the work"
+              >
+                {VERIFY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <span className="lxs-word">·</span>
+              <select
+                className="lxs-token lxs-sel"
+                value={pay.slots}
+                onChange={(e) => setP("slots", e.target.value)}
+                aria-label="How many people can earn it"
+              >
+                {["1", "2", "3", "5", "10"].map((c) => (
+                  <option key={c} value={c}>
+                    {c === "1" ? "1 person" : `${c} people`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="lxo-chips lxs-ex" role="group" aria-label="Start from an example">
+              {PAY_EXAMPLES.map((ex) => (
+                <button
+                  key={ex.label}
+                  type="button"
+                  className="lxo-chip"
+                  onClick={() => setPay((p) => ({ ...p, ...ex.fill }))}
+                >
+                  {ex.label}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="lx-edit-link lxs-milestones" onClick={() => handOffToAgent(MILESTONE_ASK)}>
+              Milestones instead? Sage structures a multi-payment grant with you in chat →
+            </button>
+          </div>
+        )}
+
         {step === 1 && (
           <div className="lxo-budget">
             <input
@@ -310,7 +492,7 @@ export function LaunchForm() {
           </div>
         )}
 
-        <div className="lxo-hint">{s.hint}</div>
+        <div className="lxo-hint">{step === 0 ? MODE_HINT[mode] : s.hint}</div>
         {!siwe.authed && last && (
           <p className="lxo-hint" style={{ marginTop: 6, opacity: 0.85 }}>
             You&apos;ll sign a free message to start — no gas, no transaction, nothing spent. It just
@@ -331,9 +513,21 @@ export function LaunchForm() {
             Back
           </button>
         ) : (
-          <span className="lxo-step-count">Step {step + 1} of {STEPS.length}</span>
+          <span className="lxo-step-count">
+            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : "One step — Sage does the rest in chat"}
+          </span>
         )}
-        {last ? (
+        {mode === "pay" && step === 0 ? (
+          <button
+            type="button"
+            className="lx-btn"
+            onClick={() => handOffToAgent(composePayAsk())}
+            disabled={!payValid()}
+          >
+            Set it up with Sage
+            <span aria-hidden>→</span>
+          </button>
+        ) : last ? (
           <button type="button" className="lx-btn" onClick={submit} disabled={submitting || !stepValid() || siwe.connecting || siwe.signingIn}>
             {submitting
               ? "Starting…"

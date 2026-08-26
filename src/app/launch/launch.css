@@ -499,3 +499,43 @@
   border-radius: 8px;
   padding: 9px 12px;
 }
+
+/* ── THE TWO DOORS (move 5) — the paths are structure, not prose ─────────────── */
+.lxo-progress { min-height: 4px; }
+.lxo-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 18px; }
+.lxo-mode {
+  display: grid; grid-template-columns: auto 1fr; column-gap: 9px; row-gap: 3px; align-items: center;
+  text-align: left; padding: 12px 14px; cursor: pointer; font: inherit;
+  background: var(--lx-bg); border: 1px solid var(--lx-line-strong); border-radius: var(--r-md);
+  color: var(--lx-muted);
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.lxo-mode svg { grid-row: 1; color: var(--lx-muted); }
+.lxo-mode-t { grid-row: 1; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--lx-ink); }
+.lxo-mode-c { grid-column: 1 / -1; font-size: 12px; line-height: 1.5; }
+.lxo-mode:hover { border-color: var(--lx-accent); }
+.lxo-mode.on {
+  background: var(--lx-surface); border-color: var(--lx-accent);
+  box-shadow: 0 0 0 1px var(--lx-accent), 0 1px 2px rgba(26, 29, 33, 0.05);
+}
+.lxo-mode.on svg { color: var(--lx-accent); }
+
+/* ── The sentence composer — pay-for-work is a sentence you finish, not a form ── */
+.lxs { display: grid; gap: 8px; padding-top: 2px; }
+.lxs-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 2px; line-height: 2.15; color: var(--lx-ink); }
+.lxs-word { font-size: 15px; color: var(--lx-muted); }
+.lxs-token {
+  font: inherit; font-size: 16px; color: var(--lx-ink); background: transparent;
+  border: 0; border-bottom: 1.5px solid var(--lx-line-strong); border-radius: 0; padding: 1px 2px 3px;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.lxs-token:focus { outline: none; border-bottom-color: var(--lx-accent); }
+.lxs-token::placeholder { color: var(--lx-muted); opacity: 0.65; }
+.lxs-who { width: 150px; }
+.lxs-amt { width: 62px; font-family: var(--font-mono), monospace; font-size: 15px; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.lxs-amt::-webkit-outer-spin-button, .lxs-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.lxs-when { flex: 1 1 230px; min-width: 200px; }
+.lxs-sel { appearance: none; -webkit-appearance: none; cursor: pointer; color: var(--lx-accent); font-weight: 540; font-size: 15px; padding-right: 1px; }
+.lxs-ex { margin-top: 6px; }
+.lxs-milestones { margin-top: 4px; font-size: 13px; justify-self: start; text-align: left; }
+@media (max-width: 620px) { .lxo-modes { grid-template-columns: 1fr; } }
