@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SageMark } from "@/components/brand/sage-mark";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { money, short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -48,11 +49,10 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   return (
     <div className="spp">
       <div className="spp-col">
+        {/* THE ONE MARK (P19): the same SageMark + top-bar pattern as /proof — never a re-drawn lookalike. */}
         <div className="spp-top spp-reveal">
           <Link href="/" className="spp-brand" style={{ textDecoration: "none", color: "inherit" }}>
-            <span className="spp-mark">
-              <span className="spp-mark-ring" />
-            </span>
+            <SageMark size={26} />
             <span className="spp-wordmark">Sage</span>
           </Link>
           <span className="spp-kicker">Verified work record</span>
