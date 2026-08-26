@@ -13,6 +13,7 @@ import { buildHeldTriage, type TriageLean } from "./held-triage";
 import { v2Economics } from "./v2-economics";
 import { canDecide, type SubmissionStatus } from "./status";
 import { nowSeconds } from "@/lib/db/keys";
+import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { short } from "@/lib/format";
 import type { Campaign } from "@/lib/db/schema";
 
@@ -136,6 +137,11 @@ export async function releaseSubmission(
   }
   if (!canDecide(submission.status as SubmissionStatus)) {
     return { ok: false, error: "already decided" };
+  }
+  // SANCTIONS SCREEN — independent of the pipeline's preflight, so a human clicking release
+  // cannot pay a listed address either. Same vendored OFAC SDN snapshot, same exact-match rule.
+  if (isSanctionedWallet(submission.wallet)) {
+    return { ok: false, error: `refused: recipient wallet is on the ${SANCTIONS_LIST_LABEL}` };
   }
 
   updateSubmission(submissionId, { status: "approved", decidedAt: nowSeconds() });

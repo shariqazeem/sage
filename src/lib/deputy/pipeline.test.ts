@@ -69,6 +69,8 @@ vi.mock("./entailment", () => ({
 }));
 
 import { runDeputyOnSubmission } from "./pipeline";
+import { SANCTIONS_HOLD_REASON } from "./sanctions";
+import { OFAC_SDN_ETH } from "./sanctions-data";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
@@ -680,6 +682,27 @@ describe("Phase 6C — payout action replay at the real pre-broadcast gate", () 
     vi.mocked(getMissionByHash).mockReturnValue(urlActionMission as never);
     vi.mocked(ensureDecision).mockResolvedValue({ ...payBrief, recommendation: "hold", reasonCode: "no_evidence", confidence: 0.2, evidenceOk: false });
     const r = await runDeputyOnSubmission("s1", fakeReplay("reproduced"));
+    expect(r.action).toBe("held");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+});
+
+describe("sanctions preflight — a listed wallet never reaches the judge or the vault", () => {
+  it("HOLDS an autopilot pending submission from an SDN-listed wallet before any decision compute", async () => {
+    const listed = OFAC_SDN_ETH[0]!;
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, wallet: listed } as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe(SANCTIONS_HOLD_REASON);
+    // pre-judge placement: no LLM/decision spend, no settle, ever
+    expect(ensureDecision).not.toHaveBeenCalled();
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("matches case-insensitively (prod stores checksummed wallets)", async () => {
+    const listed = OFAC_SDN_ETH[0]!.toUpperCase().replace("0X", "0x");
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, wallet: listed } as never);
+    const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });

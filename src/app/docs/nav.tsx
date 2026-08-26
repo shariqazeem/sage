@@ -27,7 +27,10 @@ export const SECTIONS: { label: string; items: { href: string; title: string }[]
   },
   {
     label: "Guarantees",
-    items: [{ href: "/docs/safety", title: "The safety model" }],
+    items: [
+      { href: "/docs/safety", title: "The safety model" },
+      { href: "/docs/compliance", title: "Compliance & controls" },
+    ],
   },
   {
     label: "Interfaces",

@@ -20,6 +20,7 @@ import {
   recordEvent,
 } from "@/lib/db/campaigns";
 import { computeEvidenceDigest, verifyEvidenceClaim, type EvidenceClaim } from "@/lib/campaigns/evidence-claim";
+import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
@@ -58,6 +59,14 @@ export async function POST(
   const wallet = await getSessionAddress();
   if (!wallet) {
     return NextResponse.json({ error: "Connect and sign in with your wallet to submit." }, { status: 401 });
+  }
+  // SANCTIONS SCREEN — refused at the door, before any work is accepted; the pipeline and manual
+  // release re-check independently. Vendored OFAC SDN snapshot, exact address match only.
+  if (isSanctionedWallet(wallet)) {
+    return NextResponse.json(
+      { error: `This wallet appears on the ${SANCTIONS_LIST_LABEL} and cannot participate.` },
+      { status: 403 },
+    );
   }
   const rl = rateLimit("submit", clientIp(req.headers));
   if (!rl.ok) return NextResponse.json({ error: "Too many requests." }, { status: 429 });

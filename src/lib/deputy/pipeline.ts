@@ -21,6 +21,7 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { findDuplicate, findNearDuplicate } from "./dedup";
+import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
 import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, deriveCriterionEvidence, verdictStillApplies, type PrivateKey } from "./observation-verify";
@@ -365,6 +366,20 @@ export async function runDeputyOnSubmission(
     autonomy: campaign.autonomy,
     status: submission.status,
   });
+
+  // SANCTIONS PREFLIGHT — the recipient wallet is screened against the vendored OFAC SDN snapshot
+  // BEFORE any decision compute: a listed address never spends a judge call and can never reach the
+  // CAS/settle path. HOLD (visible to the operator, reversible only by a list refresh), same shape
+  // as the replay preflight below. Manual release re-checks independently (review-actions), so a
+  // human click cannot pay a listed address either.
+  if (isSanctionedWallet(submission.wallet)) {
+    agentLog(cid, "sanctions_screen", { ok: false, reason: SANCTIONS_HOLD_REASON });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, SANCTIONS_HOLD_REASON, cid);
+      return { action: "held", reason: SANCTIONS_HOLD_REASON, correlationId: cid };
+    }
+    return { action: "skipped", reason: SANCTIONS_HOLD_REASON, correlationId: cid };
+  }
 
   // PAYOUT-REPLAY PREFLIGHT — canary AND shadow REQUIRE the migration-0026/0027 schema (shadow reads/writes the
   // journal too). If it is missing, REFUSE before any decision/gate/CAS/settle (fail closed), never after a PAY.

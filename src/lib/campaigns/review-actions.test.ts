@@ -17,6 +17,7 @@ import {
   releaseSubmission,
   rejectSubmission,
 } from "./review-actions";
+import { OFAC_SDN_ETH } from "@/lib/deputy/sanctions-data";
 
 /**
  * Founder review of held work. Runs against the REAL in-memory db (:memory:); the settle is
@@ -153,5 +154,23 @@ describe("review-actions — founder review of held work", () => {
     expect(serialized).not.toContain("SECRET NOTE");
     expect(serialized).not.toContain("victim@example.com");
     expect(serialized).not.toContain("SECRET SUMMARY");
+  });
+});
+
+describe("sanctions screen on manual release", () => {
+  it("refuses to release a held submission whose wallet is SDN-listed — the settle is never invoked", async () => {
+    const { campaign, submission } = seedHeld();
+    // move the row onto a listed wallet (checksummed-ish casing to prove case-insensitivity)
+    updateSubmission(submission.id, { wallet: OFAC_SDN_ETH[0]!.toUpperCase().replace("0X", "0x") } as never);
+    let settleCalls = 0;
+    const settle = async (): Promise<SettleFlowResult> => {
+      settleCalls += 1;
+      return { outcome: { settled: true, txHash: "0xTX", recipient: submission.wallet, amountBase: 1 } } as never;
+    };
+    const r = await releaseSubmission(campaign.id, submission.id, { settle: settle as never });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("OFAC SDN");
+    expect(settleCalls).toBe(0);
+    expect(getSubmission(submission.id)?.status).not.toBe("approved");
   });
 });
