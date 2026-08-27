@@ -22,7 +22,6 @@ const GOAT = 2345;
 const REAL_TX = "0xb0120330aba99dcf25d5aba913d1c8ecf341782653f1b20b4eaafa575155d827";
 const AI_WALLET = "0xcCbFB9bBa88F282282a29aa1338175Cc835E768D";
 const USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8";
-const OPERATOR_ISH = "0x83b4b4f6348f71ffbdbb0cb046e428ca646f3c35";
 
 const sub = (over: Partial<{ wallet: string; evidenceUrl: string | null; note: string | null }> = {}) => ({
   wallet: AI_WALLET,

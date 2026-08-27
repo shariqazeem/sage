@@ -257,6 +257,28 @@ function toolResult<T>(r: OpResult<T>): ToolResult {
  * "wallet" server-side — v1 issues no handles/nonces, and the model doesn't get to pick).
  */
 /** Exported for P-DIRECT: the battery must exercise the REAL transport mapper. */
+/** A model naturally writes "https://paste.rs/abc" where a BARE host belongs. Normalising that is
+ *  transport, not substance — the schema still refuses anything that is not a hostname after this. */
+/** The campaign's label: what the model said, else the first milestone's title, else a plain
+ *  kind-based caption. Never fails, never invents beyond the milestones already authored. */
+function directTitle(args: Record<string, unknown>, milestones: unknown): string {
+  const given = typeof args.title === "string" ? args.title.trim() : "";
+  if (given.length >= 4) return given.slice(0, 80);
+  const first = Array.isArray(milestones) ? (milestones[0] as { title?: unknown } | undefined) : undefined;
+  const fromMilestone = typeof first?.title === "string" ? first.title.trim() : "";
+  if (fromMilestone.length >= 4) return fromMilestone.slice(0, 80);
+  return args.kind === "gig" ? "Gig campaign" : "Milestone grant";
+}
+
+function bareHost(raw: string): string {
+  const v = raw.trim().toLowerCase();
+  try {
+    return new URL(v.includes("://") ? v : `https://${v}`).hostname.replace(/^www\./, "");
+  } catch {
+    return v;
+  }
+}
+
 export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const asArr = (v: unknown): string[] =>
     Array.isArray(v)
@@ -271,7 +293,7 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
         const ev = (m.evidence ?? {}) as Record<string, unknown>;
         const evidence =
           ev.kind === "artifact_url"
-            ? { kind: "artifact_url", allowedHosts: asArr(ev.allowedHosts).map((h) => h.toLowerCase()), markerKind: "wallet" }
+            ? { kind: "artifact_url", allowedHosts: asArr(ev.allowedHosts).map(bareHost), markerKind: "wallet" }
             : ev.kind === "public_url"
               ? { kind: "public_url", expectedText: asArr(ev.expectedText) }
               : ev.kind === "onchain_tx"
@@ -297,8 +319,21 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
     kind: args.kind === "gig" ? "gig" : "grant",
-    title: typeof args.title === "string" ? args.title : "",
-    productUrl: typeof args.productUrl === "string" ? args.productUrl : "",
+    /**
+     * A campaign title is a LABEL, not money. MEASURED by P-DIRECT: the model omitted it on 4 of 5
+     * direct campaigns, and coercing to "" failed the whole plan on a min-length rule — losing a
+     * fundable campaign over a missing caption. Falling back to the first milestone's own title is
+     * faithful (it is the founder's wording, rephrased by the same call), never invented.
+     */
+    title: directTitle(args, milestones),
+    /**
+     * OMITTED, not empty. MEASURED by P-DIRECT 2026-08-28: this coerced a missing productUrl to
+     * "", which fails `.url()` with "Invalid URL" — so making the schema field optional (a grant
+     * to a person has no product page) changed nothing, because the mapper below it forced a value
+     * back in. A layered defect: the fix has to reach every layer that touches the field.
+     */
+    productUrl:
+      typeof args.productUrl === "string" && args.productUrl.trim() ? args.productUrl.trim() : undefined,
     ...(typeof args.whyItMatters === "string" && args.whyItMatters.trim() ? { whyItMatters: args.whyItMatters } : {}),
     milestones,
     ...(recipients.length > 0 ? { allowlist: recipients } : {}),
