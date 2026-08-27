@@ -5,6 +5,7 @@ import { keccak256, stringToHex, type Hex } from "viem";
 import { nanoid } from "nanoid";
 
 import { CHAINS } from "@/lib/deputy/networks";
+import { siteUrl } from "@/lib/site";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
@@ -126,8 +127,14 @@ const milestoneSchema = z.object({
 export const directCampaignSchema = z.object({
   kind: z.enum(["grant", "gig"]),
   title: z.string().min(4).max(80),
-  /** the product/program surface the work is performed against (the campaign's context URL). */
-  productUrl: z.string().url().max(400).refine((u) => u.startsWith("https://"), "https only"),
+  /**
+   * OPTIONAL context surface. MEASURED by P-DIRECT 2026-08-28: requiring this made the flagship
+   * milestone-grant impossible — "fund my cousin's shop $60 in three milestones" names no URL,
+   * because a grant is about WORK, not a product, and the model could only fail the schema. When
+   * absent the campaign's own board becomes the context surface, which is where the work is in
+   * fact defined.
+   */
+  productUrl: z.string().url().max(400).refine((u) => u.startsWith("https://"), "https only").optional(),
   whyItMatters: z.string().min(10).max(600).optional(),
   milestones: z.array(milestoneSchema).min(1).max(DIRECT_LIMITS.milestonesMax),
   /** optional recipient allowlist — named grantees. Enforced at the submit route (app-level). */
@@ -271,6 +278,12 @@ export function parseDirectTitle(goal: string | null | undefined): string | null
   return m ? (goal as string).slice(m[0].length) : null;
 }
 
+/** The context surface for a direct campaign: the funder's own URL when they named one, otherwise
+ *  the campaign's public board — the honest answer to "where is this work defined?". */
+function surfaceFor(input: DirectCampaignInput, publicCampaignId: string): string {
+  return input.productUrl ?? `${siteUrl()}/c/${publicCampaignId}`;
+}
+
 export function compileDirectCampaign(input: DirectCampaignInput, publicCampaignId: string): CompileDirectResult {
   const taken = new Set<string>();
   const noun = input.kind === "grant" ? "milestone" : "deliverable";
@@ -280,7 +293,7 @@ export function compileDirectCampaign(input: DirectCampaignInput, publicCampaign
     title: m.title,
     objective: `${input.kind === "grant" ? "Milestone" : "Deliverable"}: ${m.title}`,
     instructions: m.instructions,
-    targetSurface: input.productUrl,
+    targetSurface: surfaceFor(input, publicCampaignId),
     criteria: m.criteria,
     evidenceRequirements: [evidenceRequirement(m.evidence)],
     whyItMatters:
@@ -372,7 +385,7 @@ export function createDirectCampaign(input: DirectCampaignInput, founderWallet: 
   const { job } = createInspectionJob({
     founderWallet,
     publicCampaignId,
-    productUrl: input.productUrl,
+    productUrl: surfaceFor(input, publicCampaignId),
     repoUrl: null,
     goal: directGoal(input.kind, input.title),
     targetUsers: "",

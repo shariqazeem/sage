@@ -273,3 +273,37 @@ describe("lintDirectCampaign — verifiability lint (operator-side, warn-only)",
     expect(Array.isArray(r.strengthNotes)).toBe(true);
   });
 });
+
+describe("productUrl is OPTIONAL — a grant to a person has no product page (P-DIRECT 2026-08-28)", () => {
+  it("compiles with no productUrl and uses the campaign's own board as the context surface", () => {
+    const input = grantInput();
+    delete (input as { productUrl?: string }).productUrl;
+    expect(directCampaignSchema.safeParse(input).success).toBe(true);
+
+    const compiled = compileDirectCampaign(input, "grant-noUrl1");
+    if (!compiled.ok) throw new Error(compiled.error);
+    // every mission points at the campaign board, never an invented URL
+    for (const m of compiled.plan.missions) {
+      // an absolute URL on THIS deployment's own origin (siteUrl is env-dependent: https on prod)
+      expect(m.targetSurface).toContain("/c/grant-noUrl1");
+      expect(() => new URL(m.targetSurface)).not.toThrow();
+    }
+    // the exact-sum invariant is untouched by the change
+    const sum = input.milestones.reduce(
+      (a, m) => a + BigInt(Math.round(m.rewardUsd * 100)) * BigInt(10_000) * BigInt(m.slots),
+      BigInt(0),
+    );
+    expect(compiled.totalBudgetBase).toBe(sum);
+  });
+
+  it("still honours a real productUrl when the founder gives one, and still rejects a bad one", () => {
+    const withUrl = grantInput();
+    const compiled = compileDirectCampaign(withUrl, "grant-withUrl1");
+    if (!compiled.ok) throw new Error(compiled.error);
+    expect(compiled.plan.missions[0]!.targetSurface).toBe(withUrl.productUrl);
+
+    const bad = grantInput();
+    (bad as { productUrl?: string }).productUrl = "http://insecure.example";
+    expect(directCampaignSchema.safeParse(bad).success).toBe(false);
+  });
+});

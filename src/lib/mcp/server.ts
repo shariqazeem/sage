@@ -256,7 +256,8 @@ function toolResult<T>(r: OpResult<T>): ToolResult {
  * the allowlist) and strict on SUBSTANCE (zod validates after; the artifact marker is FORCED to
  * "wallet" server-side — v1 issues no handles/nonces, and the model doesn't get to pick).
  */
-function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
+/** Exported for P-DIRECT: the battery must exercise the REAL transport mapper. */
+export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const asArr = (v: unknown): string[] =>
     Array.isArray(v)
       ? v.map((x) => String(x).trim()).filter(Boolean)
