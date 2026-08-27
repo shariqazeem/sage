@@ -48,6 +48,8 @@ export interface DirectRow {
   error: string | null;
   /** the model's prose when it called no tool — the only way to tell a question from a flail. */
   reply: string;
+  /** full length of that reply — the LOGGED text is shortened, the length is not. */
+  replyLen: number;
   /** the raw tool arguments when they failed the schema — the shape to design the mapper against. */
   rawArgs: string;
   /** correction rounds used, as production would allow. 0 = right first shot. */
@@ -77,7 +79,7 @@ interface ToolCall {
 /** When the model calls NO tool, its prose is the only evidence of WHY. A clarifying question is a
  *  legitimate outcome ("who is your designer?"); flailing is a defect. Without capturing the reply
  *  the two are indistinguishable and every no-tool row reads the same. */
-type Ask = { call: ToolCall | null; reply: string; failed: boolean; why?: string };
+type Ask = { call: ToolCall | null; reply: string; failed: boolean; why?: string; finish?: string; outTokens?: number };
 
 /** The gateway stalls on roughly a third of calls (documented in concierge.ts). Without the same
  *  bounded retry the battery has, a flaky minute reads as a model-quality result — and a run of
@@ -161,10 +163,20 @@ async function askModel(utterance: string, timeoutMs: number, history: Msg[] = [
       throw new Error(`llm_status_${res.status} ${body.slice(0, 160)}`);
     }
     const data = (await res.json()) as {
-      choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null } }[];
+      choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null }; finish_reason?: string }[];
+      usage?: { completion_tokens?: number };
     };
-    const msg = data.choices?.[0]?.message;
-    return { call: msg?.tool_calls?.[0] ?? null, reply: (msg?.content ?? "").trim(), failed: false };
+    const ch = data.choices?.[0];
+    const msg = ch?.message;
+    return {
+      call: msg?.tool_calls?.[0] ?? null,
+      reply: (msg?.content ?? "").trim(),
+      failed: false,
+      // finish_reason is the ONLY reliable truncation signal. Without it I twice diagnosed
+      // truncation from a reply my own logger had shortened to 240 chars.
+      finish: ch?.finish_reason,
+      outTokens: data.usage?.completion_tokens,
+    };
   } catch (e) {
     return { call: null, reply: "", failed: true, why: e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 180) : String(e).slice(0, 180) };
   }
@@ -188,7 +200,7 @@ export async function runDirectEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const violations: string[] = [];
-      const { call, reply, failed, why } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      const { call, reply, failed, why, finish, outTokens } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
       if (failed) {
         providerFailures += 1;
         log(`  ${f.id} run${r + 1}/${runs}: PROVIDER FAILURE (not evidence) — ${why ?? "unknown"}`);
@@ -219,6 +231,7 @@ export async function runDirectEval(opts: {
         lintNotes: [],
         error: null,
         reply: calledTool ? "" : reply.slice(0, 240),
+        replyLen: reply.length,
         rawArgs: "",
         correctionRounds: 0,
         violations,
@@ -319,7 +332,8 @@ export async function runDirectEval(opts: {
           `${row.compiled ? ` · $${row.totalUsd} · ${row.milestones}m` : ""}` +
           `${violations.length ? `  ⚠ ${violations.length}` : "  ok"}` +
           `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}` +
-          `${!calledTool && row.reply ? `\n      reply: ${row.reply.slice(0, 160)}` : ""}`,
+          `${!calledTool ? ` · finish=${finish ?? "?"} outTokens=${outTokens ?? "?"}` : ""}` +
+          `${!calledTool && row.reply ? `\n      reply(first 160 of ${row.replyLen}): ${row.reply.slice(0, 160)}` : ""}`,
       );
     }
   }

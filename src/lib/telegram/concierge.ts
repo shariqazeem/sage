@@ -26,6 +26,7 @@ import {
 } from "./concierge-config";
 import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
+import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { checkNarration, honestFallback } from "./narration-guard";
 
 /**
@@ -493,23 +494,23 @@ async function chatCompletion(
           model: model(),
           temperature: 0.3,
           /**
-           * THIS NUMBER IS PROVIDER-DEPENDENT. Read both halves before changing it.
+           * The concierge declares what its ANSWER needs; the provider profile adds that
+           * provider's own overhead. Do not hardcode a number here again — the last one had to be
+           * retuned twice in a fortnight, in opposite directions:
            *
            * · On a TOTAL-token-capped key (the CommonStack tier, measured 2026-08-28) the cap
            *   covers prompt + max_tokens together: bare probes pass at 1400 and are refused at
-           *   1450 with `429 (cap 1)`, and a realistic ~10k-char prompt is refused even at 900.
-           *   There, raising this trades truncated campaigns for REFUSED TURNS, which is worse.
-           * · On MiniMax (where the concierge runs now) there is no such cap, and the opposite
-           *   failure appears: the model always emits a long, STOCHASTIC <think> block before its
-           *   tool call, so a three-milestone grant ran out of budget mid-JSON and arrived as
-           *   `Unexpected end of JSON input` — the founder's grant silently failing to parse.
-           *   Measured by P-DIRECT: 3 of 33 rows, only on the longer campaigns.
+           *   1450 with `429 (cap 1)`. There, a big number trades truncated campaigns for
+           *   REFUSED TURNS, which is worse.
+           * · On MiniMax the opposite failure appears: a long, STOCHASTIC <think> block precedes
+           *   the tool call, so a three-milestone grant ran out mid-JSON and arrived as
+           *   `Unexpected end of JSON input`. Measured by P-DIRECT: 3 of 33 rows.
            *
-           * 8000 matches what the payout brain needs for the SAME model, sized there at >=2x its
-           * measured worst case (2766 completion tokens). Generation is billed by tokens produced,
-           * so a short chat turn still costs a short chat turn.
+           * 5000 is the answer half — a full multi-milestone tool call plus a founder-facing
+           * reply. Generation is billed by tokens PRODUCED, so a short chat turn still costs a
+           * short chat turn; this is a ceiling, not a spend.
            */
-          max_tokens: 8000,
+          max_tokens: outputBudget(5_000, profileFor(model(), base())),
           messages,
           tools,
           tool_choice: "auto",
