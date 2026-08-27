@@ -249,6 +249,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `SAGE_AGENT_API_KEY` | Bearer for the authenticated Agent API | Agent API fails closed (404) |
 | `SAGE_ADMIN_SECRET` † | Operator secret for the out-of-band held-work review endpoint (`POST /api/admin/review`, header `x-sage-admin-secret`) that backs `scripts/review.mjs` | Endpoint fails closed (404); the Telegram review tools still work |
 | `MISSION_API_KEY` / `_BASE_URL` / `_MODEL` † | The MISSION **lane** — mission design on its own provider (prod: MiniMax-M3). All three required together. | Mission design inherits the shared chain |
+| `INSPECTION_REPLAY_MODE` † | `"shadow"` re-performs a safe observed transition to confirm it reproduces. **Required for grounded plan selection, not optional telemetry** — `safeTransitionsEstablished` demands every `action_outcome` criterion cite a REPRODUCED transition, so unset (its default) blocks every grounded plan containing one and ships the weaker legacy plan instead. | Grounded selection blocked for action missions |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---
