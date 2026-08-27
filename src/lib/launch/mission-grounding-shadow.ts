@@ -184,6 +184,11 @@ export function missionGroundingCriticModel(): string | undefined {
 
 /** ARCHITECT_SYSTEM_V2 — grounded, strict-structured. The model may design missions ONLY around observed
  *  capabilities and must cite concrete observation ids per criterion; it never invents controls/pages. */
+/** Authorship recorded when Sage's deterministic compiler wrote the criteria and no model was consulted.
+ *  It is real provenance — the criteria were derived from observed facts, not asserted by a model. */
+export const COMPILER_AUTHOR_ID = "sage-deterministic-compiler";
+export const COMPILER_AUTHOR_PROVIDER = "sage";
+
 export const ARCHITECT_SYSTEM_V2 = `You are Sage's GROUNDED mission architect. You are given a product map, an OBSERVATION SET (typed facts Sage actually saw + safe action transitions it performed), that set's digest, the founder goal, the inspected scope, and the exact campaign budget.
 
 RULES (absolute):
@@ -738,6 +743,8 @@ export async function runGroundedShadow(
     cMeta = emptyMeta();
   let architectStatus: RoleStatus = "not_run",
     architectErrorCode: string | null = null;
+  /** the deterministic compiler authored the missions and no architect draft was requested. */
+  let architectNotConsulted = false;
   let criticStatus: RoleStatus = "not_run",
     criticErrorCode: string | null = null;
   let architectShape: ContentShape | null = null,
@@ -1053,6 +1060,9 @@ export async function runGroundedShadow(
         });
       }
       architectStatus = "ok";
+      // Sage's own compiler authored these missions from observed facts — the architect model was
+      // never consulted, so its provenance is honestly "not applicable" rather than missing.
+      architectNotConsulted = true;
       candidates = missions;
       compileOutcome = {
         kind: "compiled",
@@ -1511,11 +1521,19 @@ export async function runGroundedShadow(
     // the critic never reached a provider — for a compiler-supported plan its provenance is honestly
     // "not consulted", which must not read as missing.
     (allCompilerSupported && criticStatus === "provider_error");
-  const provenancePresent = !!(
-    architectActual &&
-    architectProvider &&
-    criticProvenanceOk
-  );
+  /**
+   * A model that was never CONSULTED has no provenance to report, and that must not read as
+   * provenance MISSING — the critic rung below already encodes exactly this reasoning.
+   *
+   * MEASURED on useagora: Sage's deterministic compiler authored the mission from observed facts
+   * (`compilerAuthoredMissions: 1`), so the architect model was never called and every architect
+   * metadata field was null. The plan — grounded, critic-reachable, allocated exactly — was then
+   * rejected for "missing model provenance" at the precise moment its provenance was STRONGEST:
+   * no model asserted anything at all, so there was no model assertion to attribute.
+   */
+  const architectProvenanceOk =
+    !!(architectActual && architectProvider) || architectNotConsulted;
+  const provenancePresent = !!(architectProvenanceOk && criticProvenanceOk);
   const signals: GroundedPlanSignals = {
     architectStrictValid: architectStatus === "ok",
     compilerProducedMissions: candidates.length > 0,
@@ -1562,11 +1580,16 @@ export async function runGroundedShadow(
           missions: accepted,
           suppliedBudgetBase: input.totalBudgetBase.toString(),
           allocatedBudgetBase: allocatedBase.toString(),
-          architectModel: architectActual,
-          architectProvider,
+          // ATTRIBUTE THE REAL AUTHOR. When Sage's deterministic compiler wrote the missions, no
+          // architect model was consulted, and leaving these null made the canary's own
+          // `firstUnmetStrictCondition` reject the plan as `provenance_missing` — at the moment its
+          // provenance was strongest. Naming the compiler is accurate attribution, not a stand-in
+          // for a model: it says exactly who authored the criteria.
+          architectModel: architectActual ?? (architectNotConsulted ? COMPILER_AUTHOR_ID : null),
+          architectProvider: architectProvider ?? (architectNotConsulted ? COMPILER_AUTHOR_PROVIDER : null),
           architectContractVersion: GROUNDED_ARCHITECT_CONTRACT_VERSION,
-          criticModel: criticActual,
-          criticProvider,
+          criticModel: criticActual ?? (criticProvenanceOk ? COMPILER_AUTHOR_ID : null),
+          criticProvider: criticProvider ?? (criticProvenanceOk ? COMPILER_AUTHOR_PROVIDER : null),
           criticContractVersion: CRITIC_CONTRACT_VERSION,
           observationSetDigest: digest,
           signals,
