@@ -3,6 +3,7 @@ import "server-only";
 import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib/telegram/concierge";
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
+import { withTransientRetry } from "@/lib/llm/retry";
 import {
   compileDirectCampaign,
   directCampaignSchema,
@@ -76,7 +77,7 @@ interface ToolCall {
 /** When the model calls NO tool, its prose is the only evidence of WHY. A clarifying question is a
  *  legitimate outcome ("who is your designer?"); flailing is a defect. Without capturing the reply
  *  the two are indistinguishable and every no-tool row reads the same. */
-type Ask = { call: ToolCall | null; reply: string; failed: boolean };
+type Ask = { call: ToolCall | null; reply: string; failed: boolean; why?: string };
 
 /** The gateway stalls on roughly a third of calls (documented in concierge.ts). Without the same
  *  bounded retry the battery has, a flaky minute reads as a model-quality result — and a run of
@@ -87,12 +88,26 @@ async function askModelWithRetry(
   attempts = 3,
   history: Msg[] = [],
 ): Promise<Ask> {
-  for (let i = 0; i < attempts; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 2_000 * i));
-    const out = await askModel(utterance, timeoutMs, history);
-    if (!out.failed) return out;
+  /**
+   * PRODUCTION'S OWN LADDER. The hand-rolled 2s/4s version here was far too aggressive for the
+   * gateway's real limit — measured 2026-08-28 as `429 quota exceeded (cap 1)`, a CONCURRENCY cap
+   * of one — so a 3x battery run failed all 33 calls and, worse, competed with the live concierge
+   * for the same key while founders were using it. withTransientRetry knows 429 is transient,
+   * honours Retry-After, and spreads attempts over a 90s budget.
+   */
+  try {
+    return await withTransientRetry(
+      async () => askModel(utterance, timeoutMs, history),
+      { attempts },
+    );
+  } catch (e) {
+    return {
+      call: null,
+      reply: "",
+      failed: true,
+      why: e instanceof Error ? e.message.slice(0, 180) : String(e).slice(0, 180),
+    };
   }
-  return { call: null, reply: "", failed: true };
 }
 
 type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
@@ -100,7 +115,7 @@ type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; too
 async function askModel(utterance: string, timeoutMs: number, history: Msg[] = []): Promise<Ask> {
   const key = conciergeKey();
   const base = conciergeBase();
-  if (!key) return { call: null, reply: "", failed: true };
+  if (!key) return { call: null, reply: "", failed: true, why: "no concierge api key in env" };
   try {
     const res = await fetch(`${base}/chat/completions`, {
       method: "POST",
@@ -137,14 +152,19 @@ async function askModel(utterance: string, timeoutMs: number, history: Msg[] = [
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!res.ok) return { call: null, reply: "", failed: true };
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      // Throw the SAME shape production throws, so withTransientRetry classifies a 429 or 5xx as
+      // transient and waits properly instead of hammering a concurrency-capped key.
+      throw new Error(`llm_status_${res.status} ${body.slice(0, 160)}`);
+    }
     const data = (await res.json()) as {
       choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null } }[];
     };
     const msg = data.choices?.[0]?.message;
     return { call: msg?.tool_calls?.[0] ?? null, reply: (msg?.content ?? "").trim(), failed: false };
-  } catch {
-    return { call: null, reply: "", failed: true };
+  } catch (e) {
+    return { call: null, reply: "", failed: true, why: e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 180) : String(e).slice(0, 180) };
   }
 }
 
@@ -154,6 +174,8 @@ export async function runDirectEval(opts: {
   fixtures: DirectFixture[];
   runs?: number;
   timeoutMs?: number;
+  /** gap between fixtures — the shared key caps concurrency at 1 (see askModelWithRetry). */
+  paceMs?: number;
   log?: (line: string) => void;
 }): Promise<{ rows: DirectRow[]; metrics: DirectMetrics }> {
   const runs = Math.max(1, opts.runs ?? 1);
@@ -164,10 +186,10 @@ export async function runDirectEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const violations: string[] = [];
-      const { call, reply, failed } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      const { call, reply, failed, why } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
       if (failed) {
         providerFailures += 1;
-        log(`  ${f.id} run${r + 1}/${runs}: PROVIDER FAILURE (not evidence)`);
+        log(`  ${f.id} run${r + 1}/${runs}: PROVIDER FAILURE (not evidence) — ${why ?? "unknown"}`);
         continue;
       }
       const name = call?.function?.name ?? null;
@@ -287,6 +309,9 @@ export async function runDirectEval(opts: {
       }
 
       rows.push(row);
+      // The gateway allows ONE concurrent call on this key and the LIVE concierge shares it, so a
+      // battery that runs flat out degrades the product it is measuring. Breathe between fixtures.
+      await new Promise((r) => setTimeout(r, opts.paceMs ?? 1_500));
       log(
         `  ${f.id} run${r + 1}/${runs}: ${calledTool ? "direct" : name ?? "no-tool"}` +
           `${row.compiled ? ` · $${row.totalUsd} · ${row.milestones}m` : ""}` +
