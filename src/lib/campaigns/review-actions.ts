@@ -86,6 +86,13 @@ export interface ReviewSummary {
   missionTitle: string;
   rewardBase: number;
   recipient: string;
+  /**
+   * What Sage noticed but could not decide on — the med/high fraud signals from the decision,
+   * surfaced at the ONE moment they matter: the founder is being read the amount + recipient and
+   * is about to say yes. A caution the founder never sees is a caution that did no work. (Low
+   * severity is deliberately excluded: it is reviewer texture, not a reason to pause a payment.)
+   */
+  cautions: string[];
 }
 
 /** The summary a founder confirms before a release — NO settle happens here. */
@@ -97,11 +104,15 @@ export function reviewSummary(
   if (!s || s.campaignId !== campaign.id) return { error: "submission not found in this campaign" };
   if (!canDecide(s.status as SubmissionStatus)) return { error: "this submission was already decided" };
   const mission = v2Economics(campaign).missions.find((m) => m.missionIdHash === s.missionIdHash);
+  const cautions = (getDecisionBySubmission(submissionId)?.brief.fraudSignals ?? [])
+    .filter((f) => f.severity === "med" || f.severity === "high")
+    .map((f) => `${f.signal} — ${f.reason}`);
   return {
     submissionId,
     missionTitle: mission?.title ?? "Mission",
     rewardBase: mission?.rewardBase ?? campaign.rewardAmount,
     recipient: s.wallet,
+    cautions,
   };
 }
 

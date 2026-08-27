@@ -11,6 +11,7 @@ import {
   getSubmission,
   insertDecision,
   listMissions,
+  listSubmissions,
   recomputeMissionSpecDigest,
   recordEvent,
   setSubmissionArtifactSha,
@@ -32,6 +33,7 @@ import {
   runWorkProof,
 } from "./work-proof";
 import { walletFreshnessSignal } from "./wallet-signals";
+import { fundingClusterSignal } from "./funding-graph";
 import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
 
@@ -500,7 +502,19 @@ export async function ensureDecision(
   // combines with the brief's own signals for a reviewer, and a fresh wallet with strong verified
   // evidence still pays. Failure-isolated inside walletFreshnessSignal (an RPC blip yields no signal).
   const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
-  const fraudSignals = freshness ? [...brief.fraudSignals, freshness] : brief.fraudSignals;
+
+  // FUNDING-GRAPH SIBLING SIGNAL — the rotation detector freshness and near-dup are both blind to.
+  // Measured on prod 2026-08-28: one person funded a daisy chain of four fresh wallets and took all
+  // four slots of a mission with four genuinely-written accounts. Medium severity by design (it can
+  // never block alone — funding a friend's gas is honest too); it informs the reviewer and the
+  // founder's console. Failure-isolated: an explorer blip yields no signal.
+  const cluster = await fundingClusterSignal({
+    wallet: submission.wallet,
+    peerWallets: listSubmissions(campaign.id).map((s) => s.wallet),
+    chainId: campaign.chainId ?? 2345,
+  }).catch(() => null);
+
+  const fraudSignals = [...brief.fraudSignals, ...(freshness ? [freshness] : []), ...(cluster ? [cluster] : [])];
 
   const { row, inserted } = insertDecision({
     submissionId,

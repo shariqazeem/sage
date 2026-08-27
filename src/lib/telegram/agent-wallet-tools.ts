@@ -611,7 +611,15 @@ export async function callAgentWalletTool(
           mission: summary.missionTitle,
           rewardUsdc,
           recipient: summary.recipient,
-          message: `Confirm with the founder: release ${rewardUsdc} USDC to ${summary.recipient} for "${summary.missionTitle}"? This settles a real payout. Call sage_confirm_release ONLY after they clearly say yes.`,
+          // What Sage noticed but couldn't decide — read to the founder BEFORE they say yes, at the
+          // one moment it can change the outcome. Never a refusal; their money, their call.
+          cautions: summary.cautions,
+          message:
+            `Confirm with the founder: release ${rewardUsdc} USDC to ${summary.recipient} for "${summary.missionTitle}"? This settles a real payout. ` +
+            (summary.cautions.length
+              ? `FIRST read them every line of "cautions" verbatim — things Sage noticed but could not decide (e.g. wallet-rotation or freshness signals) — then ask if they still want to release. `
+              : "") +
+            `Call sage_confirm_release ONLY after they clearly say yes.`,
         });
       }
       case "sage_confirm_release": {

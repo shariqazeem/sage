@@ -16,6 +16,7 @@ import {
   listHeldSubmissions,
   releaseSubmission,
   rejectSubmission,
+  reviewSummary,
 } from "./review-actions";
 import { OFAC_SDN_ETH } from "@/lib/deputy/sanctions-data";
 
@@ -172,5 +173,32 @@ describe("sanctions screen on manual release", () => {
     if (!r.ok) expect(r.error).toContain("OFAC SDN");
     expect(settleCalls).toBe(0);
     expect(getSubmission(submission.id)?.status).not.toBe("approved");
+  });
+});
+
+describe("reviewSummary cautions — what Sage noticed reaches the founder BEFORE they say yes", () => {
+  it("surfaces med/high signals verbatim and drops low-severity texture", () => {
+    const { campaign, submission } = seedHeld({
+      brief: brief({
+        fraudSignals: [
+          { signal: "funded by another submitter", severity: "med", reason: "gas came from 0xdf70f6…90e3, which also submitted here" },
+          { signal: "fresh wallet", severity: "low", reason: "young account" },
+          { signal: "mission context unavailable", severity: "high", reason: "no locked mission" },
+        ],
+      }),
+    });
+    const s = reviewSummary(campaign, submission.id);
+    if ("error" in s) throw new Error(s.error);
+    expect(s.cautions).toHaveLength(2);
+    expect(s.cautions[0]).toContain("funded by another submitter");
+    expect(s.cautions.join(" ")).toContain("mission context unavailable");
+    expect(s.cautions.join(" ")).not.toContain("young account"); // low = reviewer texture, not a pause
+  });
+
+  it("a clean submission carries no cautions at all", () => {
+    const { campaign, submission } = seedHeld();
+    const s = reviewSummary(campaign, submission.id);
+    if ("error" in s) throw new Error(s.error);
+    expect(s.cautions).toEqual([]);
   });
 });
