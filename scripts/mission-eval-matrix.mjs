@@ -86,25 +86,53 @@ const EST_TOKENS_PER_IMAGE = 1370; // measured on the yara run (8206/6)
 const EST_BRAIN_TOKENS = 15000; // architect + critic per inspection (rough)
 const PER_URL_CAP_TOKENS = 60000; // budget guard: log if a URL exceeds this
 
-// Rebuild a best-effort observation corpus from the returned map (mirrors buildObservationCorpus over
-// what the API exposes) — to independently re-check that accepted anchors were really observed.
+/**
+ * Rebuild the observation corpus to independently re-check that accepted anchors were really
+ * observed.
+ *
+ * THIS MIRROR HAS NOW GONE STALE TWICE, with the same symptom both times — anchors reported at
+ * 0-50% while the in-process gate had rightly accepted them:
+ *   · round 3: it was missing `p.visibleTextExcerpt`.
+ *   · 2026-08-27: it was missing `routes[].sources[].observation`, which is where an inspected
+ *     PAGE TITLE is stored. tailwindcss/docs reported 50% and the two "unobserved" anchors were
+ *     titles of pages Sage really had fetched (pagesInspected 9, both browserConfirmed).
+ *
+ * Hand-listing fields is what makes it stale: the gate gains a corpus source and this copy silently
+ * starts producing false alarms, which read exactly like a hallucination regression. So it now WALKS
+ * the map for every string leaf instead of naming fields. The map is observation-derived, so this
+ * can only ever be more permissive than the gate — and permissive is the correct direction for an
+ * instrument whose false alarms would otherwise get a real regression waved through. The GATE
+ * (`anchorIssues`) remains the actual protection; this is a post-hoc cross-check.
+ *
+ * Two things it must NOT absorb: the model's own plan output (that would make every anchor verify
+ * against itself — a vacuous check), and states Sage could not reach (whose triggers are sentences
+ * about Sage FAILING, which must never become citable). `map` excludes the former structurally, and
+ * undelivered states are pruned below, in step with buildObservationCorpus.
+ */
 function rebuildCorpus(map) {
   const parts = [];
-  const push = (v) => { if (v) parts.push(v); };
-  const pushAll = (a) => (a || []).forEach(push);
-  push(map?.productName); push(map?.valueProp);
-  for (const k of ["routes", "primaryJourney", "claimRisks", "observedStates", "interactiveSurfaces", "trustSurfaces"]) for (const f of map?.[k] || []) push(f.value);
-  const ft = map?.fieldTest;
-  if (ft) {
-    // NB: p.visibleTextExcerpt MUST stay in step with buildObservationCorpus (validate-mission.ts).
-    // This mirror missing it is what failed round 3's anchors at 0–50%: the in-process gate rightly
-    // accepted anchors quoted from page excerpts, and this stale copy then failed them post-hoc.
-    for (const p of ft.pages || []) { push(p.title); push(p.h1); pushAll(p.ctas); push(p.visibleTextExcerpt); }
-    // `delivered === false` states contribute no trigger — in step with buildObservationCorpus, which
-    // excludes them so Sage's own failure sentences can never become a citable anchor.
-    for (const s of ft.states || []) { if (s.delivered !== false) push(s.trigger); push(s.visibleTextExcerpt); for (const e of s.notableElements || []) push(e.text); }
-    for (const v of ft.visionObservations || []) { push(v.sceneDescription); pushAll(v.visibleText); for (const e of v.uiElements || []) push(e.label); pushAll(v.productTypeSignals); pushAll(v.audienceSignals); }
-  }
+  const seen = new Set();
+  const walk = (node, key) => {
+    if (node === null || node === undefined) return;
+    if (typeof node === "string") { if (node.trim()) parts.push(node); return; }
+    if (typeof node !== "object") return;
+    if (seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const v of node) {
+        // A state Sage could not actually reach contributes NOTHING about the product.
+        if (key === "states" && v && typeof v === "object" && v.delivered === false) {
+          walk(v.visibleTextExcerpt, "visibleTextExcerpt");
+          walk(v.notableElements, "notableElements");
+          continue;
+        }
+        walk(v, key);
+      }
+      return;
+    }
+    for (const [k, v] of Object.entries(node)) walk(v, k);
+  };
+  walk(map, "map");
   return norm(parts.join(" • "));
 }
 
