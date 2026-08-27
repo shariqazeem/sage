@@ -22,7 +22,11 @@ export interface DirectFixture {
   category: string;
   utterance: string;
   expect: DirectExpectation;
-  /** the amount the founder stated, if any — it must survive into the plan unchanged. */
+  /**
+   * The TOTAL the founder implied, if it is unambiguous — it must survive into the plan unchanged.
+   * Omit it when the founder stated a PER-PERSON price over several slots: "$5 each, up to 3"
+   * totals $15, and asserting $5 would fail the product for doing the right arithmetic.
+   */
   statedAmountUsd?: number;
   /** how many separate milestones the founder described (invented extras are a defect). */
   statedMilestones?: number;
@@ -54,7 +58,7 @@ export const DIRECT_FIXTURES: DirectFixture[] = [
     utterance:
       "open bounty: $5 to anyone who writes a working setup guide for my CLI and publishes it publicly. I'll take up to 3 of them.",
     expect: "either",
-    statedAmountUsd: 5,
+    // $5 PER completion over 3 slots = $15 total, so no single total is asserted here.
     statedMilestones: 1,
     about:
       "slots = 3 on ONE milestone, not three milestones. MEASURED: Sage asked 'what's the CLI called?' instead of creating it — which is the honest behaviour the prompt asks for when it genuinely cannot infer, so this is informational, not a hard stop. A question is fine; a promise it does not keep is not.",
