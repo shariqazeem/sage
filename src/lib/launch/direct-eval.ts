@@ -1,6 +1,6 @@
 import "server-only";
 
-import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL } from "@/lib/telegram/concierge";
+import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib/telegram/concierge";
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import {
@@ -49,6 +49,8 @@ export interface DirectRow {
   reply: string;
   /** the raw tool arguments when they failed the schema — the shape to design the mapper against. */
   rawArgs: string;
+  /** correction rounds used, as production would allow. 0 = right first shot. */
+  correctionRounds: number;
   violations: string[];
 }
 
@@ -83,16 +85,19 @@ async function askModelWithRetry(
   utterance: string,
   timeoutMs: number,
   attempts = 3,
+  history: Msg[] = [],
 ): Promise<Ask> {
   for (let i = 0; i < attempts; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 2_000 * i));
-    const out = await askModel(utterance, timeoutMs);
+    const out = await askModel(utterance, timeoutMs, history);
     if (!out.failed) return out;
   }
   return { call: null, reply: "", failed: true };
 }
 
-async function askModel(utterance: string, timeoutMs: number): Promise<Ask> {
+type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
+
+async function askModel(utterance: string, timeoutMs: number, history: Msg[] = []): Promise<Ask> {
   const key = conciergeKey();
   const base = conciergeBase();
   if (!key) return { call: null, reply: "", failed: true };
@@ -107,27 +112,26 @@ async function askModel(utterance: string, timeoutMs: number): Promise<Ask> {
         messages: [
           { role: "system", content: `${BASE_PROMPT}\n\n${DIRECT_BLOCK}` },
           { role: "user", content: utterance },
+          ...history,
         ],
         // Both lanes are offered, because CHOOSING between them is half of what is measured.
+        // PRODUCTION'S OWN ENCODER — never a hand-rolled copy (see asOpenAI's comment).
         tools: [
-          { type: "function", function: DIRECT_CAMPAIGN_TOOL },
-          {
-            type: "function",
-            function: {
-              name: "sage_start_inspection",
-              description:
-                "Start a REAL Sage product-testing inspection for a founder's product URL. Use for 'test my product' / 'get feedback on my site'.",
-              parameters: {
-                type: "object",
-                properties: {
-                  productUrl: { type: "string" },
-                  goal: { type: "string" },
-                  budgetUsd: { type: "number" },
-                },
-                required: ["productUrl"],
+          asOpenAI(DIRECT_CAMPAIGN_TOOL),
+          asOpenAI({
+            name: "sage_start_inspection",
+            description:
+              "Start a REAL Sage product-testing inspection for a founder's product URL. Use for 'test my product' / 'get feedback on my site'.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                productUrl: { type: "string", description: "Public https URL of the product to test." },
+                goal: { type: "string", description: "What the founder wants testers to verify." },
+                budgetUsd: { type: "number", description: "Total testing budget in USDC." },
               },
+              required: ["productUrl"],
             },
-          },
+          }),
         ],
         tool_choice: "auto",
       }),
@@ -192,13 +196,44 @@ export async function runDirectEval(opts: {
         error: null,
         reply: calledTool ? "" : reply.slice(0, 240),
         rawArgs: "",
+        correctionRounds: 0,
         violations,
       };
 
       if (calledTool) {
         try {
-          const raw = JSON.parse(call?.function?.arguments ?? "{}") as Record<string, unknown>;
-          const parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(raw));
+          let raw = JSON.parse(call?.function?.arguments ?? "{}") as Record<string, unknown>;
+          let parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(raw));
+
+          /**
+           * PRODUCTION LETS THE MODEL CORRECT ITSELF. The concierge runs a bounded tool loop: a
+           * failed call returns an actionable error and the model calls again. Measuring only the
+           * FIRST shot therefore reports defects a founder would never see — the battery has to
+           * exercise the same loop it is judging. One correction round, mirroring the real budget.
+           */
+          if (!parsed.success) {
+            const errText = parsed.error.issues
+              .slice(0, 8)
+              .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+              .join("; ");
+            row.correctionRounds = 1;
+            const retry = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
+              { role: "assistant", content: null, tool_calls: [call as ToolCall] },
+              {
+                role: "tool",
+                tool_call_id: (call as { id?: string })?.id ?? "call_0",
+                content: JSON.stringify({
+                  ok: false,
+                  error: `The campaign isn't valid yet. Fix ALL of these in ONE corrected call: ${errText}. Every milestone needs rewardUsd and slots.`,
+                }),
+              } as Msg,
+            ]);
+            if (retry.call?.function?.name === "sage_create_direct_campaign") {
+              raw = JSON.parse(retry.call.function.arguments ?? "{}") as Record<string, unknown>;
+              parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(raw));
+            }
+          }
+
           if (!parsed.success) {
             // ALL issues, not the first two: truncating hid the criteria/evidence defects behind
             // the title/productUrl ones for two whole rounds.

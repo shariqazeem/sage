@@ -38,6 +38,9 @@ describe.runIf(LIVE)("P-DIRECT — money-lane battery (production path)", () => 
         [r.fixtureId, r.category, r.calledTool ? "direct" : "-", r.routedOk, r.compiled, r.budgetExact ?? "", r.totalUsd ?? "", r.milestones ?? "", r.lintNotes.length, r.error ?? ""].join(","),
       );
     }
+    const firstShot = rows.filter((r) => r.compiled && r.correctionRounds === 0).length;
+    const afterFix = rows.filter((r) => r.compiled && r.correctionRounds > 0).length;
+    console.log(`\nfirst-shot compiles: ${firstShot} · compiled after one correction: ${afterFix}`);
     console.log("\nMETRICS " + JSON.stringify(metrics, null, 1));
     if (metrics.violations.length) console.log("\nVIOLATIONS:\n - " + metrics.violations.join("\n - "));
 

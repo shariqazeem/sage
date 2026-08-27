@@ -199,7 +199,15 @@ interface ChatResponse {
 // registry; the agent-wallet tools (fund + launch) are Telegram-concierge-only, appear only when Privy
 // is configured, and are NEVER offered to external MCP agents OR the WEB surface (P25 v1 is read + act-
 // without-money only). Web sees the read tools alone — a money tool it isn't handed can't be called.
-const asOpenAI = (t: { name: string; description: string; inputSchema: unknown }) => ({
+/**
+ * Tool → OpenAI function shape. EXPORTED because P-DIRECT must encode tools exactly the way
+ * production does: the battery originally passed the tool object raw, leaving the schema under
+ * `inputSchema` — a key the API ignores — so the model was handed a tool with NO parameters and
+ * invented its own argument names. Every "the model writes the wrong shape" finding of
+ * 2026-08-28 came from that. An instrument that builds its own inputs will eventually measure
+ * itself instead of the product.
+ */
+export const asOpenAI = (t: { name: string; description: string; inputSchema: unknown }) => ({
   type: "function" as const,
   function: { name: t.name, description: t.description, parameters: t.inputSchema },
 });

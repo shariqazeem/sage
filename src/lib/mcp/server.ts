@@ -598,14 +598,22 @@ export async function callSageTool(
       const mapped = mapDirectCampaignArgs(args);
       const parsed = directCampaignSchema.safeParse(mapped);
       if (!parsed.success) {
-        const first = parsed.error.issues[0];
+        /**
+         * EVERY problem, not the first. The concierge gets a bounded number of tool rounds, so
+         * naming one field per round cannot converge on a call with six issues — the founder just
+         * watches it fail. Listing them all lets ONE correction fix everything.
+         */
+        const all = parsed.error.issues
+          .slice(0, 8)
+          .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("; ");
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
                 ok: false,
-                error: `The campaign isn't valid yet — ${first.path.join(".") || "(root)"}: ${first.message}. Fix that field (or ask the founder for the missing detail) and call again.`,
+                error: `The campaign isn't valid yet. Fix ALL of these in ONE corrected call: ${all}. Every milestone needs rewardUsd (USDC per completion, from the founder) and slots (how many people may be paid, use 1 unless they said otherwise). If a detail is genuinely missing, ask the founder ONE question instead of guessing.`,
               }),
             },
           ],
