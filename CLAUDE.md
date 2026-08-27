@@ -78,6 +78,11 @@ whether the payouts hold up.
 - Any change touching inspection, field test, vision, mission brain, or the gates runs the
   P-GEN matrix battery (`scripts/mission-eval-matrix.mjs`) before deploy. **Anchor integrity
   below 100% is a hard stop.**
+  P-GEN **signs in over SIWE** (needs `GOAT_AGENT_PRIVATE_KEY`, so run it on the VM) — run
+  anonymously it only exercises the LEGACY planner, and since the auth wall it fails every
+  row identically. Use a nonce **below 100**: budget is `10 + index + nonce*100` against a
+  $10,000 cap. Both failure modes render in the grid exactly like a quality regression, so
+  check `signed in as …` and a non-zero token cost before believing any P-GEN result.
 - Naming: "policy vault" is the human concept everywhere; exact contract kind and event
   names live in technical rows only.
 - **NO CORPUS ORACLE.** Never expose live, pre-submission feedback derived from corpus
@@ -188,6 +193,29 @@ product). Never extend it; migrate off it.
 
 ## 6. Environment
 
+### Lanes — routing a job to a provider
+
+A **lane** is one job Sage gives a model: `PAYOUT` (judgment), `CONCIERGE`, `MISSION`
+(design), `OBS_JUDGE`, `VISION`. Each lane may run on its own provider by setting
+`<LANE>_API_KEY`, `<LANE>_BASE_URL` and `<LANE>_MODEL` — **all three together**. Set
+partially, a lane is treated as ABSENT and inherits the shared chain; it is never merged,
+because merging splices one provider's key onto another's endpoint (authenticates as
+nobody, fails on a founder's launch instead of at boot). `laneProvider()` in
+`src/lib/llm/complete.ts` is the single implementation; `src/lib/llm/lane.test.ts` holds it.
+
+This is what makes a model/provider switch a config change rather than a code audit.
+Before it existed, only PAYOUT and CONCIERGE could pick a provider — every other lane
+could override the model NAME but not the key, so it was pinned to whatever the shared
+chain pointed at.
+
+**Token budgets are declared as ANSWER size, never as a provider-tuned number.**
+`src/lib/llm/provider-profile.ts` adds each provider's own overhead (a reasoning model
+spends up to ~2766 tokens thinking before the answer starts, measured, and stochastic).
+`llmCompleteJson` applies this centrally; the few direct-`fetch` callers apply it inline.
+An UNKNOWN provider is assumed to reason, so a new model can only ever be over-budgeted —
+over-budgeting costs nothing (billing is per token produced), while under-budgeting cuts a
+tool call mid-JSON and silently loses a founder's campaign.
+
 `src/lib/env.ts` validates a subset at boot (**presence optional, shape not** — a missing
 secret means that integration is *pending* and the app degrades honestly; a *malformed*
 value hard-fails). Vars marked † are read directly via `process.env` and are **not** in
@@ -220,7 +248,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `SAGE_SESSION_SECRET` | SIWE cookie session signing | Auth sessions degraded |
 | `SAGE_AGENT_API_KEY` | Bearer for the authenticated Agent API | Agent API fails closed (404) |
 | `SAGE_ADMIN_SECRET` † | Operator secret for the out-of-band held-work review endpoint (`POST /api/admin/review`, header `x-sage-admin-secret`) that backs `scripts/review.mjs` | Endpoint fails closed (404); the Telegram review tools still work |
-| `MISSION_MODEL` † | Mission-DESIGN-only model override (prod: `anthropic/claude-haiku-4-5`); the payout/judgment brain is untouched | Mission design falls through to `LLM_MODEL`→`DEPUTY_MODEL`→default (unchanged) |
+| `MISSION_API_KEY` / `_BASE_URL` / `_MODEL` † | The MISSION **lane** — mission design on its own provider (prod: MiniMax-M3). All three required together. | Mission design inherits the shared chain |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---
