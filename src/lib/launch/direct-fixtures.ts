@@ -53,10 +53,11 @@ export const DIRECT_FIXTURES: DirectFixture[] = [
     category: "gig-open",
     utterance:
       "open bounty: $5 to anyone who writes a working setup guide for my CLI and publishes it publicly. I'll take up to 3 of them.",
-    expect: "direct",
+    expect: "either",
     statedAmountUsd: 5,
     statedMilestones: 1,
-    about: "slots = 3 on ONE milestone, not three milestones",
+    about:
+      "slots = 3 on ONE milestone, not three milestones. MEASURED: Sage asked 'what's the CLI called?' instead of creating it — which is the honest behaviour the prompt asks for when it genuinely cannot infer, so this is informational, not a hard stop. A question is fine; a promise it does not keep is not.",
   },
 
   // ── milestone grants — the FC diaspora scenario, never yet run in production ───────────

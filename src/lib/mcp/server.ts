@@ -344,7 +344,7 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
                   }
                 : // No recognised `evidence` object: fall back to the model's OWN vocabulary for a
                   // proof ("verificationMethod": "publicLink"), then to zod, which refuses clearly.
-                  (evidenceFromMethod(pickStr(m, "verificationMethod", "verifyBy", "proof", "verification"), m) ?? ev);
+                  (evidenceFromMethod(pickStr(m, "verificationMethod", "verifyVia", "verifyBy", "verifiedBy", "verification", "proof", "evidenceType", "proofType"), m) ?? ev);
         const title = pickStr(m, "title", "name", "milestone", "deliverable");
         const instructions = pickStr(m, "instructions", "description", "details", "task");
         return {
@@ -358,12 +358,37 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
            */
           criteria: asArr(m.criteria).length ? asArr(m.criteria) : title ? [title] : [],
           evidence,
-          rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward")),
-          slots: num(m.slots),
+          rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")),
+          /**
+           * DEFAULT ONE. MEASURED by P-DIRECT: the model omits `slots` on nearly every milestone,
+           * and `Number(undefined)` is NaN — which failed five campaigns on a field the founder
+           * never mentioned. A deliverable is for one person unless somebody says otherwise.
+           */
+          slots: Math.max(1, Math.round(num(pickNum(m, "slots", "maxCompletions", "people", "count", "recipients", "quantity")) || 1)),
           ...(m.effortMinutes != null && Number.isFinite(num(m.effortMinutes)) ? { effortMinutes: num(m.effortMinutes) } : {}),
         };
       })
     : [];
+  /**
+   * THE ONE PLACE A TOTAL MAY BECOME A REWARD — and only where it is not arithmetic.
+   *
+   * MEASURED by P-DIRECT: for "$15 when the menu page is published" the model put the amount at
+   * the CAMPAIGN level (totalBudgetUsd) and none on the single milestone, so rewardUsd was NaN and
+   * a valid gig died. With exactly ONE milestone taking ONE slot, the tranche IS the total — the
+   * same number, not a split. Anything else (several milestones, several slots) would be guessing
+   * how the founder wanted it divided, so it is left to fail loudly instead.
+   */
+  const statedTotal = num(pickNum(args, "totalBudgetUsd", "totalUsd", "budgetUsd", "amountUsd", "amount"));
+  if (
+    milestones.length === 1 &&
+    Number.isFinite(statedTotal) &&
+    statedTotal > 0 &&
+    !Number.isFinite(milestones[0].rewardUsd) &&
+    milestones[0].slots === 1
+  ) {
+    milestones[0].rewardUsd = statedTotal;
+  }
+
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
     // A model often omits `kind` entirely. Infer it the way a reader would: several tranches of

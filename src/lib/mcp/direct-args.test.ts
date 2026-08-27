@@ -79,3 +79,60 @@ describe("mapDirectCampaignArgs", () => {
     expect(junk.success).toBe(false);
   });
 });
+
+describe("the model's own field names — measured raws (P-DIRECT round 5)", () => {
+  it("reads the exact three-tranche grant shape the model produced", () => {
+    const r = parse({
+      milestones: [
+        { title: "Shop page published", instructions: "Publish the shop page", amount: 20, verifyVia: "publicLink" },
+        { title: "First product listed", instructions: "List the first product", amount: 20, verifyVia: "publicLink" },
+        { title: "First sale announced", instructions: "Announce the first sale", amount: 20, verifyVia: "publicLink" },
+      ],
+      totalBudgetUsd: 60,
+      title: "Cousin's Shop Launch",
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.kind).toBe("grant"); // several tranches inferred as a grant
+    expect(r.data.milestones).toHaveLength(3);
+    expect(r.data.milestones.every((m) => m.rewardUsd === 20 && m.slots === 1)).toBe(true);
+    expect(r.data.milestones.every((m) => m.evidence.kind === "artifact_url")).toBe(true);
+  });
+
+  it("reads the Urdu gig shape: amount only at campaign level, one milestone", () => {
+    const r = parse({
+      milestones: [
+        { title: "Bakery menu page published", instructions: "Publish the menu page and share the link", verificationMethod: "public_link" },
+      ],
+      totalBudgetUsd: 15,
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.kind).toBe("gig");
+    expect(r.data.milestones[0]!.rewardUsd).toBe(15);
+    expect(r.data.milestones[0]!.slots).toBe(1);
+  });
+
+  it("NEVER splits a total across several milestones — that would be guessing the founder's intent", () => {
+    const r = parse({
+      milestones: [
+        { title: "First half of the work", instructions: "Do the first half of it", verificationMethod: "publicLink" },
+        { title: "Second half of the work", instructions: "Do the second half of it", verificationMethod: "publicLink" },
+      ],
+      totalBudgetUsd: 40,
+    });
+    expect(r.success).toBe(false); // fails loudly rather than inventing a 20/20 split
+  });
+
+  it("does not rescue a total onto a multi-slot milestone either", () => {
+    const r = parse({
+      milestones: [{ title: "Write a setup guide", instructions: "Publish a setup guide publicly", verificationMethod: "publicLink", slots: 3 }],
+      totalBudgetUsd: 15,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("a degenerate single-string arg is refused, not guessed at", () => {
+    expect(parse({ _call: "Menu translation gig: $20 when translator publishes the menu" }).success).toBe(false);
+  });
+});
