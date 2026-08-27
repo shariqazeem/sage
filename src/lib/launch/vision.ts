@@ -200,8 +200,23 @@ interface VisionProvider {
  * key, which authenticates as nobody and fails at inspection time rather than at boot.
  */
 export function resolveVisionProvider(): VisionProvider | null {
+  /**
+   * REFUSE A PROVIDER KNOWN NOT TO SEE. MiniMax-M3 answers a multimodal request with HTTP 200 and
+   * "I don't actually see any image attached" — so routing vision there (it is the sponsored,
+   * zero-cost provider, which makes it tempting) would leave Sage's eyes silently blind while every
+   * call still looked successful. Returning null degrades HONESTLY to HTML-only inspection, which
+   * the pipeline already handles, instead of feeding the mission brain descriptions of nothing.
+   */
+  const blind = (p: { model: string; endpoint: string }) => {
+    if (profileFor(p.model, p.endpoint).multimodal) return false;
+    console.warn(`[vision] ${p.model} cannot see images — falling back to HTML-only inspection`);
+    return true;
+  };
   const own = laneProvider("VISION");
-  if (own) return { endpoint: own.endpoint, key: own.key, model: own.model };
+  if (own) {
+    if (blind({ model: own.model, endpoint: own.endpoint })) return null;
+    return { endpoint: own.endpoint, key: own.key, model: own.model };
+  }
   const key = process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim();
   if (!key) return null;
   const base = (process.env.LLM_BASE_URL?.trim() || process.env.COMMONSTACK_BASE_URL?.trim() || DEFAULT_BASE).replace(/\/+$/, "");
@@ -212,7 +227,9 @@ export function resolveVisionProvider(): VisionProvider | null {
     process.env.LLM_MODEL?.trim() ||
     process.env.DEPUTY_MODEL?.trim() ||
     DEFAULT_MODEL;
-  return { endpoint: `${base}/chat/completions`, key, model };
+  const endpoint = `${base}/chat/completions`;
+  if (blind({ model, endpoint })) return null;
+  return { endpoint, key, model };
 }
 
 interface VisionCallResult {

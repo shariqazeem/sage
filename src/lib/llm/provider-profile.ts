@@ -34,6 +34,16 @@ export interface ProviderProfile {
   /** Strictest structured-output mode the provider actually honours. */
   jsonMode: "schema" | "object" | "none";
   /**
+   * Does the provider actually SEE images, or does it accept them and quietly ignore them?
+   *
+   * This is not pedantry. MiniMax-M3 answers a multimodal request with HTTP 200 and the text
+   * "I don't actually see any image attached" (measured 2026-08-28) — so pointing the VISION lane
+   * at it to save money would make Sage's eyes silently blind while every call still looked
+   * successful. A capability that degrades loudly is recoverable; one that degrades silently
+   * poisons everything downstream that trusts the observation.
+   */
+  multimodal: boolean;
+  /**
    * Wall-clock a single completion may take. A reasoning model does not just cost more tokens, it
    * costs more SECONDS: the play2048 mission architect measured 63s at 7.2k tokens and 96-151s at
    * 12-16k, against a 90s default that would have killed the call regardless of budget.
@@ -48,6 +58,7 @@ const DEFAULT_PROFILE: ProviderProfile = {
   reasoningOverheadTokens: 7_000,
   jsonMode: "object",
   timeoutMs: 180_000,
+  multimodal: false, // unknown provider: never ASSUME sight — assuming it is how eyes go blind quietly
 };
 
 const PROFILES: { match: (model: string, base: string) => boolean; profile: ProviderProfile }[] = [
@@ -68,6 +79,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       // (is_supported/reasoning). Strictness therefore stays in our own parser + the gate.
       jsonMode: "object",
       timeoutMs: 180_000, // measured 63-151s for one architect call
+      multimodal: false, // MEASURED: accepts image_url, returns 200, and reports seeing no image
     },
   },
   {
@@ -79,6 +91,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       reasoningOverheadTokens: 0,
       jsonMode: "object",
       timeoutMs: 90_000,
+      multimodal: true,
     },
   },
   {
@@ -91,6 +104,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       reasoningOverheadTokens: 0,
       jsonMode: "schema",
       timeoutMs: 90_000,
+      multimodal: true,
     },
   },
 ];
