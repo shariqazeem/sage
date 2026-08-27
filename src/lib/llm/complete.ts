@@ -36,6 +36,7 @@ export interface LlmComplete {
 }
 
 import { outputBudget, profileFor } from "./provider-profile";
+import { stripReasoningPrefix } from "./reasoning";
 
 export type ParsePolicy = "repair" | "strict";
 
@@ -379,7 +380,11 @@ function parseStrict(data: ChatResponse): { json: unknown; finishReason: string 
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) throw new Error("llm_strict_tool_calls");
   const content = message.content;
   if (!content || content.trim() === "") throw new Error("llm_empty");
-  const trimmed = extractLoneObject(unwrapLoneFence(content.trim()));
+  // Remove the reasoning block first — it is framing, not answer, and a model that quotes JSON while
+  // thinking otherwise presents TWO top-level objects, which extractLoneObject rightly refuses.
+  // Strictness is untouched: stripReasoningPrefix removes exactly ONE leading CLOSED <think> block,
+  // so an UNCLOSED (truncated) one survives and still fails the parse, as it must.
+  const trimmed = extractLoneObject(unwrapLoneFence(stripReasoningPrefix(content).trim()));
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) throw new Error("llm_strict_not_object"); // prose/arrays still refused
   const json: unknown = JSON.parse(trimmed); // throws on ANY malformation (trailing comma, truncation) — no repair
   if (json === null || typeof json !== "object" || Array.isArray(json)) throw new Error("llm_strict_not_object");
@@ -433,11 +438,16 @@ export async function llmCompleteJson(opts: {
 }): Promise<LlmComplete> {
   const p = resolveLlm(opts.model, opts.lane);
   if (!p) throw new Error("llm_not_configured");
+  const profile = profileFor(p.model, p.endpoint);
   const started = Date.now();
   const policy: ParsePolicy = opts.parsePolicy ?? "repair";
   const schemaName = opts.responseSchema?.name ?? null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // A reasoning model costs more SECONDS, not just more tokens — the mission architect measured
+  // 63-151s per call on MiniMax against a 90s default, so a correct token budget alone would still
+  // have been aborted. An explicit LLM_TIMEOUT_MS always wins; otherwise take the provider's own.
+  const budgetMs = process.env.LLM_TIMEOUT_MS ? TIMEOUT_MS : Math.max(TIMEOUT_MS, profile.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), budgetMs);
   try {
     const res = await oneAtATime(() => fetch(p.endpoint, {
       method: "POST",
@@ -453,7 +463,7 @@ export async function llmCompleteJson(opts: {
          * gets 4200 of ANSWER on a reasoning model, rather than 4200 minus a stochastic think
          * block, which truncates the JSON it was in the middle of writing.
          */
-        max_tokens: outputBudget(opts.maxTokens ?? 3500, profileFor(p.model, p.endpoint)),
+        max_tokens: outputBudget(opts.maxTokens ?? 3500, profile),
         response_format: opts.responseSchema
           ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
           : { type: "json_object" },
@@ -493,11 +503,16 @@ export async function llmCompleteJson(opts: {
         });
       }
     } else {
-      // DEFAULT "repair" — byte-identical to before: extract → JSON.parse → bounded structural repair.
+      // DEFAULT "repair" — extract → JSON.parse → bounded structural repair.
       finishReason = data.choices?.[0]?.finish_reason ?? null;
       const content = data.choices?.[0]?.message?.content;
       if (!content) throw new Error("llm_empty");
-      const extracted = extractJson(content);
+      // The reasoning block is framing, not answer, and it must go BEFORE extraction — MEASURED
+      // 2026-08-27 on play2048: a 25,430-char <think> block contained its own ```json fence (the
+      // model drafting), and extractJson takes the FIRST fence, so a COMPLETE answer
+      // (finish_reason "stop") was discarded in favour of the model's scratch work. Intermittent by
+      // nature: it depends on whether the model happened to quote JSON while thinking.
+      const extracted = extractJson(stripReasoningPrefix(content));
       try {
         json = JSON.parse(extracted);
       } catch {

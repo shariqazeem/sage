@@ -33,14 +33,21 @@ export interface ProviderProfile {
   reasoningOverheadTokens: number;
   /** Strictest structured-output mode the provider actually honours. */
   jsonMode: "schema" | "object" | "none";
+  /**
+   * Wall-clock a single completion may take. A reasoning model does not just cost more tokens, it
+   * costs more SECONDS: the play2048 mission architect measured 63s at 7.2k tokens and 96-151s at
+   * 12-16k, against a 90s default that would have killed the call regardless of budget.
+   */
+  timeoutMs: number;
 }
 
 /** Conservative default for an unknown provider: assume it may reason, assume weak JSON support. */
 const DEFAULT_PROFILE: ProviderProfile = {
   id: "unknown",
   emitsReasoningPrefix: true,
-  reasoningOverheadTokens: 3_000,
+  reasoningOverheadTokens: 7_000,
   jsonMode: "object",
+  timeoutMs: 180_000,
 };
 
 const PROFILES: { match: (model: string, base: string) => boolean; profile: ProviderProfile }[] = [
@@ -50,8 +57,17 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
     profile: {
       id: "minimax",
       emitsReasoningPrefix: true,
-      reasoningOverheadTokens: 3_000,
-      jsonMode: "object", // ignores json_schema; strictness stays in our own parser + gate
+      // MEASURED, and revised UP on evidence. 3000 came from the payout brain's short briefs
+      // (worst case 2766). The mission architect is a far bigger job and the think block scales
+      // with it: on play2048 it measured 25,430 chars (~6,357 tokens) while the ANSWER was only
+      // ~3,600 — so a 4200-answer budget plus 3000 truncated every attempt, and the architect
+      // failed the whole category with `invalid_json`.
+      reasoningOverheadTokens: 7_000,
+      // json_schema is NOT honoured — measured directly: asked for {supported, reason} with
+      // strict:true, it returned a <think> block, a markdown fence, and invented field names
+      // (is_supported/reasoning). Strictness therefore stays in our own parser + the gate.
+      jsonMode: "object",
+      timeoutMs: 180_000, // measured 63-151s for one architect call
     },
   },
   {
@@ -62,6 +78,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       emitsReasoningPrefix: false,
       reasoningOverheadTokens: 0,
       jsonMode: "object",
+      timeoutMs: 90_000,
     },
   },
   {
@@ -73,6 +90,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       emitsReasoningPrefix: false,
       reasoningOverheadTokens: 0,
       jsonMode: "schema",
+      timeoutMs: 90_000,
     },
   },
 ];

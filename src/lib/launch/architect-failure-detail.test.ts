@@ -11,7 +11,7 @@ const err = (f: Partial<ConstructorParameters<typeof LlmCompletionError>[0]>) =>
   new LlmCompletionError({
     code: "llm_unparseable", httpStatus: 200, provider: "api.minimax.io", requestedModel: "MiniMax-M3",
     responseModel: "MiniMax-M3", finishReason: "stop", latencyMs: 900, promptTokens: 8000,
-    completionTokens: 1200, parsePolicy: "repair", responseSchemaName: null, contentShape: "prose",
+    completionTokens: 1200, parsePolicy: "repair", responseSchemaName: null, contentShape: "prose_wrapped",
     contentStructure: null, retryAfterMs: null, ...f,
   });
 
