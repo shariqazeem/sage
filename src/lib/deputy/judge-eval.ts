@@ -41,6 +41,16 @@ export interface JudgeFixture {
   /** Sage's server-authored verifier report (work-proof lanes) — rendered TRUSTED, outside the
    *  untrusted markers, exactly as production passes it. Absent on P-JUDGE fixtures. */
   verifierReport?: string;
+  /** The submitted evidence link. Default = the P-JUDGE placeholder. MEASURED 2026-08-27: the
+   *  hardcoded placeholder CONTRADICTED the work-proof reports' paste.rs URLs — an inconsistency
+   *  production never produces, and a plausible hold-inducing artifact of the instrument itself. */
+  evidenceUrl?: string;
+  /** The submitter wallet. Default = the P-JUDGE placeholder. MEASURED 2026-08-27 (the decisive
+   *  finding of four battery rounds): the placeholder submitter 0xaaaa… did not match the wallet
+   *  marker the work fixtures embed in their pages — and the judge CORRECTLY held every one with a
+   *  high-severity wallet-mismatch signal ("paying would send funds to a wallet this submitter
+   *  doesn't control"). The 'false holds' were the judge catching the instrument. */
+  wallet?: string;
   criteria: string[];
   note: string;
   evidenceOk: boolean;
@@ -182,8 +192,8 @@ export async function runJudgeEval(opts: {
         criteria: f.criteria,
         conditionType: "approval",
         note: f.note,
-        wallet: `0x${"a".repeat(40)}`,
-        evidenceUrl: "https://example.org/submission",
+        wallet: f.wallet ?? `0x${"a".repeat(40)}`,
+        evidenceUrl: f.evidenceUrl ?? "https://example.org/submission",
         evidenceText: f.evidenceText,
         evidenceOk: f.evidenceOk,
         contentSha256: null,

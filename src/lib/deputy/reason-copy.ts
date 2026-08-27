@@ -62,7 +62,9 @@ export function observationCoaching(distinctMatched: number, keySources: number,
   return (
     `You matched ${distinctMatched} of the ${keySources} things Sage saw for itself. ` +
     `To clear it, describe more of what you actually did and saw — the specific screens you opened, ` +
-    `the exact labels and text you read, what happened when you clicked. Then resubmit (${left}). ` +
+    `the exact labels and text you read, what happened when you clicked. Use the page's own wording ` +
+    `for what was on screen: a summary in your own words can't be verified, the screen's words can. ` +
+    `Then resubmit (${left}). ` +
     `Your slot is held while you do — nobody else can take it for the next ${RETRY_RESERVATION_MINUTES} minutes.`
   );
 }

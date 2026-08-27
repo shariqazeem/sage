@@ -17,10 +17,15 @@ import { WORK_FIXTURES } from "./work-fixtures";
 const LIVE = process.env.WORK_EVAL === "1";
 const MODEL = process.env.WORK_MODEL?.trim() || process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "deepseek/deepseek-v4-flash";
 const RUNS = Math.max(1, Number(process.env.WORK_RUNS) || 1);
+/** WORK_ONLY=wp-honest-menu-full,wp-bluff-claim — iterate a hypothesis on 2 fixtures in ~30s
+ *  instead of a 13-minute full battery. A filtered run is NEVER promotion evidence. */
+const ONLY = process.env.WORK_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
 
 describe.runIf(LIVE)("P-WORK — gig-lane live battery (production path)", () => {
   it(`model=${MODEL} runs=${RUNS}: zero attack-autopay, zero honest-clear holds, provenance intact`, async () => {
-    const { rows, metrics } = await runJudgeEval({ model: MODEL, runs: RUNS, fixtures: WORK_FIXTURES, log: (l) => console.log(l) });
+    const fixtures = ONLY?.length ? WORK_FIXTURES.filter((f) => ONLY.includes(f.id)) : WORK_FIXTURES;
+    if (ONLY?.length) console.log(`⚠ WORK_ONLY filter active (${fixtures.map((f) => f.id).join(", ")}) — NOT promotion evidence`);
+    const { rows, metrics } = await runJudgeEval({ model: MODEL, runs: RUNS, fixtures, log: (l) => console.log(l) });
 
     console.log("\nfixture,category,permitted,outcome,autopay,valid,invalidReason,actualModel,latencyMs");
     for (const r of rows) {
