@@ -28,6 +28,7 @@ describe.runIf(LIVE)("P-WORK probe — full briefs", () => {
           evidenceOk: f.evidenceOk,
           evidenceFailReason: undefined,
           contentSha256: "c".repeat(64),
+          verifierReport: f.verifierReport ?? null,
         } as never,
         { provider: providerForModel(MODEL) },
       );

@@ -721,3 +721,31 @@ describe("sanctions preflight — a listed wallet never reaches the judge or the
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 });
+
+describe("hold DM dedup — a hold is a state, not an event (and neither is its DM)", () => {
+  it("an unchanged hold across sweep ticks DMs the founder exactly ONCE", async () => {
+    // a brief that gates to hold every tick (low confidence)
+    vi.mocked(ensureDecision).mockResolvedValue({ ...payBrief, recommendation: "hold", reasonCode: "partial_criteria", confidence: 0.3 });
+
+    const r1 = await runDeputyOnSubmission("s1");
+    expect(r1.action).toBe("held");
+    expect(notifyFounderHeld).toHaveBeenCalledTimes(1);
+    expect(recordEvent).toHaveBeenCalledTimes(1);
+
+    // the sweep runs again; the journal now remembers the identical hold line
+    const journaled = vi.mocked(recordEvent).mock.calls[0][0] as { detail?: string };
+    vi.mocked(getLatestSubmissionEvent).mockReturnValue({ detail: journaled.detail } as never);
+
+    const r2 = await runDeputyOnSubmission("s1");
+    expect(r2.action).toBe("held");
+    expect(notifyFounderHeld).toHaveBeenCalledTimes(1); // STILL once — the 239-pushes bug, pinned
+    expect(recordEvent).toHaveBeenCalledTimes(1);
+
+    // the journaled reason CHANGES (a genuinely different hold) → that IS news → one more DM
+    vi.mocked(getLatestSubmissionEvent).mockReturnValue({ detail: JSON.stringify({ v: 1, t: "0xaaaa…aaaa · some earlier different reason" }) } as never);
+    const r3 = await runDeputyOnSubmission("s1");
+    expect(r3.action).toBe("held");
+    expect(notifyFounderHeld).toHaveBeenCalledTimes(2);
+    expect(recordEvent).toHaveBeenCalledTimes(2);
+  });
+});

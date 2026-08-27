@@ -296,11 +296,15 @@ function journalHeld(
   submission: Submission,
   reason: string,
   cid?: string,
-): void {
+): boolean {
   const line = `${short(submission.wallet)} · ${reason}`;
   const last = getLatestSubmissionEvent(submission.id, "autopay_held");
   // `detail` is TEXT holding an encodeDetail envelope — decode it, never read `.t` off the string.
-  if (decodeDetail(last?.detail ?? null).text === line) return;
+  // Returns whether anything CHANGED — the founder DM at every call site is gated on this, because
+  // measured live 2026-08-27 the DM fired unconditionally beside the (deduped) journal: the same
+  // "Held for your review" push landed every five-minute sweep tick for one unchanged spam hold —
+  // the 239-pushes bug reborn one layer up. A hold is a state, not an event; so is its DM.
+  if (decodeDetail(last?.detail ?? null).text === line) return false;
   recordEvent({
     campaignId: campaign.id,
     submissionId: submission.id,
@@ -310,6 +314,7 @@ function journalHeld(
   void notifyTelegram(
     `⏸️ <b>Held by Sage</b>\n${campaign.title}\n${usd(campaign.rewardAmount / 1_000_000)} → ${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
   );
+  return true;
 }
 
 /**
@@ -593,7 +598,7 @@ export async function runDeputyOnSubmission(
           ? "observation_verified"
           : "observation_review";
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-        journalHeld(
+        const heldChanged = journalHeld(
           campaign,
           submission,
           retryable
@@ -601,7 +606,8 @@ export async function runDeputyOnSubmission(
             : reasonSentence(barPassed ? "observation_verified" : "observation_review"),
           cid,
         );
-        if (!retryable) void notifyFounderHeld(campaign, submission); // DM only on FINAL holds (P20.4)
+        // DM only on FINAL holds (P20.4) — and only when the hold is NEW or its reason changed.
+        if (!retryable && heldChanged) void notifyFounderHeld(campaign, submission);
         return { action: "held", reason: reasonCode, correlationId: cid };
       }
       return { action: "skipped", reason: reasonCode, correlationId: cid };
@@ -624,9 +630,9 @@ export async function runDeputyOnSubmission(
       // Only journal a hold for an autopilot campaign on a still-pending item;
       // a manual campaign (or an already-handled item) is just a silent skip.
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-        journalHeld(campaign, submission, gate.reason, cid);
-        // DM the founder who launched this campaign from Telegram (best-effort, never blocks).
-        void notifyFounderHeld(campaign, submission);
+        // DM the founder who launched from Telegram — only when the hold is NEW or its reason
+        // changed (journalHeld's dedup), never a repeat of an unchanged state every sweep tick.
+        if (journalHeld(campaign, submission, gate.reason, cid)) void notifyFounderHeld(campaign, submission);
         return { action: "held", reason: gate.reason, correlationId: cid };
       }
       return { action: "skipped", reason: gate.reason, correlationId: cid };
@@ -645,8 +651,7 @@ export async function runDeputyOnSubmission(
       const reason = `judge_identity_unapproved (requested=${requested}, actual=${brief.model ?? "none"}@${brief.provider ?? "none"}, prompt=${brief.promptVersion ?? "none"}, parser=${brief.parserVersion ?? "none"}, policy=${MODEL_POLICY_VERSION})`;
       agentLog(cid, "model_policy", { blocked: identityGate.blocked, requested, actual: brief.model, provider: brief.provider, promptVersion: brief.promptVersion, parserVersion: brief.parserVersion, approvedModel: identityGate.approvedModel });
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-        journalHeld(campaign, submission, reason, cid);
-        void notifyFounderHeld(campaign, submission);
+        if (journalHeld(campaign, submission, reason, cid)) void notifyFounderHeld(campaign, submission);
         return { action: "held", reason, correlationId: cid };
       }
       return { action: "skipped", reason, correlationId: cid };
@@ -670,8 +675,7 @@ export async function runDeputyOnSubmission(
       if (emode === "enforce" && veto.vetoed) {
         const reason = `entailment_veto (${veto.vetoReason})`;
         if (campaign.autonomy === "autopilot" && submission.status === "pending") {
-          journalHeld(campaign, submission, reason, cid);
-          void notifyFounderHeld(campaign, submission);
+          if (journalHeld(campaign, submission, reason, cid)) void notifyFounderHeld(campaign, submission);
           return { action: "held", reason, correlationId: cid };
         }
         return { action: "skipped", reason, correlationId: cid };
