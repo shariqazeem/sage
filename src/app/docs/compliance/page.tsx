@@ -81,9 +81,12 @@ export default function Compliance() {
             <tr>
               <td>Sybil resistance</td>
               <td>
-                Near-duplicate detection across submissions, per-wallet payout caps, daily
-                submission limits, and wallet-freshness signals — so one person cannot farm a
-                campaign as many.
+                Near-duplicate detection across submissions, artifact-content fingerprinting,
+                per-wallet payout caps, daily submission limits, wallet-freshness signals, and{" "}
+                <strong>funding-graph sibling detection</strong> — which reads the public chain to
+                see when several &ldquo;different&rdquo; submitters were funded by one wallet. Built
+                after a real rotation cluster was found on a live campaign; every signal informs the
+                operator and none of them refuses a payout alone.
               </td>
             </tr>
             <tr>
@@ -136,7 +139,9 @@ export default function Compliance() {
         <li>
           <strong>Custody is stated, not hidden.</strong> Walletless agent and recipient wallets
           are provider-held server wallets bound to policies — convenient and bounded, but not
-          self-custody, and the docs say so wherever they appear.
+          self-custody, and the docs say so wherever they appear. Recipients are never trapped:
+          they can cash out to any address of their choosing from chat at any time, signing a
+          gasless authorization while Sage pays the network fee.
         </li>
       </ul>
 
