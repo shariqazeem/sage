@@ -252,11 +252,14 @@ export const DIRECT_CAMPAIGN_TOOL = {
             evidence: {
               type: "object",
               description:
-                "How Sage verifies it, exactly one kind: {kind:'artifact_url', allowedHosts:[bare hostnames]} — a public link the recipient created, checked to carry THEIR wallet address; {kind:'public_url', expectedText:[verbatim strings]} — a public page containing required text; {kind:'onchain_tx', chainId:2345, to?, methodSelector?, minValueWei?} — a transaction from the recipient's own wallet (needs at least one constraint).",
+                "How Sage verifies it, exactly one kind. PREFER artifact_url whenever the recipient CREATES the thing (a page, a listing, a post, a catalogue) — {kind:'artifact_url', allowedHosts:[bare hostnames, may be empty for 'anywhere']}: their wallet address on the page is the proof it is theirs, so it needs no expected text. Use {kind:'public_url', expectedText:[verbatim strings]} ONLY for a page the recipient does NOT control that must show specific words — expectedText is then REQUIRED and must contain at least one string; a public_url with no expectedText is rejected. {kind:'onchain_tx', chainId:2345, to?, methodSelector?, minValueWei?} — a transaction from the recipient's own wallet (needs at least one constraint).",
               properties: {
                 kind: { type: "string", enum: ["artifact_url", "public_url", "onchain_tx"] },
                 allowedHosts: { type: "array", items: { type: "string" } },
-                expectedText: { type: "array", items: { type: "string" } },
+                // minItems mirrors the COMPILER's rule. Without it the schema said "optional" while
+                // the compiler demanded >=1, so the model honestly filled nothing and its args were
+                // refused — measured on pd-gig-translator, which failed every run this way.
+                expectedText: { type: "array", items: { type: "string" }, minItems: 1, description: "Verbatim strings the page must contain. REQUIRED when kind is 'public_url'." },
                 chainId: { type: "number" },
                 to: { type: "string" },
                 methodSelector: { type: "string" },

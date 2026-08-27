@@ -72,6 +72,24 @@ const CLAIMS: readonly Claim[] = [
     intentToActNow: true,
   },
   {
+    /**
+     * THE BARE PROGRESSIVE. The claim above requires a commitment marker ("I'll", "voy a") before
+     * the verb, so the model's other favourite phrasing walked straight through it — MEASURED
+     * 2026-08-28 against the real guard: "Perfect. Setting that up now: $50 to the designer when
+     * the logo ships." and "That's a direct campaign. One person, $20 on publication. Creating it
+     * now." Both call no tool, and both leave the founder believing their campaign exists.
+     *
+     * Keyed on the IMMEDIACY adverb, not the noun, for two reasons: the object is usually a pronoun
+     * ("creating it now"), and requiring "now/right away" is what keeps explanatory sentences out —
+     * "Creating a campaign requires an amount per milestone" must not fire, and does not.
+     */
+    label: "a campaign being set up",
+    pattern:
+      /(?:^|[.!?]\s+|[—–-]\s*)(?:set(?:ting)?\s+(?:it|that|this)?\s*up|creating|creando|montando|build(?:ing)?|draft(?:ing)?|configurando|criando|cr[ée]ation de|mise en place)\b[^.!?\n]{0,36}?\b(?:now|right away|immediately|ahora|ahora mismo|agora|maintenant|adesso)\b/i,
+    backedBy: ["sage_create_direct_campaign", "sage_start_inspection"],
+    intentToActNow: true,
+  },
+  {
     label: "a campaign was stopped",
     // "is stopped", "I stopped", "has been stopped/cancelled" — not "want me to stop it?"
     pattern: /\b(?:is|are|was|were|has been|have been|i(?:'ve| have)?)\s+(?:(?:now|already|officially|successfully|just)\s+){0,2}(?:stopped|cancelled|canceled)\b/i,

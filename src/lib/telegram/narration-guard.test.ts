@@ -329,3 +329,38 @@ describe("announcing is not doing — the P-DIRECT finding (2026-08-28)", () => 
     }
   });
 });
+
+/**
+ * THE BARE PROGRESSIVE — the phrasing that walked through the original claim pattern.
+ *
+ * That pattern requires a commitment marker ("I'll", "voy a") before the verb. MEASURED against the
+ * real guard on 2026-08-28, the model's other favourite shape had none and passed clean: "Setting
+ * that up now: $50 to the designer" and "Creating it now." Both called NO tool, and both leave the
+ * founder believing their campaign exists. An error is visible; this is not.
+ */
+describe("a campaign claimed in the bare progressive", () => {
+  const noTools = new Set<string>();
+
+  it.each([
+    "Perfect. Setting that up now: $50 to the designer when the logo ships.",
+    "That's a direct campaign. One person, $20 on publication. Creating it now.",
+    "Entendido — creando la campaña ahora.",
+  ])("flags %j so the turn self-corrects", (reply) => {
+    expect(checkNarration(reply, noTools, {}).ok).toBe(false);
+  });
+
+  /** Keyed on the immediacy adverb precisely so EXPLANATION and QUESTIONS stay clean — over-firing
+   *  would spend a founder's turn re-asking a model that did nothing wrong. */
+  it.each([
+    "Creating a campaign requires an amount per milestone — what should it be?",
+    "I can do that. Before I create it, what's the exact amount per milestone?",
+    "Here's how getting paid works: you submit evidence, Sage verifies it, and USDC lands in your wallet.",
+  ])("does NOT flag %j", (reply) => {
+    expect(checkNarration(reply, noTools, {}).ok).toBe(true);
+  });
+
+  it("is satisfied once the tool actually ran", () => {
+    const backed = new Set(["sage_create_direct_campaign"]);
+    expect(checkNarration("Setting that up now: $50 to the designer.", backed, {}).ok).toBe(true);
+  });
+});
