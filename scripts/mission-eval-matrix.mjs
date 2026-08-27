@@ -108,12 +108,66 @@ function rebuildCorpus(map) {
   return norm(parts.join(" • "));
 }
 
+/**
+ * SIGNED-IN SESSION — added 2026-08-27 because the battery was BLIND.
+ *
+ * It called /api/launch anonymously. Two consequences, both of which made this gate lie:
+ *   · `resolveCanaryAuthority` refuses an anonymous caller, so every row exercised the LEGACY
+ *     planner. The GROUNDED planner — the one that compiles the founder's goal into checkpoints
+ *     and gates which missions may ship — is the half founders actually get, and the battery could
+ *     not see it. inspect-live.mjs was written specifically to cover that blind spot.
+ *   · Once the launch route required auth, all 13 rows returned the same "Connect your wallet"
+ *     string. Thirteen identical errors and ~0k tokens is an INSTRUMENT failure, but it prints in
+ *     the same grid as a quality regression.
+ *
+ * So the battery now signs in exactly as the browser does, and runs the path founders run.
+ */
+const jar = new Map();
+const cookieHeader = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
+const keep = (res) => {
+  for (const c of res.headers.getSetCookie?.() ?? []) {
+    const [pair] = c.split(";");
+    const i = pair.indexOf("=");
+    if (i > 0) jar.set(pair.slice(0, i), pair.slice(i + 1));
+  }
+  return res;
+};
+const call = async (path, init = {}) =>
+  keep(await fetch(`${base}${path}`, { ...init, headers: { "content-type": "application/json", cookie: cookieHeader(), ...(init.headers ?? {}) } }));
+
+async function signIn() {
+  const key = flag("key", process.env.GOAT_AGENT_PRIVATE_KEY ?? "");
+  if (!key) {
+    console.error("P-GEN needs a signing key (GOAT_AGENT_PRIVATE_KEY or --key). Running anonymously would");
+    console.error("measure the legacy planner and report instrument failures as quality failures.");
+    process.exit(2);
+  }
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const account = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`);
+  const { nonce: n } = await (await call("/api/auth/nonce")).json();
+  const issuedAt = new Date().toISOString();
+  const message = [
+    "Sage — sign in",
+    "",
+    `Wallet: ${account.address}`,
+    `Nonce: ${n}`,
+    `Issued At: ${issuedAt}`,
+    "",
+    "Signing proves you control this wallet. It authorizes no transaction and moves no funds.",
+  ].join("\n");
+  const signature = await account.signMessage({ message });
+  const res = await call("/api/auth/verify", { method: "POST", body: JSON.stringify({ address: account.address, signature, issuedAt }) });
+  const body = await res.json();
+  if (!body.ok) throw new Error(`sign-in failed: ${JSON.stringify(body)}`);
+  return body.address;
+}
+
 async function runOne(m, i) {
   const budget = 10 + i + nonce * 100;
   let job;
   try {
-    const res = await fetch(`${base}/api/launch`, {
-      method: "POST", headers: { "content-type": "application/json" },
+    const res = await call("/api/launch", {
+      method: "POST",
       body: JSON.stringify({ productUrl: m.url, budgetUsd: budget, goal: "Validate the core experience for a first-time user", targetUsers: "First-time visitors" }),
     });
     const j = await res.json();
@@ -136,7 +190,7 @@ async function runOne(m, i) {
     let consecutiveWireFailures = 0;
     for (let t = 0; t < 150; t++) {
       try {
-        const p = await (await fetch(`${base}/api/launch/${id}`)).json();
+        const p = await (await call(`/api/launch/${id}`)).json();
         job = p.job;
         consecutiveWireFailures = 0;
       } catch (e) {
@@ -221,7 +275,20 @@ async function runOne(m, i) {
 
 // ── run the battery (light concurrency; the prod server + LLM quota bound it) ──
 const rows = MATRIX.filter((m) => !only || m.cat === only);
-console.log(`P-GEN battery · base ${base} · nonce ${nonce} · ${rows.length} URLs\n${"═".repeat(90)}`);
+/**
+ * NONCE RANGE GUARD. The nonce varies each URL's budget so a re-run creates fresh jobs, but budget
+ * is capped at $10,000 by the launch validator — so nonce >= 100 makes EVERY row fail with
+ * "Reward must be 10000 or less". That reads in the grid exactly like a quality regression, which
+ * is how a broken instrument gets mistaken for a broken product. Fail loudly, at the top, once.
+ */
+const maxBudget = 10 + (rows.length - 1) + nonce * 100;
+if (maxBudget > 10_000) {
+  console.error(`--nonce ${nonce} computes a budget of $${maxBudget}, over the $10,000 launch cap.`);
+  console.error(`Use a nonce below 100 (each row's budget is 10 + index + nonce*100).`);
+  process.exit(2);
+}
+const who = await signIn();
+console.log(`P-GEN battery · base ${base} · nonce ${nonce} · ${rows.length} URLs · signed in as ${who}\n${"═".repeat(90)}`);
 const results = [];
 for (const [i, m] of rows.entries()) {
   process.stdout.write(`[${i + 1}/${rows.length}] ${m.cat.padEnd(16)} ${m.url} … `);

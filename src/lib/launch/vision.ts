@@ -18,6 +18,7 @@ import path from "node:path";
 import type { FieldTestState, VisionObservation } from "./schemas";
 import { recordFieldTestStep } from "./field-test-progress";
 import { laneProvider } from "@/lib/llm/complete";
+import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -231,7 +232,8 @@ async function callVision(provider: VisionProvider, dataUri: string, trigger: st
       body: JSON.stringify({
         model: provider.model,
         temperature: 0,
-        max_tokens: 600,
+        // ANSWER size; the profile adds this provider's overhead (see provider-profile.ts).
+        max_tokens: outputBudget(600, profileFor(provider.model, provider.endpoint)),
         messages: [
           { role: "system", content: VISION_SYSTEM },
           {

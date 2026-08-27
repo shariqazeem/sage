@@ -1,3 +1,4 @@
+import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import "server-only";
 
 /**
@@ -261,7 +262,8 @@ export async function runEntailmentVeto(input: EntailmentInput, opts: Entailment
       headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        model: provider.model, temperature: 0, max_tokens: MAX_TOKENS,
+        model: provider.model, temperature: 0,
+        max_tokens: outputBudget(MAX_TOKENS, profileFor(provider.model, provider.endpoint)),
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

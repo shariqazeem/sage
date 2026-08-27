@@ -1,3 +1,4 @@
+import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { createHash } from "node:crypto";
 
 /**
@@ -1079,7 +1080,9 @@ async function callController(
       body: JSON.stringify({
         model: provider.model,
         temperature: 0,
-        max_tokens: 400,
+        // ANSWER size; the profile adds this provider's reasoning overhead. A flat 400 is entirely
+        // consumed by a <think> block on a reasoning model, so the decision never gets written.
+        max_tokens: outputBudget(400, profileFor(provider.model, provider.endpoint)),
         // json_object (NOT strict json_schema): the Flash-Lite provider ignores strict json_schema for
         // multimodal calls (returns a bare enum value, not the object). json_object forces valid JSON; the
         // exact SHAPE is enforced deterministically by coerceDecision, so the model can smuggle nothing.
