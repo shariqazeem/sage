@@ -29,6 +29,9 @@ describe.runIf(LIVE)("P-DIRECT — money-lane battery (production path)", () => 
     for (const r of rows.filter((x) => !x.calledTool && x.reply)) {
       console.log(`\n[no-tool] ${r.fixtureId}: ${r.reply}`);
     }
+    for (const r of rows.filter((x) => x.rawArgs)) {
+      console.log(`\n[raw] ${r.fixtureId}: ${r.rawArgs}`);
+    }
     console.log("\nfixture,category,tool,routedOk,compiled,budgetExact,totalUsd,milestones,lint,error");
     for (const r of rows) {
       console.log(

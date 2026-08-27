@@ -47,6 +47,8 @@ export interface DirectRow {
   error: string | null;
   /** the model's prose when it called no tool — the only way to tell a question from a flail. */
   reply: string;
+  /** the raw tool arguments when they failed the schema — the shape to design the mapper against. */
+  rawArgs: string;
   violations: string[];
 }
 
@@ -189,6 +191,7 @@ export async function runDirectEval(opts: {
         lintNotes: [],
         error: null,
         reply: calledTool ? "" : reply.slice(0, 240),
+        rawArgs: "",
         violations,
       };
 
@@ -197,7 +200,11 @@ export async function runDirectEval(opts: {
           const raw = JSON.parse(call?.function?.arguments ?? "{}") as Record<string, unknown>;
           const parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(raw));
           if (!parsed.success) {
-            row.error = parsed.error.issues.slice(0, 2).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+            // ALL issues, not the first two: truncating hid the criteria/evidence defects behind
+            // the title/productUrl ones for two whole rounds.
+            row.error = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+            // and the RAW shape, because guessing what a model wrote is how instruments lie.
+            row.rawArgs = JSON.stringify(raw).slice(0, 700);
             violations.push(`${f.id}: model args failed the schema — ${row.error}`);
           } else {
             const input: DirectCampaignInput = parsed.data;

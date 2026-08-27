@@ -290,3 +290,42 @@ describe("fabricated launch · 'Funding + launching now'", () => {
     expect(checkNarration(plan, new Set(), "{}").ok).toBe(true);
   });
 });
+
+describe("announcing is not doing — the P-DIRECT finding (2026-08-28)", () => {
+  const NONE = new Set<string>();
+  const MADE = new Set<string>(["sage_create_direct_campaign"]);
+
+  it("catches the exact replies measured, in English and Spanish, when no tool ran", () => {
+    for (const reply of [
+      "I'll set up a direct campaign to pay your designer $50 when the logo page launches.",
+      "I'll create a direct campaign for this bounty — you're paying multiple people to write guides.",
+      "Voy a crear una campaña de pago directo para que alguien escriba y publique esa guía.",
+      "Let me create a milestone grant for your cousin's shop.",
+      "I'm setting up a gig for the translation now.",
+    ]) {
+      const v = checkNarration(reply, NONE, "");
+      expect(v.ok, `should have been caught: ${reply}`).toBe(false);
+      expect(v.unbacked).toContain("a campaign being set up");
+    }
+  });
+
+  it("stays silent when the campaign tool actually ran", () => {
+    const v = checkNarration(
+      "I'll set up a direct campaign to pay your designer $50 when the logo page launches.",
+      MADE,
+      "",
+    );
+    expect(v.ok).toBe(true);
+  });
+
+  it("does NOT fire on capability answers or on questions", () => {
+    for (const reply of [
+      "I can create milestone grants and gig payouts for work you define.",
+      "Sage creates a campaign once you tell me the amount — want me to?",
+      "Would you like me to set up a campaign for that?",
+      "A direct campaign is how you pay someone for defined work.",
+    ]) {
+      expect(checkNarration(reply, NONE, "").ok, `false positive on: ${reply}`).toBe(true);
+    }
+  });
+});

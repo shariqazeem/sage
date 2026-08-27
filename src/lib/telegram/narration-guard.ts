@@ -39,9 +39,38 @@ interface Claim {
   pattern: RegExp;
   /** any ONE of these having succeeded this turn is enough. */
   backedBy: readonly string[];
+  /**
+   * Skip the capability exemption for this claim, because for it the FUTURE TENSE IS THE LIE.
+   * "I can create campaigns" is a capability; "I'll set up a direct campaign to pay your designer
+   * $50" is a commitment the founder now believes is underway, and if no tool ran this turn it
+   * never happened. The generic exemption cannot tell those apart — it sees "i'll" in both.
+   */
+  intentToActNow?: boolean;
 }
 
 const CLAIMS: readonly Claim[] = [
+  {
+    /**
+     * MEASURED by P-DIRECT 2026-08-28: asked to "pay my designer $50 when the logo page is live",
+     * the model replied "I'll set up a direct campaign to pay your designer $50 when the logo page
+     * launches" — and called NO TOOL. Same for an open bounty and for the same request in Spanish.
+     * The founder is told their campaign is being created; nothing exists. That is worse than an
+     * error, because an error is visible. Announcing the work IS NOT DOING THE WORK.
+     */
+    label: "a campaign being set up",
+    /**
+     * Commitment marker → create-verb → campaign noun, in the languages the product actually
+     * serves. The first version of this was English-only and let the SAME measured lie through in
+     * Spanish ("Voy a crear una campaña de pago directo") — the identical second-class-founder bug
+     * the routing fix had just addressed one layer up. The middle is deliberately loose so the
+     * article and any adjective ("una campaña de pago directo") fall inside it, and bounded to one
+     * sentence so it cannot span unrelated clauses.
+     */
+    pattern:
+      /\b(?:i(?:'ll|'m| will| am going to)|let me|going to|voy a|vamos a|je vais|nous allons|vou|irei|vado a)\b[^.!?\n]{0,40}?\b(?:set(?:ting)?\s+up|creat(?:e|ing)|mak(?:e|ing)|build(?:ing)?|put(?:ting)?\s+together|draft(?:ing)?|start(?:ing)?|crear|creando|configurar|cr[ée]er|criar|creare)\b[^.!?\n]{0,24}?\b(?:campaign|campa[ñn]a|campanha|campagne|campagna|gig|grant|bounty|milestone|subvenci[óo]n)/i,
+    backedBy: ["sage_create_direct_campaign", "sage_start_inspection"],
+    intentToActNow: true,
+  },
   {
     label: "a campaign was stopped",
     // "is stopped", "I stopped", "has been stopped/cancelled" — not "want me to stop it?"
@@ -194,7 +223,7 @@ export function checkNarration(
     const m = c.pattern.exec(reply);
     if (!m) continue;
     if (c.backedBy.some((t) => succeededTools.has(t))) continue;
-    if (CAPABILITY_MARKERS.test(sentenceAround(reply, m.index))) continue;
+    if (!c.intentToActNow && CAPABILITY_MARKERS.test(sentenceAround(reply, m.index))) continue;
     unbacked.push(c.label);
   }
   if (toolOutput !== null && fabricatedLinks(reply, toolOutput).length > 0)
