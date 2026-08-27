@@ -1,9 +1,14 @@
 import "server-only";
 
+import { getAddress, type Address } from "viem";
+
 import { getCampaign, listMissions, listSubmissions } from "@/lib/db/campaigns";
 import { getRecipientWallet, listInvitedCampaignIds } from "@/lib/db/recipient-wallets";
+import { consumePendingWithdrawal, putPendingWithdrawal } from "@/lib/db/pending-withdrawals";
 import { submitAsRecipient } from "@/lib/campaigns/recipient-submit";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
+import { withdrawRecipientEarnings } from "@/lib/privy/recipient-withdraw";
+import { explorerTxUrl } from "@/lib/deputy/networks";
 import { usdcBalanceBase } from "./wallet-status";
 
 /**
@@ -33,12 +38,34 @@ export const RECIPIENT_TOOLS = [
       },
     },
   },
+  {
+    name: "sage_cash_out",
+    description:
+      "Prepare a withdrawal of an invited RECIPIENT's earned USDC to a wallet address they give you. Moves NO money — it checks the balance and the address, then asks you to read the amount and destination back to them. Call sage_confirm_cash_out only after they clearly confirm. They pay no gas and need no crypto of their own.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        amountUsd: { type: "number", description: "How much USDC they want to cash out. Omit to send their whole balance." },
+        toAddress: { type: "string", description: "The 0x… address they want it sent to (an exchange deposit address or their own wallet)." },
+      },
+      required: ["toAddress"],
+    },
+  },
+  {
+    name: "sage_confirm_cash_out",
+    description:
+      "Actually send a prepared recipient withdrawal. ONLY call after the person clearly confirmed the exact amount and address you read back to them. This moves real money.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ] as const;
 
 const RECIPIENT_TOOL_NAMES = new Set<string>(RECIPIENT_TOOLS.map((t) => t.name));
 export function isRecipientTool(name: string): boolean {
   return RECIPIENT_TOOL_NAMES.has(name);
 }
+
+/** base units → a human dollar string. Amounts ALWAYS come from here, never model arithmetic. */
+const usdc = (base: bigint): string => `$${(Number(base) / 1_000_000).toFixed(2)}`;
 
 const json = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }], isError: false });
 
@@ -107,6 +134,78 @@ export async function callRecipientTool(
       paysUsdIfVerified: r.rewardUsd,
       note: "Submitted — Sage is verifying it now. Do NOT say it's paid: if it verifies, the payment lands with a receipt and this chat gets the message automatically.",
     });
+  }
+
+  /**
+   * CASH OUT — the honest gap closed (2026-08-28). A recipient earns USDC into a wallet with no
+   * native gas, so without this they could receive money and never move it. They sign an EIP-3009
+   * authorization (free, gasless); Sage's operator submits it and pays the gas. Two steps, because
+   * the money is real: prepare + read back, then confirm.
+   */
+  if (name === "sage_cash_out") {
+    if (!rw) return json({ ok: false, error: "This chat isn't set up as a recipient, so there's nothing to cash out." });
+    const toAddress = typeof args.toAddress === "string" ? args.toAddress : "";
+    let target: Address;
+    try {
+      target = getAddress(toAddress);
+    } catch {
+      return json({ ok: false, error: "That isn't a valid 0x… address — ask them to paste it again, and to double-check it's on GOAT Network." });
+    }
+    if (target.toLowerCase() === rw.address.toLowerCase()) {
+      return json({ ok: false, error: "That's the same wallet the money is already in — ask where they want it sent." });
+    }
+    const balance = await usdcBalanceBase(rw.address, 2345);
+    if (balance <= BigInt(0)) {
+      return json({ ok: false, error: "They haven't been paid anything yet, so there's nothing to withdraw." });
+    }
+    // No amount named = the whole balance. Never the model's arithmetic: the amount comes from here.
+    const amountBase =
+      typeof args.amountUsd === "number" && args.amountUsd > 0
+        ? BigInt(Math.round(args.amountUsd * 1_000_000))
+        : balance;
+    if (amountBase > balance) {
+      return json({
+        ok: false,
+        insufficient: true,
+        requestedUsdc: usdc(amountBase),
+        balanceUsdc: usdc(balance),
+        message: `They asked for ${usdc(amountBase)} but they've earned ${usdc(balance)}. Offer to send the ${usdc(balance)}.`,
+      });
+    }
+    putPendingWithdrawal({ chatId: chatRef, amountBase, toAddress: target });
+    return json({
+      ok: true,
+      needsConfirmation: true,
+      amountUsdc: usdc(amountBase),
+      toAddress: target,
+      message: `Read this back and wait for a clear yes: send ${usdc(amountBase)} USDC to ${target} on GOAT Network? Tell them they pay no fee and need no crypto of their own. Call sage_confirm_cash_out ONLY after they confirm.`,
+    });
+  }
+
+  if (name === "sage_confirm_cash_out") {
+    if (!rw) return json({ ok: false, error: "This chat isn't set up as a recipient." });
+    const pending = consumePendingWithdrawal(chatRef);
+    if (!pending) {
+      return json({ ok: false, error: "There's no prepared withdrawal to confirm (it may have expired) — ask them for the amount and address again." });
+    }
+    try {
+      const out = await withdrawRecipientEarnings(rw, getAddress(pending.toAddress), pending.amountBase);
+      return json({
+        ok: true,
+        sent: true,
+        amountUsdc: usdc(pending.amountBase),
+        toAddress: out.to,
+        txHash: out.txHash,
+        receiptUrl: explorerTxUrl(2345, out.txHash),
+        message: `Sent. Tell them ${usdc(pending.amountBase)} USDC is on its way to ${out.to} and give them the receipt link.`,
+      });
+    } catch (e) {
+      // The authorization is single-use and was never submitted, so nothing moved. Say so plainly.
+      return json({
+        ok: false,
+        error: `The withdrawal didn't go through: ${e instanceof Error ? e.message : String(e)}. Nothing was sent and their balance is untouched — they can try again.`,
+      });
+    }
   }
 
   return json({ ok: false, error: `unknown recipient tool: ${name}` });
