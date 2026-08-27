@@ -493,24 +493,23 @@ async function chatCompletion(
           model: model(),
           temperature: 0.3,
           /**
-           * DO NOT RAISE THIS WITHOUT RAISING THE KEY'S TIER FIRST.
+           * THIS NUMBER IS PROVIDER-DEPENDENT. Read both halves before changing it.
            *
-           * 900 is too small to AUTHOR a large campaign — sage_create_direct_campaign asks for a
-           * title, step-by-step instructions, 1-8 criteria and a contract per milestone, and the
-           * schema permits twelve — and a truncated tool call is invalid JSON, not a short answer.
-           * So raising it looks obviously right. It is not.
+           * · On a TOTAL-token-capped key (the CommonStack tier, measured 2026-08-28) the cap
+           *   covers prompt + max_tokens together: bare probes pass at 1400 and are refused at
+           *   1450 with `429 (cap 1)`, and a realistic ~10k-char prompt is refused even at 900.
+           *   There, raising this trades truncated campaigns for REFUSED TURNS, which is worse.
+           * · On MiniMax (where the concierge runs now) there is no such cap, and the opposite
+           *   failure appears: the model always emits a long, STOCHASTIC <think> block before its
+           *   tool call, so a three-milestone grant ran out of budget mid-JSON and arrived as
+           *   `Unexpected end of JSON input` — the founder's grant silently failing to parse.
+           *   Measured by P-DIRECT: 3 of 33 rows, only on the longer campaigns.
            *
-           * MEASURED against the live gateway 2026-08-28: the access key enforces a cap on the
-           * TOTAL tokens of a request (prompt + max_tokens), not on max_tokens alone. Bare probes:
-           * max_tokens 1400 passes, 1450 is refused with `429 quota exceeded (cap 1)`. With a
-           * realistic ~10k-char system prompt, even max_tokens 900 is REFUSED. Raising this number
-           * therefore trades truncated campaigns for refused turns, which is worse — a refusal
-           * costs the founder the whole reply.
-           *
-           * The real fixes are a higher key tier (an account change) and a smaller request; both
-           * are tracked. Until then this stays where it was.
+           * 8000 matches what the payout brain needs for the SAME model, sized there at >=2x its
+           * measured worst case (2766 completion tokens). Generation is billed by tokens produced,
+           * so a short chat turn still costs a short chat turn.
            */
-          max_tokens: 900,
+          max_tokens: 8000,
           messages,
           tools,
           tool_choice: "auto",

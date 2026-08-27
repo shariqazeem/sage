@@ -123,7 +123,9 @@ async function askModel(utterance: string, timeoutMs: number, history: Msg[] = [
       body: JSON.stringify({
         model: conciergeModel(),
         temperature: 0.3,
-        max_tokens: 1400,
+        // MATCHES PRODUCTION (concierge.ts). A battery on a different budget measures a
+        // product that does not exist — 1400 truncated multi-milestone grants mid-JSON.
+        max_tokens: 8000,
         messages: [
           { role: "system", content: `${BASE_PROMPT}\n\n${DIRECT_BLOCK}` },
           { role: "user", content: utterance },
