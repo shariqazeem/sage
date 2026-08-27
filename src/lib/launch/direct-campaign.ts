@@ -89,7 +89,15 @@ const onchainStateSchema = z
 
 const artifactUrlSchema = z.object({
   kind: z.literal("artifact_url"),
-  allowedHosts: z.array(z.string().max(120).regex(hostRe, "bare hostname, e.g. app.example.com")).min(1).max(5),
+  /**
+   * MAY BE EMPTY — "any page you publish that visibly carries your wallet". MEASURED by P-DIRECT
+   * 2026-08-28: the flagship grant ("fund my cousin's shop… when the shop page is published")
+   * cannot name a host, because the shop has no domain yet — requiring one made the MSME case
+   * inexpressible. The MARKER is the authorship binding that matters (only the submitter can put
+   * their own wallet on a page); the host list is an operator preference on top of it. An empty
+   * list is honestly weaker, and the verifiability lint says so before the operator funds.
+   */
+  allowedHosts: z.array(z.string().max(120).regex(hostRe, "bare hostname, e.g. app.example.com")).max(5),
   markerKind: z.enum(["wallet", "handle", "nonce"]),
   mustContain: z.array(z.string().min(2).max(200)).max(5).optional(),
 });
@@ -173,6 +181,11 @@ export function lintDirectCampaign(input: DirectCampaignInput): string[] {
           `${label}: text-on-a-page proof — the page is the submitter's choice, so the required text must be something that could only exist if the work happened.`,
         );
       }
+    }
+    if (m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length === 0) {
+      notes.push(
+        `${label}: accepts a link on ANY site, as long as the page carries the recipient's own wallet address. That proves who made it, not where it lives — name the domain if the work must appear somewhere specific.`,
+      );
     }
     if (m.evidence.kind === "artifact_url" && !m.criteria.some((c) => !isBoilerplateCriterion(c))) {
       notes.push(

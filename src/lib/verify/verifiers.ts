@@ -147,10 +147,13 @@ export function matchArtifact(
     return fail("unparseable url", "That doesn't look like a valid URL.");
   }
   const allowed = c.allowedHosts.map((h) => norm(h).replace(/^www\./, ""));
-  // Name the actual requirement — measured live 2026-08-27: a stranger submitted an off-host link
-  // and the reason said "the product's own site", which names neither the host they used nor the
-  // one the mission requires. A refusal the recipient can act on states the rule it applied.
-  if (!allowed.some((h) => host === h || host.endsWith(`.${h}`)))
+  // An EMPTY allow-list is an operator choice, not an oversight: "publish anywhere, the page must
+  // carry your wallet". The marker check below is then the whole binding, and it is the part that
+  // proves authorship. A grant to a business with no domain yet depends on this.
+  // When hosts ARE named, name the actual requirement in the refusal — measured live 2026-08-27:
+  // a stranger submitted an off-host link and the reason said "the product's own site", which
+  // names neither the host they used nor the one required.
+  if (allowed.length > 0 && !allowed.some((h) => host === h || host.endsWith(`.${h}`)))
     return fail(`host ${host} not allowed`, `That link is on ${host} — this mission requires a link on ${allowed.join(" or ")}.`);
   const hay = norm(input.bodyText);
   // THE MARKER — proof the artifact is THEIRS, not a generic page anyone could link. A parrot who

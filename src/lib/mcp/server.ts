@@ -259,10 +259,48 @@ function toolResult<T>(r: OpResult<T>): ToolResult {
 /** Exported for P-DIRECT: the battery must exercise the REAL transport mapper. */
 /** A model naturally writes "https://paste.rs/abc" where a BARE host belongs. Normalising that is
  *  transport, not substance — the schema still refuses anything that is not a hostname after this. */
+/**
+ * A MODEL WRITES ITS OWN VOCABULARY, NOT YOUR SCHEMA'S.
+ *
+ * MEASURED by P-DIRECT 2026-08-28 — asked for a three-tranche grant, the model produced:
+ *   {campaignTitle, milestones:[{title, instructions, amount, verificationMethod:"publicLink"}]}
+ * against a schema wanting {kind, title, milestones:[{..., rewardUsd, criteria, evidence:{kind}}]}.
+ * Every field was semantically present and every name was different, so a picky reader threw away
+ * a perfectly good campaign. Transport reads every equivalent shape; the schema below still
+ * decides what is fundable.
+ */
+const pickNum = (o: Record<string, unknown>, ...keys: string[]): unknown => {
+  for (const k of keys) if (o[k] != null && o[k] !== "") return o[k];
+  return undefined;
+};
+const pickStr = (o: Record<string, unknown>, ...keys: string[]): string => {
+  for (const k of keys) if (typeof o[k] === "string" && o[k].trim()) return (o[k] as string).trim();
+  return "";
+};
+
+/** "publicLink" / "link" / "url" / "onchain" — the words a model reaches for when naming a proof. */
+function evidenceFromMethod(method: string, m: Record<string, unknown>): Record<string, unknown> | null {
+  const v = method.toLowerCase().replace(/[^a-z]/g, "");
+  const hosts = ((): string[] => {
+    const raw = m.allowedHosts ?? m.hosts ?? m.domain ?? m.host;
+    return Array.isArray(raw)
+      ? raw.map((x) => String(x))
+      : typeof raw === "string" && raw.trim()
+        ? [raw]
+        : [];
+  })();
+  if (/^(publiclink|link|url|artifact|publicurl|page|website|publish)/.test(v)) {
+    // A link the recipient publishes, bound to them by their own wallet marker.
+    return { kind: "artifact_url", allowedHosts: hosts, markerKind: "wallet" };
+  }
+  if (/^(onchain|transaction|tx)/.test(v)) return null; // needs constraints we cannot invent
+  return null;
+}
+
 /** The campaign's label: what the model said, else the first milestone's title, else a plain
  *  kind-based caption. Never fails, never invents beyond the milestones already authored. */
 function directTitle(args: Record<string, unknown>, milestones: unknown): string {
-  const given = typeof args.title === "string" ? args.title.trim() : "";
+  const given = pickStr(args, "title", "campaignTitle", "name", "campaign_title");
   if (given.length >= 4) return given.slice(0, 80);
   const first = Array.isArray(milestones) ? (milestones[0] as { title?: unknown } | undefined) : undefined;
   const fromMilestone = typeof first?.title === "string" ? first.title.trim() : "";
@@ -304,13 +342,23 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
                     ...(typeof ev.methodSelector === "string" && ev.methodSelector ? { methodSelector: ev.methodSelector } : {}),
                     ...(typeof ev.minValueWei === "string" && ev.minValueWei ? { minValueWei: ev.minValueWei } : {}),
                   }
-                : ev; // unknown kinds fall through to zod, which refuses them with a clear message
+                : // No recognised `evidence` object: fall back to the model's OWN vocabulary for a
+                  // proof ("verificationMethod": "publicLink"), then to zod, which refuses clearly.
+                  (evidenceFromMethod(pickStr(m, "verificationMethod", "verifyBy", "proof", "verification"), m) ?? ev);
+        const title = pickStr(m, "title", "name", "milestone", "deliverable");
+        const instructions = pickStr(m, "instructions", "description", "details", "task");
         return {
-          title: typeof m.title === "string" ? m.title : "",
-          instructions: typeof m.instructions === "string" ? m.instructions : "",
-          criteria: asArr(m.criteria),
+          title,
+          instructions: instructions || title,
+          /**
+           * Criteria ARE the acceptance conditions, so an empty list means the milestone is
+           * unspecified — but failing the whole campaign over it loses a fundable plan. Fall back
+           * to the milestone's own wording (the founder's, rephrased in the same call). The
+           * verifiability lint then flags it, so the operator funds knowing the proof is thin.
+           */
+          criteria: asArr(m.criteria).length ? asArr(m.criteria) : title ? [title] : [],
           evidence,
-          rewardUsd: num(m.rewardUsd),
+          rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward")),
           slots: num(m.slots),
           ...(m.effortMinutes != null && Number.isFinite(num(m.effortMinutes)) ? { effortMinutes: num(m.effortMinutes) } : {}),
         };
@@ -318,7 +366,14 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
     : [];
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
-    kind: args.kind === "gig" ? "gig" : "grant",
+    // A model often omits `kind` entirely. Infer it the way a reader would: several tranches of
+    // one funded outcome is a grant; a single deliverable (or several slots of one) is a gig.
+    kind:
+      args.kind === "gig" || args.kind === "grant"
+        ? args.kind
+        : Array.isArray(args.milestones) && args.milestones.length > 1
+          ? "grant"
+          : "gig",
     /**
      * A campaign title is a LABEL, not money. MEASURED by P-DIRECT: the model omitted it on 4 of 5
      * direct campaigns, and coercing to "" failed the whole plan on a min-length rule — losing a

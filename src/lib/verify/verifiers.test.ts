@@ -152,3 +152,38 @@ describe("async wrappers HOLD (never throw) on bad input / network failure", () 
     expect(r.verified).toBe(true);
   });
 });
+
+describe("artifact_url with NO host restriction — the MSME case (P-DIRECT 2026-08-28)", () => {
+  const marker = "0xccbfb9bba88f282282a29aa1338175cc835e768d";
+  const unpinned = { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" } as const;
+
+  it("accepts ANY host when the operator pinned none — the marker is the binding", () => {
+    for (const url of ["https://paste.rs/x1", "https://some-shop.example/menu", "https://notes.site/abc"]) {
+      const r = matchArtifact(
+        { status: 200, finalUrl: url, bodyText: `Shop page. Published by ${marker}` },
+        unpinned as never,
+        marker,
+      );
+      expect(r.verified, `${url} should verify`).toBe(true);
+    }
+  });
+
+  it("STILL refuses a page that does not carry the submitter's own marker", () => {
+    const r = matchArtifact(
+      { status: 200, finalUrl: "https://anywhere.example/p", bodyText: "A page with no wallet on it at all" },
+      unpinned as never,
+      marker,
+    );
+    expect(r.verified).toBe(false);
+    expect(r.publicDetail).toMatch(/marker/i);
+  });
+
+  it("a PINNED host list still binds exactly as before", () => {
+    const pinned = { kind: "artifact_url", allowedHosts: ["paste.rs"], markerKind: "wallet" } as const;
+    const ok = matchArtifact({ status: 200, finalUrl: "https://paste.rs/x", bodyText: marker }, pinned as never, marker);
+    expect(ok.verified).toBe(true);
+    const off = matchArtifact({ status: 200, finalUrl: "https://elsewhere.io/x", bodyText: marker }, pinned as never, marker);
+    expect(off.verified).toBe(false);
+    expect(off.publicDetail).toContain("elsewhere.io");
+  });
+});
