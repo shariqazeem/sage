@@ -35,6 +35,8 @@ export interface LlmComplete {
   responseModel?: string | null;
 }
 
+import { outputBudget, profileFor } from "./provider-profile";
+
 export type ParsePolicy = "repair" | "strict";
 
 function hostOf(url: string): string {
@@ -444,7 +446,14 @@ export async function llmCompleteJson(opts: {
       body: JSON.stringify({
         model: p.model,
         temperature: opts.temperature ?? 0.2,
-        max_tokens: opts.maxTokens ?? 3500,
+        /**
+         * PROVIDER-AWARE BUDGET. `maxTokens` is what the ANSWER needs; the profile adds whatever
+         * this provider spends before the answer starts. Every caller became portable the moment
+         * this lived here instead of at each call site — the mission architect asks for 4200 and
+         * gets 4200 of ANSWER on a reasoning model, rather than 4200 minus a stochastic think
+         * block, which truncates the JSON it was in the middle of writing.
+         */
+        max_tokens: outputBudget(opts.maxTokens ?? 3500, profileFor(p.model, p.endpoint)),
         response_format: opts.responseSchema
           ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
           : { type: "json_object" },
