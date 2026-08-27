@@ -45,6 +45,8 @@ export interface DirectRow {
   /** deterministic proof-strength warnings the operator would be shown. */
   lintNotes: string[];
   error: string | null;
+  /** the model's prose when it called no tool — the only way to tell a question from a flail. */
+  reply: string;
   violations: string[];
 }
 
@@ -67,6 +69,11 @@ interface ToolCall {
   function?: { name?: string; arguments?: string };
 }
 
+/** When the model calls NO tool, its prose is the only evidence of WHY. A clarifying question is a
+ *  legitimate outcome ("who is your designer?"); flailing is a defect. Without capturing the reply
+ *  the two are indistinguishable and every no-tool row reads the same. */
+type Ask = { call: ToolCall | null; reply: string; failed: boolean };
+
 /** The gateway stalls on roughly a third of calls (documented in concierge.ts). Without the same
  *  bounded retry the battery has, a flaky minute reads as a model-quality result — and a run of
  *  all-failures scores zero violations and "passes" vacuously. Retry, then report honestly. */
@@ -74,19 +81,19 @@ async function askModelWithRetry(
   utterance: string,
   timeoutMs: number,
   attempts = 3,
-): Promise<{ call: ToolCall | null; failed: boolean }> {
+): Promise<Ask> {
   for (let i = 0; i < attempts; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 2_000 * i));
     const out = await askModel(utterance, timeoutMs);
     if (!out.failed) return out;
   }
-  return { call: null, failed: true };
+  return { call: null, reply: "", failed: true };
 }
 
-async function askModel(utterance: string, timeoutMs: number): Promise<{ call: ToolCall | null; failed: boolean }> {
+async function askModel(utterance: string, timeoutMs: number): Promise<Ask> {
   const key = conciergeKey();
   const base = conciergeBase();
-  if (!key) return { call: null, failed: true };
+  if (!key) return { call: null, reply: "", failed: true };
   try {
     const res = await fetch(`${base}/chat/completions`, {
       method: "POST",
@@ -124,12 +131,14 @@ async function askModel(utterance: string, timeoutMs: number): Promise<{ call: T
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!res.ok) return { call: null, failed: true };
-    const data = (await res.json()) as { choices?: { message?: { tool_calls?: ToolCall[] } }[] };
-    const calls = data.choices?.[0]?.message?.tool_calls ?? [];
-    return { call: calls[0] ?? null, failed: false };
+    if (!res.ok) return { call: null, reply: "", failed: true };
+    const data = (await res.json()) as {
+      choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null } }[];
+    };
+    const msg = data.choices?.[0]?.message;
+    return { call: msg?.tool_calls?.[0] ?? null, reply: (msg?.content ?? "").trim(), failed: false };
   } catch {
-    return { call: null, failed: true };
+    return { call: null, reply: "", failed: true };
   }
 }
 
@@ -149,7 +158,7 @@ export async function runDirectEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const violations: string[] = [];
-      const { call, failed } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      const { call, reply, failed } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
       if (failed) {
         providerFailures += 1;
         log(`  ${f.id} run${r + 1}/${runs}: PROVIDER FAILURE (not evidence)`);
@@ -179,6 +188,7 @@ export async function runDirectEval(opts: {
         allVerifiable: null,
         lintNotes: [],
         error: null,
+        reply: calledTool ? "" : reply.slice(0, 240),
         violations,
       };
 
@@ -239,7 +249,8 @@ export async function runDirectEval(opts: {
         `  ${f.id} run${r + 1}/${runs}: ${calledTool ? "direct" : name ?? "no-tool"}` +
           `${row.compiled ? ` · $${row.totalUsd} · ${row.milestones}m` : ""}` +
           `${violations.length ? `  ⚠ ${violations.length}` : "  ok"}` +
-          `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}`,
+          `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}` +
+          `${!calledTool && row.reply ? `\n      reply: ${row.reply.slice(0, 160)}` : ""}`,
       );
     }
   }

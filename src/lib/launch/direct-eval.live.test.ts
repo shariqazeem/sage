@@ -25,6 +25,10 @@ describe.runIf(LIVE)("P-DIRECT — money-lane battery (production path)", () => 
     if (ONLY?.length) console.log(`⚠ DIRECT_ONLY active — NOT a full battery`);
     const { rows, metrics } = await runDirectEval({ fixtures, runs: RUNS, log: (l) => console.log(l) });
 
+    // no-tool rows carry the model's own words, so a routing miss can be diagnosed from the log
+    for (const r of rows.filter((x) => !x.calledTool && x.reply)) {
+      console.log(`\n[no-tool] ${r.fixtureId}: ${r.reply}`);
+    }
     console.log("\nfixture,category,tool,routedOk,compiled,budgetExact,totalUsd,milestones,lint,error");
     for (const r of rows) {
       console.log(
