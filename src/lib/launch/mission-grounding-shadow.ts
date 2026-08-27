@@ -335,7 +335,9 @@ export interface GroundingShadowResult {
   budgetCompiled: boolean;
   /** what `accepted` means here — canonical-gate-passed, NOT merely critic-supported. */
   acceptanceScope: "canonical_gate";
-  /** accepted === canonicalGatePassed (the missions that would survive the real pipeline). */
+  /** the missions that would survive the real pipeline: canonical-gate passers MINUS any whose cited
+   *  transition is unsafe or (for action_outcome) was never reproduced. So `accepted` can be lower than
+   *  `canonicalGatePassed`; the difference is reported in droppedUnsafe/UnreplayedActionMissions. */
   accepted: number;
   groundingCoverage: number; // fraction of criteria that have a grounding entry
   distinctStateCoverage: number;
@@ -345,6 +347,10 @@ export interface GroundingShadowResult {
   /** which condition first failed `safeTransitionsEstablished` — `replay_not_run` (the replay was
    *  never attempted) reads very differently from `unsafe_transition` (a real safety violation). */
   safeTransitionsBlockedBy?: string | null;
+  /** missions dropped because a cited transition was unsafe/missing (not the whole plan). */
+  droppedUnsafeTransitionMissions?: number;
+  /** missions dropped because an action_outcome criterion cited an unreproduced transition. */
+  droppedUnreplayedActionMissions?: number;
   duplicateRate: number;
   /** budget from the REAL allocateBudget over the critic-supported candidates (base units, not weights). */
   allocationOk: boolean;
@@ -1316,7 +1322,44 @@ export async function runGroundedShadow(
     corpus,
     set,
   );
-  const accepted = criticSupportedList.filter((_m, i) => canonReports[i]?.ok);
+  const canonicalAccepted = criticSupportedList.filter((_m, i) => canonReports[i]?.ok);
+
+  /**
+   * PROPORTIONATE REJECTION — drop the MISSION that isn't safely grounded, not the whole PLAN.
+   *
+   * Phase 5 requires every cited transition to be `safe`, and every `action_outcome` criterion to
+   * cite a REPRODUCED transition. Both are correct requirements. What was disproportionate is that
+   * a single unmet one rejected the ENTIRE grounded plan — including missions whose criteria cite
+   * no transition at all (`state`, `content_claim`) and therefore cannot be affected by it.
+   *
+   * MEASURED on web.telegram.org: a plan of 4 missions — 2 action_outcome and 2 citing no
+   * transitions — scored 8 of 9 signals true, allocated exactly, and was discarded whole. What
+   * shipped instead was the LEGACY plan, which has no grounding requirements whatsoever. So the
+   * strict rejection did not produce a safer outcome; it produced a weaker one.
+   *
+   * Filtering HERE (before the budget step below) keeps the guarantee exact — no mission with an
+   * unsafe or unreproduced transition can ship, which is the property Phase 5 exists to enforce —
+   * while letting allocateBudget run over the survivors so Σ(reward×completions) still equals the
+   * supplied budget exactly. Phase 5 remains in place as an independent backstop.
+   */
+  let droppedUnsafeTransitionMissions = 0;
+  let droppedUnreplayedActionMissions = 0;
+  const accepted = canonicalAccepted.filter((m) => {
+    for (const gc of m.groundingV1?.criteria ?? []) {
+      for (const tid of gc.sourceTransitionIds ?? []) {
+        const t = set.transitions.find((x) => x.id === tid);
+        if (!t || t.safeClassification !== "safe") {
+          droppedUnsafeTransitionMissions++;
+          return false;
+        }
+        if (gc.criterionKind === "action_outcome" && !deps.replayReproduced?.has(tid)) {
+          droppedUnreplayedActionMissions++;
+          return false;
+        }
+      }
+    }
+    return true;
+  });
   const canonicalRejectionCodes: Record<string, number> = {};
   for (const rep of canonReports)
     if (!rep.ok)
@@ -1577,7 +1620,7 @@ export async function runGroundedShadow(
     groundingValid: structurallyValid.length,
     structurallyValid: structurallyValid.length,
     criticSupported: supportedKeys.size,
-    canonicalGatePassed: accepted.length,
+    canonicalGatePassed: canonicalAccepted.length,
     budgetCompiled: alloc.ok,
     accepted: accepted.length,
     groundingCoverage: totalCriteria === 0 ? 0 : mappedCriteria / totalCriteria,
@@ -1586,6 +1629,8 @@ export async function runGroundedShadow(
     unsupportedCriteria,
     unsafeTransitionCount,
     safeTransitionsBlockedBy,
+    droppedUnsafeTransitionMissions,
+    droppedUnreplayedActionMissions,
     duplicateRate:
       candidates.length === 0 ? 0 : 1 - objectives.size / candidates.length,
     allocationOk: alloc.ok,

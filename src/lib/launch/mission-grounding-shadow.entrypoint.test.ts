@@ -390,3 +390,65 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     });
   }
 });
+
+/**
+ * PROPORTIONATE REJECTION — drop the unsafely-grounded MISSION, never the whole PLAN.
+ *
+ * Phase 5 rightly demands that every cited transition be `safe` and every `action_outcome`
+ * criterion cite a REPRODUCED transition. What was disproportionate is that one unmet condition
+ * rejected the entire grounded plan, including missions citing no transition at all — and what
+ * shipped instead was the LEGACY plan, which has no grounding requirements whatsoever.
+ *
+ * MEASURED on web.telegram.org: 4 missions (2 action_outcome + 2 citing no transition), 8 of 9
+ * signals true, allocation exact — all four discarded because the replay had never been enabled.
+ */
+describe("proportionate rejection of un-replayed action missions", () => {
+  beforeEach(() => { process.env.MISSION_GROUNDING_MODE = "shadow"; });
+
+  it("keeps a transition-free mission when a sibling action mission cannot be replayed", async () => {
+    scriptProviders(
+      { missions: [v2Mission(), actionMission()] },
+      { verdicts: [decide("d0", "supported"), decide("d1", "supported")] },
+    );
+    // makeMap() has NO replayShadow → the action mission's transition was never reproduced.
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.criticSupported).toBe(2);
+    expect(gs.canonicalGatePassed).toBe(2);
+    expect(gs.droppedUnreplayedActionMissions).toBe(1); // the action mission, and ONLY it
+    expect(gs.accepted).toBe(1); // the content_claim mission survives — the plan is not destroyed
+  });
+
+  it("the surviving plan still allocates the budget EXACTLY", async () => {
+    scriptProviders(
+      { missions: [v2Mission(), actionMission()] },
+      { verdicts: [decide("d0", "supported"), decide("d1", "supported")] },
+    );
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.allocationOk).toBe(true);
+    expect(gs.exactBudgetEquality).toBe(true);
+    expect(gs.allocatedBudgetBase).toBe(gs.suppliedBudgetBase);
+  });
+
+  /** THE GUARANTEE. The dropped mission must never reach the plan — that is the property Phase 5
+   *  exists to enforce, and filtering must preserve it exactly, not relax it. */
+  it("the un-replayed action mission NEVER survives into the accepted set", async () => {
+    scriptProviders(
+      { missions: [v2Mission(), actionMission()] },
+      { verdicts: [decide("d0", "supported"), decide("d1", "supported")] },
+    );
+    const gs = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!;
+    const keys = (gs.groundedCandidatePlan?.missions ?? []).map((m) => m.missionKey);
+    expect(keys).not.toContain("do-action");
+    expect(gs.safeTransitionsBlockedBy).toBeFalsy(); // nothing unsafe remains to block on
+  });
+
+  it("keeps BOTH missions when the transition WAS reproduced", async () => {
+    scriptProviders(
+      { missions: [v2Mission(), actionMission()] },
+      { verdicts: [decide("d0", "supported"), decide("d1", "supported")] },
+    );
+    const gs = (await runMissionBrain(mapWithReplay(), input, scope(), CORPUS)).groundingShadow!;
+    expect(gs.droppedUnreplayedActionMissions).toBe(0);
+    expect(gs.accepted).toBe(2);
+  });
+});
