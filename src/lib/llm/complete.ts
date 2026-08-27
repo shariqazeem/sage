@@ -464,9 +464,26 @@ export async function llmCompleteJson(opts: {
          * block, which truncates the JSON it was in the middle of writing.
          */
         max_tokens: outputBudget(opts.maxTokens ?? 3500, profile),
-        response_format: opts.responseSchema
-          ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
-          : { type: "json_object" },
+        /**
+         * ASK FOR THE STRICTEST MODE THIS PROVIDER ACTUALLY IMPLEMENTS.
+         *
+         * `responseSchema` was sent as strict `json_schema` unconditionally, to every provider —
+         * which is how a declared capability became a live outage. MiniMax does not implement it
+         * (measured: asked for {supported, reason} with strict:true, it returned a <think> block, a
+         * markdown fence, and INVENTED field names), and the grounded architect's larger nested
+         * schema drew `llm_status_400` — a NON-retryable error, so one rejection killed the whole
+         * grounded plan and the weaker legacy plan shipped.
+         *
+         * Falling back to `json_object` loses only a GENERATION-time constraint. It weakens no
+         * guarantee: the receiving parser, the strict policy and the deterministic compiler all
+         * still run, and the compiler is what actually decides the shape. Providers that do honour
+         * schema mode (the Gemini family — where json_object measurably BROKE strict parsing and
+         * json_schema fixed it) keep getting it.
+         */
+        response_format:
+          opts.responseSchema && profile.jsonMode === "schema"
+            ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
+            : { type: "json_object" },
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.user },
