@@ -175,7 +175,7 @@ function pageContextBlock(pc?: AgentPageContext): string {
 
 /** Build the system prompt. Telegram: the money paragraph depends on whether agent wallets are on.
  *  Web: the same blocks minus any money-tool steering, plus the one additive WEB_BLOCK + page context. */
-function systemPrompt(ref: string, surface: Surface, pageContext?: AgentPageContext): string {
+export function systemPrompt(ref: string, surface: Surface, pageContext?: AgentPageContext): string {
   if (surface === "web") {
     const blocks = [BASE_PROMPT, HANDOFF_BLOCK, READ_TOOLS, DIRECT_BLOCK, WEB_BLOCK, TAIL];
     const pc = pageContextBlock(pageContext);
@@ -290,8 +290,16 @@ const INVITE_RECIPIENT_TOOL = {
     required: ["campaignId"],
   },
 };
-const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL].map(asOpenAI);
-const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL, ...RECIPIENT_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
+/**
+ * EXPORTED so an evaluation battery measures the tools production actually offers.
+ *
+ * P-DIRECT once hand-rolled its own tool encoding, and the schema landed under a key the API
+ * ignores — so the model received NO parameters and invented field names, and several rounds of
+ * "defects" were manufactured by the harness. A battery must import the real thing or it measures
+ * a product that does not exist.
+ */
+export const WEB_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL].map(asOpenAI);
+export const TG_TOOLS = [...MCP_TOOLS, MY_CAMPAIGNS_TOOL, DIRECT_CAMPAIGN_TOOL, INVITE_RECIPIENT_TOOL, ...RECIPIENT_TOOLS, ...(privyConfigured() ? AGENT_WALLET_TOOLS : [])].map(asOpenAI);
 const toolsFor = (surface: Surface) => (surface === "web" ? WEB_TOOLS : TG_TOOLS);
 
 /** Per-chat memory, persisted to the DB so a founder's thread survives a server restart (the system

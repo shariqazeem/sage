@@ -333,7 +333,11 @@ export async function runDirectEval(opts: {
           `${violations.length ? `  ⚠ ${violations.length}` : "  ok"}` +
           `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}` +
           `${!calledTool ? ` · finish=${finish ?? "?"} outTokens=${outTokens ?? "?"}` : ""}` +
-          `${!calledTool && row.reply ? `\n      reply(first 160 of ${row.replyLen}): ${row.reply.slice(0, 160)}` : ""}`,
+          // 160 chars was not enough to tell WHY a no-tool row happened: the reply opens with the model's
+        // <think> monologue, so the decisive part — whether it CLAIMED it would set the campaign up
+        // (which the narration guard should catch and self-correct) or honestly asked a question —
+        // sits past the cut. Diagnosing from a truncated log is how the last two rounds went wrong.
+        `${!calledTool && row.reply ? `\n      reply(${row.replyLen} chars): ${row.reply.slice(0, 900)}` : ""}`,
       );
     }
   }
