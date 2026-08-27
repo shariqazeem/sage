@@ -94,11 +94,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Font CSS variables live on <html> because globals.css applies `font-sans`
+    // Font CSS variables live on <html> because tokens.css sets font-family from them
     // to <html>; defining them on <body> would leave the root font-family
     // unresolved and fall back to the browser default serif.
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${geist.variable}`}>
-      <body className="antialiased">
+      <body>
         <StructuredData />
         {children}
         <AppShell />

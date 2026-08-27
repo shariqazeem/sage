@@ -166,7 +166,7 @@ if you must touch them, that suite must stay green.
 
 **One system: "receipt minimalism."** Calm, premium-light, print-like. This is the
 standard all UI converges to; new UI must follow it. (Current reality is fragmented — see
-Known drift. Tokens live in `src/styles/tokens.css`, **which must be created**.)
+Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.)
 
 - **Color.** Paper background `#fbfbf9`; ink text `#1a1d21`; **brand accent terracotta
   `#c2410c` on ALL interactive/brand elements** (links, primary buttons, focus, the mark).
@@ -261,13 +261,21 @@ Where the writing brief for this file disagreed with the code, the code is recor
    for a chainless read/write, and `envSummary`'s default network, are Metis Sepolia. GOAT
    2345 is "default" only as product positioning: the walletless path hardcodes 2345 and
    the web deploy flow lists it first. `src/lib/deputy/networks.ts:43`.
-2. **`src/styles/tokens.css` does not exist, and there is no `src/styles/` dir.** §5 is a
-   *target*. Current reality: ~9 CSS files across ≥5 unshared systems — `globals.css`
-   (dark, legacy/dead), `cinematic.css` (landing), `launch/launch.css` (the only place
-   terracotta `#c2410c` currently lives), `hire/hire.css` + `app/app.css`, `sage-proof.css`,
-   `agents/sage/agents.css`, plus `app/motion.css` + `app/demo-moments.css`. Radii/shadows
-   are far more varied than §5 prescribes. Building tokens.css and consolidating is unbuilt
-   work.
+2. **The design system is consolidated onto `src/styles/tokens.css`** (2026-08-28). It is the
+   single source for colour, radius, shadow, spacing, type and motion, and it also owns the
+   product's only global element rules (base font, antialiasing, default `border-color`,
+   `::selection`). `globals.css` is now nothing but `@import "tailwindcss"` — kept ONLY for
+   preflight, which is the reset every page is laid out on; **no Tailwind utility class is used
+   anywhere in the product**, so never add one. The retired dark "Bloomberg terminal" palette
+   (which shadowed `--accent`/`--border` with dark values) is deleted, along with the unused
+   `tw-animate-css` and `shadcn` imports. Remaining, deliberate: **two ink ramps** — `--ink`
+   (#1a1d21, cool) for app chrome and `--ink-warm` (#171715) for the public reading surfaces
+   (landing, docs, content), which alias it rather than redeclaring it. Per-surface stylesheets
+   ALIAS their local names to global tokens (`--terra: var(--accent)`); they must never
+   re-declare a palette value. ~116 raw colour literals were replaced with tokens; the ~71 that
+   remain are genuine one-off shades (mostly landing washes and a Tailwind-era grey ramp in
+   `marketplace.css`), tracked as polish, not blockers.
+
 3. **`AUTOPAY_THRESHOLD` is a hardcoded constant** (`0.85`) in `brain-core.ts:529`, **not
    an env var.** The brief listed it as env; it isn't configurable that way.
 4. **The "Sage, never Deputy" naming rule is aspirational for copy.** UI copy, headings,

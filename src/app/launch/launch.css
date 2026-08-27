@@ -164,7 +164,7 @@
 .lx-recent-row:hover { background: var(--lx-bg); }
 .lx-recent-host { font-family: var(--font-mono), monospace; font-size: 12.5px; }
 .lx-recent-status { font-size: 11.5px; color: var(--lx-muted); border: 1px solid var(--lx-line); border-radius: 999px; padding: 1px 8px; }
-.lx-recent-status.ok { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
+.lx-recent-status.ok { color: var(--ok); border-color: rgba(21, 128, 61, 0.35); }
 .lx-recent-when { margin-left: auto; font-size: 11.5px; color: var(--lx-muted); font-variant-numeric: tabular-nums; }
 
 /* THE ACTION LOG — the agent's own activity feed. Newest line on top with the live pulse;
@@ -382,8 +382,8 @@
   padding: 6px 12px; font-size: 13px; color: inherit; cursor: pointer;
   transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
-.lxo-chip:hover { border-color: #c2410c; }
-.lxo-chip.on { border-color: #c2410c; background: rgba(194, 65, 12, 0.07); }
+.lxo-chip:hover { border-color: var(--accent); }
+.lxo-chip.on { border-color: var(--accent); background: rgba(194, 65, 12, 0.07); }
 
 /* Public marker that feedback was left on THIS inspection — the fact a mission can be verified
    against, so "tell us what you thought" is checkable from the page instead of taken on trust. */
@@ -394,7 +394,7 @@
   border: 1px solid var(--lx-line, #e3ded4);
   border-radius: 999px;
   background: var(--lx-paper-2, #f5f3ee);
-  color: var(--lx-ink, #1a1d21);
+  color: var(--lx-ink, var(--ink));
   font-size: 13px;
   letter-spacing: 0.01em;
 }
@@ -403,7 +403,7 @@
    money-outcome red the design system reserves for exactly this kind of irreversible action. */
 .lx-remove-mission {
   margin-left: auto;
-  color: #dc2626;
+  color: var(--err);
 }
 .lx-remove-mission:hover { text-decoration: underline; }
 .lx-remove-mission:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -424,7 +424,7 @@
   font-size: 11px;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: #15803d;
+  color: var(--ok);
   margin: 0 0 10px;
 }
 .tsp-lede { margin: 0 0 16px; font-size: 15.5px; line-height: 1.6; max-width: 60ch; }
@@ -448,7 +448,7 @@
   font-size: 21px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-  color: var(--lx-ink, #1a1d21);
+  color: var(--lx-ink, var(--ink));
 }
 .tsp-note {
   margin: 0;
@@ -463,7 +463,7 @@
   gap: 6px;
   margin-top: 14px;
   font-size: 14px;
-  color: #c2410c;
+  color: var(--accent);
   text-decoration: none;
 }
 .tsp-link:hover { text-decoration: underline; }
@@ -493,7 +493,7 @@
   margin: 10px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
-  color: #c2410c;
+  color: var(--accent);
   background: rgba(194, 65, 12, 0.06);
   border: 1px solid rgba(194, 65, 12, 0.18);
   border-radius: 8px;

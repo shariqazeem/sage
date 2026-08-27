@@ -8,10 +8,22 @@
  */
 
 :root {
+  /* ── type families — defined ONCE, here (were in globals.css) ───── */
+  /* The inner var() fallbacks keep `font-family` valid when a next/font variable is
+   * missing: a bare undefined var() invalidates the whole declaration and the browser
+   * drops to serif. layout.tsx puts --font-inter / --font-jetbrains-mono on <html>. */
+  --font-sans: var(--font-inter, ui-sans-serif), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono, ui-monospace), SFMono-Regular, "JetBrains Mono", monospace;
+
   /* ── surface + text ─────────────────────────────────────────────── */
   --bg: #fbfbf9;            /* paper */
   --surface: #ffffff;      /* raised card */
-  --ink: #1a1d21;          /* primary text */
+  --ink: #1a1d21;          /* primary text (app surfaces) */
+  /* THE SECOND INK, named honestly. The public reading surfaces (landing, docs, long-form
+   * content) run a WARMER ink than the app chrome — a deliberate P24 choice, not drift. It
+   * was declared identically in three separate files; it lives here now, and those files
+   * alias it, so "warm ink" has exactly one definition. */
+  --ink-warm: #171715;
   --ink-muted: #565c64;    /* secondary text */
   --ink-faint: #8b9098;    /* tertiary / captions */
 
@@ -123,11 +135,41 @@
   }
 }
 
-/* Kill the dark bleed: the page surface is always paper. (The legacy dark system in
- * globals.css belongs to the dead /sage product — this wins the cascade so the light
- * tokens are the floor for every route until that system is deleted.) */
+/**
+ * BASE — the product's only global element rules, all expressed in tokens.
+ *
+ * These used to be a Tailwind `@layer base` block in globals.css, written against a dark
+ * palette for the retired product. That palette is gone (2026-08-28); these are its live
+ * effects, restated in plain CSS against the real tokens. Tailwind's preflight still
+ * provides the reset — see globals.css.
+ */
 html,
 body {
   background: var(--bg);
   color: var(--ink);
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* tabular numerals everywhere: amounts and hashes have to align in a column */
+  font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+}
+
+/* The reset leaves border-color at `currentColor`; Sage's hairline is the token. Every
+ * `border: 1px solid` in the product that names no colour depends on this — it was
+ * previously `* { @apply border-border }`, which resolved to this same value. */
+* {
+  border-color: var(--border);
+}
+
+/* Selection was inherited from the dark product: near-white on near-black, which on paper
+ * rendered as an almost invisible highlight. Inverted to the ink/paper pair. */
+::selection {
+  background: var(--ink);
+  color: var(--bg);
 }

@@ -184,7 +184,7 @@ body:has(.sag) { background: var(--bg); }
   text-transform: uppercase;
   background: var(--surface-3, var(--bg));
 }
-.sag-ledger-class { color: var(--ink, var(--ink)); }
+.sag-ledger-class { color: var(--ink); }
 .sag-ledger-defense { color: var(--sec, var(--ink-muted)); }
 .sag-ledger-outcome {
   display: inline-flex;
@@ -215,7 +215,7 @@ body:has(.sag) { background: var(--bg); }
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent, var(--accent));
+  color: var(--accent);
   margin-bottom: 6px;
 }
 .sag-jb-title {
@@ -243,11 +243,11 @@ body:has(.sag) { background: var(--bg); }
   border: 1px solid var(--line-2, var(--border));
   border-radius: 4px;
   background: var(--paper, var(--bg));
-  color: var(--ink, var(--ink));
+  color: var(--ink);
 }
 .sag-jb-input:focus {
   outline: none;
-  border-color: var(--accent, var(--accent));
+  border-color: var(--accent);
 }
 .sag-jb-input:disabled { opacity: 0.6; }
 .sag-jb-row {
@@ -269,8 +269,8 @@ body:has(.sag) { background: var(--bg); }
   cursor: pointer;
 }
 .sag-jb-sample:hover:not(:disabled) {
-  border-color: var(--accent, var(--accent));
-  color: var(--accent, var(--accent));
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .sag-jb-actions { display: flex; align-items: center; gap: 10px; }
 .sag-jb-count { font-size: 11px; color: var(--mut, var(--ink-faint)); }
@@ -283,7 +283,7 @@ body:has(.sag) { background: var(--bg); }
   padding: 8px 15px;
   border-radius: 4px;
   border: none;
-  background: var(--accent, var(--accent));
+  background: var(--accent);
   color: var(--accent-ink);
   cursor: pointer;
 }

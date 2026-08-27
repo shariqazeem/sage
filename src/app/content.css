@@ -32,12 +32,12 @@
 .prose-page {
   --canvas: #fbfaf6;
   --canvas-2: #f4f2ea;
-  --ink: #171715;
+  --ink: var(--ink-warm);
   --ink-2: #4a473f;
   --ink-3: #8a8578;
   --line: rgba(23, 23, 21, 0.1);
   --line-2: rgba(23, 23, 21, 0.16);
-  --terra: #c2410c;
+  --terra: var(--accent);
   --terra-wash: rgba(194, 65, 12, 0.07);
   --terra-line: rgba(194, 65, 12, 0.22);
   --r-1: 8px;
