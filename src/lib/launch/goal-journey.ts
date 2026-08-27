@@ -415,6 +415,7 @@ export async function compileGoalJourney(
       maxTokens: 1200,
       temperature: 0,
       model: deps.model ?? missionModel(),
+      lane: "MISSION",
       parsePolicy: "strict",
       responseSchema: GOAL_JOURNEY_TRANSPORT_SCHEMA,
     });
