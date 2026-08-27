@@ -9,7 +9,7 @@ import "server-only";
  * until it passes the gate.
  */
 
-import { llmCompleteJson, llmConfigured } from "@/lib/llm/complete";
+import { llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { backoffMs } from "@/lib/llm/retry";
 import { missionModel } from "@/lib/llm/mission-model";
 import {
@@ -245,6 +245,10 @@ export interface MissionBrainResult {
   /** S2 grounded-architect shadow telemetry (present only when MISSION_GROUNDING_MODE ≠ off). Advisory;
    *  it never changes `accepted` / the legacy plan. */
   groundingShadow?: GroundingShadowResult;
+  /** WHY the architect failed, when it did — provider finish_reason / content shape / token count.
+   *  Present only on a failure; a stored `reason` alone could not distinguish truncation from a
+   *  malformed answer, so every occurrence needed a live reproduction. */
+  reasonDetail?: string;
 }
 
 /** The set of transition ids the shadow replay reproduced, from the inspection's leak-safe record. */
@@ -300,6 +304,29 @@ export function compactMapForLlm(map: ProductMapV1): string {
 const jitter = (attempt: number, lastError?: unknown) =>
   new Promise((res) => setTimeout(res, backoffMs(attempt, lastError ?? new Error("shape"))));
 
+/**
+ * WHY the architect failed, in a form that survives to the DB.
+ *
+ * `classifyBrainError` collapses everything to one word, so a stored `invalid_json` said nothing
+ * about the cause and every occurrence needed a live reproduction to diagnose — measured on
+ * play2048, which failed a whole category with `invalid_json`, `model: ""`, `latencyMs: 0`.
+ * The provider already reports what we need (finish_reason distinguishes a TRUNCATED answer from a
+ * malformed one; contentShape distinguishes a fence from prose from a refusal); it was simply
+ * thrown away at the catch site. Bounded to a short string — it lands in a durable record.
+ */
+export function architectFailureDetail(e: unknown): string | undefined {
+  if (!(e instanceof LlmCompletionError)) return e instanceof Error ? e.message.slice(0, 120) : undefined;
+  const bits = [
+    e.code,
+    e.finishReason ? `finish=${e.finishReason}` : null,
+    e.contentShape ? `shape=${e.contentShape}` : null,
+    e.completionTokens != null ? `outTok=${e.completionTokens}` : null,
+    e.responseModel ? `served=${e.responseModel}` : null,
+    e.httpStatus ? `http=${e.httpStatus}` : null,
+  ].filter(Boolean);
+  return bits.join(" ").slice(0, 200);
+}
+
 /** Classify an architect failure for durable observability. */
 function classifyBrainError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
@@ -314,7 +341,7 @@ function classifyBrainError(e: unknown): string {
 
 type ArchitectResult =
   | { ok: true; candidates: CandidateMission[]; model: string; provider: string; latencyMs: number }
-  | { ok: false; error: string };
+  | { ok: false; error: string; detail?: string };
 
 async function architect(map: ProductMapV1, founder: FounderLaunchInput, correction?: string): Promise<ArchitectResult> {
   const mapJson = compactMapForLlm(map);
@@ -348,7 +375,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       if (lastError === "llm_not_configured") break;
     }
   }
-  return { ok: false, error: lastError };
+  return { ok: false, error: lastError, detail: architectFailureDetail(lastThrown) };
 }
 
 async function critic(candidates: CandidateMission[], map: ProductMapV1): Promise<MissionCritique[]> {
@@ -560,7 +587,7 @@ export async function runMissionBrain(
 
   if (!arch.ok) {
     const gs = await computeShadow(0); // legacy architect failed → V2 shadow still measured
-    return { ...EMPTY(arch.error), needsInputQuestions, ...(gs ? { groundingShadow: gs } : {}) };
+    return { ...EMPTY(arch.error), needsInputQuestions, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
   }
   let r = await run(arch);
 
