@@ -17,6 +17,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { FieldTestState, VisionObservation } from "./schemas";
 import { recordFieldTestStep } from "./field-test-progress";
+import { laneProvider } from "@/lib/llm/complete";
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -188,14 +189,25 @@ interface VisionProvider {
   model: string;
 }
 
-/** Resolve the vision provider (VISION_MODEL → MISSION_MODEL → shared chain), or null with no key. */
+/**
+ * Resolve the vision provider: the VISION lane's own provider → VISION_MODEL on the shared chain →
+ * MISSION_MODEL → shared defaults. Null with no key (the caller degrades to HTML-only inspection).
+ *
+ * The MISSION_MODEL rung is DELIBERATELY skipped when the mission lane runs on its own provider.
+ * Inheriting a model NAME across providers is the precise bug the all-three rule prevents: mission
+ * design moving to another provider would otherwise splice that provider's model onto the shared
+ * key, which authenticates as nobody and fails at inspection time rather than at boot.
+ */
 export function resolveVisionProvider(): VisionProvider | null {
+  const own = laneProvider("VISION");
+  if (own) return { endpoint: own.endpoint, key: own.key, model: own.model };
   const key = process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim();
   if (!key) return null;
   const base = (process.env.LLM_BASE_URL?.trim() || process.env.COMMONSTACK_BASE_URL?.trim() || DEFAULT_BASE).replace(/\/+$/, "");
+  const missionRung = laneProvider("MISSION") ? undefined : process.env.MISSION_MODEL?.trim();
   const model =
     process.env.VISION_MODEL?.trim() ||
-    process.env.MISSION_MODEL?.trim() ||
+    missionRung ||
     process.env.LLM_MODEL?.trim() ||
     process.env.DEPUTY_MODEL?.trim() ||
     DEFAULT_MODEL;

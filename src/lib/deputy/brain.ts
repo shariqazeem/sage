@@ -1,6 +1,7 @@
 import "server-only";
 
 import { stripReasoningPrefix as sharedStripReasoningPrefix } from "@/lib/llm/reasoning";
+import { laneProvider } from "@/lib/llm/complete";
 
 import { assessSubmission } from "@/lib/campaigns/assess";
 import {
@@ -145,13 +146,10 @@ function primaryProvider(): LlmProvider | null {
   // All three must be set (the same opt-in rule as the fallback) so a half-configured override can
   // never silently splice a key from one provider onto another's endpoint. This is what lets the
   // money judge run on a flat-rate provider while the shared chain stays on the tuned models.
-  const pKey = process.env.PAYOUT_API_KEY?.trim();
-  const pBase = process.env.PAYOUT_BASE_URL?.trim();
-  const pModel = process.env.PAYOUT_MODEL?.trim();
-  if (pKey && pBase && pModel) {
-    const base = pBase.replace(/\/+$/, "");
-    return { endpoint: `${base}/chat/completions`, key: pKey, model: pModel, host: hostOf(base) };
-  }
+  // `laneProvider` IS this rule, generalized — the payout lane defined it and every other lane now
+  // shares the one implementation, so the all-three requirement cannot drift apart between lanes.
+  const own = laneProvider("PAYOUT");
+  if (own) return own;
   const key = process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim();
   if (!key) return null;
   const base = baseFrom(process.env.LLM_BASE_URL, process.env.COMMONSTACK_BASE_URL);

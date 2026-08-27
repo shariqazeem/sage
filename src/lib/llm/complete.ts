@@ -52,8 +52,49 @@ interface ResolvedProvider {
   host: string;
 }
 
-/** Resolve the configured provider, or null when no key is set (caller degrades). */
-export function resolveLlm(modelOverride?: string): ResolvedProvider | null {
+/**
+ * A LANE is one job Sage gives a model. Each lane can run on its OWN provider — key, base URL and
+ * model together — so mission design can sit on a sponsored flat-rate provider while judgment stays
+ * on a tuned one, and either can move without touching the other or editing code.
+ *
+ * Before this existed only PAYOUT and CONCIERGE could pick a provider, because each hand-rolled its
+ * own resolver. Every other lane could override the MODEL NAME but not the key, so it was pinned to
+ * whatever provider the shared chain pointed at — which is how mission design and the observation
+ * judge ended up stranded on a metered key while the rest of the app ran on a sponsored one.
+ */
+export type Lane = "PAYOUT" | "CONCIERGE" | "MISSION" | "OBS_JUDGE" | "VISION";
+
+/**
+ * A lane's own provider, or null when it is not FULLY configured.
+ *
+ * All three vars are required together — the same opt-in rule the payout lane has always used, and
+ * the reason for it is not tidiness: a half-configured lane would splice one provider's key onto
+ * another provider's endpoint, which authenticates as nobody and fails at the worst moment rather
+ * than at boot. Partial config is therefore treated as ABSENT, and the lane inherits the shared
+ * chain unchanged.
+ */
+export function laneProvider(lane: Lane): ResolvedProvider | null {
+  const key = process.env[`${lane}_API_KEY`]?.trim();
+  const rawBase = process.env[`${lane}_BASE_URL`]?.trim();
+  const model = process.env[`${lane}_MODEL`]?.trim();
+  if (!key || !rawBase || !model) return null;
+  const base = rawBase.replace(/\/+$/, "");
+  return { endpoint: `${base}/chat/completions`, key, model, host: hostOf(base) };
+}
+
+/**
+ * Resolve the provider for a call, or null when no key is set (caller degrades honestly).
+ *
+ * Precedence: the lane's own fully-configured provider → the shared chain. Callers that pass no
+ * lane behave exactly as before.
+ */
+export function resolveLlm(modelOverride?: string, lane?: Lane): ResolvedProvider | null {
+  if (lane) {
+    const own = laneProvider(lane);
+    // An explicit per-call model override still wins over the lane's default model, so a caller
+    // that asks for a specific model keeps getting it — on the lane's provider.
+    if (own) return modelOverride?.trim() ? { ...own, model: modelOverride.trim() } : own;
+  }
   const key = process.env.LLM_API_KEY?.trim() || process.env.COMMONSTACK_API_KEY?.trim();
   if (!key) return null;
   const base = (process.env.LLM_BASE_URL?.trim() || process.env.COMMONSTACK_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -385,8 +426,10 @@ export async function llmCompleteJson(opts: {
   /** provider-native structured output. When supplied, sends response_format json_schema (strict:true) so
    *  the model is CONSTRAINED to the schema during generation. It never weakens Sage's receiving parser. */
   responseSchema?: { name: string; schema: Record<string, unknown> };
+  /** run this call on a lane's own provider when that lane is fully configured (see `Lane`). */
+  lane?: Lane;
 }): Promise<LlmComplete> {
-  const p = resolveLlm(opts.model);
+  const p = resolveLlm(opts.model, opts.lane);
   if (!p) throw new Error("llm_not_configured");
   const started = Date.now();
   const policy: ParsePolicy = opts.parsePolicy ?? "repair";

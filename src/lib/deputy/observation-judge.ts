@@ -397,7 +397,7 @@ export async function judgeObservationAccount(input: {
   if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [] };
   const user = buildJudgeUserForTest(input);
   try {
-    const r = await llmCompleteJson({ system: OBS_JUDGE_SYSTEM, user, temperature: 0, maxTokens: 900, model: input.model });
+    const r = await llmCompleteJson({ system: OBS_JUDGE_SYSTEM, user, temperature: 0, maxTokens: 900, model: input.model, lane: "OBS_JUDGE" });
     const parsed = (r.json ?? {}) as { obsConfidence?: unknown; contradictions?: unknown; corroborations?: unknown };
     return {
       obsConfidence: clamp01(Number(parsed.obsConfidence)),

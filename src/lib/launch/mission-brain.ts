@@ -336,7 +336,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
         : base) + shapeNudge;
-      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel() });
+      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION" });
       const arr = extractMissionArray(r.json);
       if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
@@ -361,6 +361,7 @@ async function critic(candidates: CandidateMission[], map: ProductMapV1): Promis
       maxTokens: 3000,
       temperature: 0,
       model: missionModel(),
+      lane: "MISSION",
     });
     const arr = (r.json as { critiques?: unknown[] })?.critiques;
     if (!Array.isArray(arr)) return [];
