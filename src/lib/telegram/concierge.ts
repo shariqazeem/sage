@@ -486,7 +486,19 @@ async function chatCompletion(
         body: JSON.stringify({
           model: model(),
           temperature: 0.3,
-          max_tokens: 900,
+          /**
+           * SIZED FOR AUTHORING A CAMPAIGN, NOT FOR A CHAT REPLY.
+           *
+           * 900 was calibrated on conversational turns. But sage_create_direct_campaign asks the
+           * model to WRITE a campaign: per milestone a title, step-by-step instructions, 1-8
+           * acceptance criteria and a verification contract — several hundred tokens each, and the
+           * schema permits twelve of them. A truncated tool call is not a short answer, it is
+           * INVALID JSON, so the founder's multi-tranche grant fails to parse for a reason nothing
+           * in the logs explains. Same failure family as the payout brain's MAX_TOKENS starvation
+           * (measured 2026-08-27), where a ceiling tuned for one workload silently broke another.
+           * Generation is billed by tokens PRODUCED, so headroom on a chat turn costs nothing.
+           */
+          max_tokens: 3000,
           messages,
           tools,
           tool_choice: "auto",
