@@ -1,5 +1,7 @@
 import "server-only";
 
+import { stripReasoningPrefix as sharedStripReasoningPrefix } from "@/lib/llm/reasoning";
+
 import { assessSubmission } from "@/lib/campaigns/assess";
 import {
   SYSTEM_PROMPT,
@@ -218,11 +220,9 @@ function heuristicFallback(input: BrainInput, latencyMs: number | null): Decisio
  * parse failure into a strict parse of the model's actual answer; the parse itself is not loosened.
  */
 export function stripReasoningPrefix(content: string): string {
-  const t = content.trimStart();
-  if (!t.startsWith("<think>")) return content;
-  const close = t.indexOf("</think>");
-  if (close === -1) return content;
-  return t.slice(close + "</think>".length);
+  // Delegates to the shared helper so the concierge and the brain can never diverge on this.
+  // Behaviour is byte-identical to the implementation that lived here (payout-parse-v4).
+  return sharedStripReasoningPrefix(content);
 }
 
 function parseMoneyBrief(content: string): DecisionBriefContent | null {

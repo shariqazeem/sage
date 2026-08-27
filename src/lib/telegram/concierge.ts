@@ -25,6 +25,7 @@ import {
   conciergeModel as model,
 } from "./concierge-config";
 import { withTransientRetry } from "@/lib/llm/retry";
+import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { checkNarration, honestFallback } from "./narration-guard";
 
 /**
@@ -487,18 +488,24 @@ async function chatCompletion(
           model: model(),
           temperature: 0.3,
           /**
-           * SIZED FOR AUTHORING A CAMPAIGN, NOT FOR A CHAT REPLY.
+           * DO NOT RAISE THIS WITHOUT RAISING THE KEY'S TIER FIRST.
            *
-           * 900 was calibrated on conversational turns. But sage_create_direct_campaign asks the
-           * model to WRITE a campaign: per milestone a title, step-by-step instructions, 1-8
-           * acceptance criteria and a verification contract — several hundred tokens each, and the
-           * schema permits twelve of them. A truncated tool call is not a short answer, it is
-           * INVALID JSON, so the founder's multi-tranche grant fails to parse for a reason nothing
-           * in the logs explains. Same failure family as the payout brain's MAX_TOKENS starvation
-           * (measured 2026-08-27), where a ceiling tuned for one workload silently broke another.
-           * Generation is billed by tokens PRODUCED, so headroom on a chat turn costs nothing.
+           * 900 is too small to AUTHOR a large campaign — sage_create_direct_campaign asks for a
+           * title, step-by-step instructions, 1-8 criteria and a contract per milestone, and the
+           * schema permits twelve — and a truncated tool call is invalid JSON, not a short answer.
+           * So raising it looks obviously right. It is not.
+           *
+           * MEASURED against the live gateway 2026-08-28: the access key enforces a cap on the
+           * TOTAL tokens of a request (prompt + max_tokens), not on max_tokens alone. Bare probes:
+           * max_tokens 1400 passes, 1450 is refused with `429 quota exceeded (cap 1)`. With a
+           * realistic ~10k-char system prompt, even max_tokens 900 is REFUSED. Raising this number
+           * therefore trades truncated campaigns for refused turns, which is worse — a refusal
+           * costs the founder the whole reply.
+           *
+           * The real fixes are a higher key tier (an account change) and a smaller request; both
+           * are tracked. Until then this stays where it was.
            */
-          max_tokens: 3000,
+          max_tokens: 900,
           messages,
           tools,
           tool_choice: "auto",
@@ -608,7 +615,7 @@ async function runAgentTurn(
         reply = "I couldn't reach my brain just now — try again in a moment.";
         break;
       }
-      messages.push({ role: "assistant", content: msg.content, tool_calls: msg.tool_calls });
+      messages.push({ role: "assistant", content: stripReasoningPrefix(msg.content ?? "") || msg.content, tool_calls: msg.tool_calls });
 
       if (msg.tool_calls?.length) {
         for (const tc of msg.tool_calls) {
@@ -776,7 +783,13 @@ async function runAgentTurn(
         continue; // let the model read the tool results and continue
       }
 
-      reply = (msg.content ?? "").trim();
+      /**
+       * A reasoning model's monologue is NOT the founder's reply. MiniMax-M3 always emits a
+       * leading <think>…</think> block, so without this the Telegram message opened with Sage
+       * thinking out loud about the founder ("The user is greeting me and asking what I do…").
+       * Measured 2026-08-28 the moment the concierge was pointed at that provider.
+       */
+      reply = stripReasoningPrefix(msg.content ?? "").trim();
 
       /**
        * SELF-CORRECT INSTEAD OF CONFESSING. The guard used to fire after the loop, so a draft that
