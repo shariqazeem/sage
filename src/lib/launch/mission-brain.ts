@@ -581,7 +581,7 @@ export async function runMissionBrain(
     try {
       if (!runGrounded) return undefined; // it could never be selected here — don't spend the founder's 169s on it
       const s = await import("./mission-grounding-shadow");
-      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map) }) : undefined;
+      return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map), replayRan: !!map.replayShadow }) : undefined;
     } catch { return undefined; }
   };
 

@@ -342,6 +342,9 @@ export interface GroundingShadowResult {
   tierCounts: Record<GroundingTier, number>;
   unsupportedCriteria: number;
   unsafeTransitionCount: number;
+  /** which condition first failed `safeTransitionsEstablished` — `replay_not_run` (the replay was
+   *  never attempted) reads very differently from `unsafe_transition` (a real safety violation). */
+  safeTransitionsBlockedBy?: string | null;
   duplicateRate: number;
   /** budget from the REAL allocateBudget over the critic-supported candidates (base units, not weights). */
   allocationOk: boolean;
@@ -615,6 +618,9 @@ export interface ShadowDeps {
   architect?: (system: string, user: string) => Promise<unknown>;
   critic?: (system: string, user: string) => Promise<unknown>;
   replayReproduced?: ReadonlySet<string>;
+  /** did the replay shadow actually RUN? false → an empty `replayReproduced` means "not attempted",
+   *  which is a configuration fact, not evidence that a transition failed to reproduce. */
+  replayRan?: boolean;
 }
 
 export async function runGroundedShadow(
@@ -1404,6 +1410,22 @@ export async function runGroundedShadow(
   let allDecisiveGrounded = accepted.length > 0;
   let noInferredOnlyDecisive = accepted.length > 0;
   let safeTransitionsEstablished = true;
+  /**
+   * WHY the safe-transition signal failed — telemetry only, the gate itself is unchanged.
+   *
+   * This signal has two independent failure modes that were indistinguishable in the record, and
+   * the difference is everything: `unsafe_or_missing_transition` means a real safety property was
+   * violated, while `action_not_replayed` can simply mean the replay never RAN. With
+   * INSPECTION_REPLAY_MODE unset (its default), `replayReproduced` is always empty, so EVERY
+   * action_outcome criterion failed and every grounded plan containing one was permanently blocked
+   * — while the far weaker LEGACY plan shipped in its place. Diagnosing that took hours of digging
+   * through stored jobs because the record said only `signal:safeTransitionsEstablished`.
+   */
+  let safeTransitionsBlockedBy: string | null = null;
+  const blockSafe = (code: string) => {
+    safeTransitionsEstablished = false;
+    safeTransitionsBlockedBy ??= code;
+  };
   for (const m of accepted) {
     const gcs = m.groundingV1?.criteria ?? [];
     if (gcs.length < m.criteria.length) allDecisiveGrounded = false;
@@ -1414,12 +1436,12 @@ export async function runGroundedShadow(
       for (const tid of gc.sourceTransitionIds ?? []) {
         const t = set.transitions.find((x) => x.id === tid);
         if (!t || t.safeClassification !== "safe")
-          safeTransitionsEstablished = false;
+          blockSafe(t ? "unsafe_transition" : "transition_not_found");
         if (
           gc.criterionKind === "action_outcome" &&
           !deps.replayReproduced?.has(tid)
         )
-          safeTransitionsEstablished = false;
+          blockSafe(deps.replayRan === false ? "replay_not_run" : "action_not_replayed");
       }
     }
   }
@@ -1563,6 +1585,7 @@ export async function runGroundedShadow(
     tierCounts,
     unsupportedCriteria,
     unsafeTransitionCount,
+    safeTransitionsBlockedBy,
     duplicateRate:
       candidates.length === 0 ? 0 : 1 - objectives.size / candidates.length,
     allocationOk: alloc.ok,
