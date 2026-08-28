@@ -12,6 +12,33 @@ import { ROUTE_FIXTURES, CONFIRM_TOOLS, type RouteFixture } from "./route-fixtur
  * harness. A battery must exercise the real thing or it measures a product that does not exist.
  */
 
+
+/**
+ * READ-THEN-ACT is correct behaviour, not a misroute.
+ *
+ * The first P-ROUTE run scored "stop the storefront grant" and "add my cousin to that grant" as
+ * failures because the agent called `sage_my_campaigns` first. It has to: those utterances name a
+ * campaign in WORDS, and the acting tool needs an id. Production runs a multi-round loop and does
+ * exactly this. Measuring only turn 1 was the instrument punishing the agent for being right.
+ *
+ * So a lookup is allowed ONE round, with a stub result fed back, and the target tool must appear on
+ * the next round. That is faithful to production without loosening what counts as success: reaching
+ * a DIFFERENT acting tool, or never reaching one, still fails.
+ */
+const LOOKUP_TOOLS = new Set(["sage_my_campaigns", "sage_get_campaign", "sage_my_work", "sage_browse_missions", "sage_get_inspection"]);
+
+/** A minimal, realistic result so the second round has an id to act on. Never richer than the real
+ *  tool would return — an over-helpful stub would measure a product that does not exist. */
+function stubToolResult(name: string): string {
+  if (name === "sage_my_campaigns")
+    return JSON.stringify({ ok: true, campaigns: [{ publicCampaignId: "grant-storefront-a1b2", title: "Storefront grant", kind: "grant", status: "live", missions: [{ missionKey: "publish-page", title: "Publish the shop page" }] }] });
+  if (name === "sage_browse_missions")
+    return JSON.stringify({ ok: true, missions: [{ publicCampaignId: "grant-storefront-a1b2", missionKey: "publish-page", title: "Publish the shop page", rewardUsd: 20 }] });
+  if (name === "sage_my_work")
+    return JSON.stringify({ ok: true, entries: [{ publicCampaignId: "grant-storefront-a1b2", status: "paid", amountUsd: 20 }], balanceUsd: 20 });
+  return JSON.stringify({ ok: true });
+}
+
 export interface RouteRow {
   id: string;
   expect: string | null;
@@ -19,6 +46,8 @@ export interface RouteRow {
   ok: boolean;
   /** a confirm_* tool fired on a FIRST turn — the irreversible step, unprompted. */
   prematureConfirm: boolean;
+  /** the agent read first (to resolve a name to an id) and then reached the target tool. */
+  viaLookup: boolean;
   finish?: string;
   outTokens?: number;
   reply: string;
@@ -32,7 +61,9 @@ const model = () => process.env.CONCIERGE_MODEL?.trim() || process.env.LLM_MODEL
 
 interface ToolCall { id: string; type: "function"; function: { name: string; arguments: string } }
 
-async function askOnce(f: RouteFixture, timeoutMs: number): Promise<{ call: ToolCall | null; reply: string; finish?: string; outTokens?: number }> {
+type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
+
+async function askOnce(f: RouteFixture, timeoutMs: number, history: Msg[] = []): Promise<{ call: ToolCall | null; reply: string; finish?: string; outTokens?: number }> {
   const k = key();
   if (!k) throw new Error("no concierge key in env");
   const res = await fetch(`${base()}/chat/completions`, {
@@ -45,6 +76,7 @@ async function askOnce(f: RouteFixture, timeoutMs: number): Promise<{ call: Tool
       messages: [
         { role: "system", content: systemPrompt("p-route-eval", f.surface === "web" ? "web" : "telegram") },
         { role: "user", content: f.utterance },
+        ...history,
       ],
       tools: f.surface === "web" ? WEB_TOOLS : TG_TOOLS,
       tool_choice: "auto",
@@ -68,14 +100,33 @@ async function askOnce(f: RouteFixture, timeoutMs: number): Promise<{ call: Tool
 export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<RouteRow> {
   try {
     const r = await withTransientRetry(() => askOnce(f, timeoutMs), { attempts: 3 });
-    const called = r.call?.function.name ?? null;
-    const accepted = f.expect === null ? [null] : [f.expect, ...(f.alsoOk ?? [])];
+    const first = r.call?.function.name ?? null;
+    const accepted: (string | null)[] = f.expect === null ? [null] : [f.expect, ...(f.alsoOk ?? [])];
+    // The FIRST call is what the premature-confirm invariant is about: an irreversible step before
+    // the person has seen anything. A confirm reached after a lookup is a different (fine) thing.
+    const prematureConfirm = !!first && (CONFIRM_TOOLS as readonly string[]).includes(first);
+
+    let called = first;
+    let viaLookup = false;
+    if (f.expect !== null && first && !accepted.includes(first) && LOOKUP_TOOLS.has(first) && r.call) {
+      const second = await withTransientRetry(
+        () => askOnce(f, timeoutMs, [
+          { role: "assistant", content: r.reply || null, tool_calls: [r.call!] },
+          { role: "tool", tool_call_id: r.call!.id, content: stubToolResult(first) },
+        ]),
+        { attempts: 3 },
+      );
+      const next = second.call?.function.name ?? null;
+      if (next && accepted.includes(next)) { called = next; viaLookup = true; }
+      else called = next ?? first;
+    }
     return {
       id: f.id,
       expect: f.expect,
       called,
-      ok: accepted.includes(called as string & null),
-      prematureConfirm: !!called && (CONFIRM_TOOLS as readonly string[]).includes(called),
+      ok: accepted.includes(called),
+      prematureConfirm,
+      viaLookup,
       finish: r.finish,
       outTokens: r.outTokens,
       reply: r.reply,
@@ -83,7 +134,7 @@ export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<R
     };
   } catch (e) {
     return {
-      id: f.id, expect: f.expect, called: null, ok: false, prematureConfirm: false,
+      id: f.id, expect: f.expect, called: null, ok: false, prematureConfirm: false, viaLookup: false,
       reply: "", failed: true, why: e instanceof Error ? e.message.slice(0, 180) : String(e).slice(0, 180),
     };
   }
@@ -100,6 +151,8 @@ export interface RouteMetrics {
   /** the model answered in words where a tool was required. */
   missedTool: number;
   providerFailures: number;
+  /** reached the target only after a read tool resolved a name to an id — correct, worth seeing. */
+  viaLookup: number;
   conclusive: boolean;
 }
 
@@ -122,6 +175,7 @@ export function summarize(rows: RouteRow[]): RouteMetrics {
     toolOnExplain,
     missedTool,
     providerFailures,
+    viaLookup: live.filter((r) => r.viaLookup).length,
     // A run with provider failures measured nothing: 0 rows -> 0 violations reads as a clean pass.
     conclusive: providerFailures === 0 && live.length > 0,
   };

@@ -346,7 +346,7 @@ describe("a campaign claimed in the bare progressive", () => {
     "That's a direct campaign. One person, $20 on publication. Creating it now.",
     "Entendido — creando la campaña ahora.",
   ])("flags %j so the turn self-corrects", (reply) => {
-    expect(checkNarration(reply, noTools, {}).ok).toBe(false);
+    expect(checkNarration(reply, noTools).ok).toBe(false);
   });
 
   /** Keyed on the immediacy adverb precisely so EXPLANATION and QUESTIONS stay clean — over-firing
@@ -356,11 +356,11 @@ describe("a campaign claimed in the bare progressive", () => {
     "I can do that. Before I create it, what's the exact amount per milestone?",
     "Here's how getting paid works: you submit evidence, Sage verifies it, and USDC lands in your wallet.",
   ])("does NOT flag %j", (reply) => {
-    expect(checkNarration(reply, noTools, {}).ok).toBe(true);
+    expect(checkNarration(reply, noTools).ok).toBe(true);
   });
 
   it("is satisfied once the tool actually ran", () => {
     const backed = new Set(["sage_create_direct_campaign"]);
-    expect(checkNarration("Setting that up now: $50 to the designer.", backed, {}).ok).toBe(true);
+    expect(checkNarration("Setting that up now: $50 to the designer.", backed).ok).toBe(true);
   });
 });

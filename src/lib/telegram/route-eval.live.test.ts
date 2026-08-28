@@ -28,7 +28,7 @@ describe.runIf(LIVE)("P-ROUTE — agent tool-routing battery (production prompt 
           rows.push(row);
           const mark = row.failed ? "FAILED" : row.ok ? "ok" : "⚠";
           console.log(
-            `  ${f.id} run${r + 1}/${RUNS}: ${row.called ?? "(no tool)"} ${mark}` +
+            `  ${f.id} run${r + 1}/${RUNS}: ${row.called ?? "(no tool)"}${row.viaLookup ? " (via lookup)" : ""} ${mark}` +
               `${row.prematureConfirm ? "  ‼ PREMATURE CONFIRM" : ""}` +
               `${row.failed ? `  ${row.why}` : ` · finish=${row.finish} out=${row.outTokens}`}` +
               `${!row.ok && !row.failed ? `\n      expected=${row.expect ?? "(no tool)"} · reply(${row.reply.length}): ${row.reply.slice(0, 300)}` : ""}`,
@@ -38,7 +38,7 @@ describe.runIf(LIVE)("P-ROUTE — agent tool-routing battery (production prompt 
       const m = summarize(rows);
       console.log(`\nP-ROUTE: ${m.correct}/${m.rows - m.providerFailures} correct · misrouted ${m.misrouted}` +
         ` · toolOnExplain ${m.toolOnExplain} · missedTool ${m.missedTool}` +
-        ` · prematureConfirms ${m.prematureConfirms} · providerFailures ${m.providerFailures} · conclusive ${m.conclusive}`);
+        ` · viaLookup ${m.viaLookup} · prematureConfirms ${m.prematureConfirms} · providerFailures ${m.providerFailures} · conclusive ${m.conclusive}`);
 
       // A run that could not reach the provider measured NOTHING — 0 rows means 0 violations,
       // which reads exactly like a clean pass. P-DIRECT shipped that false pass once.
