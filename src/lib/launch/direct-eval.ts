@@ -202,7 +202,9 @@ export async function runDirectEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const violations: string[] = [];
-      let { call, reply, failed, why, finish, outTokens } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      const first = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      const { failed, why } = first;
+      let { call, reply, finish, outTokens } = first;
       /**
        * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
        *
