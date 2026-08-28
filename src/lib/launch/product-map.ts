@@ -60,6 +60,20 @@ const CATEGORY_HINTS: [RegExp, string][] = [
   [/pricing|subscribe|plans|checkout|cart|shop|store|tarifs|boutique|panier|abonn|preise|warenkorb|kaufen|precios|tienda|carrito|comprar|prezzi|negozio|loja/i, "commerce / saas"],
   [/dashboard|analytics|workspace|projects?|tableau de bord|espace de travail|arbeitsbereich/i, "saas app"],
   [/blog|news|magazine|article|actualites|noticias|nachrichten/i, "content / media"],
+  [/messag(?:e|es|ing)|messenger|\bchats?\b|\binbox\b|conversations?|social network|followers|mensaje|nachricht/i, "messaging / social"],
+  /**
+   * LAST RESORT, AND STILL MORE USEFUL THAN "UNCATEGORIZED".
+   *
+   * A product that meets you with a login wall reveals almost nothing about itself: MEASURED on
+   * web.telegram.org, the only text Sage can see is "Log in to Telegram by QR Code / Open Telegram
+   * on your phone", which names no category at all — not even messaging. Guessing from the brand
+   * would be knowledge Sage does not have; saying "uncategorized" throws away the one thing it DOES
+   * know. What it observed is a wall, so that is what it says.
+   *
+   * Ordered last on purpose: any product whose text identifies it wins first, so a normal site with
+   * a "Log in" link in the nav is never mistaken for a wall.
+   */
+  [/log ?in|sign ?in|qr code|authenticate|two-factor|iniciar sesion|connexion|anmelden/i, "login-walled product"],
 ];
 
 /**

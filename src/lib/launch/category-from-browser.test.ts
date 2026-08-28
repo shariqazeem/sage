@@ -50,3 +50,30 @@ describe("category survives a bot wall", () => {
     expect(inferCategory([], ft({}))).toBe("product (uncategorized)");
   });
 });
+
+/**
+ * A LOGIN WALL IS ITSELF AN OBSERVATION.
+ *
+ * MEASURED on web.telegram.org: the only text Sage can see is "Log in to Telegram by QR Code /
+ * Open Telegram on your phone", which names no category — not even messaging. Guessing "messaging"
+ * from the brand would be knowledge Sage does not have; "uncategorized" throws away the one thing
+ * it does know. The category frames the product for the mission brain, and "this is behind a wall"
+ * is a genuinely useful frame.
+ */
+describe("categories that were simply missing", () => {
+  const page = (title: string, h1: string, text: string) =>
+    ft({ pages: [{ url: "https://x.test/", title, h1, ctas: [], consoleErrors: [], brokenRequests: [], jsOnly: false, visibleTextExcerpt: text } as never] });
+
+  it("names a login wall instead of giving up", () => {
+    expect(inferCategory([], page("Telegram", "Log in to Telegram by QR Code", "Open Telegram on your phone. Go to Settings > Devices > Add Device."))).toBe("login-walled product");
+  });
+
+  it("recognises a messaging product when its text says so", () => {
+    expect(inferCategory([], page("Chatly", "Your inbox", "Send messages and start conversations with your team"))).toBe("messaging / social");
+  });
+
+  /** The wall is LAST, so a product that identifies itself is never mislabelled by a nav link. */
+  it("does not mistake a shop with a Log in link for a wall", () => {
+    expect(inferCategory([], page("Store", "Shop our range", "Log in. Add to cart. Checkout securely."))).toBe("commerce / saas");
+  });
+});
