@@ -123,7 +123,24 @@ export function profileFor(model: string | null | undefined, baseUrl: string | n
  * model happened to be configured that week. The provider's own overhead is added here, so moving
  * to a reasoning model cannot silently truncate anyone.
  */
-export function outputBudget(answerTokens: number, profile: ProviderProfile): number {
+export function outputBudget(answerTokens: number, profile: ProviderProfile, escalation = 0): number {
   const answer = Math.max(1, Math.round(answerTokens));
-  return answer + profile.reasoningOverheadTokens;
+  return answer + Math.round(profile.reasoningOverheadTokens * ESCALATION[Math.min(escalation, ESCALATION.length - 1)]!);
 }
+
+/**
+ * HOW FAR TO OPEN THE BUDGET, PER ATTEMPT.
+ *
+ * A fixed overhead cannot be right, because the reasoning block scales with the INPUT: play2048's
+ * architect think block measured ~6,357 tokens, while a one-sentence page needs a fraction of that.
+ * Sizing the constant for the worst case looked safe and was not — the model FILLS whatever budget
+ * it is given (7.2k -> 7,199; 11.2k -> 11,199; 16k -> 15,998), so a worst-case constant made EVERY
+ * call generate worst-case tokens. Measured on prod: one architect call took 157s and a
+ * one-sentence website took 36 MINUTES to inspect.
+ *
+ * So the first attempt is sized for the typical case and only a real truncation
+ * (finish_reason "length") buys more room. Fast common case, correct worst case, and the retry
+ * ladder finally responds to the failure it is retrying — it varied temperature before, which
+ * cannot fix a budget problem.
+ */
+const ESCALATION = [0.45, 1, 2] as const;

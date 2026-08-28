@@ -327,6 +327,14 @@ export function architectFailureDetail(e: unknown): string | undefined {
   return bits.join(" ").slice(0, 200);
 }
 
+/** Did the provider run out of room, as opposed to producing a bad shape? Only this warrants a
+ *  bigger budget on the next attempt; everything else is answered by temperature and the nudge. */
+function wasTruncated(e: unknown): boolean {
+  if (e instanceof LlmCompletionError) return e.finishReason === "length" || e.code === "llm_empty";
+  const m = e instanceof Error ? e.message : String(e);
+  return /finish_length|truncat|unparseable|empty/i.test(m);
+}
+
 /** Classify an architect failure for durable observability. */
 function classifyBrainError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
@@ -350,6 +358,14 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
   // model to fix specific problems rather than blindly regenerate. Never canned output.
   let lastError = "architect_failed";
   let lastThrown: unknown = null; // the raw error, so a provider hiccup waits and a shape failure doesn't
+  /**
+   * Opened only by a MEASURED truncation. The ladder used to vary temperature and add a shape
+   * nudge, neither of which can fix a budget problem — so a genuinely-too-small budget failed all
+   * five attempts identically. Starting at the typical size and escalating on evidence keeps the
+   * common case fast: a worst-case constant made every call generate worst-case tokens, and a
+   * one-sentence website took 36 minutes to inspect.
+   */
+  let escalation = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
     await jitter(attempt, lastThrown);
     try {
@@ -363,7 +379,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
         : base) + shapeNudge;
-      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION" });
+      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation });
       const arr = extractMissionArray(r.json);
       if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
@@ -373,6 +389,8 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       lastError = classifyBrainError(e);
       lastThrown = e;
       if (lastError === "llm_not_configured") break;
+      // Only a real truncation buys more room — never a shape failure, which more tokens cannot fix.
+      if (wasTruncated(e)) escalation++;
     }
   }
   return { ok: false, error: lastError, detail: architectFailureDetail(lastThrown) };

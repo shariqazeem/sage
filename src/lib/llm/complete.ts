@@ -435,6 +435,9 @@ export async function llmCompleteJson(opts: {
   responseSchema?: { name: string; schema: Record<string, unknown> };
   /** run this call on a lane's own provider when that lane is fully configured (see `Lane`). */
   lane?: Lane;
+  /** retry rung: 0 = typical budget, higher = more room for a provider that truncated. Only raise
+   *  it in response to a MEASURED truncation (finish_reason "length"), never speculatively. */
+  escalation?: number;
 }): Promise<LlmComplete> {
   const p = resolveLlm(opts.model, opts.lane);
   if (!p) throw new Error("llm_not_configured");
@@ -463,7 +466,7 @@ export async function llmCompleteJson(opts: {
          * gets 4200 of ANSWER on a reasoning model, rather than 4200 minus a stochastic think
          * block, which truncates the JSON it was in the middle of writing.
          */
-        max_tokens: outputBudget(opts.maxTokens ?? 3500, profile),
+        max_tokens: outputBudget(opts.maxTokens ?? 3500, profile, opts.escalation ?? 0),
         /**
          * ASK FOR THE STRICTEST MODE THIS PROVIDER ACTUALLY IMPLEMENTS.
          *
