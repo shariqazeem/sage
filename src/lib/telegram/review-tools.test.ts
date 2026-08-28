@@ -63,3 +63,55 @@ describe("founder review tools — gating + two-step", () => {
     expect(res.error).toMatch(/no prepared release|no pending/i);
   });
 });
+
+/**
+ * "IS ANYTHING WAITING ON ME?" — the question founders actually ask, which the tool could not
+ * answer because campaignId was REQUIRED. MEASURED by P-ROUTE: the agent went to my_campaigns,
+ * then get_campaign, and reached held work on neither run. Held submissions sitting unreviewed is
+ * a worker waiting unpaid, so the dead end has a cost.
+ */
+describe("sage_list_held with no campaign named", () => {
+  it("answers across the founder's own campaigns instead of dead-ending", async () => {
+    const owner = `0x${"c".repeat(40)}`;
+    createCampaign({
+      title: "Aggregate Scope Campaign",
+      rewardAmount: 300_000,
+      vaultAddress: `0x${"2".repeat(40)}`,
+      posterWallet: owner,
+      chainId: 2345,
+      vaultKind: "campaign_v2",
+    });
+    bind("aggChat", owner);
+
+    const r = await body(await callAgentWalletTool("sage_list_held", {}, "aggChat"));
+    expect(r.ok).toBe(true);
+    expect((r as { scope?: string }).scope).toBe("all-campaigns");
+  });
+
+  /**
+   * WIDENING WHAT CAN BE ASKED MUST NOT WIDEN WHAT CAN BE REACHED. The aggregate runs over the
+   * same ownership set `ownsCampaign` enforces, so another founder's campaign cannot appear in it.
+   */
+  it("never includes a campaign the chat does not own", async () => {
+    const mine = `0x${"d".repeat(40)}`;
+    const theirs = `0x${"e".repeat(40)}`;
+    createCampaign({
+      title: "Someone Elses Xylophone Campaign",
+      rewardAmount: 300_000,
+      vaultAddress: `0x${"3".repeat(40)}`,
+      posterWallet: theirs,
+      chainId: 2345,
+      vaultKind: "campaign_v2",
+    });
+    bind("mineChat", mine);
+
+    const r = await body(await callAgentWalletTool("sage_list_held", {}, "mineChat"));
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(r)).not.toContain("Xylophone");
+  });
+
+  it("still refuses when the chat has no agent wallet at all", async () => {
+    const r = await body(await callAgentWalletTool("sage_list_held", {}, "unboundChat"));
+    expect(r.ok).toBe(false);
+  });
+});

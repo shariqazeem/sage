@@ -181,13 +181,13 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
   {
     name: "sage_list_held",
     description:
-      "List the submissions Sage HELD for review on one of the founder's campaigns (it wasn't confident enough to auto-pay). Use when the founder asks to see or review held work. Returns each held submission's id, mission, confidence, a reason class, and the public evidence link — never the tester's private note. Gated to the founder's own campaigns.",
+      "List the submissions waiting on the FOUNDER to decide — work Sage held because it wasn't confident enough to auto-pay. Use whenever they ask what needs them: \"anything waiting on me?\", \"do I need to approve anything?\", \"what's pending my review?\", \"any work to sign off?\", as well as \"show me held work\". Omit campaignId to cover all their campaigns. Returns each held submission's id, mission, confidence, a reason class, and the public evidence link — never the tester's private note. Gated to the founder's own campaigns.",
     inputSchema: {
       type: "object",
       properties: {
-        campaignId: { type: "string", description: "The campaign to list held submissions for." },
+        campaignId: { type: "string", description: "OPTIONAL. A campaign id, product url, hostname or title fragment. OMIT it to list everything waiting across ALL the founder's campaigns — which is what they usually mean." },
       },
-      required: ["campaignId"],
+      required: [],
     },
   },
   {
@@ -264,6 +264,20 @@ export type CampaignMatch =
   | { kind: "one"; id: string }
   | { kind: "none" }
   | { kind: "ambiguous"; candidates: { id: string; title: string; status: string }[] };
+
+/** The campaigns this wallet owns — the SAME source resolveOwnedCampaign searches, so a broader
+ *  question can never reach a campaign the founder does not own. Empty on any lookup failure. */
+export function ownedCampaignsFor(wallet: string): { id: string; title: string; status: string }[] {
+  try {
+    return getDeputyOverview(wallet).campaigns.map((c) => ({
+      id: c.id,
+      title: c.title ?? "",
+      status: String(c.status ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export function resolveOwnedCampaign(wallet: string, raw: string): CampaignMatch {
   const needle = (raw ?? "").trim().toLowerCase();
@@ -555,6 +569,47 @@ export async function callAgentWalletTool(
         const b = founderBinding(chatId);
         if (!b) return err("There's no agent wallet yet — set one up before reviewing campaigns.");
         const askedFor = typeof args.campaignId === "string" ? args.campaignId : "";
+        /**
+         * "IS ANYTHING WAITING ON ME?" IS THE QUESTION FOUNDERS ACTUALLY ASK.
+         *
+         * campaignId was required, so the commonest phrasing — which names no campaign — could not
+         * be answered at all: it returned "No campaign matches ''. Call sage_my_campaigns first."
+         * MEASURED by P-ROUTE: the agent went to my_campaigns, then get_campaign, and never reached
+         * held work on either run. Held submissions sitting unreviewed is a worker waiting unpaid,
+         * so the dead end has a cost.
+         *
+         * With no campaign named, aggregate across the campaigns this wallet owns — the SAME
+         * ownership set `ownsCampaign` enforces, so answering a broader question never reaches
+         * anything broader.
+         */
+        if (!askedFor.trim()) {
+          const owned = ownedCampaignsFor(b.privyWalletAddress);
+          const all = owned.flatMap((c) => {
+            const campaign = getCampaign(c.id);
+            if (!campaign || !ownsCampaign(campaign, b.privyWalletAddress)) return [];
+            return listHeldSubmissions(campaign).map((h) => ({
+              submissionId: h.submissionId,
+              campaignId: campaign.id,
+              campaignTitle: c.title,
+              mission: h.missionTitle,
+              analysis: h.matched != null && h.keySources != null
+                ? `matched ${h.matched} of ${h.keySources} things Sage saw firsthand; ${h.reasonClass}`
+                : h.reasonClass,
+              evidence: h.evidenceUrl,
+              sageLean: h.lean,
+              leanWhy: h.leanWhy,
+            }));
+          });
+          return ok({
+            ok: true,
+            scope: "all-campaigns",
+            count: all.length,
+            held: all,
+            message: all.length
+              ? `${all.length} submission(s) across ${owned.length} campaign(s) are waiting on the founder. Read the analysis before the lean, and never bulk-approve.`
+              : "Nothing is waiting on the founder right now — no held submissions on any of their campaigns.",
+          });
+        }
         const found = resolveOwnedCampaign(b.privyWalletAddress, askedFor);
         if (found.kind === "ambiguous") {
           return err(
