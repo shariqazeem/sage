@@ -371,8 +371,28 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
         : [];
   const prereqOnly = prereqs.filter((c) => !core.includes(c));
 
+  /**
+   * A FALLBACK LABEL MUST READ HONESTLY WHERE IT LEAKS.
+   *
+   * "the target" is Sage's internal word for an unresolved entity, and it does not stay internal:
+   * it flows into the CRITERIA, and the model's title refinement echoes what the criteria say. The
+   * deterministic title has been guarded since the clawup leak, but that guard covers one string —
+   * MEASURED again on play2048 (P-GEN, 2026-08-28), a shipped mission titled "Step 1: Open
+   * play2048.co as a first-time user and reach the target", which tells a founder nothing.
+   *
+   * So the fallback is now the product itself rather than a placeholder. Guarding each use site is
+   * how this recurred; a label that is honest wherever it lands cannot leak in the first place.
+   */
   const entityLabel =
-    resolvedEntity?.label ?? targetCp?.targetEntity ?? "the target";
+    resolvedEntity?.label ??
+    targetCp?.targetEntity ??
+    (() => {
+      try {
+        return `the main screen of ${new URL(input.productUrl).host.replace(/^www\./, "")}`;
+      } catch {
+        return "the product's main screen";
+      }
+    })();
   const criteria: CompiledCriterion[] = [];
 
   // criterion 0 — reach the target + open the interaction (prerequisites attach here).

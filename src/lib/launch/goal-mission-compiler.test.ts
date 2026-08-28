@@ -449,3 +449,56 @@ describe("delegated journey — the fallback prose never attributes Sage's choic
     expect(r.compiled.mission.whyItMatters.startsWith("This is exactly what the founder asked")).toBe(true);
   });
 });
+
+/**
+ * "the target" IS SAGE'S INTERNAL WORD FOR AN UNRESOLVED ENTITY — and it does not stay internal.
+ *
+ * The deterministic TITLE has been guarded since the clawup leak, but the label also flows into the
+ * CRITERIA, and the model's title refinement echoes what the criteria say. MEASURED again on
+ * play2048 (P-GEN, 2026-08-28): a shipped mission titled "Step 1: Open play2048.co as a first-time
+ * user and reach the target", which tells a founder nothing.
+ *
+ * Guarding each use site is how it recurred. The fallback now names the PRODUCT, so it reads
+ * honestly wherever it lands — and this asserts it across every founder-facing field, not just the
+ * one that leaked last time.
+ */
+describe("an unresolved entity never ships the internal placeholder", () => {
+  /**
+   * The fixture journey RESOLVES its entity, so compiling it unchanged never reaches the fallback —
+   * my first version of this test passed happily with the placeholder restored, which is exactly
+   * the vacuous guard this codebase keeps getting bitten by. Strip the entity from every checkpoint
+   * so the fallback is the only label available.
+   */
+  const unresolvedInput = () => {
+    const base = compileInput();
+    return {
+      ...base,
+      journey: {
+        ...base.journey,
+        // omit the key rather than set it undefined — targetEntity is a required string on the type
+        checkpoints: base.journey.checkpoints.map((c) => {
+          const { targetEntity: _drop, ...rest } = c as typeof c & { targetEntity?: string };
+          return rest as typeof c;
+        }),
+      },
+      // no transitions → resolveEntityForCheckpoint has nothing to resolve against
+      transitions: [],
+      steps: [],
+    };
+  };
+
+  it("keeps 'the target' out of every founder-facing field", () => {
+    const r = compileGoalMission(unresolvedInput() as Parameters<typeof compileGoalMission>[0]);
+    if (!r.ok) return; // an unresolvable journey may legitimately refuse to compile — that is also safe
+    const m = r.compiled.mission;
+    const founderFacing = [m.title, m.objective, m.whyItMatters, m.instructions, ...(m.criteria ?? [])].join(" \n ");
+    expect(founderFacing).not.toContain("the target");
+  });
+
+  it("names the product instead, so a leak is still readable", () => {
+    const r = compileGoalMission(unresolvedInput() as Parameters<typeof compileGoalMission>[0]);
+    if (!r.ok) return;
+    const all = [r.compiled.mission.title, r.compiled.mission.objective, ...(r.compiled.mission.criteria ?? [])].join(" ");
+    expect(all).not.toMatch(/\breach the target\b/i);
+  });
+});
