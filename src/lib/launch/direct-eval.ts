@@ -4,6 +4,8 @@ import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
+import { checkNarration } from "@/lib/telegram/narration-guard";
+import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import {
   compileDirectCampaign,
   directCampaignSchema,
@@ -200,7 +202,29 @@ export async function runDirectEval(opts: {
   for (const f of opts.fixtures) {
     for (let r = 0; r < runs; r++) {
       const violations: string[] = [];
-      const { call, reply, failed, why, finish, outTokens } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      let { call, reply, failed, why, finish, outTokens } = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
+      /**
+       * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
+       *
+       * When a turn claims an action but runs no tool, the concierge feeds its own SYSTEM CHECK
+       * back and gives the model one more round to earn the claim. Measuring a single call reports
+       * routing failures a founder never experiences — P-ROUTE made exactly this mistake and
+       * over-reported until it modelled the loop.
+       *
+       * It is not a free pass: the narration guard must independently judge the reply as an
+       * UNBACKED CLAIM. A turn that honestly asks a question ("what's the amount per milestone?")
+       * trips nothing and still counts as no-tool, which for a vague fixture is the CORRECT answer.
+       */
+      if (!failed && !call && reply) {
+        const verdict = checkNarration(stripReasoningPrefix(reply), new Set<string>());
+        if (!verdict.ok) {
+          const corrected = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
+            { role: "assistant", content: reply },
+            { role: "user", content: `SYSTEM CHECK: your draft stated ${verdict.unbacked.join(" and ")} but no tool ran this turn to back it. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
+          ]);
+          if (corrected.call) ({ call, reply, finish, outTokens } = corrected);
+        }
+      }
       if (failed) {
         providerFailures += 1;
         log(`  ${f.id} run${r + 1}/${runs}: PROVIDER FAILURE (not evidence) — ${why ?? "unknown"}`);
