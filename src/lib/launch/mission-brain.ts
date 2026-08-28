@@ -366,6 +366,21 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
    * one-sentence website took 36 minutes to inspect.
    */
   let escalation = 0;
+  /**
+   * A TIMEOUT IS NOT FIXABLE BY ASKING THE SAME THING AGAIN.
+   *
+   * The ladder answers a shape failure with temperature and a nudge, and a truncation with more
+   * room. It had no answer for an ABORT, so it re-issued the identical request four more times.
+   * MEASURED on app.uniswap.org (291 facts, 28 transitions): the legacy architect aborted at the
+   * 180s provider timeout and burned ~900s doing it again, turning a 2138s inspection into a
+   * founder waiting 35 minutes — while the plan that ACTUALLY SHIPPED came from the grounded path,
+   * which had finished in 9.4s. Every one of those retries was pure delay.
+   *
+   * Two aborts is enough evidence that this input does not fit this provider in this budget. Stop,
+   * and let the grounded plan (or an honest failure) reach the founder now rather than in half an
+   * hour. Bounded at 2 so a single transient blip still gets its second chance.
+   */
+  let timeouts = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
     await jitter(attempt, lastThrown);
     try {
@@ -391,6 +406,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       if (lastError === "llm_not_configured") break;
       // Only a real truncation buys more room — never a shape failure, which more tokens cannot fix.
       if (wasTruncated(e)) escalation++;
+
     }
   }
   return { ok: false, error: lastError, detail: architectFailureDetail(lastThrown) };

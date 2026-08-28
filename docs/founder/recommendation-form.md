@@ -70,16 +70,61 @@ recollection:
 
 ## Personal brand direction
 
-> Entrepreneurship backed by technical depth. A founder who ships production systems, not
-> prototypes.
+**Do not let this answer collapse into "the Sage guy".** A reader who sees one project files you as
+a one-idea builder. The record says something stronger: seven projects, six of them placing in
+hackathons, across Starknet, Solana and EVM, built independently. Lead with the direction, then
+prove the range.
+
+> Entrepreneurship backed by real technical depth. A builder who ships production systems that
+> handle money and privacy, and keeps shipping them.
 >
-> I build at the intersection of autonomous agents and payments: systems that handle money safely
-> on their own, with verification built in rather than bolted on. Where I'm taking Sage next is
-> turning its payment history into portable proof of work, so someone with no credit history
-> accumulates a record a lender can actually check. Same infrastructure, aimed at financial
-> inclusion.
+> The through-line in my work is autonomous agents and payments. Before Sage I built payment rails
+> for AI agents on Starknet (StarkPay) and on Solana (ParallaxPay, 2nd in the x402 track), where
+> agents discover and pay for distributed compute on their own. Sage carries that thesis furthest:
+> an agent that reads human work, decides, and pays for it.
 >
-> The reputation I want is simple: trusted to build autonomous systems that touch real money.
+> The other half of what I do is privacy and local-first systems. Veil Protocol is ZK privacy pools
+> on Starknet with browser-side proving, deployed to mainnet with real assets. AEGIS runs
+> computer-vision threat detection entirely on a laptop, replacing a $518/month cloud bill with
+> zero. Umanity puts donations in on-chain escrow so community votes actually release the funds.
+>
+> Across those I've worked in Cairo, Rust, Solidity, Python and TypeScript, because I pick the
+> stack the problem needs rather than the one I already know.
+>
+> What I want to be known for: taking a hard idea to production fast, in whatever ecosystem it
+> belongs to, and being trusted with systems that touch real money.
+
+**Shorter variant** when the field is small:
+
+> Entrepreneurship backed by technical depth. I build production systems that handle money and
+> privacy: agent payment rails on Starknet, Solana and EVM, ZK privacy pools deployed to mainnet,
+> and Sage, an autonomous agent that pays people for verified work. Seven projects, six of them
+> hackathon-winning, built independently. I want to be known for taking hard ideas to production
+> fast and being trusted with systems that move real money.
+
+---
+
+## Track record — reusable for grants, accelerators and applications
+
+Ordered by what each one proves, not by prize size. Every claim is checkable in the public repos.
+
+| Project | Result | What it demonstrates |
+| --- | --- | --- |
+| **Sage** | 1st Place, OpenClaw Summer Bootcamp 2026 | Autonomous agent that judges human work and pays USDC on mainnet, bounded by an on-chain vault. Self-funded its own user acquisition. |
+| **ParallaxPay** | 2nd, Solana x402 hackathon (Parallax track) | Autonomous agents discovering and paying for distributed compute via x402 micropayments, over a real multi-node scheduler-worker cluster with failover. |
+| **AEGIS** | Winner, Gradient Labs competition (Mac Mini M4 / $1,200) | Local-first computer vision: YOLOv8 + a local LLM doing threat detection on consumer hardware, replacing a $518/month cloud bill with $0. |
+| **Umanity** | $1,000, Solana Graveyard Hackathon + a Superteam bounty | On-chain escrow via PDAs where governance votes actually release funds. Anchor programs in Rust, milestone-gated payouts, 51 E2E tests. |
+| **Veil Protocol** | Reposted by Starknet | The deepest cryptography: Noir circuits, Pedersen + Poseidon commitments, browser-side proving so secrets never leave the client, Garaga verifier, **deployed on mainnet with real assets**, 164 tests. Did not place; still the work a technical reviewer will respect most. |
+| **DawnGuard** | 4th, Cypherpunk Hackathon (Superteam / Colosseum), $500 | Self-hosted privacy: local LLM inference, AES-256 at rest, zero-knowledge auth, graceful degradation when the chain or model is absent. |
+| **StarkPay** | $500 bounty | Payment infrastructure for AI agents on Starknet — x402 gateway, agent API, Telegram access. The first version of the thesis Sage now runs. |
+
+**The three sentences that summarise it:**
+
+> I've shipped payment rails for autonomous agents across three ecosystems, ZK privacy
+> infrastructure to Starknet mainnet, and local-first AI that removes cloud dependency entirely.
+> Six of my seven projects placed in hackathons, and I built them independently. The consistent
+> thread is production systems that touch real money, with verification built in rather than
+> bolted on.
 
 ---
 
@@ -119,6 +164,13 @@ pays USDC with nobody in the loop, refusing roughly half of what it's shown, and
 leaves a receipt anyone can verify.
 
 **Bio line:** Building verifiable AI payments. 1st Place, OpenClaw Summer Bootcamp 2026.
+
+**When the audience is technical** (a grant reviewer, a protocol team, an engineering panel), lead
+with Veil rather than Sage: mainnet ZK privacy pools with browser-side proving is the hardest thing
+in the portfolio, and the one that proves depth rather than range.
+
+**When the audience is commercial** (an accelerator, a fund, a hiring panel), lead with Sage: it is
+the one with users, payouts and receipts, and 1st Place attached.
 
 ---
 
