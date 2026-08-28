@@ -62,8 +62,27 @@ const CATEGORY_HINTS: [RegExp, string][] = [
   [/blog|news|magazine|article|actualites|noticias|nachrichten/i, "content / media"],
 ];
 
-function inferCategory(obs: ProductObservation[]): string {
-  const blob = obs.map((o) => `${o.title} ${o.headings.join(" ")} ${o.techHints.join(" ")}`).join(" ");
+/**
+ * WHAT THE BROWSER SAW COUNTS TOO.
+ *
+ * This read only the STATIC crawl, so a bot-walled product was uncategorizable by construction: the
+ * WAF returns nothing to Sage's read-only UA, the blob is empty, and every hint misses. MEASURED by
+ * P-GEN: cnn.com and web.telegram.org both came back "product (uncategorized)" while the real
+ * browser had already read their pages and states — the evidence existed, the categorizer just
+ * wasn't looking at it. A wrong category feeds the mission brain a wrong frame for the product.
+ *
+ * Observed TEXT is admitted (page titles, h1s, CTAs, on-screen text); the vision model's PROSE is
+ * not. Its `visibleText` is a reading of what is on screen, which is evidence; `sceneDescription`
+ * is narration, and a structural field should not be steered by model narrative.
+ */
+export function inferCategory(obs: ProductObservation[], fieldTest?: FieldTestSummary | null): string {
+  const parts = obs.map((o) => `${o.title} ${o.headings.join(" ")} ${o.techHints.join(" ")}`);
+  for (const p of fieldTest?.pages ?? [])
+    parts.push(`${p.title ?? ""} ${p.h1 ?? ""} ${(p.ctas ?? []).join(" ")} ${p.visibleTextExcerpt ?? ""}`);
+  for (const st of fieldTest?.states ?? [])
+    parts.push(`${st.visibleTextExcerpt ?? ""} ${(st.notableElements ?? []).map((e) => e.text).join(" ")}`);
+  for (const v of fieldTest?.visionObservations ?? []) parts.push((v.visibleText ?? []).join(" "));
+  const blob = parts.join(" ");
   for (const [re, cat] of CATEGORY_HINTS) if (re.test(blob)) return cat;
   return "product (uncategorized)";
 }
@@ -230,7 +249,7 @@ export function buildProductMap(
 
   const base: Omit<ProductMapV1, "digest"> = {
     productName: inferName(observations),
-    category: inferCategory(observations),
+    category: inferCategory(observations, fieldTest),
     valueProp: norm(landing?.claims[0] ?? landing?.title ?? "").slice(0, 200) || "(no clear value proposition observed)",
     targetUserHypotheses,
     founderTargetUsers: norm(founder.targetUsers).slice(0, 400),
