@@ -268,7 +268,33 @@ npm run format       # prettier --write .
 npm run deputy:watch # the local sweep watcher (drives autopilot; posts /api/deputy/sweep)
 ```
 
-Scripts in `scripts/`: `redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
+### Live evaluation batteries — one at a time
+
+Each makes real LLM calls and is skipped unless its env flag is set. **Run them on the VM** (the
+concierge/mission keys live there) and **never two at once**: they contend for one LLM key on a
+2-core box, and the loser reports timeouts that read exactly like quality failures. A row that
+died of contention is indistinguishable in the grid from a row that died of a defect.
+
+| battery | what it measures | how |
+| --- | --- | --- |
+| **P-GEN** | inspect → field test → vision → mission brain → gate, one live URL per product category | `node scripts/mission-eval-matrix.mjs --nonce N` (see the anchor-integrity policy above) |
+| **P-DIRECT** | the money lanes: gig vs grant vs testing routing, exact budget, faithful amounts, verifiable contracts | `DIRECT_EVAL=1 DIRECT_RUNS=3 npx vitest run direct-eval.live` |
+| **P-ROUTE** | tool routing across the WHOLE agent surface, both surfaces, incl. the recipient journey (invite → submit → cash out) | `ROUTE_EVAL=1 ROUTE_RUNS=2 npx vitest run route-eval.live` |
+| **P-JUDGE** | promotion gate for a payout-judge model: zero wrong-autopay, all in-set, provenance intact | `JUDGE_EVAL=1 JUDGE_MODEL=… JUDGE_RUNS=3 npx vitest run judge-eval.live` |
+| **obs ledger** | the observation judge against its fixtures — the money assertion is confidence vs `AUTOPAY_THRESHOLD` | `OBS_LIVE_EVAL=1 npx vitest run observation-judge.live` |
+| **P-VERIFY** | the deterministic verification contracts | `VERIFY_LIVE=1 npx vitest run verify-contracts.live` |
+
+**A battery must import production's own prompt/tools, never a copy** (`systemPrompt`, `TG_TOOLS`,
+`asOpenAI`, `DIRECT_BLOCK`). P-DIRECT once hand-rolled its tool encoding, the schema landed under a
+key the API ignores, and several rounds of "defects" turned out to be the harness.
+
+**Model production's loops or you will over-report.** The concierge resolves a name to an id with a
+read tool before acting, and self-corrects once when a turn claims an action it did not take.
+A one-shot battery scores both as failures a founder never experiences.
+
+Scripts in `scripts/`: `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
+lane config is silently ignored, which is how two lanes sat on a metered key for weeks),
+`redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
 the regex layer can't catch), `deputy-watch.mjs` (sweep watcher), `mcp-conformance.mjs`,
 `register-erc8004.mjs` (mints the ERC-8004 identity), `promote-demo.mjs`,
 `telegram-setup.sh`, `metis-safety/`. The optional Field Test (`FIELD_TEST_ENABLED=1`,
