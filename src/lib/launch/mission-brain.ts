@@ -406,6 +406,8 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       if (lastError === "llm_not_configured") break;
       // Only a real truncation buys more room — never a shape failure, which more tokens cannot fix.
       if (wasTruncated(e)) escalation++;
+      // ...and a TIMEOUT buys nothing: re-issuing the identical request just spends the clock again.
+      if (lastError === "provider_timeout" && ++timeouts >= 2) break;
 
     }
   }
