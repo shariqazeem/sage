@@ -37,7 +37,19 @@ export const EVIDENCE_CAPABILITY_PROMPT = [
 /** The unsupported categories, matched conservatively against evidence-requirement prose. */
 const PATTERNS: { category: (typeof UNSUPPORTED_EVIDENCE)[number]; re: RegExp; evidenceOnly?: boolean }[] = [
   { category: "screenshot", re: /\bscreen[\s-]?shots?\b|\bscreen[\s-]?grabs?\b|\bscreen[\s-]?captures?\b/i },
-  { category: "video / screen recording", re: /\bvideos?\b|\bscreen[\s-]?recordings?\b|\brecord(?:ing)?\s+(?:a|the|your)\s+\w+|\.mp4\b|\bgifs?\b/i },
+  /**
+   * "RECORD" IS NOT ONLY A CAMERA WORD.
+   *
+   * The object used to be `\w+`, so any "record the <noun>" matched — and the commonest phrasing a
+   * mission uses for the thing Sage CAN verify is exactly that: "Record the URL you land on",
+   * "Record the result". MEASURED on plausible.io (P-GEN, 2026-08-28): all FIVE candidate missions
+   * were rejected `unsupported_evidence_type` for "Record the URL"/"Record the result", and the
+   * founder got needs_input on a product that had produced three shippable missions before.
+   *
+   * A gate that rejects the very evidence it accepts is worse than no gate, so the object must now
+   * be something you can actually film.
+   */
+  { category: "video / screen recording", re: /\bvideos?\b|\bscreen[\s-]?recordings?\b|\brecord(?:ing)?\s+(?:a|the|your)\s+(?:video|screen|clip|session|footage|demo|walk[\s-]?through|loom|movie)\b|\.mp4\b|\bgifs?\b/i },
   { category: "image upload", re: /\b(?:upload|attach|provide|submit|include|share|send|paste|capture|take)\b[^.]{0,40}\b(?:image|images|photo|photos|picture|pictures)\b|\.(?:png|jpe?g|gif|webp|heic)\b/i },
   { category: "arbitrary file / document upload", re: /\b(?:upload|attach|submit|provide|include)\b[^.]{0,40}\b(?:files?|documents?|attachments?|pdfs?|recordings?)\b|\.(?:pdf|docx?|xlsx?|zip)\b/i },
   /**

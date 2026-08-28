@@ -55,3 +55,38 @@ describe("evidence capability constants", () => {
     for (const u of UNSUPPORTED_EVIDENCE) expect(EVIDENCE_CAPABILITY_PROMPT).toContain(u);
   });
 });
+
+/**
+ * "RECORD" IS NOT ONLY A CAMERA WORD.
+ *
+ * The pattern's object used to be `\w+`, so any "record the <noun>" matched — including the
+ * commonest phrasing for the evidence Sage CAN verify. MEASURED on plausible.io (P-GEN,
+ * 2026-08-28): all FIVE candidate missions were rejected `unsupported_evidence_type` for
+ * "Record the URL" / "Record the result", and the founder got needs_input on a product that had
+ * produced three shippable missions before. A gate that rejects the very evidence it accepts is
+ * worse than no gate.
+ */
+describe("record-the-noun is not a video requirement", () => {
+  const check = (text: string) =>
+    detectUnsupportedEvidence({ evidenceRequirements: [text] });
+
+  it.each([
+    "Record the URL you land on after clicking Get started",
+    "Record the result of submitting the form",
+    "Record the exact heading text shown on the pricing page",
+    "Note and record the final URL",
+  ])("ACCEPTS %j — this is the evidence Sage verifies", (text) => {
+    expect(check(text)).toBeNull();
+  });
+
+  it.each([
+    "Record a video of the checkout flow",
+    "Record your screen while completing signup",
+    "Attach a screen recording of the bug",
+    "Upload a short video showing the issue",
+    "Share a .mp4 of the walkthrough",
+    "Record the session and send the clip",
+  ])("still REJECTS %j — Sage cannot verify footage", (text) => {
+    expect(check(text)?.category).toBe("video / screen recording");
+  });
+});
