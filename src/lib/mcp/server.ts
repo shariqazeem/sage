@@ -192,7 +192,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "sage_browse_missions",
     description:
-      "Browse every testing mission ANYONE can get paid for right now, across all live Sage campaigns. Returns each campaign's open missions with the reward in USDC, how many slots are left, what the tester must do, and the link to the board where they submit. Use this to answer 'what paid work is available' or to help someone pick a mission. Read-only, takes no arguments, and lists work OTHER founders have already funded — it is a directory, not a plan for a product you supply; to design missions for YOUR url call sage_start_inspection. Shows only work that can actually pay (live campaign, open mission, unfilled slot).",
+      "Browse every testing mission ANYONE can get paid for right now, across all live Sage campaigns. Returns each campaign's open missions with the reward in USDC, how many slots are left, what the tester must do, and the link to the board where they submit. Use this to answer 'what paid work is available' or to help someone pick a mission. Read-only, takes no arguments, and lists work OTHER founders have already funded — it is a directory, not a plan for a product you supply; to design missions for YOUR url call sage_start_inspection. Shows only work that can actually pay (live campaign, open mission, unfilled slot). This lists WORK, not an explanation of the payment process: if they are asking HOW getting paid works, or about fees, timing or what happens after they submit, answer in words — do not call this.",
     inputSchema: {
       type: "object",
       properties: {
