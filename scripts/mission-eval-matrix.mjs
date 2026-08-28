@@ -276,9 +276,17 @@ async function runOne(m, i) {
     /**
      * PLAN-QUALITY LINT (2026-08-12) — the founder-facing failures each found live, one product at
      * a time, converted into checks that sweep every category at once:
-     *   templateLeak — internal skeleton/attribution strings on a founder's screen ("Reach the
-     *     target…" from an unresolved entity; "exactly what the founder asked" on a run whose goal
-     *     was Sage's own synthesis — the battery sends no goal, so ANY founder-attribution is a lie).
+     *   templateLeak — internal skeleton strings on a founder's screen, e.g. "Reach the target…"
+     *     from an unresolved entity (fixed 2026-08-28: the fallback label now names the product).
+     *
+     *     The founder-ATTRIBUTION half was removed on 2026-08-28 because its premise had gone
+     *     stale. It fired on "exactly what the founder asked" and was justified by "the battery
+     *     sends no goal, so ANY founder-attribution is a lie" — but the launch call above DOES send
+     *     a goal ("Validate the core experience for a first-time user"), and that string is not
+     *     DEFAULT_FIRST_VISIT_GOAL, so the run is NOT delegated and the attribution is honest. It
+     *     failed two rows for telling the truth. The real property (never attribute a goal Sage
+     *     synthesized itself) is enforced where it belongs, in goal-mission-compiler's `delegated`
+     *     branch, and covered by its own unit test.
      *   floor — no reward below the tangible floor (three separate money-writers each violated it
      *     once; the lint watches the OUTPUT, whichever writer is last). Keep FLOOR_BASE equal to
      *     TANGIBLE_MIN_REWARD_BASE in src/lib/launch/budget.ts — a stale ruler reports the product
@@ -287,7 +295,7 @@ async function runOne(m, i) {
      *     (measured twice on clawup $20). Informational (~): one deep mission can be a fair call.
      */
     templateLeak: missions.length === 0 ? "n/a"
-      : missions.some((x) => /\bthe target\b/i.test(x.title || "") || /exactly what the founder asked/i.test(x.whyItMatters || ""))
+      : missions.some((x) => /\bthe target\b/i.test(x.title || ""))
         ? "FAIL(template)" : "PASS",
     floor: missions.length === 0 ? "n/a"
       : missions.every((x) => Number(x.rewardBase ?? FLOOR_BASE) >= FLOOR_BASE) ? "PASS"
