@@ -133,6 +133,19 @@ export function LaunchForm() {
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   const [showRepo, setShowRepo] = useState(false);
+  /**
+   * THE GOAL CONTROLS START CLOSED.
+   *
+   * The chips are genuinely useful — one tap instead of one paragraph — but they were
+   * unconditional, so every founder paid their cost. MEASURED on the live page: step 1 offered 13
+   * buttons and 2 inputs to do one thing, paste a URL and continue, and only three of those were
+   * essential. That is the opposite of the product's own rule: ask only for genuine decisions, and
+   * never ask what Sage can discover itself — a rule this form broke while literally offering
+   * "Let Sage decide" as a chip.
+   *
+   * Open when a goal already exists so a returning founder never loses sight of their own words.
+   */
+  const [showGoal, setShowGoal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -312,25 +325,33 @@ export function LaunchForm() {
                 cannot be bothered to write still hands Sage a sharp goal, and the founder who can
                 write gets a head start to edit. "Let Sage decide" is a first-class choice, not a
                 fallback: it clears the goal, and the pipeline treats that as full delegation. */}
-            <div className="lxo-chips" role="group" aria-label="Quick goals">
-              {GOAL_CHIPS.map((c) => (
-                <button
-                  key={c.label}
-                  type="button"
-                  className={`lxo-chip${form.goal === c.goal ? " on" : ""}`}
-                  onClick={() => set("goal", c.goal)}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <textarea
-              className="lx-textarea"
-              style={{ marginTop: 10 }}
-              placeholder="Optional — pick a chip, write your own, or leave empty and Sage decides what to test from what it sees."
-              value={form.goal}
-              onChange={(e) => set("goal", e.target.value)}
-            />
+            {showGoal || form.goal ? (
+              <>
+                <div className="lxo-chips" role="group" aria-label="Quick goals">
+                  {GOAL_CHIPS.map((c) => (
+                    <button
+                      key={c.label}
+                      type="button"
+                      className={`lxo-chip${form.goal === c.goal ? " on" : ""}`}
+                      onClick={() => set("goal", c.goal)}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="lx-textarea"
+                  style={{ marginTop: 10 }}
+                  placeholder="Pick a chip, write your own, or leave empty and Sage decides what to test from what it sees."
+                  value={form.goal}
+                  onChange={(e) => set("goal", e.target.value)}
+                />
+              </>
+            ) : (
+              <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowGoal(true)}>
+                <Plus size={14} /> Steer what gets tested <span className="muted">— optional, Sage decides from what it sees</span>
+              </button>
+            )}
             {showRepo ? (
               <input
                 className="lx-input"

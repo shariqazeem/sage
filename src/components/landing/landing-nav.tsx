@@ -5,15 +5,27 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 
+/**
+ * FOUR DESTINATIONS AND A CTA — one per audience, and no anchors pretending to be pages.
+ *
+ * "Live proof" used to scroll to a landing SECTION while /explorer — the actual public ledger of
+ * every settlement and every refusal — was reachable only by typing the URL. The most
+ * credibility-building surface in the product was orphaned behind a marketing anchor. For a
+ * payments layer, a live ledger is worth more than a paragraph about one.
+ *
+ * "Marketplace" said what the page IS; "Find work" says what it is FOR, which is the only thing the
+ * person on that side of the market cares about.
+ */
 const LINKS = [
-  { href: "#how", label: "How Sage works" },
-  { href: "#proof", label: "Live proof" },
+  { href: "#how", label: "How it works" },
+  // The real ledger, not a section about it.
+  { href: "/explorer", label: "Live proof" },
+  // The market has two sides. The landing sells the founder side; this is the only door for the
+  // people who do the work, and without it a tester can only arrive via a link a founder sent them.
+  { href: "/marketplace", label: "Find work" },
   // Docs sit in the nav rather than only the footer: they are the surface that answers
   // "is this real and how does it work" for a founder who is not ready to click Launch.
   { href: "/docs", label: "Docs" },
-  // The market has two sides. The landing sells the founder side; this is the only door for the
-  // people who do the work, and without it a tester can only arrive via a link a founder sent them.
-  { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

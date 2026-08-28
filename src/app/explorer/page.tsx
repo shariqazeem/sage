@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SageMark } from "@/components/brand/sage-mark";
 import { ExplorerSearch } from "@/components/explorer/explorer-search";
 import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
+import { countDecidedSubmissions } from "@/lib/db/campaigns";
 import { chainConfig } from "@/lib/deputy/networks";
 import { short, usd } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -40,8 +41,21 @@ export default function ExplorerPage() {
   const rec = getAgentChainSplit().find((c) => c.chainId === 2345);
   const paid = rec?.settledUsd ?? 0;
   const payouts = rec?.payouts ?? 0;
-  const blocks = rec?.blocks ?? 0;
-  const refusalShare = payouts + blocks > 0 ? Math.round((blocks / (payouts + blocks)) * 100) : 0;
+  /**
+   * REFUSALS COME FROM THE LEDGER, NOT THE CHAIN FEED.
+   *
+   * `blocks` is aggregated from on-chain reputation events keyed by chainId+tx. A refusal never
+   * produces a transaction, so it could never appear there — and this page read "0 refusals on
+   * record · 0% refusal share" while the ledger held 23. The page's own claim is that refusals are
+   * listed with the same prominence because they are what make the payments mean something, so
+   * showing none was the one number it could not afford to get wrong.
+   *
+   * Settlements still come from the chain-anchored feed: a payout must be provable on-chain.
+   */
+  const decided = countDecidedSubmissions();
+  const blocks = decided.rejected;
+  const judged = decided.paid + decided.rejected;
+  const refusalShare = judged > 0 ? Math.round((blocks / judged) * 100) : 0;
   const now = Date.now();
 
   return (

@@ -272,6 +272,34 @@ export function countDecidedSubmissionsByWallet(wallet: string): { paid: number;
   return out;
 }
 
+/**
+ * EVERY DECIDED SUBMISSION, ACROSS THE WHOLE LEDGER — the refusals included.
+ *
+ * The explorer sourced its refusal count from the on-chain reputation feed, which is keyed by
+ * chainId+tx. A refusal never produces a transaction, so it could never appear there and the
+ * headline read "0 refusals on record · 0% refusal share" while the ledger held 23 of them. That
+ * is not a cosmetic miss: the page's whole claim is "every settlement AND every refusal, refusals
+ * listed with the same prominence, they are what make the payments mean something". It was
+ * promising the thing it structurally could not show.
+ *
+ * Settlements still come from the chain-anchored feed, because a payout must be provable on-chain.
+ * Refusals come from where refusals actually live.
+ */
+export function countDecidedSubmissions(): { paid: number; rejected: number } {
+  const rows = db
+    .select({ status: submissions.status, c: sql<number>`count(*)` })
+    .from(submissions)
+    .where(inArray(submissions.status, ["paid", "rejected"]))
+    .groupBy(submissions.status)
+    .all();
+  const out = { paid: 0, rejected: 0 };
+  for (const r of rows) {
+    if (r.status === "paid") out.paid = r.c;
+    if (r.status === "rejected") out.rejected = r.c;
+  }
+  return out;
+}
+
 export function listSubmissions(campaignId: string): Submission[] {
   return db
     .select()
