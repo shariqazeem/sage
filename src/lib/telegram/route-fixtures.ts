@@ -117,6 +117,46 @@ export const ROUTE_FIXTURES: RouteFixture[] = [
     surface: "tg",
     why: "the commonest first message; firing any tool here is noise",
   },
+
+  // ── the WEB surface: deliberately has NO money tools ────────────────────────────────────
+  // WEB_TOOLS omits every recipient and agent-wallet tool, so the web agent physically cannot
+  // move money. What it must not do is flail: the honest answer to a money request there is words
+  // (and a handoff), never a wrong tool grabbed because the right one is absent.
+  {
+    id: "pr-web-inspect",
+    utterance: "can you test my product? https://plausible.io — I want feedback on the signup flow from first-time visitors, budget $40",
+    expect: "sage_start_inspection",
+    surface: "web",
+    why: "the web surface's primary job: a founder pointing Sage at their product",
+  },
+  {
+    /**
+     * MY FIXTURE WAS WRONG BEFORE THIS ONE EXISTED. The original omitted a budget and expected the
+     * tool anyway; it failed 2/2 and looked like a routing defect. It was not: budgetUsd is a
+     * REQUIRED field, so the model could not call the tool — and asking is the right move regardless,
+     * because the budget is the founder's money, which the product treats as a genuine decision
+     * rather than something to guess. Kept as a fixture so the correct behaviour is pinned.
+     */
+    id: "pr-web-inspect-no-budget",
+    utterance: "can you test my product? https://plausible.io — I want feedback on the signup flow",
+    expect: null,
+    surface: "web",
+    why: "no budget stated: asking ONE question beats inventing an amount of someone else's money",
+  },
+  {
+    id: "pr-web-cash-out-absent",
+    utterance: "cash me out to 0x2A9f4b1C3d5E7f9A0b2C4d6E8f0A1b3C5d7E9f1A",
+    expect: null,
+    surface: "web",
+    why: "no cash-out tool exists on web — it must SAY so, not substitute another tool",
+  },
+  {
+    id: "pr-web-gig",
+    utterance: "pay a writer $30 when they publish a launch post about us on their own blog",
+    expect: "sage_create_direct_campaign",
+    surface: "web",
+    why: "creating the plan is a web action; only FUNDING needs the founder's own wallet",
+  },
 ];
 
 /** The irreversible steps. None may EVER be the first tool of a turn — see the suite. */

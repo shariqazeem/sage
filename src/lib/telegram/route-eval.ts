@@ -1,6 +1,8 @@
 import { withTransientRetry } from "@/lib/llm/retry";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { systemPrompt, TG_TOOLS, WEB_TOOLS } from "./concierge";
+import { checkNarration } from "./narration-guard";
+import { stripReasoningPrefix as stripThink } from "@/lib/llm/reasoning";
 import { ROUTE_FIXTURES, CONFIRM_TOOLS, type RouteFixture } from "./route-fixtures";
 
 /**
@@ -48,6 +50,9 @@ export interface RouteRow {
   prematureConfirm: boolean;
   /** the agent read first (to resolve a name to an id) and then reached the target tool. */
   viaLookup: boolean;
+  /** the first turn claimed an action without calling anything, and production's OWN self-correct
+   *  round then called the right tool — a recovery the founder actually gets. */
+  viaSelfCorrect: boolean;
   finish?: string;
   outTokens?: number;
   reply: string;
@@ -120,6 +125,33 @@ export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<R
       if (next && accepted.includes(next)) { called = next; viaLookup = true; }
       else called = next ?? first;
     }
+    /**
+     * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
+     *
+     * When a turn claims an action but ran no tool, the concierge feeds its own SYSTEM CHECK back
+     * and gives the model one more round to earn the claim. Measuring a single call therefore
+     * reports failures a founder never experiences — the same way scoring only turn 1 wrongly
+     * failed read-then-act. Modelled here with production's exact corrective message.
+     *
+     * It is NOT a free pass: the guard must independently judge the reply as an unbacked claim, and
+     * the retry must reach the RIGHT tool. A turn that honestly asks a question trips nothing.
+     */
+    let viaSelfCorrect = false;
+    if (f.expect !== null && !called && r.reply) {
+      const verdict = checkNarration(stripThink(r.reply), new Set<string>());
+      if (!verdict.ok) {
+        const corrected = await withTransientRetry(
+          () => askOnce(f, timeoutMs, [
+            { role: "assistant", content: r.reply },
+            { role: "user", content: `SYSTEM CHECK: your draft stated ${verdict.unbacked.join(" and ")} but no tool ran this turn to back it. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
+          ]),
+          { attempts: 3 },
+        );
+        const next = corrected.call?.function.name ?? null;
+        if (next && accepted.includes(next)) { called = next; viaSelfCorrect = true; }
+      }
+    }
+
     return {
       id: f.id,
       expect: f.expect,
@@ -127,6 +159,7 @@ export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<R
       ok: accepted.includes(called),
       prematureConfirm,
       viaLookup,
+      viaSelfCorrect,
       finish: r.finish,
       outTokens: r.outTokens,
       reply: r.reply,
@@ -134,7 +167,7 @@ export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<R
     };
   } catch (e) {
     return {
-      id: f.id, expect: f.expect, called: null, ok: false, prematureConfirm: false, viaLookup: false,
+      id: f.id, expect: f.expect, called: null, ok: false, prematureConfirm: false, viaLookup: false, viaSelfCorrect: false,
       reply: "", failed: true, why: e instanceof Error ? e.message.slice(0, 180) : String(e).slice(0, 180),
     };
   }
@@ -153,6 +186,8 @@ export interface RouteMetrics {
   providerFailures: number;
   /** reached the target only after a read tool resolved a name to an id — correct, worth seeing. */
   viaLookup: number;
+  /** recovered by production's own self-correct round — a recovery founders actually get. */
+  viaSelfCorrect: number;
   conclusive: boolean;
 }
 
@@ -176,6 +211,7 @@ export function summarize(rows: RouteRow[]): RouteMetrics {
     missedTool,
     providerFailures,
     viaLookup: live.filter((r) => r.viaLookup).length,
+    viaSelfCorrect: live.filter((r) => r.viaSelfCorrect).length,
     // A run with provider failures measured nothing: 0 rows -> 0 violations reads as a clean pass.
     conclusive: providerFailures === 0 && live.length > 0,
   };
