@@ -31,8 +31,19 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import { Account, RpcProvider, hash } from "starknet";
 
 const POOL = "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a";
-const SIERRA_PATH = "contracts-starknet/target/dev/sage_claims_SageClaims.contract_class.json";
-const CASM_PATH = "contracts-starknet/target/dev/sage_claims_SageClaims.compiled_contract_class.json";
+
+/**
+ * The contracts this script can put on chain.
+ *
+ * SageVault is DECLARE-ONLY. A vault belongs to one campaign and is deployed by the founder's own
+ * wallet, so that they — not Sage — are its owner; declaring the class once is the whole of Sage's
+ * part. Deploying one from this script would produce a vault owned by the operator, which is the
+ * exact arrangement the vault exists to avoid.
+ */
+const CONTRACTS = {
+  claims: { name: "SageClaims", declareOnly: false },
+  vault: { name: "SageVault", declareOnly: true },
+};
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -96,10 +107,16 @@ async function main() {
   const keystorePath = arg("keystore");
   const accountPath = arg("account");
   const rpcUrl = arg("rpc") ?? "https://rpc.starknet.lava.build:443";
-  if (!keystorePath || !accountPath) {
-    console.error("usage: node scripts/starknet-deploy.mjs --keystore <path> --account <path>");
+  const which = arg("contract") ?? "claims";
+  const target = CONTRACTS[which];
+  if (!keystorePath || !accountPath || !target) {
+    console.error(
+      "usage: node scripts/starknet-deploy.mjs --keystore <path> --account <path> [--contract claims|vault]",
+    );
     process.exit(1);
   }
+  const SIERRA_PATH = `contracts-starknet/target/dev/sage_claims_${target.name}.contract_class.json`;
+  const CASM_PATH = `contracts-starknet/target/dev/sage_claims_${target.name}.compiled_contract_class.json`;
 
   const keystore = JSON.parse(readFileSync(keystorePath, "utf8"));
   const accountFile = JSON.parse(readFileSync(accountPath, "utf8"));
@@ -111,6 +128,7 @@ async function main() {
 
   const classHash = hash.computeContractClassHash(sierra);
   const casmHash = hash.computeCompiledClassHash(casm);
+  console.log(`contract   ${target.name}${target.declareOnly ? " (declare only)" : ""}`);
   console.log(`account    ${address}`);
   console.log(`class hash ${classHash}`);
   console.log(`casm hash  ${casmHash}`);
@@ -143,6 +161,13 @@ async function main() {
     // Confirm against the CHAIN, not against the response.
     await provider.getClassByHash(classHash);
     console.log("  declared\n");
+  }
+
+  if (target.declareOnly) {
+    console.log(`\n${target.name} class hash: ${classHash}`);
+    console.log("\nDeclare only — a vault is deployed per campaign by the FOUNDER's wallet, so that");
+    console.log("they own it. Put this class hash in .env as STARKNET_VAULT_CLASS_HASH.");
+    return;
   }
 
   console.log("deploying…");
