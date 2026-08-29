@@ -37,7 +37,19 @@
 .exp-amt.no { color: var(--err); }
 .exp-what { min-width: 0; flex: 1; }
 .exp-line { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.exp-meta { font-family: var(--font-mono), monospace; font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+/* The transaction hash. `display: block` + truncation, because a full hash is ~66 characters and
+   without a bound it pushes past the row and collides with the timestamp — which is what happened
+   the moment a second rail put a hash on this page. */
+.exp-meta {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .exp-when { flex: none; font-family: var(--font-mono), monospace; font-size: 11.5px; color: var(--ink-faint); }
 
 .exp-trust { font-size: 13px; line-height: 1.55; color: var(--ink-muted); border-top: 1px solid var(--border); padding-top: 16px; }

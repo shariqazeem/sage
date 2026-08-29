@@ -48,7 +48,9 @@ async function main(): Promise<void> {
 
   const { starknetConfig } = await import("../src/lib/starknet/config");
   const { payableBalance } = await import("../src/lib/starknet/pay");
-  const { createCampaign, createSubmission, getSubmission } = await import("../src/lib/db/campaigns");
+  const { createCampaign, createSubmission, getSubmission, recordEventOnce } = await import(
+    "../src/lib/db/campaigns"
+  );
   const { STARKNET_MAINNET_KEY } = await import("../src/lib/deputy/networks");
   const { settleOnStarknet } = await import("../src/lib/campaigns/settle-starknet");
 
@@ -118,6 +120,17 @@ async function main(): Promise<void> {
     console.error("The submission is untouched and can be retried — nothing was paid.");
     process.exit(1);
   }
+
+  // The pipeline records this on the real path; a script that settles directly has to do it too,
+  // or the payout is real and yet absent from the public ledger that claims to list every one.
+  recordEventOnce({
+    campaignId: campaign.id,
+    submissionId: sub.submission.id,
+    kind: "autopay_settled",
+    detail: `${outcome.recipient ?? ""} · settled on Starknet`,
+    txHash: outcome.txHash,
+    amount: Number(outcome.rewardBase ?? BigInt(0)),
+  });
 
   console.log(`\nPAID $${(Number(outcome.rewardBase ?? BigInt(0)) / 1e6).toFixed(2)} to ${outcome.recipient}`);
   console.log(outcome.explorerUrl);

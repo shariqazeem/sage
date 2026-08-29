@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Sage Explorer — every settlement and every refusal, live",
   description:
-    "The public ledger of Sage's autonomous payouts on GOAT Mainnet: every settlement with its on-chain receipt, every refusal with its reason, every wallet with its verified work record. Search any transaction or wallet.",
+    "The public ledger of Sage's autonomous payouts: every settlement with its on-chain receipt, every refusal with its reason, every wallet with its verified work record. Search any transaction or wallet.",
   alternates: { canonical: `${siteUrl()}/explorer` },
 };
 
@@ -36,11 +36,24 @@ const ago = (unixSec: number, now: number): string => {
 };
 
 export default function ExplorerPage() {
-  const net = chainConfig(2345);
-  const feed = getPublicReceipts(40).filter((r) => r.chainId === 2345);
-  const rec = getAgentChainSplit().find((c) => c.chainId === 2345);
-  const paid = rec?.settledUsd ?? 0;
-  const payouts = rec?.payouts ?? 0;
+  /**
+   * EVERY MAINNET RAIL, NOT JUST GOAT.
+   *
+   * This page is headed "Every settlement. Every refusal." and it filtered to chain 2345, so the
+   * moment Sage settled a real payout on a second rail the ledger claiming to list all of them
+   * quietly stopped doing so. A missing payment on the page whose whole purpose is completeness is
+   * worse than a page that never claimed it.
+   *
+   * Testnets stay out: a test payout is not a settlement, and mixing valueless tokens into a total
+   * headed "settled, verified" would inflate it with money that does not exist.
+   */
+  const isMainnetRail = (chainId: number | null | undefined) =>
+    chainId != null && chainConfig(chainId).isMainnet;
+
+  const feed = getPublicReceipts(40).filter((r) => isMainnetRail(r.chainId));
+  const rails = getAgentChainSplit().filter((c) => isMainnetRail(c.chainId));
+  const paid = rails.reduce((sum, c) => sum + (c.settledUsd ?? 0), 0);
+  const payouts = rails.reduce((sum, c) => sum + (c.payouts ?? 0), 0);
   /**
    * REFUSALS COME FROM THE LEDGER, NOT THE CHAIN FEED.
    *
@@ -67,7 +80,7 @@ export default function ExplorerPage() {
             <span>Sage</span>
           </Link>
           <span style={{ fontSize: 12, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--ink-faint, #8a8f98)" }}>
-            Explorer · {net.name}
+            Explorer
           </span>
         </div>
 
@@ -103,7 +116,7 @@ export default function ExplorerPage() {
 
         <p className="exp-sec">Latest activity</p>
         {feed.length === 0 ? (
-          <p className="exp-hint">No settlements on {net.name} yet.</p>
+          <p className="exp-hint">No settlements yet.</p>
         ) : (
           <ul className="exp-list" aria-label="Latest settlements and refusals">
             {feed.map((r) => (
@@ -115,6 +128,10 @@ export default function ExplorerPage() {
                   <span className="exp-what">
                     <span className="exp-line">
                       {r.settled ? `paid to ${short(r.recipient)}` : `refused — verification check ${r.failedCheckIndex ?? 0} failed`}
+                      {" · "}
+                      {/* Which rail settled it. With more than one, a bare amount no longer
+                          says where to go and verify it. */}
+                      {chainConfig(r.chainId).chipLabel}
                     </span>
                     <span className="exp-meta">{r.txHash}</span>
                   </span>
@@ -128,8 +145,9 @@ export default function ExplorerPage() {
         <footer className="exp-trust">
           Every settled row links to its <b>proof receipt</b>, and every recipient wallet has a
           public <b>verified work record</b> at <span className="mono">/record/&lt;wallet&gt;</span>{" "}
-          with lender-consumable credit signals. Payouts run inside on-chain caps, recipients are
-          screened against the OFAC SDN list, and no human reviewed any autonomous decision — read{" "}
+          with lender-consumable credit signals. Vault-settled payouts run inside on-chain caps,
+          recipients are screened against the OFAC SDN list, and no human reviewed any autonomous
+          decision — read{" "}
           <Link href="/docs/compliance">how the controls work</Link>.
         </footer>
       </div>
