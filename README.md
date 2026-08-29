@@ -7,6 +7,7 @@
 [![Live](https://img.shields.io/badge/live-sagepays.xyz-c2410c?style=flat-square)](https://sagepays.xyz)
 [![Docs](https://img.shields.io/badge/docs-sagepays.xyz%2Fdocs-1a1d21?style=flat-square)](https://sagepays.xyz/docs)
 [![Network](https://img.shields.io/badge/GOAT%20Network-mainnet-15803d?style=flat-square)](https://explorer.goat.network)
+[![Starknet](https://img.shields.io/badge/Starknet-private%20payout%20rail-c2410c?style=flat-square)](#getting-paid-without-first-becoming-a-crypto-user)
 [![Telegram](https://img.shields.io/badge/telegram-@sagedeputybot-0088cc?style=flat-square)](https://t.me/sagedeputybot)
 
 [Website](https://sagepays.xyz) · [Documentation](https://sagepays.xyz/docs) · [Case study](https://sagepays.xyz/case-studies/autonomous-paid-testing) · [Live missions](https://sagepays.xyz/marketplace)
@@ -32,6 +33,55 @@ agent that pays everyone is not doing a job, it is a faucet.
 > never withdraw from it — it can only ask the contract to settle one specific piece of work, and
 > the contract computes the amount and checks its own limits. **The agent proposes; the vault
 > disposes.**
+
+---
+
+## Getting paid without first becoming a crypto user
+
+The first cohort exposed the part nobody demos. People did the work, Sage judged it, the USDC
+arrived — and then they were stuck. They had to own a wallet before they were allowed to be paid,
+hold gas to move what they were paid, and find a venue that lists the chain. Several never got the
+money out. **A rail that ends in an asset nobody can spend has moved a number, not capital.**
+
+And every payout published the link permanently: this wallet, this campaign, this amount. For
+someone whose testing income is a real part of what they earn, that is their income statement,
+posted publicly, forever.
+
+`SageClaims` (Cairo, in [`contracts-starknet/`](contracts-starknet/)) addresses a payout to a
+**person** instead of an address. Sage escrows the money behind a Poseidon commitment and the
+worker names where it lands at the moment they collect.
+
+- **No wallet at payout time.** A commitment commits to nobody. The recipient does not need to
+  exist yet.
+- **No gas at collection time.** `claim_to_address` is ungated by design — the preimage is the
+  authority, not the caller — so Sage relays the transaction for someone holding no token at all.
+  Proven in tests against a recipient with nothing.
+- **No public link between the work and the wallet.** The chain shows a deposit and a collection
+  joined by a hash nobody can invert.
+- **A whole campaign settles in one operation.** `deposit_many` pays up to 32 workers at once,
+  each behind their own commitment.
+- **Two doors.** A recipient already registered with the STRK20 pool collects into a *shielded
+  note* via `privacy_invoke`; everyone else collects to an address they name. Both doors share one
+  `claimed` flag, so a link opens exactly once. Neither is the "real" one — most of Sage's
+  recipients are receiving their first crypto and cannot register with the pool at all, which is
+  precisely why the public door exists.
+
+**What stays private, stated honestly.** Funding is public: the total and the timing are visible,
+and the public door names the recipient of that leg. What is hidden is **who was on the payout
+list and who collected** — which, for an agent that pays people, is the part that matters. It is
+also strictly better than the status quo, where every payout permanently ties a wallet to a
+campaign to an amount.
+
+**What is still public on purpose.** Every figure this project reports stays independently
+verifiable: amounts, payout counts, batch totals and the live unclaimed balance are all on-chain.
+Privacy removes the line back to a person, not the receipts.
+
+**Status.** The contract is written and tested — 35 tests, and every one of its eleven money
+guards verified by mutation (each guard deleted in turn to confirm a test actually goes red).
+It is **not yet deployed to Starknet mainnet**; this README will carry the address and the
+transactions when it is. No owner, no admin, no pause, no upgrade path.
+
+There is no dependency on any other project: it integrates the STRK20 **pool** directly.
 
 ---
 
