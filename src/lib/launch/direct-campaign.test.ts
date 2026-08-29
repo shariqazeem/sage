@@ -10,6 +10,7 @@ import {
 } from "./direct-campaign";
 import { loadApprovedPlan } from "./deployment-service";
 import { getInspectionJob } from "@/lib/db/inspection";
+import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { getApprovedRevision } from "@/lib/db/plan-revisions";
 
 /**
@@ -305,5 +306,23 @@ describe("productUrl is OPTIONAL — a grant to a person has no product page (P-
     const bad = grantInput();
     (bad as { productUrl?: string }).productUrl = "http://insecure.example";
     expect(directCampaignSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("on-chain milestone chains must be reachable", () => {
+  /**
+   * The chain registry holds Starknet so that amounts and explorer links are truthful for campaigns
+   * settled there. It is NOT somewhere viem can go, and on-chain verification reads EVM logs — so a
+   * milestone compiled against it would look valid and then refuse every submission, forever.
+   */
+  it("refuses a non-EVM chain for an on-chain contract", () => {
+    const input = grantInput();
+    (input.milestones[0] as { evidence: { chainId: number } }).evidence.chainId =
+      STARKNET_MAINNET_KEY;
+    expect(directCampaignSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("still accepts GOAT, so nothing that worked stopped working", () => {
+    expect(directCampaignSchema.safeParse(grantInput()).success).toBe(true);
   });
 });

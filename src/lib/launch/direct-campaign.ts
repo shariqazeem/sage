@@ -57,7 +57,13 @@ const selectorRe = /^0x[0-9a-fA-F]{8}$/;
 const decimalRe = /^[0-9]{1,30}$/;
 const hostRe = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 
-const chainIdKnown = (id: number) => !!CHAINS[id];
+/**
+ * On-chain verification reads EVM logs and calls EVM contracts, so the chain has to be one viem can
+ * reach. The registry also holds Starknet — there so that amounts, labels and explorer links are
+ * truthful for campaigns settled on it — and accepting it here would compile a milestone whose
+ * verification can never run: a contract that looks valid and refuses every submission.
+ */
+const chainIdKnown = (id: number) => !!CHAINS[id]?.evm;
 
 /** onchain_tx — at least one shape constraint beyond tester-binding, or the contract would verify
  *  ANY transaction the tester ever sent (too weak to gate money). */
