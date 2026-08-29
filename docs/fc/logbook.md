@@ -86,3 +86,63 @@ the project's standing rules.
 money. Its machinery shares the same settlement path that testing and gig payouts have already
 proven on mainnet, and its compilation is measured by P-DIRECT, but no grant has actually paid out
 yet. That is the next thing to prove, not to claim.
+
+---
+
+## 29 August 2026 — a payout rail people can actually spend, and an income that stays theirs
+
+**Sage stopped publishing what people earn.** The Verified Work Record used to serve every payout
+in full — an amount per entry, a total at the top, keyed to a wallet, readable by anyone holding
+the address. For someone whose testing or gig income is a real part of what they live on, that was
+their income statement posted permanently in public. It was never a decision; it is what a record
+built from receipts looks like if nobody stops it. This track's brief names exactly that problem —
+credit profiles that don't force you to publish your income — and it was sitting in our own API.
+
+Redacting amounts does not gut the record, because the lending signal was never mostly the amount:
+how many separate jobs were verified and paid, how many *different* counterparties chose to pay,
+over how many months, how recently, what share of submitted work passed verification — and a
+transaction hash for every one, so a stranger can confirm each payment happened. A lender learns
+"23 verified jobs for 9 payers over 7 months, 84% pass rate, here are the receipts." That is a
+credit profile. It is not a published income.
+
+**Earnings can now be proved without being revealed.** A worker names a floor and Sage signs it
+only if it is true: someone who earned $847.25 proves "at least $500", and $847.25 never leaves
+Sage's ledger. The floor is chosen by the person it describes — they decide how much of their
+income is any given lender's business. It is scoped and expiring, unlike a privacy-pool viewing
+key, which reveals every note forever to whoever is handed it.
+
+It is **not** a zero-knowledge proof and is not described as one. A verifier trusts Sage's
+signature; what makes that trustworthy is that Sage is already the party that judged the work and
+made the payments, and that every claim is anchored to transactions anyone can check. The payments
+are provable without Sage — only their size rests on the signature.
+
+**The endpoint that issues those attestations is authenticated, and that is not polish.** Left
+open, "did this wallet earn at least $X" is a binary-search oracle: ask $500, then $250, then $375,
+and in about twenty requests you have reconstructed the exact income the redaction was protecting.
+The redaction and an open threshold endpoint cannot both exist — one of them is a lie. The signed
+challenge therefore binds the wallet *and the floor*, so one signature cannot be replayed at
+another floor.
+
+**A second settlement rail, because the first cohort could not get their money out.** People were
+paid and then struggled to move it: they needed a wallet before they were allowed to be paid, gas
+to move what they were paid, and a venue that lists the chain. A rail that ends in an asset nobody
+can spend has moved a number, not capital.
+
+`SageClaims` is now live on Starknet mainnet
+(`0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57`). It addresses a payout to a
+*person* rather than an address: the money is escrowed behind a Poseidon commitment and the worker
+names where it lands when they collect, needing no wallet at payout time and no gas at collection
+time. A whole campaign settles in one operation — which is what net settlement across multiple
+participants actually means. Sage escrowed three payouts on mainnet with no human in the loop, and
+the contract has held its solvency invariant since.
+
+The rail a campaign uses is decided by Sage, never asked of a founder, and it follows whose money
+it is. A founder-funded campaign settles from a vault the founder owns and Sage can never withdraw
+from; only Sage's own money goes on the rail with no vault behind it.
+
+**What is still open, said plainly.** The direct-pay path on Starknet needs testers to supply
+Starknet addresses, which they do not yet; until then that rail is reachable through claim links
+rather than direct settlement, and the rule that selects it refuses to choose a rail its recipients
+cannot be paid on. That refusal is deliberate: an earlier version of it keyed on ownership alone
+and would have turned live campaigns into a queue of held work and unpaid people, with every
+refusal message technically correct and the outcome indefensible.
