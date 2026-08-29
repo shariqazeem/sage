@@ -55,6 +55,22 @@ pub struct Claim {
     pub claimed: bool,
 }
 
+/// The pool's deposit-into-note record. Shape is fixed by the STRK20 protocol:
+/// a helper returns these and the pool pulls the tokens into the named note.
+#[derive(Serde, Copy, Drop, PartialEq, Debug)]
+pub struct OpenNoteDeposit {
+    pub note_id: felt252,
+    pub token: ContractAddress,
+    pub amount: u128,
+}
+
+/// The two ways value leaves through the private door.
+#[derive(Serde, Copy, Drop, PartialEq, Debug)]
+pub enum PrivateExit {
+    Claim,
+    Refund,
+}
+
 /// One entry in a batch. Parallel arrays would let a caller desynchronise
 /// commitments from amounts; a struct cannot.
 #[derive(Drop, Serde, Copy)]
@@ -93,6 +109,8 @@ pub mod errors {
     pub const BATCH_TOO_LARGE: felt252 = 'BATCH_TOO_LARGE';
     pub const TRANSFER_SHORTFALL: felt252 = 'TRANSFER_SHORTFALL';
     pub const INSUFFICIENT_BACKING: felt252 = 'INSUFFICIENT_BACKING';
+    pub const CALLER_NOT_POOL: felt252 = 'CALLER_NOT_POOL';
+    pub const ZERO_POOL: felt252 = 'ZERO_POOL';
 }
 
 /// Legs per batch.
@@ -143,6 +161,30 @@ pub trait ISageClaims<T> {
     /// upstream — which campaign, which submission, which person.
     fn claim_to_address(ref self: T, secret: felt252, recipient: ContractAddress);
 
+    /// The STRK20 pool's address, pinned at deployment.
+    fn get_pool(self: @T) -> ContractAddress;
+
+    /// Collect a claim into a SHIELDED NOTE instead of to an address.
+    ///
+    /// The protocol's helper entry point, callable only by the pool. The pool
+    /// opens a note, calls this, and pulls the approved tokens into it, so the
+    /// recipient's balance never appears on chain at all.
+    ///
+    /// This door is only usable by someone already registered with the pool,
+    /// and registration happens inside their own wallet — no dapp can do it for
+    /// them. Sage's recipients are usually receiving their first crypto and
+    /// cannot use it, which is exactly why `claim_to_address` exists and why
+    /// neither door is the "real" one. A worker uses whichever fits them.
+    ///
+    /// Both doors go through the same `claimed` flag, so a link opened here can
+    /// never also be opened publicly.
+    ///
+    /// Calldata order is load-bearing: the pool deserializes straight into
+    /// these parameters.
+    fn privacy_invoke(
+        ref self: T, operation: PrivateExit, secret: felt252, note_id: felt252,
+    ) -> Span<OpenNoteDeposit>;
+
     /// Pull an unclaimed payment back after its expiry, using the refund
     /// preimage. Ungated for the same reason as `claim_to_address`.
     ///
@@ -155,17 +197,22 @@ pub trait ISageClaims<T> {
 pub mod SageClaims {
     use core::num::traits::Zero;
     use starknet::storage::{
-        Map, StorageMapReadAccess, StorageMapWriteAccess,
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
     };
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
     use crate::erc20::{IErc20Dispatcher, IErc20DispatcherTrait};
     use super::{
-        Claim, ClaimLeg, ISageClaims, MAX_BATCH, compute_claim_commitment,
-        compute_refund_commitment, errors,
+        Claim, ClaimLeg, ISageClaims, MAX_BATCH, OpenNoteDeposit, PrivateExit,
+        compute_claim_commitment, compute_refund_commitment, errors,
     };
 
     #[storage]
     struct Storage {
+        /// The STRK20 pool, pinned at deployment. Only it may open the private
+        /// door. Pinned rather than settable: an owner who could repoint this
+        /// could approve an arbitrary contract to pull the escrow's balance.
+        pool: ContractAddress,
         /// claim commitment -> claim.
         claims: Map<felt252, Claim>,
         /// refund commitment -> claim commitment, so a refund secret can find
@@ -175,13 +222,33 @@ pub mod SageClaims {
         outstanding: Map<ContractAddress, u128>,
     }
 
+    /// The pool address is required, not optional. A deployment with a zero
+    /// pool would look complete and silently have a dead private door — the
+    /// same half-configured failure this codebase refuses everywhere else.
+    #[constructor]
+    fn constructor(ref self: ContractState, pool: ContractAddress) {
+        assert(pool.is_non_zero(), errors::ZERO_POOL);
+        self.pool.write(pool);
+    }
+
     #[event]
     #[derive(Drop, starknet::Event)]
     pub enum Event {
         Deposited: Deposited,
         DepositedMany: DepositedMany,
         ClaimedToAddress: ClaimedToAddress,
+        ClaimedPrivately: ClaimedPrivately,
         Refunded: Refunded,
+    }
+
+    /// A collection through the private door. Deliberately names the
+    /// commitment and NOT the recipient — that is the whole point of this path.
+    #[derive(Drop, starknet::Event)]
+    pub struct ClaimedPrivately {
+        #[key]
+        pub claim_commitment: felt252,
+        pub token: ContractAddress,
+        pub amount: u128,
     }
 
     /// Emitted per escrow. Carries no more than the chain already shows: the
@@ -230,6 +297,52 @@ pub mod SageClaims {
 
         fn get_outstanding(self: @ContractState, token: ContractAddress) -> u128 {
             self.outstanding.read(token)
+        }
+
+        fn get_pool(self: @ContractState) -> ContractAddress {
+            self.pool.read()
+        }
+
+        fn privacy_invoke(
+            ref self: ContractState, operation: PrivateExit, secret: felt252, note_id: felt252,
+        ) -> Span<OpenNoteDeposit> {
+            let pool = self.pool.read();
+            assert(get_caller_address() == pool, errors::CALLER_NOT_POOL);
+
+            let (commitment, claim) = match operation {
+                PrivateExit::Claim => {
+                    let c = compute_claim_commitment(secret);
+                    (c, self.take_claim(c))
+                },
+                PrivateExit::Refund => self.take_expired_refund(secret),
+            };
+
+            // The pool pulls what it is approved for, in this same transaction.
+            // The allowance is set to exactly this claim's amount and to nobody
+            // but the pinned pool.
+            IErc20Dispatcher { contract_address: claim.token }
+                .approve(pool, claim.amount.into());
+
+            match operation {
+                PrivateExit::Claim => self
+                    .emit(
+                        ClaimedPrivately {
+                            claim_commitment: commitment,
+                            token: claim.token,
+                            amount: claim.amount,
+                        },
+                    ),
+                PrivateExit::Refund => self
+                    .emit(
+                        Refunded {
+                            claim_commitment: commitment,
+                            token: claim.token,
+                            amount: claim.amount,
+                        },
+                    ),
+            };
+
+            [OpenNoteDeposit { note_id, token: claim.token, amount: claim.amount }].span()
         }
 
         fn deposit(
@@ -289,17 +402,7 @@ pub mod SageClaims {
             ref self: ContractState, secret: felt252, recipient: ContractAddress,
         ) {
             assert(recipient.is_non_zero(), errors::ZERO_RECIPIENT);
-            let commitment = self.refund_index.read(compute_refund_commitment(secret));
-            assert(commitment.is_non_zero(), errors::COMMITMENT_NOT_FOUND);
-
-            // Read before taking: the expiry check must see the live claim.
-            let probe = self.claims.read(commitment);
-            assert(
-                probe.expiry.is_non_zero() && get_block_timestamp() >= probe.expiry,
-                errors::NOT_EXPIRED,
-            );
-
-            let claim = self.take_claim(commitment);
+            let (commitment, claim) = self.take_expired_refund(secret);
             IErc20Dispatcher { contract_address: claim.token }
                 .transfer(recipient, claim.amount.into());
             self
@@ -372,6 +475,22 @@ pub mod SageClaims {
             // The standing invariant, asserted on the way in: this contract can
             // never owe more than it holds.
             assert(after >= self.outstanding.read(token).into(), errors::INSUFFICIENT_BACKING);
+        }
+
+        /// Resolve a refund preimage to its claim and take it, once the expiry
+        /// has passed. Shared by both refund doors so the expiry rule cannot
+        /// hold on one path and not the other.
+        fn take_expired_refund(ref self: ContractState, secret: felt252) -> (felt252, Claim) {
+            let commitment = self.refund_index.read(compute_refund_commitment(secret));
+            assert(commitment.is_non_zero(), errors::COMMITMENT_NOT_FOUND);
+
+            // Read before taking: the expiry check must see the live claim.
+            let probe = self.claims.read(commitment);
+            assert(
+                probe.expiry.is_non_zero() && get_block_timestamp() >= probe.expiry,
+                errors::NOT_EXPIRED,
+            );
+            (commitment, self.take_claim(commitment))
         }
 
         /// Load a claim, assert it is live, and settle its liability. Both exit

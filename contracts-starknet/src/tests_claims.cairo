@@ -12,8 +12,8 @@ use snforge_std::{
 };
 use starknet::ContractAddress;
 use crate::claims::{
-    ClaimLeg, ISageClaimsDispatcher, ISageClaimsDispatcherTrait, compute_claim_commitment,
-    compute_refund_commitment,
+    ClaimLeg, ISageClaimsDispatcher, ISageClaimsDispatcherTrait, PrivateExit,
+    compute_claim_commitment, compute_refund_commitment,
 };
 use crate::mock_erc20::{IMockErc20Dispatcher, IMockErc20DispatcherTrait};
 
@@ -23,6 +23,9 @@ const OTHER_FUNDER: felt252 = 'OTHER_FUNDER';
 const STRANGER: felt252 = 'STRANGER';
 const RELAYER: felt252 = 'RELAYER';
 const ATTACKER: felt252 = 'ATTACKER';
+/// Stands in for the STRK20 pool, the only caller of the private door.
+const POOL: felt252 = 'POOL';
+const NOTE: felt252 = 'NOTE_1';
 
 const CLAIM_SECRET: felt252 = 'claim-secret-for-worker-1';
 const REFUND_SECRET: felt252 = 'refund-secret-for-worker-1';
@@ -44,7 +47,7 @@ fn addr(v: felt252) -> ContractAddress {
 
 fn deploy_claims() -> ISageClaimsDispatcher {
     let contract = declare("SageClaims").unwrap().contract_class();
-    let (address, _) = contract.deploy(@array![]).unwrap();
+    let (address, _) = contract.deploy(@array![POOL]).unwrap();
     ISageClaimsDispatcher { contract_address: address }
 }
 
@@ -491,4 +494,116 @@ fn commitments_match_the_pinned_vectors() {
             3495104234677916629716606448466696190085183457604658688403680060612153238036,
         "claim vector for 1 drifted",
     );
+}
+
+// ---------------------------------------------------------------------------
+// The private door — the STRK20 pool's helper entry point
+// ---------------------------------------------------------------------------
+
+/// A recipient who IS in the pool collects into a shielded note: the contract
+/// approves exactly this claim's amount to the pool and hands back the deposit
+/// record the pool fills the note from. The recipient's address never appears.
+#[test]
+fn a_pool_member_collects_into_a_shielded_note() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+
+    start_cheat_caller_address(claims.contract_address, addr(POOL));
+    let deposits = claims.privacy_invoke(PrivateExit::Claim, CLAIM_SECRET, NOTE);
+    stop_cheat_caller_address(claims.contract_address);
+
+    assert!(deposits.len() == 1, "one note deposit");
+    let d = *deposits.at(0);
+    assert!(d.note_id == NOTE, "fills the note it was given");
+    assert!(d.amount == AMOUNT, "for exactly the escrowed amount");
+    assert!(
+        token.allowance(claims.contract_address, addr(POOL)) == AMOUNT.into(),
+        "the pool may pull exactly this claim",
+    );
+    assert!(claims.get_outstanding(token.contract_address) == 0, "liability is settled");
+}
+
+/// The two doors share one `claimed` flag. Without that, a link would be worth
+/// twice its face value to anyone holding the secret.
+#[test]
+#[should_panic(expected: 'ALREADY_CLAIMED')]
+fn a_link_opened_privately_cannot_then_be_opened_publicly() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+
+    start_cheat_caller_address(claims.contract_address, addr(POOL));
+    claims.privacy_invoke(PrivateExit::Claim, CLAIM_SECRET, NOTE);
+    stop_cheat_caller_address(claims.contract_address);
+
+    claims.claim_to_address(CLAIM_SECRET, addr(STRANGER));
+}
+
+#[test]
+#[should_panic(expected: 'ALREADY_CLAIMED')]
+fn a_link_opened_publicly_cannot_then_be_opened_privately() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+    claims.claim_to_address(CLAIM_SECRET, addr(STRANGER));
+
+    start_cheat_caller_address(claims.contract_address, addr(POOL));
+    claims.privacy_invoke(PrivateExit::Claim, CLAIM_SECRET, NOTE);
+}
+
+/// The private door grants an ERC-20 allowance, so an unpinned caller could
+/// approve itself against the whole escrow balance.
+#[test]
+#[should_panic(expected: 'CALLER_NOT_POOL')]
+fn nobody_but_the_pool_can_open_the_private_door() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+
+    start_cheat_caller_address(claims.contract_address, addr(ATTACKER));
+    claims.privacy_invoke(PrivateExit::Claim, CLAIM_SECRET, NOTE);
+}
+
+/// The expiry rule must hold on BOTH refund paths, or the private door becomes
+/// a way for a funder to claw back a worker's money early.
+#[test]
+#[should_panic(expected: 'NOT_EXPIRED')]
+fn the_private_refund_respects_the_expiry_too() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+
+    start_cheat_caller_address(claims.contract_address, addr(POOL));
+    claims.privacy_invoke(PrivateExit::Refund, REFUND_SECRET, NOTE);
+}
+
+#[test]
+fn the_private_refund_works_once_expired() {
+    let (token, claims) = setup();
+    deposit_default(claims, token);
+
+    start_cheat_block_timestamp(claims.contract_address, EXPIRY);
+    start_cheat_caller_address(claims.contract_address, addr(POOL));
+    let deposits = claims.privacy_invoke(PrivateExit::Refund, REFUND_SECRET, NOTE);
+    stop_cheat_caller_address(claims.contract_address);
+    stop_cheat_block_timestamp(claims.contract_address);
+
+    assert!(*deposits.at(0).amount == AMOUNT, "the whole escrow comes back");
+    assert!(claims.get_outstanding(token.contract_address) == 0, "liability is settled");
+}
+
+#[test]
+fn the_pool_is_pinned_at_deployment() {
+    let (_token, claims) = setup();
+    assert!(claims.get_pool() == addr(POOL), "the pool is what it was deployed with");
+}
+
+/// A zero pool would deploy cleanly and leave the private door permanently
+/// dead — the half-configured failure this codebase refuses everywhere else.
+#[test]
+fn a_deployment_without_a_pool_is_refused() {
+    let contract = declare("SageClaims").unwrap().contract_class();
+    // Asserted on the Err rather than with `should_panic`: `.unwrap()` would
+    // replace the constructor's reason with its own, and the test would then
+    // pass for any deployment failure at all.
+    match contract.deploy(@array![0]) {
+        Result::Ok(_) => panic!("a zero pool must not deploy"),
+        Result::Err(reason) => assert!(*reason.at(0) == 'ZERO_POOL', "wrong reason"),
+    }
 }
