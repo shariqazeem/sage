@@ -5,6 +5,8 @@ import { useState } from "react";
 import { HandCoins, Plus, ScanSearch } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 
 /** The mailbox Sage owns and reads sign-in codes from. A founder registers their TEST account with
  *  this address when their product has no password, so nobody ever hands Sage an inbox credential. */
@@ -119,6 +121,8 @@ export function LaunchForm() {
    * "connect your wallet" reads like a charge to anyone who has not done it before.
    */
   const siwe = useSiwe();
+  const founder = useFounderSession();
+  const [showSignIn, setShowSignIn] = useState(false);
   const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5", testEmail: "", testPassword: "" });
@@ -204,17 +208,14 @@ export function LaunchForm() {
   const submit = async () => {
     if (describesWork()) return handOffToAgent();
     if (!stepValid()) return;
-    if (!siwe.authed) {
+    // A founder signed in on EITHER chain may start an inspection. Before this the check was
+    // `siwe.authed`, which is specifically "an EVM session matching the connected EVM wallet" —
+    // so a founder holding only a Starknet wallet could never get past this line, for a campaign
+    // that would settle entirely on Starknet.
+    if (!founder.authed) {
       setError(null);
-      const ok = siwe.address ? await siwe.signIn() : (await siwe.connect(), false);
-      if (!ok) {
-        setError(
-          siwe.address
-            ? "Sign the message to start — it's free, no gas and nothing is spent."
-            : "Connect your wallet to start — it's a free signature, no gas and nothing is spent.",
-        );
-        return;
-      }
+      setShowSignIn(true);
+      return;
     }
     setError(null);
     setSubmitting(true);
@@ -514,11 +515,27 @@ export function LaunchForm() {
         )}
 
         <div className="lxo-hint">{step === 0 ? MODE_HINT[mode] : s.hint}</div>
-        {!siwe.authed && last && (
+        {!founder.authed && last && !showSignIn && (
           <p className="lxo-hint" style={{ marginTop: 6, opacity: 0.85 }}>
             You&apos;ll sign a free message to start — no gas, no transaction, nothing spent. It just
             ties this inspection to you so your plan and any feedback stay yours.
           </p>
+        )}
+        {showSignIn && !founder.authed && (
+          <div style={{ marginTop: 14 }}>
+            <FounderSignIn
+              explainer={
+                <>
+                  Sign in with any wallet you already have — <b>Ethereum or Starknet.</b> This just
+                  ties the inspection to you; nothing is funded here.
+                </>
+              }
+              onSignedIn={() => {
+                setShowSignIn(false);
+                void founder.refresh();
+              }}
+            />
+          </div>
         )}
       </div>
 
@@ -554,7 +571,7 @@ export function LaunchForm() {
               ? "Starting…"
               : siwe.connecting || siwe.signingIn
                 ? "Connecting…"
-                : siwe.authed
+                : founder.authed
                   ? "Let Sage inspect"
                   : "Connect wallet & inspect"}
             <span aria-hidden>→</span>

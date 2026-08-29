@@ -1,5 +1,4 @@
 import "server-only";
-import { getAddress, type Address } from "viem";
 import {
   getCampaign,
   getSubmission,
@@ -16,6 +15,7 @@ import { nowSeconds } from "@/lib/db/keys";
 import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { short } from "@/lib/format";
 import type { Campaign } from "@/lib/db/schema";
+import { sameFounder } from "@/lib/auth/founder";
 
 /**
  * Founder review actions for a campaign's HELD work — the internal, auth-agnostic core
@@ -46,14 +46,16 @@ export interface HeldItem {
   leanWhy: string;
 }
 
-/** Does this wallet own the campaign? (checksum-agnostic compare against posterWallet). */
+/**
+ * Does this wallet own the campaign?
+ *
+ * Was `getAddress(posterWallet) === getAddress(wallet)`, which is checksum-agnostic and correct
+ * for EVM — and silently wrong for Starknet. viem rejects a felt, the throw landed in the catch,
+ * and the answer came back FALSE: a founder calmly told they do not own the campaign they created,
+ * with an exception swallowed on the way. `sameFounder` compares both families canonically.
+ */
 export function ownsCampaign(campaign: Campaign, wallet: string | null | undefined): boolean {
-  if (!wallet) return false;
-  try {
-    return getAddress(campaign.posterWallet) === getAddress(wallet as Address);
-  } catch {
-    return false;
-  }
+  return sameFounder(campaign.posterWallet, wallet);
 }
 
 /** Held (pending) submissions for a campaign — safe fields only, newest-first, each PRE-ANALYZED (P22). */

@@ -1,8 +1,8 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 
-import { getSessionAddress } from "@/lib/auth/session";
 import { getInspectionJob, resetInspectionForRetry } from "@/lib/db/inspection";
 import { jobToView, runInspectionJob } from "@/lib/launch/job";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +17,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const job = getInspectionJob(id);
   if (!job) return NextResponse.json({ ok: false, error: "Inspection not found." }, { status: 404 });
 
-  const session = await getSessionAddress();
+  const session = await getFounderAddress();
   const founder = session ?? "anonymous";
-  if (job.founderWallet !== founder.toLowerCase() && job.founderWallet !== "anonymous") {
+  if (!sameFounder(job.founderWallet, founder) && job.founderWallet !== "anonymous") {
     return NextResponse.json({ ok: false, error: "Not your inspection." }, { status: 403 });
   }
 

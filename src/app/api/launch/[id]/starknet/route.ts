@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { getSessionAddress } from "@/lib/auth/session";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import {
   readMission,
@@ -15,6 +14,7 @@ import { planVaultDeployment, saltForJob } from "@/lib/starknet/vault-calls";
 import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { createCampaign, createMission, getCampaignByVault } from "@/lib/db/campaigns";
 import { recordEvent } from "@/lib/db/campaigns";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
 
-  const owner = await getSessionAddress();
+  const owner = await getFounderAddress();
   if (!owner) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
   const cfg = starknetConfig();
@@ -152,7 +152,7 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
 
-  const owner = await getSessionAddress();
+  const owner = await getFounderAddress();
   if (!owner) {
     return NextResponse.json({ error: "Sign in to attach a vault." }, { status: 401 });
   }

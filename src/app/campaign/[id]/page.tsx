@@ -2,7 +2,6 @@ import "../../app/app.css";
 import "../../app/motion.css";
 import "../../app/demo-moments.css";
 import { notFound, redirect } from "next/navigation";
-import { getSessionAddress } from "@/lib/auth/session";
 import { getCampaign, listSubmissions, getDecisionBySubmission } from "@/lib/db/campaigns";
 import { reconcileStopped } from "@/lib/campaigns/reconcile-stopped";
 import { observationFromRow } from "@/lib/deputy/decisions";
@@ -16,6 +15,7 @@ import {
   type WorkspaceData,
   type WorkspaceSubmission,
 } from "@/components/campaign/campaign-workspace";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,9 +45,9 @@ export default async function CampaignConsolePage({
   // The on-chain vault is the truth: if it's been revoked (stopped), reflect that as "cancelled".
   const campaign = await reconcileStopped(loaded);
 
-  const session = await getSessionAddress();
+  const session = await getFounderAddress();
   const isOwner =
-    !!session && session.toLowerCase() === campaign.posterWallet.toLowerCase();
+    sameFounder(session, campaign.posterWallet);
 
   const e = v2Economics(campaign);
   const titleByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.title]));

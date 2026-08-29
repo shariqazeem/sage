@@ -8,6 +8,7 @@ import {
 import { v2Economics } from "./v2-economics";
 import { toJournalEntries, type JournalEntry } from "./journal";
 import { buildIntentHashMap, type IntentRef } from "./labels";
+import { sameFounder } from "@/lib/auth/founder";
 
 /** One campaign as the Agents tab shows it — all counts from real submissions. */
 export interface CampaignCard {
@@ -75,7 +76,7 @@ const EMPTY: DeputyOverview = {
 export function getDeputyOverview(wallet: string | null): DeputyOverview {
   if (!wallet) return EMPTY;
   const mine = listCampaigns().filter(
-    (c) => c.posterWallet.toLowerCase() === wallet.toLowerCase(),
+    (c) => sameFounder(c.posterWallet, wallet),
   );
   if (mine.length === 0) return EMPTY;
 

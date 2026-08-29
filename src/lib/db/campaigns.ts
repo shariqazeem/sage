@@ -29,6 +29,7 @@ import {
 import type { DecisionBriefContent } from "../deputy/brain-core";
 import { missionSpecDigest, type MissionSpecInput } from "../campaigns/mission-spec";
 import { dedupeKey, missionDedupeKey, nowSeconds } from "./keys";
+import { sameFounder } from "@/lib/auth/founder";
 
 /* ─────────────────────────────────────────────────────── campaigns ────── */
 
@@ -1422,7 +1423,7 @@ export function getCampaignsByVault(vault: string): Campaign[] {
 /** Events across all of a poster's campaigns (the Deputy work journal), newest first. */
 export function listPosterEvents(wallet: string, limit = 50): CampaignEvent[] {
   const ids = listCampaigns()
-    .filter((c) => c.posterWallet.toLowerCase() === wallet.toLowerCase())
+    .filter((c) => sameFounder(c.posterWallet, wallet))
     .map((c) => c.id);
   if (ids.length === 0) return [];
   return db

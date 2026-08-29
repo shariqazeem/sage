@@ -1,8 +1,8 @@
-import { getSessionAddress } from "@/lib/auth/session";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listCampaigns } from "@/lib/db/campaigns";
 import { reconcileStoppedMany } from "@/lib/campaigns/reconcile-stopped";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +20,11 @@ export const metadata = {
  * a connect prompt, a signed founder with none gets a designed empty state.
  */
 export default async function DashboardPage() {
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
   if (wallet) {
     // The on-chain vault is the truth: mark any revoked (stopped) campaigns "cancelled" BEFORE the
     // overview reads the DB, so stopped-and-withdrawn campaigns file under "Stopped", not "Running".
-    const mine = listCampaigns().filter((c) => c.posterWallet.toLowerCase() === wallet.toLowerCase());
+    const mine = listCampaigns().filter((c) => sameFounder(c.posterWallet, wallet));
     await reconcileStoppedMany(mine);
   }
   const overview = getDeputyOverview(wallet);

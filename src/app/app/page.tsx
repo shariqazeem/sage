@@ -4,7 +4,6 @@ import {
   getOperatorVaultState,
   getOperatorVendorNames,
 } from "@/lib/deputy/chain";
-import { getSessionAddress } from "@/lib/auth/session";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { getAgentIdentity } from "@/lib/erc8004/identity";
 import { getAgentPnL, getAgentReputation } from "@/lib/erc8004/reputation";
@@ -13,6 +12,7 @@ import { isX402Live } from "@/lib/x402/facilitator";
 import { USDC_DECIMALS } from "@/lib/x402/facilitator";
 import { redirect } from "next/navigation";
 import { SageApp } from "@/components/app/sage-app";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function AppPage({
 
   ensureFlagshipCampaign();
   const net = activeNetwork();
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
 
   const [vault, vendors] = await Promise.all([
     getOperatorVaultState("launch-growth"),

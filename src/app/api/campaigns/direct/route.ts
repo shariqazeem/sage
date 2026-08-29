@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSessionAddress } from "@/lib/auth/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * that wizard's front door. Requires a signed-in founder (SIWE), same as inspections.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const session = await getSessionAddress();
+  const session = await getFounderAddress();
   if (!session) {
     return NextResponse.json({ ok: false, error: "Connect and sign in to create a campaign." }, { status: 401 });
   }

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSessionAddress } from "@/lib/auth/session";
 import { validateRewardUsd } from "@/lib/campaigns/validate";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { createRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
@@ -8,6 +7,7 @@ import { jobToView, scopeForJob } from "@/lib/launch/job";
 import { deserializePlan } from "@/lib/launch/serde";
 import { revisePlan, type MissionEdit } from "@/lib/launch/revise";
 import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +22,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const job = getInspectionJob(id);
   if (!job) return NextResponse.json({ ok: false, error: "Inspection not found." }, { status: 404 });
 
-  const session = await getSessionAddress();
+  const session = await getFounderAddress();
   const founder = session ?? "anonymous";
-  if (job.founderWallet !== founder.toLowerCase() && job.founderWallet !== "anonymous") {
+  if (!sameFounder(job.founderWallet, founder) && job.founderWallet !== "anonymous") {
     return NextResponse.json({ ok: false, error: "Not your inspection." }, { status: 403 });
   }
 

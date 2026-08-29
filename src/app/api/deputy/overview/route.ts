@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSessionAddress } from "@/lib/auth/session";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { ensureFlagshipCampaign } from "@/lib/db/campaigns";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +14,6 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   ensureFlagshipCampaign();
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
   return NextResponse.json(getDeputyOverview(wallet));
 }

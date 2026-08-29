@@ -8,6 +8,7 @@ import { db } from "./index";
 import { nowSeconds } from "./keys";
 import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { inspectionJobs, type InspectionJob, type InspectionStatus, type NewInspectionJob } from "./schema";
+import { founderStorageKey, sameFounder } from "@/lib/auth/founder";
 
 /** The versioned request-identity schema tag baked into every commitment. */
 export const REQUEST_IDENTITY_VERSION = "req-id-v1" as const;
@@ -89,7 +90,7 @@ export function requestCommitment(input: {
  */
 export function contentFingerprint(founderWallet: string, productUrl: string, budgetBase: bigint, goalDigest: string, repoUrl?: string | null): string {
   return createHash("sha256")
-    .update(`${founderWallet.toLowerCase()}|${productUrl.trim().toLowerCase()}|${budgetBase.toString()}|${goalDigest}|${(repoUrl ?? "").trim().toLowerCase()}`)
+    .update(`${founderStorageKey(founderWallet)}|${productUrl.trim().toLowerCase()}|${budgetBase.toString()}|${goalDigest}|${(repoUrl ?? "").trim().toLowerCase()}`)
     .digest("hex");
 }
 
@@ -139,7 +140,7 @@ export function listInspectionJobs(founderWallet: string): InspectionJob[] {
   return db
     .select()
     .from(inspectionJobs)
-    .where(eq(inspectionJobs.founderWallet, founderWallet.toLowerCase()))
+    .where(eq(inspectionJobs.founderWallet, founderStorageKey(founderWallet)))
     .orderBy(desc(inspectionJobs.createdAt))
     .all();
 }
@@ -213,7 +214,7 @@ export function createInspectionJob(input: CreateInspectionInput): { job: Inspec
     .digest("hex");
   const row: NewInspectionJob = {
     id,
-    founderWallet: input.founderWallet.toLowerCase(),
+    founderWallet: founderStorageKey(input.founderWallet),
     idempotencyKey: key,
     planningRequestId: key,
     requestCommitment: commitment,
@@ -347,10 +348,12 @@ export function clarifyInspectionForRetry(id: string, answer: string): boolean {
  * owner), so two concurrent claims cannot both win.
  */
 export function claimInspectionJob(id: string, wallet: string): { ok: boolean; reason?: string } {
-  const w = wallet.toLowerCase();
+  // Canonical, not merely lower-cased: a felt's padding varies by wallet, and this value is
+  // both compared against the stored owner AND written as it.
+  const w = founderStorageKey(wallet);
   const cur = getInspectionJob(id);
   if (!cur) return { ok: false, reason: "no_such_job" };
-  if (cur.founderWallet === w) return { ok: true }; // already owned by this wallet
+  if (sameFounder(cur.founderWallet, w)) return { ok: true }; // already owned by this wallet
   if (cur.founderWallet !== "anonymous") return { ok: false, reason: "already_claimed_by_another_wallet" };
   const res = db
     .update(inspectionJobs)

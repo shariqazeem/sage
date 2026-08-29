@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAddress } from "viem";
-import { getSessionAddress } from "@/lib/auth/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { isAddressLike, validateCampaignInput } from "@/lib/campaigns/validate";
 import { sanitizeChatId } from "@/lib/telegram/format";
 import { createCampaign, recordEvent } from "@/lib/db/campaigns";
 import { getVaultOperator, getVaultOwner } from "@/lib/deputy/chain";
 import { operatorAddress } from "@/lib/deputy/signer";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * otherwise every future payout would soft-reject and the campaign is a lie.
  */
 export async function POST(req: NextRequest) {
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
   if (!wallet) {
     return NextResponse.json(
       { error: "Sign in with your wallet to create a campaign." },

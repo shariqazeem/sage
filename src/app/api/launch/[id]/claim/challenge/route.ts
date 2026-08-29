@@ -6,6 +6,7 @@ import { getInspectionJob } from "@/lib/db/inspection";
 import { loadApprovedPlan, LAUNCH_CHAIN_ID, isLaunchChain } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { buildClaimTypedData, CLAIM_SCHEMA_VERSION, CLAIM_TTL_SECONDS, type PlanClaim } from "@/lib/launch/claim";
+import { sameFounder } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const job = getInspectionJob(id);
   if (!job) return NextResponse.json({ ok: false, error: "Inspection not found." }, { status: 404 });
-  if (job.founderWallet !== "anonymous" && job.founderWallet !== session.toLowerCase()) {
+  if (job.founderWallet !== "anonymous" && !sameFounder(job.founderWallet, session)) {
     return NextResponse.json({ ok: false, error: "This plan is owned by another wallet." }, { status: 403 });
   }
 

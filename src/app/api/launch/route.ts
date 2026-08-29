@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest, after } from "next/server";
 
-import { getSessionAddress } from "@/lib/auth/session";
 import { startInspection } from "@/lib/launch/start";
 import { webRequestIdFrom } from "@/lib/launch/planning-request";
 import { runInspectionJob, jobToView } from "@/lib/launch/job";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
    *
    * Signing in is a free signature: no gas, no transaction, no funds moved.
    */
-  const session = await getSessionAddress();
+  const session = await getFounderAddress();
   if (!session) {
     return NextResponse.json(
       { ok: false, error: "Connect your wallet to run an inspection — it's a free signature, no gas and nothing spent." },

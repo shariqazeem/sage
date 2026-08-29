@@ -20,6 +20,7 @@ import {
   opGetProof,
   type OpResult,
 } from "@/lib/agent-api/operations";
+import { sameFounder } from "@/lib/auth/founder";
 
 /**
  * Sage's MCP tool registry + dispatch — the SAME five verified agent operations, exposed so the
@@ -671,7 +672,7 @@ export async function callSageTool(
       if (!campaign) {
         return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "That campaign wasn't found — use sage_my_campaigns to get the right campaignId." }) }], isError: false };
       }
-      if (campaign.posterWallet.toLowerCase() !== wallet.toLowerCase()) {
+      if (!sameFounder(campaign.posterWallet, wallet)) {
         return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "Only this campaign's own founder can invite recipients to it." }) }], isError: false };
       }
       if (campaign.status !== "live" && campaign.status !== "draft") {
