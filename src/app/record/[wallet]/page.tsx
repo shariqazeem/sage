@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";
 import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
+
+import { PrivacyToggle } from "./privacy-toggle";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { money, short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -93,6 +95,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
             <div className="rec-stat-k">Last verified</div>
           </div>
         </section>
+
+        <PrivacyToggle wallet={record.wallet} amountsPrivate={amountsPrivate} />
 
         {/* Shown only when the worker chose it. A record that quietly dropped its amounts would
             read as incomplete; one that says why reads as deliberate — which it is. */}

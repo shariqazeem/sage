@@ -36,3 +36,80 @@
 .rec-sig dd small { font-size: 11px; font-weight: 500; color: var(--ink-faint); margin-left: 4px; }
 .rec-sig-note { font-size: 11.5px; line-height: 1.5; color: var(--ink-faint); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 9px; }
 @media (max-width: 520px) { .rec-sig-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* The worker's own control over whether their income is published. Placed where someone reading
+   their OWN record looks first, and invisible to everyone else. */
+.rec-privacy {
+  margin: 20px 0 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+
+.rec-privacy-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.rec-privacy-copy { flex: 1 1 22rem; min-width: 0; }
+
+.rec-privacy-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 5px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rec-privacy-note,
+.rec-privacy-q {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+.rec-privacy-q { margin-bottom: 12px; }
+
+.rec-privacy-btn,
+.rec-privacy-connect {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.rec-privacy-btn:hover:not(:disabled),
+.rec-privacy-connect:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rec-privacy-btn:disabled,
+.rec-privacy-connect:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rec-privacy-error {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--err-border);
+  border-radius: var(--r-sm);
+  background: var(--err-soft);
+  color: var(--err);
+  font-size: 0.8125rem;
+}
+
+.rec-spin { animation: rec-spin 0.9s linear infinite; }
+@keyframes rec-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rec-spin { animation: none; } }
