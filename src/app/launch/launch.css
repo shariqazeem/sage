@@ -539,3 +539,40 @@
 .lxs-ex { margin-top: 6px; }
 .lxs-milestones { margin-top: 4px; font-size: 13px; justify-self: start; text-align: left; }
 @media (max-width: 620px) { .lxo-modes { grid-template-columns: 1fr; } }
+
+/* The rail choice. Two real options, neither styled as the default — for different founders
+   neither is, and a visual default would be an answer we do not have. */
+.lx-rails {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 12px;
+  margin: 12px 0 18px;
+}
+.lx-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.lx-rail:hover:not(:disabled) { border-color: var(--border-strong); }
+.lx-rail.is-on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.lx-rail:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.lx-rail-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.lx-rail-b { font-size: 0.8125rem; line-height: 1.6; color: var(--ink-muted); }
+/* The cost of the choice, in the same weight as its benefit. */
+.lx-rail-n { font-size: 0.75rem; line-height: 1.55; color: var(--ink-faint); }

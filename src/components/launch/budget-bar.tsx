@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { reward, type JobView, type PlanView } from "./types";
 import { DeployFlow } from "./deploy/deploy-flow";
+import { RailChoice } from "./deploy/rail-choice";
+import type { SettlementRail } from "@/lib/db/schema";
 
 /**
  * The budget summary + durable approval. Budget arithmetic is exact (the server owns the
@@ -24,6 +26,9 @@ export function BudgetBar({
   onApproved: (job: JobView) => void;
 }) {
   const [editingBudget, setEditingBudget] = useState(false);
+  // Defaults to public: receipts are what most campaigns are funded to produce, and a privacy
+  // default would impose a trade-off on founders who never asked for it.
+  const [rail, setRail] = useState<SettlementRail>("evm");
   const [budgetUsd, setBudgetUsd] = useState((Number(plan.totalBudgetBase) / 1e6).toString());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,8 +106,19 @@ export function BudgetBar({
         cannot exceed them.
       </p>
 
+      {/* Asked BEFORE the money, because it decides whether the payments this founder funds are
+          public — and that is genuinely theirs to answer, unlike the chain it implies. */}
+      <div className="lx-kicker" style={{ margin: "18px 0 4px" }}>How this campaign pays</div>
+      <RailChoice value={rail} onChange={setRail} disabled={locked} />
+
       {!locked ? (
         <button className="lx-btn" onClick={approve} disabled={busy || remaining !== 0}>{busy ? "Approving…" : "Approve mission plan"}</button>
+      ) : rail === "starknet" ? (
+        <div className="lx-approve-note" style={{ marginTop: 4 }}>
+          <b>Private-capable campaigns are nearly ready.</b> The vault that holds your budget is
+          written and tested; funding it from your wallet is the last step and lands shortly. Switch
+          to public receipts to launch now.
+        </div>
       ) : (
         <DeployFlow jobId={jobId} plan={plan} />
       )}
