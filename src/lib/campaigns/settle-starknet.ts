@@ -6,6 +6,7 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import { derivePayoutIntent } from "@/lib/campaigns/settle-core";
 import { getDecisionBySubmission } from "@/lib/db/campaigns";
 import { requestVaultPayout } from "@/lib/starknet/vault";
+import { feltOf, toFelt } from "@/lib/starknet/felt";
 
 /**
  * SETTLING ON STARKNET — the sibling of settle-flow, not a modification of it.
@@ -52,26 +53,10 @@ const held = (reason: string): StarknetSettleOutcome => ({
 const isStarknetAddress = (v: string): boolean => /^0x[0-9a-fA-F]{1,64}$/.test(v);
 
 /**
- * Fit a 256-bit hash into a felt252.
- *
- * The EVM commitment path derives its intent and decision digests with keccak256, which is 256
- * bits — four bits wider than a felt can hold. Passing one straight through would overflow and
- * either revert or, worse, silently wrap into a different value on each side.
- *
- * Clearing the top four bits is deterministic, keeps 252 bits of the original digest, and — this
- * is the part that matters — is applied to BOTH the intent and the digest identically, so the
- * on-chain replay guarantee still holds: the same authorisation still maps to the same felt, and
- * two different authorisations still map to different ones.
+ * The felt arithmetic lives in `@/lib/starknet/felt`, shared with the founder-side deploy flow.
+ * The browser writes a mission under a felt and settlement looks it up under one; if those two
+ * derivations ever disagreed the vault would answer NO_SUCH_MISSION after the work was done.
  */
-const FELT_MASK = (BigInt(1) << BigInt(252)) - BigInt(1);
-const toFelt = (v: string): string => `0x${(BigInt(v) & FELT_MASK).toString(16)}`;
-
-/** A campaign id is a string; a legacy campaign's implicit mission is keyed by its hash. */
-const feltOf = (s: string): string => {
-  let h = BigInt(0);
-  for (const ch of s) h = (h * BigInt(31) + BigInt(ch.charCodeAt(0))) & FELT_MASK;
-  return `0x${h.toString(16)}`;
-};
 
 /**
  * Pay one approved submission on Starknet.

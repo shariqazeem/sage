@@ -2,14 +2,91 @@ import { NextResponse } from "next/server";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
-import { readVaultState } from "@/lib/starknet/vault";
-import { starknetConfig } from "@/lib/starknet/config";
+import {
+  readMission,
+  readVaultBalance,
+  readVaultState,
+  type MissionTerms,
+} from "@/lib/starknet/vault";
+import { verifyVaultBacksPlan } from "@/lib/starknet/verify-attach";
+import { toFelt } from "@/lib/starknet/felt";
+import { starknetConfig, starknetVaultClassHash } from "@/lib/starknet/config";
+import { saltForJob } from "@/lib/starknet/vault-calls";
 import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
-import { createCampaign, createMission } from "@/lib/db/campaigns";
+import { createCampaign, createMission, getCampaignByVault } from "@/lib/db/campaigns";
 import { recordEvent } from "@/lib/db/campaigns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/launch/<id>/starknet — everything the founder's wallet needs to stand up their vault.
+ *
+ * THE SERVER COMPUTES THE CALLS, THE BROWSER ONLY SIGNS THEM. It would be simpler to hand the
+ * browser the raw numbers and let it assemble the transaction, and that is precisely the mistake:
+ * the mission felts written into the vault here must equal the felts settlement looks up months
+ * later, and two independent derivations are two chances to drift. When they drift the vault
+ * answers NO_SUCH_MISSION — after a worker has already done the work. One derivation, server-side,
+ * makes that impossible rather than unlikely.
+ *
+ * Nothing returned here is a secret: a class hash, public addresses, and the founder's own plan.
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id } = await ctx.params;
+
+  const owner = await getSessionAddress();
+  if (!owner) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+
+  const cfg = starknetConfig();
+  const classHash = starknetVaultClassHash();
+  if (!cfg || !classHash) {
+    return NextResponse.json(
+      { error: "Private-capable campaigns are not available on this deployment." },
+      { status: 503 },
+    );
+  }
+
+  const plan = loadApprovedPlan(id);
+  if (!plan) {
+    return NextResponse.json({ error: "No approved plan for this inspection." }, { status: 404 });
+  }
+
+  const missions = plan.plan.missions;
+  for (const m of missions) {
+    if (!m.missionIdHash) {
+      return NextResponse.json(
+        { error: `"${m.title}" has no mission id and cannot settle on this rail.` },
+        { status: 400 },
+      );
+    }
+  }
+
+  const totalBase = missions.reduce(
+    (sum: bigint, m) => sum + BigInt(m.rewardBase) * BigInt(m.maxCompletions),
+    BigInt(0),
+  );
+
+  return NextResponse.json({
+    ok: true,
+    classHash,
+    operator: cfg.accountAddress,
+    token: cfg.tokenAddress,
+    rpcUrl: cfg.rpcUrl,
+    // Derived from the job, not from randomness, so an interrupted launch resumes at the SAME
+    // address instead of orphaning the vault the founder already funded.
+    salt: saltForJob(id),
+    totalBase: totalBase.toString(),
+    missions: missions.map((m) => ({
+      title: m.title,
+      missionId: toFelt(m.missionIdHash as string),
+      rewardBase: String(m.rewardBase),
+      maxCompletions: Number(m.maxCompletions),
+    })),
+  });
+}
 
 /**
  * POST /api/launch/<id>/starknet — attach a founder-deployed vault and take the campaign live.
@@ -58,6 +135,15 @@ export async function POST(
     return NextResponse.json({ error: "No approved plan for this inspection." }, { status: 404 });
   }
 
+  // ATTACHING TWICE MUST NOT CREATE TWO CAMPAIGNS. The founder signs one transaction and then
+  // tells Sage about it; a retry, a double-click or a reloaded tab can repeat that message. Two
+  // campaigns on one vault would each treat the whole ceiling as theirs and together promise twice
+  // what the vault can pay. Returning the existing campaign makes the retry harmless.
+  const already = getCampaignByVault(vaultAddress);
+  if (already) {
+    return NextResponse.json({ ok: true, campaignId: already.id, vaultAddress, existing: true });
+  }
+
   // READ THE CHAIN. Everything below is checked against the deployed contract, not the request.
   let state;
   try {
@@ -69,38 +155,50 @@ export async function POST(
     );
   }
 
-  if (BigInt(state.operator) !== BigInt(cfg.accountAddress)) {
-    // A vault naming someone else's operator would accept work Sage can never pay for.
-    return NextResponse.json(
-      { error: "That vault does not name Sage as its operator, so Sage could never pay from it." },
-      { status: 400 },
-    );
+  const missions = plan.plan.missions;
+  for (const m of missions) {
+    if (!m.missionIdHash) {
+      // Settlement's fallback keys on the campaign's id, which does not exist yet — so guessing
+      // one here could disagree with the felt actually looked up later. Refuse instead: every V2
+      // plan carries this hash, and one that does not is not a plan this rail can honour.
+      return NextResponse.json(
+        { error: `"${m.title}" has no mission id, so its terms could not be matched on chain.` },
+        { status: 400 },
+      );
+    }
   }
-  if (BigInt(state.owner) !== BigInt(ownerAddress)) {
+
+  // Read what the chain says about the money and the terms, then let the pure verifier decide.
+  let balanceBase: bigint;
+  const onChainMissions = new Map<string, MissionTerms>();
+  try {
+    balanceBase = await readVaultBalance(vaultAddress);
+    for (const m of missions) {
+      const felt = toFelt(m.missionIdHash as string);
+      onChainMissions.set(felt, await readMission(vaultAddress, felt));
+    }
+  } catch {
     return NextResponse.json(
-      { error: "That vault is owned by a different wallet than the one that deployed it." },
-      { status: 400 },
-    );
-  }
-  if (state.statusLabel !== "active") {
-    return NextResponse.json(
-      { error: `That vault is ${state.statusLabel}, so it cannot pay anyone yet.` },
-      { status: 400 },
+      { error: "Could not read the vault from Starknet. Try again in a moment." },
+      { status: 502 },
     );
   }
 
-  const missions = plan.plan.missions;
-  const totalBase = missions.reduce(
-    (sum: bigint, m) => sum + BigInt(m.rewardBase) * BigInt(m.maxCompletions),
-    BigInt(0),
-  );
-  if (state.budgetCeilingBase < totalBase) {
-    // A ceiling below the plan means the last workers could never be paid — better to refuse now
-    // than to accept submissions against a budget that runs out.
-    return NextResponse.json(
-      { error: "That vault's ceiling is lower than this plan's total budget." },
-      { status: 400 },
-    );
+  const verdict = verifyVaultBacksPlan({
+    state,
+    balanceBase,
+    onChainMissions,
+    sageOperator: cfg.accountAddress,
+    claimedOwner: ownerAddress,
+    missions: missions.map((m) => ({
+      title: m.title,
+      missionId: toFelt(m.missionIdHash as string),
+      rewardBase: BigInt(m.rewardBase),
+      maxCompletions: Number(m.maxCompletions),
+    })),
+  });
+  if (!verdict.ok) {
+    return NextResponse.json({ error: verdict.reason }, { status: 400 });
   }
 
   const first = missions[0];

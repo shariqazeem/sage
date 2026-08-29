@@ -104,3 +104,20 @@ export function starknetAddresses(): StarknetReadConfig | null {
   if (!isAddress(claims) || !isAddress(token)) return null;
   return { claims, token, rpcUrl: clean(process.env.STARKNET_RPC_URL) ?? DEFAULT_RPC };
 }
+
+/**
+ * The declared `SageVault` class, which founders deploy their own copy of.
+ *
+ * Absent means private-capable campaigns are not available on this deployment — the founder is
+ * told so plainly rather than being walked into a flow that cannot finish. Present but malformed
+ * throws, because a wrong class hash would deploy something that is not a vault, or nothing at all,
+ * after the founder has already signed away the funding in the same transaction.
+ */
+export function starknetVaultClassHash(): string | null {
+  const v = clean(process.env.STARKNET_VAULT_CLASS_HASH);
+  if (!v) return null;
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(v)) {
+    throw new Error(`STARKNET_VAULT_CLASS_HASH is not a class hash: ${v}`);
+  }
+  return v;
+}

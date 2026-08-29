@@ -1,6 +1,6 @@
 import "server-only";
 
-import { Account, CallData, Contract, RpcProvider, cairo, hash } from "starknet";
+import { Account, CallData, Contract, RpcProvider, hash } from "starknet";
 
 import ABI from "./vault-abi.json";
 import { starknetAddresses, starknetConfig } from "./config";
@@ -107,6 +107,34 @@ export async function readVaultState(vaultAddress: string): Promise<VaultState> 
   };
 }
 
+/**
+ * What the vault actually holds in the settlement token.
+ *
+ * Read from the TOKEN, not the vault, because the vault's own accounting cannot prove solvency:
+ * `budget_ceiling` is a limit the owner set, and `total_spent` is what has left. Neither says
+ * whether the money to honour the remaining work is present. Only the token's ledger does, and a
+ * campaign attached to an unfunded vault would accept work it can never pay for.
+ */
+export async function readVaultBalance(vaultAddress: string): Promise<bigint> {
+  const cfg = starknetAddresses();
+  if (!cfg) throw new Error("Starknet is not configured");
+  const provider = new RpcProvider({ nodeUrl: cfg.rpcUrl });
+  const erc20 = new Contract({
+    abi: [
+      {
+        type: "function",
+        name: "balance_of",
+        inputs: [{ name: "account", type: "core::starknet::contract_address::ContractAddress" }],
+        outputs: [{ type: "core::integer::u256" }],
+        state_mutability: "view",
+      },
+    ],
+    address: cfg.token,
+    providerOrAccount: provider,
+  });
+  return BigInt((await erc20.call("balance_of", [vaultAddress])) as bigint);
+}
+
 export interface MissionTerms {
   exists: boolean;
   rewardBase: bigint;
@@ -204,60 +232,19 @@ export async function requestVaultPayout(args: {
   };
 }
 
-/** Deploy a vault for one campaign. Run by the FOUNDER's wallet, never by Sage. */
-export function vaultConstructorCalldata(args: {
-  owner: string;
-  operator: string;
-  token: string;
-  budgetCeilingBase: bigint;
-  dailyCapBase: bigint;
-}): string[] {
-  return CallData.compile({
-    owner: args.owner,
-    operator: args.operator,
-    token: args.token,
-    budget_ceiling: args.budgetCeilingBase.toString(),
-    daily_cap: args.dailyCapBase.toString(),
-  });
-}
-
-/** The calls a founder's wallet makes to fund a vault: approve, then fund. Atomic in one multicall. */
-export function fundVaultCalls(args: {
-  vaultAddress: string;
-  token: string;
-  amountBase: bigint;
-}) {
-  return [
-    {
-      contractAddress: args.token,
-      entrypoint: "approve",
-      calldata: CallData.compile({
-        spender: args.vaultAddress,
-        amount: cairo.uint256(args.amountBase),
-      }),
-    },
-    {
-      contractAddress: args.vaultAddress,
-      entrypoint: "fund",
-      calldata: CallData.compile({ amount: args.amountBase.toString() }),
-    },
-  ];
-}
-
-/** The call a founder's wallet makes to write one mission's terms into the vault. */
-export function addMissionCall(args: {
-  vaultAddress: string;
-  missionId: string;
-  rewardBase: bigint;
-  maxCompletions: number;
-}) {
-  return {
-    contractAddress: args.vaultAddress,
-    entrypoint: "add_mission",
-    calldata: CallData.compile({
-      mission_id: args.missionId,
-      reward: args.rewardBase.toString(),
-      max_completions: args.maxCompletions.toString(),
-    }),
-  };
-}
+/**
+ * The founder-side calldata builders live in `./vault-calls`, which carries no `server-only` and
+ * no credential, because they run in the founder's browser. Re-exported here so that the vault's
+ * surface reads as one thing.
+ */
+export {
+  addMissionCall,
+  deployVaultCall,
+  fundVaultCalls,
+  planVaultDeployment,
+  predictVaultAddress,
+  saltForJob,
+  vaultConstructorCalldata,
+  UDC_ADDRESS,
+} from "./vault-calls";
+export type { PlannedMission, StarknetCall, VaultDeployment } from "./vault-calls";

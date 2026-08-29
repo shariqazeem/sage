@@ -334,6 +334,29 @@ export function getWalletSubmission(
 }
 
 /** The campaign a settled payout tx belongs to (for the public proof page). */
+/**
+ * The campaign already attached to a vault, if any.
+ *
+ * Vault addresses are one-to-one with campaigns. This exists so that attaching is idempotent: a
+ * founder whose browser retried, or who reloaded a launch page, must not end up with two campaigns
+ * drawing on one budget — they would each believe the whole ceiling was theirs and together
+ * promise twice what the vault can pay.
+ */
+export function getCampaignByVault(vaultAddress: string): Campaign | null {
+  const wanted = BigInt(vaultAddress);
+  for (const c of db.select().from(campaigns).all()) {
+    if (!c.vaultAddress) continue;
+    try {
+      // Compared numerically: the same Starknet address has many valid spellings, differing only
+      // in leading zeros, and a string match would let a re-padded address through as "new".
+      if (BigInt(c.vaultAddress) === wanted) return c;
+    } catch {
+      /* an EVM address alongside a felt — not a match */
+    }
+  }
+  return null;
+}
+
 export function getCampaignByPayoutTx(txHash: string): Campaign | null {
   const sub = db
     .select()
