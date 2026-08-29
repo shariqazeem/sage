@@ -341,10 +341,29 @@ export default async function CampaignPublicPage({
         </li>
       </ul>
 
+      {/* The same claim as the header, and it has to survive the same test: say only what is
+          enforced for THIS campaign. A direct-pay Starknet campaign has no vault at all, so
+          naming one here would promise a protection nobody wrote — in the closing line a tester
+          reads before deciding to work. */}
       <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
-        Rewards are paid by Sage from an on-chain wallet with hard
-        spending limits (the Policy Vault). Every payout is a verifiable
-        transaction you can inspect on the block explorer.
+        {campaign.vaultKind === "sage_vault_starknet" ? (
+          <>
+            Rewards are paid by Sage from a vault the founder funded and owns, which enforces each
+            mission&rsquo;s reward and the campaign&rsquo;s total on-chain — Sage cannot exceed
+            them or withdraw the budget. Every payout is a real transaction; whether yours is
+            traceable to you is your choice.
+          </>
+        ) : campaign.settlementRail === "starknet" ? (
+          <>
+            Rewards are paid by Sage directly to the wallet you signed in with. Every payout is a
+            verifiable transaction you can inspect on the block explorer.
+          </>
+        ) : (
+          <>
+            Rewards are paid by Sage from an on-chain wallet with hard spending limits (the Policy
+            Vault). Every payout is a verifiable transaction you can inspect on the block explorer.
+          </>
+        )}
       </footer>
     </main>
   );
