@@ -1,0 +1,189 @@
+/* The lender view. Aliases global tokens; declares no palette value of its own. */
+
+.lend-page {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  padding: clamp(28px, 6vw, 64px) var(--s-6, 24px);
+}
+.lend-wrap { max-width: 54rem; margin: 0 auto; }
+
+.lend-kicker {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.lend-title {
+  margin: 0 0 12px;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+.lend-lede {
+  margin: 0 0 28px;
+  max-width: 44rem;
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  color: var(--ink-muted);
+}
+
+.lend-search { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.lend-search input {
+  flex: 1 1 22rem;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--ink);
+}
+.lend-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lend-search button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 20px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lend-search button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.lend-error {
+  margin: 0 0 20px;
+  padding: 11px 14px;
+  border: 1px solid var(--err-border);
+  border-radius: var(--r-sm);
+  background: var(--err-soft);
+  color: var(--err);
+  font-size: 0.875rem;
+}
+.lend-empty {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+/* Gap-separated cells, each fully bordered, rather than one bordered container with internal
+   dividers. With auto-fit the last row is usually short, and shared dividers then draw lines
+   across empty space where no cell exists — the grid looked broken rather than simply uneven. */
+.lend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 10px;
+}
+.lend-cell {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.lend-v {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+.lend-k { margin-top: 3px; font-size: 0.8125rem; color: var(--ink); }
+.lend-n { margin-top: 2px; font-size: 0.75rem; color: var(--ink-faint); }
+
+.lend-calc {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.lend-calc-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.lend-calc-row label { font-size: 0.875rem; color: var(--ink-muted); }
+.lend-calc-row input {
+  width: 7rem;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--ink);
+}
+.lend-calc-out {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  letter-spacing: -0.02em;
+}
+.lend-calc-out span {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+  letter-spacing: 0;
+}
+.lend-calc-note { margin: 0; font-size: 0.8125rem; line-height: 1.6; color: var(--ink-faint); }
+
+.lend-rows { margin-top: 18px; }
+.lend-rows-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.lend-rows-h span { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-muted); }
+.lend-rows-h a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.lend-rows ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.lend-rows li {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+.lend-when {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.lend-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lend-what small { display: block; font-size: 0.75rem; color: var(--ink-faint); }
+.lend-amt {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+  font-weight: 600;
+}
+.lend-rows li a { flex: none; font-size: 0.75rem; color: var(--accent); text-decoration: none; }
+.lend-rows li a:hover { text-decoration: underline; }
+
+.lend-spin { animation: lend-spin 0.9s linear infinite; }
+@keyframes lend-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lend-spin { animation: none; } }
