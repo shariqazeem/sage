@@ -102,7 +102,7 @@ export default function ExplorerPage() {
           </div>
           <div className="exp-stat">
             <div className="exp-stat-v">{payouts}</div>
-            <div className="exp-stat-k">Payouts</div>
+            <div className="exp-stat-k">Mainnet payouts</div>
           </div>
           <div className="exp-stat">
             <div className="exp-stat-v">{blocks}</div>
@@ -145,7 +145,9 @@ export default function ExplorerPage() {
         <footer className="exp-trust">
           Every settled row links to its <b>proof receipt</b>, and every recipient wallet has a
           public <b>verified work record</b> at <span className="mono">/record/&lt;wallet&gt;</span>{" "}
-          with lender-consumable credit signals. Vault-settled payouts run inside on-chain caps,
+          with lender-consumable credit signals. These totals count settlements on mainnet rails
+          only — a testnet payout moves no real money, so it is not a settlement. Vault-settled
+          payouts run inside on-chain caps,
           recipients are screened against the OFAC SDN list, and no human reviewed any autonomous
           decision — read{" "}
           <Link href="/docs/compliance">how the controls work</Link>.
