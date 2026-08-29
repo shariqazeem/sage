@@ -84,3 +84,34 @@ describe("buildWalletRecord — paid + anchored only, totals exact", () => {
     expect(empty.firstAt).toBeNull();
   });
 });
+
+describe("a worker paid on Starknet has a record too", () => {
+  /**
+   * THE BUG THIS EXISTS FOR. The wallet check accepted a 40-hex EVM address only, so anyone paid
+   * on Starknet had NO Verified Work Record — no receipts, no signals, nothing to show a lender.
+   * The credit story is the point of this file, and excluding an entire rail from it by regex is
+   * the quietest possible way to fail at it.
+   */
+  it("accepts a Starknet address", () => {
+    const stark = "0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048";
+    expect(buildWalletRecord(stark)).not.toBeNull();
+  });
+
+  it("still accepts an EVM address", () => {
+    expect(buildWalletRecord("0x00000000000000000000000000000000000000fe")).not.toBeNull();
+  });
+
+  /** Starknet addresses have no canonical padding, so the same wallet arrives written several ways. */
+  it("resolves the same wallet whether padded or not", () => {
+    const padded = "0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048";
+    const bare = "0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048";
+    expect(buildWalletRecord(padded)).not.toBeNull();
+    expect(buildWalletRecord(bare)).not.toBeNull();
+  });
+
+  it("still refuses something that is not an address at all", () => {
+    for (const bad of ["", "0x", "not-a-wallet", "0xzz", "hello"]) {
+      expect(buildWalletRecord(bad)).toBeNull();
+    }
+  });
+});

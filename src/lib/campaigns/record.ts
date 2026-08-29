@@ -37,11 +37,39 @@ export interface WalletRecord {
   entries: RecordEntry[];
 }
 
+/**
+ * Is this an address Sage can hold a record for?
+ *
+ * BOTH RAILS, deliberately. The original check accepted a 40-hex EVM address only, which meant a
+ * worker paid on Starknet had no Verified Work Record at all — no receipts, no signals, nothing to
+ * show a lender. The credit story is the point of this file, and excluding a whole rail from it by
+ * regex is the quietest possible way to fail at it.
+ */
+function normalizeRecordWallet(raw: string): string | null {
+  const w = raw.trim().toLowerCase();
+  if (/^0x[0-9a-f]{40}$/.test(w)) return w; // EVM
+  // A Starknet felt: any width up to 63 significant hex digits once padding is stripped.
+  if (/^0x[0-9a-f]+$/.test(w) && w.slice(2).replace(/^0+/, "").length <= 63) return w;
+  return null;
+}
+
 export function buildWalletRecord(walletRaw: string): WalletRecord | null {
   // lowercase FIRST so a pasted "0X…"-prefixed or checksummed address still resolves
-  const wallet = walletRaw.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(wallet)) return null;
-  const paid = listPaidSubmissionsByWallet(wallet);
+  const wallet = normalizeRecordWallet(walletRaw);
+  if (!wallet) return null;
+
+  // Starknet addresses have no canonical padding, so the same wallet is written several ways. Try
+  // the form given, then the zero-stripped and 64-wide forms, so a record is not empty merely
+  // because the URL padded differently from the submission.
+  const bare = wallet.slice(2).replace(/^0+/, "");
+  const variants = Array.from(
+    new Set([wallet, `0x${bare}`, `0x${bare.padStart(64, "0")}`]),
+  );
+  let paid = listPaidSubmissionsByWallet(wallet);
+  for (const v of variants) {
+    if (paid.length) break;
+    paid = listPaidSubmissionsByWallet(v);
+  }
 
   const entries: RecordEntry[] = [];
   for (const s of paid) {

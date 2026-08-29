@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { CHAINS } from "@/lib/deputy/networks";
+import { evmChains } from "@/lib/deputy/networks";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 
 /**
@@ -253,8 +253,11 @@ export function DirectCampaignForm() {
                 <div className="lx-field">
                   <label className="lx-label">Chain</label>
                   <select className="lx-input" value={m.txChainId} onChange={(e) => setMs(i, { txChainId: Number(e.target.value) })}>
-                    {Object.entries(CHAINS).map(([id, c]) => (
-                      <option key={id} value={id}>{c.name}</option>
+                    {/* EVM only: this picks the chain a tester's transaction must be on, and that
+                        verification reads EVM logs. Starknet is in the registry for truthful
+                        amounts and explorer links, not as a verification target. */}
+                    {evmChains().map((c) => (
+                      <option key={c.chainId} value={c.chainId}>{c.name}</option>
                     ))}
                   </select>
                 </div>

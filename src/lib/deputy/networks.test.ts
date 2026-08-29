@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isTestnetChain, reward } from "@/lib/format";
 import {
   chainConfig,
   chainLabel,
@@ -7,6 +8,9 @@ import {
   explorerTxUrl,
   GOAT_USDC,
   isSupportedChain,
+  evmChains,
+  STARKNET_MAINNET_KEY,
+  CHAINS,
   viemChainFor,
 } from "./networks";
 
@@ -57,5 +61,41 @@ describe("networks — chainId registry", () => {
     expect(viemChainFor(2345).nativeCurrency.symbol).toBe("BTC");
     expect(viemChainFor(59902).id).toBe(59902);
     expect(viemChainFor(59902).nativeCurrency.symbol).toBe("METIS");
+  });
+});
+
+describe("Starknet in the registry", () => {
+  /**
+   * THE BUG THIS EXISTS FOR. A campaign settled on Starknet used to inherit the Metis Sepolia
+   * default, so a real USDC payout rendered as "0.10 test mUSDC" — telling a worker the money they
+   * had actually been paid was a valueless test token.
+   */
+  it("renders real Starknet payouts as money, not test tokens", () => {
+    expect(isTestnetChain(STARKNET_MAINNET_KEY)).toBe(false);
+    expect(chainConfig(STARKNET_MAINNET_KEY).isMainnet).toBe(true);
+    // The exact string a worker saw: $0.10 of real USDC, not "0.10 test mUSDC".
+    expect(reward(100_000, STARKNET_MAINNET_KEY)).toBe("$0.10");
+    expect(reward(100_000, 59902)).toBe("0.10 test mUSDC");
+  });
+
+  /**
+   * It is in the registry for amounts, labels and explorer links — NOT as somewhere viem can go.
+   * Anything reaching for a client must filter on `evm`, or it will build one against a Starknet
+   * RPC and fail in a way that looks like a network problem.
+   */
+  it("is marked non-EVM, and every other chain is marked EVM", () => {
+    expect(chainConfig(STARKNET_MAINNET_KEY).evm).toBe(false);
+    for (const c of Object.values(CHAINS)) {
+      if (c.key !== "starknet") expect(c.evm).toBe(true);
+    }
+  });
+
+  it("is excluded from the EVM chain list a picker or a client would use", () => {
+    expect(evmChains().some((c) => c.key === "starknet")).toBe(false);
+    expect(evmChains().length).toBe(Object.keys(CHAINS).length - 1);
+  });
+
+  it("points at a Starknet explorer, so a receipt link actually resolves", () => {
+    expect(chainConfig(STARKNET_MAINNET_KEY).explorerUrl).toContain("voyager");
   });
 });

@@ -35,6 +35,15 @@ export interface ChainConfig {
   nativeName: string;
   isMainnet: boolean;
   /**
+   * Whether this is an EVM chain that viem can talk to.
+   *
+   * False for Starknet, which is here so that AMOUNTS, NETWORK LABELS AND EXPLORER LINKS are
+   * truthful for campaigns settled on it — and for nothing else. Every write path (the signer, the
+   * vault adapter, on-chain verification) is EVM-only and must filter on this rather than assume
+   * every registry entry is reachable with an EVM client.
+   */
+  evm: boolean;
+  /**
    * How to price a write: Metis settles at a fixed gas price (legacy, no
    * EIP-1559); GOAT is tried as EIP-1559 first and falls back to legacy.
    */
@@ -52,7 +61,31 @@ export const GOAT_MAINNET_CHAIN_ID = 2345;
 /** GOAT mainnet USDC (6 decimals) — the real settlement token. */
 export const GOAT_USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8" as Address;
 
+/**
+ * Registry key for Starknet mainnet. NOT an EVM chain id — Starknet has none, and its own
+ * identifier (SN_MAIN, 0x534e5f4d41494e) exceeds JavaScript's safe integer range, so it cannot be
+ * stored in the integer column this keys. It exists so a campaign settled on Starknet renders its
+ * real USDC as money rather than as valueless test tokens, which is what happened when such a
+ * campaign inherited the Metis Sepolia default.
+ */
+export const STARKNET_MAINNET_KEY = 900_001;
+
 export const CHAINS: Record<number, ChainConfig> = {
+  [900_001]: {
+    chainId: 900_001,
+    key: "starknet",
+    name: "Starknet",
+    chipLabel: "Starknet",
+    // A Starknet RPC, unreachable by viem — kept truthful rather than blank, and guarded by `evm`.
+    rpcUrl: "https://rpc.starknet.lava.build:443",
+    explorerUrl: "https://voyager.online",
+    usdcAddress: null,
+    nativeSymbol: "STRK",
+    nativeName: "Starknet Token",
+    isMainnet: true,
+    evm: false,
+    gas: "legacy",
+  },
   59902: {
     chainId: 59902,
     key: "metis-sepolia",
@@ -64,6 +97,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     nativeSymbol: "METIS",
     nativeName: "Metis",
     isMainnet: false,
+    evm: true,
     gas: "legacy",
   },
   1088: {
@@ -77,6 +111,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     nativeSymbol: "METIS",
     nativeName: "Metis",
     isMainnet: true,
+    evm: true,
     gas: "legacy",
   },
   2345: {
@@ -102,6 +137,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     nativeSymbol: "BTC",
     nativeName: "Bitcoin",
     isMainnet: true,
+    evm: true,
     gas: "eip1559-fallback",
   },
 };
@@ -115,6 +151,16 @@ export function chainConfig(chainId?: number | null): ChainConfig {
 /** Whether a chainId is one the Deputy is configured to operate on. */
 export function isSupportedChain(chainId: number): boolean {
   return chainId in CHAINS;
+}
+
+/**
+ * The EVM chains, for anything that will reach for a viem client — deploying a vault, reading
+ * logs, verifying an on-chain milestone. The registry now also holds Starknet, which is there for
+ * truthful amounts and explorer links and is not reachable that way; offering it in a chain picker
+ * would produce a campaign whose verification can never run.
+ */
+export function evmChains(): ChainConfig[] {
+  return Object.values(CHAINS).filter((c) => c.evm);
 }
 
 /** A verifiable block-explorer link for a tx on the given chain. */

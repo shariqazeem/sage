@@ -100,7 +100,7 @@
   border: 1px solid var(--accent);
   border-radius: var(--r-md);
   background: var(--accent);
-  color: var(--accent-ink, #fff);
+  color: var(--accent-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

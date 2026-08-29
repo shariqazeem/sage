@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   const { starknetConfig } = await import("../src/lib/starknet/config");
   const { payableBalance } = await import("../src/lib/starknet/pay");
   const { createCampaign, createSubmission, getSubmission } = await import("../src/lib/db/campaigns");
+  const { STARKNET_MAINNET_KEY } = await import("../src/lib/deputy/networks");
   const { settleOnStarknet } = await import("../src/lib/campaigns/settle-starknet");
 
   const cfg = starknetConfig();
@@ -89,6 +90,9 @@ async function main(): Promise<void> {
     vaultAddress: cfg.accountAddress,
     posterWallet: cfg.accountAddress,
     ownerIsSage: true,
+    // Not an EVM chain id — the registry key that makes amounts render as real money. Without it a
+    // campaign inherits the Metis Sepolia default and its real USDC displays as test tokens.
+    chainId: STARKNET_MAINNET_KEY,
     status: "live",
     autonomy: "autopilot",
     settlementRail: "starknet",
