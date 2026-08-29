@@ -51,6 +51,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@starknet-io/get-starknet-discovery": "^6.0.3",
+    "@starknet-io/get-starknet-wallet-standard": "^6.0.3",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
