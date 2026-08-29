@@ -238,6 +238,35 @@ export async function announceCampaignSettled(
   );
 }
 
+/**
+ * The same announcement for a payout settled on Starknet.
+ *
+ * A separate entry point because `announceCampaignSettled` takes the EVM `SettleOutcome`, and that
+ * type carries viem's Hash and Address — which a Starknet hash cannot satisfy. Without this a
+ * campaign that had set an announce chat would simply go silent the moment it settled on the other
+ * rail: no error, no message, just a public channel that stopped reporting payouts.
+ *
+ * The explorer link is always included. On the EVM path it is withheld on testnets because a
+ * testnet link would imply real money; Starknet settlement is mainnet USDC, so the link is real.
+ */
+export async function announceCampaignSettledStarknet(
+  campaign: Campaign,
+  outcome: { txHash: string; recipient: string; amountBase: number; explorerUrl: string | null },
+): Promise<void> {
+  const chatId = campaign.announceChatId;
+  if (!chatId || !outcome.txHash) return;
+  await sendTelegram(
+    chatId,
+    announceSettledText({
+      title: campaign.title,
+      amountBase: outcome.amountBase,
+      recipient: outcome.recipient,
+      proofUrl: proofUrl(outcome.txHash),
+      explorerUrl: outcome.explorerUrl ?? undefined,
+    }),
+  );
+}
+
 /** Announce a vault-blocked spend to a campaign's public chat, if one is set. */
 export async function announceCampaignBlocked(
   campaign: Campaign,
