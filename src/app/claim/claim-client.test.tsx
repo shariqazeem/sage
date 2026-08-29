@@ -42,13 +42,19 @@ describe("the collection screen", () => {
 
   /** Only the commitment may leave the browser — never the thing that owns the money. */
   it("never puts the secret in the status request", async () => {
-    const f = vi.fn(async (_url: string) => okStatus());
+    const seen: string[] = [];
+    const f = vi.fn(async (url: string) => {
+      seen.push(url);
+      return okStatus();
+    });
     vi.stubGlobal("fetch", f);
     landOn(`#${SECRET}`);
     render(<ClaimClient claims={null} token={null} />);
     await screen.findByText("$1.40");
-    expect(f).toHaveBeenCalledTimes(1);
-    expect(String(f.mock.calls[0]?.[0])).not.toContain(SECRET);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).not.toContain(SECRET);
+    // ...and it DID send the commitment, so the check is not passing by sending nothing.
+    expect(seen[0]).toMatch(/commitment=\d+/);
   });
 
   it("will not submit until an address looks like one", async () => {
