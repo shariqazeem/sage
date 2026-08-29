@@ -43,6 +43,12 @@ const signals = (over: Partial<CreditSignals> = {}): CreditSignals => ({
   daysSinceLastVerified: 5,
   tenureDays: 70,
   byKindUsd: { testing: 500, gig: 347.25, grant: 0 },
+  inflow30dUsd: 112.5,
+  inflow90dUsd: 412.5,
+  completions30d: 1,
+  completions90d: 3,
+  topPayerShare: 0.727,
+  payerConcentration: 0.6,
   ...over,
 });
 

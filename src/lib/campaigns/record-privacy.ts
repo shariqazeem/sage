@@ -70,6 +70,24 @@ export interface PublicCreditSignals {
   tenureDays: number | null;
   /** how the work splits across kinds, as COUNTS rather than sums. */
   byKindCount: { testing: number; gig: number; grant: number };
+
+  /**
+   * Recent ACTIVITY survives privacy; recent INCOME does not.
+   *
+   * "12 verified jobs in the last 90 days" tells a lender the cash flow is live without telling
+   * them what it was worth, and liveness is most of what a working-capital decision turns on.
+   */
+  completions30d: number;
+  completions90d: number;
+
+  /**
+   * Concentration survives too, and deliberately. It is a RATIO, not an amount: it says whether
+   * income leans on one counterparty without revealing what any of them paid. Withholding it would
+   * cost a lender the single most useful risk signal here and protect nothing.
+   */
+  topPayerShare: number | null;
+  payerConcentration: number | null;
+
   amountsWithheld: true;
 }
 
@@ -127,6 +145,10 @@ export function publicSignals(
     daysSinceLastVerified: signals.daysSinceLastVerified,
     tenureDays: signals.tenureDays,
     byKindCount,
+    completions30d: signals.completions30d,
+    completions90d: signals.completions90d,
+    topPayerShare: signals.topPayerShare,
+    payerConcentration: signals.payerConcentration,
     amountsWithheld: true,
   };
 }

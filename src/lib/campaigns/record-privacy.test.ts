@@ -61,6 +61,12 @@ const signals = (): CreditSignals => ({
   daysSinceLastVerified: 5,
   tenureDays: 70,
   byKindUsd: { testing: 12.5, gig: 300, grant: 100 },
+  inflow30dUsd: 112.5,
+  inflow90dUsd: 412.5,
+  completions30d: 1,
+  completions90d: 3,
+  topPayerShare: 0.727,
+  payerConcentration: 0.6,
 });
 
 describe("the published record withholds income", () => {

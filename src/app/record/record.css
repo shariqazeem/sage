@@ -113,3 +113,22 @@
 .rec-spin { animation: rec-spin 0.9s linear infinite; }
 @keyframes rec-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .rec-spin { animation: none; } }
+
+/* The lender export. Placed with the signals because it IS the signals, in a form a credit
+   officer can sort and check rather than read. */
+.rec-export {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rec-export a {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.rec-export a:hover { text-decoration: underline; }
+.rec-export span { font-size: 0.8125rem; line-height: 1.55; color: var(--ink-faint); }

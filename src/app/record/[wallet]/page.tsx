@@ -150,6 +150,27 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                 <dt>Distinct funders</dt>
                 <dd>{signals.distinctPayers}</dd>
               </div>
+              {/* RECENCY AND CONCENTRATION — what a working-capital decision actually turns on.
+                  A lifetime total says someone earned once; these say whether the cash flow is
+                  live, and whether it leans on a single counterparty. */}
+              <div className="rec-sig">
+                <dt>Verified work, last 90d</dt>
+                <dd>
+                  {signals.completions90d}
+                  {amountsPrivate ? null : (
+                    <small> · ${signals.inflow90dUsd.toFixed(2)}</small>
+                  )}
+                </dd>
+              </div>
+              <div className="rec-sig">
+                <dt>Largest funder share</dt>
+                <dd>
+                  {signals.topPayerShare === null
+                    ? "—"
+                    : `${Math.round(signals.topPayerShare * 100)}%`}
+                  <small> of verified income</small>
+                </dd>
+              </div>
               <div className="rec-sig">
                 <dt>Tenure</dt>
                 <dd>{signals.tenureDays === null ? "—" : `${signals.tenureDays}d`}</dd>
@@ -159,6 +180,17 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                 <dd>{signals.daysSinceLastVerified === null ? "—" : signals.daysSinceLastVerified === 0 ? "today" : `${signals.daysSinceLastVerified}d ago`}</dd>
               </div>
             </dl>
+            {/* The file a credit officer opens. Sage states the inputs; the lender applies their
+                own multiple, which is why it is a parameter and not a number on this page. */}
+            <p className="rec-export">
+              <a href={`/api/record/${record.wallet}/export?multiple=2`}>
+                Download this record for a lender (CSV)
+              </a>
+              <span>
+                Every row carries the transaction that settled it, so any line can be checked
+                on-chain without taking Sage&rsquo;s word for it.
+              </span>
+            </p>
             <p className="rec-sig-note">
               Published deterministic formulas over the receipt-anchored entries below — inputs a
               lender can underwrite on, never a score. Sage computes no creditworthiness verdict.
