@@ -42,6 +42,10 @@ import {
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
 import { settleOnStarknet } from "@/lib/campaigns/settle-starknet";
 import {
+  readVaultBalance as readStarknetVaultBalance,
+  readVaultState as readStarknetVaultState,
+} from "@/lib/starknet/vault";
+import {
   evaluateCampaignAgreement,
   type VaultStrategyDeps,
 } from "@/lib/campaigns/vault-strategy";
@@ -163,6 +167,65 @@ async function preflight(
  * the vault soft-rejects them regardless. NB: NO recipient allowlisting — V2 pays a
  * previously-unknown tester bounded to the approved mission.
  */
+/**
+ * WHICH PRE-FLIGHT A CAMPAIGN GETS — named rather than inlined, so the routing can be tested.
+ *
+ * The rail is checked FIRST and beats the vault kind. That order is the fix: a Starknet campaign
+ * carries a felt where the EVM pre-flight expects an address, and asking about `vaultKind` first
+ * sent every one of them into code that cannot survive its own first statement.
+ */
+export function preflightStrategy(campaign: Campaign): "starknet" | "v2" | "legacy" {
+  if (campaign.settlementRail === "starknet") return "starknet";
+  if (campaign.vaultKind === "campaign_v2") return "v2";
+  return "legacy";
+}
+
+/**
+ * Pre-flight for a campaign that settles on Starknet.
+ *
+ * IT EXISTS BECAUSE THE EVM PRE-FLIGHT CANNOT RUN HERE AT ALL. Its first statement is
+ * `getAddress(campaign.vaultAddress)`, and a Starknet address is a felt that viem rejects —
+ * throwing SYNCHRONOUSLY, before any of the try/catch below it. Every Starknet submission would
+ * have died there and reset to pending, to be retried by the next sweep, forever: a stuck
+ * submission that costs a judgement call on every tick and never pays anyone. The rail's
+ * settlement branch sits further down the pipeline than this, so it was never reached.
+ *
+ * What it checks is deliberately narrow. The Cairo vault enforces the ceiling, the daily cap, the
+ * per-mission completion limit and replay protection itself, and `settleOnStarknet` reads the
+ * refusal code back and holds with the vault's own reason. Re-implementing those here would be a
+ * second opinion about money that the contract has the final say on. This only answers the
+ * question worth answering before spending gas: is there a live vault, and does it hold enough.
+ */
+async function preflightStarknet(
+  campaign: Campaign,
+): Promise<{ ok: boolean; reason: string }> {
+  // A direct-pay Starknet campaign has no vault by design — there is nothing to read, and
+  // settleOnStarknet already refuses if the operator account cannot cover the reward.
+  if (campaign.vaultKind !== "sage_vault_starknet") {
+    return { ok: true, reason: "direct settlement — no vault to pre-flight" };
+  }
+  try {
+    const [state, balance] = await Promise.all([
+      readStarknetVaultState(campaign.vaultAddress),
+      readStarknetVaultBalance(campaign.vaultAddress),
+    ]);
+    if (state.statusLabel !== "active") {
+      return { ok: false, reason: `the vault is ${state.statusLabel}` };
+    }
+    const reward = BigInt(campaign.rewardAmount);
+    if (balance < reward) {
+      return { ok: false, reason: "the vault does not hold enough to pay this — held for review" };
+    }
+    if (state.budgetCeilingBase - state.totalSpentBase < reward) {
+      return { ok: false, reason: "the campaign's budget ceiling is reached" };
+    }
+    return { ok: true, reason: "vault is active and funded" };
+  } catch {
+    // Unreadable is not the same as insufficient: hold, and let the next sweep try again.
+    return { ok: false, reason: "vault state temporarily unreadable — held for review" };
+  }
+}
+
 async function preflightV2(
   campaign: Campaign,
   submission: Submission,
@@ -770,10 +833,13 @@ export async function runDeputyOnSubmission(
   // c. pre-flight — for V2 the DB↔chain agreement is enforced here BEFORE any
   // signing; for V1 the existing courtesy policy read. Strategy is chosen from the
   // campaign's persisted vault kind, never probed.
+  const strategy = preflightStrategy(campaign);
   const pf =
-    campaign.vaultKind === "campaign_v2"
-      ? await preflightV2(campaign, submission, deps)
-      : await preflight(campaign, submission);
+    strategy === "starknet"
+      ? await preflightStarknet(campaign)
+      : strategy === "v2"
+        ? await preflightV2(campaign, submission, deps)
+        : await preflight(campaign, submission);
   agentLog(cid, "preflight", { ok: pf.ok, reason: pf.reason });
   if (!pf.ok) {
     // A FULL MISSION IS TERMINAL. `maxCompletions` is enforced by the vault and never rises, so a
@@ -898,3 +964,10 @@ export async function runDeputyOnSubmission(
     return { action: "held", reason: "settlement error", correlationId: cid };
   }
 }
+
+/**
+ * Exported for the pre-flight tests only. `preflightStarknet` is module-private on purpose — it
+ * is a step of one pipeline, not an API — but it decides whether a Starknet payout is attempted,
+ * and a guard nothing can exercise is a guard nobody can trust.
+ */
+export const __preflightStarknetForTest = preflightStarknet;

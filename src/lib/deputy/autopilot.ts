@@ -10,6 +10,7 @@
  */
 
 import type { DecisionBrief } from "./brain-core";
+import { CHAINS } from "./networks";
 
 export interface GateInput {
   autonomy: string; // "manual" | "autopilot"
@@ -19,9 +20,9 @@ export interface GateInput {
   confidence: number; // 0..1
   threshold: number; // 0..1
   hasHighFraud: boolean;
-  /** the campaign's chain. 2345 (GOAT mainnet) carries an extra safety gate. */
+  /** the campaign's chain. Any chain carrying real money carries an extra safety gate. */
   chainId?: number;
-  /** DEPUTY_AUTOPILOT_MAINNET — must be true for the Deputy to auto-pay on 2345. */
+  /** DEPUTY_AUTOPILOT_MAINNET — must be true for the Deputy to auto-pay real money. */
   mainnetAutopilotEnabled?: boolean;
 }
 
@@ -35,6 +36,19 @@ const pct = (n: number) =>
   `${Math.round(Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0)) * 100)}%`;
 
 /**
+ * Does this chain move real money?
+ *
+ * An UNKNOWN chain counts as real. A campaign can only carry an id this does not recognise
+ * through a misconfiguration or a chain added without updating the registry, and of the two
+ * possible wrong answers, "treat play money as real" costs a manual approval while "treat real
+ * money as play" spends someone else's USDC unattended.
+ */
+const isRealMoney = (chainId?: number): boolean => {
+  if (chainId == null) return false; // no chain named: the pre-existing default path, unchanged
+  return CHAINS[chainId]?.isMainnet ?? true;
+};
+
+/**
  * The exact autopilot gate. Returns pay=true only when ALL hold:
  *   autonomy === 'autopilot' AND status === 'pending' AND engine === 'llm'
  *   AND recommendation === 'pay' AND no high-severity fraud signal
@@ -45,10 +59,16 @@ const pct = (n: number) =>
 export function autopilotGate(i: GateInput): GateResult {
   if (i.autonomy !== "autopilot") return { pay: false, reason: "manual review" };
   if (i.status !== "pending") return { pay: false, reason: "already handled" };
-  // Mainnet safety sequencing: real money on GOAT (2345) auto-pays ONLY once
-  // DEPUTY_AUTOPILOT_MAINNET is flipped on. Until then a mainnet campaign holds
-  // for manual approval — the red-team pass is what arms it.
-  if (i.chainId === 2345 && !i.mainnetAutopilotEnabled) {
+  // Mainnet safety sequencing: real money auto-pays ONLY once DEPUTY_AUTOPILOT_MAINNET is
+  // flipped on. Until then a mainnet campaign holds for manual approval — the red-team pass is
+  // what arms it.
+  //
+  // ASKED OF THE REGISTRY, NOT OF A LITERAL. This was written as `chainId === 2345` when GOAT was
+  // the only real-money chain, which quietly made the invariant false for every mainnet added
+  // afterwards: Metis Andromeda and Starknet both auto-paid real USDC with this switch off. The
+  // registry already records which chains are real, so asking it means the next chain added is
+  // covered by default instead of reopening this hole.
+  if (isRealMoney(i.chainId) && !i.mainnetAutopilotEnabled) {
     return {
       pay: false,
       reason: "mainnet autopilot is off — approve this real-money payout manually",
