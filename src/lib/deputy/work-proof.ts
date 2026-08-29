@@ -48,10 +48,13 @@ export function parseWorkProofContract(raw: unknown): VerificationContract | nul
   const c = raw as Record<string, unknown>;
   switch (c.kind) {
     case "onchain_tx":
-      return typeof c.chainId === "number" && !!CHAINS[c.chainId] ? (c as unknown as OnchainTxContract) : null;
+      // `evm`, not merely "known": the registry also holds Starknet, which these checks cannot read.
+      return typeof c.chainId === "number" && !!CHAINS[c.chainId]?.evm
+        ? (c as unknown as OnchainTxContract)
+        : null;
     case "onchain_state":
       return typeof c.chainId === "number" &&
-        !!CHAINS[c.chainId] &&
+        !!CHAINS[c.chainId]?.evm &&
         typeof c.contract === "string" &&
         typeof c.callData === "string" &&
         /^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{64})*$/.test(c.callData)
@@ -110,6 +113,9 @@ function classify(result: VerificationResult, report: () => string): WorkProofOu
 async function defaultEthCall(chainId: number, to: string, data: Hex): Promise<string> {
   const cfg = CHAINS[chainId];
   if (!cfg) throw new Error("unknown chain");
+  // A viem client against a Starknet RPC fails as a timeout, which reads like a network fault
+  // rather than a check that could never run. Say the true thing instead.
+  if (!cfg.evm) throw new Error("chain is not EVM-readable");
   const client = createPublicClient({ transport: http(cfg.rpcUrl) });
   const out = await client.call({ to: to as Hex, data });
   return (out.data ?? "0x") as string;
