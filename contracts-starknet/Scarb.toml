@@ -1,0 +1,24 @@
+[package]
+name = "sage_claims"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = "2.15.0"
+
+[dev-dependencies]
+snforge_std = "0.56.0"
+assert_macros = "2.15.0"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[scripts]
+test = "snforge test"
+
+# Declaring a class is charged by Sierra length, and `sierra-replace-ids` embeds
+# human-readable identifiers that buy nothing on mainnet. Test panics come from
+# felt short strings, so snforge is unaffected.
+[cairo]
+sierra-replace-ids = false
