@@ -141,6 +141,22 @@ describe("the published record withholds income", () => {
   });
 });
 
+describe("what the default is", () => {
+  /**
+   * publicRecord() ALWAYS redacts — that is its job, and it is applied only when a worker has
+   * chosen privacy. The default path serves the full record, because public receipts are the
+   * point for grants and MSME capital. This pins the distinction so the two cannot be confused:
+   * the redactor is not a default, it is a tool the default does not reach for.
+   */
+  it("redaction is a tool, not a default — the raw record still carries amounts", () => {
+    const raw = record();
+    expect(raw.totalUsd).toBeGreaterThan(0);
+    expect(findMoneyFields(raw).length).toBeGreaterThan(0);
+    // ...and applying the tool removes them.
+    expect(findMoneyFields(publicRecord(raw))).toEqual([]);
+  });
+});
+
 describe("the money detector itself", () => {
   /** A check that cannot fail is not a check. This proves the sweep actually catches money. */
   it("catches money by name, at any depth", () => {

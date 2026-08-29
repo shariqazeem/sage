@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { walletCreditSignals } from "@/lib/campaigns/credit";
+import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 import { publicRecord, publicSignals } from "@/lib/campaigns/record-privacy";
 import { siteUrl } from "@/lib/site";
 
@@ -10,24 +11,19 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/record/<wallet> — the Verified Work Record + Sage Signals, machine-readable.
  *
- * The lender-consumable form: receipt-anchored history plus deterministic credit signals, every
- * formula published and versioned. Public read, no key required.
+ * PUBLIC BY DEFAULT. Receipts are the point of this record when the money is grant or MSME
+ * capital: a programme distributing funds has to be able to show where they went, down to the
+ * amount and the transaction. Auditability is not a compromise here, it is the product.
  *
- * v3 WITHHOLDS AMOUNTS. v2 published every payout in full — an amount per entry and a total, keyed
- * to a wallet, readable by anyone who had the address. For someone whose testing or gig income is
- * a real part of what they live on, that was their income statement posted permanently in public.
- * It was never a decision; it is what a record built from receipts looks like if nobody stops it.
+ * PRIVATE WHEN THE WORKER CHOOSES IT. Someone paid through Sage should not have to carry a
+ * permanent public income graph as the price of getting paid. When they turn amounts off, this
+ * serves the same record with every figure withheld — the completions, the counterparties, the
+ * months, the pass rate and every transaction hash all remain, so the work stays provable while
+ * the income stops being published. They prove figures with a scoped attestation instead.
  *
- * What a lender still gets: how many separate jobs were verified and paid, how many DIFFERENT
- * counterparties paid them, over how many months, how recently, what share of their submitted work
- * passed verification — and a transaction hash for every payment, so each one can be confirmed to
- * have happened. That is a credit profile. It is not a published income.
- *
- * Amounts are disclosed by an attestation the worker asks for, scoped to what it states and
- * revocable — unlike a pool viewing key, which reveals everything and cannot be taken back.
- *
- * This is a BREAKING change from v2, deliberately and without a compatibility flag: leaving the
- * old shape reachable would leave the income published, which is the whole thing being fixed.
+ * v3 is ADDITIVE over v2, not a break: a public record carries everything v2 did, plus
+ * `amountsWithheld: false`. A v2 consumer reading `totalUsd` keeps working. Only a record whose
+ * owner asked for privacy omits the money.
  */
 export async function GET(
   _req: Request,
@@ -39,20 +35,33 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "not a valid wallet address" }, { status: 400 });
   }
   const { record, signals } = out;
-  const pub = publicRecord(record);
+  const withheld = isRecordPrivate(record.wallet);
 
-  return NextResponse.json({
-    ok: true,
+  const base = {
+    ok: true as const,
     schema: "sage.work-record.v3",
     generatedAt: Math.floor(Date.now() / 1000),
-    recordUrl: `${siteUrl()}/record/${pub.wallet}`,
+    recordUrl: `${siteUrl()}/record/${record.wallet}`,
+  };
+
+  if (!withheld) {
+    return NextResponse.json({
+      ...base,
+      ...record,
+      amountsWithheld: false,
+      entries: record.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
+      signals,
+    });
+  }
+
+  const pub = publicRecord(record);
+  return NextResponse.json({
+    ...base,
     ...pub,
     entries: pub.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
     signals: publicSignals(signals, record),
     disclosure: {
-      /** Why the numbers a lender might expect are not here, said in the response itself. */
-      note: "Payout amounts are withheld. Each entry is anchored to a transaction anyone can verify, so the payments are provable without the income being published.",
-      /** How to obtain them, when the person they belong to chooses to share them. */
+      note: "This worker has chosen not to publish payout amounts. Every entry is anchored to a transaction anyone can verify, so the payments remain provable without the income being public.",
       howToObtainAmounts: `${siteUrl()}/record/${pub.wallet}#disclosure`,
     },
   });

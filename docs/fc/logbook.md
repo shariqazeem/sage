@@ -89,16 +89,21 @@ yet. That is the next thing to prove, not to claim.
 
 ---
 
-## 29 August 2026 — a payout rail people can actually spend, and an income that stays theirs
+## 29 August 2026 — a second settlement rail, and privacy as a worker's option
 
-**Sage stopped publishing what people earn.** The Verified Work Record used to serve every payout
-in full — an amount per entry, a total at the top, keyed to a wallet, readable by anyone holding
-the address. For someone whose testing or gig income is a real part of what they live on, that was
-their income statement posted permanently in public. It was never a decision; it is what a record
-built from receipts looks like if nobody stops it. This track's brief names exactly that problem —
-credit profiles that don't force you to publish your income — and it was sitting in our own API.
+**The Verified Work Record stays public, because that is what it is for.** A programme handing out
+grant or MSME capital has to be able to show where the money went, down to the amount and the
+transaction, and every record still does that by default. Auditability is not a compromise here;
+it is the product.
 
-Redacting amounts does not gut the record, because the lending signal was never mostly the amount:
+**What changed is that a worker can now turn their own amounts off.** Someone paid through Sage
+should not have to carry a permanent public income graph as the price of getting paid — a
+contractor's earnings are not the same artifact as a public grant's disbursement. That is a
+per-worker choice, off by default, and it answers this track's ask for credit profiles that don't
+force you to publish your income without taking auditability away from the programmes that need it.
+
+When a worker does turn it off, the record does not become useless, because the lending signal was
+never mostly the amount:
 how many separate jobs were verified and paid, how many *different* counterparties chose to pay,
 over how many months, how recently, what share of submitted work passed verification — and a
 transaction hash for every one, so a stranger can confirm each payment happened. A lender learns

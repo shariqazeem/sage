@@ -1002,3 +1002,19 @@ export const feedback = sqliteTable(
 );
 
 export type FeedbackRow = typeof feedback.$inferSelect;
+
+/**
+ * A worker's choice about whether their Verified Work Record shows amounts.
+ *
+ * NO ROW MEANS PUBLIC. Public receipts are the point of the record for grants and MSME capital —
+ * a programme handing out money must be able to show where it went. Privacy is a worker's option,
+ * for someone who would rather not carry a public income graph, and never a default imposed on the
+ * people the record is meant to serve.
+ */
+export const recordPreferences = sqliteTable("record_preferences", {
+  wallet: text("wallet").primaryKey(),
+  amountsPrivate: integer("amounts_private", { mode: "boolean" }).notNull().default(false),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type RecordPreference = typeof recordPreferences.$inferSelect;

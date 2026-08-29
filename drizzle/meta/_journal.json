@@ -323,6 +323,13 @@
       "when": 1788163200001,
       "tag": "0045_settlement_rail",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1788163200002,
+      "tag": "0046_record_privacy",
+      "breakpoints": true
     }
   ]
 }
