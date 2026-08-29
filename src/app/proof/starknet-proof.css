@@ -1,0 +1,110 @@
+/* The Starknet receipt. Aliases global tokens; declares no palette value of its own. */
+
+.skp {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  padding: clamp(24px, 6vw, 56px) var(--s-6, 24px);
+}
+.skp-wrap { max-width: 44rem; margin: 0 auto; }
+
+.skp-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+  margin-bottom: 28px;
+}
+.skp-back:hover { color: var(--accent); }
+
+.skp-head { margin-bottom: 28px; }
+
+/* Green and red are reserved for money outcomes. Both of these are one. */
+.skp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.skp-chip.is-ok { color: var(--ok); background: var(--ok-soft); border: 1px solid var(--ok-border); }
+.skp-chip.is-bad { color: var(--err); background: var(--err-soft); border: 1px solid var(--err-border); }
+.skp-chip.is-unknown { color: var(--ink-muted); background: var(--bg); border: 1px solid var(--border); }
+
+.skp-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2.25rem, 8vw, 3rem);
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.skp-sub { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; line-height: 1.5; }
+
+.skp-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.skp-card-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.skp-card-t { font-size: 0.9375rem; font-weight: 600; }
+/* The provenance label. Small, but it is the whole point of splitting the two cards. */
+.skp-card-n {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.skp-rows { margin: 0; display: grid; gap: 10px; }
+.skp-row {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.skp-row dt { font-size: 0.8125rem; color: var(--ink-muted); flex: none; }
+.skp-row dd {
+  margin: 0;
+  font-size: 0.875rem;
+  text-align: right;
+  word-break: break-all;
+  min-width: 0;
+}
+.skp-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.skp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.skp-link:hover { text-decoration: underline; }
+
+.skp-empty { margin: 0; font-size: 0.875rem; line-height: 1.6; color: var(--ink-muted); }
+
+.skp-foot {
+  margin: 22px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+.skp-foot a { color: var(--accent); }

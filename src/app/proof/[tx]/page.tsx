@@ -1,4 +1,5 @@
 import "../../sage-proof.css";
+import "../starknet-proof.css";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -6,6 +7,8 @@ import { ArrowLeft } from "lucide-react";
 import { composeProof, isFoundProof } from "@/lib/deputy/proof";
 import { getCampaignByPayoutTx } from "@/lib/db/campaigns";
 import { SageProofPage } from "@/components/proof/sage-proof-page";
+import { StarknetProofPage } from "@/components/proof/starknet-proof-page";
+import { composeStarknetProof, isStarknetPayout } from "@/lib/deputy/starknet-proof";
 import { siteUrl } from "@/lib/site";
 import { short, money } from "@/lib/format";
 
@@ -31,8 +34,30 @@ export async function generateMetadata({
   params: Promise<{ tx: string }>;
 }): Promise<Metadata> {
   const { tx } = await params;
-  const proof = await loadProof(tx, chainForTx(tx));
   const canonical = `/proof/${tx}`;
+
+  // Same branch as the page. Without it the EVM composer answers for a Starknet payout and the tab
+  // reads "Payout not found" over a receipt that plainly shows one — and that is also the share
+  // card, so the wrong answer is what gets posted.
+  if (isStarknetPayout(tx)) {
+    const sk = await composeStarknetProof(tx);
+    const amount = sk.amountUsd !== null ? `$${sk.amountUsd.toFixed(2)}` : "A payout";
+    const title = `${amount} paid on Starknet`;
+    const shareTitle = `${title} · Sage`;
+    const description = sk.campaignTitle
+      ? `${amount} settled to ${short(sk.recipient ?? "")} for "${sk.campaignTitle}". Verifiable on Starknet.`
+      : `${amount} settled on Starknet by Sage, verifiable on-chain.`;
+    return {
+      metadataBase: new URL(siteUrl()),
+      title,
+      description,
+      alternates: { canonical },
+      openGraph: { title: shareTitle, description, siteName: "Sage", type: "article" },
+      twitter: { card: "summary", title: shareTitle, description },
+    };
+  }
+
+  const proof = await loadProof(tx, chainForTx(tx));
   if (!isFoundProof(proof)) {
     // The layout template appends "· Sage"; adding it here too rendered it twice.
     const title = "Payout not found";
@@ -77,6 +102,14 @@ export default async function ProofPage({
   params: Promise<{ tx: string }>;
 }) {
   const { tx } = await params;
+
+  // A Starknet payout has no CampaignVault to read, so the EVM composer cannot see it and returns
+  // "not found" — which for a payout that genuinely happened is the worst thing a receipt page can
+  // say. It gets its own receipt, showing the chain's half and Sage's half labelled separately.
+  if (isStarknetPayout(tx)) {
+    return <StarknetProofPage proof={await composeStarknetProof(tx)} />;
+  }
+
   const proof = await loadProof(tx, chainForTx(tx));
 
   if (!isFoundProof(proof)) {
