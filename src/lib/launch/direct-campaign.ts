@@ -5,6 +5,7 @@ import { keccak256, stringToHex, type Hex } from "viem";
 import { nanoid } from "nanoid";
 
 import { CHAINS } from "@/lib/deputy/networks";
+import { toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
@@ -122,6 +123,15 @@ const milestoneSchema = z.object({
   criteria: z.array(z.string().min(4).max(300)).min(1).max(8),
   evidence: contractSchema,
   /** operator-priced tranche, USD, at most 2 decimals. */
+  /**
+   * The amount the FOUNDER SAID, in the campaign's currency — "J$5,000", not its dollar value.
+   *
+   * The model passes what it heard and never converts: "no model ever computes a money amount" is
+   * the invariant this product is built on, and an exchange rate is exactly the kind of arithmetic
+   * that looks harmless and mis-sizes someone's grant. Sage converts deterministically from a
+   * stamped rate, and the result lands in `rewardUsd` below.
+   */
+  rewardLocal: z.number().positive().max(10_000_000).optional(),
   rewardUsd: z
     .number()
     .positive()
@@ -147,6 +157,12 @@ export const directCampaignSchema = z.object({
   milestones: z.array(milestoneSchema).min(1).max(DIRECT_LIMITS.milestonesMax),
   /** optional recipient allowlist — named grantees. Enforced at the submit route (app-level). */
   allowlist: z.array(z.string().regex(walletRe)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
+  /**
+   * The currency the founder is THINKING in. Settlement is always USDC — this changes what the
+   * numbers are called, never what the vault moves. Absent means USD, which is what every existing
+   * campaign is, so this is additive by construction.
+   */
+  currency: z.string().length(3).optional(),
 });
 
 export type DirectCampaignInput = z.infer<typeof directCampaignSchema>;
@@ -297,7 +313,34 @@ function surfaceFor(input: DirectCampaignInput, publicCampaignId: string): strin
   return input.productUrl ?? `${siteUrl()}/c/${publicCampaignId}`;
 }
 
-export function compileDirectCampaign(input: DirectCampaignInput, publicCampaignId: string): CompileDirectResult {
+/**
+ * RESOLVE EVERY MILESTONE TO USD, DETERMINISTICALLY.
+ *
+ * The founder says "J$5,000 when the catalogue is up" and the model passes exactly that — the
+ * amount and the currency, never a conversion, because no model computes a money amount here. Sage
+ * converts, once, from a stamped rate, and everything downstream is dollars exactly as before.
+ *
+ * A campaign in USD, or one whose rate could not be fetched, resolves to `rewardUsd` untouched —
+ * so every existing campaign compiles byte-identically and a corridor outage degrades to the
+ * currency that always works rather than to a guess.
+ */
+export function resolveMilestoneUsd(
+  m: { rewardLocal?: number; rewardUsd: number },
+  quote: RateQuote | null,
+): number {
+  if (!quote || quote.currency === "USD" || m.rewardLocal === undefined) return m.rewardUsd;
+  const base = toUsdBase(m.rewardLocal, quote);
+  // Back to dollars at cent precision: the vault works in base units, but every gate downstream
+  // (the floor, the caps, the lint) is written in dollars and must keep seeing dollars.
+  return Math.round(Number(base) / 10_000) / 100;
+}
+
+export function compileDirectCampaign(
+  input: DirectCampaignInput,
+  publicCampaignId: string,
+  /** The rate stamped at funding. Omitted — or unavailable — means the campaign is priced in USD. */
+  quote: RateQuote | null = null,
+): CompileDirectResult {
   const taken = new Set<string>();
   const noun = input.kind === "grant" ? "milestone" : "deliverable";
 
@@ -333,7 +376,7 @@ export function compileDirectCampaign(input: DirectCampaignInput, publicCampaign
     reason: null,
     missions: input.milestones.map((m, i) => ({
       missionKey: candidates[i].missionKey,
-      rewardBase: usdToBase(m.rewardUsd),
+      rewardBase: usdToBase(resolveMilestoneUsd(m, quote)),
       maxCompletions: BigInt(m.slots),
       weight: 5,
       effortMinutes: m.effortMinutes ?? 15,
