@@ -20,6 +20,9 @@ import "server-only";
  */
 const MAINNET_USDC = "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb";
 
+/** starkli 0.4.2 and sncast both fail against newer nodes; starknet.js works with this one. */
+const DEFAULT_RPC = "https://rpc.starknet.lava.build:443";
+
 export interface StarknetConfig {
   rpcUrl: string;
   /** The deployed `SageClaims` contract. */
@@ -79,3 +82,25 @@ export const starknetConfigured = (): boolean => {
     return false;
   }
 };
+
+/** Everything needed to READ the chain — no credential among them. */
+export interface StarknetReadConfig {
+  claims: string;
+  token: string;
+  rpcUrl: string;
+}
+
+/**
+ * Just the PUBLIC configuration — the deployed contract and the settlement token.
+ *
+ * Separate from `starknetConfig()` on purpose. That one requires the signing key because it exists
+ * to send transactions; this one exists so a page can name a contract. A claim page should not be
+ * unable to render because a secret is absent, and tying the two together would mean exactly that.
+ */
+export function starknetAddresses(): StarknetReadConfig | null {
+  const claims = clean(process.env.STARKNET_CLAIMS_ADDRESS);
+  if (!claims) return null;
+  const token = clean(process.env.STARKNET_USDC_ADDRESS) ?? MAINNET_USDC;
+  if (!isAddress(claims) || !isAddress(token)) return null;
+  return { claims, token, rpcUrl: clean(process.env.STARKNET_RPC_URL) ?? DEFAULT_RPC };
+}

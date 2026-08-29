@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readClaim } from "@/lib/starknet/claims";
-import { starknetConfigured } from "@/lib/starknet/config";
+import { starknetAddresses } from "@/lib/starknet/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * public on-chain state; it discloses nothing the chain does not already show.
  */
 export async function GET(req: Request) {
-  if (!starknetConfigured()) {
+  // Only the READ configuration — a status check must not depend on a signing key being present.
+  if (!starknetAddresses()) {
     return NextResponse.json({ error: "Starknet settlement is not configured." }, { status: 503 });
   }
 

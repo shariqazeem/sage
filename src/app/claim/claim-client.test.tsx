@@ -28,14 +28,14 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("the collection screen", () => {
   it("says so plainly when the link carries no secret", async () => {
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     expect(await screen.findByText(/isn.t a claim link/i)).toBeTruthy();
   });
 
   it("offers the payout when one is waiting", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => okStatus()));
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     expect(await screen.findByText("$1.40")).toBeTruthy();
     expect(screen.getByRole("button", { name: /collect \$1\.40/i })).toBeTruthy();
   });
@@ -45,7 +45,7 @@ describe("the collection screen", () => {
     const f = vi.fn(async (_url: string) => okStatus());
     vi.stubGlobal("fetch", f);
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     await screen.findByText("$1.40");
     expect(f).toHaveBeenCalledTimes(1);
     expect(String(f.mock.calls[0]?.[0])).not.toContain(SECRET);
@@ -54,7 +54,7 @@ describe("the collection screen", () => {
   it("will not submit until an address looks like one", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => okStatus()));
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     await screen.findByText("$1.40");
 
     const button = screen.getByRole("button", { name: /collect/i });
@@ -67,11 +67,11 @@ describe("the collection screen", () => {
   it("tells a used link apart from a wrong one", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => okStatus({ claimed: true })));
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     expect(await screen.findByText(/already collected/i)).toBeTruthy();
 
     vi.stubGlobal("fetch", vi.fn(async () => okStatus({ exists: false })));
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     expect(await screen.findByText(/nothing is waiting/i)).toBeTruthy();
   });
 
@@ -79,7 +79,7 @@ describe("the collection screen", () => {
   it("reassures rather than alarms when the chain cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     expect(await screen.findByText(/couldn.t check your link/i)).toBeTruthy();
     expect(screen.getByText(/money is unaffected/i)).toBeTruthy();
   });
@@ -94,7 +94,7 @@ describe("the collection screen", () => {
       ),
     );
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     await screen.findByText("$1.40");
 
     await userEvent.type(screen.getByRole("textbox"), "0x05aa");
@@ -115,7 +115,7 @@ describe("the collection screen", () => {
       ),
     );
     landOn(`#${SECRET}`);
-    render(<ClaimClient />);
+    render(<ClaimClient claims={null} token={null} />);
     await screen.findByText("$1.40");
 
     await userEvent.type(screen.getByRole("textbox"), "0x05aa");
@@ -123,5 +123,43 @@ describe("the collection screen", () => {
 
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText(/already been collected/i)).toBeTruthy();
+  });
+});
+
+describe("the private door", () => {
+  const CLAIMS = "0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57";
+  const TOKEN = "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb";
+
+  /**
+   * The public door has to work when Starknet settlement is unconfigured or misconfigured, because
+   * it is the one most of Sage's recipients can actually use. A missing config must degrade the
+   * page, not break it.
+   */
+  it("is absent when the deployment is not configured", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => okStatus()));
+    landOn(`#${SECRET}`);
+    render(<ClaimClient claims={null} token={null} />);
+    await screen.findByText("$1.40");
+    expect(screen.queryByText(/private note/i)).toBeNull();
+    // ...but the public door is still fully usable.
+    expect(screen.getByRole("button", { name: /collect \$1\.40/i })).toBeTruthy();
+  });
+
+  it("is offered under the public door, never instead of it", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => okStatus()));
+    landOn(`#${SECRET}`);
+    render(<ClaimClient claims={CLAIMS} token={TOKEN} />);
+    await screen.findByText("$1.40");
+    expect(screen.getByText(/private note/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /collect \$1\.40/i })).toBeTruthy();
+  });
+
+  /** With no wallet injected there is nothing to click, and saying so beats a dead button. */
+  it("explains rather than offering a button when no wallet is present", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => okStatus()));
+    landOn(`#${SECRET}`);
+    render(<ClaimClient claims={CLAIMS} token={TOKEN} />);
+    await screen.findByText("$1.40");
+    expect(screen.queryByRole("button", { name: /collect privately/i })).toBeNull();
   });
 });

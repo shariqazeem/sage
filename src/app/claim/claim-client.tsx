@@ -5,6 +5,8 @@ import { ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
 
 import { claimCommitment, secretFromUrl } from "@/lib/starknet/claim-link";
 
+import { PrivateCollect } from "./private-collect";
+
 /**
  * The collection screen.
  *
@@ -27,7 +29,13 @@ type Status =
   | { kind: "sending"; amountUsd: number }
   | { kind: "done"; amountUsd: number; txHash: string };
 
-export function ClaimClient() {
+export function ClaimClient({
+  claims,
+  token,
+}: {
+  claims: string | null;
+  token: string | null;
+}) {
   const [status, setStatus] = useState<Status>({ kind: "reading" });
   const [secret, setSecret] = useState<string | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -218,6 +226,10 @@ export function ClaimClient() {
         Sage pays the network fee. Nobody — Sage included — can send this anywhere except where you
         say, and the link stops working the moment it is used.
       </p>
+
+      {secret && claims && token ? (
+        <PrivateCollect secret={secret} claims={claims} token={token} />
+      ) : null}
     </div>
   );
 }

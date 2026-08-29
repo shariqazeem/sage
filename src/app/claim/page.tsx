@@ -1,6 +1,8 @@
 import "./claim.css";
 import type { Metadata } from "next";
 
+import { starknetAddresses } from "@/lib/starknet/config";
+
 import { ClaimClient } from "./claim-client";
 
 /**
@@ -17,13 +19,17 @@ export const metadata: Metadata = {
 };
 
 export default function ClaimPage() {
+  // Only the public addresses — the private door needs a contract to name, not a credential.
+  // Absent or malformed, the private door is simply not offered and the public one still works.
+  const addresses = starknetAddresses();
+
   return (
     <main className="claim-page">
       <div className="claim-card">
         <p className="claim-brand">
           <strong>Sage</strong> <span aria-hidden>·</span> payout
         </p>
-        <ClaimClient />
+        <ClaimClient claims={addresses?.claims ?? null} token={addresses?.token ?? null} />
       </div>
     </main>
   );

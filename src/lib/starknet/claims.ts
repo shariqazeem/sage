@@ -3,7 +3,7 @@ import "server-only";
 import { Account, CallData, Contract, RpcProvider, cairo } from "starknet";
 
 import ABI from "./claims-abi.json";
-import { starknetConfig, type StarknetConfig } from "./config";
+import { starknetAddresses, starknetConfig, type StarknetConfig } from "./config";
 
 /**
  * THE STARKNET SETTLEMENT CLIENT.
@@ -175,9 +175,13 @@ export interface OnChainClaim {
  * answer "is this link real?" without spending a transaction to find out.
  */
 export async function readClaim(claimCommitment: string): Promise<OnChainClaim> {
-  const cfg = requireConfig();
-  const { provider } = connect(cfg);
-  const contract = new Contract({ abi: ABI, address: cfg.claimsAddress, providerOrAccount: provider });
+  // Reads use the PUBLIC config: asking whether a link is real is a public question about public
+  // state, and gating it on the signing key would take the claim page down whenever the key is
+  // absent — including on any deployment that only ever needs to read.
+  const cfg = starknetAddresses();
+  if (!cfg) throw new Error("Starknet settlement is not configured");
+  const provider = new RpcProvider({ nodeUrl: cfg.rpcUrl });
+  const contract = new Contract({ abi: ABI, address: cfg.claims, providerOrAccount: provider });
   const raw = (await contract.call("get_claim", [claimCommitment])) as {
     token: bigint;
     amount: bigint;
@@ -194,8 +198,9 @@ export async function readClaim(claimCommitment: string): Promise<OnChainClaim> 
 
 /** What the contract still owes in the settlement token — its liabilities, which its balance covers. */
 export async function readOutstanding(): Promise<bigint> {
-  const cfg = requireConfig();
-  const { provider } = connect(cfg);
-  const contract = new Contract({ abi: ABI, address: cfg.claimsAddress, providerOrAccount: provider });
-  return BigInt((await contract.call("get_outstanding", [cfg.tokenAddress])) as bigint);
+  const cfg = starknetAddresses();
+  if (!cfg) throw new Error("Starknet settlement is not configured");
+  const provider = new RpcProvider({ nodeUrl: cfg.rpcUrl });
+  const contract = new Contract({ abi: ABI, address: cfg.claims, providerOrAccount: provider });
+  return BigInt((await contract.call("get_outstanding", [cfg.token])) as bigint);
 }
