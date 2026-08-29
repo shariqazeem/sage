@@ -41,6 +41,7 @@ done
 # address may open the private door, and it can never be repointed afterwards.
 POOL="0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a"
 SIERRA="target/dev/sage_claims_SageClaims.contract_class.json"
+CASM="target/dev/sage_claims_SageClaims.compiled_contract_class.json"
 
 cd "$(dirname "$0")"
 AUTH=(--rpc "$RPC" --account "$ACCOUNT" --keystore "$KEYSTORE")
@@ -71,6 +72,7 @@ snforge test
 # That is the test harness build, not the contract. Declaring it would deploy the
 # wrong thing, so the path is explicit rather than globbed.
 [ -f "$SIERRA" ] || { echo "missing $SIERRA — did scarb build succeed?" >&2; exit 1; }
+[ -f "$CASM" ]   || { echo "missing $CASM — is casm = true in Scarb.toml?" >&2; exit 1; }
 
 # A declare is charged by Sierra length, and one that runs out of funds still
 # burns the fee. Price it before committing to it.
@@ -82,21 +84,48 @@ echo "    plus ~0.25 STRK to deploy."
 read -r -p "    Continue? [y/N] " ok
 [ "$ok" = "y" ] || [ "$ok" = "Y" ] || { echo "stopped."; exit 0; }
 
+# Compute both hashes HERE rather than scraping starkli's output. A previous
+# version took the last 0x-looking string from a FAILED declare — which was a
+# hash quoted inside the error message — and went on to "deploy" it. Derived
+# values must be derived, not parsed out of prose.
+CLASS_HASH=$(node -pe "require('starknet').hash.computeContractClassHash(require('./${SIERRA}'))")
+CASM_HASH=$(node -pe "require('starknet').hash.computeCompiledClassHash(require('./${CASM}'))")
 echo
-echo "==> declaring (starkli will prompt for the passphrase)"
-LOG=$(mktemp -t sage-deploy)
-starkli declare "$SIERRA" "${AUTH[@]}" 2>&1 | tee "$LOG" || true
-CLASS_HASH=$(grep -oE '0x[0-9a-fA-F]{60,64}' "$LOG" | tail -1)
-[ -n "$CLASS_HASH" ] || { echo "No class hash in that output — stopping."; exit 1; }
+echo "==> class hash ${CLASS_HASH}"
+echo "    casm  hash ${CASM_HASH}"
+
+if node -e "
+  const {RpcProvider}=require('starknet');
+  new RpcProvider({nodeUrl:'${RPC}'}).getClassByHash('${CLASS_HASH}').then(()=>process.exit(0),()=>process.exit(1));
+" 2>/dev/null; then
+  echo "    already declared on chain — skipping the declare"
+else
+  echo
+  echo "==> declaring (starkli will prompt for the passphrase)"
+  # --casm-file is REQUIRED. Without it starkli recompiles the Sierra with its
+  # own bundled CASM compiler (2.11.4), which disagrees with the one Scarb used
+  # (2.15.0); the network recomputes the hash, sees a mismatch, and rejects the
+  # transaction. Scarb already emitted the right CASM — use it.
+  starkli declare "$SIERRA" --casm-file "$CASM" "${AUTH[@]}" || true
+
+  # Verify against the CHAIN, not against stdout. "The command printed something
+  # hopeful" is not the same as "the class is declared".
+  echo "==> confirming the class is on chain"
+  node -e "
+    const {RpcProvider}=require('starknet');
+    new RpcProvider({nodeUrl:'${RPC}'}).getClassByHash('${CLASS_HASH}').then(()=>process.exit(0),()=>process.exit(1));
+  " 2>/dev/null || { echo "    the class is NOT declared — stopping before the deploy."; exit 1; }
+  echo "    declared."
+fi
 
 echo
 echo "==> deploying class ${CLASS_HASH} with the pool pinned"
+LOG=$(mktemp -t sage-deploy)
 starkli deploy "$CLASS_HASH" "$POOL" "${AUTH[@]}" 2>&1 | tee "$LOG" || true
-ADDRESS=$(grep -oE '0x[0-9a-fA-F]{60,64}' "$LOG" | tail -1)
-# The class hash appears in the deploy output too; make sure we did not take it
-# for the address.
-[ "$ADDRESS" = "$CLASS_HASH" ] && ADDRESS=""
-[ -n "$ADDRESS" ] || { echo "Could not read the deployed address — stopping."; exit 1; }
+# The deploy prints "deployed at address 0x..." — take an address that is NOT
+# the class hash we already know.
+ADDRESS=$(grep -oE '0x[0-9a-fA-F]{60,64}' "$LOG" | grep -viE "$(echo "$CLASS_HASH" | sed 's/^0x0*//')" | tail -1)
+[ -n "$ADDRESS" ] || { echo "Could not read a deployed address — stopping."; exit 1; }
 
 # Do not trust a successful transaction. Read a view function back and assert
 # the value: a deploy can land with the wrong class at the address, and a
