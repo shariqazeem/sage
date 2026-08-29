@@ -4,6 +4,7 @@ import { useState } from "react";
 import { reward, type JobView, type PlanView } from "./types";
 import { DeployFlow } from "./deploy/deploy-flow";
 import { RailChoice } from "./deploy/rail-choice";
+import { StarknetDeployFlow } from "./deploy/starknet-deploy-flow";
 import type { SettlementRail } from "@/lib/db/schema";
 
 /**
@@ -114,11 +115,7 @@ export function BudgetBar({
       {!locked ? (
         <button className="lx-btn" onClick={approve} disabled={busy || remaining !== 0}>{busy ? "Approving…" : "Approve mission plan"}</button>
       ) : rail === "starknet" ? (
-        <div className="lx-approve-note" style={{ marginTop: 4 }}>
-          <b>Private-capable campaigns are nearly ready.</b> The vault that holds your budget is
-          written and tested; funding it from your wallet is the last step and lands shortly. Switch
-          to public receipts to launch now.
-        </div>
+        <StarknetDeployFlow jobId={jobId} plan={plan} />
       ) : (
         <DeployFlow jobId={jobId} plan={plan} />
       )}

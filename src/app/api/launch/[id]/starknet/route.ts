@@ -11,7 +11,7 @@ import {
 import { verifyVaultBacksPlan } from "@/lib/starknet/verify-attach";
 import { toFelt } from "@/lib/starknet/felt";
 import { starknetConfig, starknetVaultClassHash } from "@/lib/starknet/config";
-import { saltForJob } from "@/lib/starknet/vault-calls";
+import { planVaultDeployment, saltForJob } from "@/lib/starknet/vault-calls";
 import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { createCampaign, createMission, getCampaignByVault } from "@/lib/db/campaigns";
 import { recordEvent } from "@/lib/db/campaigns";
@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
  * Nothing returned here is a secret: a class hash, public addresses, and the founder's own plan.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
@@ -69,22 +69,66 @@ export async function GET(
     BigInt(0),
   );
 
+  const planned = missions.map((m) => ({
+    title: m.title,
+    missionId: toFelt(m.missionIdHash as string),
+    rewardBase: String(m.rewardBase),
+    maxCompletions: Number(m.maxCompletions),
+  }));
+
+  // Without a connected wallet there is no deployer, so no address to predict yet. The founder
+  // still sees what the campaign will cost and what it will pay for.
+  const ownerParam = new URL(req.url).searchParams.get("owner")?.trim() ?? "";
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(ownerParam)) {
+    return NextResponse.json({
+      ok: true,
+      classHash,
+      operator: cfg.accountAddress,
+      token: cfg.tokenAddress,
+      totalBase: totalBase.toString(),
+      missions: planned,
+    });
+  }
+
+  const deployment = planVaultDeployment({
+    classHash,
+    owner: ownerParam,
+    operator: cfg.accountAddress,
+    token: cfg.tokenAddress,
+    // Derived from the job, not from randomness, so a launch interrupted between the wallet
+    // confirming and Sage being told resumes at the SAME address, instead of sending the founder
+    // to a fresh empty vault and orphaning the funded one.
+    salt: saltForJob(id),
+    budgetCeilingBase: totalBase,
+    dailyCapBase: totalBase,
+    fundingBase: totalBase,
+    missions: planned.map((m) => ({
+      missionId: m.missionId,
+      rewardBase: BigInt(m.rewardBase),
+      maxCompletions: m.maxCompletions,
+    })),
+  });
+
+  // ALREADY DONE? Checked so that a founder returning to an interrupted launch is not asked to
+  // fund a vault they have already funded — the flow resumes at attaching instead.
+  let deployed = false;
+  try {
+    await readVaultState(deployment.vaultAddress);
+    deployed = true;
+  } catch {
+    /* not deployed yet, which is the normal case */
+  }
+
   return NextResponse.json({
     ok: true,
     classHash,
     operator: cfg.accountAddress,
     token: cfg.tokenAddress,
-    rpcUrl: cfg.rpcUrl,
-    // Derived from the job, not from randomness, so an interrupted launch resumes at the SAME
-    // address instead of orphaning the vault the founder already funded.
-    salt: saltForJob(id),
     totalBase: totalBase.toString(),
-    missions: missions.map((m) => ({
-      title: m.title,
-      missionId: toFelt(m.missionIdHash as string),
-      rewardBase: String(m.rewardBase),
-      maxCompletions: Number(m.maxCompletions),
-    })),
+    missions: planned,
+    vaultAddress: deployment.vaultAddress,
+    calls: deployment.calls,
+    deployed,
   });
 }
 
