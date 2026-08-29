@@ -47,7 +47,8 @@
     "okx:listing": "node scripts/okx-listing.mjs",
     "okx:watch": "node scripts/okx-listing-watch.mjs",
     "drill:payout": "PAYOUT_DRILL=1 node --env-file-if-exists=.env node_modules/.bin/vitest run src/lib/deputy/payout-drill.live.test.ts --reporter=basic",
-    "starknet:payout": "tsx --conditions=react-server scripts/starknet-payout.ts"
+    "starknet:payout": "tsx --conditions=react-server scripts/starknet-payout.ts",
+    "starknet:loop": "tsx --conditions=react-server scripts/starknet-loop.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
