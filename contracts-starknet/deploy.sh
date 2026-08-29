@@ -6,7 +6,11 @@
 # environment variable or shell history.
 #
 #   ./deploy.sh --keystore ~/.starkli-wallets/lumen/keystore.json \
-#               --account  ~/.starkli-wallets/lumen/account.json
+#               --account  ~/.starkli-wallets/lumen/account.json \
+#               [--contract claims|vault]
+#
+# `--contract vault` DECLARES ONLY. A vault belongs to one campaign and is deployed by the
+# founder's own wallet so that they, not Sage, own it.
 #
 # Optional: --rpc <url>
 #
@@ -23,15 +27,21 @@
 #   real one, because it falls through to ~/.starknet_accounts.
 set -euo pipefail
 
-KEYSTORE=""; ACCOUNT=""; RPC="https://rpc.starknet.lava.build:443"
+KEYSTORE=""; ACCOUNT=""; RPC="https://rpc.starknet.lava.build:443"; CONTRACT="claims"
 while [ $# -gt 0 ]; do
   case "$1" in
     --keystore) KEYSTORE="$2"; shift 2 ;;
     --account)  ACCOUNT="$2";  shift 2 ;;
     --rpc)      RPC="$2";      shift 2 ;;
+    --contract) CONTRACT="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
+case "$CONTRACT" in
+  claims) ARTIFACT="SageClaims" ;;
+  vault)  ARTIFACT="SageVault" ;;
+  *) echo "--contract must be 'claims' or 'vault'" >&2; exit 1 ;;
+esac
 [ -n "$KEYSTORE" ] && [ -n "$ACCOUNT" ] || {
   echo "usage: ./deploy.sh --keystore <path> --account <path> [--rpc <url>]" >&2; exit 1; }
 [ -f "$KEYSTORE" ] || { echo "no keystore at $KEYSTORE" >&2; exit 1; }
@@ -39,8 +49,8 @@ done
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-SIERRA="$HERE/target/dev/sage_claims_SageClaims.contract_class.json"
-CASM="$HERE/target/dev/sage_claims_SageClaims.compiled_contract_class.json"
+SIERRA="$HERE/target/dev/sage_claims_${ARTIFACT}.contract_class.json"
+CASM="$HERE/target/dev/sage_claims_${ARTIFACT}.compiled_contract_class.json"
 
 # Rebuild immediately before declaring: a stale artifact is one of the ways a
 # deploy silently lands wrong, and it costs a full declare fee to find out.
@@ -61,12 +71,18 @@ echo "==> running the full suite before spending anything"
 FELTS=$(node -pe "require('$SIERRA').sierra_program.length")
 COST=$(node -pe "($FELTS * 0.0102).toFixed(2)")
 echo
-echo "==> SageClaims is ${FELTS} Sierra felts — declaring costs roughly ${COST} STRK,"
-echo "    plus ~0.25 STRK to deploy."
+echo "==> ${ARTIFACT} is ${FELTS} Sierra felts — declaring costs roughly ${COST} STRK."
+if [ "$CONTRACT" = "vault" ]; then
+  # Declare only: each founder's wallet deploys their own vault, so that they own it.
+  echo "    Declare only — founders deploy their own vault from their own wallet."
+else
+  echo "    Plus ~0.25 STRK to deploy."
+fi
+echo "    (Measured rate on the last declare was about half the estimate above.)"
 read -r -p "    Continue? [y/N] " ok
 [ "$ok" = "y" ] || [ "$ok" = "Y" ] || { echo "stopped."; exit 0; }
 echo
 
 cd "$ROOT"
 exec node scripts/starknet-deploy.mjs \
-  --keystore "$KEYSTORE" --account "$ACCOUNT" --rpc "$RPC"
+  --keystore "$KEYSTORE" --account "$ACCOUNT" --rpc "$RPC" --contract "$CONTRACT"
