@@ -57,7 +57,26 @@ const FAMILY_PATTERNS: { family: GatedFamily; re: RegExp }[] = [
     // make / open / set up / get an account, alongside the formal ones.
     re: /\b(sign\s*up|signup|register\w*|(?:create|make|open|set\s*up|get)\s+(?:an?\s+|your\s+)?account|log\s*in|login|sign\s*in)\b/i,
   },
-  { family: "wallet", re: /\b(wallet|metamask|connect\s+wallet|sign\s+(?:the\s+)?transaction)\b/i },
+  {
+    family: "wallet",
+    /**
+     * A WALLET NOUN IS NOT A WALLET ACTION, and this pattern used to accept the bare word.
+     *
+     * Measured on starkscan.co with the goal "make sure someone can look up a wallet address and
+     * see its token balances". "wallet" there is a LOOKUP TARGET — the thing you paste into a
+     * search box — and the founder never asked anyone to connect anything. The bare alternative
+     * matched anyway, so a gated wallet mission was built for a public block explorer that has no
+     * wallet step, no login and no gate: a task no tester could complete, holding half the budget.
+     *
+     * It also made the `connect\s+wallet` alternative beside it dead code, which is the tell.
+     *
+     * So the founder's words must now name something a PERSON DOES, exactly as the account family
+     * already required ("sign up", "create an account") rather than the noun "account". This is the
+     * same noun-for-verb mistake that once deleted a legitimate gated mission through an
+     * `alreadyCovered` regex; the shape here now matches that checker's.
+     */
+    re: /\b((?:connect|link|attach|use|fund)\w*\s+(?:their\s+|a\s+|the\s+|your\s+|his\s+|her\s+)?wallet|wallet[- ]?connect|(?:with|via|using)\s+metamask|install\s+metamask|sign\w*\s+(?:the\s+|a\s+)?transaction|send\s+(?:a\s+|the\s+)?transaction)\b/i,
+  },
   { family: "approval", re: /\b(approve|approval|authorize|confirm\s+the\s+transaction)\b/i },
 ];
 
