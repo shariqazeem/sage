@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./launch.css";
+import "@/styles/wallet-connect.css";
 import { LaunchForm } from "@/components/launch/launch-form";
 import { RecentInspectionsList } from "@/components/launch/recent-inspections-list";
 import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";

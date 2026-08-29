@@ -140,8 +140,14 @@ export const ROUTE_FIXTURES: RouteFixture[] = [
     id: "pr-web-inspect-no-budget",
     utterance: "can you test my product? https://plausible.io — I want feedback on the signup flow",
     expect: null,
+    // A FREE LOOK IS NOT A MISROUTE. `sage_first_look` needs only a URL, spends nothing, and
+    // commits nothing — and looking before asking is what the product tells Sage to do: show the
+    // founder what you actually saw rather than a question and a spinner. What must NOT happen is
+    // `sage_start_inspection`, which REQUIRES budgetUsd: calling it here means inventing an amount
+    // of the founder's money, which is the thing this fixture is really guarding.
+    alsoOk: ["sage_first_look"],
     surface: "web",
-    why: "no budget stated: asking ONE question beats inventing an amount of someone else's money",
+    why: "no budget stated: look for free if useful, but ASK before spending — never invent an amount",
   },
   {
     id: "pr-web-cash-out-absent",

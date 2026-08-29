@@ -616,8 +616,6 @@
 .lx-sn-note { font-size: 13px; line-height: 1.6; color: var(--lx-muted); margin: 10px 0; }
 .lx-sn-note a { color: var(--lx-accent); }
 
-.lx-sn-wallets { display: flex; flex-wrap: wrap; gap: 8px; }
-.lx-sn-wallets img { border-radius: 4px; }
 
 .lx-sn-working {
   display: flex;

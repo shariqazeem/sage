@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, ExternalLink, Loader2, ShieldCheck, Wallet } from "lucide-react";
+import { Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 
 import { useStarknetWallet, type StarknetWallet } from "@/lib/starknet/use-starknet-wallet";
+import { WalletConnect } from "@/components/wallet/wallet-connect";
 import type { PlanView } from "../types";
 
 /**
@@ -210,38 +211,27 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
           <Loader2 size={15} className="lx-spin" aria-hidden /> {phase.step}
         </div>
       ) : !address ? (
-        <div className="lx-sn-wallets">
-          {wallet.wallets.length === 0 ? (
-            <p className="lx-sn-note">
-              No Starknet wallet found. Install{" "}
-              <a href="https://www.ready.co" target="_blank" rel="noreferrer noopener">
-                Ready
-              </a>{" "}
-              or{" "}
-              <a href="https://braavos.app" target="_blank" rel="noreferrer noopener">
-                Braavos
-              </a>{" "}
-              to fund a private-capable campaign.
-            </p>
-          ) : (
-            wallet.wallets.map((w) => (
-              <button
-                key={w.id}
-                className="lx-btn"
-                onClick={() => wallet.connect(w)}
-                disabled={wallet.connecting}
-              >
-                {w.icon ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={w.icon} alt="" width={16} height={16} />
-                ) : (
-                  <Wallet size={15} aria-hidden />
-                )}
-                {wallet.connecting ? "Connecting…" : `Connect ${w.name}`}
-              </button>
-            ))
-          )}
-        </div>
+        <WalletConnect
+          options={wallet.wallets.map((w) => ({
+            id: w.id,
+            name: w.name,
+            icon: w.icon,
+            onSelect: () => void wallet.connect(w),
+          }))}
+          explainer={
+            <>
+              Connect the wallet that will <b>own this vault</b> and fund it. Sage never holds it.
+            </>
+          }
+          busy={wallet.connecting}
+          busyLabel="Waiting for your wallet…"
+          error={wallet.error}
+          emptyMessage="No Starknet wallet found in this browser."
+          installHints={[
+            { name: "Ready", url: "https://www.ready.co" },
+            { name: "Braavos", url: "https://braavos.app" },
+          ]}
+        />
       ) : (
         <button
           className="lx-btn"

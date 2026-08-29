@@ -12,6 +12,7 @@ import {
 import { short } from "@/lib/format";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
+import { WalletConnect } from "@/components/wallet/wallet-connect";
 import type { SettlementRail } from "@/lib/db/schema";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
@@ -211,8 +212,8 @@ export function SubmitPanel({
 
   /* ── not signed in ──────────────────────────────────────────────────── */
   if (onStarknet && !starknet.authed) {
-    // Still reading the cookie — showing a connect button here would ask a signed-in tester to
-    // sign again for a session they already hold.
+    // Still reading the cookie — a connect prompt here would ask a signed-in tester to sign again
+    // for a session they already hold.
     if (starknet.loading) {
       return (
         <div className="sage-gate">
@@ -224,50 +225,57 @@ export function SubmitPanel({
     }
     return (
       <div className="sage-gate">
-        <p>
-          This campaign pays on Starknet, so sign in with a Starknet wallet — that is the address
-          you&rsquo;ll be paid at. Signing proves you control it; it authorizes no transaction and
-          moves no funds.
-        </p>
-        {starknet.wallets.length === 0 ? (
-          <p className="sage-hint">
-            No Starknet wallet found. Install{" "}
-            <a href="https://www.ready.co" target="_blank" rel="noreferrer noopener">
-              Ready
-            </a>{" "}
-            or{" "}
-            <a href="https://braavos.app" target="_blank" rel="noreferrer noopener">
-              Braavos
-            </a>{" "}
-            to work on this campaign.
-          </p>
-        ) : (
-          <div className="sage-gate-wallets">
-            {starknet.wallets.map((w) => (
-              <button
-                key={w.id}
-                className="sage-btn sage-btn-primary"
-                onClick={() => void starknet.signIn(w)}
-                disabled={starknet.signingIn}
-              >
-                {starknet.signingIn ? (
-                  <>
-                    <Loader2 size={15} className="sage-spin2" /> Signing…
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck size={15} /> Sign in with {w.name}
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-        {starknet.error && (
-          <div className="sage-err" role="alert">
-            {starknet.error}
-          </div>
-        )}
+        <WalletConnect
+          options={starknet.wallets.map((w) => ({
+            id: w.id,
+            name: w.name,
+            icon: w.icon,
+            onSelect: () => void starknet.signIn(w),
+          }))}
+          explainer={
+            <>
+              This campaign pays on Starknet, so sign in with a Starknet wallet — <b>that is the
+              address you&rsquo;ll be paid at.</b>
+            </>
+          }
+          busy={starknet.signingIn}
+          busyLabel="Waiting for your wallet…"
+          error={starknet.error}
+          emptyMessage="No Starknet wallet found in this browser."
+          installHints={[
+            { name: "Ready", url: "https://www.ready.co" },
+            { name: "Braavos", url: "https://braavos.app" },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  if (!siwe.authed) {
+    // The SAME component as the Starknet gate above. The browser injects one EVM provider and
+    // picks for us, so there is exactly one option — but it is presented in the same language,
+    // so which chain a campaign settles on is not something a person feels in the layout.
+    return (
+      <div className="sage-gate">
+        <WalletConnect
+          options={[
+            {
+              id: "injected",
+              name: siwe.address ? short(siwe.address) : "your wallet",
+              onSelect: () => void siwe.signIn(),
+            },
+          ]}
+          explainer={
+            <>
+              Connect your wallet and sign a message to submit — <b>that is the address
+              you&rsquo;ll be paid at.</b>
+            </>
+          }
+          busy={siwe.signingIn}
+          busyLabel="Waiting for your wallet…"
+          emptyMessage="No wallet found in this browser."
+          installHints={[{ name: "MetaMask", url: "https://metamask.io/download" }]}
+        />
       </div>
     );
   }

@@ -950,9 +950,6 @@
 }
 .sage-gate p { font-size: 14px; color: var(--sec); margin: 0 0 16px; line-height: 1.5; }
 .sage-gate p a { color: var(--accent); }
-/* One wallet per button rather than a picker: a person with two extensions installed should see
-   both named, not a menu that hides which one they are about to sign with. */
-.sage-gate-wallets { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
 /* Used by the submit panel since it was written, and styled nowhere until now — a failed
    submission rendered as unstyled body text in the middle of a form. Red here is a money-outcome

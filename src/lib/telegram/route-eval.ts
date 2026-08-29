@@ -106,7 +106,12 @@ export async function evalRoute(f: RouteFixture, timeoutMs = 120_000): Promise<R
   try {
     const r = await withTransientRetry(() => askOnce(f, timeoutMs), { attempts: 3 });
     const first = r.call?.function.name ?? null;
-    const accepted: (string | null)[] = f.expect === null ? [null] : [f.expect, ...(f.alsoOk ?? [])];
+    // `alsoOk` applies whether the expectation is a tool or words. It used to be dropped for
+    // `expect: null` fixtures, which forced one verdict on two very different acts: reaching for a
+    // tool that spends the founder's money, and taking a FREE look before asking a question. The
+    // second is the product's own instruction — show what you saw rather than a spinner — and
+    // counting it as a misroute told us to suppress the behaviour we want.
+    const accepted: (string | null)[] = [f.expect, ...(f.alsoOk ?? [])];
     // The FIRST call is what the premature-confirm invariant is about: an irreversible step before
     // the person has seen anything. A confirm reached after a lookup is a different (fine) thing.
     const prematureConfirm = !!first && (CONFIRM_TOOLS as readonly string[]).includes(first);

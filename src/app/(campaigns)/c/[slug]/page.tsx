@@ -25,6 +25,7 @@ import { SageActivity } from "@/components/campaigns/sage-activity";
 import { PublicFeed } from "@/components/campaigns/public-feed";
 import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import "@/styles/tester-board.css";
+import "@/styles/wallet-connect.css";
 import "@/styles/marketplace.css";
 
 export const runtime = "nodejs";

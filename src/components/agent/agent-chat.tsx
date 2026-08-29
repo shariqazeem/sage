@@ -11,6 +11,7 @@ import { ArrowUp, ArrowUpRight, SquarePen } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { InlineLaunch } from "./inline-launch";
 import "./agent-chat.css";
+import "@/styles/wallet-connect.css";
 import { trimUrlPunctuation } from "./linkify";
 
 /**

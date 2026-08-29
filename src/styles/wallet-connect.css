@@ -1,0 +1,133 @@
+/* ── Connecting a wallet ───────────────────────────────────────────────────────────────────
+   Shared by both rails so the moment feels identical whichever chain pays. Aliases global
+   tokens only; declares no palette value of its own. */
+
+.wc {
+  text-align: left;
+}
+
+.wc-explain {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  margin: 0 0 14px;
+}
+.wc-explain b { color: var(--ink); font-weight: 600; }
+
+/* One option is one action — it keeps the primary weight. */
+.wc-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  cursor: pointer;
+  transition: filter var(--dur-1) var(--ease-out);
+}
+.wc-single:hover { filter: brightness(1.06); }
+.wc-single:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Several options are a CHOICE, not several calls to action. One weight, read top to bottom. */
+.wc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--bg);
+}
+.wc-list li + li { border-top: 1px solid var(--border); }
+
+.wc-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 13px 15px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out);
+}
+.wc-row:hover { background: var(--surface); }
+.wc-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wc-name { font-weight: 520; }
+.wc-chev { margin-left: auto; color: var(--ink-faint); flex: none; }
+.wc-row:hover .wc-chev { color: var(--accent); }
+
+.wc-icon { border-radius: 5px; flex: none; }
+.wc-icon-fallback { color: var(--ink-muted); flex: none; }
+/* On the filled button the icon must read against terracotta, not against paper — muted ink there
+   is a dark glyph on a mid-dark ground, which rendered as a smudge rather than an icon. */
+.wc-single .wc-icon-fallback { color: currentColor; }
+
+.wc-busy {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+}
+.wc-spin { animation: wc-spin 1s linear infinite; flex: none; }
+@keyframes wc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .wc-spin { animation: none; } }
+
+/* No wallet: the same list shape, so the layout does not jump once one is installed. */
+.wc-empty p { font-size: 13.5px; line-height: 1.6; color: var(--ink-muted); margin: 0 0 10px; }
+.wc-installs { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.wc-installs li + li { border-top: 1px solid var(--border); }
+.wc-installs a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 15px;
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  transition: background var(--dur-1) var(--ease-out);
+}
+.wc-installs a:hover { background: var(--surface); }
+.wc-installs svg { margin-left: auto; }
+
+/* A failure here is a failure to sign, not a money outcome — but it IS a refusal, so red. */
+.wc-err {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--err-border);
+  border-radius: var(--r-sm);
+  background: var(--err-soft);
+  color: var(--err);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.wc-assure {
+  display: flex;
+  /* Top-aligned, because this wraps to three lines on a phone and a vertically centred icon
+     then floats in the middle of the paragraph instead of marking its start. */
+  align-items: flex-start;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.wc-assure svg { flex: none; margin-top: 2px; }
+
+/* On a phone the primary action fills the width — a left-aligned inline button reads as
+   incidental next to a full-width list, and is a smaller target than it needs to be. */
+@media (max-width: 560px) {
+  .wc-single { display: flex; width: 100%; justify-content: center; padding: 13px 18px; }
+}
