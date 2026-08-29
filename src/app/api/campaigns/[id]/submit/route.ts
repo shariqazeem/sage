@@ -1,5 +1,6 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
+import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { MAX_ACCOUNT_CHARS } from "@/lib/campaigns/evidence-answers";
@@ -56,12 +57,34 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const wallet = await getSessionAddress();
+  // The campaign is loaded BEFORE authentication because it decides which wallet counts. A
+  // Starknet-settled campaign pays a Starknet address, so an EVM session cannot establish the
+  // payout address for it and vice versa. This is a pure read with no side effects, so nothing
+  // downstream changes order.
+  const campaign = getCampaign(id);
+  if (!campaign) return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
+
+  // THE INVARIANT, ON EITHER RAIL: the payout address is the one that proved control of itself by
+  // signing in — never one supplied with the submission. Without that, anyone could do the work
+  // and direct the money elsewhere.
+  const onStarknet = campaign.settlementRail === "starknet";
+  const wallet = onStarknet ? await getStarknetSessionAddress() : await getSessionAddress();
   if (!wallet) {
-    return NextResponse.json({ error: "Connect and sign in with your wallet to submit." }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: onStarknet
+          ? "Connect and sign in with a Starknet wallet to submit — that is where you'll be paid."
+          : "Connect and sign in with your wallet to submit.",
+      },
+      { status: 401 },
+    );
   }
   // SANCTIONS SCREEN — refused at the door, before any work is accepted; the pipeline and manual
   // release re-check independently. Vendored OFAC SDN snapshot, exact address match only.
+  //
+  // HONEST LIMITATION: the SDN snapshot lists EVM-format addresses, so a Starknet address will
+  // never match it. This is not screening the Starknet rail, and it must not be described as
+  // though it were.
   if (isSanctionedWallet(wallet)) {
     return NextResponse.json(
       { error: `This wallet appears on the ${SANCTIONS_LIST_LABEL} and cannot participate.` },
@@ -70,9 +93,6 @@ export async function POST(
   }
   const rl = rateLimit("submit", clientIp(req.headers));
   if (!rl.ok) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
-
-  const campaign = getCampaign(id);
-  if (!campaign) return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   if (campaign.status !== "live") {
     return NextResponse.json({ error: "This campaign isn't accepting submissions." }, { status: 409 });
   }
@@ -190,9 +210,21 @@ export async function POST(
     if (!bindsRight) {
       return NextResponse.json({ error: "This signature doesn't match the mission — reload and sign again." }, { status: 400 });
     }
+    // The evidence claim is an EIP-712 signature recovered against an EVM address. Starknet
+    // accounts are contracts and sign SNIP-12, so this verification cannot run on that rail —
+    // and it protects something real (evidence cannot be swapped after signing, and a signature
+    // cannot be replayed onto another mission). Rather than skip it and quietly ship a weaker
+    // guarantee, a mission-bound campaign is refused on Starknet until the SNIP-12 equivalent
+    // exists. Non-mission submissions are unaffected.
+    if (onStarknet) {
+      return NextResponse.json(
+        { error: "Mission-bound submissions aren't available on this campaign's settlement rail yet." },
+        { status: 409 },
+      );
+    }
     const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidenceUrl ?? "", note: note.value ?? "" });
     const verdict = await verifyEvidenceClaim(claim, signature as `0x${string}`, {
-      expectedWallet: wallet,
+      expectedWallet: wallet as `0x${string}`,
       chainId: campaign.chainId ?? 59902,
       now: Math.floor(Date.now() / 1000),
       evidenceDigest,
