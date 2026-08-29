@@ -6,7 +6,33 @@
  * weeks while everything else ran on a sponsored one. This makes that visible in one command.
  *
  *   node scripts/lane-audit.mjs
+ *
+ * IT LOADS .env ITSELF. Run under plain `node` it read only the ambient process.env, found
+ * nothing, and printed `key=(unset)` for every lane — which is exactly what a genuinely
+ * unconfigured deployment looks like, and which reads as "Sage cannot auto-pay at all". An
+ * instrument whose failure is indistinguishable from the emergency it reports is worse than no
+ * instrument, so it now says out loud which env file it used.
  */
+import { existsSync, readFileSync } from "node:fs";
+
+/** Minimal .env reader — enough for `KEY=value`, which is all this audit needs. */
+function loadEnvFile(path) {
+  if (!existsSync(path)) return false;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const [, k, raw] = m;
+    if (process.env[k] !== undefined) continue; // a real env var always wins
+    process.env[k] = raw.trim().replace(/^["']|["']$/g, "");
+  }
+  return true;
+}
+
+const envPath = process.argv[2] ?? ".env";
+const loaded = loadEnvFile(envPath);
+console.log(loaded ? `env               loaded from ${envPath}` : `env               NO ${envPath} — reading the ambient environment only`);
+console.log("");
+
 const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION"];
 const host = (u) => { try { return new URL(u).host; } catch { return u || "(unset)"; } };
 const mask = (k) => (k ? `${k.slice(0, 8)}…` : "(unset)");
