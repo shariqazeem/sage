@@ -48,16 +48,24 @@ const STARKNET_WALLET_API = "starknet:walletApi";
 function discoverWallets(): InjectedWallet[] {
   if (typeof window === "undefined") return [];
   const out: InjectedWallet[] = [];
-  const seen = new Set<unknown>();
+  // Deduplicated by NAME, not object identity. One wallet reaches us more than once — the registry
+  // may list it per adapter, and the legacy scan finds the same extension again as a different
+  // object — which rendered three identical "Connecting…" buttons for a single installed wallet.
+  const seen = new Set<string>();
+  const add = (w: InjectedWallet) => {
+    const key = (w.name ?? w.id ?? "").toLowerCase().trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(w);
+  };
 
   try {
     for (const w of createStore().getWallets()) {
       const feature = (w.features as Record<string, unknown> | undefined)?.[STARKNET_WALLET_API] as
         | { request?: InjectedWallet["request"] }
         | undefined;
-      if (typeof feature?.request === "function" && !seen.has(w)) {
-        seen.add(w);
-        out.push({ id: w.name, name: w.name, icon: w.icon, request: feature.request });
+      if (typeof feature?.request === "function") {
+        add({ id: w.name, name: w.name, icon: w.icon, request: feature.request });
       }
     }
   } catch {
@@ -66,11 +74,8 @@ function discoverWallets(): InjectedWallet[] {
 
   for (const key of Object.keys(window)) {
     if (!key.toLowerCase().startsWith("starknet")) continue;
-    const w = (window as unknown as Record<string, unknown>)[key];
-    if (w && typeof (w as InjectedWallet).request === "function" && !seen.has(w)) {
-      seen.add(w);
-      out.push(w as InjectedWallet);
-    }
+    const w = (window as unknown as Record<string, unknown>)[key] as InjectedWallet | undefined;
+    if (w && typeof w.request === "function") add(w);
   }
   return out;
 }
@@ -107,10 +112,13 @@ export function PrivateCollect({
   secret,
   claims,
   token,
+  onCollected,
 }: {
   secret: string;
   claims: string;
   token: string;
+  /** Tells the page the payout is gone, so the card stops asking for an address it no longer needs. */
+  onCollected: (txHash: string) => void;
 }) {
   const [wallets, setWallets] = useState<InjectedWallet[]>([]);
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -166,11 +174,14 @@ export function PrivateCollect({
 
         if (!res?.transaction_hash) throw new Error("the wallet returned no transaction");
         setState({ kind: "done", txHash: res.transaction_hash });
+        // The money has moved. Leaving "WAITING FOR YOU $0.50" and an address field on screen above
+        // a success line invites someone to collect a payout that is already spent.
+        onCollected(res.transaction_hash);
       } catch (err) {
         setState({ kind: "error", message: explain(err) });
       }
     },
-    [claims, secret, token],
+    [claims, secret, token, onCollected],
   );
 
   if (state.kind === "done") {
@@ -179,6 +190,7 @@ export function PrivateCollect({
         <p className="claim-private-ok">
           <ShieldCheck size={14} aria-hidden /> Collected into a private note
         </p>
+
         <a
           className="claim-tx"
           href={`https://voyager.online/tx/${state.txHash}`}

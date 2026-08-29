@@ -27,7 +27,8 @@ type Status =
   | { kind: "collected" }
   | { kind: "ready"; amountUsd: number }
   | { kind: "sending"; amountUsd: number }
-  | { kind: "done"; amountUsd: number; txHash: string };
+  | { kind: "done"; amountUsd: number; txHash: string }
+  | { kind: "done-private"; amountUsd: number; txHash: string };
 
 export function ClaimClient({
   claims,
@@ -155,6 +156,29 @@ export function ClaimClient({
     );
   }
 
+  if (status.kind === "done-private") {
+    return (
+      <div className="claim-state">
+        <div className="claim-done" role="status">
+          <ShieldCheck size={18} aria-hidden /> Collected privately
+        </div>
+        <h2>{amount(status.amountUsd)} is in your private note</h2>
+        <p className="claim-muted">
+          It went into the privacy pool rather than to a public address, so the amount never
+          appears against your wallet. Your wallet can see it; nobody else can.
+        </p>
+        <a
+          className="claim-tx"
+          href={`https://voyager.online/tx/${status.txHash}`}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          View the transaction <ArrowRight size={14} aria-hidden />
+        </a>
+      </div>
+    );
+  }
+
   if (status.kind === "done") {
     return (
       <div className="claim-state">
@@ -228,7 +252,14 @@ export function ClaimClient({
       </p>
 
       {secret && claims && token ? (
-        <PrivateCollect secret={secret} claims={claims} token={token} />
+        <PrivateCollect
+          secret={secret}
+          claims={claims}
+          token={token}
+          onCollected={(txHash) =>
+            setStatus({ kind: "done-private", amountUsd: status.amountUsd, txHash })
+          }
+        />
       ) : null}
     </div>
   );
