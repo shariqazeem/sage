@@ -3,7 +3,9 @@ import "server-only";
 import { updateSubmission } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import type { Campaign, Submission } from "@/lib/db/schema";
-import { payDirect } from "@/lib/starknet/pay";
+import { derivePayoutIntent } from "@/lib/campaigns/settle-core";
+import { getDecisionBySubmission } from "@/lib/db/campaigns";
+import { requestVaultPayout } from "@/lib/starknet/vault";
 
 /**
  * SETTLING ON STARKNET — the sibling of settle-flow, not a modification of it.
@@ -14,16 +16,18 @@ import { payDirect } from "@/lib/starknet/pay";
  * deliberately separate rather than bent to fit — bending it would mean touching the frozen
  * settlement code that makes the EVM rail safe.
  *
- * WHAT REPLACES THE VAULT'S GUARANTEES. The vault's job is to stop the agent overspending. Here
- * that is enforced before the transaction rather than by it:
+ * THE VAULT IS REQUIRED, NOT PREFERRED. An earlier version of this paid from Sage's own balance
+ * when a campaign had no vault, and stated honestly that the balance was therefore the only cap.
+ * That is a materially weaker promise than the EVM rail's, and offering it as a silent fallback
+ * meant a campaign could end up on the weaker footing without anyone choosing it. A Starknet
+ * campaign without a vault now HOLDS: the guarantee is the product, so its absence is a reason to
+ * stop rather than a reason to proceed carefully.
  *
- *   · the amount comes from the campaign's own reward, never from a model and never recomputed;
- *   · the recipient is the address on the submission, never one supplied at settle time;
- *   · a submission already carrying a payout tx is refused outright, which is what makes a
- *     re-fire safe — the sweep re-evaluates pending work and must never pay twice.
- *
- * That is a weaker guarantee than the vault's and it is stated plainly rather than glossed: on
- * this rail Sage's own key is the limit, so the balance it holds IS the cap. Fund it accordingly.
+ * WHAT THE VAULT ENFORCES, that this file cannot: Sage names a mission and the vault looks up what
+ * it pays, so no caller supplies an amount; the intent makes the authorisation single-use on
+ * chain, not merely in our database; and the founder can revoke and withdraw at any moment without
+ * asking Sage. What this file still checks — an already-settled submission, a recipient that is
+ * actually a Starknet address — exists so a doomed request never costs a transaction.
  */
 
 export interface StarknetSettleOutcome {
@@ -46,6 +50,28 @@ const held = (reason: string): StarknetSettleOutcome => ({
 
 /** Starknet addresses are felts: 0x and up to 64 hex digits. An EVM address is not one. */
 const isStarknetAddress = (v: string): boolean => /^0x[0-9a-fA-F]{1,64}$/.test(v);
+
+/**
+ * Fit a 256-bit hash into a felt252.
+ *
+ * The EVM commitment path derives its intent and decision digests with keccak256, which is 256
+ * bits — four bits wider than a felt can hold. Passing one straight through would overflow and
+ * either revert or, worse, silently wrap into a different value on each side.
+ *
+ * Clearing the top four bits is deterministic, keeps 252 bits of the original digest, and — this
+ * is the part that matters — is applied to BOTH the intent and the digest identically, so the
+ * on-chain replay guarantee still holds: the same authorisation still maps to the same felt, and
+ * two different authorisations still map to different ones.
+ */
+const FELT_MASK = (BigInt(1) << BigInt(252)) - BigInt(1);
+const toFelt = (v: string): string => `0x${(BigInt(v) & FELT_MASK).toString(16)}`;
+
+/** A campaign id is a string; a legacy campaign's implicit mission is keyed by its hash. */
+const feltOf = (s: string): string => {
+  let h = BigInt(0);
+  for (const ch of s) h = (h * BigInt(31) + BigInt(ch.charCodeAt(0))) & FELT_MASK;
+  return `0x${h.toString(16)}`;
+};
 
 /**
  * Pay one approved submission on Starknet.
@@ -73,12 +99,46 @@ export async function settleOnStarknet(
   }
 
   // The reward is the campaign's, in 6-decimal base units — the same units USDC moves in on
-  // Starknet, so it is passed through with no conversion and nothing to round.
+  // Starknet, so it is passed through with no conversion and nothing to round. It is reported for
+  // the receipt only: the VAULT derives what actually moves.
   const rewardBase = BigInt(campaign.rewardAmount);
   if (rewardBase <= BigInt(0)) return held("campaign reward is not a positive amount");
 
+  if (campaign.vaultKind !== "sage_vault_starknet") {
+    return held("this campaign has no Starknet vault — nothing can be released from it");
+  }
+  const vaultAddress = campaign.vaultAddress?.trim() ?? "";
+  if (!isStarknetAddress(vaultAddress)) {
+    return held(`the campaign's vault address is not a Starknet address: ${vaultAddress || "(none)"}`);
+  }
+
+  // A mission-bound campaign settles the mission the submission targeted; a legacy one has a
+  // single implicit mission keyed by the campaign. Either way the vault holds the terms.
+  const missionId = submission.missionIdHash ?? feltOf(campaign.id);
+  const { payoutIntentHash, decisionDigest } = derivePayoutIntent(
+    campaign,
+    submission,
+    getDecisionBySubmission(submission.id),
+  );
+
   try {
-    const result = await payDirect([{ recipient, amountBase: rewardBase }]);
+    const result = await requestVaultPayout({
+      vaultAddress,
+      missionId: toFelt(missionId),
+      recipient,
+      // A decision digest is optional upstream (a legacy payout has none); the vault requires a
+      // non-zero commitment, so fall back to the intent, which is itself decision-bound whenever a
+      // decision exists.
+      decisionDigest: toFelt(decisionDigest ?? payoutIntentHash),
+      intentHash: toFelt(payoutIntentHash),
+    });
+
+    if (!result.paid) {
+      // A refusal is a SUCCESSFUL transaction that moved nothing. Recording it as paid because the
+      // transaction succeeded is the exact mistake this reads the events to avoid.
+      return held(`the vault refused this payout: ${result.reason}`);
+    }
+
     updateSubmission(submission.id, {
       status: "paid",
       payoutTx: result.transactionHash,

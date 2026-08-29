@@ -692,6 +692,14 @@ export function selectVaultStrategy(
         operatorFor,
       );
     }
+    case "sage_vault_starknet": {
+      // This selector builds EVM strategies. A Starknet campaign is answered by settleOnStarknet,
+      // which the pipeline branches to BEFORE reaching settle-flow — so arriving here means that
+      // branch was bypassed, and settling anyway would try to sign a Cairo call with viem.
+      throw new Error(
+        `campaign ${campaign.id} settles on Starknet — it must not reach the EVM settlement path`,
+      );
+    }
     default: {
       const _exhaustive: never = campaign.vaultKind;
       void _exhaustive;

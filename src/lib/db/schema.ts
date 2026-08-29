@@ -22,7 +22,13 @@ export interface OnchainCheck {
 }
 
 /** Which vault contract backs a campaign. Legacy rows = policy_v1; V2 = campaign_v2. */
-export type VaultKind = "policy_v1" | "campaign_v2";
+/**
+ * Which contract holds a campaign's budget.
+ *
+ * `sage_vault_starknet` is the Cairo vault: same guarantee as campaign_v2 — the founder owns it and
+ * Sage can release a reward but never withdraw — on the rail where viem cannot reach.
+ */
+export type VaultKind = "policy_v1" | "campaign_v2" | "sage_vault_starknet";
 
 /**
  * A mission's lifecycle within a campaign_v2 campaign.

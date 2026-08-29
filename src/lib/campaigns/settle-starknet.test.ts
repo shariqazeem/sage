@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const payDirect = vi.fn();
+const requestVaultPayout = vi.fn();
 const updateSubmission = vi.fn();
 
-vi.mock("@/lib/starknet/pay", () => ({ payDirect: (...a: unknown[]) => payDirect(...a) }));
+vi.mock("@/lib/starknet/vault", () => ({
+  requestVaultPayout: (...a: unknown[]) => requestVaultPayout(...a),
+}));
 vi.mock("@/lib/db/campaigns", () => ({
   updateSubmission: (...a: unknown[]) => updateSubmission(...a),
+  getDecisionBySubmission: () => null,
 }));
 
 import type { Campaign, Submission } from "@/lib/db/schema";
 
 import { settleOnStarknet } from "./settle-starknet";
 
-const STARKNET = "0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048";
+const VAULT = "0x06fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57";
+const WORKER = "0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048";
 
 const campaign = (over: Partial<Campaign> = {}) =>
   ({
@@ -21,6 +25,9 @@ const campaign = (over: Partial<Campaign> = {}) =>
     rewardAmount: 500_000,
     sandbox: false,
     settlementRail: "starknet",
+    vaultKind: "sage_vault_starknet",
+    vaultAddress: VAULT,
+    chainId: 900_001,
     ...over,
   }) as unknown as Campaign;
 
@@ -28,26 +35,35 @@ const submission = (over: Partial<Submission> = {}) =>
   ({
     id: "s1",
     campaignId: "c1",
-    wallet: STARKNET,
+    wallet: WORKER,
     status: "settling",
     payoutTx: null,
+    missionIdHash: null,
     ...over,
   }) as unknown as Submission;
 
 beforeEach(() => {
-  payDirect.mockReset();
+  requestVaultPayout.mockReset();
   updateSubmission.mockReset();
-  payDirect.mockResolvedValue({ transactionHash: "0xabc", totalBase: BigInt(500_000), count: 1 });
+  requestVaultPayout.mockResolvedValue({
+    paid: true,
+    transactionHash: "0xabc",
+    code: 0,
+    reason: "paid",
+  });
 });
 
 describe("settling on Starknet", () => {
-  it("pays the submission's own wallet, for the campaign's own reward", async () => {
+  it("asks the vault to release, naming a mission and never an amount", async () => {
     const out = await settleOnStarknet(campaign(), submission());
     expect(out.settled).toBe(true);
     expect(out.txHash).toBe("0xabc");
-    expect(payDirect).toHaveBeenCalledWith([
-      { recipient: STARKNET, amountBase: BigInt(500_000) },
-    ]);
+    const args = requestVaultPayout.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(args.vaultAddress).toBe(VAULT);
+    expect(args.recipient).toBe(WORKER);
+    // THE PROPERTY THAT MATTERS: no amount is passed. The vault derives it.
+    expect(Object.keys(args)).not.toContain("amount");
+    expect(Object.keys(args)).not.toContain("amountBase");
     expect(updateSubmission).toHaveBeenCalledWith(
       "s1",
       expect.objectContaining({ status: "paid", payoutTx: "0xabc" }),
@@ -55,79 +71,88 @@ describe("settling on Starknet", () => {
   });
 
   /**
-   * THE MOST IMPORTANT TEST HERE. The sweep re-evaluates pending work on a timer, so this function
-   * WILL be called again on work it has already paid. A second call must not produce a second real
-   * transfer — there is no way back from one.
+   * A REFUSAL IS A SUCCESSFUL TRANSACTION THAT MOVED NOTHING. The vault returns a code rather than
+   * reverting, so "the transaction succeeded" and "the worker was paid" are different facts, and
+   * treating the first as the second would mark someone paid against a transfer that never happened.
    */
-  it("refuses to pay a submission that already carries a payout", async () => {
-    const out = await settleOnStarknet(campaign(), submission({ payoutTx: "0xalready" }));
+  it("does not mark paid when the vault refuses", async () => {
+    requestVaultPayout.mockResolvedValue({
+      paid: false,
+      transactionHash: "0xdef",
+      code: 9,
+      reason: "the campaign's budget ceiling is reached",
+    });
+    const out = await settleOnStarknet(campaign(), submission());
     expect(out.settled).toBe(false);
-    expect(out.reason).toMatch(/already settled/);
-    expect(payDirect).not.toHaveBeenCalled();
+    expect(out.reason).toMatch(/budget ceiling/);
+    expect(updateSubmission).not.toHaveBeenCalled();
   });
 
-  it("refuses a submission already marked paid, even with no tx recorded", async () => {
+  /**
+   * The vault IS the guarantee, so its absence is a reason to stop — not a reason to fall back to
+   * paying from Sage's own balance, which is a materially weaker promise nobody chose.
+   */
+  it("refuses to pay a campaign that has no vault", async () => {
+    const out = await settleOnStarknet(campaign({ vaultKind: "policy_v1" }), submission());
+    expect(out.settled).toBe(false);
+    expect(out.reason).toMatch(/no Starknet vault/);
+    expect(requestVaultPayout).not.toHaveBeenCalled();
+  });
+
+  it("refuses a vault address that is not a Starknet address", async () => {
+    const out = await settleOnStarknet(campaign({ vaultAddress: "not-an-address" }), submission());
+    expect(out.settled).toBe(false);
+    expect(requestVaultPayout).not.toHaveBeenCalled();
+  });
+
+  /** The sweep re-evaluates pending work, so this WILL be called again on work already paid. */
+  it("refuses a submission that already carries a payout", async () => {
+    const out = await settleOnStarknet(campaign(), submission({ payoutTx: "0xalready" }));
+    expect(out.settled).toBe(false);
+    expect(requestVaultPayout).not.toHaveBeenCalled();
+  });
+
+  it("refuses a submission already marked paid", async () => {
     const out = await settleOnStarknet(campaign(), submission({ status: "paid" }));
     expect(out.settled).toBe(false);
-    expect(payDirect).not.toHaveBeenCalled();
+    expect(requestVaultPayout).not.toHaveBeenCalled();
   });
 
   it("never pays from the sandbox", async () => {
     const out = await settleOnStarknet(campaign({ sandbox: true }), submission());
     expect(out.settled).toBe(false);
-    expect(payDirect).not.toHaveBeenCalled();
+    expect(requestVaultPayout).not.toHaveBeenCalled();
   });
 
-  /**
-   * An EVM address is a valid-looking string that means nothing on Starknet. Paying it would send
-   * money to an address nobody controls — so the rail mismatch is caught, and named, before any
-   * transaction exists.
-   */
-  it("refuses an EVM address on the Starknet rail", async () => {
-    const evm = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-    const out = await settleOnStarknet(campaign(), submission({ wallet: evm }));
-    // 40 hex digits IS a valid felt, so this one is accepted by shape — the guard that matters is
-    // the one below, for input that is not an address at all.
-    expect(out.settled || out.reason !== null).toBe(true);
-
-    const nonsense = await settleOnStarknet(campaign(), submission({ wallet: "not-an-address" }));
-    expect(nonsense.settled).toBe(false);
-    expect(nonsense.reason).toMatch(/not a Starknet address/);
-  });
-
-  it("refuses a missing wallet rather than paying nowhere", async () => {
-    const out = await settleOnStarknet(campaign(), submission({ wallet: "" }));
+  it("refuses a recipient that is not a Starknet address", async () => {
+    const out = await settleOnStarknet(campaign(), submission({ wallet: "not-an-address" }));
     expect(out.settled).toBe(false);
-    expect(payDirect).not.toHaveBeenCalled();
+    expect(out.reason).toMatch(/not a Starknet address/);
+    expect(requestVaultPayout).not.toHaveBeenCalled();
   });
 
   it("refuses a non-positive reward", async () => {
     const out = await settleOnStarknet(campaign({ rewardAmount: 0 }), submission());
     expect(out.settled).toBe(false);
-    expect(payDirect).not.toHaveBeenCalled();
+    expect(requestVaultPayout).not.toHaveBeenCalled();
   });
 
   /**
-   * A failed transfer must leave the submission exactly as it was. Marking it paid without a
-   * transaction behind it would strand the worker with a receipt for money that never moved.
+   * The commitment path derives 256-bit keccak digests, and a felt holds 252 bits. Passing one
+   * through unreduced would overflow — so both the intent and the digest are masked identically,
+   * which keeps the on-chain replay guarantee intact.
    */
-  it("holds without marking paid when the transfer fails", async () => {
-    payDirect.mockRejectedValue(new Error("insufficient balance"));
-    const out = await settleOnStarknet(campaign(), submission());
-    expect(out.settled).toBe(false);
-    expect(out.reason).toMatch(/insufficient balance/);
-    expect(updateSubmission).not.toHaveBeenCalled();
+  it("reduces its commitments into the felt field", async () => {
+    await settleOnStarknet(campaign(), submission());
+    const args = requestVaultPayout.mock.calls[0]?.[0] as { intentHash: string; decisionDigest: string };
+    const FELT_MAX = BigInt(1) << BigInt(252);
+    expect(BigInt(args.intentHash)).toBeLessThan(FELT_MAX);
+    expect(BigInt(args.decisionDigest)).toBeLessThan(FELT_MAX);
+    expect(BigInt(args.intentHash)).toBeGreaterThan(BigInt(0));
   });
 
-  /**
-   * A transaction that REVERTS is not a transaction that failed to send. `account.execute`
-   * resolves as soon as the sequencer accepts it, so a revert arrives as a perfectly successful
-   * call — and marking a submission paid against it would leave a worker holding a receipt for
-   * money that never moved. payDirect now waits for acceptance and throws on a non-SUCCEEDED
-   * status; this pins the consequence here, where the row gets written.
-   */
-  it("does not mark paid when the transaction reverted on chain", async () => {
-    payDirect.mockRejectedValue(new Error("payment reverted on chain (REVERTED): insufficient balance"));
+  it("holds without marking paid when the call throws", async () => {
+    requestVaultPayout.mockRejectedValue(new Error("vault payout reverted on chain (REVERTED)"));
     const out = await settleOnStarknet(campaign(), submission());
     expect(out.settled).toBe(false);
     expect(out.reason).toMatch(/reverted on chain/);
@@ -135,7 +160,7 @@ describe("settling on Starknet", () => {
   });
 
   it("never throws for control flow", async () => {
-    payDirect.mockRejectedValue(new Error("network down"));
+    requestVaultPayout.mockRejectedValue(new Error("network down"));
     await expect(settleOnStarknet(campaign(), submission())).resolves.toMatchObject({
       settled: false,
     });
