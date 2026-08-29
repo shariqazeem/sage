@@ -162,11 +162,26 @@ export default async function CampaignPublicPage({
     campaign.maxRecipients > 0 ? Math.max(0, campaign.maxRecipients - paid) : null;
   const live = campaign.status === "live";
 
-  // The ring reads the campaign's reward pool when the campaign is capped;
-  // otherwise the funding vault's live balance. Resilient — falls back gracefully.
-  const vault = await getVaultState(getAddress(campaign.vaultAddress)).catch(
-    () => null,
-  );
+  // The ring reads the campaign's reward pool when the campaign is capped; otherwise the funding
+  // vault's live balance.
+  //
+  // The `.catch()` below guards the PROMISE, and `getAddress` throws SYNCHRONOUSLY while building
+  // the argument — so it never protected this call at all. A campaign settled on Starknet has a
+  // felt where an EVM address is expected, and the throw took the whole public page down with a
+  // 500. A campaign that pays people should not be unreachable because it has no vault to read.
+  //
+  // Campaigns on the Starknet rail have no per-campaign vault by design, so there is nothing to
+  // read: the ring falls back to the reward pool, which is what a capped campaign shows anyway.
+  const vault =
+    campaign.settlementRail === "starknet"
+      ? null
+      : await (async () => {
+          try {
+            return await getVaultState(getAddress(campaign.vaultAddress));
+          } catch {
+            return null;
+          }
+        })();
   const capped = campaign.maxRecipients > 0;
   const ringBudget = capped ? rewardUsd * campaign.maxRecipients : vault?.budget ?? 0;
   const ringRemaining = capped
@@ -189,7 +204,14 @@ export default async function CampaignPublicPage({
 
       <div className="sage-agent-card" style={{ marginBottom: 16 }}>
         <div className="sage-eyebrow">
-          <ShieldCheck size={13} /> Paid from an on-chain wallet with hard spending limits
+          <ShieldCheck size={13} />{" "}
+          {/* The vault guarantee is real on the EVM rail and NOT on Starknet, where there is no
+              per-campaign vault — the funded balance is the limit. Saying "hard spending limits"
+              there would claim an enforcement nobody wrote, on the one line a tester reads to
+              decide whether this is safe to work for. */}
+          {campaign.settlementRail === "starknet"
+            ? "Paid on-chain by Sage, every payout with a public receipt"
+            : "Paid from an on-chain wallet with hard spending limits"}
         </div>
         <h1
           style={{
