@@ -103,8 +103,27 @@ export function buildSignInTypedData(args: { address: string; nonce: string; iss
   };
 }
 
+/**
+ * A Cairo short string holds at most 31 ASCII characters — it is one felt, and a felt is 252 bits.
+ *
+ * 16 random bytes render as 32 hex characters, one over, and Ready refused the whole signature
+ * with "…is too long". 15 bytes is 30 characters and 120 bits of entropy, which is far more than a
+ * login nonce needs. The constant is here so the reason travels with the number.
+ */
+const NONCE_BYTES = 15;
+
+/**
+ * The nonce itself, separated from the cookie it is stored in so its LENGTH can be tested.
+ *
+ * It was not, and the guard written for it was vacuous: the test supplied its own nonce, so
+ * changing the byte count back to the value that broke Ready left every assertion green.
+ */
+export function newStarknetNonce(): string {
+  return randomBytes(NONCE_BYTES).toString("hex");
+}
+
 export async function issueStarknetNonce(): Promise<string> {
-  const nonce = randomBytes(16).toString("hex");
+  const nonce = newStarknetNonce();
   (await cookies()).set(NONCE_COOKIE, nonce, {
     httpOnly: true,
     sameSite: "lax",
