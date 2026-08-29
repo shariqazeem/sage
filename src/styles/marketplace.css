@@ -383,6 +383,14 @@
 .mk-empty h2 {
   margin: 0;
 }
+/* Two doors from an empty board: the proof for someone deciding whether this is real, and the
+   launch for someone ready to act. Wraps rather than squeezing on narrow screens. */
+.mk-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
 
 .mk-foot {
   margin-top: 2.5rem;

@@ -68,14 +68,32 @@ export default function MarketplacePage() {
         <div className="mk-main">
           {rows.length === 0 ? (
             <section className="mk-empty">
-              <h2 className="dash-h3">No missions are open right now.</h2>
+              {/*
+                AN EMPTY BOARD IS A MOMENT, NOT A VERDICT.
+                Every mission is backed by a funded vault, so the list empties whenever the last
+                slot fills — which is the system working, not failing. But the page led with the
+                emptiness while the proof that any of it works sat demoted in the side column, so
+                the first thing a visitor met was "nothing here" and "$0.00 available". Lead with
+                what has actually been paid; the absence is the second sentence, not the headline.
+              */}
+              <h2 className="dash-h3">
+                {paidToDate.count > 0
+                  ? `${paidToDate.count} payouts to real testers so far.`
+                  : "No missions are open right now."}
+              </h2>
               <p className="sage-hint">
-                Every mission here is backed by a funded vault, so the list is empty whenever no
-                campaign has an unfilled slot. It fills up again as founders launch.
+                {paidToDate.count > 0
+                  ? "Every mission here is backed by a funded vault, so the board empties whenever the last slot fills — that is the system working, not failing. New work appears as founders launch, and every payout is anchored on-chain and checkable."
+                  : "Every mission here is backed by a funded vault, so the list is empty whenever no campaign has an unfilled slot. It fills up again as founders launch."}
               </p>
-              <Link href="/launch" className="sage-btn sage-btn-primary">
-                Launch your own campaign <ArrowRight size={15} />
-              </Link>
+              <div className="mk-empty-actions">
+                <Link href="/explorer" className="sage-btn">
+                  See every payout and refusal <ArrowRight size={15} />
+                </Link>
+                <Link href="/launch" className="sage-btn sage-btn-primary">
+                  Launch your own campaign <ArrowRight size={15} />
+                </Link>
+              </div>
             </section>
           ) : (
             <MarketplaceBoard rows={rows} />
