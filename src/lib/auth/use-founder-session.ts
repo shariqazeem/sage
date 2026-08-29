@@ -19,6 +19,8 @@ export interface FounderSession {
   /** Still asking. Distinct from "signed out", which would wrongly prompt a signed-in founder. */
   loading: boolean;
   refresh: () => Promise<void>;
+  /** Ends BOTH sessions — signing out should sign you out, not out of one curve. */
+  signOut: () => Promise<void>;
 }
 
 export function useFounderSession(): FounderSession {
@@ -44,5 +46,17 @@ export function useFounderSession(): FounderSession {
     void refresh();
   }, [refresh]);
 
-  return { address, chain, authed: !!address, loading, refresh };
+  const signOut = useCallback(async () => {
+    // Both, unconditionally. Clearing only the session that happens to be reported would leave a
+    // founder with two cookies signed out of one and still signed into the other — and the next
+    // page load would show them signed in again, which reads as the button not working.
+    await Promise.allSettled([
+      fetch("/api/auth/session", { method: "DELETE" }),
+      fetch("/api/auth/starknet/session", { method: "DELETE" }),
+    ]);
+    setAddress(null);
+    setChain(null);
+  }, []);
+
+  return { address, chain, authed: !!address, loading, refresh, signOut };
 }

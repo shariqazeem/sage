@@ -19,7 +19,6 @@ import {
   Clock,
   Calendar,
   ArrowDown,
-  Loader2,
 } from "lucide-react";
 import { usd, short, cap, since } from "@/lib/format";
 import type { VaultStateView, PayoutReceipt } from "@/lib/deputy/chain";
@@ -29,7 +28,8 @@ import type { AgentReputation } from "@/lib/erc8004/reputation-core";
 import { NetworkChip } from "@/components/app/network-chip";
 import { explorerTxUrl } from "@/lib/deputy/networks";
 import { settlementLabel } from "@/lib/campaigns/labels";
-import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { DeputyDetail } from "@/components/app/deputy-detail";
 import { CampaignList } from "@/components/app/campaign-list";
@@ -103,7 +103,10 @@ export function AppShell({
   ownVault = false,
   startInCreate = false,
 }: Props) {
-  const siwe = useSiwe();
+  // Whose account this is, on EITHER chain. `siwe.authed` means something narrower — an EVM
+  // session matching the wallet connected in this browser — and a Starknet founder can never
+  // satisfy it, so gating the dashboard on it kept them staring at a connect button.
+  const founder = useFounderSession();
   const [tab, setTab] = useState<Tab>("agents");
   const [detailOpen, setDetailOpen] = useState(false);
   const [campaignView, setCampaignView] = useState<
@@ -130,8 +133,8 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
-    if (siwe.authed) void refreshOverview();
-  }, [siwe.authed, refreshOverview]);
+    if (founder.authed) void refreshOverview();
+  }, [founder.authed, refreshOverview]);
 
   function openDeputy() {
     setDetailOpen(true);
@@ -265,7 +268,7 @@ export function AppShell({
                       </div>
                     </div>
 
-                    {siwe.authed ? (
+                    {founder.authed ? (
                       <CampaignList
                         campaigns={live.campaigns}
                         onOpen={openCampaign}
@@ -273,27 +276,16 @@ export function AppShell({
                       />
                     ) : (
                       <div className="sage-gate" style={{ marginTop: 20 }}>
-                        <p>
-                          Sign in with your wallet to create and review campaigns.
-                          Signing proves you control the wallet — it moves no funds.
-                        </p>
-                        <button
-                          className="sage-btn sage-btn-primary"
-                          onClick={() => void siwe.signIn()}
-                          disabled={siwe.signingIn}
-                        >
-                          {siwe.signingIn ? (
+                        <FounderSignIn
+                          explainer={
                             <>
-                              <Loader2 size={15} className="sage-spin2" /> Signing…
+                              Sign in to create and review campaigns — with{" "}
+                              <b>any wallet you already have.</b> This is your Sage account, not
+                              where a campaign gets funded.
                             </>
-                          ) : siwe.address ? (
-                            <>
-                              <ShieldCheck size={15} /> Sign in as {short(siwe.address)}
-                            </>
-                          ) : (
-                            "Connect wallet"
-                          )}
-                        </button>
+                          }
+                          onSignedIn={() => void founder.refresh()}
+                        />
                       </div>
                     )}
                   </>

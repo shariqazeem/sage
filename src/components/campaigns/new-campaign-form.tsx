@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { short } from "@/lib/format";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import "@/styles/wallet-connect.css";
 import { AutopilotCard } from "./autopilot-card";
 
 interface Created {
@@ -41,6 +44,8 @@ export function NewCampaignForm({
   };
 }) {
   const siwe = useSiwe();
+  const founder = useFounderSession();
+  const [showSignIn, setShowSignIn] = useState(false);
   const router = useRouter();
   const [title, setTitle] = useState(template?.title ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
@@ -69,12 +74,10 @@ export function NewCampaignForm({
 
   const create = useCallback(async () => {
     setError(null);
-    if (!siwe.authed) {
-      const ok = await siwe.signIn();
-      if (!ok) {
-        setError("Sign in with your wallet to create a campaign.");
-        return;
-      }
+    if (!founder.authed) {
+      // Either chain — creating a campaign is a question of identity, not of which curve.
+      setShowSignIn(true);
+      return;
     }
     setBusy(true);
     try {
@@ -104,7 +107,7 @@ export function NewCampaignForm({
     } finally {
       setBusy(false);
     }
-  }, [siwe, title, description, criteria, rewardUsd, maxRecipients, vault, autonomy, threshold]);
+  }, [founder.authed, siwe, title, description, criteria, rewardUsd, maxRecipients, vault, autonomy, threshold]);
 
   const copy = useCallback(async () => {
     if (!created) return;
@@ -246,6 +249,17 @@ export function NewCampaignForm({
         </span>
       </div>
 
+      {showSignIn && !founder.authed && (
+        <div style={{ marginTop: 12 }}>
+          <FounderSignIn
+            explainer={<>Sign in to create this campaign — <b>Ethereum or Starknet.</b></>}
+            onSignedIn={() => {
+              setShowSignIn(false);
+              void founder.refresh();
+            }}
+          />
+        </div>
+      )}
       {error && (
         <div className="sage-toast dan">
           <XCircle size={15} /> {error}

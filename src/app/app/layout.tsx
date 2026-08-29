@@ -3,6 +3,7 @@ import "../hire/hire.css";
 import "./app.css";
 import "./motion.css";
 import "./demo-moments.css";
+import "@/styles/wallet-connect.css";
 
 export const metadata: Metadata = {
   title: "Sage — your AI workers",

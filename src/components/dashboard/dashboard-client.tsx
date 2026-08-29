@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square, Compass} from "lucide-react";
-import { useSiwe } from "@/lib/auth/use-siwe";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
+import "@/styles/wallet-connect.css";
 import { chainConfig } from "@/lib/deputy/networks";
 import { CountUp } from "@/components/app/count-up";
 import type { CampaignCard } from "@/lib/campaigns/overview";
@@ -62,21 +64,10 @@ export function DashboardClient({
   approvedRecipients: number;
   totalPaid: number;
 }) {
-  const siwe = useSiwe();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const founder = useFounderSession();
   const [live, setLive] = useState(false);
   useEffect(() => setLive(true), []);
-
-  const connect = async () => {
-    setBusy(true);
-    try {
-      const ok = await siwe.signIn();
-      if (ok) router.refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
 
   if (!signedIn) {
     return (
@@ -88,9 +79,16 @@ export function DashboardClient({
             Sign in with the wallet you launched from. You&apos;ll see every campaign you own, what
             Sage has paid, and can open each console.
           </p>
-          <button className="sage-btn sage-btn-primary" disabled={busy || siwe.signingIn} onClick={connect}>
-            {busy || siwe.signingIn ? "Connecting…" : "Connect wallet"}
-          </button>
+          {/* Any wallet, either family. This screen used to run `siwe.signIn()` straight into
+              MetaMask, so a founder holding only Ready met a button that could not work for them. */}
+          <FounderSignIn
+            explainer={
+              <>
+                Sign in with the wallet you launched from — <b>Ethereum or Starknet.</b>
+              </>
+            }
+            onSignedIn={() => router.refresh()}
+          />
         </div>
       </main>
     );
@@ -243,7 +241,7 @@ export function DashboardClient({
       )}
 
       <div className="sb-dash-foot">
-        <button className="sage-foot-muted" onClick={() => void siwe.signOut().then(() => router.refresh())}>
+        <button className="sage-foot-muted" onClick={() => void founder.signOut().then(() => router.refresh())}>
           Sign out
         </button>
       </div>

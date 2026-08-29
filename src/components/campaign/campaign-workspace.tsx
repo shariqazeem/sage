@@ -17,7 +17,8 @@ import { ConnectWallet } from "@/components/app/connect-wallet";
 import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
 import { StopWithdrawCard } from "@/components/campaign/stop-withdraw-card";
 import { chainConfig } from "@/lib/deputy/networks";
-import { useSiwe } from "@/lib/auth/use-siwe";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import "@/styles/wallet-connect.css";
 
 /** One tester submission, already reduced to display truth on the server. */
 export interface WorkspaceSubmission {
@@ -94,9 +95,7 @@ export function CampaignWorkspace({ data }: { data: WorkspaceData }) {
 }
 
 function OwnerGate({ data }: { data: WorkspaceData }) {
-  const siwe = useSiwe();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
   return (
     <main className="sb-shell">
       <div className="sage-agent-card" style={{ maxWidth: 520, margin: "40px auto" }}>
@@ -110,20 +109,17 @@ function OwnerGate({ data }: { data: WorkspaceData }) {
           Only the founder who deployed and funded the vault can manage it here. Sign in with
           that wallet, or view the public tester board instead.
         </p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {/* Any wallet family: a campaign console is a question of WHO you are, and a founder who
+            funded on Starknet must be able to open the console for what they funded. The EVM chip
+            stays alongside because managing an EVM vault still needs an EVM wallet connected. */}
+        <div style={{ marginTop: 4 }}>
+          <FounderSignIn
+            explainer={<>Sign in to manage this campaign — <b>Ethereum or Starknet.</b></>}
+            onSignedIn={() => router.refresh()}
+          />
+        </div>
+        <div style={{ marginTop: 10 }}>
           <ConnectWallet chainId={data.chainId} />
-          <button
-            className="sage-btn"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              const ok = await siwe.signIn().catch(() => false);
-              setBusy(false);
-              if (ok) router.refresh();
-            }}
-          >
-            {busy ? "Signing in…" : "Sign in to manage"}
-          </button>
         </div>
         <div style={{ marginTop: 16 }}>
           <Link href={`/c/${data.id}`} className="cw-link">

@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import "@/styles/wallet-connect.css";
 import { evmChains } from "@/lib/deputy/networks";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 
@@ -97,6 +100,8 @@ function buildEvidence(m: MilestoneDraft): Record<string, unknown> {
 export function DirectCampaignForm() {
   const router = useRouter();
   const siwe = useSiwe();
+  const founder = useFounderSession();
+  const [showSignIn, setShowSignIn] = useState(false);
 
   const [kind, setKind] = useState<"grant" | "gig">("grant");
   const [title, setTitle] = useState("");
@@ -124,17 +129,12 @@ export function DirectCampaignForm() {
   );
 
   const submit = async () => {
-    if (!siwe.authed) {
+    // Either chain. This used to fire MetaMask directly, so a founder holding only a Starknet
+    // wallet could not create a campaign that would have settled on Starknet.
+    if (!founder.authed) {
       setError(null);
-      const ok = siwe.address ? await siwe.signIn() : (await siwe.connect(), false);
-      if (!ok) {
-        setError(
-          siwe.address
-            ? "Sign the message to continue — it's free, no gas and nothing is spent."
-            : "Connect your wallet to continue — it's a free signature, no gas and nothing is spent.",
-        );
-        return;
-      }
+      setShowSignIn(true);
+      return;
     }
     setError(null);
     setSubmitting(true);
@@ -338,6 +338,17 @@ export function DirectCampaignForm() {
         <button className="lx-btn" style={{ marginTop: 14 }} onClick={submit} disabled={submitting}>
           {submitting ? "Compiling…" : siwe.authed ? "Review the plan" : "Connect & review the plan"}
         </button>
+        {showSignIn && !founder.authed && (
+          <div style={{ marginTop: 12 }}>
+            <FounderSignIn
+              explainer={<>Sign in to create this campaign — <b>Ethereum or Starknet.</b> Nothing is funded here.</>}
+              onSignedIn={() => {
+                setShowSignIn(false);
+                void founder.refresh();
+              }}
+            />
+          </div>
+        )}
         {error && <div className="lx-err" role="alert">{error}</div>}
       </section>
     </div>

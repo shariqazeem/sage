@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { WalletConnect, type WalletOption } from "./wallet-connect";
@@ -27,10 +29,21 @@ export function FounderSignIn({
   const evm = useSiwe();
   const starknet = useStarknetSiwe();
 
+  /**
+   * WHICH WALLETS EXIST IS A CLIENT FACT, AND MUST NOT BE GUESSED DURING RENDER.
+   *
+   * The first version asked `typeof window === "undefined" || window.ethereum`, which is TRUE on
+   * the server and FALSE in a browser without MetaMask — so the server rendered a MetaMask row the
+   * client then removed, and React threw a hydration mismatch on the exact screen a founder lands
+   * on first. Nothing is decided until after mount, so both passes agree.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const options: WalletOption[] = [];
 
   // The EVM provider is injected and unnamed, so it is listed once — the browser picks which.
-  if (evm.address || typeof window === "undefined" || (window as { ethereum?: unknown }).ethereum) {
+  if (mounted && (evm.address || (window as { ethereum?: unknown }).ethereum)) {
     options.push({
       id: "evm",
       name: evm.address ? "your Ethereum wallet" : "MetaMask",

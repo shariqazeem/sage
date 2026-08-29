@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Blocks, BookOpen, House, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
 
 /**
  * P27 — the floating hover-expand rail (Adaption-style, on Sage's light system). Collapsed it's a slim
@@ -32,6 +33,9 @@ export function AppRail() {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const siwe = useSiwe();
+  const founder = useFounderSession();
+  // Either session counts as signed in; the rail is identity chrome, not an EVM control.
+  const signedInAs = founder.address ?? siwe.authedAddress ?? "";
 
   const isActive = (href: string): boolean => {
     const base = href.split("?")[0];
@@ -85,28 +89,30 @@ export function AppRail() {
         <span className="app-rail-label">{copied ? "Link copied!" : "Invite your team"}</span>
       </button>
 
-      {siwe.authedAddress ? (
-        <div className="app-rail-pill app-rail-user" title={siwe.authedAddress}>
+      {signedInAs ? (
+        <div className="app-rail-pill app-rail-user" title={signedInAs}>
           <span className="app-rail-avatar">
             <Wallet size={14} strokeWidth={2} />
           </span>
           <span className="app-rail-label">
-            <span className="mono">{short(siwe.authedAddress)}</span>
+            <span className="mono">{short(signedInAs)}</span>
             <span className="app-rail-sub">Founder</span>
           </span>
         </div>
       ) : (
-        <button
+        // The rail is chrome, not the place to render a wallet list. It sends a signed-out
+        // visitor to the dashboard, which offers every wallet family — rather than firing
+        // MetaMask directly, which is a door a Starknet founder cannot walk through.
+        <Link
           className="app-rail-pill app-rail-user"
-          onClick={() => void siwe.signIn()}
-          title="Connect wallet"
-          type="button"
+          href="/dashboard"
+          title="Sign in"
         >
           <span className="app-rail-avatar">
             <Wallet size={14} strokeWidth={2} />
           </span>
-          <span className="app-rail-label">{siwe.signingIn ? "Connecting…" : "Connect wallet"}</span>
-        </button>
+          <span className="app-rail-label">Sign in</span>
+        </Link>
       )}
     </div>
   );
