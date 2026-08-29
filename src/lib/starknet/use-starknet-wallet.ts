@@ -105,14 +105,33 @@ export function useStarknetWallet(): StarknetWalletApi {
     setError(null);
     setConnecting(true);
     try {
-      const accounts = (await wallet.request({ type: "wallet_requestAccounts" })) as string[];
+      /**
+       * A WALLET THAT NEVER ANSWERS MUST NOT HANG THE PAGE.
+       *
+       * `wallet_requestAccounts` returns immediately for a dapp the wallet has already authorised,
+       * and opens a prompt otherwise — but a wallet can also do neither, leaving the promise
+       * pending forever. The screen then sits on "Waiting for your wallet…" with no prompt and no
+       * error, which is indistinguishable from the product being broken. Reported exactly that way.
+       */
+      const accounts = (await Promise.race([
+        wallet.request({ type: "wallet_requestAccounts" }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("__sage_no_response__")), 25_000),
+        ),
+      ])) as string[];
       const address = accounts?.[0];
       if (!address) throw new Error("that wallet returned no account");
       setConnected({ wallet, address });
       return address;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(/rejected|denied/i.test(msg) ? "You cancelled the connection." : msg);
+      if (msg === "__sage_no_response__") {
+        setError(
+          `${wallet.name} did not open. If its window is already waiting behind this one, finish there — otherwise unlock the extension and try again.`,
+        );
+      } else {
+        setError(/rejected|denied/i.test(msg) ? "You cancelled the connection." : msg);
+      }
       return null;
     } finally {
       setConnecting(false);

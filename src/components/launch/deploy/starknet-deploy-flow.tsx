@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 
 import { useStarknetWallet, type StarknetWallet } from "@/lib/starknet/use-starknet-wallet";
+import { sameFelt } from "@/lib/starknet/felt";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
 import type { PlanView } from "../types";
 
 /**
@@ -50,7 +52,63 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
   const [phase, setPhase] = useState<Phase>({ kind: "connect" });
   const [error, setError] = useState<string | null>(null);
 
-  const address = wallet.connected?.address ?? null;
+  /**
+   * ALREADY SIGNED IN IS ALREADY CONNECTED.
+   *
+   * This ran its own wallet-discovery instance, so signing in did not populate it — the founder
+   * was asked to connect the very wallet they had just proved they control, and Ready answered a
+   * second `wallet_requestAccounts` by neither prompting nor resolving. The screen sat on
+   * "Waiting for your wallet…" forever.
+   *
+   * The session address is enough to price the deployment and derive the vault's address. The
+   * wallet object itself is only needed to SIGN, so it is asked for at that moment — when a prompt
+   * is expected and its absence would be obvious.
+   */
+  const founder = useFounderSession();
+  const [pickedName, setPickedName] = useState<string | null>(null);
+  const sessionAddress = founder.chain === "starknet" ? founder.address : null;
+  const address = wallet.connected?.address ?? sessionAddress;
+
+  /**
+   * Resolve the wallet at the moment it must SIGN, rather than up front.
+   *
+   * The founder's identity comes from their session, so nothing above this point needs the wallet
+   * open. Here it does — and a prompt appearing now is expected, which makes its absence legible
+   * instead of mysterious.
+   */
+  const signAndLaunch = async () => {
+    let w = wallet.connected?.wallet ?? null;
+    if (!w) {
+      const candidates = wallet.wallets;
+      if (candidates.length === 0) {
+        setError("No Starknet wallet found in this browser.");
+        return;
+      }
+      // One wallet is unambiguous. With several, prefer the one already named by the session.
+      const pick =
+        candidates.length === 1
+          ? candidates[0]
+          : (candidates.find((c) => c.name.toLowerCase() === (pickedName ?? "").toLowerCase()) ??
+            null);
+      if (!pick) {
+        setPickedName(null);
+        setError("Choose which wallet should own this vault.");
+        return;
+      }
+      const addr = await wallet.connect(pick);
+      if (!addr) return; // the hook already surfaced why
+      // THE OWNER MUST BE THE FOUNDER. Deploying from a different wallet would build a vault the
+      // campaign's own attach step then refuses, after the money has already moved.
+      if (sessionAddress && !sameFelt(addr, sessionAddress)) {
+        setError(
+          `That wallet (${short(addr)}) is not the one you signed in with (${short(sessionAddress)}). Switch accounts in the wallet, or sign in again with this one.`,
+        );
+        return;
+      }
+      w = pick;
+    }
+    await launch(w);
+  };
 
   // The plan is fetched twice on purpose: once with no wallet, to show the founder what this will
   // cost before asking them to connect anything, and again once an address exists, because the
@@ -235,8 +293,8 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
       ) : (
         <button
           className="lx-btn"
-          onClick={() => wallet.connected && launch(wallet.connected.wallet)}
-          disabled={!deployPlan?.calls}
+          onClick={() => void signAndLaunch()}
+          disabled={!deployPlan?.calls || wallet.connecting}
         >
           {deployPlan?.deployed
             ? "Open the campaign"

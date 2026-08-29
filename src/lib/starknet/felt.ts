@@ -40,3 +40,21 @@ export const feltOf = (s: string): string => {
  */
 export const missionFelt = (missionIdHash: string | null | undefined, campaignId: string): string =>
   toFelt(missionIdHash ?? feltOf(campaignId));
+
+/**
+ * Do two Starknet addresses denote the same account?
+ *
+ * Client-safe, unlike `sameFounder`, which lives in a `server-only` module. Same rule: a felt has
+ * many valid spellings that differ only in leading zeros, and a wallet may hand back either — so
+ * string equality would call one account two.
+ */
+export const sameFelt = (a: string | null | undefined, b: string | null | undefined): boolean => {
+  const norm = (v: string | null | undefined): string | null => {
+    const t = v?.trim().toLowerCase();
+    if (!t || !/^0x[0-9a-f]+$/.test(t)) return null;
+    const stripped = t.slice(2).replace(/^0+/, "");
+    return stripped && stripped.length <= 63 ? stripped : null;
+  };
+  const na = norm(a);
+  return na !== null && na === norm(b);
+};
