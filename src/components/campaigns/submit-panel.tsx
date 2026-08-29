@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { short } from "@/lib/format";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
+import type { SettlementRail } from "@/lib/db/schema";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
 import { DeputyAssessmentCard } from "./deputy-assessment";
@@ -90,13 +92,36 @@ export function SubmitPanel({
   live,
   rewardUsd = null,
   threshold = 0.85,
+  rail = "evm",
 }: {
   campaignId: string;
   live: boolean;
   rewardUsd?: number | null;
   threshold?: number;
+  rail?: SettlementRail;
 }) {
-  const siwe = useSiwe();
+  /**
+   * THE SIGN-IN HAS TO MATCH THE RAIL THE CAMPAIGN PAYS ON.
+   *
+   * Not a cosmetic choice: the address that signs in is the address that gets paid, and a
+   * Starknet campaign cannot pay an EVM address. Before this, a tester on a private-capable
+   * campaign signed in with an EVM wallet, submitted, and was refused by the API with "use a
+   * Starknet wallet" — on a page that offered no way to do that. A dead end at the last step,
+   * after the work was already done.
+   *
+   * Both hooks run because hooks must; only the rail's own result is read.
+   */
+  const evm = useSiwe();
+  const starknet = useStarknetSiwe();
+  const onStarknet = rail === "starknet";
+  const siwe = onStarknet
+    ? {
+        authed: starknet.authed,
+        address: starknet.address,
+        signingIn: starknet.signingIn,
+        signIn: () => Promise.resolve(false), // Starknet picks a wallet first — see the gate below.
+      }
+    : evm;
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -185,6 +210,68 @@ export function SubmitPanel({
   }, [campaignId, evidence, note, loadMine]);
 
   /* ── not signed in ──────────────────────────────────────────────────── */
+  if (onStarknet && !starknet.authed) {
+    // Still reading the cookie — showing a connect button here would ask a signed-in tester to
+    // sign again for a session they already hold.
+    if (starknet.loading) {
+      return (
+        <div className="sage-gate">
+          <p>
+            <Loader2 size={15} className="sage-spin2" /> Checking your wallet…
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="sage-gate">
+        <p>
+          This campaign pays on Starknet, so sign in with a Starknet wallet — that is the address
+          you&rsquo;ll be paid at. Signing proves you control it; it authorizes no transaction and
+          moves no funds.
+        </p>
+        {starknet.wallets.length === 0 ? (
+          <p className="sage-hint">
+            No Starknet wallet found. Install{" "}
+            <a href="https://www.ready.co" target="_blank" rel="noreferrer noopener">
+              Ready
+            </a>{" "}
+            or{" "}
+            <a href="https://braavos.app" target="_blank" rel="noreferrer noopener">
+              Braavos
+            </a>{" "}
+            to work on this campaign.
+          </p>
+        ) : (
+          <div className="sage-gate-wallets">
+            {starknet.wallets.map((w) => (
+              <button
+                key={w.id}
+                className="sage-btn sage-btn-primary"
+                onClick={() => void starknet.signIn(w)}
+                disabled={starknet.signingIn}
+              >
+                {starknet.signingIn ? (
+                  <>
+                    <Loader2 size={15} className="sage-spin2" /> Signing…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={15} /> Sign in with {w.name}
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {starknet.error && (
+          <div className="sage-err" role="alert">
+            {starknet.error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!siwe.authed) {
     return (
       <div className="sage-gate">

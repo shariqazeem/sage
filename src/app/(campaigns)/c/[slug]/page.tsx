@@ -10,6 +10,10 @@ import {
   listSubmissions,
 } from "@/lib/db/campaigns";
 import { getVaultState } from "@/lib/deputy/chain";
+import {
+  readVaultBalance as readStarknetVaultBalance,
+  readVaultState as readStarknetVaultState,
+} from "@/lib/starknet/vault";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { campaignAutopays } from "@/lib/campaigns/autopay-status";
 import { BudgetRing } from "@/components/app/budget-ring";
@@ -170,18 +174,30 @@ export default async function CampaignPublicPage({
   // felt where an EVM address is expected, and the throw took the whole public page down with a
   // 500. A campaign that pays people should not be unreachable because it has no vault to read.
   //
-  // Campaigns on the Starknet rail have no per-campaign vault by design, so there is nothing to
-  // read: the ring falls back to the reward pool, which is what a capped campaign shows anyway.
-  const vault =
-    campaign.settlementRail === "starknet"
-      ? null
-      : await (async () => {
-          try {
-            return await getVaultState(getAddress(campaign.vaultAddress));
-          } catch {
-            return null;
-          }
-        })();
+  // A Starknet campaign may or may not have a vault: the private-capable rail deploys a real
+  // per-campaign Cairo vault the founder owns, while older direct-pay campaigns have none. Read
+  // whichever exists, and never hand a felt to viem — `getAddress` throws SYNCHRONOUSLY while
+  // building the argument, so the `.catch()` below never protected that call, and the throw took
+  // the whole public page down with a 500. A campaign that pays people should not be unreachable.
+  const vault = await (async () => {
+    try {
+      if (campaign.vaultKind === "sage_vault_starknet") {
+        const s = await readStarknetVaultState(campaign.vaultAddress);
+        const held = await readStarknetVaultBalance(campaign.vaultAddress);
+        const ceiling = Number(s.budgetCeilingBase) / 1e6;
+        return {
+          budget: ceiling,
+          // What can still be paid is the smaller of what the vault holds and what its ceiling
+          // still allows — either one alone would overstate the money available to a tester.
+          remaining: Math.max(0, Math.min(Number(held) / 1e6, ceiling - Number(s.totalSpentBase) / 1e6)),
+        };
+      }
+      if (campaign.settlementRail === "starknet") return null;
+      return await getVaultState(getAddress(campaign.vaultAddress));
+    } catch {
+      return null;
+    }
+  })();
   const capped = campaign.maxRecipients > 0;
   const ringBudget = capped ? rewardUsd * campaign.maxRecipients : vault?.budget ?? 0;
   const ringRemaining = capped
@@ -205,13 +221,17 @@ export default async function CampaignPublicPage({
       <div className="sage-agent-card" style={{ marginBottom: 16 }}>
         <div className="sage-eyebrow">
           <ShieldCheck size={13} />{" "}
-          {/* The vault guarantee is real on the EVM rail and NOT on Starknet, where there is no
-              per-campaign vault — the funded balance is the limit. Saying "hard spending limits"
-              there would claim an enforcement nobody wrote, on the one line a tester reads to
-              decide whether this is safe to work for. */}
-          {campaign.settlementRail === "starknet"
-            ? "Paid on-chain by Sage, every payout with a public receipt"
-            : "Paid from an on-chain wallet with hard spending limits"}
+          {/* THE ONE LINE A TESTER READS TO DECIDE WHETHER THIS IS SAFE TO WORK FOR, so it must
+              say only what is actually enforced for THIS campaign. A private-capable campaign has
+              a real Cairo vault the founder owns and Sage cannot withdraw from; an older
+              direct-pay Starknet campaign has none, and claiming limits nobody wrote would be a
+              lie exactly where it matters most. Nor is "public receipt" right on the private
+              rail — the whole point is that a tester need not publish their income. */}
+          {campaign.vaultKind === "sage_vault_starknet"
+            ? "Paid from a vault with hard spending limits — privately, if you choose"
+            : campaign.settlementRail === "starknet"
+              ? "Paid on-chain by Sage, every payout with a public receipt"
+              : "Paid from an on-chain wallet with hard spending limits"}
         </div>
         <h1
           style={{
@@ -300,6 +320,7 @@ export default async function CampaignPublicPage({
         live={live}
         rewardUsd={rewardUsd}
         threshold={campaign.autopilotThreshold}
+        rail={campaign.settlementRail}
       />
 
       <div className="sb-sec-label">Fair play</div>
