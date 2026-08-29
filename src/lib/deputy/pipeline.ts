@@ -40,6 +40,7 @@ import {
   supportsIntentReplayProtection,
 } from "@/lib/deputy/vault-capability";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import { settleOnStarknet } from "@/lib/campaigns/settle-starknet";
 import {
   evaluateCampaignAgreement,
   type VaultStrategyDeps,
@@ -791,6 +792,46 @@ export async function runDeputyOnSubmission(
   agentLog(cid, "cas", { won });
   if (!won) {
     return { action: "skipped", reason: "another runner owns it", correlationId: cid };
+  }
+
+  // e-starknet. A Starknet campaign has no CampaignVault to read, so settle-flow cannot serve it
+  // at all — it is answered by a sibling rather than by bending the frozen EVM path. Everything
+  // before this point (decide, gate, dedup, CAS) is rail-agnostic and has already run, so this
+  // branches at the last possible moment and only for campaigns that explicitly opted in.
+  if (campaign.settlementRail === "starknet") {
+    const outcome = await settleOnStarknet(campaign, submission);
+    if (outcome.settled && outcome.txHash) {
+      const conf = Math.round(brief.confidence * 100);
+      recordEventOnce({
+        campaignId: campaign.id,
+        submissionId,
+        kind: "autopay_settled",
+        detail: encodeDetail(
+          `${short(outcome.recipient ?? "")} · ${conf}% · dec ${decisionRow?.id ?? "—"}`,
+          { cid },
+        ),
+        txHash: outcome.txHash,
+        amount: Number(outcome.rewardBase ?? BigInt(0)),
+      });
+      agentLog(cid, "settle", {
+        action: "settled",
+        tx: outcome.txHash,
+        amountBase: Number(outcome.rewardBase ?? BigInt(0)),
+      });
+      void notifyTelegram(
+        `✅ <b>Paid by Sage</b>\n${campaign.title}\n${usd(Number(outcome.rewardBase ?? BigInt(0)) / 1_000_000)} → ${short(outcome.recipient ?? "")} · ${conf}% confidence\n${outcome.explorerUrl}`,
+      );
+      return { action: "settled", reason: "paid", txHash: outcome.txHash, correlationId: cid };
+    }
+
+    // Held, never failed: reset to pending so the next sweep retries, and journal the real reason.
+    updateSubmission(submissionId, { status: "pending", decidedAt: null });
+    journalHeld(campaign, submission, outcome.reason ?? "starknet settlement held", cid);
+    return {
+      action: "held",
+      reason: outcome.reason ?? "starknet settlement held",
+      correlationId: cid,
+    };
   }
 
   // e. settle through the EXISTING settle-flow (intentHash idempotency). On a

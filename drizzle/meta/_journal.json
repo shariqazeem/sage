@@ -316,6 +316,13 @@
       "when": 1788163200000,
       "tag": "0044_artifact_twin",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1788163200001,
+      "tag": "0045_settlement_rail",
+      "breakpoints": true
     }
   ]
 }

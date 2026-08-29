@@ -1,0 +1,12 @@
+-- Which settlement rail a campaign pays on.
+--
+-- 'evm' is every campaign that exists today: a founder-owned CampaignVault on GOAT or Metis, read
+-- and settled through the frozen settle-flow. 'starknet' pays USDC directly from Sage's Starknet
+-- account, with no per-campaign vault to read — so it cannot go through that path at all, which is
+-- why this is a rail selector rather than another chain_id. Starknet's real chain id (SN_MAIN,
+-- 0x534e5f4d41494e) also exceeds JavaScript's safe integer range, so it could not live in the
+-- existing integer column even if the shapes matched.
+--
+-- Defaulted to 'evm' so every existing campaign is untouched and the branch is inert until a
+-- campaign explicitly opts in.
+ALTER TABLE campaigns ADD `settlement_rail` text DEFAULT 'evm' NOT NULL;

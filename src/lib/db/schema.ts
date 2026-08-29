@@ -9,6 +9,9 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { StoredBrief } from "../deputy/brain-core";
 
+/** Which rail settles a campaign's payouts. See `campaigns.settlementRail`. */
+export type SettlementRail = "evm" | "starknet";
+
 /** The on-chain condition a campaign can auto-verify (condition_type = 'onchain'). */
 export interface OnchainCheck {
   chainId: number;
@@ -88,6 +91,18 @@ export const campaigns = sqliteTable("campaigns", {
    * registry (src/lib/deputy/networks.ts).
    */
   chainId: integer("chain_id").notNull().default(59902),
+  /**
+   * Which settlement rail pays this campaign out.
+   *
+   * `evm` — a founder-owned CampaignVault on GOAT or Metis, settled through settle-flow. Every
+   * campaign that existed before this column.
+   *
+   * `starknet` — USDC paid directly from Sage's Starknet account. There is no per-campaign vault
+   * to read, so it cannot go through settle-flow at all; that is why this is a rail selector and
+   * not another `chainId`. Starknet's own chain id (SN_MAIN) also exceeds JavaScript's safe
+   * integer range, so it could not live in the integer column even if the shapes matched.
+   */
+  settlementRail: text("settlement_rail").notNull().default("evm").$type<SettlementRail>(),
   posterWallet: text("poster_wallet").notNull(),
   /** true when Sage owns/operates the vault (sponsored campaigns). */
   ownerIsSage: integer("owner_is_sage", { mode: "boolean" })
