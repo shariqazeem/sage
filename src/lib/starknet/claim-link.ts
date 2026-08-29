@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 import { hash, shortString } from "starknet";
 
 /**
@@ -14,6 +12,11 @@ import { hash, shortString } from "starknet";
  * names where it lands at the moment they collect. The commitment commits to nobody, so the
  * recipient does not need to exist yet; and collection is authorised by the preimage rather than by
  * the caller, so Sage can pay the gas for someone holding no token at all.
+ *
+ * ISOMORPHIC ON PURPOSE. The claim page derives the commitment in the browser so it can show a
+ * worker whether their link is real and uncollected without transmitting the secret anywhere —
+ * including to Sage. That only works if the same derivation runs on both sides, so this module
+ * uses Web Crypto (present in Node 18+ and every browser) rather than `node:crypto`.
  *
  * THE COMMITMENT MUST MATCH THE CONTRACT EXACTLY. This module derives in TypeScript what
  * `contracts-starknet/src/claims.cairo` derives in Cairo, and a one-bit disagreement escrows real
@@ -46,8 +49,15 @@ export interface ClaimSecrets {
 }
 
 /** A cryptographically random felt, as a 0x-prefixed hex string. */
-export function generateSecret(rng: (n: number) => Buffer = randomBytes): string {
-  return `0x${rng(SECRET_BYTES).toString("hex")}`;
+export function generateSecret(rng: (n: number) => Uint8Array = randomBytesWeb): string {
+  return `0x${Array.from(rng(SECRET_BYTES), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function randomBytesWeb(n: number): Uint8Array {
+  const out = new Uint8Array(n);
+  // Never `Math.random()` — a predictable secret is a payout anyone can take.
+  globalThis.crypto.getRandomValues(out);
+  return out;
 }
 
 const feltOf = (secret: string): string =>

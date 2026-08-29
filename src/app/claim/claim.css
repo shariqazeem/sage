@@ -1,0 +1,163 @@
+/* The collection screen. Aliases global tokens; never redeclares a palette value. */
+
+.claim-page {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-6, 24px);
+}
+
+.claim-card {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: clamp(24px, 5vw, 40px);
+}
+
+.claim-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
+  margin-bottom: 28px;
+}
+.claim-brand strong { color: var(--ink); font-weight: 600; }
+
+.claim-state h2 {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.claim-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+}
+
+/* Tabular numerals: an amount is data, and it must not shift as it changes. */
+.claim-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+
+.claim-muted {
+  color: var(--ink-muted);
+  line-height: var(--lh-body);
+  margin: 0 0 20px;
+}
+.claim-muted code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.claim-field { display: block; margin-bottom: 16px; }
+.claim-field span {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+}
+.claim-field input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--ink);
+}
+.claim-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.claim-field input[aria-invalid="true"] { border-color: var(--err); }
+
+.claim-button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.claim-button:hover:not(:disabled) { opacity: 0.9; }
+.claim-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Green is reserved for money outcomes. This is one. */
+.claim-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ok);
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-border);
+  border-radius: var(--r-pill);
+  padding: 4px 12px;
+  margin-bottom: 14px;
+}
+
+.claim-error {
+  color: var(--err);
+  background: var(--err-soft);
+  border: 1px solid var(--err-border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  margin: 0 0 16px;
+  font-size: 0.875rem;
+}
+
+.claim-tx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+.claim-tx:hover { text-decoration: underline; }
+
+.claim-fineprint {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 18px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.claim-fineprint svg { flex: none; margin-top: 2px; }
+
+.claim-spin { animation: claim-spin 0.9s linear infinite; }
+@keyframes claim-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .claim-spin { animation: none; }
+}
