@@ -88,6 +88,22 @@ export async function payDirect(payments: readonly DirectPayment[]): Promise<Dir
     })),
   );
 
+  // WAIT FOR ACCEPTANCE, AND CHECK IT SUCCEEDED. `execute` resolves once the transaction is
+  // ACCEPTED BY THE SEQUENCER, not once it has run — a transaction that reverts on execution
+  // resolves here perfectly happily and throws nothing. Returning at that point would let a caller
+  // record a payout against a transaction that moved no money, leaving a worker holding a receipt
+  // for nothing. Found by noticing the payer's balance had not changed on a payment reported as
+  // successful; it had simply not settled yet, and nothing in this function would have noticed if
+  // it never did.
+  const receipt = await provider.waitForTransaction(tx.transaction_hash);
+  const status = (receipt as { execution_status?: string }).execution_status;
+  if (status && status !== "SUCCEEDED") {
+    const reason = (receipt as { revert_reason?: string }).revert_reason;
+    throw new Error(
+      `payment reverted on chain (${status})${reason ? `: ${String(reason).slice(0, 200)}` : ""}`,
+    );
+  }
+
   return { transactionHash: tx.transaction_hash, totalBase, count: payments.length };
 }
 

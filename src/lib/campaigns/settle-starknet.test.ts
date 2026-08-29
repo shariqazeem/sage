@@ -119,6 +119,21 @@ describe("settling on Starknet", () => {
     expect(updateSubmission).not.toHaveBeenCalled();
   });
 
+  /**
+   * A transaction that REVERTS is not a transaction that failed to send. `account.execute`
+   * resolves as soon as the sequencer accepts it, so a revert arrives as a perfectly successful
+   * call — and marking a submission paid against it would leave a worker holding a receipt for
+   * money that never moved. payDirect now waits for acceptance and throws on a non-SUCCEEDED
+   * status; this pins the consequence here, where the row gets written.
+   */
+  it("does not mark paid when the transaction reverted on chain", async () => {
+    payDirect.mockRejectedValue(new Error("payment reverted on chain (REVERTED): insufficient balance"));
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    expect(out.reason).toMatch(/reverted on chain/);
+    expect(updateSubmission).not.toHaveBeenCalled();
+  });
+
   it("never throws for control flow", async () => {
     payDirect.mockRejectedValue(new Error("network down"));
     await expect(settleOnStarknet(campaign(), submission())).resolves.toMatchObject({

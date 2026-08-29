@@ -121,6 +121,8 @@ async function main(): Promise<void> {
   // Read it back rather than trusting the return value.
   const after = getSubmission(sub.submission.id);
   console.log(`\nsubmission status: ${after?.status} · payout tx recorded: ${after?.payoutTx ? "yes" : "NO"}`);
+  // Accurate now that payDirect waits for acceptance — before that fix this read ran while the
+  // transaction was still in flight and reported the balance unchanged after a real payment.
   console.log(`payer balance now: $${(Number(await payableBalance()) / 1e6).toFixed(2)}`);
 }
 
