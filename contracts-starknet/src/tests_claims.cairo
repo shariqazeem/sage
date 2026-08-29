@@ -464,3 +464,31 @@ fn one_secret_cannot_authorise_both_paths() {
         "one preimage must never be valid on both paths",
     );
 }
+
+
+/// Cross-language vectors, pinned on both sides.
+///
+/// Sage derives these commitments in TypeScript before it ever touches the
+/// chain, and a derivation that disagrees with this contract by one bit mints
+/// links that nobody can ever collect — money escrowed to a commitment whose
+/// preimage does not open it. The failure is silent at deposit time and
+/// permanent afterwards, so it is pinned here and asserted identically in
+/// `src/lib/starknet/claim-link.test.ts`. Changing a tag turns both red.
+#[test]
+fn commitments_match_the_pinned_vectors() {
+    assert!(
+        compute_claim_commitment('sage-vector-1') ==
+            3320238942575134960334128461057374995108359740439534656937595193287851709783,
+        "claim vector drifted",
+    );
+    assert!(
+        compute_refund_commitment('sage-vector-1') ==
+            3528550685409820502922574992525543883544470031925252292192837564121368762142,
+        "refund vector drifted",
+    );
+    assert!(
+        compute_claim_commitment(1) ==
+            3495104234677916629716606448466696190085183457604658688403680060612153238036,
+        "claim vector for 1 drifted",
+    );
+}
