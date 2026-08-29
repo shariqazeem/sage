@@ -151,11 +151,16 @@ export interface StarknetVerifyArgs {
  * Why a sign-in failed, at the resolution it is safe to say out loud.
  *
  * "undeployed" is deliberately distinguished from everything else. A STARKNET ACCOUNT IS A
- * CONTRACT: a wallet that has been created but never used has an address and no code, so there is
- * no `is_valid_signature` to call and no signature can ever verify. Every other failure stays
- * merged, because telling a prober whether the nonce or the signature was wrong tells them which
- * one to change — but whether an address has code is PUBLIC on chain, readable by anyone, so
- * saying it leaks nothing and is the difference between a dead end and an instruction.
+ * CONTRACT, and it is deployed by the wallet's own FIRST OUTGOING transaction — not by receiving
+ * anything. A wallet can therefore hold a real balance and still have no code at its address, so
+ * there is no `is_valid_signature` to call and no signature it makes can ever verify. That case
+ * was hit by a real founder whose wallet held 1.97 STRK: entirely reasonable to assume funds meant
+ * the account existed, and entirely wrong.
+ *
+ * Every other failure stays merged, because telling a prober whether the nonce or the signature
+ * was wrong tells them which one to change — but whether an address has code is PUBLIC on chain,
+ * readable by anyone, so saying it leaks nothing and is the difference between a dead end and an
+ * instruction.
  */
 export type StarknetVerifyFailure = "undeployed" | "invalid";
 

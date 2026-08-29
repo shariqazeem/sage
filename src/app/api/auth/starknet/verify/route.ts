@@ -42,7 +42,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json(
         {
           error:
-            "Sage could not find this account on Starknet mainnet. A Starknet account only exists on chain once it has been used — and a wallet set to a different network looks the same from here. Check the wallet is on Mainnet, then sign in again.",
+            "This wallet has no account contract on Starknet mainnet yet, so there is nothing that can check a signature. RECEIVING FUNDS DOES NOT DEPLOY IT — the account is created when the wallet SENDS its first transaction, and most wallets offer to deploy or activate it then. Do that once, then sign in. (If the wallet is set to a different network, it looks the same from here — check that too.)",
           reason: "undeployed",
         },
         { status: 401 },

@@ -38,9 +38,19 @@ try {
   classHash = await provider.getClassHashAt(address, "latest");
   console.log(`  ✓ deployed on mainnet — class ${classHash.slice(0, 18)}…`);
 } catch {
-  console.log("  ✗ NOT deployed on this network.");
-  console.log("    A Starknet account only exists on chain once it has been used. If the wallet");
-  console.log("    shows a balance, it is probably pointed at a different network.");
+  console.log("  ✗ NOT deployed on this network — no code at this address.");
+  console.log("    A Starknet account is a CONTRACT, deployed by the wallet's own first OUTGOING");
+  console.log("    transaction. Receiving funds does not deploy it, so a wallet can hold a real");
+  console.log("    balance and still be uninitialised. Send one transaction from it (wallets call");
+  console.log("    this deploying or activating the account), then sign in.");
+  try {
+    const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+    const r = await provider.callContract({ contractAddress: STRK, entrypoint: "balance_of", calldata: [address] });
+    const strk = Number(BigInt(r[0])) / 1e18;
+    console.log(`\n    It holds ${strk.toFixed(4)} STRK — ${strk > 0.01 ? "enough to pay for its own deployment." : "it needs a little STRK for gas first."}`);
+  } catch {
+    /* balance is a nicety, not the diagnosis */
+  }
   process.exit(0);
 }
 
