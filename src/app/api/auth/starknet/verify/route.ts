@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { verifyAndCreateStarknetSession } from "@/lib/auth/starknet-session";
+import { verifyStarknetSignIn } from "@/lib/auth/starknet-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,11 +31,24 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "address, signature and issuedAt are required" }, { status: 400 });
   }
 
-  const verified = await verifyAndCreateStarknetSession({ address, signature, issuedAt });
-  if (!verified) {
-    // One message for every failure: a wrong signature, a stale nonce and an undeployed account
-    // are all "not signed in", and distinguishing them would tell a prober which part to change.
+  const result = await verifyStarknetSignIn({ address, signature, issuedAt });
+  if (!result.address) {
+    // A WALLET THAT IS NOT ON CHAIN YET IS THE ONE FAILURE WITH A DIFFERENT REMEDY, and saying so
+    // leaks nothing: whether an address has code is public. A brand-new Starknet wallet is
+    // counterfactual — it has an address and no contract — so no signature it makes can verify,
+    // and "try again" would be advice that can never work. Every other failure stays one message,
+    // because distinguishing a stale nonce from a bad signature tells a prober which to change.
+    if (result.reason === "undeployed") {
+      return NextResponse.json(
+        {
+          error:
+            "Sage could not find this account on Starknet mainnet. A Starknet account only exists on chain once it has been used — and a wallet set to a different network looks the same from here. Check the wallet is on Mainnet, then sign in again.",
+          reason: "undeployed",
+        },
+        { status: 401 },
+      );
+    }
     return NextResponse.json({ error: "could not verify that signature" }, { status: 401 });
   }
-  return NextResponse.json({ address: verified });
+  return NextResponse.json({ address: result.address });
 }

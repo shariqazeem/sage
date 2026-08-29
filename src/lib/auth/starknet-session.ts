@@ -147,38 +147,100 @@ export interface StarknetVerifyArgs {
  * The nonce is read from the httpOnly cookie — server truth — never from the request body, so a
  * captured signature cannot be replayed against an attacker-chosen nonce.
  */
+/**
+ * Why a sign-in failed, at the resolution it is safe to say out loud.
+ *
+ * "undeployed" is deliberately distinguished from everything else. A STARKNET ACCOUNT IS A
+ * CONTRACT: a wallet that has been created but never used has an address and no code, so there is
+ * no `is_valid_signature` to call and no signature can ever verify. Every other failure stays
+ * merged, because telling a prober whether the nonce or the signature was wrong tells them which
+ * one to change — but whether an address has code is PUBLIC on chain, readable by anyone, so
+ * saying it leaks nothing and is the difference between a dead end and an instruction.
+ */
+export type StarknetVerifyFailure = "undeployed" | "invalid";
+
+/**
+ * WHY A SIGN-IN FAILED, RECORDED SERVER-SIDE.
+ *
+ * This path was completely silent, so a founder reporting "it will not let me in" left nothing
+ * behind to diagnose — the only way to find the cause was to guess at it from the outside. What is
+ * logged is deliberately narrow: the address (public), the shape of what arrived, and the node's
+ * own error. No signature, no nonce, no cookie — those are the secrets, and a log is the wrong
+ * place for them.
+ */
+function logVerifyFailure(
+  address: string,
+  reason: StarknetVerifyFailure,
+  detail: { sigLength?: number; error?: unknown } = {},
+): void {
+  const err =
+    detail.error instanceof Error ? detail.error.message : detail.error ? String(detail.error) : "";
+  console.warn(
+    `[starknet-signin] refused ${address} · ${reason}` +
+      (detail.sigLength !== undefined ? ` · signature felts: ${detail.sigLength}` : "") +
+      (err ? ` · ${err.slice(0, 200)}` : ""),
+  );
+}
+
 export async function verifyAndCreateStarknetSession(
   args: StarknetVerifyArgs,
 ): Promise<string | null> {
+  return (await verifyStarknetSignIn(args)).address ?? null;
+}
+
+export async function verifyStarknetSignIn(
+  args: StarknetVerifyArgs,
+): Promise<{ address: string | null; reason?: StarknetVerifyFailure }> {
   const address = normalizeStarknetAddress(args.address);
-  if (!address) return null;
+  if (!address) return { address: null, reason: "invalid" };
 
   const jar = await cookies();
   const nonce = jar.get(NONCE_COOKIE)?.value;
-  if (!nonce) return null;
+  if (!nonce) return { address: null, reason: "invalid" };
 
   const now = args.now ?? Date.now();
   if (!Number.isFinite(args.issuedAt) || Math.abs(now - args.issuedAt) > ISSUED_AT_WINDOW_MS) {
-    return null;
+    return { address: null, reason: "invalid" };
   }
 
   const cfg = starknetAddresses();
-  if (!cfg) return null;
+  if (!cfg) return { address: null, reason: "invalid" };
+
+  const provider = new RpcProvider({ nodeUrl: cfg.rpcUrl });
+
+  // Asked BEFORE the signature check, because it is the one failure with a different remedy: an
+  // account with no code on THIS network cannot verify anything, and "try again" is advice that
+  // can never work. It also covers a wallet pointed at a different Starknet network, which looks
+  // identical from here — the address simply has no contract on the one Sage settles on.
+  try {
+    await provider.getClassHashAt(address);
+  } catch (error) {
+    logVerifyFailure(address, "undeployed", { error });
+    return { address: null, reason: "undeployed" };
+  }
 
   let valid = false;
+  let verifyError: unknown = null;
   try {
     valid = await verifyMessageInStarknet(
-      new RpcProvider({ nodeUrl: cfg.rpcUrl }),
+      provider,
       buildSignInTypedData({ address, nonce, issuedAt: args.issuedAt }),
       args.signature,
       address,
     );
-  } catch {
-    // An undeployed account, an unreachable node, or a malformed signature all land here. None of
-    // them are a successful sign-in.
+  } catch (error) {
+    // An unreachable node, an account whose signature scheme this cannot read, or a genuinely bad
+    // signature. None is a successful sign-in, but they are worth telling apart in a log.
+    verifyError = error;
     valid = false;
   }
-  if (!valid) return null;
+  if (!valid) {
+    logVerifyFailure(address, "invalid", {
+      sigLength: args.signature.length,
+      error: verifyError,
+    });
+    return { address: null, reason: "invalid" };
+  }
 
   const issued = now;
   const payload = `${address}.${issued}`;
@@ -191,7 +253,7 @@ export async function verifyAndCreateStarknetSession(
   });
   // One nonce, one login.
   jar.delete(NONCE_COOKIE);
-  return address;
+  return { address };
 }
 
 /** The authenticated Starknet address for this request, or null. */
