@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 
+import { createStore } from "@starknet-io/get-starknet-discovery";
+
 import { buildClaimToNoteActions, type Strk20Action } from "@/lib/starknet/strk20-actions";
 
 /**
@@ -29,11 +31,39 @@ interface InjectedWallet {
   request: (call: { type: string; params?: unknown }) => Promise<unknown>;
 }
 
-/** Wallets inject themselves onto `window` under a `starknet`-prefixed key. */
-function injectedWallets(): InjectedWallet[] {
+/** The wallet-standard feature every Starknet wallet exposes its request method under. */
+const STARKNET_WALLET_API = "starknet:walletApi";
+
+/**
+ * Find the Starknet wallets available in this browser.
+ *
+ * TWO MECHANISMS, AND THE MODERN ONE IS NOT OPTIONAL. Current wallets — Ready among them —
+ * announce themselves through the WALLET-STANDARD registry rather than by writing a
+ * `window.starknet_*` global. An earlier version of this scanned only those globals and therefore
+ * found nothing in a browser with Ready installed and connected: the private door simply never
+ * appeared, which reads as "this feature does not exist" rather than "we failed to look properly".
+ *
+ * The legacy scan is kept as a fallback because older wallets still only inject.
+ */
+function discoverWallets(): InjectedWallet[] {
   if (typeof window === "undefined") return [];
-  const seen = new Set<unknown>();
   const out: InjectedWallet[] = [];
+  const seen = new Set<unknown>();
+
+  try {
+    for (const w of createStore().getWallets()) {
+      const feature = (w.features as Record<string, unknown> | undefined)?.[STARKNET_WALLET_API] as
+        | { request?: InjectedWallet["request"] }
+        | undefined;
+      if (typeof feature?.request === "function" && !seen.has(w)) {
+        seen.add(w);
+        out.push({ id: w.name, name: w.name, icon: w.icon, request: feature.request });
+      }
+    }
+  } catch {
+    /* discovery unavailable — fall through to the legacy scan */
+  }
+
   for (const key of Object.keys(window)) {
     if (!key.toLowerCase().startsWith("starknet")) continue;
     const w = (window as unknown as Record<string, unknown>)[key];
@@ -86,10 +116,20 @@ export function PrivateCollect({
   const [state, setState] = useState<State>({ kind: "idle" });
 
   useEffect(() => {
-    // Injection can land after hydration, so look once now and once shortly after.
-    setWallets(injectedWallets());
-    const t = setTimeout(() => setWallets(injectedWallets()), 600);
-    return () => clearTimeout(t);
+    // Wallets register asynchronously, so subscribe rather than taking one snapshot: an extension
+    // that finishes loading a moment after hydration would otherwise never appear.
+    setWallets(discoverWallets());
+    let stop: (() => void) | undefined;
+    try {
+      stop = createStore().subscribe(() => setWallets(discoverWallets()));
+    } catch {
+      /* no registry in this browser */
+    }
+    const t = setTimeout(() => setWallets(discoverWallets()), 800);
+    return () => {
+      clearTimeout(t);
+      stop?.();
+    };
   }, []);
 
   const collect = useCallback(
