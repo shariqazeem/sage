@@ -7,7 +7,8 @@ import { DashboardClient } from "@/components/dashboard/dashboard-client";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Your campaigns · Sage",
+  // The root layout appends " · Sage" to child segments — naming it here rendered it twice.
+  title: "Your campaigns",
   description: "Every campaign you own, what your AI agent has released, and a link into each console.",
 };
 

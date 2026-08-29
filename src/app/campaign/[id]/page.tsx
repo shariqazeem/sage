@@ -28,7 +28,8 @@ export const dynamic = "force-dynamic";
  * campaigns are handled by the legacy console.
  */
 export const metadata = {
-  title: "Campaign console · Sage",
+  // The root layout appends " · Sage" to child segments — naming it here rendered it twice.
+  title: "Campaign console",
   description: "Watch your AI agent verify submissions and release payouts, inside on-chain limits it can never exceed.",
 };
 

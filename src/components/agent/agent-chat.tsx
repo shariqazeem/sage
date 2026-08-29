@@ -327,10 +327,19 @@ export function AgentChat() {
               <SageMark size={30} />
             </span>
           </div>
-          <h1 className="ac-title">How can we help you?</h1>
+          {/*
+            ONE AGENT, NOT A SUPPORT DESK. This read "How can we help you?" directly above a line
+            beginning "I inspect your product" — the page contradicted itself in two sentences, and
+            it was the first thing anyone saw. Sage is singular everywhere else in the product; the
+            plural made it sound like a company's contact form rather than the agent it is.
+            The funding caveat moved out of the opening line too: leading with what Sage cannot do,
+            before the visitor has asked for anything, spends the first impression on a limitation.
+            It is said where it matters instead — when funding actually comes up.
+          */}
+          <h1 className="ac-title">What do you want done?</h1>
           <p className="ac-sub">
             I inspect your product, design paid testing missions, and answer questions about any
-            campaign or payout. Funding always happens in the wizard or Telegram — never here.
+            campaign or payout — from what I actually saw, never from memory.
           </p>
           {inputBar}
           <div className="ac-chips">
