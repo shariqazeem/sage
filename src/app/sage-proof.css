@@ -258,3 +258,26 @@ body:has(.spp) { background: var(--bg); }
 @media (max-width: 560px) {
   .spp-note { margin: 4px 16px 14px; }
 }
+
+/* Income privacy on the work record. The payment stays provable; its size does not. */
+.rec-withheld {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.rec-withheld-note {
+  margin: 20px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+.rec-withheld-note p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+.rec-withheld-note strong { color: var(--ink); font-weight: 600; }

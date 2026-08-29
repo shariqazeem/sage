@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";
 import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { buildWalletRecord } from "@/lib/campaigns/record";
-import { money, short } from "@/lib/format";
+import { short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -25,17 +25,21 @@ const KIND_LABEL = { testing: "testing", grant: "grant", gig: "gig" } as const;
 export async function generateMetadata({ params }: { params: Promise<{ wallet: string }> }): Promise<Metadata> {
   const { wallet } = await params;
   const record = buildWalletRecord(wallet);
-  const title = "Verified Work Record · Sage";
+  // The layout template already appends "· Sage" to every page title, so this must NOT — the
+  // browser tab was reading "Verified Work Record · Sage · Sage". OpenGraph does not go through
+  // the template, so the share card keeps the suffix explicitly.
+  const title = "Verified Work Record";
+  const shareTitle = `${title} · Sage`;
   const description = record
-    ? `${short(record.wallet)} — ${record.completions} verified completion${record.completions === 1 ? "" : "s"}, $${record.totalUsd.toFixed(2)} earned across ${record.distinctCampaigns} campaign${record.distinctCampaigns === 1 ? "" : "s"}. Every entry anchored to an on-chain receipt.`
+    ? `${short(record.wallet)} — ${record.completions} verified completion${record.completions === 1 ? "" : "s"} across ${record.distinctCampaigns} campaign${record.distinctCampaigns === 1 ? "" : "s"}, every entry anchored to an on-chain receipt. Payout amounts are withheld.`
     : "A wallet's verified, receipt-anchored history of paid work on Sage.";
   return {
     metadataBase: new URL(siteUrl()),
     title,
     description,
     alternates: { canonical: `/record/${wallet.toLowerCase()}` },
-    openGraph: { title, description, siteName: "Sage", type: "profile" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title: shareTitle, description, siteName: "Sage", type: "profile" },
+    twitter: { card: "summary", title: shareTitle, description },
   };
 }
 
@@ -67,8 +71,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
 
         <section className="rec-stats spp-reveal" aria-label="Record totals">
           <div className="rec-stat">
-            <div className="rec-stat-v">${record.totalUsd.toFixed(2)}</div>
-            <div className="rec-stat-k">Earned, verified</div>
+            <div className="rec-stat-v">{signals.distinctPayers}</div>
+            <div className="rec-stat-k">Separate payers</div>
           </div>
           <div className="rec-stat">
             <div className="rec-stat-v">{record.completions}</div>
@@ -82,6 +86,17 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
             <div className="rec-stat-v">{record.lastAt ? dateOf(record.lastAt) : "—"}</div>
             <div className="rec-stat-k">Last verified</div>
           </div>
+        </section>
+
+        {/* The omission is stated, not left to be noticed. A record that quietly dropped its
+            amounts would read as incomplete; one that says why reads as deliberate — which it is. */}
+        <section className="rec-withheld-note spp-reveal" id="disclosure">
+          <p>
+            <strong>Payout amounts are withheld.</strong> Every entry below is anchored to a
+            transaction anyone can verify, so each payment is provable without this page publishing
+            what someone earns. Sage can issue a scoped, signed statement of earnings when the
+            person it belongs to asks for one.
+          </p>
         </section>
 
         {/* SAGE SIGNALS (FC plan #1) — deterministic underwriting INPUTS over the receipt-anchored
@@ -104,8 +119,12 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                 </dd>
               </div>
               <div className="rec-sig">
-                <dt>Verified inflow / active month</dt>
-                <dd>${signals.avgInflowPerActiveMonthUsd.toFixed(2)}</dd>
+                <dt>Verified payouts / active month</dt>
+                <dd>
+                  {signals.monthsActive
+                    ? (signals.completions / signals.monthsActive).toFixed(1)
+                    : "—"}
+                </dd>
               </div>
               <div className="rec-sig">
                 <dt>Months active</dt>
@@ -146,7 +165,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                     </span>
                   </span>
                   <span className="rec-amt">
-                    {money(e.amountUsd, e.chainId)}
+                    <span className="rec-withheld">Verified</span>
                     <small>receipt →</small>
                   </span>
                 </Link>

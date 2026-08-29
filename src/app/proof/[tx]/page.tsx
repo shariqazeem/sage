@@ -34,7 +34,9 @@ export async function generateMetadata({
   const proof = await loadProof(tx, chainForTx(tx));
   const canonical = `/proof/${tx}`;
   if (!isFoundProof(proof)) {
-    const title = "Payout not found · Sage";
+    // The layout template appends "· Sage"; adding it here too rendered it twice.
+    const title = "Payout not found";
+    const shareTitle = `${title} · Sage`;
     const description =
       "This transaction isn't a recognized Sage payout. Verify a real payout on-chain.";
     return {
@@ -42,8 +44,8 @@ export async function generateMetadata({
       title,
       description,
       alternates: { canonical },
-      openGraph: { title, description, siteName: "Sage", type: "article" },
-      twitter: { card: "summary", title, description },
+      openGraph: { title: shareTitle, description, siteName: "Sage", type: "article" },
+      twitter: { card: "summary", title: shareTitle, description },
     };
   }
   const amount = money(proof.human.amountUsd, proof.chain.chainId);

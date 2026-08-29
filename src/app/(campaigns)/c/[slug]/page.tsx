@@ -36,7 +36,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const c = getCampaign(slug);
   return {
-    title: c ? `${c.title} · Sage` : "Reward campaign · Sage",
+    // The layout template appends "· Sage"; adding it here rendered it twice in the tab.
+    title: c ? c.title : "Reward campaign",
     description:
       "A paid testing mission on Sage. Do the work, submit your evidence, and an AI agent pays you real USDC from an on-chain vault — every payout a verifiable receipt.",
   };
