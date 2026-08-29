@@ -5,6 +5,7 @@ import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 
 import { createStore } from "@starknet-io/get-starknet-discovery";
 
+import { claimCommitment } from "@/lib/starknet/claim-link";
 import { buildClaimToNoteActions, type Strk20Action } from "@/lib/starknet/strk20-actions";
 
 /**
@@ -82,8 +83,9 @@ function discoverWallets(): InjectedWallet[] {
 
 type State =
   | { kind: "idle" }
-  | { kind: "working"; step: string }
-  | { kind: "done"; txHash: string }
+  /** `wallet` names WHICH wallet is working, so the others stay clickable and unspun. */
+  | { kind: "working"; step: string; wallet: string }
+  | { kind: "done"; txHash: string | null }
   | { kind: "error"; message: string };
 
 /**
@@ -142,8 +144,9 @@ export function PrivateCollect({
 
   const collect = useCallback(
     async (wallet: InjectedWallet) => {
+      const who = wallet.name ?? wallet.id ?? "wallet";
       try {
-        setState({ kind: "working", step: "Connecting…" });
+        setState({ kind: "working", step: "Connecting…", wallet: who });
         const accounts = (await wallet.request({
           type: "wallet_requestAccounts",
         })) as string[];
@@ -153,30 +156,62 @@ export function PrivateCollect({
         // Capability check via supportedWalletApi rather than by calling a STRK20 method — a
         // balance read is itself gated behind a consent prompt, so probing with one would raise a
         // prompt the person cannot account for.
-        setState({ kind: "working", step: "Checking wallet support…" });
+        setState({ kind: "working", step: "Checking wallet support…", wallet: who });
         try {
           await wallet.request({ type: "wallet_supportedWalletApi" });
         } catch {
           /* older wallets omit it; let the invoke be the real test */
         }
 
-        setState({ kind: "working", step: "Waiting for your wallet to prove and sign…" });
+        setState({ kind: "working", step: "Waiting for your wallet to prove and sign…", wallet: who });
         const actions: Strk20Action[] = buildClaimToNoteActions({
           claims,
           token,
           secret,
           recipient,
         });
-        const res = (await wallet.request({
-          type: "wallet_strk20InvokeTransaction",
-          params: { actions },
-        })) as { transaction_hash?: string };
+        /**
+         * RACE THE WALLET AGAINST THE CHAIN, AND TAKE THE FIRST ANSWER.
+         *
+         * A wallet's promise can simply never resolve: the transaction lands, the money moves, and
+         * the page sits on "waiting for your wallet" forever. That is the worst thing a payments
+         * screen can display — it tells someone their money is still coming when they already have
+         * it, and invites them to try again.
+         *
+         * The chain is the authority, and this collection has a chain-visible outcome: the claim
+         * flips to collected. So poll for that alongside the wallet, and whichever answers first
+         * ends the wait.
+         */
+        const walletAnswer = wallet
+          .request({ type: "wallet_strk20InvokeTransaction", params: { actions } })
+          .then((r) => ({ from: "wallet" as const, txHash: (r as { transaction_hash?: string })?.transaction_hash ?? null }));
 
-        if (!res?.transaction_hash) throw new Error("the wallet returned no transaction");
-        setState({ kind: "done", txHash: res.transaction_hash });
+        const chainAnswer = (async () => {
+          const commitment = claimCommitment(secret);
+          // ~2 minutes. Long enough for a slow proof, short enough not to hang forever.
+          for (let i = 0; i < 60; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            try {
+              const res = await fetch(`/api/claim/status?commitment=${encodeURIComponent(commitment)}`);
+              if (res.ok) {
+                const d = (await res.json()) as { claimed?: boolean };
+                if (d.claimed) return { from: "chain" as const, txHash: null };
+              }
+            } catch {
+              /* keep polling — a failed read is not an answer */
+            }
+          }
+          throw new Error("timeout");
+        })();
+
+        const res = await Promise.race([walletAnswer, chainAnswer]);
+        if (res.from === "wallet" && !res.txHash) {
+          throw new Error("the wallet returned no transaction");
+        }
+        setState({ kind: "done", txHash: res.txHash });
         // The money has moved. Leaving "WAITING FOR YOU $0.50" and an address field on screen above
         // a success line invites someone to collect a payout that is already spent.
-        onCollected(res.transaction_hash);
+        onCollected(res.txHash ?? "");
       } catch (err) {
         setState({ kind: "error", message: explain(err) });
       }
@@ -191,14 +226,22 @@ export function PrivateCollect({
           <ShieldCheck size={14} aria-hidden /> Collected into a private note
         </p>
 
-        <a
-          className="claim-tx"
-          href={`https://voyager.online/tx/${state.txHash}`}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          View the transaction <ArrowRight size={14} aria-hidden />
-        </a>
+        {state.txHash ? (
+          <a
+            className="claim-tx"
+            href={`https://voyager.online/tx/${state.txHash}`}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            View the transaction <ArrowRight size={14} aria-hidden />
+          </a>
+        ) : (
+          // The chain answered before the wallet did, so there is no hash to link. Say that
+          // rather than showing a dead link or implying something is still pending.
+          <p className="claim-private-note">
+            Confirmed on-chain. Your wallet may still be finishing up — the money has already moved.
+          </p>
+        )}
       </div>
     );
   }
@@ -221,22 +264,28 @@ export function PrivateCollect({
         Or collect into a <strong>private note</strong>, so the amount never appears against your
         address. Needs a wallet already registered with the privacy pool.
       </p>
-      {wallets.map((w, i) => (
-        <button
-          key={w.id ?? w.name ?? i}
-          className="claim-private-btn"
-          onClick={() => collect(w)}
-          disabled={busy}
-        >
-          {busy ? (
-            <>
-              <Loader2 className="claim-spin" size={14} aria-hidden /> {state.step}
-            </>
-          ) : (
-            <>Collect privately with {w.name ?? "wallet"}</>
-          )}
-        </button>
-      ))}
+      {wallets.map((w, i) => {
+        const label = w.name ?? w.id ?? "wallet";
+        const thisOne = state.kind === "working" && state.wallet === label;
+        return (
+          <button
+            key={w.id ?? w.name ?? i}
+            className="claim-private-btn"
+            onClick={() => collect(w)}
+            // Only the wallet in use is busy. Disabling ALL of them while one works is what made
+            // three installed wallets read as three stuck buttons.
+            disabled={busy}
+          >
+            {thisOne ? (
+              <>
+                <Loader2 className="claim-spin" size={14} aria-hidden /> {state.step}
+              </>
+            ) : (
+              <>Collect privately with {label}</>
+            )}
+          </button>
+        );
+      })}
       {state.kind === "error" ? (
         <p className="claim-error" role="alert">
           {state.message}
