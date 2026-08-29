@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { jobToView, reapStalledJob, runInspectionJob } from "@/lib/launch/job";
 
@@ -19,5 +20,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const reaped = reapStalledJob(job);
   if (reaped === "retrying") after(() => runInspectionJob(id));
   const fresh = reaped ? (getInspectionJob(id) ?? job) : job;
-  return NextResponse.json({ ok: true, job: jobToView(fresh) });
+
+  /**
+   * Whose job this is, RELATIVE TO THE CALLER — never the owner's address.
+   *
+   * The plan itself stays readable by anyone holding the link, which is deliberate: a founder is
+   * told it is a permanent link they can come back to and share. This only answers "is this mine",
+   * so a browser can stop listing a job that belongs to somebody else's wallet under the heading
+   * "Your inspections". It says nothing a caller could not already infer by trying to act on it.
+   */
+  const caller = await getFounderAddress();
+  const ownership: "yours" | "anonymous" | "other" =
+    fresh.founderWallet === "anonymous"
+      ? "anonymous"
+      : caller && sameFounder(fresh.founderWallet, caller)
+        ? "yours"
+        : "other";
+
+  return NextResponse.json({ ok: true, job: jobToView(fresh), ownership });
 }
