@@ -8,7 +8,12 @@
 #   ./deploy.sh --keystore ~/.starkli-wallets/lumen/keystore.json \
 #               --account  ~/.starkli-wallets/lumen/account.json
 #
-# Optional: --rpc <url>  (default Cartridge, which serves spec 0.10.x)
+# Optional: --rpc <url>
+#
+# The default is lava.build. starkli 0.4.2 speaks an older JSON-RPC spec than
+# Cartridge's 0.10.2 serves and dies with "Invalid block id" — the block tags
+# were renamed. A NEWER node is not a better node here; it has to match the
+# tool. starknet.js works with either, so the app can share this endpoint.
 #
 # WHY starkli AND NOT sncast: sncast 0.56 documents `--keystore` as taking a
 # starkli account file, but it does not honour it — pointing --keystore at a
@@ -18,7 +23,7 @@
 # tool, not a workaround.
 set -euo pipefail
 
-KEYSTORE=""; ACCOUNT=""; RPC="https://api.cartridge.gg/x/starknet/mainnet"
+KEYSTORE=""; ACCOUNT=""; RPC="https://rpc.starknet.lava.build:443"
 while [ $# -gt 0 ]; do
   case "$1" in
     --keystore) KEYSTORE="$2"; shift 2 ;;
@@ -40,12 +45,19 @@ SIERRA="target/dev/sage_claims_SageClaims.contract_class.json"
 cd "$(dirname "$0")"
 AUTH=(--rpc "$RPC" --account "$ACCOUNT" --keystore "$KEYSTORE")
 
-echo "==> checking the RPC"
-SPEC=$(curl -s --max-time 10 -X POST "$RPC" -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"starknet_specVersion","params":[]}' \
-  | node -pe "try{JSON.parse(require('fs').readFileSync(0,'utf8')).result||''}catch(e){''}")
-[ -n "$SPEC" ] || { echo "    no spec version from $RPC — is it reachable?"; exit 1; }
-echo "    $RPC — spec $SPEC"
+echo "==> checking that starkli can actually talk to this node"
+# NOT a spec-version check. starkli read `block-number` fine from a node it then
+# failed every call against, so the version number was a useless predictor. This
+# performs the same KIND of request the declare will, against a known contract,
+# and believes only the result.
+POOL_PROBE=$(starkli call "$POOL" get_fee_amount --rpc "$RPC" 2>&1 | head -2 | tr -d '\n') || true
+case "$POOL_PROBE" in
+  *0x*) echo "    $RPC — starkli can read the pool, OK" ;;
+  *)    echo "    starkli cannot call contracts on $RPC:"
+        echo "      $POOL_PROBE"
+        echo "    Try --rpc https://rpc.starknet.lava.build:443"
+        exit 1 ;;
+esac
 
 # Rebuild immediately before declaring. A stale artifact is one of the ways a
 # deploy silently lands wrong, and it costs a full declare fee to find out.
