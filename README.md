@@ -76,10 +76,21 @@ campaign to an amount.
 verifiable: amounts, payout counts, batch totals and the live unclaimed balance are all on-chain.
 Privacy removes the line back to a person, not the receipts.
 
-**Status.** The contract is written and tested — 35 tests, and every one of its eleven money
-guards verified by mutation (each guard deleted in turn to confirm a test actually goes red).
-It is **not yet deployed to Starknet mainnet**; this README will carry the address and the
-transactions when it is. No owner, no admin, no pause, no upgrade path.
+**Live on Starknet mainnet.**
+
+| | |
+| --- | --- |
+| `SageClaims` | [`0x6fe4d0…1cf57`](https://voyager.online/contract/0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57) |
+| class hash | `0x3a36f06cbacff3127b00b8fd11b34242a2ae92b3b9fd87fc0376dcfd8c71168` |
+| declare | [`0x48cc40…1284`](https://voyager.online/tx/0x48cc40b881dd1d2916b320e53d24bf3b02ebc39c89ef70e4d30f6a88bf01284) |
+| deploy | [`0x2ee164…b637`](https://voyager.online/tx/0x2ee164e6cc00789b0750d9cc95f70a35fd6975d1fe1372b4eaced7b08f9b637) |
+
+35 tests, and every one of its eleven money guards verified by mutation — each guard deleted in
+turn to confirm a test actually goes red. After deployment the class hash at the address was
+compared against the one computed locally, and `get_pool()` read back and asserted: a succeeded
+transaction does not prove the right code landed.
+
+No owner, no admin, no pause, no upgrade path.
 
 There is no dependency on any other project: it integrates the STRK20 **pool** directly.
 
