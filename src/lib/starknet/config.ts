@@ -10,8 +10,15 @@ import "server-only";
  * of at boot.
  */
 
-/** Canonical USDC on Starknet mainnet. Overridable so a testnet deploy can point elsewhere. */
-const MAINNET_USDC = "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
+/**
+ * Native USDC on Starknet mainnet — Circle's own Cairo 1 token, 6 decimals.
+ *
+ * NOT `0x053c9125…`, which is the older StarkGate-bridged "USD Coin". Both are called USDC, both
+ * have 6 decimals, and both are real; they are simply different tokens with different balances.
+ * Escrowing against the wrong one reverts at `transfer_from` with an empty-balance error that says
+ * nothing about the actual cause, so the address is pinned here and overridable by env.
+ */
+const MAINNET_USDC = "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb";
 
 export interface StarknetConfig {
   rpcUrl: string;

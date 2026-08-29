@@ -20,14 +20,21 @@
  * by waiting out the expiry. Written first, on purpose: a crash between send and write would
  * otherwise strand real funds.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+
+// Plain-JS helper, shared with the deploy script.
+import { decryptKeystore, promptHidden } from "./lib/keystore.mjs";
 
 import { claimUrl, mintClaimSecrets } from "../src/lib/starknet/claim-link";
 import { escrowPayouts, type PayoutLeg } from "../src/lib/starknet/claims";
 import { starknetConfig } from "../src/lib/starknet/config";
 
 const OUT = "var/starknet-claims.json";
+
+/** The deployed SageClaims on Starknet mainnet. Overridable by env for a different deployment. */
+const CLAIMS_MAINNET = "0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57";
+const RPC_MAINNET = "https://rpc.starknet.lava.build:443";
 const ORIGIN = process.env.SAGE_ORIGIN ?? "https://sagepays.xyz";
 
 function arg(name: string): string | null {
@@ -44,6 +51,22 @@ function toBase(dollars: string): bigint {
 }
 
 async function main(): Promise<void> {
+  // A keystore is preferred over env: it means a mainnet signing key never has to sit in a file
+  // on disk just to run a payout. The passphrase is typed, used, and discarded.
+  const keystorePath = arg("keystore");
+  const accountPath = arg("account");
+  if (keystorePath && accountPath) {
+    const keystore = JSON.parse(readFileSync(keystorePath, "utf8"));
+    const account = JSON.parse(readFileSync(accountPath, "utf8"));
+    const address = account?.deployment?.address;
+    if (!address) throw new Error("account file has no deployment.address");
+    const passphrase = await promptHidden("Keystore passphrase: ");
+    process.env.STARKNET_PRIVATE_KEY = decryptKeystore(keystore, passphrase);
+    process.env.STARKNET_ACCOUNT_ADDRESS = address;
+    process.env.STARKNET_RPC_URL ??= RPC_MAINNET;
+    process.env.STARKNET_CLAIMS_ADDRESS ??= CLAIMS_MAINNET;
+  }
+
   const cfg = starknetConfig();
   if (!cfg) {
     console.error(
@@ -95,6 +118,8 @@ async function main(): Promise<void> {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(record, null, 2));
   console.log(`secrets written to ${OUT} — this file is the money, keep it\n`);
+  console.log(`contract ${cfg.claimsAddress}`);
+  console.log(`token    ${cfg.tokenAddress}`);
 
   const total = amounts.reduce((a, b) => a + b, BigInt(0));
   console.log(
