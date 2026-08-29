@@ -44,7 +44,11 @@ export function discoverStarknetWallets(): StarknetWallet[] {
         | { request?: StarknetWallet["request"] }
         | undefined;
       if (typeof feature?.request === "function") {
-        add({ id: w.name, name: w.name, icon: w.icon, request: feature.request });
+        // BOUND, not copied. Lifting `request` off the feature object detaches it from its `this`,
+        // and a wallet whose implementation reaches through `this` for its own message channel
+        // then has nowhere to send the request: the call resolves against nothing and the wallet
+        // eventually reports a timeout, about a second later, with no other symptom.
+        add({ id: w.name, name: w.name, icon: w.icon, request: feature.request.bind(feature) });
       }
     }
   } catch {
@@ -57,7 +61,8 @@ export function discoverStarknetWallets(): StarknetWallet[] {
       | (StarknetWallet & { name?: string })
       | undefined;
     if (w && typeof w.request === "function") {
-      add({ id: key, name: w.name ?? key, icon: w.icon, request: w.request });
+      // Bound for the same reason: called as a method of OUR object, `this` would be our object.
+      add({ id: key, name: w.name ?? key, icon: w.icon, request: w.request.bind(w) });
     }
   }
   return out;

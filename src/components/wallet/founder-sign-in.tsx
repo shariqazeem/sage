@@ -19,6 +19,28 @@ import { WalletConnect, type WalletOption } from "./wallet-connect";
  * cryptographic family it belongs to is Sage's problem, not a category they should have to
  * navigate.
  */
+/**
+ * The injected EVM provider's own name, when it says one.
+ *
+ * "your Ethereum wallet" is what a person reads when we could simply have looked. Most wallets set
+ * a flag on `window.ethereum`; the ones that do not still get an honest generic label.
+ */
+function injectedEvmName(): string | null {
+  const eth = (window as { ethereum?: Record<string, unknown> }).ethereum;
+  if (!eth) return null;
+  const named: [string, string][] = [
+    ["isMetaMask", "MetaMask"],
+    ["isRabby", "Rabby"],
+    ["isCoinbaseWallet", "Coinbase Wallet"],
+    ["isBraveWallet", "Brave Wallet"],
+    ["isTrust", "Trust Wallet"],
+  ];
+  // Rabby and others also set isMetaMask for compatibility, so the more specific flags win.
+  for (const [flag, label] of named.slice(1)) if (eth[flag]) return label;
+  if (eth.isMetaMask) return "MetaMask";
+  return "your Ethereum wallet";
+}
+
 export function FounderSignIn({
   explainer,
   onSignedIn,
@@ -41,12 +63,28 @@ export function FounderSignIn({
   useEffect(() => setMounted(true), []);
 
   const options: WalletOption[] = [];
+  const evmName = mounted ? injectedEvmName() : null;
 
-  // The EVM provider is injected and unnamed, so it is listed once — the browser picks which.
-  if (mounted && (evm.address || (window as { ethereum?: unknown }).ethereum)) {
+  /**
+   * ONE EXTENSION CAN APPEAR TWICE, AND MUST NOT LOOK LIKE TWO WALLETS.
+   *
+   * MetaMask provides `window.ethereum` AND registers a Starknet wallet through its snap, so it
+   * arrived in this list once as a vague "your Ethereum wallet" and again as "MetaMask" — two rows
+   * for one extension, neither saying which chain it would sign on. Where a name appears on both
+   * sides it is disambiguated by the network, which is the only thing that actually differs.
+   */
+  const collides = (name: string) =>
+    !!evmName && starknet.wallets.some((w) => w.name.toLowerCase() === evmName.toLowerCase())
+      ? `${name} (Starknet)`
+      : name;
+
+  if (mounted && (evm.address || evmName)) {
+    const base = evmName ?? "your Ethereum wallet";
     options.push({
       id: "evm",
-      name: evm.address ? "your Ethereum wallet" : "MetaMask",
+      name: starknet.wallets.some((w) => w.name.toLowerCase() === base.toLowerCase())
+        ? `${base} (Ethereum)`
+        : base,
       onSelect: async () => {
         const ok = evm.address ? await evm.signIn() : (await evm.connect(), false);
         if (ok) onSignedIn?.();
@@ -57,7 +95,7 @@ export function FounderSignIn({
   for (const w of starknet.wallets) {
     options.push({
       id: `sn:${w.id}`,
-      name: w.name,
+      name: collides(w.name),
       icon: w.icon,
       onSelect: async () => {
         if (await starknet.signIn(w)) onSignedIn?.();
