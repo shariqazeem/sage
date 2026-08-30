@@ -10,6 +10,7 @@
 
 import type { VaultKind } from "@/lib/db/schema";
 import { sameChainAddress } from "./chain-address";
+import { sameFieldHash, toFieldHash } from "./field-hash";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -82,35 +83,13 @@ export interface AgreementResult {
  */
 const eqAddr = (a: string, b: string): boolean => sameChainAddress(a, b);
 /**
- * Same identifier?
- *
- * COMPARED IN THE FIELD, NOT AS TEXT. A campaign id and a mission-plan digest are keccak256 — 256
- * bits — and a Cairo contract stores a felt, which is 251. The Starknet vault therefore holds the
- * reduction of exactly the value the database holds, and a raw hex comparison calls the two
- * different: a founder was told "the vault does not match this plan" about a vault whose campaign
- * id was, after reduction, identical byte for byte.
- *
- * The reduction is deterministic and applied to BOTH sides here, so an EVM vault — which stores
- * the full digest — compares exactly as it always did. Two genuinely different digests colliding
- * under it needs a 251-bit coincidence.
+ * Same identifier, allowing for one side having been stored in a felt. See `field-hash.ts` — this
+ * lived here as its own copy, and an identical copy in `public-identity.ts` had to be found
+ * separately, one stage later, by the same founder hitting the same wall.
  */
-const FIELD_MASK = (BigInt(1) << BigInt(251)) - BigInt(1);
-const eqHex = (a: string, b: string): boolean => {
-  try {
-    return (BigInt(a) & FIELD_MASK) === (BigInt(b) & FIELD_MASK);
-  } catch {
-    return a.toLowerCase() === b.toLowerCase();
-  }
-};
+const eqHex = (a: string, b: string): boolean => sameFieldHash(a, b);
+const missionKeyOf = (hash: string): string => toFieldHash(hash);
 
-/** The same rule for mission ids, which are keyed on chain by their reduced felt. */
-const missionKeyOf = (hash: string): string => {
-  try {
-    return `0x${(BigInt(hash) & FIELD_MASK).toString(16)}`;
-  } catch {
-    return hash.toLowerCase();
-  }
-};
 
 /**
  * Compare the DB plan against the on-chain snapshot. Returns `ok: true` only when

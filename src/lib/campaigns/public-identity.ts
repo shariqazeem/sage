@@ -17,6 +17,7 @@
 import { campaignIdHash, computeCampaignPlan, missionIdHash } from "./mission-plan";
 import { missionSpecDigest } from "./mission-spec";
 import type { Mission } from "@/lib/db/schema";
+import { sameFieldHash } from "./field-hash";
 
 /** The stable, machine-readable identity mismatch reasons. */
 export type PublicIdentityMismatch =
@@ -68,8 +69,15 @@ export interface PublicIdentityResult {
   recomputed: { campaignIdHash: string | null; missionPlanDigest: string | null };
 }
 
-const eqHex = (a?: string | null, b?: string | null): boolean =>
-  (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
+/**
+ * Same identifier, allowing for one side having been stored in a felt.
+ *
+ * This compared raw hex, so an on-chain value that had passed through a Cairo felt read as a
+ * different plan — a founder was told their plan's identity did not match a vault it was bound to
+ * correctly. The identical bug lived in `vault-agreement.ts`; both now share one implementation so
+ * there cannot be a third.
+ */
+const eqHex = (a?: string | null, b?: string | null): boolean => sameFieldHash(a, b);
 
 /** Map a persisted mission row into the identity recompute shape. */
 export function missionToIdentity(m: Mission): IdentityMission {
