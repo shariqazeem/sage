@@ -1,4 +1,5 @@
 import "server-only";
+import { starknetTxUrl } from "@/lib/starknet/explorer";
 
 import { RpcProvider } from "starknet";
 
@@ -51,7 +52,7 @@ const notFound = (txHash: string): StarknetProof => ({
   txHash,
   executionStatus: null,
   blockNumber: null,
-  explorerUrl: `https://voyager.online/tx/${txHash}`,
+  explorerUrl: starknetTxUrl(txHash) ?? "",
   recipient: null,
   amountUsd: null,
   campaignTitle: null,
@@ -95,7 +96,7 @@ export async function composeStarknetProof(txHash: string): Promise<StarknetProo
     txHash: tx,
     executionStatus,
     blockNumber,
-    explorerUrl: `https://voyager.online/tx/${tx}`,
+    explorerUrl: starknetTxUrl(tx) ?? "",
     recipient: sub.wallet,
     amountUsd: campaign.rewardAmount / 1_000_000,
     campaignTitle: campaign.title,

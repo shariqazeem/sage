@@ -1,4 +1,5 @@
 import "server-only";
+import { starknetTxUrl } from "@/lib/starknet/explorer";
 
 import { updateSubmission } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
@@ -151,12 +152,12 @@ export async function settleOnStarknet(
       txHash: result.transactionHash,
       recipient,
       amountBase: Number(rewardBase),
-      explorerUrl: `https://voyager.online/tx/${result.transactionHash}`,
+      explorerUrl: starknetTxUrl(result.transactionHash) ?? "",
     });
     void notifyFounderSettled(campaign, submission, {
       settled: true,
       txHash: result.transactionHash as `0x${string}`,
-      explorerUrl: `https://voyager.online/tx/${result.transactionHash}`,
+      explorerUrl: starknetTxUrl(result.transactionHash) ?? "",
       failedCheckIndex: null,
       reason: null,
       needsOwnerAdd: false,
@@ -169,7 +170,7 @@ export async function settleOnStarknet(
     return {
       settled: true,
       txHash: result.transactionHash,
-      explorerUrl: `https://voyager.online/tx/${result.transactionHash}`,
+      explorerUrl: starknetTxUrl(result.transactionHash) ?? "",
       reason: null,
       recipient,
       rewardBase,

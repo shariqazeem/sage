@@ -28,7 +28,10 @@
   color: var(--ink-muted);
   margin-bottom: 28px;
 }
-.claim-brand strong { color: var(--ink); font-weight: 600; }
+.claim-brand strong {
+  color: var(--ink);
+  font-weight: 600;
+}
 
 .claim-state h2 {
   font-size: var(--fs-h2);
@@ -66,7 +69,10 @@
   white-space: nowrap;
 }
 
-.claim-field { display: block; margin-bottom: 16px; }
+.claim-field {
+  display: block;
+  margin-bottom: 16px;
+}
 .claim-field span {
   display: block;
   font-size: 0.8125rem;
@@ -88,7 +94,9 @@
   outline-offset: 1px;
   border-color: var(--accent);
 }
-.claim-field input[aria-invalid="true"] { border-color: var(--err); }
+.claim-field input[aria-invalid="true"] {
+  border-color: var(--err);
+}
 
 .claim-button {
   width: 100%;
@@ -106,8 +114,13 @@
   cursor: pointer;
   transition: opacity var(--dur-1) var(--ease-out);
 }
-.claim-button:hover:not(:disabled) { opacity: 0.9; }
-.claim-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.claim-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.claim-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 /* Green is reserved for money outcomes. This is one. */
 .claim-done {
@@ -142,7 +155,9 @@
   font-weight: 500;
   text-decoration: none;
 }
-.claim-tx:hover { text-decoration: underline; }
+.claim-tx:hover {
+  text-decoration: underline;
+}
 
 .claim-fineprint {
   display: flex;
@@ -153,13 +168,24 @@
   line-height: 1.5;
   color: var(--ink-faint);
 }
-.claim-fineprint svg { flex: none; margin-top: 2px; }
+.claim-fineprint svg {
+  flex: none;
+  margin-top: 2px;
+}
 
-.claim-spin { animation: claim-spin 0.9s linear infinite; }
-@keyframes claim-spin { to { transform: rotate(360deg); } }
+.claim-spin {
+  animation: claim-spin 0.9s linear infinite;
+}
+@keyframes claim-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .claim-spin { animation: none; }
+  .claim-spin {
+    animation: none;
+  }
 }
 
 /* The private door — offered under the public one, never instead of it. */
@@ -174,7 +200,10 @@
   line-height: 1.55;
   color: var(--ink-muted);
 }
-.claim-private-note strong { color: var(--ink); font-weight: 600; }
+.claim-private-note strong {
+  color: var(--ink);
+  font-weight: 600;
+}
 
 .claim-private-btn {
   width: 100%;
@@ -192,8 +221,14 @@
   font-weight: 500;
   cursor: pointer;
 }
-.claim-private-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.claim-private-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.claim-private-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.claim-private-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* Green is reserved for money outcomes. A collected payout is one. */
 .claim-private-ok {
@@ -204,4 +239,37 @@
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ok);
+}
+
+/* THE PUBLIC ROUTE, FOLDED AWAY.
+   It used to lead, so a worker collecting on the private rail met a field asking for the address
+   they were trying not to link this income to. Present and one click away, not first. */
+.claim-public {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.claim-public > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  list-style: none;
+}
+
+.claim-public > summary::-webkit-details-marker {
+  display: none;
+}
+
+.claim-public > summary::after {
+  content: " +";
+  color: var(--accent);
+}
+
+.claim-public[open] > summary::after {
+  content: " −";
+}
+
+.claim-public > summary:hover {
+  color: var(--ink);
 }

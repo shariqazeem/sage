@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { starknetTxUrl } from "@/lib/starknet/explorer";
 import { ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
 
 import { claimCommitment, secretFromUrl } from "@/lib/starknet/claim-link";
@@ -90,7 +91,11 @@ export function ClaimClient({
         setStatus({ kind: "ready", amountUsd: status.amountUsd });
         return;
       }
-      setStatus({ kind: "done", amountUsd: status.amountUsd, txHash: data.txHash });
+      setStatus({
+        kind: "done",
+        amountUsd: status.amountUsd,
+        txHash: data.txHash,
+      });
     } catch {
       setError("The collection could not be submitted.");
       setStatus({ kind: "ready", amountUsd: status.amountUsd });
@@ -103,7 +108,8 @@ export function ClaimClient({
   if (status.kind === "reading") {
     return (
       <p className="claim-muted">
-        <Loader2 className="claim-spin" size={16} aria-hidden /> Checking your link…
+        <Loader2 className="claim-spin" size={16} aria-hidden /> Checking your
+        link…
       </p>
     );
   }
@@ -113,8 +119,9 @@ export function ClaimClient({
       <div className="claim-state">
         <h2>This isn&rsquo;t a claim link</h2>
         <p className="claim-muted">
-          A claim link looks like <code>sagepays.xyz/claim#…</code> and is sent to you when Sage
-          pays you for work. Opening this page on its own has nothing to collect.
+          A claim link looks like <code>sagepays.xyz/claim#…</code> and is sent
+          to you when Sage pays you for work. Opening this page on its own has
+          nothing to collect.
         </p>
       </div>
     );
@@ -125,8 +132,8 @@ export function ClaimClient({
       <div className="claim-state">
         <h2>Couldn&rsquo;t check your link</h2>
         <p className="claim-muted">
-          Sage could not reach the network just now. Your money is unaffected — it is held by the
-          contract, not by this page. Try again in a moment.
+          Sage could not reach the network just now. Your money is unaffected —
+          it is held by the contract, not by this page. Try again in a moment.
         </p>
       </div>
     );
@@ -137,8 +144,9 @@ export function ClaimClient({
       <div className="claim-state">
         <h2>Nothing is waiting behind this link</h2>
         <p className="claim-muted">
-          No payout was found for it. The most common reason is an incomplete link — they are long,
-          and copying one by hand usually drops the end. Try opening it from the original message.
+          No payout was found for it. The most common reason is an incomplete
+          link — they are long, and copying one by hand usually drops the end.
+          Try opening it from the original message.
         </p>
       </div>
     );
@@ -149,8 +157,8 @@ export function ClaimClient({
       <div className="claim-state">
         <h2>Already collected</h2>
         <p className="claim-muted">
-          This payout has been collected. A link can only be opened once, which is what stops
-          anyone else from spending it after you.
+          This payout has been collected. A link can only be opened once, which
+          is what stops anyone else from spending it after you.
         </p>
       </div>
     );
@@ -164,17 +172,28 @@ export function ClaimClient({
         </div>
         <h2>{amount(status.amountUsd)} is in your private note</h2>
         <p className="claim-muted">
-          It went into the privacy pool rather than to a public address, so the amount never
-          appears against your wallet. Your wallet can see it; nobody else can.
+          It went into the privacy pool rather than to a public address, so the
+          amount never appears against your wallet. Your wallet can see it;
+          nobody else can.
         </p>
-        <a
-          className="claim-tx"
-          href={`https://voyager.online/tx/${status.txHash}`}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          View the transaction <ArrowRight size={14} aria-hidden />
-        </a>
+        {/* The hash is empty whenever the CHAIN observed the collection before the wallet
+            returned — a real outcome, not an error. Rendering the anchor anyway produced
+            `…/tx/`, a dead page offered to someone who had just been paid. */}
+        {starknetTxUrl(status.txHash) ? (
+          <a
+            className="claim-tx"
+            href={starknetTxUrl(status.txHash)!}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            View the transaction <ArrowRight size={14} aria-hidden />
+          </a>
+        ) : (
+          <p className="claim-muted">
+            Your wallet completed it privately, so there is no public
+            transaction to show here — the note is in your wallet.
+          </p>
+        )}
       </div>
     );
   }
@@ -187,17 +206,19 @@ export function ClaimClient({
         </div>
         <h2>{amount(status.amountUsd)} is on its way</h2>
         <p className="claim-muted">
-          It was sent to the address you gave. Sage paid the network fee, so the full amount
-          arrives.
+          It was sent to the address you gave. Sage paid the network fee, so the
+          full amount arrives.
         </p>
-        <a
-          className="claim-tx"
-          href={`https://voyager.online/tx/${status.txHash}`}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          View the transaction <ArrowRight size={14} aria-hidden />
-        </a>
+        {starknetTxUrl(status.txHash) && (
+          <a
+            className="claim-tx"
+            href={starknetTxUrl(status.txHash)!}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            View the transaction <ArrowRight size={14} aria-hidden />
+          </a>
+        )}
       </div>
     );
   }
@@ -208,47 +229,11 @@ export function ClaimClient({
       <p className="claim-label">Waiting for you</p>
       <h2 className="claim-amount">{amount(status.amountUsd)}</h2>
       <p className="claim-muted">
-        Tell Sage where to send it. Any Starknet address works — including one you make right now.
-        You need no account here, and you do not need to hold anything to receive this.
-      </p>
-
-      <label className="claim-field">
-        <span>Starknet address</span>
-        <input
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          placeholder="0x…"
-          spellCheck={false}
-          autoComplete="off"
-          disabled={sending}
-          aria-invalid={recipient.length > 0 && !addressLooksValid}
-        />
-      </label>
-
-      {error ? (
-        <p className="claim-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <button
-        className="claim-button"
-        onClick={collect}
-        disabled={!addressLooksValid || sending}
-      >
-        {sending ? (
-          <>
-            <Loader2 className="claim-spin" size={16} aria-hidden /> Sending…
-          </>
-        ) : (
-          <>Collect {amount(status.amountUsd)}</>
-        )}
-      </button>
-
-      <p className="claim-fineprint">
-        <ShieldCheck size={14} aria-hidden />
-        Sage pays the network fee. Nobody — Sage included — can send this anywhere except where you
-        say, and the link stops working the moment it is used.
+        This is yours to collect. Collecting <b>privately</b> keeps the amount
+        off your public record — it lands in a note only your wallet can see.
+        You can send it to any Starknet address instead if you would rather. You
+        need no account here, and you do not need to hold anything to receive
+        this.
       </p>
 
       {secret && claims && token ? (
@@ -257,10 +242,61 @@ export function ClaimClient({
           claims={claims}
           token={token}
           onCollected={(txHash) =>
-            setStatus({ kind: "done-private", amountUsd: status.amountUsd, txHash })
+            setStatus({
+              kind: "done-private",
+              amountUsd: status.amountUsd,
+              txHash,
+            })
           }
         />
       ) : null}
+
+      {/* THE PUBLIC ROUTE, SECOND AND FOLDED AWAY.
+          It used to lead, so the first thing a worker met on a private-capable payout was a field
+          asking for the address they were trying not to link this income to. The private note is
+          what this rail is for; a public address is the fallback for someone who wants one. */}
+      <details className="claim-public">
+        <summary>Or send it to a public Starknet address</summary>
+        <label className="claim-field">
+          <span>Starknet address</span>
+          <input
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+            placeholder="0x…"
+            spellCheck={false}
+            autoComplete="off"
+            disabled={sending}
+            aria-invalid={recipient.length > 0 && !addressLooksValid}
+          />
+        </label>
+
+        {error ? (
+          <p className="claim-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <button
+          className="claim-button"
+          onClick={collect}
+          disabled={!addressLooksValid || sending}
+        >
+          {sending ? (
+            <>
+              <Loader2 className="claim-spin" size={16} aria-hidden /> Sending…
+            </>
+          ) : (
+            <>Collect {amount(status.amountUsd)}</>
+          )}
+        </button>
+
+        <p className="claim-fineprint">
+          <ShieldCheck size={14} aria-hidden />
+          Sage pays the network fee. Nobody — Sage included — can send this
+          anywhere except where you say, and the link stops working the moment
+          it is used.
+        </p>
+      </details>
     </div>
   );
 }

@@ -108,7 +108,7 @@ describe("the collection screen", () => {
 
     await waitFor(() => expect(screen.getByText(/on its way/i)).toBeTruthy());
     const link = screen.getByRole("link", { name: /view the transaction/i });
-    expect(link.getAttribute("href")).toBe("https://voyager.online/tx/0xdeadbeef");
+    expect(link.getAttribute("href")).toBe("https://starkscan.co/tx/0xdeadbeef");
   });
 
   it("surfaces the server's refusal instead of a generic failure", async () => {

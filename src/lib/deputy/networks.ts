@@ -78,7 +78,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     chipLabel: "Starknet",
     // A Starknet RPC, unreachable by viem — kept truthful rather than blank, and guarded by `evm`.
     rpcUrl: "https://rpc.starknet.lava.build:443",
-    explorerUrl: "https://voyager.online",
+    explorerUrl: "https://starkscan.co",
     usdcAddress: null,
     nativeSymbol: "STRK",
     nativeName: "Starknet Token",

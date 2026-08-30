@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { starknetTxUrl } from "@/lib/starknet/explorer";
 import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 
 import { createStore } from "@starknet-io/get-starknet-discovery";
@@ -226,10 +227,10 @@ export function PrivateCollect({
           <ShieldCheck size={14} aria-hidden /> Collected into a private note
         </p>
 
-        {state.txHash ? (
+        {starknetTxUrl(state.txHash) ? (
           <a
             className="claim-tx"
-            href={`https://voyager.online/tx/${state.txHash}`}
+            href={starknetTxUrl(state.txHash)!}
             target="_blank"
             rel="noreferrer noopener"
           >
@@ -261,7 +262,7 @@ export function PrivateCollect({
   return (
     <div className="claim-private">
       <p className="claim-private-note">
-        Or collect into a <strong>private note</strong>, so the amount never appears against your
+        Collect into a <strong>private note</strong>, so the amount never appears against your
         address. Needs a wallet already registered with the privacy pool.
       </p>
       {wallets.map((w, i) => {
