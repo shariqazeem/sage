@@ -206,6 +206,23 @@ export function planVaultDeployment(args: {
   if (!args.missions.length) {
     throw new Error("a vault with no missions could never pay anyone");
   }
+  /**
+   * FAIL BEFORE THE FOUNDER SIGNS, NOT AFTER.
+   *
+   * The contract already refuses both of these — `add_mission` asserts a non-zero reward and a
+   * non-zero cap — so this is not what stands between a worker and an unpayable mission. What it
+   * changes is WHERE the founder meets the problem: deploy, fund and every add_mission go out as
+   * one multicall, so a zero here reverts the whole thing on chain, after they have approved a
+   * wallet transaction and paid the gas, with ZERO_AMOUNT as the only explanation. Refusing it
+   * here costs nothing and says which mission.
+   */
+  for (const m of args.missions) {
+    if (m.rewardBase <= BigInt(0) || m.maxCompletions < 1) {
+      throw new Error(
+        `mission ${m.missionId} pays ${m.rewardBase} across ${m.maxCompletions} completions — the vault would refuse it`,
+      );
+    }
+  }
   // The ceiling is what the contract enforces; funding it below that is allowed (a founder may
   // top up later) but funding ABOVE the ceiling strands money the vault will never release.
   if (args.fundingBase > args.budgetCeilingBase) {
