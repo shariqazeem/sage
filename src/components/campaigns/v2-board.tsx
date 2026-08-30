@@ -178,8 +178,16 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const [materialized, setMaterialized] = useState(false);
   const hadBrief = useRef(false);
 
+  /**
+   * Signed in ON THE RAIL THAT PAYS — one expression, used by the sign-in gate, by this loader,
+   * and by everything gated behind them, so they can never disagree about which wallet counts.
+   */
+  const signedIn = rail === "starknet" ? starknet.authed : siwe.authed;
+
   const loadMine = useCallback(async () => {
-    if (!siwe.authed) { setMine(null); return; }
+    // Was `!siwe.authed`, so on the private rail a tester's OWN submission was never fetched: the
+    // board stayed empty after they submitted, and the server route it calls is rail-aware.
+    if (!signedIn) { setMine(null); return; }
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/me?mission=${mission.missionIdHash}`, { cache: "no-store" });
       const json = (await res.json()) as { submission: MySubmission | null };
@@ -189,7 +197,7 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       hadBrief.current = hasVerdict;
       setMine(next);
     } catch { /* retry next poll */ }
-  }, [campaignId, mission.missionIdHash, siwe.authed]);
+  }, [campaignId, mission.missionIdHash, signedIn]);
 
   useEffect(() => { void loadMine(); }, [loadMine]);
 
@@ -407,20 +415,28 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
             </div>
           ) : !live ? (
             <div className="v2-full">This mission isn&apos;t open for submissions right now.</div>
-          ) : rail === "starknet" ? (
-            starknet.authed ? null : (
-              /* The wallet that signs in is the wallet that gets PAID, so on the private rail it
-                 has to be the Starknet one. Offering an EVM sign-in here left a tester holding a
-                 Ready wallet with no way to submit at all. */
+          ) : !signedIn ? (
+            /**
+             * SIGN IN ON THE RAIL THAT PAYS. The wallet that signs in is the wallet that gets
+             * PAID, so on the private rail it has to be the Starknet one — offering an EVM
+             * sign-in here left a tester holding a Ready wallet with no way to submit.
+             *
+             * ONLY the signed-out case branches by rail. It used to branch for BOTH, and the
+             * signed-IN Starknet case rendered `null`: a tester who connected Ready and signed
+             * successfully saw no submit control at all, because the button and the form live in
+             * the tail below and only the EVM path ever reached them. Reported from the live
+             * Starknet campaign. Both rails now converge here once the wallet has proved itself.
+             */
+            rail === "starknet" ? (
               <StarknetSubmitGate starknet={starknet} />
+            ) : (
+              <>
+                <button className="sage-btn sage-btn-primary" disabled={siwe.signingIn} onClick={() => void siwe.signIn()}>
+                  {siwe.signingIn ? <><Loader2 size={15} className="sage-spin2" /> Signing…</> : siwe.address ? <><ShieldCheck size={15} /> Sign in to submit</> : "Connect wallet to submit"}
+                </button>
+                <p className="tb-sig">A free signature — it just proves the wallet is yours. No gas, no transaction.</p>
+              </>
             )
-          ) : !siwe.authed ? (
-            <>
-              <button className="sage-btn sage-btn-primary" disabled={siwe.signingIn} onClick={() => void siwe.signIn()}>
-                {siwe.signingIn ? <><Loader2 size={15} className="sage-spin2" /> Signing…</> : siwe.address ? <><ShieldCheck size={15} /> Sign in to submit</> : "Connect wallet to submit"}
-              </button>
-              <p className="tb-sig">A free signature — it just proves the wallet is yours. No gas, no transaction.</p>
-            </>
           ) : !open ? (
             <button className="sage-btn sage-btn-primary" onClick={() => setOpen(true)}>Submit evidence</button>
           ) : (
