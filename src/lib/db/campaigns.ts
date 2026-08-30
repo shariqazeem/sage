@@ -432,7 +432,18 @@ export function createSubmission(input: {
 export function updateSubmission(
   id: string,
   patch: Partial<
-    Pick<Submission, "status" | "rejectReason" | "payoutTx" | "decidedAt">
+    Pick<
+      Submission,
+      | "status"
+      | "rejectReason"
+      | "payoutTx"
+      | "decidedAt"
+      // The private rail settles into a claim rather than to an address, so the payout's identity
+      // is these three rather than a single tx hash.
+      | "claimSecret"
+      | "claimCommitment"
+      | "claimEscrowTx"
+    >
   >,
 ): void {
   db.update(submissions).set(patch).where(eq(submissions.id, id)).run();

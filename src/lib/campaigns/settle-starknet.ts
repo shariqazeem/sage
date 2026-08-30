@@ -6,7 +6,10 @@ import { nowSeconds } from "@/lib/db/keys";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { derivePayoutIntent } from "@/lib/campaigns/settle-core";
 import { getDecisionBySubmission } from "@/lib/db/campaigns";
-import { requestVaultPayout } from "@/lib/starknet/vault";
+import { payoutRouteFor, requestVaultPayout } from "@/lib/starknet/vault";
+import { escrowPayouts } from "@/lib/starknet/claims";
+import { mintClaimSecrets } from "@/lib/starknet/claim-link";
+import { starknetConfig } from "@/lib/starknet/config";
 import { announceCampaignSettledStarknet } from "@/lib/telegram/bot";
 import { notifyFounderSettled } from "@/lib/telegram/founder-notify";
 import { feltOf, toFelt } from "@/lib/starknet/felt";
@@ -53,6 +56,9 @@ const held = (reason: string): StarknetSettleOutcome => ({
 });
 
 /** Starknet addresses are felts: 0x and up to 64 hex digits. An EVM address is not one. */
+/** How long a worker has to open their claim before Sage can take it back. */
+const CLAIM_EXPIRY_SECONDS = 90 * 24 * 3600;
+
 const isStarknetAddress = (v: string): boolean => /^0x[0-9a-fA-F]{1,64}$/.test(v);
 
 /**
@@ -109,11 +115,35 @@ export async function settleOnStarknet(
     getDecisionBySubmission(submission.id),
   );
 
+  /**
+   * PUBLIC PAYOUT, OR ESCROWED BEHIND A CLAIM?
+   *
+   * Sage cannot pay into a shielded note. The privacy pool's viewing key lives in the WALLET and
+   * only the wallet can reach the proving service, so no server will ever send shielded USDC the
+   * way GOAT sends public USDC. A claim link is not a workaround for that — it is the only shape a
+   * private payout can take: the vault releases the reward to Sage, Sage escrows it behind a
+   * commitment, and the worker opens it themselves, publicly or privately, to any address.
+   *
+   * The route is decided by the vault's CLASS, never by preference. A vault predating the split
+   * has no `request_payout_to`, and asking it reverts as an unknown selector — a cleared worker
+   * who cannot be paid. Those campaigns keep paying publicly, exactly as they did before.
+   */
+  const route = await payoutRouteFor(vaultAddress);
+  const cfg = starknetConfig();
+  const escrowTarget = route === "split" ? cfg?.accountAddress : null;
+  // Minted BEFORE the vault is asked, so the money is never released without a commitment to
+  // escrow it behind. Sage holds the refund secret; the worker gets the claim secret.
+  const secrets = escrowTarget ? mintClaimSecrets() : null;
+
   try {
     const result = await requestVaultPayout({
       vaultAddress,
       missionId: toFelt(missionId),
       recipient,
+      // On the private route the vault pays SAGE, which escrows it in the same breath. The worker
+      // stays the vault's replay key and the name on the receipt, so a two-slot mission still pays
+      // two different people — that is the whole reason the entrypoint was split.
+      payoutTarget: escrowTarget ?? undefined,
       // A decision digest is optional upstream (a legacy payout has none); the vault requires a
       // non-zero commitment, so fall back to the intent, which is itself decision-bound whenever a
       // decision exists.
@@ -125,6 +155,55 @@ export async function settleOnStarknet(
       // A refusal is a SUCCESSFUL transaction that moved nothing. Recording it as paid because the
       // transaction succeeded is the exact mistake this reads the events to avoid.
       return held(`the vault refused this payout: ${result.reason}`);
+    }
+
+    /**
+     * THE ESCROW LEG. The vault has released the reward to Sage; nothing is owed to the worker
+     * until it sits behind their commitment.
+     *
+     * Ordered vault-first on purpose. If the escrow fails here, Sage is holding money the vault
+     * has already accounted for — recoverable, and nobody has been told they were paid. The
+     * reverse order would escrow from Sage's own float, unbounded by the vault, which is exactly
+     * the guarantee this product is built on.
+     */
+    if (secrets && escrowTarget) {
+      try {
+        const escrow = await escrowPayouts(
+          [
+            {
+              claimCommitment: secrets.claimCommitment,
+              refundCommitment: secrets.refundCommitment,
+              amountBase: rewardBase,
+            },
+          ],
+          Math.floor(Date.now() / 1000) + CLAIM_EXPIRY_SECONDS,
+        );
+        updateSubmission(submission.id, {
+          status: "paid",
+          payoutTx: result.transactionHash,
+          claimSecret: secrets.claimSecret,
+          claimCommitment: secrets.claimCommitment,
+          claimEscrowTx: escrow.transactionHash,
+          decidedAt: nowSeconds(),
+        });
+        return {
+          settled: true,
+          txHash: result.transactionHash,
+          explorerUrl: starknetTxUrl(result.transactionHash) ?? "",
+          reason: null,
+          recipient,
+          rewardBase,
+        };
+      } catch (err) {
+        // The vault paid and the escrow did not. Held, never failed: the submission stays
+        // unsettled so the next sweep retries, and the reason names what happened rather than
+        // reporting a payout the worker cannot reach.
+        return held(
+          `the vault released the reward but escrowing it behind a claim failed — ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
     }
 
     updateSubmission(submission.id, {

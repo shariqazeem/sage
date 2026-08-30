@@ -2,11 +2,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requestVaultPayout = vi.fn();
 const updateSubmission = vi.fn();
+const payoutRouteFor = vi.fn(async (_v: string): Promise<"split" | "direct"> => "direct");
+const escrowPayouts = vi.fn(async () => ({ transactionHash: "0xescrow", totalBase: BigInt(0), count: 1 }));
+/** Sage's own Starknet account — the pass-through the vault pays on the private route. */
+const SAGE_OPERATOR = "0x46a1747d854e74e5082c3215841b26dcff182a6a6fd7a1f83c3e1d045996101";
 const announceCampaignSettledStarknet = vi.fn(async () => {});
 const notifyFounderSettled = vi.fn(async () => {});
 
 vi.mock("@/lib/starknet/vault", () => ({
   requestVaultPayout: (...a: unknown[]) => requestVaultPayout(...a),
+  // Default DIRECT: these tests were written for the public route and must keep asserting it, so
+  // the private route cannot quietly become the default without a test saying so.
+  payoutRouteFor: (...a: unknown[]) => payoutRouteFor(...(a as [string])),
+}));
+vi.mock("@/lib/starknet/claims", () => ({
+  escrowPayouts: (...a: unknown[]) => escrowPayouts(...(a as [])),
+}));
+vi.mock("@/lib/starknet/config", () => ({
+  starknetConfig: () => ({
+    rpcUrl: "https://rpc.test", claimsAddress: "0x6fe", tokenAddress: "0x033",
+    accountAddress: SAGE_OPERATOR, privateKey: "0x1",
+  }),
+  starknetAddresses: () => ({ claims: "0x6fe", token: "0x033", rpcUrl: "https://rpc.test" }),
 }));
 vi.mock("@/lib/db/campaigns", () => ({
   updateSubmission: (...a: unknown[]) => updateSubmission(...a),
@@ -53,6 +70,8 @@ const submission = (over: Partial<Submission> = {}) =>
 beforeEach(() => {
   requestVaultPayout.mockReset();
   updateSubmission.mockReset();
+  payoutRouteFor.mockReset().mockResolvedValue("direct");
+  escrowPayouts.mockReset().mockResolvedValue({ transactionHash: "0xescrow", totalBase: BigInt(0), count: 1 });
   announceCampaignSettledStarknet.mockClear();
   notifyFounderSettled.mockClear();
   requestVaultPayout.mockResolvedValue({
@@ -226,5 +245,114 @@ describe("who is told about a Starknet payout", () => {
     const out = await settleOnStarknet(campaign(), submission());
     expect(out.settled).toBe(true);
     expect(out.txHash).toBe("0xabc");
+  });
+});
+
+/**
+ * THE PRIVATE ROUTE.
+ *
+ * Sage cannot pay into a shielded note: the pool's viewing key lives in the wallet, and only the
+ * wallet reaches the proving service. So a private payout is the vault releasing the reward to
+ * Sage and Sage escrowing it behind the worker's commitment — the worker opens it themselves,
+ * publicly or privately, to any address. The income is never glued to the identity they submitted
+ * with.
+ *
+ * The vault stays the cap either way: it derives the amount, and Sage can only escrow what was
+ * released. Escrowing from Sage's own float would be unbounded money, which is the one thing this
+ * product exists to prevent.
+ */
+describe("paying a worker privately", () => {
+  const privateRail = () => payoutRouteFor.mockResolvedValue("split");
+
+  it("asks the vault to pay SAGE, with the worker still named as the earner", async () => {
+    privateRail();
+    await settleOnStarknet(campaign(), submission());
+    const args = requestVaultPayout.mock.calls[0]![0] as { recipient: string; payoutTarget?: string };
+    // The worker is the vault's replay key and the name on the receipt; only the destination moves.
+    // That is what lets a two-slot mission pay two different people into one escrow.
+    expect(BigInt(args.recipient)).toBe(BigInt(WORKER));
+    expect(BigInt(args.payoutTarget!)).toBe(BigInt(SAGE_OPERATOR));
+  });
+
+  it("escrows EXACTLY what the vault released, behind a fresh commitment", async () => {
+    privateRail();
+    await settleOnStarknet(campaign(), submission());
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [
+      { claimCommitment: string; refundCommitment: string; amountBase: bigint }[],
+      number,
+    ];
+    expect(legs).toHaveLength(1);
+    expect(legs[0].amountBase).toBe(BigInt(500_000));
+    expect(legs[0].claimCommitment).not.toBe(legs[0].refundCommitment);
+  });
+
+  it("records the claim so the worker can be handed it once", async () => {
+    privateRail();
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(true);
+    const patch = updateSubmission.mock.calls[0]![1] as Record<string, unknown>;
+    expect(patch.status).toBe("paid");
+    expect(patch.claimSecret).toMatch(/^0x[0-9a-f]+$/);
+    expect(patch.claimCommitment).toBeTruthy();
+    expect(patch.claimEscrowTx).toBe("0xescrow");
+  });
+
+  it("VAULT FIRST — nothing is escrowed before the vault has released it", async () => {
+    privateRail();
+    const order: string[] = [];
+    requestVaultPayout.mockImplementation(async () => {
+      order.push("vault");
+      return { paid: true, transactionHash: "0xabc", code: 0, reason: "paid" };
+    });
+    escrowPayouts.mockImplementation(async () => {
+      order.push("escrow");
+      return { transactionHash: "0xescrow", totalBase: BigInt(0), count: 1 };
+    });
+    await settleOnStarknet(campaign(), submission());
+    // The other order escrows from Sage's own float — money the vault never bounded.
+    expect(order).toEqual(["vault", "escrow"]);
+  });
+
+  it("HOLDS when the vault paid but the escrow failed — never reports a payout nobody can reach", async () => {
+    privateRail();
+    escrowPayouts.mockImplementation(async () => {
+      throw new Error("deposit reverted");
+    });
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    expect(out.reason).toMatch(/escrowing it behind a claim failed/i);
+    // Held, not marked paid: the next sweep retries and nobody was told they were paid.
+    expect(updateSubmission).not.toHaveBeenCalled();
+  });
+
+  it("escrows nothing when the vault REFUSED", async () => {
+    privateRail();
+    requestVaultPayout.mockResolvedValue({
+      paid: false, transactionHash: "0xdef", code: 10, reason: "the vault's daily payout cap is reached",
+    });
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    expect(escrowPayouts).not.toHaveBeenCalled();
+  });
+
+  it("leaves a legacy vault paying publicly, with no claim at all", async () => {
+    // Its class has no request_payout_to; asking would revert as an unknown selector.
+    payoutRouteFor.mockResolvedValue("direct");
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(true);
+    expect(escrowPayouts).not.toHaveBeenCalled();
+    const args = requestVaultPayout.mock.calls[0]![0] as { payoutTarget?: string };
+    expect(args.payoutTarget).toBeUndefined();
+    const patch = updateSubmission.mock.calls[0]![1] as Record<string, unknown>;
+    expect(patch.claimSecret).toBeUndefined();
+  });
+
+  it("mints a different secret for every payout", async () => {
+    privateRail();
+    await settleOnStarknet(campaign(), submission());
+    await settleOnStarknet(campaign(), submission({ id: "s2" }));
+    const a = (updateSubmission.mock.calls[0]![1] as Record<string, unknown>).claimSecret;
+    const b = (updateSubmission.mock.calls[1]![1] as Record<string, unknown>).claimSecret;
+    expect(a).not.toBe(b);
   });
 });

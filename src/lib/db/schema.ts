@@ -203,6 +203,16 @@ export const submissions = sqliteTable(
     rejectReason: text("reject_reason"),
     /** settling/blocking tx hash once decided on-chain. */
     payoutTx: text("payout_tx"),
+    /**
+     * A payout escrowed behind a claim commitment instead of sent to an address — the private
+     * rail. `claimSecret` IS the money: whoever holds it collects, which is what makes the
+     * collection unlinkable. Readable only by the worker it belongs to, and cleared once the chain
+     * shows the claim collected. `claimCommitment` is public — the on-chain key, and how Sage asks
+     * whether a claim was collected without knowing the secret.
+     */
+    claimSecret: text("claim_secret"),
+    claimCommitment: text("claim_commitment"),
+    claimEscrowTx: text("claim_escrow_tx"),
     decidedAt: integer("decided_at"),
     createdAt: integer("created_at").notNull(),
     /**
