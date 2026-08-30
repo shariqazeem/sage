@@ -10,6 +10,8 @@ let jar: Map<string, { value: string }>;
 const setCalls: Array<{ name: string; value: string; opts: Record<string, unknown> }> = [];
 let sessionAddr: string | null = null;
 
+let starknetAddr: string | null = null;
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => jar.get(name),
@@ -20,6 +22,11 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionAddress: async () => sessionAddr }));
+/** The ref now resolves the founder on EITHER chain — the EVM address still comes from the SIWE
+ *  session, so every existing ref and the chat history keyed on it are unchanged. */
+vi.mock("@/lib/auth/founder", () => ({
+  getFounderAddress: async () => sessionAddr ?? starknetAddr,
+}));
 
 import { resolveAgentRef } from "./agent-session";
 
@@ -81,5 +88,36 @@ describe("resolveAgentRef — anonymous session", () => {
     const ref = await resolveAgentRef();
     expect(setCalls).toHaveLength(1); // treated as absent → fresh issue
     expect(ref).toMatch(/^anon:[a-f0-9]{32}$/);
+  });
+});
+
+/**
+ * A FOUNDER SIGNED IN WITH A STARKNET WALLET IS STILL A FOUNDER.
+ *
+ * This read the EVM session only, so they resolved to `anon:` — and the agent, which takes its
+ * founder wallet from this ref, answered "no founder wallet bound to this web session" and refused
+ * to author their gig. REPORTED live, with the wallet connected and the network chip reading
+ * Starknet on the same screen.
+ */
+describe("resolveAgentRef — a Starknet founder", () => {
+  it("binds their wallet, rather than treating them as anonymous", async () => {
+    sessionAddr = null;
+    starknetAddr = "0x4f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434";
+    const ref = await resolveAgentRef();
+    expect(ref).toBe(`wallet:${starknetAddr}`);
+    expect(ref.startsWith("anon:")).toBe(false);
+  });
+
+  it("leaves an EVM session resolving exactly as before", async () => {
+    // The ref keys chat history and every campaign bound to it — a changed shape would orphan them.
+    sessionAddr = "0x3A60Af43C67dD9d552F180d30D9a042948078341";
+    starknetAddr = null;
+    expect(await resolveAgentRef()).toBe("wallet:0x3a60af43c67dd9d552f180d30d9a042948078341");
+  });
+
+  it("is still anonymous when nobody is signed in on either chain", async () => {
+    sessionAddr = null;
+    starknetAddr = null;
+    expect(await resolveAgentRef()).toMatch(/^anon:/);
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { getSessionAddress } from "@/lib/auth/session";
+import { getFounderAddress } from "@/lib/auth/founder";
 
 /**
  * P25 — the WEB agent's clientRef. Exactly the Telegram chatId pattern: the SERVER decides the ref, the
@@ -47,7 +47,18 @@ function verify(token: string): string | null {
  * added by the caller (the concierge rate-limit key), so the ref stays a clean namespace here.
  */
 export async function resolveAgentRef(): Promise<string> {
-  const addr = await getSessionAddress();
+  /**
+   * WHICHEVER CHAIN THE FOUNDER SIGNED IN FROM.
+   *
+   * This read the EVM session only, so a founder signed in with a Starknet wallet resolved to
+   * `anon:` — and the agent, which takes its founder wallet from this ref, answered "no founder
+   * wallet bound to this web session" and refused to author their gig. REPORTED live, with the
+   * wallet connected and the network chip reading Starknet on the same screen.
+   *
+   * EVM sessions are unchanged: `getFounderAddress` returns the same address, so the ref, the chat
+   * history keyed on it, and every campaign already bound to it stay byte-identical.
+   */
+  const addr = await getFounderAddress();
   if (addr) return `wallet:${addr.toLowerCase()}`;
 
   const jar = await cookies();
