@@ -22,6 +22,10 @@ const ATTACKER: felt252 = 'ATTACKER';
 const MISSION: felt252 = 'test-the-checkout';
 const DIGEST: felt252 = 'decision-digest';
 const INTENT: felt252 = 'intent-hash';
+const MISSION_2: felt252 = 'second-mission';
+const INTENT_2: felt252 = 'intent-hash-2';
+const ESCROW: felt252 = 'ESCROW';
+const ESCROW_2: felt252 = 'ESCROW_2';
 
 /// $1.40 and a $10 ceiling, in 6-decimal USDC base units.
 const REWARD: u128 = 1_400_000;
@@ -439,4 +443,101 @@ fn the_plan_cannot_be_changed_after_deployment() {
 
     assert!(vault.get_campaign_id_hash() == before_id, "campaign id changed");
     assert!(vault.get_mission_plan_digest() == before_digest, "digest changed");
+}
+
+// ---------------------------------------------------------------------------
+// WHO EARNED IT vs WHERE IT GOES
+//
+// A shielded payout has to land in an escrow the worker later opens with a secret — it can never
+// be sent to their own address, because that address is exactly what they are trying not to link
+// their income to. With one field serving as both identity and destination, the escrow would have
+// to BE the recipient, and "one person, one payout" is keyed on the recipient — so the SECOND
+// worker on a two-slot mission would be refused ALREADY_PAID for a payout that was not theirs.
+// ---------------------------------------------------------------------------
+
+fn pay_to(
+    vault: ISageVaultDispatcher, who: felt252, worker: felt252, target: felt252, intent: felt252,
+) -> u8 {
+    start_cheat_caller_address(vault.contract_address, addr(who));
+    let code = vault.request_payout_to(MISSION, addr(worker), addr(target), DIGEST, intent);
+    stop_cheat_caller_address(vault.contract_address);
+    code
+}
+
+/// The money goes to the target; the worker is who it was FOR.
+#[test]
+fn a_payout_can_land_somewhere_other_than_the_worker() {
+    let (token, vault) = setup();
+    assert!(pay_to(vault, OPERATOR, WORKER, ESCROW, INTENT) == refusal::NONE, "should have paid");
+    assert!(token.balance_of(addr(ESCROW)) == REWARD.into(), "escrow holds the reward");
+    assert!(token.balance_of(addr(WORKER)) == 0, "the worker's own address stays untouched");
+    assert!(vault.get_total_spent() == REWARD, "spend is recorded");
+}
+
+/// THE REASON THE SPLIT EXISTS. Two workers, one two-slot mission, one shared escrow.
+#[test]
+fn two_workers_can_be_paid_into_the_same_escrow() {
+    let (token, vault) = setup();
+    start_cheat_caller_address(vault.contract_address, addr(OWNER));
+    vault.add_mission(MISSION_2, REWARD, 2);
+    stop_cheat_caller_address(vault.contract_address);
+
+    start_cheat_caller_address(vault.contract_address, addr(OPERATOR));
+    let a = vault.request_payout_to(MISSION_2, addr(WORKER), addr(ESCROW), DIGEST, INTENT);
+    let b = vault.request_payout_to(MISSION_2, addr(WORKER_2), addr(ESCROW), DIGEST, INTENT_2);
+    stop_cheat_caller_address(vault.contract_address);
+
+    assert!(a == refusal::NONE, "first worker paid");
+    // Before the split this was ALREADY_PAID: the escrow was the recipient, and the recipient is
+    // the replay key, so the second worker was refused for the first one's payout.
+    assert!(b == refusal::NONE, "second worker paid into the same escrow");
+    assert!(token.balance_of(addr(ESCROW)) == (REWARD * 2).into(), "escrow holds both rewards");
+}
+
+/// The replay key still follows the WORKER, so one person cannot be paid twice for one mission —
+/// not even by varying the destination.
+#[test]
+fn one_worker_still_cannot_be_paid_twice_for_the_same_mission() {
+    let (_token, vault) = setup();
+    assert!(pay_to(vault, OPERATOR, WORKER, ESCROW, INTENT) == refusal::NONE, "first pays");
+    assert!(
+        pay_to(vault, OPERATOR, WORKER, ESCROW_2, INTENT_2) == refusal::ALREADY_PAID,
+        "a new destination is not a new worker",
+    );
+}
+
+/// And the public entrypoint is the same code with both the same — so nothing about the public
+/// rail changed.
+#[test]
+fn request_payout_is_request_payout_to_with_both_the_same() {
+    let (token, vault) = setup();
+    assert!(pay(vault, OPERATOR, WORKER, INTENT) == refusal::NONE, "paid");
+    assert!(token.balance_of(addr(WORKER)) == REWARD.into(), "straight to the worker");
+    assert!(
+        pay_to(vault, OPERATOR, WORKER, WORKER, INTENT_2) == refusal::ALREADY_PAID,
+        "and it shares the replay key with the split entrypoint",
+    );
+}
+
+/// Neither identity may be empty. A zero worker would make the replay key meaningless; a zero
+/// target would burn the money.
+#[test]
+fn a_payout_refuses_an_empty_worker_or_an_empty_target() {
+    let (_token, vault) = setup();
+    assert!(
+        pay_to(vault, OPERATOR, 0, ESCROW, INTENT) == refusal::ZERO_RECIPIENT, "zero worker",
+    );
+    assert!(
+        pay_to(vault, OPERATOR, WORKER, 0, INTENT_2) == refusal::ZERO_RECIPIENT, "zero target",
+    );
+}
+
+/// Every other guard still applies to the split entrypoint — it is the same body.
+#[test]
+fn the_split_entrypoint_is_still_operator_only() {
+    let (_token, vault) = setup();
+    assert!(
+        pay_to(vault, WORKER, WORKER, ESCROW, INTENT) == refusal::NOT_OPERATOR,
+        "a stranger cannot direct a payout anywhere",
+    );
 }

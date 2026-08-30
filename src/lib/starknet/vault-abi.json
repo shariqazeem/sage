@@ -92,6 +92,38 @@
       },
       {
         "type": "function",
+        "name": "request_payout_to",
+        "inputs": [
+          {
+            "name": "mission_id",
+            "type": "core::felt252"
+          },
+          {
+            "name": "worker",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "payout_target",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "decision_digest",
+            "type": "core::felt252"
+          },
+          {
+            "name": "intent_hash",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u8"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
         "name": "fund",
         "inputs": [
           {

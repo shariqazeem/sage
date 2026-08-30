@@ -100,6 +100,27 @@ pub trait ISageVault<T> {
         intent_hash: felt252,
     ) -> u8;
 
+    /// Release ONE completion of `mission_id` EARNED BY `worker`, paying it to `payout_target`.
+    ///
+    /// Separating the two is what lets a private payout exist. On the shielded rail the money must
+    /// land in an escrow the worker later opens with a secret — it can never be sent to their own
+    /// address, because that address is precisely what they are trying not to link their income to.
+    /// With one field serving as both, the escrow would have to BE the recipient, and the vault
+    /// keys "one person, one payout" on the recipient — so the second worker on a two-slot mission
+    /// would be refused ALREADY_PAID for someone else's payout.
+    ///
+    /// `worker` remains the identity for replay and for the receipt; only the destination moves.
+    /// `request_payout` is exactly this with the two the same, so nothing about the public rail
+    /// changes.
+    fn request_payout_to(
+        ref self: T,
+        mission_id: felt252,
+        worker: ContractAddress,
+        payout_target: ContractAddress,
+        decision_digest: felt252,
+        intent_hash: felt252,
+    ) -> u8;
+
     // ── the owner's powers ───────────────────────────────────────────────────────────────────
 
     fn fund(ref self: T, amount: u128);
@@ -271,84 +292,22 @@ pub mod SageVault {
             decision_digest: felt252,
             intent_hash: felt252,
         ) -> u8 {
-            // 1. the vault must be able to pay at all
-            if self.status.read() != VaultStatus::Active {
-                return self.refuse(mission_id, recipient, refusal::NOT_ACTIVE);
-            }
-            // 2. only Sage's operator key may ask
-            if get_caller_address() != self.operator.read() {
-                return self.refuse(mission_id, recipient, refusal::NOT_OPERATOR);
-            }
-            // 3. the mission must exist — and THIS is where the amount comes from. The operator
-            //    passed none, so no caller can inflate a payout.
-            let mission = self.missions.read(mission_id);
-            if !mission.exists {
-                return self.refuse(mission_id, recipient, refusal::NO_SUCH_MISSION);
-            }
-            let reward = mission.reward;
-            // 4. paying nowhere is not paying
-            if recipient.is_zero() {
-                return self.refuse(mission_id, recipient, refusal::ZERO_RECIPIENT);
-            }
-            // 5. a payout must carry its authorisation and its single-use commitment
-            if decision_digest.is_zero() || intent_hash.is_zero() {
-                return self.refuse(mission_id, recipient, refusal::MISSING_DIGESTS);
-            }
-            // 6. one person, one payout, per mission
-            if self.recipient_paid.read((mission_id, recipient)) {
-                return self.refuse(mission_id, recipient, refusal::ALREADY_PAID);
-            }
-            // 7. the mission has completions left
-            if mission.paid_completions >= mission.max_completions {
-                return self.refuse(mission_id, recipient, refusal::MISSION_FULL);
-            }
-            // 8. this exact authorisation has not already settled. The check that survives a sweep
-            //    re-firing, a retry, or a duplicated request.
-            if self.used_intents.read(intent_hash) {
-                return self.refuse(mission_id, recipient, refusal::INTENT_REPLAYED);
-            }
-            // 9. cumulative spend stays under the ceiling fixed at funding
-            let spent = self.total_spent.read();
-            if spent + reward > self.budget_ceiling.read() {
-                return self.refuse(mission_id, recipient, refusal::OVER_BUDGET);
-            }
-            // 10. and under the daily rate, so a runaway is slow enough to notice
-            let window = self.effective_window_spend();
-            if window + reward > self.daily_cap.read() {
-                return self.refuse(mission_id, recipient, refusal::OVER_DAILY_CAP);
-            }
-            // 11. and the money is actually here. Checked last because it is the only condition
-            //     the owner can fix by funding rather than by waiting.
-            let erc20 = IErc20Dispatcher { contract_address: self.token.read() };
-            if erc20.balance_of(get_contract_address()) < reward.into() {
-                return self.refuse(mission_id, recipient, refusal::INSUFFICIENT_BALANCE);
-            }
-
-            // Commit BEFORE transferring. A revert in the token rolls all of this back together,
-            // and nothing here can leave the vault having paid without having recorded it.
-            self.used_intents.write(intent_hash, true);
-            self.recipient_paid.write((mission_id, recipient), true);
-            self
-                .missions
-                .write(
-                    mission_id,
-                    Mission { paid_completions: mission.paid_completions + 1, ..mission },
-                );
-            self.total_spent.write(spent + reward);
-            self.window_spent.write(window + reward);
-            if self.window_start.read() + DAY <= get_block_timestamp() {
-                self.window_start.write(get_block_timestamp());
-            }
-
-            erc20.transfer(recipient, reward.into());
-            self
-                .emit(
-                    PayoutReleased {
-                        mission_id, recipient, amount: reward, decision_digest, intent_hash,
-                    },
-                );
-            refusal::NONE
+            // The public rail: the worker IS the destination. Byte-identical to what this did
+            // before the split, because it is the same code with both arguments the same.
+            self.pay(mission_id, recipient, recipient, decision_digest, intent_hash)
         }
+
+        fn request_payout_to(
+            ref self: ContractState,
+            mission_id: felt252,
+            worker: ContractAddress,
+            payout_target: ContractAddress,
+            decision_digest: felt252,
+            intent_hash: felt252,
+        ) -> u8 {
+            self.pay(mission_id, worker, payout_target, decision_digest, intent_hash)
+        }
+
 
         fn fund(ref self: ContractState, amount: u128) {
             self.only_owner();
@@ -466,6 +425,109 @@ pub mod SageVault {
             } else {
                 self.window_spent.read()
             }
+        }
+
+        /// The one payout path. Both entrypoints land here; only the DESTINATION differs.
+        ///
+        /// `worker` is the identity — the replay key and the receipt. `payout_target` is where the
+        /// money goes. Keeping them apart is what lets a shielded payout exist: the money must
+        /// land in an escrow the worker later opens with a secret, and if the escrow had to be the
+        /// recipient then the second worker on a two-slot mission would be refused ALREADY_PAID
+        /// for a payout that was not theirs.
+        fn pay(
+            ref self: ContractState,
+            mission_id: felt252,
+            worker: ContractAddress,
+            payout_target: ContractAddress,
+            decision_digest: felt252,
+            intent_hash: felt252,
+        ) -> u8 {
+            // 1. the vault must be able to pay at all
+            if self.status.read() != VaultStatus::Active {
+                return self.refuse(mission_id, worker, refusal::NOT_ACTIVE);
+            }
+            // 2. only Sage's operator key may ask
+            if get_caller_address() != self.operator.read() {
+                return self.refuse(mission_id, worker, refusal::NOT_OPERATOR);
+            }
+            // 3. the mission must exist — and THIS is where the amount comes from. The operator
+            //    passed none, so no caller can inflate a payout.
+            let mission = self.missions.read(mission_id);
+            if !mission.exists {
+                return self.refuse(mission_id, worker, refusal::NO_SUCH_MISSION);
+            }
+            let reward = mission.reward;
+            // 4. paying nowhere is not paying — and neither identity may be empty. A zero WORKER
+            //    would make "one person, one payout" meaningless (every payout would share one
+            //    replay key); a zero TARGET would burn the money.
+            if worker.is_zero() || payout_target.is_zero() {
+                return self.refuse(mission_id, worker, refusal::ZERO_RECIPIENT);
+            }
+            // 5. a payout must carry its authorisation and its single-use commitment
+            if decision_digest.is_zero() || intent_hash.is_zero() {
+                return self.refuse(mission_id, worker, refusal::MISSING_DIGESTS);
+            }
+            // 6. one person, one payout, per mission
+            if self.recipient_paid.read((mission_id, worker)) {
+                return self.refuse(mission_id, worker, refusal::ALREADY_PAID);
+            }
+            // 7. the mission has completions left
+            if mission.paid_completions >= mission.max_completions {
+                return self.refuse(mission_id, worker, refusal::MISSION_FULL);
+            }
+            // 8. this exact authorisation has not already settled. The check that survives a sweep
+            //    re-firing, a retry, or a duplicated request.
+            if self.used_intents.read(intent_hash) {
+                return self.refuse(mission_id, worker, refusal::INTENT_REPLAYED);
+            }
+            // 9. cumulative spend stays under the ceiling fixed at funding
+            let spent = self.total_spent.read();
+            if spent + reward > self.budget_ceiling.read() {
+                return self.refuse(mission_id, worker, refusal::OVER_BUDGET);
+            }
+            // 10. and under the daily rate, so a runaway is slow enough to notice
+            let window = self.effective_window_spend();
+            if window + reward > self.daily_cap.read() {
+                return self.refuse(mission_id, worker, refusal::OVER_DAILY_CAP);
+            }
+            // 11. and the money is actually here. Checked last because it is the only condition
+            //     the owner can fix by funding rather than by waiting.
+            let erc20 = IErc20Dispatcher { contract_address: self.token.read() };
+            if erc20.balance_of(get_contract_address()) < reward.into() {
+                return self.refuse(mission_id, worker, refusal::INSUFFICIENT_BALANCE);
+            }
+
+            // Commit BEFORE transferring. A revert in the token rolls all of this back together,
+            // and nothing here can leave the vault having paid without having recorded it.
+            self.used_intents.write(intent_hash, true);
+            self.recipient_paid.write((mission_id, worker), true);
+            self
+                .missions
+                .write(
+                    mission_id,
+                    Mission { paid_completions: mission.paid_completions + 1, ..mission },
+                );
+            self.total_spent.write(spent + reward);
+            self.window_spent.write(window + reward);
+            if self.window_start.read() + DAY <= get_block_timestamp() {
+                self.window_start.write(get_block_timestamp());
+            }
+
+            erc20.transfer(payout_target, reward.into());
+            self
+                .emit(
+                    // The receipt names WHO EARNED IT, not where it landed. Unchanged shape, so
+                    // every existing reader of this event keeps working; the destination is
+                    // visible in the token's own Transfer event.
+                    PayoutReleased {
+                        mission_id,
+                        recipient: worker,
+                        amount: reward,
+                        decision_digest,
+                        intent_hash,
+                    },
+                );
+            refusal::NONE
         }
 
         /// Record the refusal and return its code. Emitting rather than reverting keeps the reason
