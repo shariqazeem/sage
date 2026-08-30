@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { signedInWalletId } from "@/lib/auth/use-starknet-siwe";
 import { Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 
 import { useStarknetWallet, type StarknetWallet } from "@/lib/starknet/use-starknet-wallet";
@@ -85,11 +86,21 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
         setError("No Starknet wallet found in this browser.");
         return;
       }
-      // One wallet is unambiguous. With several, prefer the one already named by the session.
+      /**
+       * One wallet is unambiguous. With several, use the one this session SIGNED IN with — the
+       * vault must be owned by the founder, and that is exactly the wallet that proved itself.
+       *
+       * It used to look only at `discovery.connected` and a name the person had picked in this
+       * component. Sign-in sets neither, so a founder with Ready, Xverse and MetaMask installed
+       * hit "Choose which wallet should own this vault" with nothing offering a choice. REPORTED
+       * live, funding a gig, already signed in with Ready.
+       */
+      const remembered = signedInWalletId();
       const pick =
         candidates.length === 1
           ? candidates[0]
-          : (candidates.find((c) => c.name.toLowerCase() === (pickedName ?? "").toLowerCase()) ??
+          : (candidates.find((c) => c.id === remembered) ??
+            candidates.find((c) => c.name.toLowerCase() === (pickedName ?? "").toLowerCase()) ??
             null);
       if (!pick) {
         setPickedName(null);

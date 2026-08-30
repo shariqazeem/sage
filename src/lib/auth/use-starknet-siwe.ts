@@ -30,6 +30,22 @@ import { refreshFounderSession } from "./use-founder-session";
 /** Which wallet extension signed in, so a later signature goes to the same one. */
 const WALLET_ID_KEY = "sage.starknet.walletId";
 
+/**
+ * The id of the extension this session signed in with, or null.
+ *
+ * Exported because the SIGNATURE path is not the only one that needs it: deploying a vault must
+ * also go to the wallet that signed in, and it was resolving from `discovery.connected` — which
+ * sign-in never sets — then falling back to a name nobody had picked. With more than one wallet
+ * installed that dead-ends on "Choose which wallet should own this vault", with no way to choose.
+ */
+export function signedInWalletId(): string | null {
+  try {
+    return window.localStorage.getItem(WALLET_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export interface StarknetSiweApi {
   wallets: StarknetWallet[];
   address: string | null;

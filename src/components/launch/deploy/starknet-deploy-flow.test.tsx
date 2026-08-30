@@ -32,10 +32,23 @@ const DEPLOY_PLAN = {
 const request = vi.fn();
 const connect = vi.fn();
 let connected: { wallet: { name: string; request: typeof request }; address: string } | null = null;
+/** Several installed extensions — the case that dead-ended on "Choose which wallet". */
+let installed = [{ id: "ready", name: "Ready", request }];
 
+/** The Fund button renders once a founder is SIGNED IN — `address` falls back to the session, not
+ *  to `discovery.connected`. That gap is the bug under test: signed in, button shown, no wallet
+ *  resolvable when it is pressed. */
+let founderChain: "starknet" | "evm" | null = null;
+vi.mock("@/lib/auth/use-founder-session", () => ({
+  useFounderSession: () => ({
+    address: founderChain ? "0x4f1f65" : null,
+    chain: founderChain,
+    loading: false,
+  }),
+}));
 vi.mock("@/lib/starknet/use-starknet-wallet", () => ({
   useStarknetWallet: () => ({
-    wallets: [{ id: "ready", name: "Ready", request }],
+    wallets: installed,
     connected,
     connecting: false,
     error: null,
@@ -48,6 +61,9 @@ const jsonOnce = (body: unknown) => ({ ok: true, json: async () => body }) as Re
 
 beforeEach(() => {
   connected = null;
+  installed = [{ id: "ready", name: "Ready", request }];
+  founderChain = null;
+  window.localStorage.clear();
   request.mockReset();
   connect.mockReset();
 });
@@ -239,5 +255,59 @@ describe("attaching waits for the chain, not the wallet", () => {
       .slice(0, postIndex)
       .filter((c) => (c[1] as RequestInit)?.method !== "POST").length;
     expect(getsBeforePost, "attached before the chain confirmed").toBeGreaterThan(2);
+  });
+});
+
+/**
+ * THE VAULT IS OWNED BY THE WALLET THAT SIGNED IN.
+ *
+ * This resolved the deployer from `discovery.connected` and a name picked inside this component.
+ * Sign-in sets neither, so a founder with Ready, Xverse and MetaMask installed hit "Choose which
+ * wallet should own this vault" — an instruction with nothing offering a choice. REPORTED live
+ * while funding a gig, already signed in with Ready.
+ */
+describe("which wallet deploys the vault", () => {
+  const multiWallet = () => {
+    installed = [
+      { id: "xverse", name: "Xverse", request },
+      { id: "ready", name: "Ready", request },
+      { id: "metamask", name: "MetaMask", request },
+    ];
+  };
+  /** The deploy plan has to load before any button exists to press. */
+  const withPlan = () => vi.stubGlobal("fetch", vi.fn(async () => jsonOnce(DEPLOY_PLAN)));
+  const fundButton = () => screen.findByRole("button", { name: /Fund|Connect/i });
+
+  it("uses the wallet this session signed in with, not discovery order", async () => {
+    multiWallet();
+    founderChain = "starknet";
+    window.localStorage.setItem("sage.starknet.walletId", "ready");
+    connect.mockResolvedValue("0x4f1f65");
+    withPlan();
+    render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
+    await userEvent.click(await fundButton());
+    await waitFor(() => expect(connect).toHaveBeenCalled());
+    // Xverse enumerates first; the wallet that signed in is the one asked.
+    expect((connect.mock.calls[0]![0] as { id: string }).id).toBe("ready");
+  });
+
+  it("still refuses when nothing identifies the wallet — rather than guessing an owner", async () => {
+    // Picking one here would deploy a founder's vault from a wallet they did not choose.
+    founderChain = "starknet";
+    multiWallet();
+    withPlan();
+    render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
+    await userEvent.click(await fundButton());
+    expect(await screen.findByText(/choose which wallet/i)).toBeTruthy();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("needs no hint when only one wallet is installed", async () => {
+    founderChain = "starknet";
+    connect.mockResolvedValue("0x4f1f65");
+    withPlan();
+    render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
+    await userEvent.click(await fundButton());
+    await waitFor(() => expect(connect).toHaveBeenCalled());
   });
 });
