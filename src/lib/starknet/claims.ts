@@ -106,7 +106,7 @@ export async function escrowPayouts(
   validateBatch(legs, expiryUnix);
 
   const totalBase = legs.reduce((sum, l) => sum + l.amountBase, BigInt(0));
-  const { account } = connect(cfg);
+  const { account, provider } = connect(cfg);
 
   const tx = await account.execute([
     {
@@ -131,6 +131,27 @@ export async function escrowPayouts(
       }),
     },
   ]);
+
+  /**
+   * WAIT FOR EXECUTION, NOT FOR ACCEPTANCE.
+   *
+   * `execute` resolves when the sequencer TAKES the transaction, and a reverted one resolves just
+   * as happily — so returning here told the caller an escrow had happened when it might not have.
+   * MEASURED during the mainnet proof: the claim read back as non-existent immediately after this
+   * returned, because the deposit had not been executed yet. That read raced a transaction that
+   * did succeed; the next one might race a transaction that did not, and settlement is about to
+   * mark submissions paid on the strength of this return value.
+   *
+   * The same rule `requestVaultPayout` already follows on the vault side.
+   */
+  const receipt = (await provider.waitForTransaction(tx.transaction_hash)) as {
+    execution_status?: string;
+  };
+  if (receipt.execution_status && receipt.execution_status !== "SUCCEEDED") {
+    throw new Error(
+      `escrow reverted on chain (${receipt.execution_status}) — no claim was opened, tx ${tx.transaction_hash}`,
+    );
+  }
 
   return { transactionHash: tx.transaction_hash, totalBase, count: legs.length };
 }
