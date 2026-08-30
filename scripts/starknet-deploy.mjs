@@ -152,8 +152,68 @@ async function main() {
   }
 
   if (!declared) {
+    /**
+     * BOUND THE FEE OURSELVES, AND SAY WHAT IT WILL COST.
+     *
+     * Starknet requires the account to cover the resource BOUND, not the eventual charge, and
+     * starknet.js defaults to a bound roughly twice the estimate. A declare that would really cost
+     * ~21 STRK therefore asked an account holding 38.85 for a 43.40 ceiling and was refused for
+     * insufficient balance — a confusing failure, because the money was there for the actual cost.
+     *
+     * A 1.6x bound is generous against estimate error while staying far below double, and the
+     * estimate and the bound are both printed, so the number is a decision rather than a surprise.
+     */
+    const est = await account.estimateDeclareFee({ contract: sierra, casm });
+    const strk = (v) => `${(Number(v) / 1e18).toFixed(2)} STRK`;
+    const bound = (v, mult) => (BigInt(v) * BigInt(Math.round(mult * 100))) / BigInt(100);
+    const rb = est.resourceBounds;
+    const bounded = {
+      l1_gas: {
+        max_amount: "0x" + bound(rb.l1_gas.max_amount, 1.6).toString(16),
+        max_price_per_unit: rb.l1_gas.max_price_per_unit,
+      },
+      l1_data_gas: {
+        max_amount: "0x" + bound(rb.l1_data_gas.max_amount, 1.6).toString(16),
+        max_price_per_unit: rb.l1_data_gas.max_price_per_unit,
+      },
+      l2_gas: {
+        max_amount: "0x" + bound(rb.l2_gas.max_amount, 1.6).toString(16),
+        max_price_per_unit: rb.l2_gas.max_price_per_unit,
+      },
+    };
+    const ceiling =
+      BigInt(bounded.l2_gas.max_amount) * BigInt(rb.l2_gas.max_price_per_unit) +
+      BigInt(bounded.l1_data_gas.max_amount) * BigInt(rb.l1_data_gas.max_price_per_unit) +
+      BigInt(bounded.l1_gas.max_amount) * BigInt(rb.l1_gas.max_price_per_unit);
+
+    let balance = null;
+    try {
+      const STRK_TOKEN = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+      const r = await provider.callContract({
+        contractAddress: STRK_TOKEN,
+        entrypoint: "balance_of",
+        calldata: [account.address],
+      });
+      balance = BigInt(r[0]);
+    } catch {
+      /* balance is a courtesy; the chain enforces it regardless */
+    }
+
+    console.log(`estimated  ${strk(est.overall_fee)}`);
+    console.log(`bound      ${strk(ceiling)}  (1.6x — the chain requires you to cover THIS)`);
+    if (balance !== null) {
+      console.log(`balance    ${strk(balance)}`);
+      if (balance < ceiling) {
+        console.error(
+          `\nNot enough STRK to cover the bound. Add ${strk(ceiling - balance)} and run again.`,
+        );
+        console.error(`(The declare itself should only cost about ${strk(est.overall_fee)}.)`);
+        process.exit(1);
+      }
+    }
+    console.log("");
     console.log("declaring…");
-    const res = await account.declareIfNot({ contract: sierra, casm });
+    const res = await account.declareIfNot({ contract: sierra, casm }, { resourceBounds: bounded });
     if (res.transaction_hash) {
       console.log(`  tx ${res.transaction_hash}`);
       await provider.waitForTransaction(res.transaction_hash);
