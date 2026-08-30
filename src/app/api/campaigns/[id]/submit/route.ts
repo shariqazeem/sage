@@ -134,6 +134,7 @@ export async function POST(
   const note = validateOptionalText(body.note, "Note", MAX_ACCOUNT_CHARS);
   if (!note.ok) return NextResponse.json({ error: note.error }, { status: 400 });
 
+  let missionTargetSurface: string | null = null;
   let missionIdHash: string | null = null;
   let missionSpecDigest: string | null = null;
   // P20 retry-while-held: when set, this submit REVISES an existing held observation submission in place
@@ -155,6 +156,7 @@ export async function POST(
       return NextResponse.json({ error: "Choose a mission to submit to." }, { status: 400 });
     }
     const mission = getMissionByKey(id, body.missionKey);
+    missionTargetSurface = mission?.targetSurface ?? null;
     if (!mission || mission.status !== "active") {
       return NextResponse.json({ error: "That mission isn't open for submissions." }, { status: 409 });
     }
@@ -324,6 +326,10 @@ export async function POST(
       note: note.value || null,
       missionIdHash,
       missionSpecDigest,
+      // A link that IS the mission's target distinguishes nobody — every honest tester on a
+      // fixed-target mission lands on the same page, and the second was refused for agreeing
+      // with the first.
+      missionTargetSurface: missionTargetSurface ?? null,
     });
     if (!result.ok) {
       return NextResponse.json({ error: SUBMIT_ERROR[result.error] ?? SUBMIT_ERROR.unknown }, { status: 409 });

@@ -210,6 +210,7 @@ export const submissions = sqliteTable(
      * shows the claim collected. `claimCommitment` is public — the on-chain key, and how Sage asks
      * whether a claim was collected without knowing the secret.
      */
+    evidenceDedupeKey: text("evidence_dedupe_key"),
     claimSecret: text("claim_secret"),
     claimCommitment: text("claim_commitment"),
     claimEscrowTx: text("claim_escrow_tx"),
@@ -230,7 +231,13 @@ export const submissions = sqliteTable(
     uniqueIndex("sub_dedupe_unq").on(t.dedupeKey),
     index("sub_artifact_twin_idx").on(t.campaignId, t.artifactSha256),
     // NULL evidence_url rows don't collide (SQLite treats NULLs as distinct).
-    uniqueIndex("sub_evidence_unq").on(t.campaignId, t.evidenceUrl),
+    /**
+     * Unique only for evidence that DISTINGUISHES one tester from another. Null — and SQLite
+     * allows many nulls here — when the evidence url is the mission's own target surface, because
+     * a fixed-target mission sends every honest tester to the same page and the second one was
+     * being refused for agreeing with the first.
+     */
+    uniqueIndex("sub_evidence_dedupe_unq").on(t.evidenceDedupeKey),
   ],
 );
 

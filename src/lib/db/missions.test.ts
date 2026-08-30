@@ -190,6 +190,23 @@ describe("evidence-URL uniqueness — url-lane replay preserved, observation exe
     if (!second.ok) expect(second.error).toBe("duplicate_evidence");
   });
 
+  it("ACCEPTS two testers landing on the mission's OWN target — that link distinguishes nobody", () => {
+    /**
+     * REPORTED live: a two-slot mission whose target is a fixed page ("land on this contract page
+     * and report what you see") sends every honest tester to the SAME url, and the second was
+     * refused for agreeing with the first. The slot could not be taken at all.
+     *
+     * The replay guard above is unchanged for evidence the TESTER MADE; this is the case where the
+     * link is not evidence about the tester in the first place.
+     */
+    const { campaign } = seedCampaign();
+    const target = "https://starkscan.co/contract/0xabc";
+    const a = createSubmission({ campaignId: campaign.id, wallet: `0x${"6".repeat(40)}`, evidenceUrl: target, missionIdHash: mHash, missionTargetSurface: target });
+    const b = createSubmission({ campaignId: campaign.id, wallet: `0x${"7".repeat(40)}`, evidenceUrl: target, missionIdHash: mHash, missionTargetSurface: target });
+    expect(a.ok).toBe(true);
+    expect(b.ok, "the second tester must be able to take the slot").toBe(true);
+  });
+
   it("ACCEPTS three observation submissions with NULL evidence on one campaign (nulls are distinct)", () => {
     const { campaign } = seedCampaign();
     // exactly what the submit route now stores for an observation mission: evidenceUrl = null.

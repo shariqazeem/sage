@@ -337,6 +337,13 @@
       "when": 1788249600002,
       "tag": "0047_claim_payout",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1788336000002,
+      "tag": "0048_evidence_dedupe",
+      "breakpoints": true
     }
   ]
 }

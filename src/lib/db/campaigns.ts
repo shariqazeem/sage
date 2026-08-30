@@ -385,6 +385,36 @@ export type SubmitResult =
     };
 
 /** Insert a submission; the DB unique indexes enforce dedupe (surfaced politely). */
+/** Compare two urls as urls, so a trailing slash or a case difference is not a different page. */
+const sameUrl = (a: string, b: string): boolean => {
+  const norm = (v: string) => {
+    try {
+      const u = new URL(v.trim());
+      return `${u.origin.toLowerCase()}${u.pathname.replace(/\/+$/, "")}${u.search}`;
+    } catch {
+      return v.trim().toLowerCase().replace(/\/+$/, "");
+    }
+  };
+  return norm(a) === norm(b);
+};
+
+/**
+ * The key evidence uniqueness is enforced on, or null when this evidence distinguishes nobody.
+ *
+ * Null for a link that IS the mission's target surface, and null when there is no link at all.
+ * Everything else — an artifact the tester made — stays unique per campaign, which is what stops
+ * one person submitting the same proof from a row of wallets.
+ */
+export function evidenceDedupeKey(
+  campaignId: string,
+  evidenceUrl: string | null,
+  missionTargetSurface: string | null,
+): string | null {
+  if (!evidenceUrl?.trim()) return null;
+  if (missionTargetSurface && sameUrl(evidenceUrl, missionTargetSurface)) return null;
+  return `${campaignId}|${evidenceUrl.trim().toLowerCase()}`;
+}
+
 export function createSubmission(input: {
   campaignId: string;
   wallet: string;
@@ -394,6 +424,15 @@ export function createSubmission(input: {
   missionIdHash?: string | null;
   /** V2: the MissionSpecV1 digest captured for this submission (integrity anchor). */
   missionSpecDigest?: string | null;
+  /**
+   * The mission's own target surface, when this submission targets a mission.
+   *
+   * Evidence uniqueness applies to evidence that DISTINGUISHES one tester from another — a page
+   * they published, an artifact carrying their wallet. A link that IS the mission's target
+   * distinguishes nobody: "land on this contract page" sends every honest tester to the same url,
+   * and the second one was refused for agreeing with the first.
+   */
+  missionTargetSurface?: string | null;
 }): SubmitResult {
   const id = nanoid(12);
   const row: NewSubmission = {
@@ -409,6 +448,11 @@ export function createSubmission(input: {
     dedupeKey: input.missionIdHash
       ? missionDedupeKey(input.missionIdHash, input.wallet)
       : dedupeKey(input.campaignId, input.wallet),
+    evidenceDedupeKey: evidenceDedupeKey(
+      input.campaignId,
+      input.evidenceUrl ?? null,
+      input.missionTargetSurface ?? null,
+    ),
     status: "pending",
     createdAt: nowSeconds(),
   };
@@ -419,11 +463,14 @@ export function createSubmission(input: {
     // SQLite reports a unique-index violation by COLUMN ("...failed: submissions.dedupe_key"),
     // not by index name — match the columns (and keep the index names as a fallback).
     const msg = String(err instanceof Error ? err.message : err);
+    // EVIDENCE FIRST. SQLite names the COLUMN, and `evidence_dedupe_key` contains the substring
+    // `dedupe_key` — so testing the mission key first swallowed every evidence collision and
+    // reported it as a duplicate mission. Caught by the existing replay-guard test.
+    if (msg.includes("evidence_dedupe_key") || msg.includes("sub_evidence_dedupe_unq")) {
+      return { ok: false, error: "duplicate_evidence" };
+    }
     if (msg.includes("dedupe_key") || msg.includes("sub_dedupe_unq")) {
       return { ok: false, error: input.missionIdHash ? "duplicate_mission" : "duplicate_wallet" };
-    }
-    if (msg.includes("evidence_url") || msg.includes("sub_evidence_unq")) {
-      return { ok: false, error: "duplicate_evidence" };
     }
     return { ok: false, error: "unknown" };
   }
