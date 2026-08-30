@@ -73,9 +73,15 @@ describe("the private-capable launch flow", () => {
     expect(await screen.findByRole("button", { name: /Fund \$2\.00 and go live/i })).toBeTruthy();
   });
 
-  it("sends the server's own calls to the wallet, unmodified", async () => {
+  it("sends the server's own calls, converted to the shape a wallet accepts", async () => {
     // The mission ids in these calls are the ones settlement will look up. A flow that rebuilt
-    // them here could drift, and the vault would refuse every payout after the work was done.
+    // them here could drift, and the vault would refuse every payout after the work was done — so
+    // the VALUES pass through untouched.
+    //
+    // The FIELD NAMES must not. This test previously asserted the calls went "unmodified", which
+    // encoded the defect: starknet.js writes `{ contractAddress, entrypoint }` and the wallet RPC
+    // requires `{ contract_address, entry_point }`. Ready answered the camelCase payload with
+    // INVALID_REQUEST_PAYLOAD at the moment a founder pressed "Fund $1.00 and go live".
     connected = { wallet: { name: "Ready", request }, address: "0x05db1a00" };
     vi.stubGlobal(
       "fetch",
@@ -93,7 +99,13 @@ describe("the private-capable launch flow", () => {
     await waitFor(() => expect(request).toHaveBeenCalled());
     expect(request.mock.calls[0][0]).toMatchObject({
       type: "wallet_addInvokeTransaction",
-      params: { calls: DEPLOY_PLAN.calls },
+      params: {
+        calls: DEPLOY_PLAN.calls.map((c) => ({
+          contract_address: c.contractAddress,
+          entry_point: c.entrypoint,
+          calldata: c.calldata,
+        })),
+      },
     });
   });
 

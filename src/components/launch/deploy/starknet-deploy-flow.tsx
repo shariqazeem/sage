@@ -5,6 +5,7 @@ import { Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 
 import { useStarknetWallet, type StarknetWallet } from "@/lib/starknet/use-starknet-wallet";
 import { sameFelt } from "@/lib/starknet/felt";
+import { toWalletCalls } from "@/lib/starknet/vault-calls";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import type { PlanView } from "../types";
@@ -177,7 +178,7 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
         const walletAnswer = w
           .request({
             type: "wallet_addInvokeTransaction",
-            params: { calls: deployPlan.calls },
+            params: { calls: toWalletCalls(deployPlan.calls) },
           })
           .then((r) => ({
             from: "wallet" as const,

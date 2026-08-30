@@ -24,6 +24,32 @@ export interface StarknetCall {
   calldata: string[];
 }
 
+/**
+ * The SAME call, in the shape a browser WALLET accepts.
+ *
+ * Two conventions exist for one idea and they are not interchangeable. starknet.js takes
+ * `{ contractAddress, entrypoint }`, which is what every call above is built in because the
+ * operator's own settlement path executes them through an `Account`. The wallet RPC
+ * (`wallet_addInvokeTransaction`) takes `{ contract_address, entry_point }`, and rejects the other
+ * one outright — Ready answered a camelCase payload with `INVALID_REQUEST_PAYLOAD`, at the moment
+ * a founder pressed "Fund $1.00 and go live".
+ *
+ * Converted at the boundary rather than by changing the builders, because both consumers are real:
+ * the server executes these calls itself for settlement, the browser hands them to a wallet.
+ */
+export interface WalletCall {
+  contract_address: string;
+  entry_point: string;
+  calldata: string[];
+}
+
+export const toWalletCalls = (calls: readonly StarknetCall[]): WalletCall[] =>
+  calls.map((c) => ({
+    contract_address: c.contractAddress,
+    entry_point: c.entrypoint,
+    calldata: c.calldata,
+  }));
+
 /** The vault's constructor arguments, in the order `vault.cairo` declares them. */
 export function vaultConstructorCalldata(args: {
   owner: string;
