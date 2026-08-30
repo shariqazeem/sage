@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
+import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import {
   getCampaign,
   getDecisionBySubmission,
@@ -51,11 +52,23 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
-  const wallet = await getSessionAddress();
-  if (!wallet) return NextResponse.json({ submission: null, authed: false });
-  if (!getCampaign(id)) {
+  /**
+   * THE CAMPAIGN DECIDES WHICH SESSION COUNTS — the same rule the submit route applies.
+   *
+   * This read the EVM session unconditionally, so a Starknet recipient who had just submitted got
+   * `authed: false` and their own work back as null: invisible to the only person entitled to see
+   * it, on a board that would then offer to let them submit it again. The campaign has to be
+   * loaded first, because it is what says which wallet is the one being paid.
+   */
+  const campaign = getCampaign(id);
+  if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
+  const wallet =
+    campaign.settlementRail === "starknet"
+      ? await getStarknetSessionAddress()
+      : await getSessionAddress();
+  if (!wallet) return NextResponse.json({ submission: null, authed: false });
   // V2: a wallet's submission is scoped to a mission (?mission=<missionIdHash>). Without it,
   // the campaign-level (V1) submission is returned — backward compatible.
   const mission = req.nextUrl.searchParams.get("mission");
