@@ -193,8 +193,20 @@ export async function POST(
   try {
     state = await readVaultState(vaultAddress);
   } catch {
+    /**
+     * ONE MESSAGE FOR THREE VERY DIFFERENT SITUATIONS, and the founder hit the one it described
+     * worst: the vault existed and was funded, it simply had not been accepted on chain yet when
+     * this ran. "That address is not a Sage vault" told them their money had gone somewhere wrong.
+     *
+     * A retry is the remedy for a vault still landing, and it is safe: attaching is idempotent and
+     * nothing here moves money. So this now says what to do rather than diagnosing wrongly.
+     */
     return NextResponse.json(
-      { error: "That address is not a Sage vault, or the network could not be reached." },
+      {
+        error:
+          "Sage could not read that vault yet. If you have just funded it, the transaction may still be landing — reload this page in a few seconds and it will pick up where it left off. Your funds are in the vault either way.",
+        retryable: true,
+      },
       { status: 400 },
     );
   }

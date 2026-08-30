@@ -111,16 +111,21 @@ describe("the private-capable launch flow", () => {
 
   it("goes live only after Sage has verified the vault on chain", async () => {
     connected = { wallet: { name: "Ready", request }, address: "0x05db1a00" };
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) =>
-      init?.method === "POST" ? jsonOnce({ ok: true, campaignId: "camp-1" }) : jsonOnce(DEPLOY_PLAN),
-    );
+    // The GET reports the vault once the chain has it. Attaching now WAITS for that, because the
+    // wallet answers on submission and the vault does not exist yet at that moment.
+    let seenGets = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return jsonOnce({ ok: true, campaignId: "camp-1" });
+      seenGets += 1;
+      return jsonOnce({ ...DEPLOY_PLAN, deployed: seenGets > 1 });
+    });
     vi.stubGlobal("fetch", fetchMock);
     request.mockResolvedValue({ transaction_hash: "0xfeed" });
 
     render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
     await userEvent.click(await screen.findByRole("button", { name: /Fund/i }));
 
-    expect(await screen.findByText(/Your campaign is live/i)).toBeTruthy();
+    expect(await screen.findByText(/Your campaign is live/i, {}, { timeout: 8000 })).toBeTruthy();
     const posted = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "POST");
     expect(JSON.parse((posted?.[1] as RequestInit).body as string)).toEqual({
       vaultAddress: DEPLOY_PLAN.vaultAddress,
@@ -137,7 +142,7 @@ describe("the private-capable launch flow", () => {
       vi.fn(async (url: string, init?: RequestInit) =>
         init?.method === "POST"
           ? jsonOnce({ error: "That vault is $2.00 short of this plan's budget." })
-          : jsonOnce(DEPLOY_PLAN),
+          : jsonOnce({ ...DEPLOY_PLAN, deployed: true }),
       ),
     );
     request.mockResolvedValue({ transaction_hash: "0xfeed" });
@@ -145,7 +150,7 @@ describe("the private-capable launch flow", () => {
     render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
     await userEvent.click(await screen.findByRole("button", { name: /Fund/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/\$2\.00 short/);
+    expect(await screen.findByRole("alert", {}, { timeout: 8000 })).toHaveTextContent(/\$2\.00 short/);
     expect(screen.queryByText(/Your campaign is live/i)).toBeNull();
   });
 
@@ -198,5 +203,41 @@ describe("the private-capable launch flow", () => {
     const { StarknetDeployFlow: Fresh } = await import("./starknet-deploy-flow");
     render(<Fresh jobId="job-1" plan={PLAN} />);
     expect(await screen.findByText(/No Starknet wallet found/i)).toBeTruthy();
+  });
+});
+
+describe("attaching waits for the chain, not the wallet", () => {
+  it("does not attach while the vault is still landing", async () => {
+    /**
+     * THE DEFECT, PINNED. The wallet answers on SUBMISSION; the vault does not exist yet at that
+     * moment. Attaching then read an address with no contract at it and refused with "That address
+     * is not a Sage vault" — after the founder had already paid, with the money safely in a vault
+     * that was about to appear.
+     */
+    connected = { wallet: { name: "Ready", request }, address: "0x05db1a00" };
+    let gets = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return jsonOnce({ ok: true, campaignId: "camp-1" });
+      gets += 1;
+      // Not on chain for the first few polls — exactly the window the wallet used to win.
+      return jsonOnce({ ...DEPLOY_PLAN, deployed: gets > 2 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    // The wallet returns immediately, as a real one does on submission.
+    request.mockResolvedValue({ transaction_hash: "0xfeed" });
+
+    render(<StarknetDeployFlow jobId="job-1" plan={PLAN} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Fund/i }));
+
+    await screen.findByText(/Your campaign is live/i, {}, { timeout: 8000 });
+
+    // The POST must have happened only after a GET reported the vault deployed.
+    const postIndex = fetchMock.mock.calls.findIndex(
+      (c) => (c[1] as RequestInit)?.method === "POST",
+    );
+    const getsBeforePost = fetchMock.mock.calls
+      .slice(0, postIndex)
+      .filter((c) => (c[1] as RequestInit)?.method !== "POST").length;
+    expect(getsBeforePost, "attached before the chain confirmed").toBeGreaterThan(2);
   });
 });

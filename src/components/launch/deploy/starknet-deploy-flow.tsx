@@ -166,14 +166,19 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
         setPhase({ kind: "working", step: "Waiting for you to confirm in your wallet…" });
 
         /**
-         * RACE THE WALLET AGAINST THE CHAIN, AND TAKE THE FIRST ANSWER.
+         * THE WALLET ANSWERS WHEN IT SUBMITS, NOT WHEN THE CHAIN ACCEPTS — and only the chain can
+         * say the vault exists.
          *
-         * A wallet's promise can simply never resolve: the transaction lands, the money moves, and
-         * the page waits forever on a confirmation that already happened. On a funding screen that
-         * is the worst possible display — it invites the founder to sign and pay a second time.
+         * These two were raced, first answer wins. The wallet always won, because submitting is
+         * fast: attach then ran against an address with no contract at it yet, and refused with
+         * "That address is not a Sage vault". The founder had already paid. The money was fine, the
+         * vault was fine, and the campaign did not open.
          *
-         * The vault's existence is chain-visible, so poll for it alongside the wallet and let
-         * whichever answers first end the wait.
+         * A wallet promise that never resolves is still a real hazard — the transaction lands, the
+         * money moves, and the page waits forever on a confirmation that already happened, which on
+         * a funding screen invites paying twice. So the wallet is still raced, but only to learn
+         * the transaction hash. Attaching waits for the CHAIN, which is the only party that can
+         * answer the question attach actually asks.
          */
         const walletAnswer = w
           .request({
@@ -203,9 +208,15 @@ export function StarknetDeployFlow({ jobId, plan }: { jobId: string; plan: PlanV
           throw new Error("Starknet did not confirm the vault in time. It may still land.");
         })();
 
-        const res = await Promise.race([walletAnswer, chainAnswer]);
+        // Whoever answers first ends the "waiting for your wallet" phase; a rejection surfaces
+        // immediately rather than after the poll's full run.
+        const first = await Promise.race([walletAnswer, chainAnswer]);
         setPhase({ kind: "working", step: "Vault funded · confirming on Starknet…" });
-        await attach(deployPlan.vaultAddress, address, res.txHash);
+
+        // ATTACH ONLY ONCE THE CHAIN CONFIRMS. If the wallet won, the vault may not exist yet.
+        const confirmed = first.from === "chain" ? first : await chainAnswer;
+        const txHash = first.txHash ?? confirmed.txHash;
+        await attach(deployPlan.vaultAddress, address, txHash);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(/rejected|denied|cancel/i.test(msg) ? "You cancelled the signature." : msg);
