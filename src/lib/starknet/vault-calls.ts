@@ -1,4 +1,5 @@
 import { CallData, cairo, hash, num } from "starknet";
+import { toFelt } from "./felt";
 
 /**
  * THE CALLS A FOUNDER'S WALLET MAKES TO STAND UP A CAMPAIGN VAULT.
@@ -57,6 +58,9 @@ export function vaultConstructorCalldata(args: {
   token: string;
   budgetCeilingBase: bigint;
   dailyCapBase: bigint;
+  /** The plan this vault is being funded for — written on chain, compared at attach. */
+  campaignIdHash: string;
+  missionPlanDigest: string;
 }): string[] {
   return CallData.compile({
     owner: args.owner,
@@ -64,6 +68,11 @@ export function vaultConstructorCalldata(args: {
     token: args.token,
     budget_ceiling: args.budgetCeilingBase.toString(),
     daily_cap: args.dailyCapBase.toString(),
+    // Reduced to a felt by the one shared derivation, so the value the founder's browser writes is
+    // the value settlement derives again later. Two copies of this arithmetic is two chances to
+    // drift, and a drift answers NO_SUCH_MISSION after the work is done.
+    campaign_id_hash: toFelt(args.campaignIdHash),
+    mission_plan_digest: toFelt(args.missionPlanDigest),
   });
 }
 
@@ -190,6 +199,9 @@ export function planVaultDeployment(args: {
   dailyCapBase: bigint;
   fundingBase: bigint;
   missions: PlannedMission[];
+  /** The plan this vault is funded for, written into the contract at deployment. */
+  campaignIdHash: string;
+  missionPlanDigest: string;
 }): VaultDeployment {
   if (!args.missions.length) {
     throw new Error("a vault with no missions could never pay anyone");
@@ -200,6 +212,8 @@ export function planVaultDeployment(args: {
     throw new Error("funding above the budget ceiling would strand money the vault cannot pay out");
   }
   const constructorCalldata = vaultConstructorCalldata({
+    campaignIdHash: args.campaignIdHash,
+    missionPlanDigest: args.missionPlanDigest,
     owner: args.owner,
     operator: args.operator,
     token: args.token,

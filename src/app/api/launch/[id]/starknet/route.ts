@@ -12,9 +12,16 @@ import { toFelt } from "@/lib/starknet/felt";
 import { starknetConfig, starknetVaultClassHash } from "@/lib/starknet/config";
 import { planVaultDeployment, saltForJob } from "@/lib/starknet/vault-calls";
 import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
-import { createCampaign, createMission, getCampaignByVault } from "@/lib/db/campaigns";
+import { getCampaignByVault } from "@/lib/db/campaigns";
 import { recordEvent } from "@/lib/db/campaigns";
 import { getFounderAddress } from "@/lib/auth/founder";
+import { attachV2Campaign } from "@/lib/campaigns/v2-setup";
+import { classifyVerifiability } from "@/lib/launch/validate-mission";
+import { distillPrivateKey } from "@/lib/deputy/observation-verify";
+import { explorationCounts } from "@/lib/launch/field-test";
+import { readStarknetSnapshot } from "@/lib/starknet/vault-adapter";
+import { getInspectionJob } from "@/lib/db/inspection";
+import type { FieldTestSummary } from "@/lib/launch/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,7 +97,21 @@ export async function GET(
     });
   }
 
+  /**
+   * The vault is deployed NAMING the plan it is funded for, so attach can compare it against what
+   * Sage derives independently. Refused rather than defaulted: a vault that names no plan can be
+   * pointed at any plan afterwards, which is exactly what the agreement check exists to prevent.
+   */
+  if (!plan.plan.campaignIdHash || !plan.plan.missionPlanDigest) {
+    return NextResponse.json(
+      { error: "This plan has no on-chain identity, so a vault cannot be bound to it." },
+      { status: 400 },
+    );
+  }
+
   const deployment = planVaultDeployment({
+    campaignIdHash: plan.plan.campaignIdHash,
+    missionPlanDigest: plan.plan.missionPlanDigest,
     classHash,
     owner: ownerParam,
     operator: cfg.accountAddress,
@@ -211,6 +232,7 @@ export async function POST(
     );
   }
 
+  const job = getInspectionJob(id);
   const missions = plan.plan.missions;
   for (const m of missions) {
     if (!m.missionIdHash) {
@@ -257,53 +279,123 @@ export async function POST(
     return NextResponse.json({ error: verdict.reason }, { status: 400 });
   }
 
-  const first = missions[0];
-  const campaign = createCampaign({
-    title: first?.title ?? "Private-capable campaign",
-    descriptionMd: "",
-    criteria: first?.criteria ?? [],
-    conditionType: "approval",
-    onchainCheck: null,
-    rewardAmount: Number(first?.rewardBase ?? 0),
-    maxRecipients: missions.reduce((n: number, m) => n + Number(m.maxCompletions), 0),
-    vaultAddress,
-    posterWallet: owner,
-    ownerIsSage: false,
-    status: "live",
-    autonomy: "autopilot",
-    chainId: STARKNET_MAINNET_KEY,
-    settlementRail: "starknet",
-    vaultKind: "sage_vault_starknet",
-    campaignIdHash: plan.plan.campaignIdHash,
-    missionPlanDigest: plan.plan.missionPlanDigest,
-    commitmentVersion: 2,
-  });
+  /**
+   * FROM HERE THE STARKNET RAIL RUNS THE SAME CODE AS GOAT.
+   *
+   * This used to call `createCampaign` and `createMission` directly, because `attachV2Campaign`
+   * was viem-only and rejected a felt before it could start. Routing around it produced a campaign
+   * that looked live and was structurally weaker in ways nobody could see from the outside: no
+   * private corpus, so the judge had no answer key and autopay could never fire; no public campaign
+   * id, so it never reached the marketplace; and neither the agreement check nor the public
+   * identity invariant ever ran. A founder was told "your campaign is live" about something that
+   * could not pay anyone.
+   *
+   * The shared path now takes both address families and reads the chain through one seam, so the
+   * only Starknet-specific thing left here is which snapshot reader it uses.
+   */
+  const publicStrings = missions.flatMap((m) => [
+    m.title,
+    m.objective,
+    m.instructions,
+    m.targetSurface,
+    ...(m.criteria ?? []),
+    ...(m.evidenceRequirements ?? []),
+  ]);
+  const fieldTest =
+    (job?.result as { map?: { fieldTest?: FieldTestSummary | null } } | undefined)?.map?.fieldTest ??
+    null;
+  // P16 — the distilled private answer key, pinned at the instant the plan locks. Sage's own
+  // observations MINUS every public plan string, so a parrot of the card scores structural zero.
+  const privateKey = distillPrivateKey(fieldTest, publicStrings);
+  const explored = explorationCounts(fieldTest);
 
-  for (const m of missions) {
-    createMission({
-      campaignId: campaign.id,
-      missionKey: m.missionKey,
-      missionIdHash: m.missionIdHash,
-      specDigest: m.specDigest,
-      title: m.title,
-      objective: m.objective,
-      instructions: m.instructions,
-      targetSurface: m.targetSurface,
-      criteria: m.criteria,
-      evidenceList: m.evidenceRequirements,
-      rewardAmount: Number(m.rewardBase),
-      maxCompletions: Number(m.maxCompletions),
-      // `active`, not `draft`: the vault already holds this mission's terms, so it can pay for it
-      // the moment a submission is judged. A draft mission cannot settle.
-      status: "active",
-    });
+  const result = await attachV2Campaign(
+    {
+      publicCampaignId: plan.plan.publicCampaignId,
+      title: campaignTitle(job?.productUrl ?? ""),
+      productUrl: job?.productUrl ?? "",
+      chainId: STARKNET_MAINNET_KEY,
+      expectedToken: cfg.tokenAddress,
+      founderAddress: ownerAddress,
+      operatorAddress: cfg.accountAddress,
+      // The Cairo vault has no guardian; zero is what "none" means to the agreement check.
+      guardian: "0x0000000000000000000000000000000000000000",
+      // Provenance on Starknet is the class hash, checked by the adapter — there is no factory.
+      factoryAddress: "0x0000000000000000000000000000000000000000",
+      vaultAddress,
+      missions: missions.map((m) => ({
+        missionKey: m.missionKey,
+        title: m.title,
+        objective: m.objective,
+        instructions: m.instructions,
+        targetSurface: m.targetSurface,
+        criteria: m.criteria,
+        evidenceRequirements: m.evidenceRequirements,
+        verifiabilityClass: m.verificationContract
+          ? ("url-verifiable" as const)
+          : classifyVerifiability({
+              objective: m.objective,
+              criteria: m.criteria,
+              evidenceRequirements: m.evidenceRequirements,
+            }),
+        verificationContract: m.verificationContract,
+        rewardBase: BigInt(m.rewardBase),
+        maxCompletions: BigInt(m.maxCompletions),
+      })),
+      autonomy: "autopilot",
+      privateCorpus: privateKey.observations,
+      privateCorpusDigest: privateKey.digest,
+      privateCorpusSources: privateKey.distinctSources,
+      exploredScreens: explored.screens,
+      exploredElements: explored.elements,
+      campaignKind: plan.plan.campaignKind,
+      allowlist: plan.plan.allowlist,
+      settlementRail: "starknet",
+      vaultKind: "sage_vault_starknet",
+    },
+    { adapter: { readSnapshot: readStarknetSnapshot }, operatorAddress: () => cfg.accountAddress as `0x${string}` },
+  );
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: attachFailureMessage(result.stage, result.errors), stage: result.stage },
+      { status: 400 },
+    );
   }
-
   recordEvent({
-    campaignId: campaign.id,
+    campaignId: result.campaignId,
     kind: "campaign_created",
-    detail: `${campaign.title} · private-capable, vault ${vaultAddress.slice(0, 12)}…`,
+    detail: `${campaignTitle(job?.productUrl ?? "")} · private-capable, vault ${vaultAddress.slice(0, 12)}…`,
   });
 
-  return NextResponse.json({ ok: true, campaignId: campaign.id, vaultAddress });
+  return NextResponse.json({ ok: true, campaignId: result.campaignId, vaultAddress });
+}
+
+/** Titled by the product, exactly as the EVM rail titles it — not by whichever mission came first. */
+function campaignTitle(productUrl: string): string {
+  try {
+    return `Testing campaign · ${new URL(productUrl).host}`;
+  } catch {
+    return "Sage testing campaign";
+  }
+}
+
+/**
+ * Say WHICH check refused, in words a founder can act on.
+ *
+ * The stages are not interchangeable: an agreement failure means the vault does not encode this
+ * plan, which a retry cannot fix; a validation failure is about the plan itself. Collapsing them
+ * into one message is how "that address is not a Sage vault" came to be shown about a vault that
+ * was completely correct.
+ */
+function attachFailureMessage(stage: string, errors: string[]): string {
+  const detail = errors.slice(0, 3).join(", ");
+  if (stage === "agreement") {
+    return `The vault on chain does not match this plan (${detail}). It cannot be attached to this campaign.`;
+  }
+  if (stage === "identity") {
+    return `This plan's identity does not match the vault it was funded into (${detail}).`;
+  }
+  if (stage === "validation") return `This plan cannot be attached: ${detail}.`;
+  return `Sage could not open the campaign (${detail}). Nothing was charged.`;
 }

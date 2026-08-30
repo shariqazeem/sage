@@ -9,6 +9,7 @@ import {
   setCampaignStatus,
 } from "@/lib/db/campaigns";
 import type { Campaign } from "@/lib/db/schema";
+import { chainConfig } from "@/lib/deputy/networks";
 
 /**
  * The on-chain vault is the source of truth for whether a campaign is stopped. When a founder runs
@@ -38,6 +39,9 @@ export async function isVaultRevoked(vault: string, chainId: number): Promise<bo
 /** Reconcile one campaign's DB status against its vault. No-op for terminal/pre-launch rows or RPC failure. */
 export async function reconcileStopped(campaign: Campaign): Promise<Campaign> {
   if (TERMINAL.has(campaign.status.toLowerCase()) || !campaign.vaultAddress) return campaign;
+  // This asks a vault through viem, which cannot read a Starknet one. Left alone rather than
+  // guessed at: a wrong answer here CANCELS a live campaign and resolves its pending work.
+  if (!chainConfig(campaign.chainId).evm) return campaign;
   const revoked = await isVaultRevoked(campaign.vaultAddress, campaign.chainId);
   if (revoked === true) {
     setCampaignStatus(campaign.id, "cancelled");

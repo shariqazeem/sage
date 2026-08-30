@@ -25,6 +25,8 @@ const missions = (n: number): PlannedMission[] =>
 
 const plan = (over: Partial<Parameters<typeof planVaultDeployment>[0]> = {}) =>
   planVaultDeployment({
+    campaignIdHash: "0xaaa",
+    missionPlanDigest: "0xbbb",
     classHash: CLASS,
     owner: OWNER,
     operator: OPERATOR,
@@ -39,28 +41,68 @@ const plan = (over: Partial<Parameters<typeof planVaultDeployment>[0]> = {}) =>
 
 describe("predictVaultAddress", () => {
   /**
-   * PINNED TO MAINNET. This exact triple was simulated against Starknet mainnet through the real
-   * UDC, and the chain's own execution trace computed this address. It is here because the
-   * founder approves and funds this address in the same transaction that creates it: if this
-   * number drifts, real USDC goes to a contract that will never exist, with no owner to refund it.
-   * A failure here is not a stale fixture — it means the address is wrong.
+   * PINNED TO A VAULT THAT EXISTS.
+   *
+   * The founder approves and funds this address in the same transaction that creates it: if the
+   * derivation drifts, real USDC goes to a contract that will never exist, with no owner to refund
+   * it. A failure here is not a stale fixture — it means the address is wrong.
+   *
+   * The vector is a REAL deployment on Starknet mainnet: job `khTLEhsyuCrR`, funded with $1.00 by
+   * its founder, and the vault the chain actually created sits at the address below. The raw
+   * constructor calldata is inlined rather than rebuilt through `vaultConstructorCalldata`, so this
+   * pins the ADDRESS ARITHMETIC — which is what puts money in the right place — independently of
+   * what the constructor happens to take. (An earlier pin went through the builder, so adding a
+   * constructor argument broke a test about mainnet agreeing with us, which it still did.)
    */
-  it("matches the address Starknet mainnet itself computes", () => {
+  it("matches a vault Starknet mainnet actually deployed", () => {
     const address = predictVaultAddress({
-      classHash: CLASS,
-      deployer: OWNER,
-      salt: "0x1234beef",
-      constructorCalldata: vaultConstructorCalldata({
-        owner: OWNER,
-        operator: OPERATOR,
-        token: TOKEN,
-        budgetCeilingBase: BigInt(1_000_000),
-        dailyCapBase: BigInt(500_000),
-      }),
+      classHash: "0x603be1eb5305099466675ed500c819d3880aa3cd950498a47eb938abf39d49a",
+      deployer: "0x4f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434",
+      salt: "0xc0e61c54771f6c57096907a37d41db2fe5802e32f644851b5e6494dc163d59",
+      constructorCalldata: [
+        "2236761605855893452407200970732568023407384684816254123869308344891585197108",
+        "1996697860304146133480038262605718533696463765404746157458848406677183095041",
+        "1442471627432665843583957153937277124821302887621015682060980008275741980155",
+        "1000000",
+        "1000000",
+      ],
     });
     expect(BigInt(address)).toBe(
-      BigInt("0x622f779490fbd8b81e330bea2683608022f7d9f849678288bed21a3db7f9a23"),
+      BigInt("0x6c70a9842ea760e65070b9af0029439550b87a22323de4a28817f47f8d5a19a"),
     );
+  });
+
+  it("binds the vault to its plan, so attach has something to compare", () => {
+    // Without these on chain the agreement check has nothing to check, and the rail runs a weaker
+    // promise than the one it advertises.
+    const calldata = vaultConstructorCalldata({
+      owner: OWNER,
+      operator: OPERATOR,
+      token: TOKEN,
+      budgetCeilingBase: BigInt(1_000_000),
+      dailyCapBase: BigInt(500_000),
+      campaignIdHash: "0xaaa",
+      missionPlanDigest: "0xbbb",
+    });
+    expect(calldata).toHaveLength(7);
+    expect(BigInt(calldata[5])).toBe(BigInt("0xaaa"));
+    expect(BigInt(calldata[6])).toBe(BigInt("0xbbb"));
+  });
+
+  it("reduces a 256-bit digest into the field, rather than overflowing it", () => {
+    // A keccak digest is wider than a felt; passing one through would be rejected by the wallet.
+    const calldata = vaultConstructorCalldata({
+      owner: OWNER,
+      operator: OPERATOR,
+      token: TOKEN,
+      budgetCeilingBase: BigInt(1_000_000),
+      dailyCapBase: BigInt(500_000),
+      campaignIdHash: `0x${"f".repeat(64)}`,
+      missionPlanDigest: `0x${"e".repeat(64)}`,
+    });
+    const PRIME = (BigInt(1) << BigInt(251)) + BigInt(17) * (BigInt(1) << BigInt(192)) + BigInt(1);
+    expect(BigInt(calldata[5])).toBeLessThan(PRIME);
+    expect(BigInt(calldata[6])).toBeLessThan(PRIME);
   });
 
   it("gives two founders different addresses for the same salt", () => {
@@ -72,7 +114,9 @@ describe("predictVaultAddress", () => {
         operator: OPERATOR,
         token: TOKEN,
         budgetCeilingBase: BigInt(1),
-        dailyCapBase: BigInt(1),
+        campaignIdHash: "0xaaa",
+      missionPlanDigest: "0xbbb",
+      dailyCapBase: BigInt(1),
       }),
     };
     expect(predictVaultAddress({ ...args, deployer: OWNER })).not.toBe(
@@ -156,6 +200,8 @@ describe("planVaultDeployment", () => {
       token: TOKEN,
       salt: "0x1",
       budgetCeilingBase: BigInt(3_000_000),
+      campaignIdHash: "0xaaa",
+      missionPlanDigest: "0xbbb",
       dailyCapBase: BigInt(1_000_000),
       fundingBase: BigInt(3_000_000),
       missions: [

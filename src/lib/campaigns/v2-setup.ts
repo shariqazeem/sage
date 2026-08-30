@@ -87,6 +87,15 @@ export interface V2SetupInput {
   exploredElements?: number;
   /** WORK PROOF — campaign kind from the approved plan. Absent ⇒ "testing" (unchanged). */
   campaignKind?: "testing" | "grant" | "gig";
+  /**
+   * Which rail settles this campaign, and therefore which vault kind was funded.
+   *
+   * Defaults keep every existing caller byte-identical. They exist so a second chain can reuse
+   * this path rather than fork it — forking is what produced a Starknet campaign with no private
+   * corpus, no marketplace listing and no agreement check.
+   */
+  settlementRail?: "evm" | "starknet";
+  vaultKind?: "campaign_v2" | "sage_vault_starknet";
   /** WORK PROOF — optional recipient allowlist (lowercased at persist; enforced at submit). */
   allowlist?: string[];
 }
@@ -281,8 +290,21 @@ export function setupAllowed(
 
 /* ─────────────────────────────────────────── verify + atomic persist ────── */
 
+/**
+ * Attaching reads a vault; it never spends from one. Typed to the seam it actually uses, so a
+ * chain can be supported by implementing one function rather than a whole settlement adapter —
+ * the real `CampaignVaultAdapter` still satisfies this structurally.
+ */
+export interface CampaignSnapshotReader {
+  readSnapshot(
+    vault: Address,
+    chainId: number,
+    missionIds: Hex[],
+  ): ReturnType<CampaignVaultAdapter["readSnapshot"]>;
+}
+
 export interface V2SetupDeps {
-  adapter?: CampaignVaultAdapter;
+  adapter?: CampaignSnapshotReader;
   operatorAddress?: (chainId: number) => Address;
 }
 
@@ -296,7 +318,7 @@ function syntheticCampaign(input: V2SetupInput, preview: V2SetupPreview): Campai
     id: preview.publicCampaignId,
     posterWallet: normalizeForChain(input.founderAddress, input.chainId) as Address,
     chainId: input.chainId,
-    vaultKind: "campaign_v2",
+    vaultKind: input.vaultKind ?? "campaign_v2",
     campaignIdHash: preview.campaignIdHash,
     missionPlanDigest: preview.missionPlanDigest,
     settlementToken: normalizeForChain(input.expectedToken, input.chainId) as Address,
@@ -404,7 +426,7 @@ export async function attachV2Campaign(
             (input.autonomy ?? "autopilot") === "autopilot"
               ? (input.autopilotThreshold ?? 0.85)
               : undefined,
-          vaultKind: "campaign_v2",
+          vaultKind: input.vaultKind ?? "campaign_v2",
           // P18/P19 — the founder-set per-wallet payout cap (default 1, clamped upstream).
           perWalletPayoutCap: Math.max(1, Math.round(input.perWalletCap ?? 1)),
           // P16 pinned private answer key — an immutable snapshot fixed at the same instant as the plan.

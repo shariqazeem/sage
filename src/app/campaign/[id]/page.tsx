@@ -41,7 +41,16 @@ export default async function CampaignConsolePage({
   const { id } = await params;
   const loaded = getCampaign(id);
   if (!loaded) notFound();
-  if (loaded.vaultKind !== "campaign_v2") redirect("/app?legacy=1");
+  /**
+   * The V1 policy vaults have no mission plan and no console to show, so they are sent away. A
+   * Starknet vault is not one of those — it holds mission terms on chain exactly as a V2 vault
+   * does, and its founder needs the same console. Listing only `campaign_v2` bounced every
+   * private-capable campaign to the legacy page, which is where a founder found their own live
+   * campaign showing nothing.
+   */
+  if (loaded.vaultKind !== "campaign_v2" && loaded.vaultKind !== "sage_vault_starknet") {
+    redirect("/app?legacy=1");
+  }
   // The on-chain vault is the truth: if it's been revoked (stopped), reflect that as "cancelled".
   const campaign = await reconcileStopped(loaded);
 
