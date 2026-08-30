@@ -4,6 +4,7 @@ import { Account, CallData, Contract, RpcProvider, hash } from "starknet";
 
 import ABI from "./vault-abi.json";
 import { starknetAddresses, starknetConfig } from "./config";
+import { classSupportsSplitPayout } from "./vault-capability";
 
 /**
  * TALKING TO A CAMPAIGN'S VAULT ON STARKNET.
@@ -286,24 +287,68 @@ export interface PayoutResult {
  * public), and it means this function must read the outcome from the receipt rather than assume a
  * successful transaction paid anyone.
  */
-/** The exact call a payout sends. Shared, so a simulation cannot drift from the real thing. */
-function payoutCall(args: {
+export interface PayoutArgs {
   vaultAddress: string;
   missionId: string;
+  /** The WORKER: the vault's replay key and the name on the receipt. */
   recipient: string;
+  /**
+   * Where the money lands, when that is not the worker's own address.
+   *
+   * Only a vault whose CLASS has `request_payout_to` can do this, and asking one that cannot
+   * reverts as an unknown selector. Callers decide the route from the class; this only encodes it.
+   */
+  payoutTarget?: string;
   decisionDigest: string;
   intentHash: string;
-}) {
+}
+
+/** The exact call a payout sends. Shared, so a simulation cannot drift from the real thing.
+ *  Exported for tests: WHICH entrypoint this picks decides whether a legacy vault can serve it. */
+export function payoutCall(args: PayoutArgs) {
+  const target = args.payoutTarget?.trim();
+  // Same destination means the public entrypoint — which is the older one, so a legacy vault keeps
+  // working unchanged and nothing has to know whether it could have split.
+  if (!target || BigInt(target) === BigInt(args.recipient)) {
+    return {
+      contractAddress: args.vaultAddress,
+      entrypoint: "request_payout",
+      calldata: new CallData(ABI).compile("request_payout", {
+        mission_id: args.missionId,
+        recipient: args.recipient,
+        decision_digest: args.decisionDigest,
+        intent_hash: args.intentHash,
+      }),
+    };
+  }
   return {
     contractAddress: args.vaultAddress,
-    entrypoint: "request_payout",
-    calldata: new CallData(ABI).compile("request_payout", {
+    entrypoint: "request_payout_to",
+    calldata: new CallData(ABI).compile("request_payout_to", {
       mission_id: args.missionId,
-      recipient: args.recipient,
+      worker: args.recipient,
+      payout_target: target,
       decision_digest: args.decisionDigest,
       intent_hash: args.intentHash,
     }),
   };
+}
+
+/**
+ * Which payout route a vault can serve, read from the class it was deployed from.
+ *
+ * A vault predating the split has no `request_payout_to`, and asking it reverts as an unknown
+ * selector — on the settlement path, a cleared worker who cannot be paid. Unreadable counts as
+ * "direct": the direction of that default pays someone publicly rather than stranding them.
+ */
+export async function payoutRouteFor(vaultAddress: string): Promise<"split" | "direct"> {
+  try {
+    const provider = readProvider();
+    const classHash = await provider.getClassHashAt(vaultAddress);
+    return classSupportsSplitPayout(String(classHash)) ? "split" : "direct";
+  } catch {
+    return "direct";
+  }
 }
 
 export interface PayoutSimulation {
@@ -329,13 +374,7 @@ export interface PayoutSimulation {
  * design, not an oversight: the reason lands on chain where the recipient can read it. Simulating
  * first to skip that would quietly make refusals private.
  */
-export async function simulateVaultPayout(args: {
-  vaultAddress: string;
-  missionId: string;
-  recipient: string;
-  decisionDigest: string;
-  intentHash: string;
-}): Promise<PayoutSimulation> {
+export async function simulateVaultPayout(args: PayoutArgs): Promise<PayoutSimulation> {
   const { account } = operatorAccount();
   let trace: unknown;
   try {
@@ -405,13 +444,7 @@ function collectEvents(trace: unknown): { from_address: string; keys: string[]; 
   return out;
 }
 
-export async function requestVaultPayout(args: {
-  vaultAddress: string;
-  missionId: string;
-  recipient: string;
-  decisionDigest: string;
-  intentHash: string;
-}): Promise<PayoutResult> {
+export async function requestVaultPayout(args: PayoutArgs): Promise<PayoutResult> {
   const { account, provider } = operatorAccount();
 
   const tx = await account.execute([payoutCall(args)]);
