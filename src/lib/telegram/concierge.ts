@@ -27,7 +27,7 @@ import {
 import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
-import { checkNarration, honestFallback } from "./narration-guard";
+import { missedMoneyAction, checkNarration, honestFallback } from "./narration-guard";
 
 /**
  * Sage's conversational front door on Telegram — its OWN agent, no third-party runtime.
@@ -818,12 +818,26 @@ async function runAgentTurn(
        * chance to EARN the license by actually calling the tool.
        */
       const draftVerdict = checkNarration(reply, succeededTools, toolOutput);
-      if (!draftVerdict.ok && !selfCorrected && round < MAX_TOOL_ROUNDS - 1 && Date.now() < turnDeadline) {
+      /**
+       * A SECOND WAY TO MISS: work the request out correctly and never act on it.
+       *
+       * The narration guard judges what the draft CLAIMED. A reasoning model can instead conclude
+       * in prose and stop — measured on P-DIRECT, a founder writing "mere bhai ko $15 dena hai jab
+       * wo menu page publish kar de" got 8,344 characters opening "This is a DIRECT CAMPAIGN" and
+       * no tool call. Nothing was claimed, so nothing fired, and the founder had to ask again.
+       * This looks at THEIR words instead: an amount and a payment verb, with nothing run and no
+       * question asked back.
+       */
+      const missedMoney = missedMoneyAction({ userText, reply, succeededTools });
+      if ((!draftVerdict.ok || missedMoney) && !selfCorrected && round < MAX_TOOL_ROUNDS - 1 && Date.now() < turnDeadline) {
         selfCorrected = true;
-        console.warn("[concierge:%s] self-correct: draft claimed [%s] with no backing tool — retrying with the tool", surface, draftVerdict.unbacked.join(", "));
+        const why = !draftVerdict.ok
+          ? `your draft stated ${draftVerdict.unbacked.join(" and ")} but no tool ran this turn to back it`
+          : "the founder asked you to pay someone a stated amount and no tool ran this turn";
+        console.warn("[concierge:%s] self-correct: %s — retrying with the tool", surface, why);
         messages.push({
           role: "user",
-          content: `SYSTEM CHECK: your draft stated ${draftVerdict.unbacked.join(" and ")} but no tool ran this turn to back it. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.`,
+          content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.`,
         });
         continue;
       }

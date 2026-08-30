@@ -261,3 +261,47 @@ export function honestFallback(unbacked: string[]): string {
     "Ask me again and I'll run it properly, or ask for your wallet and campaigns and I'll read you the real numbers.",
   ].join("\n");
 }
+
+
+/**
+ * THE FOUNDER ASKED TO PAY SOMEONE, AND NOTHING RAN.
+ *
+ * The narration guard judges what the model CLAIMED, and is deliberately narrow so that explaining
+ * a capability is never mistaken for asserting an act. That leaves a gap the money lane falls
+ * straight through: a reasoning model can work the request out correctly, write its conclusion as
+ * prose, and stop without calling the tool. Measured on P-DIRECT — "mere bhai ko $15 dena hai jab
+ * wo menu page publish kar de" produced 8,344 characters beginning "This is a DIRECT CAMPAIGN" and
+ * no tool call at all. The founder gets an essay about their own request and has to ask again.
+ *
+ * So this judges the FOUNDER'S words, not the model's. Independent evidence that a money action was
+ * requested is a much safer trigger than trying to read intent out of a draft.
+ *
+ * A QUESTION IS NOT A FAILURE. Asking who the recipient is, or which milestone comes first, is the
+ * right move when something genuinely is missing — so a reply that asks is left alone. Only a turn
+ * that concludes without acting is corrected.
+ *
+ * Non-English requests fail this way most often, because translating first spends the reasoning
+ * that would otherwise have reached the tool. That is exactly the audience this lane exists for.
+ */
+const PAY_INTENT =
+  /\b(pay|paying|pays|paid|send|sending|reward|rewards|rewarding|fund|funding|hire|hiring|commission|bounty|grant|tranche|milestone|payout|dena|de\s*do|dedo|pagar|pague|pago|paga|pagamento|payer|zahlen|bayar)\b/i;
+/** A currency amount in the shapes people actually type. */
+const AMOUNT = /(?:[$€£₹]\s?\d|(?:\b\d[\d,.]*\s?(?:usd|usdc|dollars?|dólares|dolares|euros?|rupees?|rs)\b))/i;
+
+export function missedMoneyAction(input: {
+  /** what the FOUNDER wrote this turn. */
+  userText: string;
+  /** the model's draft reply, reasoning already stripped. */
+  reply: string;
+  /** tools that actually succeeded this turn. */
+  succeededTools: Set<string>;
+}): boolean {
+  // Anything ran? Then this is not the shape of failure being caught.
+  if (input.succeededTools.size > 0) return false;
+  const asked = input.userText ?? "";
+  if (!PAY_INTENT.test(asked) || !AMOUNT.test(asked)) return false;
+  // A reply that ASKS is doing the right thing with a genuinely incomplete request.
+  if (/\?/.test(input.reply)) return false;
+  // An empty draft is handled by the existing fallback, not here.
+  return input.reply.trim().length > 0;
+}
