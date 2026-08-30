@@ -5,7 +5,8 @@
 > UI) that survives only as a disabled placeholder (`src/app/sage/page.tsx`,
 > `src/lib/verdicts.ts`) — ignore that product entirely.
 >
-> Verified against the code on 2026-07-16. **When code and this document disagree, the
+> Verified against the code on 2026-07-16; sections 1-3, 6 and 7 re-verified 2026-08-30 when
+> the Starknet rail landed. **When code and this document disagree, the
 > code wins** — real discrepancies are listed under **Known drift** at the bottom. Update
 > this file deliberately, never casually.
 
@@ -29,6 +30,29 @@ disposes.
 native gas **BTC**) is the production mainnet the product ships on; the walletless path
 always uses it and the web deploy flow lists it first. Metis Sepolia (**59902**) is the
 testnet. (Note: the code constant `DEFAULT_CHAIN_ID` is 59902 — see Known drift.)
+
+**Two settlement rails.** `campaign.settlementRail` is `"evm"` or `"starknet"`, and it — not
+the chain id — decides which settler pays. EVM covers GOAT and Metis through the V2
+`CampaignVault`; **Starknet mainnet** (recorded internally as chainId **900001**) settles
+through a Cairo `SageVault`, class `0x2770f9fde4668abd9bfffbf8aeca2ce5d104ed812054afa22cdc78356500e84`.
+The rails are independent by construction: a founder signs in with **either** an EVM wallet
+(SIWE) or a Starknet one, and identity is compared by `sameFounder` alone
+(`src/lib/auth/founder.ts`) — never by chain.
+
+Three rules that keep them from leaking into each other:
+- **Never `getAddress()` a campaign address.** viem throws on a felt, and every occurrence so
+  far sat inside an existing `try/catch`, so the failure was a SILENT lockout. Use
+  `normalizeForChain` / `sameChainAddress` (`src/lib/campaigns/chain-address.ts`) or
+  `founderStorageKey` for a DB key.
+- **`vaultKind === "campaign_v2"` once meant two things** — "carries a mission plan" and "is an
+  EVM vault". They are now `hasMissionPlan()` and `isEvmCampaignVault()`
+  (`src/lib/campaigns/vault-kind.ts`); a Starknet vault is the first thing that is one and not
+  the other.
+- **Settlement branches in exactly ONE place:** `settleByRail`
+  (`src/lib/campaigns/settle-dispatch.ts`). `settle-flow.ts` is the EVM flow and is frozen, so
+  the dispatcher wraps it. A structural test refuses any new caller that imports the EVM flow
+  directly; `deputy/pipeline.ts` is the single allowed exception, because its two rails do
+  genuinely different work after the settler returns.
 
 **Two front doors, one engine:**
 - **Web** (`sagepays.xyz`): connect a browser wallet, SIWE, guided launch → deploy → live.
@@ -105,6 +129,7 @@ Three LLM "brains" + one on-chain settlement core. They are separate on purpose.
 | **Payout brain** | *Judges* tester evidence and proposes pay/review/hold. **Never states an amount.** Pure core + network orchestrator. | `src/lib/deputy/brain-core.ts` (pure), `brain.ts` (network) |
 | **Telegram Concierge** | Conversational walletless front door — a hand-rolled OpenAI-compatible tool loop. **Deliberately does NOT import `brain-core`** (so it can never perturb the frozen judgment layer); shares only the LLM endpoint + key. | `src/lib/telegram/concierge.ts` |
 | **Vaults + settlement** | On-chain `CampaignVault` (V2) / `PolicyVault` (V1). The vault derives the exact reward, enforces caps + replay protection, and emits the settlement event that is the single source of truth. | `contracts/`; V2 `src/lib/deputy/campaign-vault.ts`, V1 `src/lib/deputy/signer.ts`; flow `src/lib/campaigns/settle-flow.ts` |
+| **Starknet vault** | The same bargain in Cairo: the vault looks the reward up from the mission (the amount is not an argument), enforces caps + per-wallet replay, and answers a refused payout with a CODE rather than reverting, so the reason lands on chain where the recipient can read it. | `contracts-starknet/src/vault.cairo`; `src/lib/starknet/vault.ts`, `vault-calls.ts`; flow `src/lib/campaigns/settle-starknet.ts`; dispatch `settle-dispatch.ts` |
 
 **Autonomy is a stateless gate, not a running loop.** It fires from two triggers:
 1. **Synchronous** — a tester submits → `after()` runs the decision pipeline once.
@@ -136,6 +161,14 @@ them.
   `src/lib/privy/mandate.ts` (the Privy allow-rules that bound every agent-wallet spend).
 - **Vault ABIs + the settlement flow** — `src/lib/deputy/campaign-vault.ts`,
   `signer.ts`, `src/lib/campaigns/settle-flow.ts`, `src/lib/wallet/abis.ts`.
+- **The Starknet settler + its ABI** — `src/lib/campaigns/settle-starknet.ts`,
+  `src/lib/starknet/vault.ts`, `vault-abi.json`. Same standing as the EVM flow: it moves real
+  USDC, its idempotency check (a submission carrying a `payoutTx` is already paid) is the
+  single most important line on that path, and a refusal is a SUCCESSFUL transaction that
+  moved nothing — the outcome is read from the events, never from the transaction status.
+  `vault-abi.json` has drifted from the deployed contract once already; `abi-drift.test.ts`
+  and `refusal-codes.test.ts` read the Cairo source so a drift fails here rather than in a
+  founder's wallet.
 - **Budget math** — `allocateBudget` in `src/lib/launch/budget.ts`: `Σ(rewardBase ×
   maxCompletions) === totalBudgetBase` **exactly**, in 6-decimal base units. Never
   introduce rounding that breaks the invariant.
@@ -250,6 +283,8 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `SAGE_ADMIN_SECRET` † | Operator secret for the out-of-band held-work review endpoint (`POST /api/admin/review`, header `x-sage-admin-secret`) that backs `scripts/review.mjs` | Endpoint fails closed (404); the Telegram review tools still work |
 | `MISSION_API_KEY` / `_BASE_URL` / `_MODEL` † | The MISSION **lane** — mission design on its own provider (prod: MiniMax-M3). All three required together. | Mission design inherits the shared chain |
 | `INSPECTION_REPLAY_MODE` † | `"shadow"` re-performs a safe observed transition to confirm it reproduces. **Required for grounded plan selection, not optional telemetry** — `safeTransitionsEstablished` demands every `action_outcome` criterion cite a REPRODUCED transition, so unset (its default) blocks every grounded plan containing one and ships the weaker legacy plan instead. | Grounded selection blocked for action missions |
+| `STARKNET_RPC_URL` † / `STARKNET_ACCOUNT_ADDRESS` † / `STARKNET_PRIVATE_KEY` † | The Starknet operator account — the key the Cairo vault accepts as its operator. All required together, or the rail is absent. | Starknet campaigns cannot settle |
+| `STARKNET_VAULT_CLASS_HASH` † | The declared `SageVault` class new vaults deploy from | Starknet deploy refuses rather than guessing |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---
@@ -283,6 +318,7 @@ died of contention is indistinguishable in the grid from a row that died of a de
 | **P-JUDGE** | promotion gate for a payout-judge model: zero wrong-autopay, all in-set, provenance intact | `JUDGE_EVAL=1 JUDGE_MODEL=… JUDGE_RUNS=3 npx vitest run judge-eval.live` |
 | **obs ledger** | the observation judge against its fixtures — the money assertion is confidence vs `AUTOPAY_THRESHOLD` | `OBS_LIVE_EVAL=1 npx vitest run observation-judge.live` |
 | **P-VERIFY** | the deterministic verification contracts | `VERIFY_LIVE=1 npx vitest run verify-contracts.live` |
+| **Starknet dry-run** | whether the Cairo rail would actually PAY — runs the real `request_payout` against the live vault and commits nothing | `STARKNET_DRYRUN=1 npx vitest run payout-dryrun.live` (VM: needs the operator key) |
 
 **A battery must import production's own prompt/tools, never a copy** (`systemPrompt`, `TG_TOOLS`,
 `asOpenAI`, `DIRECT_BLOCK`). P-DIRECT once hand-rolled its tool encoding, the schema landed under a
@@ -344,3 +380,27 @@ Where the writing brief for this file disagreed with the code, the code is recor
    only). There is no generic "GOAT-compatible adapter" abstraction — on-chain access is
    direct viem; "GOAT" means the GOAT chain + the goatx402 x402 SDK. Multi-chain is the
    hand-rolled `CHAINS` registry in `networks.ts`.
+
+7. **The Starknet rail landed after this doc's verification date (2026-08-29/30).** Sections 1
+   and 2 above describe it as built. What is PROVEN and what is not, stated separately because
+   the difference matters:
+   - **Proven:** a founder signs in with a Starknet wallet, a plan deploys to a Cairo vault, the
+     vault is funded and Active, and the operator's `request_payout` against the live vault
+     **would release the reward** — `code 0`, USDC transfer, `PayoutReleased` — established by
+     simulation (`payout-dryrun.live`), which commits nothing. The control row in that battery
+     answers `code 3` for a mission the vault does not have; without it a simulation that said
+     "would pay" to anything would prove nothing.
+   - **Not proven:** no Starknet submission has ever reached settlement in production. The
+     recipient half of the loop — submit, judge, autopay — has never run end to end with real
+     money on this rail.
+   - **Not wired:** `chargeOperatorFee` is EVM-only, so a Starknet payout accrues no operator
+     fee. That is Sage's own revenue, not founder money, and the x402 fee rail is GOAT-based —
+     a decision to make, not a bug to fix silently.
+
+8. **`missedMoneyAction` judges the FOUNDER'S words, not the model's draft** — an amount plus
+   either a payment verb or an offer of work to a person ("I need someone to…"). It is the
+   trigger for the corrective round, and its counterpart `checkStatedTerms`
+   (`src/lib/launch/stated-terms.ts`) compares the compiled plan against the founder's own
+   arithmetic. Both exist because every OTHER money gate checks a plan against ITSELF, and a
+   plan that drops two of three tranches is perfectly self-consistent — just not what was asked
+   for.
