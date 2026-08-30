@@ -81,7 +81,36 @@ export interface AgreementResult {
  * Stripping leading zeros is a no-op for an EVM address, so behaviour there is unchanged.
  */
 const eqAddr = (a: string, b: string): boolean => sameChainAddress(a, b);
-const eqHex = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+/**
+ * Same identifier?
+ *
+ * COMPARED IN THE FIELD, NOT AS TEXT. A campaign id and a mission-plan digest are keccak256 — 256
+ * bits — and a Cairo contract stores a felt, which is 251. The Starknet vault therefore holds the
+ * reduction of exactly the value the database holds, and a raw hex comparison calls the two
+ * different: a founder was told "the vault does not match this plan" about a vault whose campaign
+ * id was, after reduction, identical byte for byte.
+ *
+ * The reduction is deterministic and applied to BOTH sides here, so an EVM vault — which stores
+ * the full digest — compares exactly as it always did. Two genuinely different digests colliding
+ * under it needs a 251-bit coincidence.
+ */
+const FIELD_MASK = (BigInt(1) << BigInt(251)) - BigInt(1);
+const eqHex = (a: string, b: string): boolean => {
+  try {
+    return (BigInt(a) & FIELD_MASK) === (BigInt(b) & FIELD_MASK);
+  } catch {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+};
+
+/** The same rule for mission ids, which are keyed on chain by their reduced felt. */
+const missionKeyOf = (hash: string): string => {
+  try {
+    return `0x${(BigInt(hash) & FIELD_MASK).toString(16)}`;
+  } catch {
+    return hash.toLowerCase();
+  }
+};
 
 /**
  * Compare the DB plan against the on-chain snapshot. Returns `ok: true` only when
@@ -94,7 +123,17 @@ export function checkVaultAgreement(
   const m: AgreementMismatch[] = [];
   const push = (field: AgreementField, detail: string) => m.push({ field, detail });
 
-  if (db.vaultKind !== "campaign_v2") push("vault_kind", `db vaultKind is ${db.vaultKind}, not campaign_v2`);
+  /**
+   * WHICH VAULTS THIS CHECK KNOWS HOW TO JUDGE.
+   *
+   * The V1 policy vaults carry no mission plan, so there is nothing here to compare and they are
+   * refused. A Starknet vault carries exactly what a V2 vault does — owner, operator, token,
+   * ceiling, the plan identity and every mission's terms — and is judged by the same rules below.
+   * Listing only `campaign_v2` refused every private-capable campaign at the first line.
+   */
+  if (db.vaultKind !== "campaign_v2" && db.vaultKind !== "sage_vault_starknet") {
+    push("vault_kind", `db vaultKind is ${db.vaultKind}, which carries no mission plan to check`);
+  }
   if (!chain.factoryRecognizes) push("provenance", "vault is not from the CampaignVaultFactory");
   if (!eqAddr(chain.owner, db.ownerFounder)) push("owner_not_founder", `on-chain owner ${chain.owner} != founder ${db.ownerFounder}`);
   if (!eqAddr(chain.operator, db.operatorConfigured)) push("operator_mismatch", `on-chain operator ${chain.operator} != configured ${db.operatorConfigured}`);
@@ -110,7 +149,7 @@ export function checkVaultAgreement(
   if (chain.state === "revoked") push("lifecycle", "vault is revoked");
 
   for (const dm of db.missions) {
-    const cm = chain.missions[dm.missionIdHash.toLowerCase()];
+    const cm = chain.missions[dm.missionIdHash.toLowerCase()] ?? chain.missions[missionKeyOf(dm.missionIdHash)];
     if (!cm || !cm.exists) {
       push("mission_missing", `mission ${dm.missionIdHash} does not exist on-chain`);
       continue;

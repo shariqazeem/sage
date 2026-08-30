@@ -6,6 +6,7 @@ import type { Address, Hash } from "viem";
 import type { ChainCampaignSnapshot } from "@/lib/campaigns/vault-agreement";
 import { starknetAddresses, starknetVaultClassHash } from "./config";
 import { decodeVaultStatus } from "./vault";
+import { toFelt } from "./felt";
 import ABI from "./vault-abi.json" assert { type: "json" };
 
 /**
@@ -69,8 +70,12 @@ export async function readStarknetSnapshot(
 
   const missions: ChainCampaignSnapshot["missions"] = {};
   for (const id of missionIds) {
+    // ASKED BY THE KEY THE CHAIN WAS WRITTEN WITH. A mission id is a 256-bit keccak and the vault
+    // keys it by the felt reduction, so querying the full hash finds nothing — and "nothing" reads
+    // as `mission_missing`, which accuses a correctly funded vault of not holding the plan.
+    // Recorded under the id the CALLER passed, so the agreement check can find it.
     try {
-      const m = (await c.call("get_mission", [id])) as {
+      const m = (await c.call("get_mission", [toFelt(id)])) as {
         exists?: boolean;
         reward?: bigint;
         max_completions?: bigint;
