@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress, isSameWallet } from "@/lib/auth/session";
 import { canDecide, type SubmissionStatus } from "@/lib/campaigns/status";
-import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import {
@@ -100,7 +100,7 @@ export async function POST(
 
   let result;
   try {
-    result = await settleApprovedSubmission(campaign, submission);
+    result = await settleByRail(campaign, submission);
   } catch (err) {
     console.error("[campaigns/decide] settle failed:", err);
     return NextResponse.json(

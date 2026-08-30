@@ -18,8 +18,7 @@ import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
 import { ensureDecision, OBSERVATION_ABSTAIN_MODEL } from "@/lib/deputy/decisions";
 import { notifyTelegram } from "@/lib/deputy/notify";
 import { hasLlm } from "@/lib/deputy/brain";
-import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
-import { settleOnStarknet } from "@/lib/campaigns/settle-starknet";
+import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
@@ -168,10 +167,7 @@ async function runSweep() {
        * It is the likeliest path of all right now. Autopay holds anything below the bar, and a held
        * submission is exactly what a founder approves by hand.
        */
-      const outcome =
-        campaign.settlementRail === "starknet"
-          ? await settleOnStarknet(campaign, sub)
-          : (await settleApprovedSubmission(campaign, sub)).outcome;
+      const { outcome } = await settleByRail(campaign, sub);
       if (outcome.settled) summary.timelock.settled += 1;
       else summary.timelock.other += 1;
     } catch {

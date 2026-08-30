@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress, isSameWallet } from "@/lib/auth/session";
-import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { getCampaign, getSubmission } from "@/lib/db/campaigns";
 
 export const runtime = "nodejs";
@@ -48,7 +48,7 @@ export async function POST(
 
   let result;
   try {
-    result = await settleApprovedSubmission(campaign, submission);
+    result = await settleByRail(campaign, submission);
   } catch (err) {
     console.error("[campaigns/settle] failed:", err);
     return NextResponse.json(

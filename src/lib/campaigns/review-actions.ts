@@ -7,7 +7,7 @@ import {
   recordEvent,
   updateSubmission,
 } from "@/lib/db/campaigns";
-import { settleApprovedSubmission } from "./settle-flow";
+import { settleByRail } from "./settle-dispatch";
 import { buildHeldTriage, type TriageLean } from "./held-triage";
 import { v2Economics } from "./v2-economics";
 import { canDecide, type SubmissionStatus } from "./status";
@@ -118,13 +118,14 @@ export function reviewSummary(
   };
 }
 
-type SettleFn = typeof settleApprovedSubmission;
+type SettleFn = typeof settleByRail;
 
 export interface ReleaseResult {
   ok: boolean;
   settled?: boolean;
   txHash?: string | null;
-  recipient?: string;
+  /** null when nothing settled — a refused Starknet payout names no recipient. */
+  recipient?: string | null;
   amountBase?: number | null;
   reason?: string | null;
   needsOwnerAdd?: boolean;
@@ -133,7 +134,7 @@ export interface ReleaseResult {
 
 /**
  * Founder-approve a HELD submission into the EXISTING settle path. Mirrors the decide route's
- * approve branch exactly (approve → journal → settleApprovedSubmission), minus the SIWE gate —
+ * approve branch exactly (approve → journal → settleByRail), minus the SIWE gate —
  * the caller MUST have checked ownsCampaign. `settle` is injectable for tests only.
  */
 export async function releaseSubmission(
@@ -141,7 +142,7 @@ export async function releaseSubmission(
   submissionId: string,
   opts: { settle?: SettleFn } = {},
 ): Promise<ReleaseResult> {
-  const settle = opts.settle ?? settleApprovedSubmission;
+  const settle = opts.settle ?? settleByRail;
   const campaign = getCampaign(campaignId);
   if (!campaign) return { ok: false, error: "campaign not found" };
   const submission = getSubmission(submissionId);
