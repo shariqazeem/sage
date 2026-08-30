@@ -84,6 +84,7 @@ export default async function CampaignConsolePage({
                     ? "verified"
                     : "held";
           return {
+            id: s.id,
             wallet: s.wallet,
             missionTitle: titleByHash.get(s.missionIdHash ?? "") ?? "Mission",
             state,

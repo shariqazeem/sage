@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSessionAddress, isSameWallet } from "@/lib/auth/session";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { getCampaign, getSubmission } from "@/lib/db/campaigns";
 
@@ -19,7 +19,8 @@ export async function POST(
 ) {
   const { id, sid } = await ctx.params;
 
-  const wallet = await getSessionAddress();
+  // Chain-agnostic: a Starknet founder owns Starknet campaigns.
+  const wallet = await getFounderAddress();
   if (!wallet) {
     return NextResponse.json({ error: "Sign in to settle." }, { status: 401 });
   }
@@ -28,7 +29,7 @@ export async function POST(
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  if (!isSameWallet(wallet, campaign.posterWallet)) {
+  if (!sameFounder(wallet, campaign.posterWallet)) {
     return NextResponse.json(
       { error: "Only the campaign poster can settle." },
       { status: 403 },

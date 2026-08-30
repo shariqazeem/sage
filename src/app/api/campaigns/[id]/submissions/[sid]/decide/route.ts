@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSessionAddress, isSameWallet } from "@/lib/auth/session";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 import { canDecide, type SubmissionStatus } from "@/lib/campaigns/status";
 import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { nowSeconds } from "@/lib/db/keys";
@@ -30,7 +30,15 @@ export async function POST(
 ) {
   const { id, sid } = await ctx.params;
 
-  const wallet = await getSessionAddress();
+  /**
+   * WHICHEVER CHAIN THE FOUNDER SIGNED IN FROM.
+   *
+   * This read the EVM session unconditionally, so a founder who owns a Starknet campaign could not
+   * authenticate to their own review at all — the same lockout the board's `me` route had. A
+   * campaign's owner is compared by `sameFounder`, which is the one comparison that works for both
+   * address families.
+   */
+  const wallet = await getFounderAddress();
   if (!wallet) {
     return NextResponse.json({ error: "Sign in to review submissions." }, { status: 401 });
   }
@@ -39,7 +47,7 @@ export async function POST(
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  if (!isSameWallet(wallet, campaign.posterWallet)) {
+  if (!sameFounder(wallet, campaign.posterWallet)) {
     return NextResponse.json(
       { error: "Only the campaign poster can review submissions." },
       { status: 403 },
