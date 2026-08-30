@@ -40,14 +40,29 @@ interface VendorLog {
  * nothing new. Journal entries are linked to the campaign whose submitter is the
  * recipient; vendor adds for non-campaign recipients are skipped.
  */
+/**
+ * The journal cursor's key. Namespaced by chain, because a block height only means anything on
+ * the chain it was read from.
+ *
+ * It used to be the bare vault address, and the one caller passed no chainId — so every vault
+ * reconciled against `activeNetwork()`, which resolves to Metis and never to GOAT. Two live
+ * policy_v1 campaigns on GOAT therefore had their vendor events read from the wrong chain, found
+ * nothing, and stored a METIS block height. That height is far above GOAT's own, so `reconcileRange`
+ * answers `from > latest` -> null for them from then on: not a failure that retries, one that
+ * quietly never runs again.
+ */
+const cursorKey = (vault: string, chainId: number): string => `${chainId}:${vault.toLowerCase()}`;
+
 export async function reconcileVendorEvents(
   vaultAddress: string,
   chainId?: number,
 ): Promise<ReconcileResult | null> {
   const vault = getAddress(vaultAddress);
   const client = publicClient(chainId);
+  // The client's own chain, so the key names the chain actually read rather than what was passed.
+  const key = cursorKey(vault, client.chain?.id ?? chainId ?? 0);
   const latest = Number(await client.getBlockNumber());
-  const plan = reconcileRange(getVaultCursor(vault), latest);
+  const plan = reconcileRange(getVaultCursor(key), latest);
   if (!plan) return null;
 
   // recipient wallet → campaign, across every campaign this vault funds.
@@ -137,6 +152,6 @@ export async function reconcileVendorEvents(
   fold(queued, "vendor_queued");
   fold(added, "vendor_allowlisted");
 
-  setVaultCursor(vault, plan.toBlock);
+  setVaultCursor(key, plan.toBlock);
   return { inserted, toBlock: plan.toBlock, capped: plan.capped };
 }

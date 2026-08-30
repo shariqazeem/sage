@@ -118,8 +118,18 @@ export async function GET(
     return NextResponse.json({ light: true, submissions, version });
   }
 
-  // Cheaply fold any new on-chain vendor events into the journal (range-capped).
-  await reconcileVendorEvents(campaign.vaultAddress).catch(() => null);
+  /**
+   * Cheaply fold any new on-chain vendor events into the journal (range-capped).
+   *
+   * ONLY for a V1 policy vault, and only on ITS OWN chain. These are PolicyVault events — a V2
+   * CampaignVault and a Cairo vault never emit them — so for every campaign since V2 this was
+   * three RPC round trips per page load that could not match anything. And with no chainId it ran
+   * against `activeNetwork()`, which is Metis and never GOAT, so the V1 campaigns that DO emit
+   * them were reconciled against a chain their vault does not exist on.
+   */
+  if (campaign.vaultKind === "policy_v1") {
+    await reconcileVendorEvents(campaign.vaultAddress, campaign.chainId).catch(() => null);
+  }
 
   // The Deputy's verification receipt, shown to the reviewer before they confirm.
   // Prefer the stored brief (computed at submit time). For an older pending row
