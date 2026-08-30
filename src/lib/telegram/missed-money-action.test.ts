@@ -106,11 +106,62 @@ describe("what it must NOT correct", () => {
     ).toBe(false);
   });
 
-  it("leaves an empty draft alone — the honest fallback already covers it", () => {
+  it("corrects an EMPTY draft too — it now also means a suppressed monologue", () => {
+    /**
+     * This asserted the opposite until 2026-08-30, back when an empty draft could only mean the
+     * model had returned nothing and the post-loop fallback was the whole answer. It now also
+     * means the concierge suppressed a truncated <think> block: the model worked the request out,
+     * ran out of budget mid-thought, and never acted. The founder named a job and a price, so one
+     * corrective round that actually runs the tool beats "I wasn't able to finish that one" — and
+     * that fallback still catches the case where the retry comes back empty as well.
+     */
     expect(
       missedMoneyAction({
         userText: "pay a designer $50 when the logo ships",
         reply: "   ",
+        succeededTools: noTools,
+      }),
+    ).toBe(true);
+  });
+
+  it("still leaves an empty draft alone when no money was asked for", () => {
+    expect(
+      missedMoneyAction({ userText: "what can you do?", reply: "", succeededTools: noTools }),
+    ).toBe(false);
+  });
+
+  it("catches hiring said without a payment verb", () => {
+    // MEASURED on P-DIRECT: this reasoned to the right lane and stopped, and the guard was silent
+    // because it was looking for a verb the founder had no reason to use.
+    expect(
+      missedMoneyAction({
+        userText:
+          "I need someone to translate my restaurant menu into English. $20 when they publish it as a public page.",
+        reply: "This is a direct campaign for a translator.",
+        succeededTools: noTools,
+      }),
+    ).toBe(true);
+    expect(
+      missedMoneyAction({
+        userText: "$5 to anyone who writes a setup guide",
+        reply: "That would be a gig payout.",
+        succeededTools: noTools,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not read every want with a price on it as hiring", () => {
+    expect(
+      missedMoneyAction({
+        userText: "I want a $50 refund on my last campaign",
+        reply: "Refunds come back to the vault owner.",
+        succeededTools: noTools,
+      }),
+    ).toBe(false);
+    expect(
+      missedMoneyAction({
+        userText: "someone charged me $50 for hosting last month",
+        reply: "That is outside what I handle.",
         succeededTools: noTools,
       }),
     ).toBe(false);

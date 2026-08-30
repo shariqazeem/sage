@@ -285,6 +285,17 @@ export function honestFallback(unbacked: string[]): string {
  */
 const PAY_INTENT =
   /\b(pay|paying|pays|paid|send|sending|reward|rewards|rewarding|fund|funding|hire|hiring|commission|bounty|grant|tranche|milestone|payout|dena|de\s*do|dedo|pagar|pague|pago|paga|pagamento|payer|zahlen|bayar)\b/i;
+/**
+ * HIRING SAID WITHOUT A PAYMENT VERB. "I need someone to translate my menu. $20 when they publish
+ * it" names a job and a price and never says "pay" — MEASURED on P-DIRECT, where that exact
+ * phrasing reasoned its way to the right lane and then stopped, and the guard stayed silent
+ * because it was looking for a verb the founder had no reason to use.
+ *
+ * Deliberately narrow: an offer of work to a PERSON. "I want a $50 refund" names an amount and a
+ * want and is not a job, so `want a <thing>` is not a cue.
+ */
+const HIRE_CUE =
+  /\b(?:need|want|looking\s+for|hire|hiring|get)\s+(?:someone|somebody|anyone)\b|\b(?:someone|somebody|anyone)\s+to\s+\w+|\banyone\s+who\b|\bwhoever\b/i;
 /** A currency amount in the shapes people actually type. */
 const AMOUNT = /(?:[$€£₹]\s?\d|(?:\b\d[\d,.]*\s?(?:usd|usdc|dollars?|dólares|dolares|euros?|rupees?|rs)\b))/i;
 
@@ -299,7 +310,7 @@ export function missedMoneyAction(input: {
   // Anything ran? Then this is not the shape of failure being caught.
   if (input.succeededTools.size > 0) return false;
   const asked = input.userText ?? "";
-  if (!PAY_INTENT.test(asked) || !AMOUNT.test(asked)) return false;
+  if (!(PAY_INTENT.test(asked) || HIRE_CUE.test(asked)) || !AMOUNT.test(asked)) return false;
   /**
    * A reply that ASKS is doing the right thing with a genuinely incomplete request — but only a
    * reply that ENDS by asking is actually asking. Testing for a question mark anywhere let a
@@ -309,6 +320,13 @@ export function missedMoneyAction(input: {
    */
   const lastSentence = input.reply.trim().split(/(?<=[.!?])\s+/).filter(Boolean).pop() ?? "";
   if (lastSentence.trim().endsWith("?")) return false;
-  // An empty draft is handled by the existing fallback, not here.
-  return input.reply.trim().length > 0;
+  /**
+   * AN EMPTY DRAFT COUNTS TOO. This used to return false and leave it to the post-loop fallback,
+   * back when empty meant the model had simply returned nothing. It now also means the concierge
+   * SUPPRESSED a truncated reasoning block — the model worked the request out, ran out of budget
+   * mid-thought, and never acted. The founder named a job and a price; one corrective round that
+   * runs the tool is a better answer than "I wasn't able to finish that one", and the fallback is
+   * still there when the retry comes back empty as well.
+   */
+  return true;
 }

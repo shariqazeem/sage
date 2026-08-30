@@ -56,6 +56,55 @@ describe("readStatedTerms — stays silent when the founder did not spell it out
   });
 });
 
+describe("readStatedTerms — the total the founder labelled as one", () => {
+  const vague =
+    "I want to give a small grant to a market seller I know — half when she publishes her catalogue online and half when she posts her first customer review. $40 total.";
+
+  it("reads a total the founder named, and the two tranches they described as halves", () => {
+    // MEASURED by P-DIRECT: this compiled as ONE $20 milestone. The tranches are words, not
+    // numbers, so the sum identity cannot see them — but "$40 total" and "half ... half" can.
+    expect(readStatedTerms(vague)).toEqual({ totalAmount: 40, milestoneCount: 2 });
+  });
+
+  it("catches that measured drift", () => {
+    expect(checkStatedTerms(vague, [m(20)])).toEqual([
+      { field: "count", stated: 2, planned: 1 },
+      { field: "total", stated: 40, planned: 20 },
+    ]);
+    expect(checkStatedTerms(vague, [m(20), m(20)])).toEqual([]);
+  });
+
+  it("reads the label on either side of the amount", () => {
+    expect(readStatedTerms("total of $75 for the work").totalAmount).toBe(75);
+    expect(readStatedTerms("total: 75 USD").totalAmount).toBe(75);
+    expect(readStatedTerms("pay 75 dollars in total").totalAmount).toBe(75);
+  });
+
+  it("does not read a budget as a total — spending part of one is honest", () => {
+    expect(readStatedTerms("I have a $500 budget, pay $50 for a landing page").totalAmount).toBeNull();
+  });
+
+  it("does not read a ceiling as a total — a plan under it is correct", () => {
+    expect(readStatedTerms("spend up to $200 total on this").totalAmount).toBeNull();
+    expect(readStatedTerms("at most $200 in total").totalAmount).toBeNull();
+    expect(checkStatedTerms("spend up to $200 total on this", [m(50)])).toEqual([]);
+  });
+
+  it("prefers the founder's label over the sum identity when both are present", () => {
+    const t = readStatedTerms("$60 total in three milestones: $20, $20, $20");
+    expect(t.totalAmount).toBe(60);
+    expect(t.milestoneCount).toBe(3);
+  });
+
+  it("infers nothing from one 'half' with the remainder never described", () => {
+    expect(readStatedTerms("pay half up front").milestoneCount).toBeNull();
+  });
+
+  it("lets an explicit count win over the fraction reading", () => {
+    expect(readStatedTerms("three milestones: half, half and the rest").milestoneCount).toBe(3);
+  });
+});
+
 describe("checkStatedTerms — contradictions between the words and the plan", () => {
   const utterance =
     "fund my cousin's shop $60 in three milestones: $20 when the shop page is published, $20 when the first product is listed, $20 when the first sale is announced";

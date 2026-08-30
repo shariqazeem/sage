@@ -53,6 +53,33 @@ export function statedAmounts(text: string): number[] {
   return out;
 }
 
+/**
+ * An amount the founder LABELLED as the total — "$40 total", "total of $40", "$40 in total".
+ *
+ * This is more direct evidence than the sum identity below, and it is the only signal available
+ * when the tranches are described in words rather than numbers ("half ... and half. $40 total.").
+ * "budget" is deliberately NOT a total marker: "I have a $500 budget, pay $50 for this" is an
+ * honest plan that spends part of a budget, and reading that as a total would block it.
+ *
+ * "up to $40" is a ceiling, not a total — a plan under it is correct, so it is excluded.
+ */
+const CEILING_BEFORE = /(?:up\s+to|as\s+much\s+as|at\s+most|max(?:imum)?(?:\s+of)?|no\s+more\s+than)\s*$/i;
+
+function labelledTotal(text: string): number | null {
+  // "$40 total" / "40 USD in total"
+  const after = /(?:([$€£₹¥])\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:usd|usdc|dollars?))\s*(?:in\s+)?total\b/i;
+  // "total of $40" / "total: $40"
+  const before = /\btotal\s*(?:of|is|=|:)?\s*(?:([$€£₹¥])\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:usd|usdc|dollars?))/i;
+  for (const re of [after, before]) {
+    const m = re.exec(text);
+    if (!m) continue;
+    if (CEILING_BEFORE.test(text.slice(0, m.index))) continue;
+    const n = Number((m[2] ?? m[3] ?? "").replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 export function readStatedTerms(text: string): StatedTerms {
   const amounts = statedAmounts(text);
 
@@ -60,8 +87,8 @@ export function readStatedTerms(text: string): StatedTerms {
   // shown their own arithmetic — "$60 ... $20, $20, $20" — and the larger one is the total. This
   // is deliberately the ONLY inference: "I have a $500 budget, pay $50 for this" states two
   // amounts that satisfy no such identity, so nothing is inferred and nothing is blocked.
-  let totalAmount: number | null = null;
-  if (amounts.length >= 3) {
+  let totalAmount: number | null = labelledTotal(text);
+  if (totalAmount === null && amounts.length >= 3) {
     const sum = amounts.reduce((a, b) => a + b, 0);
     for (const candidate of amounts) {
       // candidate === the sum of all the others. No further test is needed: with three or more
@@ -79,9 +106,16 @@ export function readStatedTerms(text: string): StatedTerms {
   const countMatch = COUNT_RE.exec(text);
   let milestoneCount: number | null = null;
   if (countMatch) {
+    // A count the founder said outright wins — the branches are ordered so that precedence is
+    // structural, not a condition that could be dropped without changing behaviour.
     const token = countMatch[1].toLowerCase();
     const n = WORD_NUMBERS[token] ?? Number(token);
     if (Number.isFinite(n) && n >= 1 && n <= 20) milestoneCount = n;
+  } else if ((text.match(/\bhalf\b/gi) ?? []).length >= 2) {
+    // "half when she publishes the catalogue and half when she posts a review" — two tranches,
+    // named as fractions instead of a count. Requires the word TWICE, so "half up front" alone
+    // (where the remainder is never described) infers nothing.
+    milestoneCount = 2;
   }
 
   return { totalAmount, milestoneCount };

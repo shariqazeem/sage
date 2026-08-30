@@ -885,6 +885,29 @@ async function runAgentTurn(
       reply = stripReasoningPrefix(msg.content ?? "").trim();
 
       /**
+       * AND A TRUNCATED MONOLOGUE IS NOT A REPLY EITHER.
+       *
+       * The shared stripper removes exactly one CLOSED <think> block and deliberately leaves an
+       * unclosed one intact — right for the JSON parsers, where truncated reasoning must fail
+       * loudly rather than be silently swallowed. Here it is exactly wrong: the block never closes,
+       * so nothing is stripped, the text is not empty, the honest fallback below never fires, and
+       * Sage's internal monologue IS what the founder reads. That is the failure the strip was
+       * added for, still open for the truncated case.
+       *
+       * Emptying it hands the turn to the guards that already exist: the money-action check gets
+       * one corrective round to actually run the tool, and failing that the founder gets the plain
+       * "I wasn't able to finish that one" instead of 1,800 characters of Sage thinking.
+       */
+      if (reply.trimStart().startsWith("<think>")) {
+        console.warn(
+          "[concierge:%s] truncated reasoning block suppressed (%d chars, no closing tag)",
+          surface,
+          reply.length,
+        );
+        reply = "";
+      }
+
+      /**
        * SELF-CORRECT INSTEAD OF CONFESSING. The guard used to fire after the loop, so a draft that
        * claimed something no tool backed became the fallback text and the FOUNDER had to re-ask —
        * measured live: "is there any live missions?" answered with "ask me again and I'll run it
