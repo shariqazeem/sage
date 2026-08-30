@@ -6,6 +6,7 @@ import {
   useStarknetWallet,
   type StarknetWallet,
 } from "@/lib/starknet/use-starknet-wallet";
+import { refreshFounderSession } from "./use-founder-session";
 
 /**
  * SIGNING IN WITH A STARKNET WALLET — the tester's side of the private-capable rail.
@@ -123,6 +124,10 @@ export function useStarknetSiwe(): StarknetSiweApi {
           address: string;
         };
         setAddress(verified);
+        // Tell every component that reads the founder session, not just the one that rendered this
+        // button. Without it the rail kept saying "Sign in" to a founder who had just signed in,
+        // until they refreshed the page.
+        void refreshFounderSession();
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -144,6 +149,7 @@ export function useStarknetSiwe(): StarknetSiweApi {
       () => {},
     );
     setAddress(null);
+    void refreshFounderSession();
     discovery.disconnect();
   }, [discovery]);
 

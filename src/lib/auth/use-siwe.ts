@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet, type WalletApi } from "@/lib/wallet/use-wallet";
 import { buildSiweMessage } from "./message";
+import { refreshFounderSession } from "./use-founder-session";
 
 export interface SiweApi {
   /** The connected wallet (may differ from the authed one until re-signed). */
@@ -82,6 +83,9 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
       if (!verifyRes.ok) return false;
       const json = (await verifyRes.json()) as { address?: string };
       setAuthedAddress(json.address ?? account);
+      // Same reason as the Starknet hook: the shared founder session backs the rail and several
+      // pages, and none of them rendered this button.
+      void refreshFounderSession();
       return true;
     } catch {
       return false;
@@ -93,6 +97,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
   const signOut = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" });
     setAuthedAddress(null);
+    void refreshFounderSession();
   }, []);
 
   const authed =
