@@ -36,6 +36,14 @@ export function AppRail() {
   const founder = useFounderSession();
   // Either session counts as signed in; the rail is identity chrome, not an EVM control.
   const signedInAs = founder.address ?? siwe.authedAddress ?? "";
+  /**
+   * "Still asking" is not "signed out", and the rail used to render them identically.
+   *
+   * A founder looking at their own campaign console saw "Sign in" in the sidebar while they were
+   * signed in, because the session fetch had not answered yet — and there is no way to tell that
+   * from a wrong answer. Nothing is claimed until the answer arrives.
+   */
+  const stillAsking = founder.loading && !siwe.authedAddress;
 
   const isActive = (href: string): boolean => {
     const base = href.split("?")[0];
@@ -89,7 +97,14 @@ export function AppRail() {
         <span className="app-rail-label">{copied ? "Link copied!" : "Invite your team"}</span>
       </button>
 
-      {signedInAs ? (
+      {stillAsking ? (
+        <div className="app-rail-pill app-rail-user" aria-hidden>
+          <span className="app-rail-avatar">
+            <Wallet size={14} strokeWidth={2} />
+          </span>
+          <span className="app-rail-label">…</span>
+        </div>
+      ) : signedInAs ? (
         <div className="app-rail-pill app-rail-user" title={signedInAs}>
           <span className="app-rail-avatar">
             <Wallet size={14} strokeWidth={2} />

@@ -16,6 +16,7 @@ import { reward, networkLabel, short, since } from "@/lib/format";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import { SageActivity, type ActivityData } from "@/components/campaigns/sage-activity";
 import { StopWithdrawCard } from "@/components/campaign/stop-withdraw-card";
+import { StarknetStopWithdrawCard } from "@/components/campaign/starknet-stop-withdraw-card";
 import { chainConfig } from "@/lib/deputy/networks";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import "@/styles/wallet-connect.css";
@@ -355,7 +356,13 @@ function Console({ data }: { data: WorkspaceData }) {
           </div>
         )}
 
-        <StopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+        {chainConfig(data.chainId).evm ? (
+          <StopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} chainId={data.chainId} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+        ) : (
+          /* The EVM card is viem all the way down and cannot read a felt — it sat on "reading
+             vault balance…" while telling a founder to connect a wallet they already had. */
+          <StarknetStopWithdrawCard vaultAddress={data.vaultAddress} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+        )}
       </aside>
       </div>
 
