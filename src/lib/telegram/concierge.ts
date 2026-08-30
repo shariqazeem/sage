@@ -27,6 +27,7 @@ import {
 import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
 import { missedMoneyAction, checkNarration, honestFallback } from "./narration-guard";
 
 /**
@@ -632,6 +633,7 @@ async function runAgentTurn(
   let selfCorrected = false;
   /** Which tool the corrective round should present alone, once a guard has named the lane. */
   let correctiveTool: string | null = null;
+  let termsChecked = false;
   /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
   const succeededTools = new Set<string>();
   // everything the tools returned this turn, so a link in the reply can be proven to have come
@@ -752,6 +754,47 @@ async function runAgentTurn(
               }),
             });
             continue;
+          }
+
+          /**
+           * THE FOUNDER'S OWN ARITHMETIC. Every money gate downstream checks the plan against
+           * ITSELF — the budget compiler, the caps, the vault — and a plan that drops a tranche is
+           * perfectly self-consistent, just not what was asked for. MEASURED by P-DIRECT: "$60 in
+           * three milestones: $20, $20, $20" was sometimes built as one $20 milestone, and nothing
+           * anywhere noticed. This reads their words instead of the model's.
+           *
+           * Deliberately ONE shot, and only a tool result: if the model rebuilds to the founder's
+           * numbers the defect is gone, and if it comes back the same we let it through. It is the
+           * founder's money and their contract — a plan they can still read at its planUrl before
+           * funding — so a phrasing this cannot parse must cost one round trip, never the campaign.
+           */
+          if (tc.function.name === "sage_create_direct_campaign" && !termsChecked) {
+            termsChecked = true;
+            const raw = Array.isArray(args.milestones) ? (args.milestones as unknown[]) : [];
+            const planned = raw.flatMap((x) => {
+              const o = x as { rewardUsd?: unknown; rewardLocal?: unknown; slots?: unknown };
+              return typeof o?.rewardUsd === "number"
+                ? [{
+                    rewardUsd: o.rewardUsd,
+                    rewardLocal: typeof o.rewardLocal === "number" ? o.rewardLocal : undefined,
+                    slots: typeof o.slots === "number" ? o.slots : 1,
+                  }]
+                : [];
+            });
+            const mismatches = planned.length ? checkStatedTerms(userText, planned) : [];
+            if (mismatches.length) {
+              console.warn(
+                "[concierge:%s] stated-terms mismatch: %s",
+                surface,
+                mismatches.map((x) => `${x.field} stated=${x.stated} planned=${x.planned}`).join(", "),
+              );
+              messages.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: JSON.stringify({ ok: false, error: statedTermsCorrection(mismatches) }),
+              });
+              continue;
+            }
           }
 
           // Direct-campaign creation is deterministic (no model, no money) but writes rows — bound it

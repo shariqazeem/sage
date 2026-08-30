@@ -1,0 +1,139 @@
+/**
+ * STATED TERMS — what the founder's own words commit them to, read deterministically.
+ *
+ * The money invariant of this product is that no model ever computes an amount. That is enforced
+ * downstream: the budget compiler derives every reward, and the vault derives the payout. But
+ * there is an earlier step nothing checked — the model still TRANSCRIBES the founder's numbers
+ * into the plan, and a transcription can silently drop one.
+ *
+ * MEASURED by P-DIRECT: "fund my cousin's shop $60 in three milestones: $20 when the shop page is
+ * published, $20 when the first product is listed, $20 when the first sale is announced" was
+ * sometimes compiled as ONE milestone worth $20. Every gate downstream passed it, because
+ * $20 × 1 === $20 is a perfectly consistent budget — it is simply not the founder's budget. The
+ * failure only becomes visible when the second recipient is told their work has no milestone,
+ * after they have done it.
+ *
+ * So this reads the founder's arithmetic instead of the model's. It infers ONLY from what they
+ * made explicit, and stays silent otherwise — a check that guesses is worse than no check, because
+ * it would block honest plans over phrasing.
+ */
+
+/** A number carrying a currency marker: "$60", "60 USD", "J$5,000", "60 dollars", "€1.500,00" no. */
+const AMOUNT_RE =
+  /(?:([$€£₹¥])\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:usd|usdc|dollars?|euros?|pounds?|rupees?|naira|pesos?|jmd|kyd|ttd|bbd|xcd)\b)/gi;
+
+/** "three milestones", "2 tranches", "in 4 stages" — a count the founder said out loud. */
+const WORD_NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+const COUNT_RE = new RegExp(
+  String.raw`\b(\d{1,2}|${Object.keys(WORD_NUMBERS).join("|")})\s+` +
+    String.raw`(?:equal\s+|separate\s+|monthly\s+|weekly\s+)?` +
+    String.raw`(milestones?|tranches?|stages?|instal?lments?|payments?|phases?|deliverables?)\b`,
+  "i",
+);
+
+export type StatedTerms = {
+  /** The total the founder's OWN numbers prove, or null when they did not spell one out. */
+  totalAmount: number | null;
+  /** How many tranches they named in words, or null. */
+  milestoneCount: number | null;
+};
+
+/** Every currency-marked amount in the text, in order, with multiplicity. */
+export function statedAmounts(text: string): number[] {
+  const out: number[] = [];
+  for (const m of text.matchAll(AMOUNT_RE)) {
+    const raw = m[2] ?? m[3];
+    if (!raw) continue;
+    const n = Number(raw.replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) out.push(n);
+  }
+  return out;
+}
+
+export function readStatedTerms(text: string): StatedTerms {
+  const amounts = statedAmounts(text);
+
+  // THE SUM IDENTITY. When one stated amount equals the sum of all the others, the founder has
+  // shown their own arithmetic — "$60 ... $20, $20, $20" — and the larger one is the total. This
+  // is deliberately the ONLY inference: "I have a $500 budget, pay $50 for this" states two
+  // amounts that satisfy no such identity, so nothing is inferred and nothing is blocked.
+  let totalAmount: number | null = null;
+  if (amounts.length >= 3) {
+    const sum = amounts.reduce((a, b) => a + b, 0);
+    for (const candidate of amounts) {
+      // candidate === the sum of all the others. No further test is needed: with three or more
+      // POSITIVE amounts, only the unique largest can satisfy this, so a tranche can never
+      // masquerade as the total. (Checked by probe over 200k random cases — a `candidate is max`
+      // clause here was unreachable, and an unreachable clause in a money guard reads as
+      // protection that is not there.)
+      if (Math.abs(sum - candidate * 2) < 0.005) {
+        totalAmount = candidate;
+        break;
+      }
+    }
+  }
+
+  const countMatch = COUNT_RE.exec(text);
+  let milestoneCount: number | null = null;
+  if (countMatch) {
+    const token = countMatch[1].toLowerCase();
+    const n = WORD_NUMBERS[token] ?? Number(token);
+    if (Number.isFinite(n) && n >= 1 && n <= 20) milestoneCount = n;
+  }
+
+  return { totalAmount, milestoneCount };
+}
+
+export type PlannedMilestone = { rewardUsd: number; rewardLocal?: number; slots: number };
+export type TermsMismatch = { field: "total" | "count"; stated: number; planned: number };
+
+/**
+ * Compare the founder's stated terms against the plan the model built. Returns the contradictions,
+ * empty when they agree or when the founder stated nothing to check.
+ *
+ * Currency: the founder's numbers are in THEIR currency, so a non-USD plan is compared against
+ * `rewardLocal` — the amount they actually said. When only some milestones carry a local amount
+ * the comparison is ambiguous, so it is skipped rather than guessed.
+ */
+export function checkStatedTerms(text: string, milestones: PlannedMilestone[]): TermsMismatch[] {
+  const stated = readStatedTerms(text);
+  const out: TermsMismatch[] = [];
+  if (milestones.length === 0) return out;
+
+  if (stated.milestoneCount !== null && stated.milestoneCount !== milestones.length) {
+    out.push({ field: "count", stated: stated.milestoneCount, planned: milestones.length });
+  }
+
+  if (stated.totalAmount !== null) {
+    const allLocal = milestones.every((m) => typeof m.rewardLocal === "number");
+    const anyLocal = milestones.some((m) => typeof m.rewardLocal === "number");
+    if (!anyLocal || allLocal) {
+      const planned = milestones.reduce(
+        (sum, m) => sum + (allLocal ? (m.rewardLocal as number) : m.rewardUsd) * m.slots,
+        0,
+      );
+      if (Math.abs(planned - stated.totalAmount) >= 0.005) {
+        out.push({ field: "total", stated: stated.totalAmount, planned });
+      }
+    }
+  }
+
+  return out;
+}
+
+/** The correction handed back to the model — states the founder's numbers, never new ones. */
+export function statedTermsCorrection(mismatches: TermsMismatch[]): string {
+  const parts = mismatches.map((m) =>
+    m.field === "count"
+      ? `they asked for ${m.stated} milestones and this plan has ${m.planned}`
+      : `their own numbers add up to ${m.stated} and this plan totals ${m.planned}`,
+  );
+  return (
+    `This plan does not match what the founder said: ${parts.join("; ")}. ` +
+    `Rebuild it from their exact words — every amount and every milestone they named, nothing added. ` +
+    `Do not invent a number to make the arithmetic work: if their words are genuinely ambiguous, ask them.`
+  );
+}
