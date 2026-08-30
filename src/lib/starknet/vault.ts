@@ -286,6 +286,125 @@ export interface PayoutResult {
  * public), and it means this function must read the outcome from the receipt rather than assume a
  * successful transaction paid anyone.
  */
+/** The exact call a payout sends. Shared, so a simulation cannot drift from the real thing. */
+function payoutCall(args: {
+  vaultAddress: string;
+  missionId: string;
+  recipient: string;
+  decisionDigest: string;
+  intentHash: string;
+}) {
+  return {
+    contractAddress: args.vaultAddress,
+    entrypoint: "request_payout",
+    calldata: new CallData(ABI).compile("request_payout", {
+      mission_id: args.missionId,
+      recipient: args.recipient,
+      decision_digest: args.decisionDigest,
+      intent_hash: args.intentHash,
+    }),
+  };
+}
+
+export interface PayoutSimulation {
+  /** would the vault release the money, as state stands right now? */
+  wouldPay: boolean;
+  code: number;
+  reason: string;
+  /** true when the call would revert outright rather than answer with a code. */
+  reverted: boolean;
+  error?: string;
+}
+
+/**
+ * Ask the vault what it WOULD do, without asking it to do anything.
+ *
+ * An operator instrument, not part of settlement. It runs the real payout call against current
+ * state and commits nothing, which is the only way to establish that this rail can pay before a
+ * founder's money is the thing being tested: it proves the ABI compiles the call, the operator key
+ * is the one the vault accepts, the mission exists under the felt settlement will look it up by,
+ * and which refusal code — if any — the vault would answer with.
+ *
+ * DELIBERATELY NOT WIRED INTO SETTLEMENT. A refusal costing a transaction is the contract's
+ * design, not an oversight: the reason lands on chain where the recipient can read it. Simulating
+ * first to skip that would quietly make refusals private.
+ */
+export async function simulateVaultPayout(args: {
+  vaultAddress: string;
+  missionId: string;
+  recipient: string;
+  decisionDigest: string;
+  intentHash: string;
+}): Promise<PayoutSimulation> {
+  const { account } = operatorAccount();
+  let trace: unknown;
+  try {
+    const sim = await account.simulateTransaction([
+      { type: "INVOKE" as const, payload: [payoutCall(args)] },
+    ]);
+    // The RPC answers `{ simulated_transactions: [...] }`; older clients handed back the array
+    // itself. Read both, because getting this wrong produces "the vault emitted neither outcome"
+    // — a sentence that reads like a broken rail and means a broken reader.
+    const r = sim as unknown as
+      | { simulated_transactions?: { transaction_trace?: unknown }[] }
+      | { transaction_trace?: unknown }[];
+    trace = Array.isArray(r)
+      ? r[0]?.transaction_trace
+      : r.simulated_transactions?.[0]?.transaction_trace;
+  } catch (e) {
+    return {
+      wouldPay: false,
+      code: -1,
+      reason: "the call would revert",
+      reverted: true,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+
+  const events = collectEvents(trace);
+  const released = hash.getSelectorFromName("PayoutReleased");
+  const refused = hash.getSelectorFromName("PayoutRefused");
+  const mine = events.filter((e) => BigInt(e.from_address) === BigInt(args.vaultAddress));
+  const wouldPay = mine.some((e) => e.keys.some((k) => BigInt(k) === BigInt(released)));
+  const refusal = mine.find((e) => e.keys.some((k) => BigInt(k) === BigInt(refused)));
+  const code = refusal ? Number(BigInt(refusal.data[0] ?? 0)) : wouldPay ? 0 : -1;
+  return {
+    wouldPay,
+    code,
+    reason: code === -1 ? "the vault emitted neither outcome — read the trace" : refusalReason(code),
+    reverted: false,
+  };
+}
+
+/** Events from a simulation trace, which nests them by call rather than listing them flat. */
+function collectEvents(trace: unknown): { from_address: string; keys: string[]; data: string[] }[] {
+  const out: { from_address: string; keys: string[]; data: string[] }[] = [];
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+    if (Array.isArray(n.events)) {
+      for (const e of n.events as Record<string, unknown>[]) {
+        // A nested trace names the emitter `from_address`; some shapes omit it and inherit the
+        // call's own contract. Fall back rather than dropping the event.
+        const from = (e.from_address ?? n.contract_address) as string | undefined;
+        if (from) {
+          out.push({
+            from_address: from,
+            keys: ((e.keys as string[]) ?? []).map(String),
+            data: ((e.data as string[]) ?? []).map(String),
+          });
+        }
+      }
+    }
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") walk(v);
+    }
+  };
+  walk(trace);
+  return out;
+}
+
 export async function requestVaultPayout(args: {
   vaultAddress: string;
   missionId: string;
@@ -295,18 +414,7 @@ export async function requestVaultPayout(args: {
 }): Promise<PayoutResult> {
   const { account, provider } = operatorAccount();
 
-  const tx = await account.execute([
-    {
-      contractAddress: args.vaultAddress,
-      entrypoint: "request_payout",
-      calldata: new CallData(ABI).compile("request_payout", {
-        mission_id: args.missionId,
-        recipient: args.recipient,
-        decision_digest: args.decisionDigest,
-        intent_hash: args.intentHash,
-      }),
-    },
-  ]);
+  const tx = await account.execute([payoutCall(args)]);
 
   // Wait for execution, not just acceptance: `execute` resolves when the sequencer takes the
   // transaction, and a reverted one resolves just as happily.
