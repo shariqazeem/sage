@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 
 /**
  * A SIGNED-IN STARKNET TESTER MUST BE ABLE TO SUBMIT.
@@ -115,5 +115,58 @@ describe("the submit control a Starknet tester is offered", () => {
   it("still shows the EVM sign-in on the EVM rail when signed out", async () => {
     board("evm");
     expect(await screen.findByText(/connect wallet to submit|sign in to submit/i)).toBeTruthy();
+  });
+});
+
+/**
+ * WHAT A PAID WORKER IS SHOWN, PER RAIL.
+ *
+ * A public payout is announced — it already landed at their address, and the receipt is a link to
+ * the transaction. A private one is HANDED OVER: the money is escrowed behind a commitment and
+ * they open it themselves, so what they need is the link and the warning that comes with it.
+ * Showing the wrong one leaves someone either hunting a transaction that does not exist, or
+ * holding a bearer secret nobody told them was a bearer secret.
+ */
+describe("what a paid worker is shown", () => {
+  const paid = (over: Record<string, unknown>) => ({
+    id: "s1", status: "paid", payoutTx: "0xvault", brief: null, observation: null,
+    retry: null, autopay: null, claim: null, ...over,
+  });
+
+  const withMine = (sub: Record<string, unknown>) => {
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({ authed: true, submission: sub }), { status: 200 })));
+  };
+
+  it("hands over the link, and says the link IS the money", async () => {
+    snState.authed = true;
+    snState.address = "0x4f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434";
+    withMine(paid({ claim: { url: "https://sagepays.xyz/claim#0xabc", commitment: "1" } }));
+    board("starknet");
+    expect(await screen.findByText(/is yours to collect/i)).toBeTruthy();
+    // Someone who does not know it is a bearer secret will paste it somewhere.
+    expect(await screen.findByText(/this link is the money/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /collect/i }).getAttribute("href")).toBe(
+      "https://sagepays.xyz/claim#0xabc",
+    );
+  });
+
+  it("does not show a transaction receipt for money that has not been collected yet", async () => {
+    snState.authed = true;
+    snState.address = "0x4f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434";
+    withMine(paid({ claim: { url: "https://sagepays.xyz/claim#0xabc", commitment: "1" } }));
+    board("starknet");
+    await screen.findByText(/is yours to collect/i);
+    // The vault paid Sage, not them. A receipt here would be pointing at somebody else's payment.
+    expect(screen.queryByText(/share/i)).toBeNull();
+  });
+
+  it("shows the ordinary receipt when there is no claim — the public rail is untouched", async () => {
+    siweState.authed = true;
+    siweState.address = "0x3a60af43c67dd9d552f180d30d9a042948078341";
+    withMine(paid({ claim: null }));
+    board("evm");
+    // Whatever the paid state renders on the public rail, it is NOT the handover.
+    await waitFor(() => expect(screen.queryByText(/is yours to collect/i)).toBeNull());
   });
 });

@@ -14,6 +14,7 @@ const getSessionAddress = vi.fn(async (): Promise<string | null> => null);
 const getStarknetSessionAddress = vi.fn(async (): Promise<string | null> => null);
 const getWalletMissionSubmission = vi.fn((_m: string, _w: string) => null as unknown);
 const getWalletSubmission = vi.fn((_c: string, _w: string) => null as unknown);
+const SECRET = "0x496ae11a90f6691a436928269b2e187d7eba99e7051a92673094b7ab80b33f";
 let rail: string | undefined = "evm";
 
 vi.mock("@/lib/auth/session", () => ({ getSessionAddress: () => getSessionAddress() }));
@@ -35,6 +36,7 @@ vi.mock("@/lib/deputy/reason-copy", () => ({
 }));
 vi.mock("@/lib/campaigns/slot-reservation", () => ({ RETRY_RESERVATION_MINUTES: 30 }));
 vi.mock("@/lib/campaigns/journal", () => ({ decodeDetail: (d: string) => d }));
+vi.mock("@/lib/site", () => ({ siteUrl: () => "https://sagepays.xyz" }));
 
 import { GET } from "./route";
 
@@ -97,5 +99,50 @@ describe("which session a campaign's own board reads", () => {
     expect(res.status).toBe(404);
     expect(getSessionAddress).not.toHaveBeenCalled();
     expect(getStarknetSessionAddress).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE CLAIM LINK REACHES EXACTLY ONE PERSON.
+ *
+ * A private-rail payout is escrowed behind a commitment rather than sent to an address, so the
+ * link IS the money — whoever holds it collects. That is what makes the collection unlinkable, and
+ * it is why the secret is confined rather than hardened: this route already resolves a submission
+ * from the SESSION WALLET, so it can only ever answer the worker it belongs to.
+ */
+describe("handing over a private payout", () => {
+  const paidPrivately = {
+    id: "s1", status: "paid", payoutTx: "0xvault", evidenceUrl: null,
+    claimSecret: SECRET, claimCommitment: "12345", claimEscrowTx: "0xescrow",
+    attempt: 1,
+  };
+
+  it("returns the claim link to the worker whose submission it is", async () => {
+    rail = "starknet";
+    getStarknetSessionAddress.mockResolvedValue(FELT);
+    getWalletSubmission.mockReturnValue(paidPrivately);
+    const json = (await (await call()).json()) as {
+      submission: { claim: { url: string; commitment: string } | null };
+    };
+    expect(json.submission.claim?.url).toBe(`https://sagepays.xyz/claim#${SECRET}`);
+    expect(json.submission.claim?.commitment).toBe("12345");
+  });
+
+  it("returns no claim for a public payout", async () => {
+    getSessionAddress.mockResolvedValue(EVM);
+    getWalletSubmission.mockReturnValue({ ...paidPrivately, claimSecret: null, claimCommitment: null });
+    const json = (await (await call()).json()) as { submission: { claim: unknown } };
+    expect(json.submission.claim).toBeNull();
+  });
+
+  it("answers nobody at all when the session is not the worker's", async () => {
+    // The route resolves the submission FROM the session wallet, so a different wallet simply has
+    // no submission here — there is no branch in which someone else's secret is reachable.
+    rail = "starknet";
+    getStarknetSessionAddress.mockResolvedValue(null);
+    getWalletSubmission.mockReturnValue(paidPrivately);
+    const json = (await (await call()).json()) as { authed: boolean; submission: unknown };
+    expect(json).toEqual({ authed: false, submission: null });
+    expect(getWalletSubmission).not.toHaveBeenCalled();
   });
 });
