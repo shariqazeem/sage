@@ -116,3 +116,40 @@ describe("what it must NOT correct", () => {
     ).toBe(false);
   });
 });
+
+describe("what counts as asking", () => {
+  it("still leaves a reply that ENDS by asking", () => {
+    expect(
+      missedMoneyAction({
+        userText: "pay a designer $50 when the logo ships",
+        reply: "I can set that up. Who should receive it?",
+        succeededTools: new Set(),
+      }),
+    ).toBe(false);
+  });
+
+  it("corrects a reply that merely CONTAINS a rhetorical question and then concludes", () => {
+    // The measured miss: a $40 two-tranche grant where the model asked itself a question in the
+    // middle, answered it, and stopped. Testing for "?" anywhere suppressed the correction on a
+    // request that had stated everything.
+    expect(
+      missedMoneyAction({
+        userText:
+          "I want to give a small grant to a market seller — half when she publishes her catalogue and half when she posts her first review. $40 total.",
+        reply:
+          "So what does she need to publish? The catalogue, then a review. Two tranches of $20. Total $40. This is a direct campaign.",
+        succeededTools: new Set(),
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves a trailing question alone even after analysis", () => {
+    expect(
+      missedMoneyAction({
+        userText: "pay a designer $50 when the logo ships",
+        reply: "This is a gig payout of $50. What link will prove the logo shipped?",
+        succeededTools: new Set(),
+      }),
+    ).toBe(false);
+  });
+});

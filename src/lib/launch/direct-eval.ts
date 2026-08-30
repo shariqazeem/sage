@@ -91,6 +91,8 @@ async function askModelWithRetry(
   timeoutMs: number,
   attempts = 3,
   history: Msg[] = [],
+  /** Production forces a call on the corrective round; a battery that does not over-reports. */
+  forceTool = false,
 ): Promise<Ask> {
   /**
    * PRODUCTION'S OWN LADDER. The hand-rolled 2s/4s version here was far too aggressive for the
@@ -101,7 +103,7 @@ async function askModelWithRetry(
    */
   try {
     return await withTransientRetry(
-      async () => askModel(utterance, timeoutMs, history),
+      async () => askModel(utterance, timeoutMs, history, forceTool),
       { attempts },
     );
   } catch (e) {
@@ -116,7 +118,13 @@ async function askModelWithRetry(
 
 type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
 
-async function askModel(utterance: string, timeoutMs: number, history: Msg[] = []): Promise<Ask> {
+async function askModel(
+  utterance: string,
+  timeoutMs: number,
+  history: Msg[] = [],
+  /** Production forces a call on the corrective round; a battery that does not over-reports. */
+  forceTool = false,
+): Promise<Ask> {
   const key = conciergeKey();
   const base = conciergeBase();
   if (!key) return { call: null, reply: "", failed: true, why: "no concierge api key in env" };
@@ -135,9 +143,17 @@ async function askModel(utterance: string, timeoutMs: number, history: Msg[] = [
           { role: "user", content: utterance },
           ...history,
         ],
-        // Both lanes are offered, because CHOOSING between them is half of what is measured.
-        // PRODUCTION'S OWN ENCODER — never a hand-rolled copy (see asOpenAI's comment).
-        tools: [
+        /**
+         * Both lanes are offered on the FIRST pass, because choosing between them is half of what
+         * is measured. PRODUCTION'S OWN ENCODER — never a hand-rolled copy (see asOpenAI).
+         *
+         * On the corrective round production narrows to the lane its guard already named, because
+         * MiniMax ignores tool_choice and a smaller decision is what actually converts. A battery
+         * that keeps the full surface there measures a turn production does not run.
+         */
+        tools: (forceTool
+          ? [asOpenAI(DIRECT_CAMPAIGN_TOOL)]
+          : [
           asOpenAI(DIRECT_CAMPAIGN_TOOL),
           asOpenAI({
             name: "sage_start_inspection",
@@ -153,8 +169,8 @@ async function askModel(utterance: string, timeoutMs: number, history: Msg[] = [
               required: ["productUrl"],
             },
           }),
-        ],
-        tool_choice: "auto",
+        ]),
+        tool_choice: forceTool ? "required" : "auto",
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -217,6 +233,7 @@ export async function runDirectEval(opts: {
        * UNBACKED CLAIM. A turn that honestly asks a question ("what's the amount per milestone?")
        * trips nothing and still counts as no-tool, which for a vague fixture is the CORRECT answer.
        */
+      let correctedThisRow = false;
       if (!failed && !call && reply) {
         const stripped = stripReasoningPrefix(reply);
         const verdict = checkNarration(stripped, new Set<string>());
@@ -247,7 +264,8 @@ export async function runDirectEval(opts: {
              */
             { role: "assistant", content: stripped },
             { role: "user", content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
-          ]);
+          ], true);
+          correctedThisRow = true;
           if (corrected.call) ({ call, reply, finish, outTokens } = corrected);
         }
       }
@@ -283,7 +301,7 @@ export async function runDirectEval(opts: {
         reply: calledTool ? "" : reply.slice(0, 240),
         replyLen: reply.length,
         rawArgs: "",
-        correctionRounds: 0,
+        correctionRounds: correctedThisRow ? 1 : 0,
         violations,
       };
 
@@ -380,6 +398,11 @@ export async function runDirectEval(opts: {
       log(
         `  ${f.id} run${r + 1}/${runs}: ${calledTool ? "direct" : name ?? "no-tool"}` +
           `${row.compiled ? ` · $${row.totalUsd} · ${row.milestones}m` : ""}` +
+          // WHETHER THE CORRECTIVE ROUND RAN, on every row. Without it a failure cannot be
+          // attributed: a wrong plan that came from a retry and one that came from the first pass
+          // look identical in this log, and I could not tell whether my own change had caused a
+          // regression or watched ordinary model variance.
+          `${row.correctionRounds ? "  ↻" : ""}` +
           `${violations.length ? `  ⚠ ${violations.length}` : "  ok"}` +
           `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}` +
           `${!calledTool ? ` · finish=${finish ?? "?"} outTokens=${outTokens ?? "?"}` : ""}` +

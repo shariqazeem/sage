@@ -300,8 +300,15 @@ export function missedMoneyAction(input: {
   if (input.succeededTools.size > 0) return false;
   const asked = input.userText ?? "";
   if (!PAY_INTENT.test(asked) || !AMOUNT.test(asked)) return false;
-  // A reply that ASKS is doing the right thing with a genuinely incomplete request.
-  if (/\?/.test(input.reply)) return false;
+  /**
+   * A reply that ASKS is doing the right thing with a genuinely incomplete request — but only a
+   * reply that ENDS by asking is actually asking. Testing for a question mark anywhere let a
+   * rhetorical one mid-paragraph ("so what does she need to publish? the catalogue.") suppress the
+   * correction on a request that stated everything: measured on a $40 two-tranche grant where the
+   * model concluded correctly and still did not act.
+   */
+  const lastSentence = input.reply.trim().split(/(?<=[.!?])\s+/).filter(Boolean).pop() ?? "";
+  if (lastSentence.trim().endsWith("?")) return false;
   // An empty draft is handled by the existing fallback, not here.
   return input.reply.trim().length > 0;
 }

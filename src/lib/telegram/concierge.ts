@@ -497,6 +497,19 @@ async function chatCompletion(
   messages: ChatMessage[],
   tools: ReturnType<typeof asOpenAI>[],
   budgetMs: number = TURN_BUDGET_MS,
+  /**
+   * FORCE A TOOL ON THE CORRECTIVE ROUND ONLY.
+   *
+   * `tool_choice: "auto"` leaves the model free to decline, which is right on a first pass — most
+   * turns are conversation. It is wrong on a self-correct: by then two independent guards have
+   * already established that a tool SHOULD have run, and asking politely a second time is hopeful
+   * rather than binding. Measured on P-DIRECT: a corrective round with "auto" still returned prose
+   * on roughly one gig row in ten, most often a non-English one.
+   *
+   * "required" forces a call without dictating WHICH — the model still chooses, and the guards
+   * still judge whether it chose correctly, so this compels action without compelling an answer.
+   */
+  forceTool = false,
 ): Promise<ChatResponse> {
   return withTransientRetry(
     async () => {
@@ -526,7 +539,7 @@ async function chatCompletion(
           max_tokens: outputBudget(5_000, profileFor(model(), base())),
           messages,
           tools,
-          tool_choice: "auto",
+          tool_choice: forceTool ? "required" : "auto",
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
@@ -617,6 +630,8 @@ async function runAgentTurn(
   let reply = "";
   /** one guard-triggered corrective round per turn — see the self-correct block below. */
   let selfCorrected = false;
+  /** Which tool the corrective round should present alone, once a guard has named the lane. */
+  let correctiveTool: string | null = null;
   /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
   const succeededTools = new Set<string>();
   // everything the tools returned this turn, so a link in the reply can be proven to have come
@@ -627,7 +642,24 @@ async function runAgentTurn(
   const turnDeadline = Date.now() + TURN_BUDGET_MS;
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const data = await chatCompletion(messages, tools, turnDeadline - Date.now());
+      /**
+       * NARROW THE DECISION ON THE CORRECTIVE ROUND, rather than trying to force it.
+       *
+       * `tool_choice: "required"` is not available here: MiniMax-M3 ignores it — probed directly,
+       * told "just say hello, do not create anything" with `required` and asked to expose one
+       * tool, it returned no call at all. So the corrective round cannot compel.
+       *
+       * What DOES work is a smaller decision. The same model, given the same request with ONE
+       * relevant tool and a short prompt, emits the call reliably; it is the full surface of a
+       * dozen tools that leaves it reasoning into prose. By the corrective round two independent
+       * guards have already established which lane this turn belongs to, so presenting that lane's
+       * tool alone is not a restriction on the model's judgement — it is the judgement, already
+       * made, stated plainly.
+       */
+      const roundTools = selfCorrected && correctiveTool
+        ? tools.filter((t) => t.function?.name === correctiveTool)
+        : tools;
+      const data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected);
       const msg = data.choices?.[0]?.message;
       if (!msg) {
         reply = "I couldn't reach my brain just now — try again in a moment.";
@@ -836,6 +868,9 @@ async function runAgentTurn(
         const why = !draftVerdict.ok
           ? `your draft stated ${draftVerdict.unbacked.join(" and ")} but no tool ran this turn to back it`
           : "the founder asked you to pay someone a stated amount and no tool ran this turn";
+        // The money-action guard names its lane exactly; the narration guard does not, so that
+        // path keeps the full tool set rather than guessing which one it meant.
+        correctiveTool = !draftVerdict.ok ? null : "sage_create_direct_campaign";
         console.warn("[concierge:%s] self-correct: %s — retrying with the tool", surface, why);
         messages.push({
           role: "user",
