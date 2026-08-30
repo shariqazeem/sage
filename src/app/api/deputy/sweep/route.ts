@@ -19,6 +19,7 @@ import { ensureDecision, OBSERVATION_ABSTAIN_MODEL } from "@/lib/deputy/decision
 import { notifyTelegram } from "@/lib/deputy/notify";
 import { hasLlm } from "@/lib/deputy/brain";
 import { settleApprovedSubmission } from "@/lib/campaigns/settle-flow";
+import { settleOnStarknet } from "@/lib/campaigns/settle-starknet";
 import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
@@ -156,7 +157,21 @@ async function runSweep() {
       }
     }
     try {
-      const { outcome } = await settleApprovedSubmission(campaign, sub);
+      /**
+       * THE MANUALLY-APPROVED PATH HAS TO ROUTE BY RAIL TOO.
+       *
+       * This called the EVM settle flow for every approved submission, whatever chain its campaign
+       * settles on — and that flow's first act is `getAddress(campaign.vaultAddress)`, which throws
+       * on a felt. So a founder who reviewed a held Starknet submission and approved it got nothing:
+       * the sweep counted it as "other" and tried again on every tick, forever.
+       *
+       * It is the likeliest path of all right now. Autopay holds anything below the bar, and a held
+       * submission is exactly what a founder approves by hand.
+       */
+      const outcome =
+        campaign.settlementRail === "starknet"
+          ? await settleOnStarknet(campaign, sub)
+          : (await settleApprovedSubmission(campaign, sub)).outcome;
       if (outcome.settled) summary.timelock.settled += 1;
       else summary.timelock.other += 1;
     } catch {
