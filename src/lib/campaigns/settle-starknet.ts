@@ -6,6 +6,8 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import { derivePayoutIntent } from "@/lib/campaigns/settle-core";
 import { getDecisionBySubmission } from "@/lib/db/campaigns";
 import { requestVaultPayout } from "@/lib/starknet/vault";
+import { announceCampaignSettledStarknet } from "@/lib/telegram/bot";
+import { notifyFounderSettled } from "@/lib/telegram/founder-notify";
 import { feltOf, toFelt } from "@/lib/starknet/felt";
 
 /**
@@ -129,6 +131,41 @@ export async function settleOnStarknet(
       payoutTx: result.transactionHash,
       decidedAt: nowSeconds(),
     });
+
+    /**
+     * TELL THE PEOPLE A PAYOUT CONCERNS — from the settler, so every caller gets it.
+     *
+     * The EVM rail announces and DMs from inside settle-flow, so all five of its entry points are
+     * covered by construction. On this rail the announce lived in ONE caller (the deputy
+     * pipeline), which meant a payout settled by the sweep, the decide route or a review tool told
+     * nobody anything.
+     *
+     * Latent rather than live: both Starknet campaigns today have no announce chat and a founder
+     * with no Telegram binding, so nothing was actually missed. It is fixed here so the rails are
+     * symmetric BEFORE one of those is set, rather than after someone notices the silence.
+     *
+     * Fire-and-forget on purpose, exactly as the EVM path does it: the money has already moved and
+     * a messaging failure must never affect a completed payout.
+     */
+    void announceCampaignSettledStarknet(campaign, {
+      txHash: result.transactionHash,
+      recipient,
+      amountBase: Number(rewardBase),
+      explorerUrl: `https://voyager.online/tx/${result.transactionHash}`,
+    });
+    void notifyFounderSettled(campaign, submission, {
+      settled: true,
+      txHash: result.transactionHash as `0x${string}`,
+      explorerUrl: `https://voyager.online/tx/${result.transactionHash}`,
+      failedCheckIndex: null,
+      reason: null,
+      needsOwnerAdd: false,
+      vendorAdded: false,
+      vendorTxHash: null,
+      recipient: recipient as `0x${string}`,
+      amountBase: Number(rewardBase),
+    });
+
     return {
       settled: true,
       txHash: result.transactionHash,

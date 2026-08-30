@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requestVaultPayout = vi.fn();
 const updateSubmission = vi.fn();
+const announceCampaignSettledStarknet = vi.fn(async () => {});
+const notifyFounderSettled = vi.fn(async () => {});
 
 vi.mock("@/lib/starknet/vault", () => ({
   requestVaultPayout: (...a: unknown[]) => requestVaultPayout(...a),
@@ -9,6 +11,12 @@ vi.mock("@/lib/starknet/vault", () => ({
 vi.mock("@/lib/db/campaigns", () => ({
   updateSubmission: (...a: unknown[]) => updateSubmission(...a),
   getDecisionBySubmission: () => null,
+}));
+vi.mock("@/lib/telegram/bot", () => ({
+  announceCampaignSettledStarknet: (...a: unknown[]) => announceCampaignSettledStarknet(...(a as [])),
+}));
+vi.mock("@/lib/telegram/founder-notify", () => ({
+  notifyFounderSettled: (...a: unknown[]) => notifyFounderSettled(...(a as [])),
 }));
 
 import type { Campaign, Submission } from "@/lib/db/schema";
@@ -45,6 +53,8 @@ const submission = (over: Partial<Submission> = {}) =>
 beforeEach(() => {
   requestVaultPayout.mockReset();
   updateSubmission.mockReset();
+  announceCampaignSettledStarknet.mockClear();
+  notifyFounderSettled.mockClear();
   requestVaultPayout.mockResolvedValue({
     paid: true,
     transactionHash: "0xabc",
@@ -164,5 +174,57 @@ describe("settling on Starknet", () => {
     await expect(settleOnStarknet(campaign(), submission())).resolves.toMatchObject({
       settled: false,
     });
+  });
+});
+
+/**
+ * A PAYOUT NOBODY IS TOLD ABOUT.
+ *
+ * The EVM rail announces and DMs from inside settle-flow, so all five of its entry points are
+ * covered by construction. On this rail the announce lived in ONE caller — the deputy pipeline —
+ * so a payout settled by the sweep, the decide route or a review tool told nobody anything.
+ *
+ * Latent rather than live when it was found: both Starknet campaigns had no announce chat and a
+ * founder with no Telegram binding, so nothing was actually missed. Pinned here so the rails stay
+ * symmetric before one of those is set, rather than after somebody notices the silence.
+ */
+describe("who is told about a Starknet payout", () => {
+  it("announces on the campaign's channel and DMs the founder, from the settler itself", async () => {
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(true);
+    expect(announceCampaignSettledStarknet).toHaveBeenCalledTimes(1);
+    expect(notifyFounderSettled).toHaveBeenCalledTimes(1);
+    const [, ann] = announceCampaignSettledStarknet.mock.calls[0] as unknown as [
+      unknown,
+      { txHash: string; amountBase: number; recipient: string; explorerUrl: string | null },
+    ];
+    expect(ann.txHash).toBe("0xabc");
+    expect(ann.amountBase).toBe(500_000);
+    expect(ann.recipient).toBe(WORKER);
+  });
+
+  it("says nothing when the vault REFUSED — a refusal is not a payout", async () => {
+    requestVaultPayout.mockResolvedValue({ paid: false, transactionHash: "0xdef", code: 10, reason: "the vault's daily payout cap is reached" });
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    expect(announceCampaignSettledStarknet).not.toHaveBeenCalled();
+    expect(notifyFounderSettled).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when settlement threw", async () => {
+    requestVaultPayout.mockRejectedValue(new Error("rpc down"));
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    expect(announceCampaignSettledStarknet).not.toHaveBeenCalled();
+    expect(notifyFounderSettled).not.toHaveBeenCalled();
+  });
+
+  it("a messaging failure never affects a payout that already happened", async () => {
+    // The money has moved by this point. Fire-and-forget, exactly as the EVM path does it.
+    announceCampaignSettledStarknet.mockRejectedValueOnce(new Error("telegram down") as never);
+    notifyFounderSettled.mockRejectedValueOnce(new Error("telegram down") as never);
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(true);
+    expect(out.txHash).toBe("0xabc");
   });
 });

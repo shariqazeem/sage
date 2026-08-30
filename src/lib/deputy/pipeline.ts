@@ -67,7 +67,6 @@ import { judgeIdentityGate, MODEL_POLICY_VERSION } from "./model-policy";
 import { entailmentMode, entailmentInputFromBrief, runEntailmentVeto } from "./entailment";
 import { notifyFounderHeld, notifyRecipientPaid } from "@/lib/telegram/founder-notify";
 import { notifyTelegram } from "./notify";
-import { announceCampaignSettledStarknet } from "@/lib/telegram/bot";
 import { mainnetAutopilotEnabled } from "@/lib/env";
 import { agentLog, newCorrelationId } from "./agent-log";
 import { isEvmCampaignVault } from "@/lib/campaigns/vault-kind";
@@ -889,15 +888,9 @@ export async function runDeputyOnSubmission(
       void notifyTelegram(
         `✅ <b>Paid by Sage</b>\n${campaign.title}\n${usd(Number(outcome.rewardBase ?? BigInt(0)) / 1_000_000)} → ${short(outcome.recipient ?? "")} · ${conf}% confidence\n${outcome.explorerUrl}`,
       );
-      // The campaign's own public chat, if the poster set one — same as the EVM rail does through
-      // settle-flow. Without this a channel would simply stop reporting payouts when a campaign
-      // settled on Starknet.
-      void announceCampaignSettledStarknet(campaign, {
-        txHash: outcome.txHash,
-        recipient: outcome.recipient ?? "",
-        amountBase: Number(outcome.rewardBase ?? BigInt(0)),
-        explorerUrl: outcome.explorerUrl,
-      });
+      // The campaign's public chat and the founder's DM are announced by settleOnStarknet itself,
+      // the way settle-flow does it for the EVM rail — so every caller of that settler gets them,
+      // not just this one. Announcing again here would double-post.
       return { action: "settled", reason: "paid", txHash: outcome.txHash, correlationId: cid };
     }
 

@@ -1,8 +1,8 @@
 import "server-only";
 
-import { getAddress } from "viem";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import type { SettleOutcome } from "@/lib/campaigns/settle";
+import { founderStorageKey } from "@/lib/auth/founder";
 import { getAgentWalletByAddress } from "@/lib/db/agent-wallets";
 import { getRecipientWalletByAddress } from "@/lib/db/recipient-wallets";
 import { getMissionByHash } from "@/lib/db/campaigns";
@@ -22,12 +22,24 @@ function appUrl(): string {
 }
 
 /** The Telegram chat that launched this campaign, or null when it wasn't launched from chat. */
+/**
+ * The Telegram chat bound to whoever launched this campaign, or null if none is.
+ *
+ * `getAddress` used to wrap the lookup, and it throws on a Starknet felt — swallowed by the catch,
+ * so a founder who launched from a Starknet wallet was simply unfindable, silently. That is the
+ * same shape as the three identity lockouts: viem refusing a felt inside an existing try/catch,
+ * with nothing in a log to say why.
+ *
+ * It bought nothing either way. The query already matches on `lower(...)`, so checksum casing was
+ * never load-bearing — only the throw was. `founderStorageKey` is the form these addresses are
+ * WRITTEN in, so EVM rows keep matching byte-for-byte and a felt normalises the way it was stored.
+ *
+ * NOTE what this is not: today no Starknet campaign has a Telegram-bound founder, because the
+ * walletless path launches on GOAT. This makes the lookup correct for when one does, rather than
+ * fixing a founder who is currently missing messages.
+ */
 function founderChatId(campaign: Campaign): string | null {
-  try {
-    return getAgentWalletByAddress(getAddress(campaign.posterWallet))?.chatId ?? null;
-  } catch {
-    return null;
-  }
+  return getAgentWalletByAddress(founderStorageKey(campaign.posterWallet))?.chatId ?? null;
 }
 
 /** Send once, retry once on failure. Never throws. */

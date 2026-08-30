@@ -258,12 +258,19 @@ describe("a Starknet payout that should succeed", () => {
     expect(ev.submissionId).toBe("s-sn");
   });
 
-  it("announces the payout on the campaign's own channel, like the EVM rail does", async () => {
-    // Without this a channel simply stops reporting payouts the moment a campaign settles on
-    // Starknet — the founder sees silence and assumes nothing happened.
+  it("does NOT announce here — the settler does, so every caller of it announces too", async () => {
+    /**
+     * This asserted the opposite until 2026-08-30, when the announce lived in this branch. That
+     * covered the autopay path and nothing else: a payout settled by the sweep, the decide route
+     * or a review tool announced to nobody. It now fires inside settleOnStarknet, the way the EVM
+     * rail announces from inside settle-flow — so the assertion that matters here is that this
+     * branch does not ALSO announce, which would double-post to the founder's channel.
+     *
+     * The announce itself is pinned in settle-starknet.test.ts.
+     */
     const { announceCampaignSettledStarknet } = await import("@/lib/telegram/bot");
     await runDeputyOnSubmission("s-sn");
-    expect(vi.mocked(announceCampaignSettledStarknet)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(announceCampaignSettledStarknet)).not.toHaveBeenCalled();
   });
 
   it("still refuses when the vault refuses, and never claims it paid", async () => {
