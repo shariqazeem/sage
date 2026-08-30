@@ -27,6 +27,7 @@ import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import type { Mission } from "@/lib/db/schema";
 import { hasMissionPlan } from "./vault-kind";
+import { normalizeForChain, sameChainAddress } from "./chain-address";
 
 /**
  * WALLETLESS RECIPIENT submission — proof sent IN CHAT (move 2 of the pivot).
@@ -115,8 +116,18 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   if (!hasMissionPlan(campaign.vaultKind) || !campaign.campaignIdHash) {
     return { ok: false, error: "That campaign can't take chat submissions." };
   }
-  // The SAME allowlist gate the web submit route enforces.
-  if (Array.isArray(campaign.allowlist) && campaign.allowlist.length > 0 && !campaign.allowlist.includes(wallet)) {
+  /**
+   * The SAME allowlist gate the web submit route enforces.
+   *
+   * Membership was a raw string match. A Starknet address has many spellings differing only in
+   * leading zeros, so an invited recipient would be refused from the very grant they were named
+   * on — the failure landing on the person who did the work, not on the founder who set it up.
+   */
+  if (
+    Array.isArray(campaign.allowlist) &&
+    campaign.allowlist.length > 0 &&
+    !campaign.allowlist.some((a) => sameChainAddress(a, wallet))
+  ) {
     return { ok: false, error: "Your wallet isn't on this campaign's recipient list — open your invite link first." };
   }
 
@@ -165,7 +176,9 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
     missionIdHash: mission.missionIdHash as `0x${string}`,
     missionSpecDigest: mission.specDigest as `0x${string}`,
     evidenceDigest: computeEvidenceDigest({ evidenceUrl: evidenceUrl ?? "", note: note.value ?? "" }),
-    tester: getAddress(wallet) as `0x${string}`,
+    // Chain-aware: viem rejects a felt outright, so an invited Starknet recipient could not
+    // submit at all — the claim was built before anything else could go wrong.
+    tester: normalizeForChain(wallet, campaign.chainId ?? 59902) as `0x${string}`,
     chainId: campaign.chainId ?? 59902,
     nonce: `rcp-${input.chatId}-${mission.missionKey}-${issuedAt}`,
     issuedAt,

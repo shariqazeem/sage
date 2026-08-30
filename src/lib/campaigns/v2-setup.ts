@@ -453,7 +453,15 @@ export async function attachV2Campaign(
           kind: input.campaignKind ?? "testing",
           allowlist:
             input.allowlist && input.allowlist.length > 0
-              ? [...new Set(input.allowlist.map((w) => w.toLowerCase()))]
+              /* Canonical per family: lower-casing alone leaves a felt's padding intact, so the
+                 stored entry and the address a wallet later hands over would not match. */
+              ? [...new Set(input.allowlist.map((w) => {
+                  try {
+                    return normalizeForChain(w, input.chainId);
+                  } catch {
+                    return w.toLowerCase();
+                  }
+                }))]
               : null,
           createdAt: now,
         })

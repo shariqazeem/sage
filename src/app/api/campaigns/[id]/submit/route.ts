@@ -28,6 +28,7 @@ import { short } from "@/lib/format";
 import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reservation";
 import { nowSeconds } from "@/lib/db/keys";
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
+import { sameChainAddress } from "@/lib/campaigns/chain-address";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,7 +101,9 @@ export async function POST(
   // WORK PROOF — recipient allowlist (direct grant/gig campaigns). An application-level gate,
   // stated honestly as such: the vault still enforces caps/budget/replay for whoever gets through.
   if (Array.isArray(campaign.allowlist) && campaign.allowlist.length > 0) {
-    if (!campaign.allowlist.includes(wallet.toLowerCase())) {
+    // Chain-aware membership: a felt's spelling varies by padding, and a raw match would refuse
+    // an invited recipient from their own grant.
+    if (!campaign.allowlist.some((a) => sameChainAddress(a, wallet))) {
       return NextResponse.json(
         { error: "This campaign pays a named recipient list, and your wallet isn't on it. Contact the operator." },
         { status: 403 },
