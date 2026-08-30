@@ -210,6 +210,26 @@ export async function POST(
     // contract — not a recovery — decides whether it is valid.
     const sig = readClaimSignature(onStarknet ? "starknet" : "evm", signature);
     if (!claim || !sig) {
+      /**
+       * SAY WHAT ARRIVED. This message reads as "you did not sign", and the first time it fired
+       * the tester HAD signed — the reader required hex and the wallet returned decimal felts.
+       * Without this, a wallet whose spelling we do not accept is indistinguishable from a wallet
+       * that refused, and the only way to tell was to guess.
+       *
+       * Shapes and lengths, never the values: a signature is public once submitted, but a log is
+       * the wrong place to accumulate them.
+       */
+      console.warn(
+        "[submit] rejected commitment · rail=%s claim=%s signature=%s",
+        onStarknet ? "starknet" : "evm",
+        claim ? "present" : "missing",
+        Array.isArray(signature)
+          ? `array(${signature.length})[${signature
+              .slice(0, 4)
+              .map((p) => `${typeof p}:${typeof p === "string" ? `${p.length}ch${p.startsWith("0x") ? ":0x" : ""}` : ""}`)
+              .join(",")}]`
+          : typeof signature,
+      );
       return NextResponse.json({ error: "A signed evidence commitment is required." }, { status: 400 });
     }
     // The signed claim must bind THIS campaign + mission (not just any).
