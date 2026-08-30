@@ -9,6 +9,7 @@
  */
 
 import type { VaultKind } from "@/lib/db/schema";
+import { sameChainAddress } from "./chain-address";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -71,7 +72,15 @@ export interface AgreementResult {
   mismatches: AgreementMismatch[];
 }
 
-const eqAddr = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+/**
+ * Same account?
+ *
+ * Was `a.toLowerCase() === b.toLowerCase()`, which is right for a fixed-width EVM address and
+ * wrong for a felt: the same Starknet address has many spellings differing only in leading zeros,
+ * so a vault's real owner would read as a mismatch and a correctly funded campaign be refused.
+ * Stripping leading zeros is a no-op for an EVM address, so behaviour there is unchanged.
+ */
+const eqAddr = (a: string, b: string): boolean => sameChainAddress(a, b);
 const eqHex = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 /**

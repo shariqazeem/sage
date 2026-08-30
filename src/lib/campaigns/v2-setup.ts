@@ -2,6 +2,9 @@ import "server-only";
 
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 
+import { isChainAddress, normalizeForChain } from "./chain-address";
+import { chainConfig } from "@/lib/deputy/networks";
+
 import { db } from "@/lib/db";
 import { campaigns, missions as missionsTable } from "@/lib/db/schema";
 import { nowSeconds } from "@/lib/db/keys";
@@ -119,9 +122,15 @@ export interface V2SetupPreview {
 
 const MAX_MISSIONS_SETUP = 3;
 
-function addrOrNull(a: string): string | null {
+/**
+ * Validate an address for THIS campaign's chain.
+ *
+ * Was viem-only, so every Starknet address failed validation before the path could even begin —
+ * which is why the Starknet rail forked instead of reusing this one.
+ */
+function addrOrNull(a: string, chainId: number): string | null {
   try {
-    return isAddress(a) ? getAddress(a) : null;
+    return isChainAddress(a, chainId) ? normalizeForChain(a, chainId) : null;
   } catch {
     return null;
   }
@@ -144,14 +153,31 @@ export function computeV2SetupPreview(input: V2SetupInput): V2SetupPreview {
   if (input.missions.length === 0) errors.push("no_missions");
   if (input.missions.length > MAX_MISSIONS_SETUP) errors.push("too_many_missions");
 
-  for (const field of ["expectedToken", "founderAddress", "operatorAddress", "vaultAddress", "factoryAddress"] as const) {
-    if (!addrOrNull(input[field])) errors.push(`bad_${field}`);
+  for (const field of ["expectedToken", "founderAddress", "operatorAddress", "vaultAddress"] as const) {
+    if (!addrOrNull(input[field], input.chainId)) errors.push(`bad_${field}`);
+  }
+  /**
+   * PROVENANCE IS A FACTORY ON EVM AND A CLASS HASH ON STARKNET.
+   *
+   * The EVM vault is trusted because a known factory made it. A Starknet vault is deployed through
+   * the Universal Deployer, which vouches for nobody — what proves provenance there is the class
+   * hash, checked by the adapter against the one class Sage recognises. So `factoryAddress` is
+   * required only where a factory is what does the vouching.
+   */
+  if (chainConfig(input.chainId).evm && !addrOrNull(input.factoryAddress, input.chainId)) {
+    errors.push("bad_factoryAddress");
   }
   // guardian may be the zero address (no guardian) but must be a valid address form.
-  if (!addrOrNull(input.guardian) && input.guardian !== "0x0000000000000000000000000000000000000000") {
+  if (
+    !addrOrNull(input.guardian, input.chainId) &&
+    input.guardian !== "0x0000000000000000000000000000000000000000"
+  ) {
     errors.push("bad_guardian");
   }
-  if (addrOrNull(input.founderAddress) && isSameWallet(input.founderAddress, input.operatorAddress)) {
+  if (
+    addrOrNull(input.founderAddress, input.chainId) &&
+    isSameWallet(input.founderAddress, input.operatorAddress)
+  ) {
     errors.push("owner_equals_operator");
   }
 
@@ -222,12 +248,12 @@ export function computeV2SetupPreview(input: V2SetupInput): V2SetupPreview {
     missionPlanDigest,
     totalBudgetBase: totalBudget.toString(),
     chainId: input.chainId,
-    token: addrOrNull(input.expectedToken),
-    founder: addrOrNull(input.founderAddress),
-    operator: addrOrNull(input.operatorAddress),
-    guardian: addrOrNull(input.guardian) ?? input.guardian,
-    vault: addrOrNull(input.vaultAddress),
-    factory: addrOrNull(input.factoryAddress),
+    token: addrOrNull(input.expectedToken, input.chainId),
+    founder: addrOrNull(input.founderAddress, input.chainId),
+    operator: addrOrNull(input.operatorAddress, input.chainId),
+    guardian: addrOrNull(input.guardian, input.chainId) ?? input.guardian,
+    vault: addrOrNull(input.vaultAddress, input.chainId),
+    factory: addrOrNull(input.factoryAddress, input.chainId),
     missions: missionPreviews,
   };
 }
@@ -268,13 +294,13 @@ export type V2SetupResult =
 function syntheticCampaign(input: V2SetupInput, preview: V2SetupPreview): Campaign {
   return {
     id: preview.publicCampaignId,
-    posterWallet: getAddress(input.founderAddress),
+    posterWallet: normalizeForChain(input.founderAddress, input.chainId) as Address,
     chainId: input.chainId,
     vaultKind: "campaign_v2",
     campaignIdHash: preview.campaignIdHash,
     missionPlanDigest: preview.missionPlanDigest,
-    settlementToken: getAddress(input.expectedToken),
-    vaultAddress: getAddress(input.vaultAddress),
+    settlementToken: normalizeForChain(input.expectedToken, input.chainId) as Address,
+    vaultAddress: normalizeForChain(input.vaultAddress, input.chainId) as Address,
   } as unknown as Campaign;
 }
 
@@ -311,7 +337,11 @@ export async function attachV2Campaign(
   const missionIds = preview.missions.map((m) => m.missionIdHash);
   let snapshot;
   try {
-    snapshot = await adapter.readSnapshot(getAddress(input.vaultAddress), input.chainId, missionIds);
+    snapshot = await adapter.readSnapshot(
+      normalizeForChain(input.vaultAddress, input.chainId) as Address,
+      input.chainId,
+      missionIds,
+    );
   } catch {
     return { ok: false, stage: "agreement", errors: ["vault_unreadable"] };
   }
@@ -364,9 +394,9 @@ export async function attachV2Campaign(
           title: input.title,
           descriptionMd: input.productUrl,
           rewardAmount: Number(input.missions[0].rewardBase),
-          vaultAddress: getAddress(input.vaultAddress),
+          vaultAddress: normalizeForChain(input.vaultAddress, input.chainId) as Address,
           chainId: input.chainId,
-          posterWallet: getAddress(input.founderAddress),
+          posterWallet: normalizeForChain(input.founderAddress, input.chainId) as Address,
           ownerIsSage: false,
           status: "live",
           autonomy: input.autonomy ?? "autopilot",
@@ -386,7 +416,7 @@ export async function attachV2Campaign(
           exploredElements: input.exploredElements ?? 0,
           campaignIdHash: preview.campaignIdHash as string,
           missionPlanDigest: preview.missionPlanDigest as string,
-          settlementToken: getAddress(input.expectedToken),
+          settlementToken: normalizeForChain(input.expectedToken, input.chainId) as Address,
           commitmentVersion: 2,
           // WORK PROOF — kind + allowlist from the approved plan (labels + submit-route gate only).
           kind: input.campaignKind ?? "testing",

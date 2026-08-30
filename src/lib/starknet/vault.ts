@@ -119,6 +119,11 @@ export function decodeVaultStatus(status: unknown): number {
   }
 }
 
+export interface VaultPlanIdentity {
+  campaignIdHash: string;
+  missionPlanDigest: string;
+}
+
 export async function readVaultState(vaultAddress: string): Promise<VaultState> {
   const provider = readProvider();
   const c = new Contract({ abi: ABI, address: vaultAddress, providerOrAccount: provider });
