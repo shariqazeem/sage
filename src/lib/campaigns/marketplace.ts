@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaigns, missions, submissions, type Campaign } from "@/lib/db/schema";
+import { campaigns, missions, submissions, type Campaign, type SettlementRail } from "@/lib/db/schema";
 import { isTestnetChain, tokenSymbol } from "@/lib/format";
 import { OBS_BAR } from "@/lib/deputy/observation-verify";
 
@@ -46,6 +46,11 @@ export interface MarketplaceCampaign {
   /** where a tester goes to read the full brief and submit. */
   boardPath: string;
   chainId: number;
+  /**
+   * WHICH RAIL PAYS — not the chain id. A tester holds one wallet on one rail, and the board is a
+   * mix, so this is the difference between "I can do this now" and finding out at the submit button.
+   */
+  settlementRail: SettlementRail;
   tokenSymbol: string;
   isTestnet: boolean;
   /** true when the founder's mandate can pay without a human in the loop. */
@@ -80,6 +85,7 @@ export interface MarketplaceRow {
   maxCompletions: number;
   tokenSymbol: string;
   isTestnet: boolean;
+  settlementRail: SettlementRail;
   autopays: boolean;
   /** roughly how involved the work is, derived from what the mission asks for — never a promise. */
   effort: "quick" | "standard" | "deep";
@@ -300,6 +306,7 @@ export function marketplace(): MarketplaceView {
       title: c.title,
       boardPath: `/c/${c.id}`,
       chainId,
+      settlementRail: c.settlementRail,
       tokenSymbol: tokenSymbol(chainId),
       isTestnet: isTestnetChain(chainId),
       autopays: c.autonomy === "autopilot",
@@ -331,6 +338,7 @@ export function marketplace(): MarketplaceView {
       maxCompletions: m.maxCompletions,
       tokenSymbol: c.tokenSymbol,
       isTestnet: c.isTestnet,
+      settlementRail: c.settlementRail,
       autopays: c.autopays,
       effort: effortOf(m),
     })),

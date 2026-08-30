@@ -216,6 +216,28 @@
   color: #9a3610;
 }
 
+/* "needs a <other> wallet" — INFORMATION, not a failure.
+   Deliberately muted rather than red: red is reserved for money that was blocked or lost, and this
+   row is neither. The mission is open, funded, and claimable the moment they connect that wallet. */
+.mk-row-chip-wallet {
+  color: var(--ink-faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.42rem;
+}
+
+/* The row a tester cannot claim with the wallet they are holding RIGHT NOW.
+   Softened, never disabled — it stays a full link, keyboard reachable, and returns to full contrast
+   on hover, because the whole point is that connecting one more wallet opens it. Hiding these rows
+   would shrink the market the founder is paying to reach. */
+.mk-row.is-otherrail {
+  opacity: 0.72;
+}
+.mk-row.is-otherrail:hover,
+.mk-row.is-otherrail:focus-visible {
+  opacity: 1;
+}
+
 /* The amount is where the eye lands — this is a board about money. Ink, not green:
    green is reserved for a payout that already settled. */
 .mk-row-pay {

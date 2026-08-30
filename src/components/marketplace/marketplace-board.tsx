@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Zap, UserCheck, Clock, Users } from "lucide-react";
+import { Zap, UserCheck, Clock, Users, EyeOff, Wallet } from "lucide-react";
 import type { MarketplaceRow } from "@/lib/campaigns/marketplace";
+import type { SettlementRail } from "@/lib/db/schema";
 
 /**
  * THE MARKETPLACE BOARD — a job board for paid testing work.
@@ -17,6 +18,19 @@ import type { MarketplaceRow } from "@/lib/campaigns/marketplace";
  */
 
 type SortKey = "top" | "low" | "slots" | "quick";
+
+/**
+ * WHERE THIS MISSION PAYS, in a tester's terms rather than the chain's.
+ *
+ * The board is a mix of rails and a tester holds one wallet, so without this the first sign that a
+ * mission needs a different wallet is the submit button refusing them — after the work is done.
+ * Starknet leads with what it BUYS the tester (a payout nobody can read off a public ledger), not
+ * with the chain's name, because that is the part they care about.
+ */
+const RAIL_LABEL: Record<SettlementRail, string> = {
+  evm: "GOAT",
+  starknet: "Starknet · private",
+};
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "top", label: "Highest paying" },
@@ -44,7 +58,21 @@ function Mark({ host, title }: { host: string | null; title: string }) {
   );
 }
 
-export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
+export function MarketplaceBoard({
+  rows,
+  viewerRails,
+}: {
+  rows: MarketplaceRow[];
+  /**
+   * The rails the viewer has actually signed in on — both, if they hold both, because the two
+   * sessions are independent cookies and neither displaces the other.
+   *
+   * Empty means signed out, and a signed-out visitor is told where each mission pays but never
+   * that they "can't" claim it: they have not chosen a wallet yet, so there is no conflict to
+   * warn about. The nudge appears only once it is true of them.
+   */
+  viewerRails?: SettlementRail[];
+}) {
   const [sort, setSort] = useState<SortKey>("top");
 
   const sorted = useMemo(() => {
@@ -86,9 +114,15 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
       </div>
 
       <ul className="mk-list">
-        {sorted.map((r) => (
+        {sorted.map((r) => {
+          // NEVER HIDE, NEVER DISABLE. Work on the other rail is still real work and still open —
+          // the tester just needs a second wallet, which is a sentence, not a locked door. Removing
+          // these rows would shrink the market every founder is paying to reach.
+          const needsOtherWallet =
+            (viewerRails?.length ?? 0) > 0 && !viewerRails!.includes(r.settlementRail);
+          return (
           <li key={r.key}>
-            <Link href={r.boardPath} className="mk-row">
+            <Link href={r.boardPath} className={`mk-row${needsOtherWallet ? " is-otherrail" : ""}`}>
               <Mark host={r.productHost} title={r.campaignTitle} />
 
               <span className="mk-row-main">
@@ -110,6 +144,15 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
                     {r.autopays ? <Zap size={11} /> : <UserCheck size={11} />}
                     {r.autopays ? "auto-pays" : "founder approves"}
                   </span>
+                  <span className="mk-row-chip">
+                    {r.settlementRail === "starknet" ? <EyeOff size={11} /> : <Wallet size={11} />}
+                    {RAIL_LABEL[r.settlementRail]}
+                  </span>
+                  {needsOtherWallet && (
+                    <span className="mk-row-chip mk-row-chip-wallet">
+                      needs a {r.settlementRail === "starknet" ? "Starknet" : "GOAT"} wallet
+                    </span>
+                  )}
                   {r.isTestnet && <span className="mk-row-chip mk-row-chip-test">testnet</span>}
                 </span>
               </span>
@@ -120,7 +163,8 @@ export function MarketplaceBoard({ rows }: { rows: MarketplaceRow[] }) {
               </span>
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </>
   );

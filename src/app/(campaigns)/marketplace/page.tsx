@@ -3,6 +3,9 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { marketplace } from "@/lib/campaigns/marketplace";
+import { getSessionAddress } from "@/lib/auth/session";
+import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
+import type { SettlementRail } from "@/lib/db/schema";
 import { MarketplaceBoard } from "@/components/marketplace/marketplace-board";
 import { PayoutProof } from "@/components/marketplace/payout-proof";
 import "@/styles/tester-board.css";
@@ -32,8 +35,25 @@ const usd = (n: number) =>
  * Only work that can actually pay is listed — live campaign, open mission, unfilled slot. An empty
  * marketplace says so plainly rather than dressing up nothing as something.
  */
-export default function MarketplacePage() {
+export default async function MarketplacePage() {
   const { rows, totals, recentPayouts, paidToDate } = marketplace();
+
+  /*
+    WHICH RAILS CAN THIS VISITOR ACTUALLY BE PAID ON.
+
+    Read on the server so the board is right in its first paint — a client-side check would flash
+    every mission as claimable and then retract half of them, which reads as a bug.
+
+    BOTH sessions are consulted, and deliberately NOT via getFounderAddress(): that one prefers EVM
+    whenever both cookies exist, which is correct for a founder (it keeps their campaigns filed under
+    the identity that owns them) and wrong here. A tester holding both wallets can claim on both
+    rails, and collapsing them to one would tell them they need a wallet they are already holding.
+  */
+  const [evm, starknet] = await Promise.all([getSessionAddress(), getStarknetSessionAddress()]);
+  const viewerRails: SettlementRail[] = [
+    ...(evm ? (["evm"] as const) : []),
+    ...(starknet ? (["starknet"] as const) : []),
+  ];
 
   return (
     <main className="sb-board mk-page">
@@ -96,7 +116,7 @@ export default function MarketplacePage() {
               </div>
             </section>
           ) : (
-            <MarketplaceBoard rows={rows} />
+            <MarketplaceBoard rows={rows} viewerRails={viewerRails} />
           )}
         </div>
         <PayoutProof
