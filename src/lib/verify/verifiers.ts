@@ -25,6 +25,33 @@ import type {
 const norm = (s: string) => s.trim().toLowerCase();
 const hexEq = (a?: string | null, b?: string | null) => !!a && !!b && norm(a) === norm(b);
 
+/**
+ * Every spelling of the SAME account, for the marker substring check.
+ *
+ * A felt has no canonical width: `0x04f1…434` and `0x4f1…434` are one number, and the two halves
+ * of the product disagree about which to write down — a Starknet wallet UI shows the zero-PADDED
+ * form, while the session stores the zero-STRIPPED one. `submission.wallet` is the stripped form,
+ * so a worker who pasted their address straight out of their wallet onto their deliverable was
+ * told "That page doesn't carry your unique marker" about work that was genuinely theirs. The
+ * `0x` prefix is what breaks it: "0x4f1…" is not a substring of "0x04f1…".
+ *
+ * Matching any spelling is not a weaker check — it is the same NUMBER, written the ways a real
+ * page writes it. Address-shaped markers only (>= 16 hex digits), so a short marker can never be
+ * loosened into a broad match.
+ */
+export function markerVariants(marker: string): string[] {
+  const m = norm(marker);
+  const hex = /^0x0*([0-9a-f]+)$/.exec(m);
+  if (!hex) return [m];
+  const bare = hex[1];
+  if (bare.length < 16) return [m];
+  const out = [m, `0x${bare}`];
+  // Pad only for felt-width markers: a 40-char EVM address never gains a leading zero, and
+  // manufacturing a 64-char spelling of one would be a string that matches nothing.
+  if (bare.length > 40) out.push(`0x${bare.padStart(64, "0")}`);
+  return [...new Set(out)];
+}
+
 /* ─────────────────────────── on-chain tx ─────────────────────────── */
 
 /** The minimal tx + receipt shape a matcher needs (a subset of viem's types). */
@@ -164,7 +191,7 @@ export function matchArtifact(
   const hay = norm(input.bodyText);
   // THE MARKER — proof the artifact is THEIRS, not a generic page anyone could link. A parrot who
   // pastes the product's homepage fails here: the homepage doesn't carry their wallet/handle/nonce.
-  if (!marker || !hay.includes(norm(marker)))
+  if (!marker || !markerVariants(marker).some((v) => hay.includes(v)))
     return fail("marker absent", "That page doesn't carry your unique marker, so I can't confirm it's yours.");
   for (const t of c.mustContain ?? []) {
     if (!hay.includes(norm(t))) return fail(`missing "${t}"`, "That page is missing something the mission required.");
