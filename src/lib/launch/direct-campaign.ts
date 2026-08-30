@@ -255,7 +255,14 @@ function evidenceRequirement(c: VerificationContract): string {
           : c.markerKind === "handle"
             ? "the handle the operator issued you"
             : "the nonce issued for your submission";
-      return `A public link to the artifact you created on ${c.allowedHosts.join(" or ")}. It must visibly contain ${marker}.`;
+      // An EMPTY allow-list is "publish anywhere" (verifyArtifactUrl skips the host check), so
+      // there is no host to name — joined blind it produced the live copy "the artifact you
+      // created on ." and told the worker nothing about where their work may live.
+      const where =
+        c.allowedHosts.length > 0
+          ? ` on ${c.allowedHosts.join(" or ")}`
+          : " — you may publish it on any public page (a blog, a gist, a paste, your own site)";
+      return `A public link to the artifact you created${where}. It must visibly contain ${marker}.`;
     }
     case "public_url":
       return "The public URL where the required result is visible.";

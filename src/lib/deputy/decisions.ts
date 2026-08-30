@@ -32,10 +32,42 @@ import {
   parseWorkProofContract,
   runWorkProof,
 } from "./work-proof";
+import type { VerificationContract } from "@/lib/verify/contract";
 import { walletFreshnessSignal } from "./wallet-signals";
 import { fundingClusterSignal } from "./funding-graph";
 import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
+
+/**
+ * What to tell the judge about WHERE the work lives.
+ *
+ * A product-testing mission is PERFORMED ON the target surface, so the surface is a genuine
+ * acceptance criterion. A created-artifact deliverable is the opposite: the artifact is published
+ * somewhere else, and the target surface is only what the work is ABOUT. Stated to the judge as a
+ * bare `Target surface:` criterion, it reads as a requirement the artifact can never satisfy — the
+ * model then notices the mismatch, is right to flag it, and holds work that passed every real check.
+ *
+ * Measured live 2026-08-31: a gig whose deterministic contract PASSED (6/7, evidence fetched,
+ * marker matched) held at 72% for being published on paste.rs rather than the campaign's own page,
+ * which was never a place a deliverable could live. The judge was correct; the brief was not.
+ *
+ * So for an artifact contract, state the hosting rule the VERIFIER actually enforces. The empty
+ * allow-list is "publish anywhere" — see verifyArtifactUrl, where an empty list skips the host
+ * check entirely and the marker becomes the whole authorship binding.
+ */
+export function surfaceCriteria(
+  targetSurface: string | null | undefined,
+  contract: VerificationContract | null,
+): string[] {
+  const surface = (targetSurface ?? "").trim();
+  if (!surface) return [];
+  if (contract?.kind !== "artifact_url") return [`Target surface: ${surface}`];
+  const where =
+    contract.allowedHosts.length > 0
+      ? `The artifact must be published on ${contract.allowedHosts.join(" or ")}.`
+      : `The artifact may be published on ANY public host — where it is hosted is NOT a criterion.`;
+  return [`${where} Context — what the work is about: ${surface}`];
+}
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
@@ -378,7 +410,7 @@ export async function ensureDecision(
   const judgeCriteria = mission
     ? [
         `Task: ${mission.instructions}`,
-        `Target surface: ${mission.targetSurface}`,
+        ...surfaceCriteria(mission.targetSurface, workProofContract),
         ...mission.criteria,
         ...mission.evidenceList.map((e) => `Required evidence: ${e}`),
       ]
