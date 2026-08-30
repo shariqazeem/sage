@@ -56,8 +56,16 @@ vi.mock("./decisions", () => ({ ensureDecision: vi.fn() }));
 vi.mock("./canary-preflight", () => ({ payoutReplaySchemaReady: vi.fn(() => ({ ok: true, missing: [] })) }));
 vi.mock("./notify", () => ({ notifyTelegram: vi.fn() }));
 vi.mock("@/lib/telegram/founder-notify", () => ({ notifyFounderHeld: vi.fn(), notifyRecipientPaid: vi.fn() }));
+/**
+ * The pipeline announces a Starknet payout through `@/lib/telegram/bot`, not through
+ * `@/lib/campaigns/announce` — which this file used to mock instead. A mock aimed at a module the
+ * code under test never imports is not a mock at all: the REAL announcer ran in every test here,
+ * and would have tried to reach Telegram. Caught by asserting the announcement actually happens.
+ */
 vi.mock("@/lib/campaigns/announce", () => ({
   announceCampaignSettled: vi.fn(),
+}));
+vi.mock("@/lib/telegram/bot", () => ({
   announceCampaignSettledStarknet: vi.fn(),
 }));
 vi.mock("./agent-log", () => ({ newCorrelationId: () => "cid_sn", agentLog: vi.fn() }));
@@ -182,5 +190,89 @@ describe("a private-capable campaign settles autonomously", () => {
     expect(r.action).toBe("held");
     expect(r.reason).toMatch(/mainnet autopilot is off/i);
     expect(settleOnStarknet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE HALF THAT HAS NEVER RUN.
+ *
+ * Every test above proves Sage REFUSES correctly — unfunded, paused, mainnet-autopilot-off, wrong
+ * rail. None proves it PAYS. On the day this was written no Starknet submission had ever reached
+ * settlement in production, so the successful path existed only as code nobody had executed.
+ *
+ * These pin what a payout must actually do, so the first real one is a confirmation rather than a
+ * discovery.
+ */
+describe("a Starknet payout that should succeed", () => {
+  const settled = {
+    settled: true,
+    txHash: "0x2f3086bd0011223344556677889900aabbccddeeff00112233445566778899",
+    recipient: RECIPIENT,
+    rewardBase: BigInt(500_000),
+    explorerUrl: "https://voyager.online/tx/0x2f3086bd",
+    reason: "paid",
+  };
+
+  beforeEach(() => {
+    vi.mocked(readVaultState).mockResolvedValue({
+      statusLabel: "active",
+      budgetCeilingBase: BigInt(1_000_000),
+      totalSpentBase: BigInt(0),
+    } as never);
+    vi.mocked(readVaultBalance).mockResolvedValue(BigInt(1_000_000));
+    vi.mocked(settleOnStarknet).mockResolvedValue(settled as never);
+  });
+
+  it("releases the money and reports it settled", async () => {
+    const r = await runDeputyOnSubmission("s-sn");
+    expect(r.action).toBe("settled");
+    expect(vi.mocked(settleOnStarknet)).toHaveBeenCalledTimes(1);
+  });
+
+  it("pays THIS campaign's vault for THIS submission — never a substitute", async () => {
+    await runDeputyOnSubmission("s-sn");
+    const [c, s] = vi.mocked(settleOnStarknet).mock.calls[0];
+    expect((c as { vaultAddress: string }).vaultAddress).toBe(VAULT_FELT);
+    expect((s as { id: string }).id).toBe("s-sn");
+    expect((s as { wallet: string }).wallet).toBe(RECIPIENT);
+  });
+
+  it("does not touch the EVM settle flow on the way", async () => {
+    // Both rails are reachable from one pipeline; paying through the wrong one would move real
+    // money on a chain the founder never funded.
+    const { settleApprovedSubmission } = await import("@/lib/campaigns/settle-flow");
+    await runDeputyOnSubmission("s-sn");
+    expect(vi.mocked(settleApprovedSubmission)).not.toHaveBeenCalled();
+  });
+
+  it("records the payout so the proof page and the board can find it", async () => {
+    const { recordEventOnce } = await import("@/lib/db/campaigns");
+    await runDeputyOnSubmission("s-sn");
+    const call = vi.mocked(recordEventOnce).mock.calls.find(
+      ([e]) => (e as { kind?: string }).kind === "autopay_settled",
+    );
+    expect(call, "no autopay_settled event was written").toBeTruthy();
+    const ev = call![0] as { txHash?: string; amount?: number; submissionId?: string };
+    expect(ev.txHash).toBe(settled.txHash);
+    expect(ev.amount).toBe(500_000);
+    expect(ev.submissionId).toBe("s-sn");
+  });
+
+  it("announces the payout on the campaign's own channel, like the EVM rail does", async () => {
+    // Without this a channel simply stops reporting payouts the moment a campaign settles on
+    // Starknet — the founder sees silence and assumes nothing happened.
+    const { announceCampaignSettledStarknet } = await import("@/lib/telegram/bot");
+    await runDeputyOnSubmission("s-sn");
+    expect(vi.mocked(announceCampaignSettledStarknet)).toHaveBeenCalledTimes(1);
+  });
+
+  it("still refuses when the vault refuses, and never claims it paid", async () => {
+    // The vault's own verdict is final: a refusal is a SUCCESSFUL transaction that moved nothing.
+    vi.mocked(settleOnStarknet).mockResolvedValue({
+      settled: false,
+      reason: "the vault refused this payout: DAILY_CAP",
+    } as never);
+    const r = await runDeputyOnSubmission("s-sn");
+    expect(r.action).not.toBe("settled");
   });
 });
