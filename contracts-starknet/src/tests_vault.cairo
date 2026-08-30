@@ -35,6 +35,11 @@ fn addr(v: felt252) -> ContractAddress {
 }
 
 /// A funded, active vault with one mission, and a token the owner has approved.
+/// The plan a vault is funded for. Any non-zero pair works here; the contract only stores them,
+/// and it is `attachV2Campaign` off-chain that compares them with what Sage derived.
+const PLAN_ID: felt252 = 'PLAN_ID';
+const PLAN_DIGEST: felt252 = 'PLAN_DIGEST';
+
 fn setup() -> (IMockErc20Dispatcher, ISageVaultDispatcher) {
     let token_class = declare("MockErc20").unwrap().contract_class();
     let (token_addr, _) = token_class.deploy(@array![]).unwrap();
@@ -44,7 +49,8 @@ fn setup() -> (IMockErc20Dispatcher, ISageVaultDispatcher) {
     let (vault_addr, _) = vault_class
         .deploy(
             @array![
-                OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(),
+                OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(), PLAN_ID,
+                PLAN_DIGEST,
             ],
         )
         .unwrap();
@@ -324,7 +330,7 @@ fn a_token_that_underdelivers_is_refused_at_funding() {
     let token = IMockErc20Dispatcher { contract_address: token_addr };
     let vault_class = declare("SageVault").unwrap().contract_class();
     let (vault_addr, _) = vault_class
-        .deploy(@array![OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into()])
+        .deploy(@array![OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(), PLAN_ID, PLAN_DIGEST])
         .unwrap();
 
     token.mint(addr(OWNER), FUNDED);
@@ -342,7 +348,7 @@ fn a_vault_with_no_money_refuses_rather_than_reverting() {
     let (token_addr, _) = token_class.deploy(@array![]).unwrap();
     let vault_class = declare("SageVault").unwrap().contract_class();
     let (vault_addr, _) = vault_class
-        .deploy(@array![OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into()])
+        .deploy(@array![OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(), PLAN_ID, PLAN_DIGEST])
         .unwrap();
     let vault = ISageVaultDispatcher { contract_address: vault_addr };
 
@@ -363,4 +369,74 @@ fn the_terms_are_fixed_at_deployment() {
     assert!(vault.get_owner() == addr(OWNER), "owner");
     assert!(vault.get_operator() == addr(OPERATOR), "operator");
     assert!(vault.get_status() == VaultStatus::Active, "active after funding");
+}
+
+/// THE VAULT NAMES THE PLAN IT WAS FUNDED FOR.
+///
+/// Without this, a funded vault could be attached to any plan afterwards — different missions,
+/// different rewards, same money. The EVM CampaignVault has always carried these two values and
+/// the attach step compares them against what Sage derived independently; the Starknet vault
+/// shipped without them, so that comparison had nothing to compare and the rail ran a weaker
+/// promise than the one it was advertising.
+#[test]
+fn the_plan_is_recorded_at_deployment_and_readable() {
+    let (_, vault) = setup();
+    assert!(vault.get_campaign_id_hash() == PLAN_ID, "campaign id hash");
+    assert!(vault.get_mission_plan_digest() == PLAN_DIGEST, "mission plan digest");
+}
+
+/// A vault that names no plan can be pointed at any plan later, which is the whole thing the
+/// agreement check exists to prevent.
+///
+/// Asserted on the Err rather than with `should_panic`, for the reason the claims suite already
+/// records: `.unwrap()` replaces the constructor's reason with its own, and the test would then
+/// pass for any deployment failure at all.
+#[test]
+fn a_vault_naming_no_campaign_is_refused() {
+    let token_class = declare("MockErc20").unwrap().contract_class();
+    let (token_addr, _) = token_class.deploy(@array![]).unwrap();
+    let vault_class = declare("SageVault").unwrap().contract_class();
+    match vault_class
+        .deploy(
+            @array![
+                OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(), 0, PLAN_DIGEST,
+            ],
+        ) {
+        Result::Ok(_) => panic!("a vault naming no campaign must not deploy"),
+        Result::Err(reason) => assert!(*reason.at(0) == 'ZERO_PLAN', "wrong reason"),
+    }
+}
+
+#[test]
+fn a_vault_naming_no_mission_plan_is_refused() {
+    let token_class = declare("MockErc20").unwrap().contract_class();
+    let (token_addr, _) = token_class.deploy(@array![]).unwrap();
+    let vault_class = declare("SageVault").unwrap().contract_class();
+    match vault_class
+        .deploy(
+            @array![
+                OWNER, OPERATOR, token_addr.into(), CEILING.into(), DAILY.into(), PLAN_ID, 0,
+            ],
+        ) {
+        Result::Ok(_) => panic!("a vault naming no mission plan must not deploy"),
+        Result::Err(reason) => assert!(*reason.at(0) == 'ZERO_PLAN', "wrong reason"),
+    }
+}
+
+#[test]
+fn the_plan_cannot_be_changed_after_deployment() {
+    // There is no setter, by construction — this pins that the values a vault was born with are
+    // the values it dies with, so an attached campaign cannot be swapped underneath the money.
+    let (_, vault) = setup();
+    let before_id = vault.get_campaign_id_hash();
+    let before_digest = vault.get_mission_plan_digest();
+
+    start_cheat_caller_address(vault.contract_address, addr(OWNER));
+    vault.add_mission('later-mission', 10, 1);
+    vault.pause();
+    vault.unpause();
+    stop_cheat_caller_address(vault.contract_address);
+
+    assert!(vault.get_campaign_id_hash() == before_id, "campaign id changed");
+    assert!(vault.get_mission_plan_digest() == before_digest, "digest changed");
 }

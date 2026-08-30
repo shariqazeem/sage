@@ -65,6 +65,7 @@ pub mod errors {
     pub const REVOKED: felt252 = 'REVOKED';
     pub const TRANSFER_SHORTFALL: felt252 = 'TRANSFER_SHORTFALL';
     pub const ZERO_CEILING: felt252 = 'ZERO_CEILING';
+    pub const ZERO_PLAN: felt252 = 'ZERO_PLAN';
 }
 
 /// Why a payout was refused. Returned rather than thrown, so one bad request cannot roll back a
@@ -120,6 +121,9 @@ pub trait ISageVault<T> {
     fn get_mission(self: @T, mission_id: felt252) -> Mission;
     fn get_total_spent(self: @T) -> u128;
     fn get_budget_ceiling(self: @T) -> u128;
+    /// The plan this vault was funded for. Compared against what Sage derived, at attach time.
+    fn get_campaign_id_hash(self: @T) -> felt252;
+    fn get_mission_plan_digest(self: @T) -> felt252;
     fn get_daily_cap(self: @T) -> u128;
     fn get_rolling_daily_spend(self: @T) -> u128;
 }
@@ -150,6 +154,15 @@ pub mod SageVault {
         total_spent: u128,
         window_start: u64,
         window_spent: u128,
+        /// THE PLAN THIS VAULT WAS FUNDED FOR, written once at deployment and never again.
+        ///
+        /// The EVM CampaignVault carries these, and the attach step compares them against what the
+        /// database derived — that comparison is what proves the vault a founder funded encodes the
+        /// SAME plan Sage is about to sell to testers. Without them on chain there is nothing to
+        /// compare, and the check either has to be skipped or faked; a check whose success condition
+        /// is satisfied by the check itself is not a check.
+        campaign_id_hash: felt252,
+        mission_plan_digest: felt252,
         missions: Map<felt252, Mission>,
         /// (mission, recipient) -> paid. One person, one payout, per mission.
         recipient_paid: Map<(felt252, ContractAddress), bool>,
@@ -226,17 +239,25 @@ pub mod SageVault {
         token: ContractAddress,
         budget_ceiling: u128,
         daily_cap: u128,
+        campaign_id_hash: felt252,
+        mission_plan_digest: felt252,
     ) {
         assert(owner.is_non_zero(), errors::ZERO_ADDRESS);
         assert(operator.is_non_zero(), errors::ZERO_ADDRESS);
         assert(token.is_non_zero(), errors::ZERO_ADDRESS);
         assert(budget_ceiling.is_non_zero(), errors::ZERO_CEILING);
         assert(daily_cap.is_non_zero(), errors::ZERO_CEILING);
+        // A vault that names no plan can be pointed at any plan afterwards, which is the whole
+        // thing the agreement check exists to prevent.
+        assert(campaign_id_hash.is_non_zero(), errors::ZERO_PLAN);
+        assert(mission_plan_digest.is_non_zero(), errors::ZERO_PLAN);
         self.owner.write(owner);
         self.operator.write(operator);
         self.token.write(token);
         self.budget_ceiling.write(budget_ceiling);
         self.daily_cap.write(daily_cap);
+        self.campaign_id_hash.write(campaign_id_hash);
+        self.mission_plan_digest.write(mission_plan_digest);
         self.status.write(VaultStatus::Active);
         self.window_start.write(get_block_timestamp());
     }
@@ -408,6 +429,14 @@ pub mod SageVault {
         fn get_total_spent(self: @ContractState) -> u128 {
             self.total_spent.read()
         }
+        fn get_campaign_id_hash(self: @ContractState) -> felt252 {
+            self.campaign_id_hash.read()
+        }
+
+        fn get_mission_plan_digest(self: @ContractState) -> felt252 {
+            self.mission_plan_digest.read()
+        }
+
         fn get_budget_ceiling(self: @ContractState) -> u128 {
             self.budget_ceiling.read()
         }
