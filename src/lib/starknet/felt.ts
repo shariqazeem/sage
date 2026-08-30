@@ -9,18 +9,25 @@
  */
 
 /**
- * Fit a 256-bit hash into a felt252.
+ * Fit a 256-bit hash into a felt.
  *
- * The commitment path derives its ids and digests with keccak256, which is 256 bits — four bits
- * wider than a felt can hold. Passing one straight through would overflow and either revert or,
- * worse, silently wrap to a different value on each side.
+ * The commitment path derives its ids and digests with keccak256, which is 256 bits — wider than a
+ * felt can hold. Passing one straight through would overflow and either revert or, worse, silently
+ * wrap to a different value on each side.
  *
- * Clearing the top four bits is deterministic, keeps 252 bits of the original digest, and — the
- * part that matters — is applied identically wherever it is used, so the on-chain replay guarantee
- * still holds: the same authorisation maps to the same felt, and two different authorisations
- * still map to different ones.
+ * MASKING TO 252 BITS WAS NOT ENOUGH, which is a genuinely easy thing to get wrong: "felt252"
+ * names the type but not the bound. The field prime is 2^251 + 17·2^192 + 1 — barely above 2^251 —
+ * so a 252-bit value can be almost TWICE the prime and still look like it fits. A real mission id
+ * came out at 1.92× the prime, and Ready refused the whole deployment with "Default Felt
+ * constructor accepts values smaller than Felt.PRIME" while a founder was trying to fund a vault.
+ *
+ * 251 bits is always below the prime, needs no modular arithmetic, and stays what it has to be:
+ * deterministic and applied identically wherever it is used, so the on-chain replay guarantee still
+ * holds — the same authorisation maps to the same felt, and two different authorisations still map
+ * to different ones.
  */
-export const FELT_MASK = (BigInt(1) << BigInt(252)) - BigInt(1);
+export const STARKNET_PRIME = (BigInt(1) << BigInt(251)) + BigInt(17) * (BigInt(1) << BigInt(192)) + BigInt(1);
+export const FELT_MASK = (BigInt(1) << BigInt(251)) - BigInt(1);
 
 export const toFelt = (v: string): string => `0x${(BigInt(v) & FELT_MASK).toString(16)}`;
 
