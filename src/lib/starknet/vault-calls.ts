@@ -1,5 +1,5 @@
 import { CallData, cairo, hash, num } from "starknet";
-import { toFelt } from "./felt";
+import { toFelt, isFelt } from "./felt";
 
 /**
  * THE CALLS A FOUNDER'S WALLET MAKES TO STAND UP A CAMPAIGN VAULT.
@@ -220,6 +220,25 @@ export function planVaultDeployment(args: {
     if (m.rewardBase <= BigInt(0) || m.maxCompletions < 1) {
       throw new Error(
         `mission ${m.missionId} pays ${m.rewardBase} across ${m.maxCompletions} completions — the vault would refuse it`,
+      );
+    }
+    /**
+     * A MISSION ID MUST ALREADY BE A FELT.
+     *
+     * Sage's mission ids are 256-bit hashes and a felt is 251 bits, so they do not fit. The caller
+     * reduces with `toFelt` — the SAME reduction settlement looks the mission up by — and this
+     * refuses anything that did not.
+     *
+     * Silently accepting one is the dangerous outcome, not a crash: `CallData.compile` passes an
+     * oversized value straight through, and the chain reduces it MODULO PRIME. That is a different
+     * number from `value & MASK`, so the vault would be keyed under one and settlement would ask
+     * for the other — NO_SUCH_MISSION, discovered by a recipient after the work is done.
+     *
+     * Reducing here instead would hide the caller's mistake and pick a reduction on their behalf.
+     */
+    if (!isFelt(m.missionId)) {
+      throw new Error(
+        `mission id ${m.missionId} is not a felt — reduce it with toFelt() before deploying, or the vault is keyed by a different number than settlement looks up`,
       );
     }
   }

@@ -29,6 +29,24 @@
 export const STARKNET_PRIME = (BigInt(1) << BigInt(251)) + BigInt(17) * (BigInt(1) << BigInt(192)) + BigInt(1);
 export const FELT_MASK = (BigInt(1) << BigInt(251)) - BigInt(1);
 
+/**
+ * Is this value already a valid felt — i.e. can the chain take it unchanged?
+ *
+ * Distinct from `toFelt`, which REDUCES. Callers that hand a value straight to calldata need to
+ * know whether it fits, because an oversized one is not rejected: it is reduced modulo PRIME by
+ * the chain, which is a different number from `toFelt`'s mask, and the two would key the same
+ * mission under two different ids.
+ */
+export const isFelt = (v: string | null | undefined): boolean => {
+  if (!v || !/^0x[0-9a-fA-F]+$/.test(v.trim())) return false;
+  try {
+    const n = BigInt(v.trim());
+    return n >= BigInt(0) && n < STARKNET_PRIME;
+  } catch {
+    return false;
+  }
+};
+
 export const toFelt = (v: string): string => `0x${(BigInt(v) & FELT_MASK).toString(16)}`;
 
 /** A campaign id is a string; a legacy campaign's implicit mission is keyed by its hash. */

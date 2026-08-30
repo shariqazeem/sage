@@ -199,3 +199,45 @@ describe("verifying a Starknet evidence commitment", () => {
     expect(addr).toBe(NORMALISED);
   });
 });
+
+/**
+ * WOULD A WALLET ACTUALLY SIGN THIS?
+ *
+ * A malformed structure is not rejected loudly — the wallet simply refuses, which is how the
+ * sign-in nonce failed ("…is too long", from Ready, with nothing on our side to explain it).
+ * `getMessageHash` is the same computation the account contract verifies against, so if it can
+ * hash this, the shape is one a wallet can sign and an account can check.
+ *
+ * These use the REAL starknet.js, not the mocked module the tests above install.
+ */
+describe("the typed data is one a Starknet account can actually verify", () => {
+  it("hashes with starknet.js — the same computation the account contract does", async () => {
+    const { typedData: td } = await vi.importActual<typeof import("starknet")>("starknet");
+    const hash = td.getMessageHash(buildStarknetEvidenceTypedData(claim(), WALLET) as never, WALLET);
+    expect(hash).toMatch(/^0x[0-9a-f]+$/i);
+    expect(BigInt(hash)).toBeGreaterThan(BigInt(0));
+  });
+
+  it("passes starknet.js's own structural validation", async () => {
+    const { typedData: td } = await vi.importActual<typeof import("starknet")>("starknet");
+    expect(td.validateTypedData(buildStarknetEvidenceTypedData(claim(), WALLET) as never)).toBe(true);
+  });
+
+  it("hashes to a DIFFERENT value for a different mission — the binding is in the hash, not just the JSON", async () => {
+    const { typedData: td } = await vi.importActual<typeof import("starknet")>("starknet");
+    const a = td.getMessageHash(buildStarknetEvidenceTypedData(claim(), WALLET) as never, WALLET);
+    const b = td.getMessageHash(
+      buildStarknetEvidenceTypedData(claim({ missionIdHash: "0xee" + "5".repeat(62) } as never), WALLET) as never,
+      WALLET,
+    );
+    expect(a).not.toBe(b);
+  });
+
+  it("hashes differently for a different signer, so one wallet's signature cannot cover another's claim", async () => {
+    const { typedData: td } = await vi.importActual<typeof import("starknet")>("starknet");
+    const other = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcde";
+    const a = td.getMessageHash(buildStarknetEvidenceTypedData(claim(), WALLET) as never, WALLET);
+    const b = td.getMessageHash(buildStarknetEvidenceTypedData(claim(), other) as never, other);
+    expect(a).not.toBe(b);
+  });
+});
