@@ -74,6 +74,51 @@ const STATUS: Record<number, VaultState["statusLabel"]> = {
   2: "revoked",
 };
 
+/** Variant NAMES, in the order `vault.cairo` declares them — the index is the wire encoding. */
+const STATUS_VARIANTS = ["Paused", "Active", "Revoked"] as const;
+
+/**
+ * Read a `VaultStatus` back off the chain.
+ *
+ * This used to answer 0 — "paused" — for anything that arrived as an object, and starknet.js
+ * returns a Cairo enum as exactly that: a `CairoCustomEnum` holding `{ variant: { Active: {} } }`.
+ * So EVERY vault read as paused, always, whatever it really was.
+ *
+ * That is not a display bug. Attach refuses a paused vault, so no founder could open a campaign on
+ * a vault they had correctly funded; and the settlement pre-flight holds work on a paused vault, so
+ * no payout could ever have been released either. One wrong branch closed the whole rail, and it
+ * closed it in the shape of a sentence about the founder's vault being wrong.
+ *
+ * `Paused` is variant zero deliberately — an uninitialised slot must read as "pays nobody" — which
+ * is exactly why guessing zero on an unrecognised shape is the wrong default: it is indistinguishable
+ * from a real refusal. An unreadable status now returns -1 and surfaces as "unknown", which no
+ * caller treats as permission.
+ */
+export function decodeVaultStatus(status: unknown): number {
+  if (typeof status === "bigint" || typeof status === "number") return Number(status);
+  if (typeof status === "object" && status !== null) {
+    const withActive = status as { activeVariant?: () => string };
+    if (typeof withActive.activeVariant === "function") {
+      const i = STATUS_VARIANTS.indexOf(withActive.activeVariant() as (typeof STATUS_VARIANTS)[number]);
+      if (i >= 0) return i;
+    }
+    // Older shapes expose the map directly: the live variant is the key that carries a value.
+    const variant = (status as { variant?: Record<string, unknown> }).variant;
+    if (variant) {
+      for (const [name, value] of Object.entries(variant)) {
+        if (value === undefined) continue;
+        const i = STATUS_VARIANTS.indexOf(name as (typeof STATUS_VARIANTS)[number]);
+        if (i >= 0) return i;
+      }
+    }
+  }
+  try {
+    return Number(BigInt(status as bigint));
+  } catch {
+    return -1; // unreadable — never silently "paused", and never silently "active"
+  }
+}
+
 export async function readVaultState(vaultAddress: string): Promise<VaultState> {
   const provider = readProvider();
   const c = new Contract({ abi: ABI, address: vaultAddress, providerOrAccount: provider });
@@ -88,12 +133,7 @@ export async function readVaultState(vaultAddress: string): Promise<VaultState> 
     c.call("get_rolling_daily_spend", []),
   ]);
   const asHex = (v: unknown) => `0x${BigInt(v as bigint).toString(16)}`;
-  // A Cairo enum reads back as its variant index.
-  const statusN = Number(
-    typeof status === "object" && status !== null && "variant" in status
-      ? 0
-      : BigInt(status as bigint),
-  );
+  const statusN = decodeVaultStatus(status);
   return {
     owner: asHex(owner),
     operator: asHex(operator),
