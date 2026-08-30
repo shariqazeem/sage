@@ -26,6 +26,7 @@ import { signTypedDataViaPrivy, type PrivyTypedData } from "@/lib/privy/client";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import type { Mission } from "@/lib/db/schema";
+import { hasMissionPlan } from "./vault-kind";
 
 /**
  * WALLETLESS RECIPIENT submission — proof sent IN CHAT (move 2 of the pivot).
@@ -110,7 +111,8 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   const campaign = getCampaign(campaignId);
   if (!campaign) return { ok: false, error: "That campaign doesn't exist." };
   if (campaign.status !== "live") return { ok: false, error: "That campaign isn't accepting submissions right now." };
-  if (campaign.vaultKind !== "campaign_v2" || !campaign.campaignIdHash) {
+  // An invited recipient submits against a mission plan; which chain pays is settled later.
+  if (!hasMissionPlan(campaign.vaultKind) || !campaign.campaignIdHash) {
     return { ok: false, error: "That campaign can't take chat submissions." };
   }
   // The SAME allowlist gate the web submit route enforces.

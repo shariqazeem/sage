@@ -27,6 +27,7 @@ import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
 import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reservation";
 import { nowSeconds } from "@/lib/db/keys";
+import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,7 +141,10 @@ export async function POST(
   // url-verifiable replay guard byte-identical — url-lane rows still store their real URL and collide.
   let evidenceUrlToStore: string | null = evidenceUrl;
 
-  if (campaign.vaultKind === "campaign_v2") {
+  // MISSION-SCOPED SUBMIT. Gated on `campaign_v2` alone, a Starknet campaign fell to the
+  // pre-mission branch below: no mission binding, so a tester's work could not be matched to the
+  // terms the vault will actually pay for.
+  if (hasMissionPlan(campaign.vaultKind)) {
     // ── V2: mission-scoped, signature-bound ──────────────────────────────────
     if (typeof body.missionKey !== "string") {
       return NextResponse.json({ error: "Choose a mission to submit to." }, { status: 400 });

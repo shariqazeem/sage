@@ -11,6 +11,7 @@
 import type { VaultKind } from "@/lib/db/schema";
 import { sameChainAddress } from "./chain-address";
 import { sameFieldHash, toFieldHash } from "./field-hash";
+import { hasMissionPlan } from "./vault-kind";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -110,7 +111,7 @@ export function checkVaultAgreement(
    * ceiling, the plan identity and every mission's terms — and is judged by the same rules below.
    * Listing only `campaign_v2` refused every private-capable campaign at the first line.
    */
-  if (db.vaultKind !== "campaign_v2" && db.vaultKind !== "sage_vault_starknet") {
+  if (!hasMissionPlan(db.vaultKind)) {
     push("vault_kind", `db vaultKind is ${db.vaultKind}, which carries no mission plan to check`);
   }
   if (!chain.factoryRecognizes) push("provenance", "vault is not from the CampaignVaultFactory");

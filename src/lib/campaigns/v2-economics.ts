@@ -11,6 +11,7 @@ import "server-only";
 import { listMissions, countPaidForMission } from "@/lib/db/campaigns";
 import { isTestnetChain, tokenSymbol as tokenSym } from "@/lib/format";
 import type { Campaign } from "@/lib/db/schema";
+import { hasMissionPlan } from "./vault-kind";
 
 export interface V2MissionView {
   missionKey: string;
@@ -79,7 +80,9 @@ export function v2Economics(campaign: Campaign): V2Economics {
   const totalFundedBase = missions.reduce((s, m) => s + m.rewardBase * m.maxCompletions, 0);
   const paidBase = missions.reduce((s, m) => s + m.rewardBase * m.paid, 0);
   return {
-    isV2: campaign.vaultKind === "campaign_v2",
+    // "is this a mission-plan campaign", not "is this EVM" — a Starknet vault carries exactly
+    // the same per-mission economics this function computes.
+    isV2: hasMissionPlan(campaign.vaultKind),
     chainId,
     tokenSymbol: tokenSym(chainId),
     isTestnet: isTestnetChain(chainId),

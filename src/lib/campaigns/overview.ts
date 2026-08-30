@@ -9,6 +9,7 @@ import { v2Economics } from "./v2-economics";
 import { toJournalEntries, type JournalEntry } from "./journal";
 import { buildIntentHashMap, type IntentRef } from "./labels";
 import { sameFounder } from "@/lib/auth/founder";
+import { hasMissionPlan } from "./vault-kind";
 
 /** One campaign as the Agents tab shows it — all counts from real submissions. */
 export interface CampaignCard {
@@ -123,7 +124,9 @@ export function getDeputyOverview(wallet: string | null): DeputyOverview {
     totalPending += pending;
     totalPaid += paid;
     paidAmountBase += paid * c.rewardAmount;
-    const totalCompletions = c.vaultKind === "campaign_v2" ? v2Economics(c).totalCompletions : c.maxRecipients;
+    // Without this a Starknet campaign's dashboard row counted `maxRecipients` instead of the
+    // sum of its missions' caps, so the founder's own totals disagreed with their board.
+    const totalCompletions = hasMissionPlan(c.vaultKind) ? v2Economics(c).totalCompletions : c.maxRecipients;
     return {
       id: c.id,
       title: c.title,

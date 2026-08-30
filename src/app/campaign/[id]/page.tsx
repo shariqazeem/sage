@@ -16,6 +16,7 @@ import {
   type WorkspaceSubmission,
 } from "@/components/campaign/campaign-workspace";
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function CampaignConsolePage({
    * private-capable campaign to the legacy page, which is where a founder found their own live
    * campaign showing nothing.
    */
-  if (loaded.vaultKind !== "campaign_v2" && loaded.vaultKind !== "sage_vault_starknet") {
+  if (!hasMissionPlan(loaded.vaultKind)) {
     redirect("/app?legacy=1");
   }
   // The on-chain vault is the truth: if it's been revoked (stopped), reflect that as "cancelled".

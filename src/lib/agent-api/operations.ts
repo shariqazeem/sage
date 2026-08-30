@@ -18,6 +18,7 @@ import { reward, networkLabel, short } from "@/lib/format";
 import { explorerTxUrl } from "@/lib/deputy/networks";
 import { composeProof, isFoundProof } from "@/lib/deputy/proof";
 import { siteUrl } from "@/lib/site";
+import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 /**
  * The five Sage Agent operations, extracted transport-agnostic so the REST routes
@@ -339,7 +340,8 @@ export interface CampaignView {
 export function opGetCampaign(id: string): OpResult<CampaignView> {
   const campaign = getCampaign(id);
   if (!campaign) return { ok: false, error: "Campaign not found.", status: 404 };
-  if (campaign.vaultKind !== "campaign_v2") {
+  // The agent API exposes mission-plan campaigns; a Starknet one has the same shape.
+  if (!hasMissionPlan(campaign.vaultKind)) {
     return { ok: false, error: "Not a mission-board (V2) campaign.", status: 400 };
   }
 

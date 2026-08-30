@@ -27,6 +27,7 @@ import { loadCampaignActivity } from "@/lib/campaigns/load-activity";
 import "@/styles/tester-board.css";
 import "@/styles/wallet-connect.css";
 import "@/styles/marketplace.css";
+import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,7 +67,7 @@ export default async function CampaignPublicPage({
    * tester believe the payout is real. A Starknet vault carries exactly the same per-mission
    * economics; the economics helper below never cared which chain it was.
    */
-  if (campaign.vaultKind === "campaign_v2" || campaign.vaultKind === "sage_vault_starknet") {
+  if (hasMissionPlan(campaign.vaultKind)) {
     const e = v2Economics(campaign);
     const live = campaign.status === "live";
     const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;

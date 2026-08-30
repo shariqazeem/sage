@@ -427,6 +427,15 @@ export async function attachV2Campaign(
               ? (input.autopilotThreshold ?? 0.85)
               : undefined,
           vaultKind: input.vaultKind ?? "campaign_v2",
+          /**
+           * WHICH RAIL SETTLES THIS CAMPAIGN.
+           *
+           * Missing here, a Starknet campaign persisted as EVM: the tester board then offered a
+           * MetaMask sign-in for a campaign that pays on Starknet, and the submit route took the
+           * EVM branch. Everything upstream was right — the vault, the plan, the attach — and one
+           * unwritten column undid it.
+           */
+          settlementRail: input.settlementRail ?? "evm",
           // P18/P19 — the founder-set per-wallet payout cap (default 1, clamped upstream).
           perWalletPayoutCap: Math.max(1, Math.round(input.perWalletCap ?? 1)),
           // P16 pinned private answer key — an immutable snapshot fixed at the same instant as the plan.

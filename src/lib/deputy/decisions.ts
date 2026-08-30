@@ -36,6 +36,7 @@ import { walletFreshnessSignal } from "./wallet-signals";
 import { fundingClusterSignal } from "./funding-graph";
 import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
+import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
 export function briefFromRow(row: Decision): DecisionBrief {
@@ -186,7 +187,9 @@ export async function ensureDecision(
   // For a V2 mission submission the UNIT of work is the MISSION — the Deputy must
   // judge against the locked mission's full context, never the (empty) campaign
   // criteria. Falls back to the campaign for V1.
-  const isV2 = campaign.vaultKind === "campaign_v2" && !!submission.missionIdHash;
+  // A decision is "V2" when it is bound to a mission — true on both rails. Excluding Starknet
+  // here recorded its payouts in the pre-mission shape, which the proof page then cannot verify.
+  const isV2 = hasMissionPlan(campaign.vaultKind) && !!submission.missionIdHash;
   const mission = isV2 ? getMissionByHash(campaign.id, submission.missionIdHash!) : null;
 
   // FAIL CLOSED: a V2 submission must be judged against its exact LOCKED mission

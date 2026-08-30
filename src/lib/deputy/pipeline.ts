@@ -70,6 +70,7 @@ import { notifyTelegram } from "./notify";
 import { announceCampaignSettledStarknet } from "@/lib/telegram/bot";
 import { mainnetAutopilotEnabled } from "@/lib/env";
 import { agentLog, newCorrelationId } from "./agent-log";
+import { isEvmCampaignVault } from "@/lib/campaigns/vault-kind";
 
 /**
  * The autonomy pipeline. `runDeputyOnSubmission` is the ONE place the Deputy
@@ -176,7 +177,7 @@ async function preflight(
  */
 export function preflightStrategy(campaign: Campaign): "starknet" | "v2" | "legacy" {
   if (campaign.settlementRail === "starknet") return "starknet";
-  if (campaign.vaultKind === "campaign_v2") return "v2";
+  if (isEvmCampaignVault(campaign.vaultKind)) return "v2";
   return "legacy";
 }
 
