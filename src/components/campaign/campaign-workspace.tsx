@@ -361,7 +361,7 @@ function Console({ data }: { data: WorkspaceData }) {
         ) : (
           /* The EVM card is viem all the way down and cannot read a felt — it sat on "reading
              vault balance…" while telling a founder to connect a wallet they already had. */
-          <StarknetStopWithdrawCard vaultAddress={data.vaultAddress} explorerUrl={chainConfig(data.chainId).explorerUrl} />
+          <StarknetStopWithdrawCard campaignId={data.id} vaultAddress={data.vaultAddress} explorerUrl={chainConfig(data.chainId).explorerUrl} />
         )}
       </aside>
       </div>
