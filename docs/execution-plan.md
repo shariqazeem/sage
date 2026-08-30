@@ -104,7 +104,12 @@ Same pattern that worked in the OpenClaw GOAT bootcamp: real money attracts real
 - [ ] Screen recording of a launch (founder's-eye view this time, not the worker's)
 - [ ] X post #2 — money on the table, with the video
 
-Needs funding: GOAT is empty (~$3 USDC + BTC gas), Starknet needs ~$1.50 for the grant.
+**Funding is handled** (user, 31 Aug): ~$20 of campaigns to attract users, another ~$10 if they go
+well, funded on whichever rail we launch on. Indicative split — Starknet privacy pot big enough for
+several real claims, the $10 public GOAT pot, ~$2 for the milestone-grant demo.
+
+Do NOT raise the per-campaign caps to absorb it: budget absorption runs 5-20% and that is
+downstream of tester supply, not of the cap.
 
 ---
 
