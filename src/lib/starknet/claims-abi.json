@@ -73,6 +73,48 @@
     ]
   },
   {
+    "type": "enum",
+    "name": "sage_claims::claims::PrivateExit",
+    "variants": [
+      {
+        "name": "Claim",
+        "type": "()"
+      },
+      {
+        "name": "Refund",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "sage_claims::claims::OpenNoteDeposit",
+    "members": [
+      {
+        "name": "note_id",
+        "type": "core::felt252"
+      },
+      {
+        "name": "token",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "amount",
+        "type": "core::integer::u128"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "core::array::Span::<sage_claims::claims::OpenNoteDeposit>",
+    "members": [
+      {
+        "name": "snapshot",
+        "type": "@core::array::Array::<sage_claims::claims::OpenNoteDeposit>"
+      }
+    ]
+  },
+  {
     "type": "interface",
     "name": "sage_claims::claims::ISageClaims",
     "items": [
@@ -174,6 +216,41 @@
       },
       {
         "type": "function",
+        "name": "get_pool",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "privacy_invoke",
+        "inputs": [
+          {
+            "name": "operation",
+            "type": "sage_claims::claims::PrivateExit"
+          },
+          {
+            "name": "secret",
+            "type": "core::felt252"
+          },
+          {
+            "name": "note_id",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::array::Span::<sage_claims::claims::OpenNoteDeposit>"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
         "name": "refund_to_address",
         "inputs": [
           {
@@ -187,6 +264,16 @@
         ],
         "outputs": [],
         "state_mutability": "external"
+      }
+    ]
+  },
+  {
+    "type": "constructor",
+    "name": "constructor",
+    "inputs": [
+      {
+        "name": "pool",
+        "type": "core::starknet::contract_address::ContractAddress"
       }
     ]
   },
@@ -263,6 +350,28 @@
   },
   {
     "type": "event",
+    "name": "sage_claims::claims::SageClaims::ClaimedPrivately",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "claim_commitment",
+        "type": "core::felt252",
+        "kind": "key"
+      },
+      {
+        "name": "token",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "data"
+      },
+      {
+        "name": "amount",
+        "type": "core::integer::u128",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
     "name": "sage_claims::claims::SageClaims::Refunded",
     "kind": "struct",
     "members": [
@@ -301,6 +410,11 @@
       {
         "name": "ClaimedToAddress",
         "type": "sage_claims::claims::SageClaims::ClaimedToAddress",
+        "kind": "nested"
+      },
+      {
+        "name": "ClaimedPrivately",
+        "type": "sage_claims::claims::SageClaims::ClaimedPrivately",
         "kind": "nested"
       },
       {

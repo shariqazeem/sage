@@ -234,6 +234,28 @@
       },
       {
         "type": "function",
+        "name": "get_campaign_id_hash",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::felt252"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_mission_plan_digest",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::felt252"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
         "name": "get_daily_cap",
         "inputs": [],
         "outputs": [
@@ -279,6 +301,14 @@
       {
         "name": "daily_cap",
         "type": "core::integer::u128"
+      },
+      {
+        "name": "campaign_id_hash",
+        "type": "core::felt252"
+      },
+      {
+        "name": "mission_plan_digest",
+        "type": "core::felt252"
       }
     ]
   },
