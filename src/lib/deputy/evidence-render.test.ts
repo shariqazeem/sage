@@ -26,7 +26,14 @@ const richFetch = (async () =>
     status: 200,
     headers: { "content-type": "text/html" },
   })) as unknown as typeof fetch;
-const RENDERED = "The tester created a document titled Report and the autosave indicator confirmed it saved successfully.";
+/**
+ * A REAL capture, not a stub. Enforce requires the render to come back with something rather than
+ * a scrap, so a 105-character fixture would be refused for the same reason an error page is — and
+ * would have made this test pass for the wrong reason after the comparison changed from
+ * "longer than static" to "actually rendered something".
+ */
+const RENDERED =
+  `The tester created a document titled Report and the autosave indicator confirmed it saved successfully. ${"detail ".repeat(40)}`;
 
 beforeEach(() => {
   renderMock.mockReset();
@@ -109,9 +116,15 @@ describe("three-state rollout — OFF | SHADOW | ENFORCE", () => {
     expect(r.render?.mode).toBe("enforce");
   });
 
-  it("ENFORCE but rendered NOT richer than a non-empty thin static → keeps static", async () => {
+  it("ENFORCE but the render came back a SCRAP → keeps static", async () => {
     process.env.RENDERED_EVIDENCE_MODE = "enforce";
-    // a thin-but-non-empty static ("Loading…" placeholder, still < 200 chars) with a SHORTER render.
+    /**
+     * This used to read "rendered NOT richer", meaning shorter than the static text. Length turned
+     * out to be the wrong comparator — MEASURED on starkscan.co, where a 2,561-character render
+     * carrying the actual page data was discarded for a 2,753-character shell padded with a cookie
+     * banner. What still holds, and what this pins, is that a SCRAP does not replace static: an
+     * error page or a redirect notice is not evidence.
+     */
     const thinWithText = (async () =>
       new Response("<html><body>Loading the application, please wait a moment.</body></html>", {
         status: 200,
@@ -120,7 +133,7 @@ describe("three-state rollout — OFF | SHADOW | ENFORCE", () => {
     renderMock.mockResolvedValue({ text: "Loading", outcome: "ok", finalUrl: null });
     const r = await fetchEvidence("https://example.org/spa", { fetchImpl: thinWithText });
     expect(r.mode).toBe("static");
-    expect(r.text).toContain("Loading the application"); // the richer static is kept
+    expect(r.text).toContain("Loading the application"); // static is kept over a scrap
     expect(r.render?.mode).toBe("enforce");
   });
 

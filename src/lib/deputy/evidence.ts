@@ -22,7 +22,9 @@ export interface RenderProvenance {
   requestedUrl: string;
   finalUrl: string | null;
   mode: "shadow" | "enforce";
-  triggerReason: "thin_text" | "no_js_notice";
+  /** Why the render fired. `loading_shell` and `shell_text_ratio` catch the MODERN app shell —
+   *  full nav and footer around an empty body — which "thin text" alone never did. */
+  triggerReason: "thin_text" | "no_js_notice" | "loading_shell" | "shell_text_ratio";
   staticLen: number;
   staticDigest: string | null;
   renderedLen: number | null;
@@ -56,9 +58,44 @@ const RENDER_THIN_CHARS = 200;
 
 const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
 
-/** A static result worth re-fetching in a real browser: near-empty text, or an explicit no-JS notice. */
-function isThinEvidence(text: string): boolean {
-  return text.length < RENDER_THIN_CHARS || /\benable\s+JavaScript\b/i.test(text);
+/**
+ * A page whose visible text is still LOADING — the shell said so out loud.
+ *
+ * MEASURED on starkscan.co, whose contract pages render client-side: the fetched text contained
+ * "Checking…" and nothing the criteria asked for. The judge reported exactly that ("the page shows
+ * 'Checking...'") and held twice on genuinely correct evidence.
+ */
+const LOADING_SHELL = /\b(checking|loading|please wait)\s*[.…]/i;
+
+/** Below this, visible text is a rounding error against the payload that produced it. */
+const SHELL_TEXT_RATIO = 0.02;
+/** Only apply the ratio to a payload big enough for it to mean anything. */
+const SHELL_MIN_HTML = 50_000;
+
+/**
+ * A static result worth re-fetching in a real browser.
+ *
+ * The first version was `text.length < 200 || /enable JavaScript/`, which catches the CLASSIC empty
+ * shell — `<div id="root"></div>` — and misses the modern one. Starkscan ships a full nav and
+ * footer around an empty body: 2,753 characters of chrome, so it was never "thin", and the render
+ * never fired for the exact page that needed it.
+ *
+ * MEASURED, to ground the thresholds rather than guess them:
+ *
+ *   starkscan contract (SPA)   html 115,501  text 1,635  ratio 1.42%  "Checking…"
+ *   sagepays landing (SSR)     html  86,009  text 4,165  ratio 4.84%  —
+ *   example.com (static)       html     559  text   142  ratio 25.4%  —
+ *
+ * Over-triggering costs a render; under-triggering holds work somebody actually did.
+ */
+export function isThinEvidence(text: string, rawHtml?: string): boolean {
+  if (text.length < RENDER_THIN_CHARS) return true;
+  if (/\benable\s+JavaScript\b/i.test(text)) return true;
+  if (LOADING_SHELL.test(text)) return true;
+  if (rawHtml && rawHtml.length >= SHELL_MIN_HTML && text.length / rawHtml.length < SHELL_TEXT_RATIO) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -217,7 +254,7 @@ export async function fetchEvidence(
     // Any failure keeps the static result. Dynamic import so this module pulls no browser deps unless a
     // render actually fires.
     const mode = renderedEvidenceMode();
-    if (mode !== "off" && isThinEvidence(staticText)) {
+    if (mode !== "off" && isThinEvidence(staticText, raw)) {
       try {
         const { renderEvidence, RENDERER_VERSION } = await import("./evidence-render");
         const r = await renderEvidence(rawUrl);
@@ -225,7 +262,14 @@ export async function fetchEvidence(
           requestedUrl: rawUrl,
           finalUrl: r.finalUrl,
           mode,
-          triggerReason: staticText.length < RENDER_THIN_CHARS ? "thin_text" : "no_js_notice",
+          triggerReason:
+            staticText.length < RENDER_THIN_CHARS
+              ? "thin_text"
+              : LOADING_SHELL.test(staticText)
+                ? "loading_shell"
+                : /\benable\s+JavaScript\b/i.test(staticText)
+                  ? "no_js_notice"
+                  : "shell_text_ratio",
           staticLen: staticText.length,
           staticDigest: contentSha256,
           renderedLen: r.text ? r.text.length : null,
@@ -234,9 +278,21 @@ export async function fetchEvidence(
           rendererVersion: RENDERER_VERSION,
           at: fetchedAt,
         };
-        // ENFORCE only: rendered text reaches the judge (when strictly richer). It is returned as `.text`,
-        // so it receives the EXACT same untrusted-markers/caps/truncation as static evidence downstream.
-        if (mode === "enforce" && r.text && r.text.length > staticText.length) {
+        /**
+         * ENFORCE: the rendered text reaches the judge. It is returned as `.text`, so it receives
+         * the EXACT same untrusted-markers/caps/truncation as static evidence downstream.
+         *
+         * The condition used to be `rendered.length > static.length` — LENGTH as a proxy for
+         * information. MEASURED on starkscan.co: the render returned 2,561 characters containing
+         * the contract name, the tab strip and the transaction summary, and was thrown away for a
+         * 2,753-character static shell padded with a cookie banner and nav. The whole chain worked
+         * and the last line discarded the answer.
+         *
+         * A render only happens when the static text was already judged a shell. Once that is
+         * decided, "longer" is not the question — the only thing worth checking is that the browser
+         * actually came back with something, rather than an error page or a blank.
+         */
+        if (mode === "enforce" && r.text && r.text.length >= RENDER_THIN_CHARS) {
           return { text: r.text.slice(0, MAX_TEXT_CHARS), contentSha256: sha256(r.text), fetchedAt, ok: true, mode: "rendered", render };
         }
         // SHADOW (or enforce-but-not-richer): the static evidence is what the judge sees; comparison logged.

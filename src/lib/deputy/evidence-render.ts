@@ -31,6 +31,9 @@ import { startEgressProxy } from "@/lib/net/egress-proxy";
 
 const NAV_MS = 15_000; // per-navigation budget
 const SETTLE_MS = 2_500; // fixed hydration settle AFTER load (networkidle alone is unreliable on SPAs)
+/** After the settle, keep waiting while the page is still changing or still says it is loading. */
+const CONTENT_WAIT_MS = 12_000;
+const CONTENT_POLL_MS = 500;
 const TOTAL_MS = 28_000; // hard cap on the whole render
 /** Hard cap on captured innerText: a malicious page can render megabytes of text; bound what crosses the
  *  CDP bridge into our process and what can ever reach the judge (the same bound static evidence gets). */
@@ -148,7 +151,21 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
   try {
     browser = await chromium.launch({ headless: true, proxy: { server: proxy.url }, args: proxy.chromiumArgs });
     const context = await browser.newContext({
-      userAgent: "SageDeputy/1.0 (+evidence-verification, read-only)",
+      /**
+       * THE SAME UA POLICY THE STATIC FETCHER ALREADY LEARNED.
+       *
+       * It used to send "SageDeputy/1.0" here. `fetchEvidence` carries a comment about exactly
+       * that: the honest UA gets bot-walled on WAF-fronted products (403 or a challenge page),
+       * which reads as "no usable evidence" and holds genuine work — so it moved to a realistic UA
+       * with `x-sage-agent` as the allowlistable marker, and the renderer was never brought along.
+       *
+       * MEASURED on starkscan.co, which sits behind Cloudflare: an unguarded browser with a normal
+       * UA rendered the contract name, the tab strip and the transaction summary; this context,
+       * same page, same guard, same waits, returned the shell. The identity was the difference.
+       */
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      extraHTTPHeaders: { "x-sage-agent": "SageDeputy/1.0 (+evidence-verification)" },
       viewport: { width: 1280, height: 800 },
       acceptDownloads: false,
     });
@@ -183,6 +200,44 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
     // best-effort networkidle (SPAs may never reach it), then a bounded settle for client hydration.
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
     await page.waitForTimeout(SETTLE_MS).catch(() => {});
+
+    /**
+     * WAIT FOR THE THING BEING WAITED FOR, NOT FOR A DURATION.
+     *
+     * A fixed settle captured starkscan.co mid-load: the render fired, succeeded, and came back
+     * SHORTER than the plain fetch — nav and footer with "Checking…" where the contract data
+     * belongs. Enforce correctly kept the static text, so a working browser produced no improvement
+     * at all, which is the most expensive kind of nothing.
+     *
+     * So this polls until the page stops changing AND stops saying it is loading, bounded by
+     * CONTENT_WAIT_MS. Measured IN-PAGE for the same reason the field test does it: a driver-side
+     * channel can starve on a busy box and report a page as dead when it is merely slow.
+     */
+    await page
+      .evaluate(
+        async ([budgetMs, stepMs]) => {
+          const loading = /\b(checking|loading|please wait)\s*[.…]/i;
+          const read = () => (document.body?.innerText || "").trim();
+          let last = read();
+          let stableFor = 0;
+          for (let waited = 0; waited < budgetMs; waited += stepMs) {
+            await new Promise((r) => setTimeout(r, stepMs));
+            const now = read();
+            // Growing, or still announcing a load, means it is not done.
+            if (now !== last || loading.test(now)) {
+              last = now;
+              stableFor = 0;
+              continue;
+            }
+            stableFor += stepMs;
+            // Two consecutive quiet steps: the DOM has settled on its own terms.
+            if (stableFor >= stepMs * 2) return;
+          }
+        },
+        [CONTENT_WAIT_MS, CONTENT_POLL_MS],
+      )
+      .catch(() => {});
+
     const finalUrl = page.url();
     // Cap IN-PAGE before it crosses the bridge — a hostile page can render megabytes of text.
     const text = await page.evaluate((max) => (document.body?.innerText || "").slice(0, max).trim(), MAX_TEXT_CHARS).catch(() => "");
