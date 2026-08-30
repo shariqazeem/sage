@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  CheckCircle2, Clock, ExternalLink, Loader2, RefreshCw, ShieldCheck, XCircle, Target,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  XCircle,
+  Target,
 } from "lucide-react";
 import { getAddress } from "viem";
 import { reward as fmtReward } from "@/lib/format";
@@ -19,11 +32,18 @@ import {
   hasAnyAnswer,
 } from "@/lib/campaigns/evidence-answers";
 import {
-  buildEvidenceClaimTypedData, computeEvidenceDigest,
-  EVIDENCE_CLAIM_SCHEMA_VERSION, EVIDENCE_CLAIM_TTL_SECONDS, type EvidenceClaim,
+  buildEvidenceClaimTypedData,
+  computeEvidenceDigest,
+  EVIDENCE_CLAIM_SCHEMA_VERSION,
+  EVIDENCE_CLAIM_TTL_SECONDS,
+  type EvidenceClaim,
 } from "@/lib/campaigns/evidence-claim";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
-import { DeputyAssessmentCard, ObservationVerdictCard, type ObservationVerdict } from "./deputy-assessment";
+import {
+  DeputyAssessmentCard,
+  ObservationVerdictCard,
+  type ObservationVerdict,
+} from "./deputy-assessment";
 
 /** One mission's public view (serialized from V2Economics). */
 export interface MissionView {
@@ -50,6 +70,11 @@ interface MySubmission {
   id: string;
   status: string;
   payoutTx: string | null;
+  /**
+   * A private-rail payout, escrowed behind a commitment instead of sent to an address. The link IS
+   * the money — the API returns it only to the worker whose submission it is.
+   */
+  claim: { url: string; commitment: string | null } | null;
   brief: DecisionBrief | null;
   /** present ONLY for observation missions — judged against Sage's private eyes, never the url lane. */
   observation: ObservationVerdict | null;
@@ -64,7 +89,8 @@ interface MySubmission {
   autopay: { state: "settled" | "held"; reason: string | null } | null;
 }
 
-const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+const clamp01 = (n: number) =>
+  Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
 
 /** P26 — a small ring that fills to X-of-Y matched on mount: the retryable-hold state as MOMENTUM
  *  (progress toward the bar), never a warning. Presentational — the numbers are Sage's real match counts. */
@@ -78,7 +104,11 @@ function MatchRing({ matched, total }: { matched: number; total: number }) {
   const R = 20;
   const C = 2 * Math.PI * R;
   return (
-    <div className="v2-ring" role="img" aria-label={`${matched} of ${total} matched`}>
+    <div
+      className="v2-ring"
+      role="img"
+      aria-label={`${matched} of ${total} matched`}
+    >
       <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
         <circle cx="26" cy="26" r={R} className="v2-ring-track" />
         <circle
@@ -99,10 +129,29 @@ function MatchRing({ matched, total }: { matched: number; total: number }) {
   );
 }
 
-function beat(m: MySubmission): { icon: ReactNode; text: string; color: string } {
-  if (m.status === "paid") return { icon: <CheckCircle2 size={15} color="var(--pos)" />, text: "Paid · reward released to your wallet", color: "var(--pos)" };
-  if (m.status === "rejected") return { icon: <XCircle size={15} color="var(--dan)" />, text: "This submission did not meet the mission criteria", color: "var(--dan)" };
-  if (m.status === "blocked") return { icon: <XCircle size={15} color="var(--dan)" />, text: "The vault blocked this payout — no funds moved", color: "var(--dan)" };
+function beat(m: MySubmission): {
+  icon: ReactNode;
+  text: string;
+  color: string;
+} {
+  if (m.status === "paid")
+    return {
+      icon: <CheckCircle2 size={15} color="var(--pos)" />,
+      text: "Paid · reward released to your wallet",
+      color: "var(--pos)",
+    };
+  if (m.status === "rejected")
+    return {
+      icon: <XCircle size={15} color="var(--dan)" />,
+      text: "This submission did not meet the mission criteria",
+      color: "var(--dan)",
+    };
+  if (m.status === "blocked")
+    return {
+      icon: <XCircle size={15} color="var(--dan)" />,
+      text: "The vault blocked this payout — no funds moved",
+      color: "var(--dan)",
+    };
   // OBSERVATION mission — judged against what Sage saw itself, NEVER the url-verifiable brain. P23: a
   // RETRYABLE hold reads as PROGRESS (a coaching state, accent — never "held"/review), a bar PASS reads
   // as verified-success, and only a FINAL hold (attempts exhausted / flagged) is "held for review".
@@ -131,13 +180,32 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
   const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
   // Require a brief before showing "Held" — a pending row with no decision (e.g. mid re-judge after a
   // P20 revise, when the old decision was cleared) is being REVIEWED, not held; fall through to the spinner.
-  const held = !!m.brief && (m.autopay?.state === "held" || m.brief.recommendation !== "pay");
+  const held =
+    !!m.brief &&
+    (m.autopay?.state === "held" || m.brief.recommendation !== "pay");
   if (held) {
-    const why = highFraud ? "a fraud signal was flagged" : m.brief?.recommendation === "hold" ? "Sage needs more evidence" : "needs a human look";
-    return { icon: <Clock size={15} color="var(--warn)" />, text: `Held — ${why}`, color: "var(--warn)" };
+    const why = highFraud
+      ? "a fraud signal was flagged"
+      : m.brief?.recommendation === "hold"
+        ? "Sage needs more evidence"
+        : "needs a human look";
+    return {
+      icon: <Clock size={15} color="var(--warn)" />,
+      text: `Held — ${why}`,
+      color: "var(--warn)",
+    };
   }
-  if (m.brief) return { icon: <ShieldCheck size={15} color="var(--accent)" />, text: `Verified · ${Math.round(clamp01(m.brief.confidence) * 100)}% confidence`, color: "var(--accent)" };
-  return { icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />, text: "Sage is checking your evidence against what it saw for itself…", color: "var(--sec)" };
+  if (m.brief)
+    return {
+      icon: <ShieldCheck size={15} color="var(--accent)" />,
+      text: `Verified · ${Math.round(clamp01(m.brief.confidence) * 100)}% confidence`,
+      color: "var(--accent)",
+    };
+  return {
+    icon: <Loader2 size={15} className="sage-spin2" color="var(--accent)" />,
+    text: "Sage is checking your evidence against what it saw for itself…",
+    color: "var(--sec)",
+  };
 }
 
 /**
@@ -146,8 +214,22 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
  * commitment before submit. After submitting, the tester WATCHES the real pipeline decide
  * and (on autopilot) pay, polling /me?mission=<hash>. A paid entry links to its proof.
  */
-function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTarget, autopays, rail }: {
-  campaignId: string; campaignIdHash: string; chainId: number; mission: MissionView; live: boolean; isTarget: boolean;
+function MissionCard({
+  campaignId,
+  campaignIdHash,
+  chainId,
+  mission,
+  live,
+  isTarget,
+  autopays,
+  rail,
+}: {
+  campaignId: string;
+  campaignIdHash: string;
+  chainId: number;
+  mission: MissionView;
+  live: boolean;
+  isTarget: boolean;
   /** whether THIS campaign auto-pays — server-decided, never inferred from the mission's class alone. */
   autopays: boolean;
   rail: "evm" | "starknet";
@@ -170,8 +252,10 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const prompts = evidencePrompts(mission.evidenceList);
   // The judged account: the tester's OWN words only. The prompts are public card text, and folding
   // them in would put language the tester merely read in front of the verifier.
-  const composedNote = prompts.length > 0 ? composeAccount(answers) : note.trim();
-  const answered = prompts.length === 0 ? note.trim().length > 0 : hasAnyAnswer(answers);
+  const composedNote =
+    prompts.length > 0 ? composeAccount(answers) : note.trim();
+  const answered =
+    prompts.length === 0 ? note.trim().length > 0 : hasAnyAnswer(answers);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mine, setMine] = useState<MySubmission | null>(null);
@@ -187,41 +271,63 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const loadMine = useCallback(async () => {
     // Was `!siwe.authed`, so on the private rail a tester's OWN submission was never fetched: the
     // board stayed empty after they submitted, and the server route it calls is rail-aware.
-    if (!signedIn) { setMine(null); return; }
+    if (!signedIn) {
+      setMine(null);
+      return;
+    }
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/me?mission=${mission.missionIdHash}`, { cache: "no-store" });
+      const res = await fetch(
+        `/api/campaigns/${campaignId}/me?mission=${mission.missionIdHash}`,
+        { cache: "no-store" },
+      );
       const json = (await res.json()) as { submission: MySubmission | null };
       const next = json.submission;
       const hasVerdict = !!(next?.brief || next?.observation);
       if (hasVerdict && !hadBrief.current) setMaterialized(true);
       hadBrief.current = hasVerdict;
       setMine(next);
-    } catch { /* retry next poll */ }
+    } catch {
+      /* retry next poll */
+    }
   }, [campaignId, mission.missionIdHash, signedIn]);
 
-  useEffect(() => { void loadMine(); }, [loadMine]);
+  useEffect(() => {
+    void loadMine();
+  }, [loadMine]);
 
   const pollActive = !!mine && workerShouldPoll(mine.status);
   useEffect(() => {
     if (!pollActive) return;
     let t: ReturnType<typeof setInterval> | null = null;
-    const tick = () => { if (!(typeof document !== "undefined" && document.hidden)) void loadMine(); };
+    const tick = () => {
+      if (!(typeof document !== "undefined" && document.hidden))
+        void loadMine();
+    };
     t = setInterval(tick, 2500);
-    return () => { if (t) clearInterval(t); };
+    return () => {
+      if (t) clearInterval(t);
+    };
   }, [pollActive, loadMine]);
 
   const submit = useCallback(async () => {
-    setError(null); setBusy(true);
+    setError(null);
+    setBusy(true);
     try {
       const onStarknet = rail === "starknet";
       // WHICHEVER RAIL, THE WALLET THAT SIGNS IS THE WALLET THAT GETS PAID. On Starknet that is the
       // signed-in Starknet account, never the EVM one a tester may also have connected.
       const account = onStarknet ? starknet.address : wallet.address;
       const walletClient = onStarknet ? null : wallet.getWalletClient();
-      if (!account || (!onStarknet && !walletClient)) { setError("Reconnect your wallet to sign."); return; }
+      if (!account || (!onStarknet && !walletClient)) {
+        setError("Reconnect your wallet to sign.");
+        return;
+      }
       // ONE string, used for both the signed digest and the request body — they must never diverge.
       const submittedNote = composedNote;
-      const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidence.trim(), note: submittedNote });
+      const evidenceDigest = computeEvidenceDigest({
+        evidenceUrl: evidence.trim(),
+        note: submittedNote,
+      });
       const now = Math.floor(Date.now() / 1000);
       const claim: EvidenceClaim = {
         schemaVersion: EVIDENCE_CLAIM_SCHEMA_VERSION,
@@ -229,7 +335,8 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
         campaignIdHash: campaignIdHash as `0x${string}`,
         missionKey: mission.missionKey,
         missionIdHash: mission.missionIdHash as `0x${string}`,
-        missionSpecDigest: (mission.specDigest ?? `0x${"0".repeat(64)}`) as `0x${string}`,
+        missionSpecDigest: (mission.specDigest ??
+          `0x${"0".repeat(64)}`) as `0x${string}`,
         evidenceDigest,
         // A Starknet account is a felt, not a checksummed EVM address — `getAddress` throws on one.
         tester: (onStarknet ? account : getAddress(account)) as `0x${string}`,
@@ -242,27 +349,62 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       if (onStarknet) {
         // An account CONTRACT signs, so the answer is an array of felts and there is no address to
         // recover: the server asks the account itself whether the signature is valid.
-        const sig = await starknet.signTypedData(buildStarknetEvidenceTypedData(claim, account));
-        if (!sig) { setError("You declined the signature. Nothing was submitted."); return; }
+        const sig = await starknet.signTypedData(
+          buildStarknetEvidenceTypedData(claim, account),
+        );
+        if (!sig) {
+          setError("You declined the signature. Nothing was submitted.");
+          return;
+        }
         signature = sig;
       } else {
         const typed = buildEvidenceClaimTypedData(claim);
         try {
           signature = await walletClient!.signTypedData({
-            account: getAddress(account), domain: typed.domain, types: typed.types, primaryType: typed.primaryType, message: typed.message,
+            account: getAddress(account),
+            domain: typed.domain,
+            types: typed.types,
+            primaryType: typed.primaryType,
+            message: typed.message,
           });
-        } catch { setError("You declined the signature. Nothing was submitted."); return; }
+        } catch {
+          setError("You declined the signature. Nothing was submitted.");
+          return;
+        }
       }
       const res = await fetch(`/api/campaigns/${campaignId}/submit`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ missionKey: mission.missionKey, evidence: evidence.trim(), note: submittedNote, claim, signature }),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          missionKey: mission.missionKey,
+          evidence: evidence.trim(),
+          note: submittedNote,
+          claim,
+          signature,
+        }),
       });
       const json = (await res.json()) as { error?: string };
-      if (!res.ok) { setError(json.error ?? "Could not submit."); return; }
+      if (!res.ok) {
+        setError(json.error ?? "Could not submit.");
+        return;
+      }
       setOpen(false);
       await loadMine();
-    } finally { setBusy(false); }
-  }, [wallet, starknet, rail, evidence, composedNote, campaignId, campaignIdHash, chainId, mission, loadMine]);
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    wallet,
+    starknet,
+    rail,
+    evidence,
+    composedNote,
+    campaignId,
+    campaignIdHash,
+    chainId,
+    mission,
+    loadMine,
+  ]);
 
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
   const soldOut = mission.full && !mine;
@@ -297,8 +439,9 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
           </div>
         ))}
         <p className="sage-hint" style={{ marginTop: -4 }}>
-          Answer in your own words. Sage checks what you describe against what it saw itself, so the
-          exact labels, headings and results you read are what count — not the wording you use.
+          Answer in your own words. Sage checks what you describe against what
+          it saw itself, so the exact labels, headings and results you read are
+          what count — not the wording you use.
         </p>
       </div>
     ) : (
@@ -321,11 +464,21 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const link = (
     <div className="sage-field">
       <label className="sage-label">
-        {isObservation ? <>Public link <span className="muted">(optional)</span></> : "Public evidence link"}
+        {isObservation ? (
+          <>
+            Public link <span className="muted">(optional)</span>
+          </>
+        ) : (
+          "Public evidence link"
+        )}
       </label>
       <input
         className="sage-input"
-        placeholder={isObservation ? "https://… only if you have a public link to add" : "https://… a public link to your proof"}
+        placeholder={
+          isObservation
+            ? "https://… only if you have a public link to add"
+            : "https://… a public link to your proof"
+        }
         value={evidence}
         onChange={(e) => setEvidence(e.target.value)}
         disabled={busy}
@@ -334,35 +487,96 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   );
   const formBlock = (
     <div className="v2-form">
-      <EvidenceCoaching evidenceList={mission.evidenceList} observation={isObservation} requirementsShown={prompts.length > 0} />
-      {isObservation ? <>{account}{link}</> : <>{link}{account}</>}
-      <p className="tb-sig">You&apos;ll sign a message binding this exact evidence to your wallet — a free signature that authorizes no transaction and moves no funds.</p>
+      <EvidenceCoaching
+        evidenceList={mission.evidenceList}
+        observation={isObservation}
+        requirementsShown={prompts.length > 0}
+      />
+      {isObservation ? (
+        <>
+          {account}
+          {link}
+        </>
+      ) : (
+        <>
+          {link}
+          {account}
+        </>
+      )}
+      <p className="tb-sig">
+        You&apos;ll sign a message binding this exact evidence to your wallet —
+        a free signature that authorizes no transaction and moves no funds.
+      </p>
       <div className="sage-row">
         {/* An empty form costs the tester one of their limited attempts for nothing. */}
-        <button className="sage-btn sage-btn-primary" disabled={busy || !answered} onClick={() => void submit()}>
-          {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing + submitting…</> : canRetry ? "Sign + resubmit" : "Sign + submit evidence"}
+        <button
+          className="sage-btn sage-btn-primary"
+          disabled={busy || !answered}
+          onClick={() => void submit()}
+        >
+          {busy ? (
+            <>
+              <Loader2 size={15} className="sage-spin2" /> Signing + submitting…
+            </>
+          ) : canRetry ? (
+            "Sign + resubmit"
+          ) : (
+            "Sign + submit evidence"
+          )}
         </button>
-        <button className="sage-btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+        <button
+          className="sage-btn"
+          disabled={busy}
+          onClick={() => setOpen(false)}
+        >
+          Cancel
+        </button>
       </div>
-      {error && <div className="sage-toast dan"><XCircle size={15} /> {error}</div>}
+      {error && (
+        <div className="sage-toast dan">
+          <XCircle size={15} /> {error}
+        </div>
+      )}
     </div>
   );
 
   return (
-    <div id={mission.missionKey} className={`v2-mission${soldOut ? " is-sold" : ""}${isTarget ? " is-target" : ""}`}>
+    <div
+      id={mission.missionKey}
+      className={`v2-mission${soldOut ? "is-sold" : ""}${isTarget ? "is-target" : ""}`}
+    >
       <div className="v2-mission-head">
-        <div className="v2-mission-title"><Target size={15} /> {mission.title}</div>
+        <div className="v2-mission-title">
+          <Target size={15} /> {mission.title}
+        </div>
         <div className="v2-mission-reward mono">{rewardLabel}</div>
       </div>
 
       {soldOut ? (
-        <div className="v2-sold"><CheckCircle2 size={15} className="ok" /> Full — every reward has been paid.</div>
+        <div className="v2-sold">
+          <CheckCircle2 size={15} className="ok" /> Full — every reward has been
+          paid.
+        </div>
       ) : (
         <>
-          {mission.objective && <p className="v2-mission-obj">{mission.objective}</p>}
+          {mission.objective && (
+            <p className="v2-mission-obj">{mission.objective}</p>
+          )}
           <div className="v2-mission-meta">
-            <span className="v2-slots">{mission.remainingSlots} of {mission.maxCompletions} paid slots left</span>
-            {mission.targetSurface && <a className="v2-chip link" href={mission.targetSurface} target="_blank" rel="noopener noreferrer">{hostOf(mission.targetSurface)}</a>}
+            <span className="v2-slots">
+              {mission.remainingSlots} of {mission.maxCompletions} paid slots
+              left
+            </span>
+            {mission.targetSurface && (
+              <a
+                className="v2-chip link"
+                href={mission.targetSurface}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {hostOf(mission.targetSurface)}
+              </a>
+            )}
           </div>
           {/* Say what THIS campaign actually does. This line used to be hardcoded to
               "observation-based", from the P16 era when such missions could never auto-pay — so with
@@ -370,7 +584,14 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
               in fact about to pay them automatically. Under-promising is still misinformation, and on
               the money path it is the claim testers decide to take the work on. */}
           {mission.verifiabilityClass === "observation-based" && (
-            <p style={{ fontSize: 12.5, color: "var(--sec)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            <p
+              style={{
+                fontSize: 12.5,
+                color: "var(--sec)",
+                margin: "8px 0 0",
+                lineHeight: 1.5,
+              }}
+            >
               {autopays
                 ? "Sage assesses your account against what it saw itself and pays automatically when it clears."
                 : "Payouts on this mission are founder-approved after Sage\u2019s assessment."}
@@ -380,21 +601,42 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
           {/* already submitted → watch the real pipeline decide + pay */}
           {mine ? (
             <div className="v2-status">
-              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: beat(mine).color }}>
+              <div
+                className="mono"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  fontSize: 13,
+                  color: beat(mine).color,
+                }}
+              >
                 {beat(mine).icon} {beat(mine).text}
               </div>
-              {mine.status === "paid" && mine.payoutTx && <PaidShare reward={rewardLabel} tx={mine.payoutTx} />}
+              {mine.status === "paid" && mine.claim ? (
+                <ClaimHandoff reward={rewardLabel} url={mine.claim.url} />
+              ) : mine.status === "paid" && mine.payoutTx ? (
+                <PaidShare reward={rewardLabel} tx={mine.payoutTx} />
+              ) : null}
               {/* P23: a retryable hold reads as PROGRESS — the "Almost there" beat + the coaching block below
                   carry it; the verdict card (which shows a "HOLD" chip) is reserved for verified/final states. */}
               {mine.observation && !mine.retry?.retryable ? (
-                <ObservationVerdictCard v={mine.observation} materialize={materialized} />
+                <ObservationVerdictCard
+                  v={mine.observation}
+                  materialize={materialized}
+                />
               ) : !mine.observation && mine.brief ? (
-                <DeputyAssessmentCard brief={mine.brief} rewardUsd={null} threshold={0.85} materialize={materialized} />
+                <DeputyAssessmentCard
+                  brief={mine.brief}
+                  rewardUsd={null}
+                  threshold={0.85}
+                  materialize={materialized}
+                />
               ) : null}
               {/* P20 retry-while-held: a thin-but-genuine observation hold self-cures — coach + let the
                   tester revise in place (no new row, no dead end). Founder is NOT pinged until attempts run out. */}
-              {canRetry && (
-                open ? (
+              {canRetry &&
+                (open ? (
                   formBlock
                 ) : (
                   <div className="v2-retry">
@@ -404,17 +646,26 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
                     />
                     <div className="v2-retry-body">
                       <p className="v2-retry-coach">{mine.retry!.coaching}</p>
-                      <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => { setError(null); setOpen(true); }}>
+                      <button
+                        className="sage-btn sage-btn-primary sage-btn-sm"
+                        onClick={() => {
+                          setError(null);
+                          setOpen(true);
+                        }}
+                      >
                         <RefreshCw size={15} /> Revise &amp; resubmit
-                        <span className="v2-retry-count mono">{mine.retry!.attemptsLeft} left</span>
+                        <span className="v2-retry-count mono">
+                          {mine.retry!.attemptsLeft} left
+                        </span>
                       </button>
                     </div>
                   </div>
-                )
-              )}
+                ))}
             </div>
           ) : !live ? (
-            <div className="v2-full">This mission isn&apos;t open for submissions right now.</div>
+            <div className="v2-full">
+              This mission isn&apos;t open for submissions right now.
+            </div>
           ) : !signedIn ? (
             /**
              * SIGN IN ON THE RAIL THAT PAYS. The wallet that signs in is the wallet that gets
@@ -431,14 +682,36 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
               <StarknetSubmitGate starknet={starknet} />
             ) : (
               <>
-                <button className="sage-btn sage-btn-primary" disabled={siwe.signingIn} onClick={() => void siwe.signIn()}>
-                  {siwe.signingIn ? <><Loader2 size={15} className="sage-spin2" /> Signing…</> : siwe.address ? <><ShieldCheck size={15} /> Sign in to submit</> : "Connect wallet to submit"}
+                <button
+                  className="sage-btn sage-btn-primary"
+                  disabled={siwe.signingIn}
+                  onClick={() => void siwe.signIn()}
+                >
+                  {siwe.signingIn ? (
+                    <>
+                      <Loader2 size={15} className="sage-spin2" /> Signing…
+                    </>
+                  ) : siwe.address ? (
+                    <>
+                      <ShieldCheck size={15} /> Sign in to submit
+                    </>
+                  ) : (
+                    "Connect wallet to submit"
+                  )}
                 </button>
-                <p className="tb-sig">A free signature — it just proves the wallet is yours. No gas, no transaction.</p>
+                <p className="tb-sig">
+                  A free signature — it just proves the wallet is yours. No gas,
+                  no transaction.
+                </p>
               </>
             )
           ) : !open ? (
-            <button className="sage-btn sage-btn-primary" onClick={() => setOpen(true)}>Submit evidence</button>
+            <button
+              className="sage-btn sage-btn-primary"
+              onClick={() => setOpen(true)}
+            >
+              Submit evidence
+            </button>
           ) : (
             formBlock
           )}
@@ -456,48 +729,146 @@ function EvidenceCoaching({
   /** true when the requirements are already rendered as the form's own field labels — repeating the
    *  first one above them reads as a bug, not as coaching. */
   requirementsShown = false,
-}: { evidenceList: string[]; observation?: boolean; requirementsShown?: boolean }) {
+}: {
+  evidenceList: string[];
+  observation?: boolean;
+  requirementsShown?: boolean;
+}) {
   const list = requirementsShown ? [] : evidenceList;
   if (observation) {
     // P23 — for an observation mission Sage judges your firsthand ACCOUNT against what it saw itself.
     return (
       <div className="tb-coach">
         {list.length > 0 && (
-          <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Do:</span><span>{list[0]}</span></div>
+          <div className="tb-coach-row">
+            <span style={{ fontWeight: 650 }}>Do:</span>
+            <span>{list[0]}</span>
+          </div>
         )}
-        <div className="tb-coach-row"><span className="ok">Clears</span><span>a specific, firsthand account in your own words — the exact screens, labels, and text you saw, and what happened when you acted. Details only someone who actually used it would know.</span></div>
-        <div className="tb-coach-row"><span className="no">Won&apos;t clear</span><span>a vague summary, or repeating the mission card. Sage compares your account to what it saw exploring the product itself.</span></div>
+        <div className="tb-coach-row">
+          <span className="ok">Clears</span>
+          <span>
+            a specific, firsthand account in your own words — the exact screens,
+            labels, and text you saw, and what happened when you acted. Details
+            only someone who actually used it would know.
+          </span>
+        </div>
+        <div className="tb-coach-row">
+          <span className="no">Won&apos;t clear</span>
+          <span>
+            a vague summary, or repeating the mission card. Sage compares your
+            account to what it saw exploring the product itself.
+          </span>
+        </div>
         {/* MEASURED, not assumed. Accounts written in Spanish and in Urdu both verify — but only
             because the writer kept the product's own words for what was on screen. An account that
             translates everything, including the labels, matches nothing and is held, and a tester
             has no way to guess that. It is the one instruction that decides whether writing in your
             own language works, so it belongs here rather than in an FAQ nobody opens mid-task. */}
-        <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Any language</span><span>Write in whatever language you think in. Keep the product&apos;s own words for the things you saw on screen — names, buttons, headings — because those are what Sage matches against.</span></div>
+        <div className="tb-coach-row">
+          <span style={{ fontWeight: 650 }}>Any language</span>
+          <span>
+            Write in whatever language you think in. Keep the product&apos;s own
+            words for the things you saw on screen — names, buttons, headings —
+            because those are what Sage matches against.
+          </span>
+        </div>
       </div>
     );
   }
   return (
     <div className="tb-coach">
       {list.length > 0 && (
-        <div className="tb-coach-row"><span style={{ fontWeight: 650 }}>Submit:</span><span>{list[0]}</span></div>
+        <div className="tb-coach-row">
+          <span style={{ fontWeight: 650 }}>Submit:</span>
+          <span>{list[0]}</span>
+        </div>
       )}
-      <div className="tb-coach-row"><span className="ok">Works</span><span>a public URL anyone can open — e.g. <code>https://yourproduct.com/pricing</code> or a block-explorer tx page — plus the exact text you saw.</span></div>
-      <div className="tb-coach-row"><span className="no">Won&apos;t work</span><span>screenshots, images, file uploads, or logged-in / private pages. Sage reads public web pages as text only.</span></div>
+      <div className="tb-coach-row">
+        <span className="ok">Works</span>
+        <span>
+          a public URL anyone can open — e.g.{" "}
+          <code>https://yourproduct.com/pricing</code> or a block-explorer tx
+          page — plus the exact text you saw.
+        </span>
+      </div>
+      <div className="tb-coach-row">
+        <span className="no">Won&apos;t work</span>
+        <span>
+          screenshots, images, file uploads, or logged-in / private pages. Sage
+          reads public web pages as text only.
+        </span>
+      </div>
     </div>
   );
 }
 
 /** On paid: the amount, the proof receipt, and a ready-to-share line. */
+/**
+ * A PRIVATE PAYOUT IS HANDED OVER, NOT ANNOUNCED.
+ *
+ * On this rail the money is escrowed behind a commitment rather than sent to an address, so the
+ * worker opens it themselves — publicly or into a shielded note, to any wallet. That is what keeps
+ * their income off the identity they submitted with.
+ *
+ * The link is a bearer secret: whoever holds it collects. Binding it to their address would defeat
+ * the whole point, so it is shown HERE, in their own signed-in panel, and nowhere else — not in a
+ * notification, not in the founder's console, not in any channel Sage does not control. The copy
+ * says so plainly, because someone who does not know that will paste it somewhere.
+ */
+function ClaimHandoff({ reward, url }: { reward: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="v2-claim">
+      <p className="v2-claim-head">
+        <ShieldCheck size={15} aria-hidden /> {reward} is yours to collect
+      </p>
+      <p className="v2-claim-body">
+        It is held for you, not sent to your address — so collecting it
+        privately keeps the amount off your public record.{" "}
+        <b>This link is the money.</b> Anyone who has it can collect, so keep it
+        to yourself.
+      </p>
+      <div className="v2-claim-row">
+        <a
+          className="sage-btn sage-btn-primary sage-btn-sm"
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          Collect {reward}
+        </a>
+        <button
+          className="sage-btn sage-btn-sm"
+          onClick={() => {
+            void navigator.clipboard?.writeText(url).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            );
+          }}
+        >
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PaidShare({ reward, tx }: { reward: string; tx: string }) {
   const [copied, setCopied] = useState(false);
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://sagepays.xyz";
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://sagepays.xyz";
   const proofUrl = `${origin}/proof/${tx}`;
   const shareText = `I just got paid ${reward} by an AI agent for testing a product — verifiable proof: ${proofUrl}`;
   return (
     <div className="tb-paid">
       <div className="tb-paid-amt">{reward} released to your wallet</div>
       <div className="tb-share">
-        <a className="sage-sub-link" href={`/proof/${tx}`}><ExternalLink size={13} /> View your proof receipt</a>
+        <a className="sage-sub-link" href={`/proof/${tx}`}>
+          <ExternalLink size={13} /> View your proof receipt
+        </a>
         <button
           onClick={() => {
             void navigator.clipboard?.writeText(shareText).then(() => {
@@ -515,15 +886,35 @@ function PaidShare({ reward, tx }: { reward: string; tx: string }) {
 
 /** The top strip: how a first-time tester gets paid, in four honest steps. The final step is TRUTH-STATED
  *  to the campaign's real autopay state (P23) — it never promises automatic payout when the flag is off. */
-export function HowYouGetPaid({ autopays = true }: { autopays?: boolean } = {}) {
+export function HowYouGetPaid({
+  autopays = true,
+}: { autopays?: boolean } = {}) {
   const steps: ReactNode[] = [
     <>Pick a mission below.</>,
-    <>Connect your wallet + <b>one free signature</b> <span className="muted">— it just proves the wallet is yours. No gas, no transaction.</span></>,
-    <>Do the mission, then submit <b>what you did and saw</b>.</>,
+    <>
+      Connect your wallet + <b>one free signature</b>{" "}
+      <span className="muted">
+        — it just proves the wallet is yours. No gas, no transaction.
+      </span>
+    </>,
+    <>
+      Do the mission, then submit <b>what you did and saw</b>.
+    </>,
     autopays ? (
-      <>Sage verifies and pays <b>USDC to your wallet</b> automatically <span className="muted">— usually within ~2 minutes, with a public proof receipt.</span></>
+      <>
+        Sage verifies and pays <b>USDC to your wallet</b> automatically{" "}
+        <span className="muted">
+          — usually within ~2 minutes, with a public proof receipt.
+        </span>
+      </>
     ) : (
-      <>Sage assesses your work against what it saw for itself; the founder confirms payouts <span className="muted">— you&apos;re paid in <b>USDC</b> with a public proof receipt.</span></>
+      <>
+        Sage assesses your work against what it saw for itself; the founder
+        confirms payouts{" "}
+        <span className="muted">
+          — you&apos;re paid in <b>USDC</b> with a public proof receipt.
+        </span>
+      </>
     ),
   ];
   return (
@@ -542,14 +933,34 @@ export function HowYouGetPaid({ autopays = true }: { autopays?: boolean } = {}) 
 }
 
 /** A short, honest FAQ for the crypto-curious tester. */
-export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) {
+export function TesterFaq({
+  perWalletCap = 1,
+}: { perWalletCap?: number } = {}) {
   const faqs: [string, string][] = [
-    ["Where does the money come from?", "A founder pre-funded an on-chain vault with hard caps. Sage can only pay from that vault, and never above each mission's reward or completion cap — it cannot overspend."],
-    ["Who decides if I get paid?", "An AI agent reads your evidence against the mission's criteria and decides. Every decision is published as a public receipt you can inspect — the reasoning and the on-chain payout."],
-    ["My submission isn't paid yet — what now?", "If Sage says “almost there,” you're close — add more of what you actually did and saw (specific screens, exact labels, what happened when you clicked) and resubmit; you get a few tries. Only if those are used up, or something looks off, does it go to a person to review."],
-    ["How do you keep it fair?", `Each wallet can earn up to ${perWalletCap} payout${perWalletCap === 1 ? "" : "s"} here, one per mission. Copied or near-identical reports are detected and held for a person to review — honest work in your own words is fine. A brand-new wallet is only noted as a caution for review; that alone never blocks a payout.`],
-    ["What exactly does the check verify?", "For a mission Sage judges against its own private exploration, it verifies your account describes specific things Sage saw for itself — details only someone who used the product would know. To be precise about its limits: it checks that knowledge, not authorship. It cannot tell whether you experienced it first-hand or learned the specifics from someone who did. Word-for-word copies of another tester are caught; a genuine retelling in your own words is trusted. With the per-wallet cap bounding the rewards, that's a deliberate, documented boundary — we'd rather state it plainly than overclaim."],
-    ["Do I pay gas?", "No. Signing in and committing your evidence are free signatures — they authorize no transaction and move no funds. Only Sage's wallet pays gas, when it pays you."],
+    [
+      "Where does the money come from?",
+      "A founder pre-funded an on-chain vault with hard caps. Sage can only pay from that vault, and never above each mission's reward or completion cap — it cannot overspend.",
+    ],
+    [
+      "Who decides if I get paid?",
+      "An AI agent reads your evidence against the mission's criteria and decides. Every decision is published as a public receipt you can inspect — the reasoning and the on-chain payout.",
+    ],
+    [
+      "My submission isn't paid yet — what now?",
+      "If Sage says “almost there,” you're close — add more of what you actually did and saw (specific screens, exact labels, what happened when you clicked) and resubmit; you get a few tries. Only if those are used up, or something looks off, does it go to a person to review.",
+    ],
+    [
+      "How do you keep it fair?",
+      `Each wallet can earn up to ${perWalletCap} payout${perWalletCap === 1 ? "" : "s"} here, one per mission. Copied or near-identical reports are detected and held for a person to review — honest work in your own words is fine. A brand-new wallet is only noted as a caution for review; that alone never blocks a payout.`,
+    ],
+    [
+      "What exactly does the check verify?",
+      "For a mission Sage judges against its own private exploration, it verifies your account describes specific things Sage saw for itself — details only someone who used the product would know. To be precise about its limits: it checks that knowledge, not authorship. It cannot tell whether you experienced it first-hand or learned the specifics from someone who did. Word-for-word copies of another tester are caught; a genuine retelling in your own words is trusted. With the per-wallet cap bounding the rewards, that's a deliberate, documented boundary — we'd rather state it plainly than overclaim.",
+    ],
+    [
+      "Do I pay gas?",
+      "No. Signing in and committing your evidence are free signatures — they authorize no transaction and move no funds. Only Sage's wallet pays gas, when it pays you.",
+    ],
   ];
   return (
     <div className="tb-faq">
@@ -565,8 +976,20 @@ export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) 
 }
 
 /** The V2 tester mission board: real per-mission economics + signed, mission-scoped submit. */
-export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, autopays = false, rail = "evm" }: {
-  campaignId: string; campaignIdHash: string; chainId: number; live: boolean; missions: MissionView[];
+export function V2Board({
+  campaignId,
+  campaignIdHash,
+  chainId,
+  live,
+  missions,
+  autopays = false,
+  rail = "evm",
+}: {
+  campaignId: string;
+  campaignIdHash: string;
+  chainId: number;
+  live: boolean;
+  missions: MissionView[];
   /** whether THIS campaign actually auto-pays — decided server-side by `campaignAutopays`. */
   autopays?: boolean;
   /**
@@ -582,27 +1005,54 @@ export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, a
   // Deep link: /c/<slug>#<missionKey> scrolls that mission into view + highlights it briefly, so a
   // single mission can be shared from Telegram.
   useEffect(() => {
-    const key = typeof window !== "undefined" ? decodeURIComponent(window.location.hash.replace(/^#/, "")) : "";
+    const key =
+      typeof window !== "undefined"
+        ? decodeURIComponent(window.location.hash.replace(/^#/, ""))
+        : "";
     if (!key || !missions.some((m) => m.missionKey === key)) return;
     setTarget(key);
     const el = document.getElementById(key);
-    if (el) window.setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    if (el)
+      window.setTimeout(
+        () => el.scrollIntoView({ behavior: "smooth", block: "start" }),
+        60,
+      );
     const t = window.setTimeout(() => setTarget(null), 2600);
     return () => window.clearTimeout(t);
   }, [missions]);
   return (
     <div className="v2-board sage-stagger">
       {missions.map((m) => (
-        <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} autopays={autopays} rail={rail} />
+        <MissionCard
+          key={m.missionKey}
+          campaignId={campaignId}
+          campaignIdHash={campaignIdHash}
+          chainId={chainId}
+          mission={m}
+          live={live}
+          isTarget={target === m.missionKey}
+          autopays={autopays}
+          rail={rail}
+        />
       ))}
     </div>
   );
 }
 
-function hostOf(u: string): string { try { return new URL(u).host; } catch { return u; } }
+function hostOf(u: string): string {
+  try {
+    return new URL(u).host;
+  } catch {
+    return u;
+  }
+}
 
 /** The private rail's sign-in, in the same language every other wallet moment uses. */
-function StarknetSubmitGate({ starknet }: { starknet: ReturnType<typeof useStarknetSiwe> }) {
+function StarknetSubmitGate({
+  starknet,
+}: {
+  starknet: ReturnType<typeof useStarknetSiwe>;
+}) {
   if (starknet.loading) {
     return <p className="tb-sig">Checking your wallet…</p>;
   }
@@ -616,8 +1066,8 @@ function StarknetSubmitGate({ starknet }: { starknet: ReturnType<typeof useStark
       }))}
       explainer={
         <>
-          This campaign pays on Starknet, so sign in with a Starknet wallet — <b>that is the address
-          you&rsquo;ll be paid at.</b>
+          This campaign pays on Starknet, so sign in with a Starknet wallet —{" "}
+          <b>that is the address you&rsquo;ll be paid at.</b>
         </>
       }
       busy={starknet.signingIn}

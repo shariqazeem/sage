@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
+import { claimUrl } from "@/lib/starknet/claim-link";
+import { siteUrl } from "@/lib/site";
 import {
   getCampaign,
   getDecisionBySubmission,
@@ -137,6 +139,20 @@ export async function GET(
       observation,
       retry,
       autopay,
+      /**
+       * THE CLAIM LINK, AND ONLY TO ITS OWNER.
+       *
+       * A private-rail payout is escrowed behind a commitment rather than sent to an address, so
+       * this link IS the money — whoever holds it collects, which is exactly what makes the
+       * collection unlinkable. This route is already own-scope: it resolves the submission from
+       * the session wallet, so the secret can only ever reach the worker it belongs to.
+       *
+       * Never rendered in the founder's console, never in a notification, never in a channel Sage
+       * does not control.
+       */
+      claim: sub.claimSecret
+        ? { url: claimUrl(siteUrl(), sub.claimSecret), commitment: sub.claimCommitment }
+        : null,
     },
   });
 }
