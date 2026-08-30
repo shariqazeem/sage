@@ -96,6 +96,12 @@ describe("Starknet in the registry", () => {
   });
 
   it("points at a Starknet explorer, so a receipt link actually resolves", () => {
-    expect(chainConfig(STARKNET_MAINNET_KEY).explorerUrl).toContain("voyager");
+    // Starkscan, not Voyager, since 2026-08-30: Sage's own mainnet transactions are linked from
+    // there — including the hackathon leaderboard entries — so a receipt and the record it belongs
+    // to point at the same explorer rather than two. The check that MATTERS is unchanged: this is
+    // a Starknet explorer, not an EVM one, so the link resolves at all.
+    const url = chainConfig(STARKNET_MAINNET_KEY).explorerUrl;
+    expect(url).toBe("https://starkscan.co");
+    expect(url).not.toContain("etherscan");
   });
 });
