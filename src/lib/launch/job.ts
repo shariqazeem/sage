@@ -360,6 +360,40 @@ export function scopeForJob(job: InspectionJob): ValidationScope {
         }
       }
     }
+
+    /**
+     * AND EVERYWHERE THE FIELD TEST ACTUALLY WENT.
+     *
+     * `scopeFromObservations` — the scope a mission is VALIDATED against when it is generated —
+     * includes the field test's own pages and states. This one did not, so the two disagreed: a
+     * mission grounded in a page reachable only by INTERACTION passed at birth and failed the
+     * moment anything re-validated it. Editing a plan, or rebalancing its budget, refused a
+     * mission Sage had itself just written.
+     *
+     * REPORTED on starkscan.co, where the contract pages exist only behind the header search — so
+     * they are field-test states and never crawled routes. It could not show up on a product whose
+     * pages are all reachable by following links, which is why every earlier campaign was fine.
+     *
+     * A field-test state is a REAL observation: Sage drove a browser there and captured what it
+     * saw. Treating it as unknown does not make the plan safer, it makes Sage disown its own eyes.
+     */
+    const fieldTest = (map as { fieldTest?: FieldTestSummary | null }).fieldTest;
+    if (fieldTest?.ran) {
+      const add = (raw: string | null | undefined) => {
+        if (!raw) return;
+        try {
+          const u = new URL(raw);
+          knownUrls.add(u.toString());
+          knownUrls.add(u.toString().replace(/#.*$/, ""));
+          hosts.add(u.host.toLowerCase());
+        } catch {
+          /* not a URL — nothing to add */
+        }
+      };
+      add(fieldTest.startUrl);
+      for (const p of fieldTest.pages ?? []) add(p.url);
+      for (const st of fieldTest.states ?? []) add(st.url);
+    }
   }
   return { knownUrls, hosts, repoPaths: new Set() };
 }
