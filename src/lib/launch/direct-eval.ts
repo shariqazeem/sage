@@ -4,7 +4,7 @@ import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
-import { checkNarration } from "@/lib/telegram/narration-guard";
+import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import {
   compileDirectCampaign,
@@ -218,11 +218,28 @@ export async function runDirectEval(opts: {
        * trips nothing and still counts as no-tool, which for a vague fixture is the CORRECT answer.
        */
       if (!failed && !call && reply) {
-        const verdict = checkNarration(stripReasoningPrefix(reply), new Set<string>());
-        if (!verdict.ok) {
+        const stripped = stripReasoningPrefix(reply);
+        const verdict = checkNarration(stripped, new Set<string>());
+        /**
+         * A SECOND TRIGGER, because the guard above judges what the draft CLAIMED and a reasoning
+         * model can miss without claiming anything. Measured here: "mere bhai ko $15 dena hai jab
+         * wo menu page publish kar de" produced 8,344 characters opening "This is a DIRECT
+         * CAMPAIGN" and no tool call. Nothing was asserted, so the narration guard was correctly
+         * silent — and the battery scored a failure production would have recovered from, since
+         * the concierge now corrects on the FOUNDER'S words instead.
+         */
+        const missed = missedMoneyAction({
+          userText: f.utterance,
+          reply: stripped,
+          succeededTools: new Set<string>(),
+        });
+        if (!verdict.ok || missed) {
+          const why = !verdict.ok
+            ? `your draft stated ${verdict.unbacked.join(" and ")} but no tool ran this turn to back it`
+            : "the founder asked you to pay someone a stated amount and no tool ran this turn";
           const corrected = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
             { role: "assistant", content: reply },
-            { role: "user", content: `SYSTEM CHECK: your draft stated ${verdict.unbacked.join(" and ")} but no tool ran this turn to back it. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
+            { role: "user", content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
           ]);
           if (corrected.call) ({ call, reply, finish, outTokens } = corrected);
         }
