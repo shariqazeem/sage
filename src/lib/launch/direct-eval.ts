@@ -6,6 +6,7 @@ import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
+import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
 import {
   compileDirectCampaign,
   directCampaignSchema,
@@ -56,6 +57,14 @@ export interface DirectRow {
   rawArgs: string;
   /** correction rounds used, as production would allow. 0 = right first shot. */
   correctionRounds: number;
+  /**
+   * Did production's stated-terms guard fire on the model's FIRST shot? This is the raw model
+   * faithfulness signal, kept separate from the corrected outcome — otherwise the guard would
+   * hide the very regression the battery exists to see.
+   */
+  statedTermsFired: boolean;
+  /** milestone count in that first shot, before any correction. */
+  firstShotMilestones: number | null;
   violations: string[];
 }
 
@@ -68,6 +77,12 @@ export interface DirectMetrics {
   budgetViolations: number;
   amountDrift: number;
   inventedMilestones: number;
+  /**
+   * Rows where the model's FIRST shot contradicted the founder's own stated arithmetic and
+   * production's guard handed it back. Not a failure — a caught one. Rising here with amountDrift
+   * flat means the model is degrading and the guard is absorbing it, which is worth seeing.
+   */
+  statedTermsCaught: number;
   unverifiableMissions: number;
   providerFailures: number;
   conclusive: boolean;
@@ -302,6 +317,8 @@ export async function runDirectEval(opts: {
         replyLen: reply.length,
         rawArgs: "",
         correctionRounds: correctedThisRow ? 1 : 0,
+        statedTermsFired: false,
+        firstShotMilestones: null,
         violations,
       };
 
@@ -336,6 +353,51 @@ export async function runDirectEval(opts: {
             if (retry.call?.function?.name === "sage_create_direct_campaign") {
               raw = JSON.parse(retry.call.function.arguments ?? "{}") as Record<string, unknown>;
               parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(raw));
+            }
+          }
+
+          /**
+           * AND PRODUCTION CHECKS THE PLAN AGAINST THE FOUNDER'S OWN ARITHMETIC. A plan that drops
+           * two of three tranches is internally consistent, so the schema and the budget invariant
+           * both pass it — the only thing that contradicts it is what the founder actually said.
+           * The concierge hands that contradiction back once; so does this, or the battery would be
+           * measuring a loop the product no longer runs.
+           *
+           * The first-shot verdict is recorded BEFORE the correction, so raw model faithfulness
+           * stays visible: a guard that quietly repairs a degrading model is how a regression hides.
+           */
+          if (parsed.success) {
+            const firstShot = parsed.data;
+            row.firstShotMilestones = firstShot.milestones.length;
+            const mismatches = checkStatedTerms(
+              f.utterance,
+              firstShot.milestones.map((m) => ({
+                rewardUsd: m.rewardUsd,
+                rewardLocal: m.rewardLocal,
+                slots: m.slots,
+              })),
+            );
+            row.statedTermsFired = mismatches.length > 0;
+            if (mismatches.length > 0) {
+              row.correctionRounds += 1;
+              const retry = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
+                { role: "assistant", content: null, tool_calls: [call as ToolCall] },
+                {
+                  role: "tool",
+                  tool_call_id: (call as { id?: string })?.id ?? "call_0",
+                  content: JSON.stringify({ ok: false, error: statedTermsCorrection(mismatches) }),
+                } as Msg,
+              ]);
+              if (retry.call?.function?.name === "sage_create_direct_campaign") {
+                const rawRetry = JSON.parse(retry.call.function.arguments ?? "{}") as Record<string, unknown>;
+                const reparsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(rawRetry));
+                // Only take the correction if it is itself valid — a retry that breaks the schema
+                // must not replace a plan that at least parsed.
+                if (reparsed.success) {
+                  raw = rawRetry;
+                  parsed = reparsed;
+                }
+              }
             }
           }
 
@@ -425,6 +487,7 @@ export async function runDirectEval(opts: {
     budgetViolations: rows.filter((r) => r.budgetExact === false).length,
     amountDrift: rows.filter((r) => r.amountFaithful === false).length,
     inventedMilestones: rows.filter((r) => r.countFaithful === false).length,
+    statedTermsCaught: rows.filter((r) => r.statedTermsFired).length,
     unverifiableMissions: rows.filter((r) => r.allVerifiable === false).length,
     providerFailures,
     conclusive: providerFailures === 0,

@@ -32,15 +32,19 @@ describe.runIf(LIVE)("P-DIRECT — money-lane battery (production path)", () => 
     for (const r of rows.filter((x) => x.rawArgs)) {
       console.log(`\n[raw] ${r.fixtureId}: ${r.rawArgs}`);
     }
-    console.log("\nfixture,category,tool,routedOk,compiled,budgetExact,totalUsd,milestones,lint,error");
+    console.log("\nfixture,category,tool,routedOk,compiled,budgetExact,totalUsd,milestones,firstShotMs,termsFired,lint,error");
     for (const r of rows) {
       console.log(
-        [r.fixtureId, r.category, r.calledTool ? "direct" : "-", r.routedOk, r.compiled, r.budgetExact ?? "", r.totalUsd ?? "", r.milestones ?? "", r.lintNotes.length, r.error ?? ""].join(","),
+        [r.fixtureId, r.category, r.calledTool ? "direct" : "-", r.routedOk, r.compiled, r.budgetExact ?? "", r.totalUsd ?? "", r.milestones ?? "", r.firstShotMilestones ?? "", r.statedTermsFired, r.lintNotes.length, r.error ?? ""].join(","),
       );
     }
     const firstShot = rows.filter((r) => r.compiled && r.correctionRounds === 0).length;
     const afterFix = rows.filter((r) => r.compiled && r.correctionRounds > 0).length;
     console.log(`\nfirst-shot compiles: ${firstShot} · compiled after one correction: ${afterFix}`);
+    // The guard's own effect, stated plainly: how often the model's first shot contradicted the
+    // founder's arithmetic. amountDrift below is the outcome AFTER that correction — the pair is
+    // what tells a model regression apart from a guard doing its job.
+    console.log(`stated-terms caught on first shot: ${metrics.statedTermsCaught}/${rows.length}`);
     console.log("\nMETRICS " + JSON.stringify(metrics, null, 1));
     if (metrics.violations.length) console.log("\nVIOLATIONS:\n - " + metrics.violations.join("\n - "));
 
