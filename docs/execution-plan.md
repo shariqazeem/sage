@@ -90,34 +90,45 @@ Two rules that shape the calendar:
 - **Tue/Wed peak, never weekends** (GOAT CMO playbooks). Links go in the self-reply — in-body links
   cost 30-50% reach.
 
-### Launch A — privacy rail + gigs · post Tue 1 Sep
-The differentiator, and it debuts gigs to the public with money on the table. One post carries both
-because they are one story: Sage pays for work, it now does it privately, here is $10.
+### Launch A — privacy rail + gigs (SOFT LAUNCH) · campaign + post BOTH TODAY, Mon 31 Aug
+User's call 31 Aug: ship today, ahead of the hackathon deadline; do not hold the launch for the
+`intent_hash` fix. The post therefore ships in its HONEST form — "private destination", not "no
+public earnings record". That fix moves into the FC week, and when it lands the claim upgrades.
 
-- [ ] **Today:** ship the `intent_hash` event fix, so the post can claim the strong version
-- [ ] **Today:** launch the campaign — $10, $1.00 × 10 slots, one reward per wallet, Starknet
-- [ ] **Tue:** post `docs/posts/2026-08-31-strk20-privacy.md`
-- [ ] Screen recording of the real claim (never a live claim link on camera — bearer cash)
+- [ ] Fund + launch the campaign (below) — must be LIVE before the post
+- [ ] Post `docs/posts/2026-08-31-strk20-privacy.md`
+- [ ] Record the hackathon demo video
 
-### Launch B — milestone grants · post Wed/Thu 2-3 Sep
-**Gated on two things, and neither is optional.** Grants have run in production ZERO times, and
-P-DIRECT found the equal-split defect where a founder saying "half and half, $40 total" gets no
-campaign at all. Announcing a lane that is broken for the commonest phrasing would be worse than
-not announcing it.
+**The campaign, and the circularity it had to design around.** The obvious task — "get paid
+privately, then write up what that was like" — cannot work: the payout being written about is the
+payout for writing it. Nobody can file a first-hand account of an experience they have not had yet.
+
+So the mission asks for a write-up of HOW the private payout works, which anyone can research from
+the public contracts and the launch post. They then experience the claim as their reward. The post
+invites them to come back and add what collecting was actually like — unpaid, voluntary, and far
+more credible for being so. Launch C features whoever does.
+
+- kind: **gig**, rail: **Starknet**
+- **$1.00 × 10 slots, one reward per wallet** — $1 is the floor for something published under a
+  real name; $0.50 × 20 trades quality for reach and is the fallback, not the default
+- evidence: `artifact_url`, marker `wallet`, allowedHosts EMPTY (publish anywhere)
+- This lane is the one already PROVEN to autopay on Starknet (31 Aug, $0.50)
+
+### Launch B — milestone grants · moved into the FC week
+Grants have run in production ZERO times and P-DIRECT found the equal-split defect ("half and half,
+$40 total" → no campaign). They now sit inside the Future Caribbean week, where they are the
+centrepiece anyway.
 
 - [ ] Fix the equal-split routing defect (deterministic split from the founder's stated total)
-- [ ] Prove ONE milestone grant end to end — walletless recipient, invite → earn → verify → pay →
-      cash out → record. Needs a second Telegram account.
-- [ ] Then launch a grant campaign + post
+- [ ] Prove ONE grant end to end — walletless recipient, invite → earn → verify → pay → cash out →
+      record. Needs a second Telegram account.
+- [ ] `intent_hash` event fix — upgrades the privacy claim to "no public earnings record"
+- [ ] Then a grant campaign + post
 
-### Launch C — the results post · Thu/Fri, once real accounts exist
-**This is the one to tag @ellibenson on, and only this one.** A founder amplifying "look at my
-product" is an ask; amplifying "N people just used Starknet privacy for real income" is a gift to
-the ecosystem and is his narrative rather than ours. Tagging on the launch spends the favour on
-nothing.
-
-- [ ] Post the count + links to the accounts people wrote
-- [ ] Proof into README / `/explorer` / the FC data room
+### Launch C — the results post · once real accounts exist
+**The only post to tag @ellibenson on.** Amplifying "look at my product" is an ask; amplifying
+"N people just used Starknet privacy for real income" is a gift to the ecosystem and is his
+narrative rather than ours.
 
 **Funding** (user, 31 Aug): $10 now, ~$20 more if it goes well, on whichever rail we launch on.
 Do NOT raise the per-campaign caps to absorb it — absorption runs 5-20% and that is downstream of
