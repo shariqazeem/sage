@@ -58,8 +58,15 @@ export default async function CampaignPublicPage({
   const campaign = getCampaign(slug);
   if (!campaign) notFound();
 
-  // ── V2 mission-board campaign — real per-mission economics, testnet-truthful ──
-  if (campaign.vaultKind === "campaign_v2") {
+  /**
+   * ── The mission board — real per-mission economics, testnet-truthful ──
+   *
+   * Gated on `campaign_v2` alone, so a Starknet campaign fell through to the legacy single-reward
+   * board: no mission list, no Sage activity, no exploration line, none of the things that make a
+   * tester believe the payout is real. A Starknet vault carries exactly the same per-mission
+   * economics; the economics helper below never cared which chain it was.
+   */
+  if (campaign.vaultKind === "campaign_v2" || campaign.vaultKind === "sage_vault_starknet") {
     const e = v2Economics(campaign);
     const live = campaign.status === "live";
     const pct = e.totalFundedBase > 0 ? Math.round((e.paidBase / e.totalFundedBase) * 100) : 0;
@@ -85,7 +92,16 @@ export default async function CampaignPublicPage({
         </header>
 
         <div className="sage-agent-card tb-hero">
-          <div className="sage-eyebrow"><ShieldCheck size={13} /> Paid from a founder-owned vault with hard on-chain limits</div>
+          {/* THE ONE LINE A TESTER READS TO DECIDE WHETHER THIS IS SAFE TO WORK FOR. On the
+              private rail "public receipt" is the wrong promise — the whole point is that a tester
+              need not publish their income — so the claim names the choice instead. This copy came
+              from the legacy board; moving Starknet onto this one must not quietly drop it. */}
+          <div className="sage-eyebrow">
+            <ShieldCheck size={13} />{" "}
+            {campaign.vaultKind === "sage_vault_starknet"
+              ? "Paid from a vault with hard spending limits — privately, if you choose"
+              : "Paid from a founder-owned vault with hard on-chain limits"}
+          </div>
           <h1 className="tb-hero-title">{campaign.title}</h1>
           {campaign.descriptionMd && (
             <p className="tb-hero-desc">{campaign.descriptionMd}</p>
@@ -136,6 +152,7 @@ export default async function CampaignPublicPage({
           live={live}
           missions={e.missions}
           autopays={autopays}
+          rail={campaign.settlementRail === "starknet" ? "starknet" : "evm"}
         />
 
         <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />
@@ -148,10 +165,16 @@ export default async function CampaignPublicPage({
         </nav>
 
         <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
+          {/* "A verifiable transaction you can inspect" is the wrong closing promise on the
+              private rail: a tester may collect into a shielded note precisely so their income is
+              not inspectable. The guarantee that still holds — bounded operator, on-chain limits —
+              is stated either way; only the part about visibility changes. */}
           You own the campaign vault; Sage is the bounded operator. It reviews each submission
           and pays eligible work within your on-chain limits — it can never exceed the budget,
-          the per-mission reward, or the completion caps. Every payout is a verifiable
-          transaction you can inspect on the block explorer.
+          the per-mission reward, or the completion caps.{" "}
+          {campaign.vaultKind === "sage_vault_starknet"
+            ? "Every payout is a real on-chain transaction; whether yours is traceable to you is your choice."
+            : "Every payout is a verifiable transaction you can inspect on the block explorer."}
         </footer>
       </main>
     );
@@ -228,11 +251,9 @@ export default async function CampaignPublicPage({
               direct-pay Starknet campaign has none, and claiming limits nobody wrote would be a
               lie exactly where it matters most. Nor is "public receipt" right on the private
               rail — the whole point is that a tester need not publish their income. */}
-          {campaign.vaultKind === "sage_vault_starknet"
-            ? "Paid from a vault with hard spending limits — privately, if you choose"
-            : campaign.settlementRail === "starknet"
-              ? "Paid on-chain by Sage, every payout with a public receipt"
-              : "Paid from an on-chain wallet with hard spending limits"}
+          {campaign.settlementRail === "starknet"
+            ? "Paid on-chain by Sage, every payout with a public receipt"
+            : "Paid from an on-chain wallet with hard spending limits"}
         </div>
         <h1
           style={{
@@ -347,14 +368,7 @@ export default async function CampaignPublicPage({
           naming one here would promise a protection nobody wrote — in the closing line a tester
           reads before deciding to work. */}
       <footer className="sage-hint" style={{ padding: "24px 2px 60px" }}>
-        {campaign.vaultKind === "sage_vault_starknet" ? (
-          <>
-            Rewards are paid by Sage from a vault the founder funded and owns, which enforces each
-            mission&rsquo;s reward and the campaign&rsquo;s total on-chain — Sage cannot exceed
-            them or withdraw the budget. Every payout is a real transaction; whether yours is
-            traceable to you is your choice.
-          </>
-        ) : campaign.settlementRail === "starknet" ? (
+        {campaign.settlementRail === "starknet" ? (
           <>
             Rewards are paid by Sage directly to the wallet you signed in with. Every payout is a
             verifiable transaction you can inspect on the block explorer.

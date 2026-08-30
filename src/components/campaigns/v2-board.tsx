@@ -8,6 +8,8 @@ import { getAddress } from "viem";
 import { reward as fmtReward } from "@/lib/format";
 import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
+import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import {
@@ -143,12 +145,14 @@ function beat(m: MySubmission): { icon: ReactNode; text: string; color: string }
  * commitment before submit. After submitting, the tester WATCHES the real pipeline decide
  * and (on autopilot) pay, polling /me?mission=<hash>. A paid entry links to its proof.
  */
-function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTarget, autopays }: {
+function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTarget, autopays, rail }: {
   campaignId: string; campaignIdHash: string; chainId: number; mission: MissionView; live: boolean; isTarget: boolean;
   /** whether THIS campaign auto-pays — server-decided, never inferred from the mission's class alone. */
   autopays: boolean;
+  rail: "evm" | "starknet";
 }) {
   const wallet = useWallet();
+  const starknet = useStarknetSiwe();
   // Share ONE wallet instance with SIWE — otherwise the connect/sign-in runs on siwe's
   // internal useWallet while the evidence signature checks this one, which stays empty
   // ("Reconnect your wallet to sign" on an actually-connected wallet).
@@ -390,6 +394,13 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
             </div>
           ) : !live ? (
             <div className="v2-full">This mission isn&apos;t open for submissions right now.</div>
+          ) : rail === "starknet" ? (
+            starknet.authed ? null : (
+              /* The wallet that signs in is the wallet that gets PAID, so on the private rail it
+                 has to be the Starknet one. Offering an EVM sign-in here left a tester holding a
+                 Ready wallet with no way to submit at all. */
+              <StarknetSubmitGate starknet={starknet} />
+            )
           ) : !siwe.authed ? (
             <>
               <button className="sage-btn sage-btn-primary" disabled={siwe.signingIn} onClick={() => void siwe.signIn()}>
@@ -525,10 +536,18 @@ export function TesterFaq({ perWalletCap = 1 }: { perWalletCap?: number } = {}) 
 }
 
 /** The V2 tester mission board: real per-mission economics + signed, mission-scoped submit. */
-export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, autopays = false }: {
+export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, autopays = false, rail = "evm" }: {
   campaignId: string; campaignIdHash: string; chainId: number; live: boolean; missions: MissionView[];
   /** whether THIS campaign actually auto-pays — decided server-side by `campaignAutopays`. */
   autopays?: boolean;
+  /**
+   * Which chain pays, so a tester is asked for the wallet that can actually RECEIVE.
+   *
+   * Defaulted, so every EVM caller is unchanged. Without it a Starknet campaign offered an EVM
+   * sign-in on the board — the one control a tester needs — and no Starknet worker could submit
+   * at all.
+   */
+  rail?: "evm" | "starknet";
 }) {
   const [target, setTarget] = useState<string | null>(null);
   // Deep link: /c/<slug>#<missionKey> scrolls that mission into view + highlights it briefly, so a
@@ -545,10 +564,41 @@ export function V2Board({ campaignId, campaignIdHash, chainId, live, missions, a
   return (
     <div className="v2-board sage-stagger">
       {missions.map((m) => (
-        <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} autopays={autopays} />
+        <MissionCard key={m.missionKey} campaignId={campaignId} campaignIdHash={campaignIdHash} chainId={chainId} mission={m} live={live} isTarget={target === m.missionKey} autopays={autopays} rail={rail} />
       ))}
     </div>
   );
 }
 
 function hostOf(u: string): string { try { return new URL(u).host; } catch { return u; } }
+
+/** The private rail's sign-in, in the same language every other wallet moment uses. */
+function StarknetSubmitGate({ starknet }: { starknet: ReturnType<typeof useStarknetSiwe> }) {
+  if (starknet.loading) {
+    return <p className="tb-sig">Checking your wallet…</p>;
+  }
+  return (
+    <WalletConnect
+      options={starknet.wallets.map((w) => ({
+        id: w.id,
+        name: w.name,
+        icon: w.icon,
+        onSelect: () => void starknet.signIn(w),
+      }))}
+      explainer={
+        <>
+          This campaign pays on Starknet, so sign in with a Starknet wallet — <b>that is the address
+          you&rsquo;ll be paid at.</b>
+        </>
+      }
+      busy={starknet.signingIn}
+      busyLabel="Waiting for your wallet…"
+      error={starknet.error}
+      emptyMessage="No Starknet wallet found in this browser."
+      installHints={[
+        { name: "Ready", url: "https://www.ready.co" },
+        { name: "Braavos", url: "https://braavos.app" },
+      ]}
+    />
+  );
+}

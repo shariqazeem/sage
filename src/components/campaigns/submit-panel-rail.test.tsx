@@ -128,3 +128,24 @@ describe("which wallet a tester is asked for", () => {
     expect(container.querySelector(".wc")).toBeNull();
   });
 });
+
+describe("the mission board asks for the wallet that will be PAID", () => {
+  it("keeps the EVM rail as the default, so every existing caller is unchanged", async () => {
+    // `rail` is optional on V2Board. A missing prop must never silently switch chains.
+    const src = (await import("node:fs")).readFileSync(
+      "src/components/campaigns/v2-board.tsx",
+      "utf8",
+    );
+    expect(src).toMatch(/rail = "evm"/);
+  });
+
+  it("offers a Starknet sign-in on the private rail, not an EVM one", async () => {
+    const src = (await import("node:fs")).readFileSync(
+      "src/components/campaigns/v2-board.tsx",
+      "utf8",
+    );
+    // The whole point: the wallet that signs in is the wallet that receives.
+    expect(src).toMatch(/rail === "starknet"/);
+    expect(src).toMatch(/StarknetSubmitGate/);
+  });
+});
