@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   useStarknetWallet,
@@ -26,6 +26,9 @@ import { refreshFounderSession } from "./use-founder-session";
  * compares: a second implementation here would be a second thing to drift, and drift means every
  * signature reads as forged with nothing on screen to explain why.
  */
+
+/** Which wallet extension signed in, so a later signature goes to the same one. */
+const WALLET_ID_KEY = "sage.starknet.walletId";
 
 export interface StarknetSiweApi {
   wallets: StarknetWallet[];
@@ -53,6 +56,17 @@ export interface StarknetSiweApi {
 export function useStarknetSiwe(): StarknetSiweApi {
   const discovery = useStarknetWallet();
   const [address, setAddress] = useState<string | null>(null);
+  /**
+   * WHICH EXTENSION THE SESSION BELONGS TO.
+   *
+   * A person can have Ready AND Xverse installed. `signIn` takes the wallet they picked, so it is
+   * known at that moment — but a later signature happens on a different render, and after a reload
+   * the session survives while nothing in memory remembers the choice. The id is persisted so the
+   * evidence signature goes to the SAME extension that signed in.
+   *
+   * Reported from the live campaign: signed in with Ready, and pressing submit opened Xverse.
+   */
+  const signedWith = useRef<StarknetWallet | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +133,13 @@ export function useStarknetSiwe(): StarknetSiweApi {
             "That wallet did not return a signature. Try signing in again.",
           );
 
+        signedWith.current = wallet;
+        try {
+          window.localStorage.setItem(WALLET_ID_KEY, wallet.id);
+        } catch {
+          /* private mode — the in-memory ref still covers this page load */
+        }
+
         const verifyRes = await fetch("/api/auth/starknet/verify", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -155,11 +176,21 @@ export function useStarknetSiwe(): StarknetSiweApi {
     [],
   );
 
+  const forgetWallet = () => {
+    signedWith.current = null;
+    try {
+      window.localStorage.removeItem(WALLET_ID_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+  };
+
   const signOut = useCallback(async () => {
     await fetch("/api/auth/starknet/session", { method: "DELETE" }).catch(
       () => {},
     );
     setAddress(null);
+    forgetWallet();
     void refreshFounderSession();
     discovery.disconnect();
   }, [discovery]);
@@ -174,11 +205,62 @@ export function useStarknetSiwe(): StarknetSiweApi {
    */
   const signTypedData = useCallback(
     async (typedData: unknown): Promise<string[] | null> => {
-      const wallet = discovery.wallets[0];
+      /**
+       * Resolve the extension the session belongs to — never `wallets[0]`.
+       *
+       * That was the bug: with two wallets installed, discovery order decided who was asked to
+       * sign, so a person signed in with Ready and was handed an Xverse prompt. Signing there
+       * would produce a valid signature from an account the vault cannot pay, which the server
+       * then refuses as a wallet mismatch — a confusing dead end for something the page could have
+       * prevented.
+       *
+       * When the choice genuinely cannot be recovered, REFUSE and say so. Picking a wallet on the
+       * person's behalf is what caused this.
+       */
+      let stored: string | null = null;
+      try {
+        stored = window.localStorage.getItem(WALLET_ID_KEY);
+      } catch {
+        /* unreadable storage falls through to the checks below */
+      }
+      const wallet =
+        signedWith.current ??
+        (stored ? (discovery.wallets.find((w) => w.id === stored) ?? null) : null) ??
+        (discovery.wallets.length === 1 ? discovery.wallets[0] : null);
       if (!wallet) {
-        setError("Reconnect your Starknet wallet to sign.");
+        setError(
+          discovery.wallets.length > 1
+            ? "Sign in again so Sage knows which of your wallets to ask — more than one is installed."
+            : "Reconnect your Starknet wallet to sign.",
+        );
         return null;
       }
+      /**
+       * CONFIRM THE WALLET HOLDS THE ACCOUNT THAT WILL BE PAID, before asking it to sign.
+       *
+       * Resolving by id fixes the ordering bug, but not every way the wrong extension can end up
+       * here: two wallets both inject into `window.starknet*`, and whichever claimed the legacy
+       * slot last wins it, so an entry can be labelled one wallet and backed by another. This
+       * catches all of them at the only point that matters — a signature from the wrong account is
+       * refused server-side as a wallet mismatch, which reads like the product is broken.
+       *
+       * Cheap for a wallet already authorised for this site: `wallet_requestAccounts` returns
+       * without prompting.
+       */
+      try {
+        const accounts = (await wallet.request({ type: "wallet_requestAccounts" })) as string[];
+        const held = accounts?.[0];
+        if (held && address && BigInt(held) !== BigInt(address)) {
+          setError(
+            `${wallet.name} is holding a different account than the one you signed in with — switch it back, or sign in again with the wallet that will be paid.`,
+          );
+          return null;
+        }
+      } catch {
+        // Unreachable or refused: fall through and let the signature attempt report it, rather
+        // than blocking a wallet that simply does not answer this call.
+      }
+
       try {
         const sig = (await wallet.request({
           type: "wallet_signTypedData",
@@ -190,7 +272,7 @@ export function useStarknetSiwe(): StarknetSiweApi {
         return null;
       }
     },
-    [discovery.wallets],
+    [discovery.wallets, address],
   );
 
   return {
