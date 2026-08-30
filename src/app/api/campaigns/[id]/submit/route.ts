@@ -21,6 +21,8 @@ import {
   recordEvent,
 } from "@/lib/db/campaigns";
 import { computeEvidenceDigest, verifyEvidenceClaim, type EvidenceClaim } from "@/lib/campaigns/evidence-claim";
+import { verifyStarknetEvidenceClaim } from "@/lib/campaigns/starknet-evidence-claim";
+import { readClaimSignature } from "@/lib/campaigns/claim-signature";
 import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
@@ -204,7 +206,10 @@ export async function POST(
     }
     const claim = body.claim;
     const signature = body.signature;
-    if (!claim || typeof signature !== "string") {
+    // An EVM signature is one hex string; a Starknet one is an array of felts, because the account
+    // contract — not a recovery — decides whether it is valid.
+    const sig = readClaimSignature(onStarknet ? "starknet" : "evm", signature);
+    if (!claim || !sig) {
       return NextResponse.json({ error: "A signed evidence commitment is required." }, { status: 400 });
     }
     // The signed claim must bind THIS campaign + mission (not just any).
@@ -217,26 +222,45 @@ export async function POST(
     if (!bindsRight) {
       return NextResponse.json({ error: "This signature doesn't match the mission — reload and sign again." }, { status: 400 });
     }
-    // The evidence claim is an EIP-712 signature recovered against an EVM address. Starknet
-    // accounts are contracts and sign SNIP-12, so this verification cannot run on that rail —
-    // and it protects something real (evidence cannot be swapped after signing, and a signature
-    // cannot be replayed onto another mission). Rather than skip it and quietly ship a weaker
-    // guarantee, a mission-bound campaign is refused on Starknet until the SNIP-12 equivalent
-    // exists. Non-mission submissions are unaffected.
-    if (onStarknet) {
-      return NextResponse.json(
-        { error: "Mission-bound submissions aren't available on this campaign's settlement rail yet." },
-        { status: 409 },
-      );
-    }
+    /**
+     * THE SAME GUARANTEE ON EITHER RAIL: this wallet, this evidence, this mission.
+     *
+     * An EVM claim is an EIP-712 signature recovered to an address. A Starknet account is a
+     * CONTRACT — there is nothing to recover to, so the account itself decides via
+     * `is_valid_signature`, exactly as founder sign-in already does.
+     *
+     * This used to answer 409 "not available on this rail yet", which was the honest call while
+     * the SNIP-12 side did not exist. It also meant every Starknet campaign was unsubmittable:
+     * every V2 campaign is mission-bound, so a funded Cairo vault that WOULD pay could never
+     * receive a submission to pay for.
+     */
     const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidenceUrl ?? "", note: note.value ?? "" });
-    const verdict = await verifyEvidenceClaim(claim, signature as `0x${string}`, {
-      expectedWallet: wallet as `0x${string}`,
-      chainId: campaign.chainId ?? 59902,
-      now: Math.floor(Date.now() / 1000),
-      evidenceDigest,
-    });
+    const now = Math.floor(Date.now() / 1000);
+    const verdict =
+      sig.rail === "starknet"
+        ? await verifyStarknetEvidenceClaim(claim, sig.signature, {
+            expectedWallet: wallet,
+            now,
+            evidenceDigest,
+          })
+        : await verifyEvidenceClaim(claim, sig.signature, {
+            expectedWallet: wallet as `0x${string}`,
+            chainId: campaign.chainId ?? 59902,
+            now,
+            evidenceDigest,
+          });
     if (!verdict.ok) {
+      // An undeployed account is the one failure whose remedy is not "sign again": the wallet has
+      // never sent a transaction, so there is no contract to ask.
+      if (verdict.reason === "undeployed") {
+        return NextResponse.json(
+          {
+            error:
+              "That wallet has no account contract on Starknet yet — send one transaction from it (any amount) and try again.",
+          },
+          { status: 400 },
+        );
+      }
       return NextResponse.json({ error: `Signature rejected (${verdict.reason}).` }, { status: 400 });
     }
     missionIdHash = mission.missionIdHash;

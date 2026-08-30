@@ -9,6 +9,7 @@ import { reward as fmtReward } from "@/lib/format";
 import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
+import { buildStarknetEvidenceTypedData } from "@/lib/campaigns/starknet-evidence-typed-data";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
@@ -204,9 +205,12 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
   const submit = useCallback(async () => {
     setError(null); setBusy(true);
     try {
-      const account = wallet.address;
-      const walletClient = wallet.getWalletClient();
-      if (!account || !walletClient) { setError("Reconnect your wallet to sign."); return; }
+      const onStarknet = rail === "starknet";
+      // WHICHEVER RAIL, THE WALLET THAT SIGNS IS THE WALLET THAT GETS PAID. On Starknet that is the
+      // signed-in Starknet account, never the EVM one a tester may also have connected.
+      const account = onStarknet ? starknet.address : wallet.address;
+      const walletClient = onStarknet ? null : wallet.getWalletClient();
+      if (!account || (!onStarknet && !walletClient)) { setError("Reconnect your wallet to sign."); return; }
       // ONE string, used for both the signed digest and the request body — they must never diverge.
       const submittedNote = composedNote;
       const evidenceDigest = computeEvidenceDigest({ evidenceUrl: evidence.trim(), note: submittedNote });
@@ -219,19 +223,28 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
         missionIdHash: mission.missionIdHash as `0x${string}`,
         missionSpecDigest: (mission.specDigest ?? `0x${"0".repeat(64)}`) as `0x${string}`,
         evidenceDigest,
-        tester: getAddress(account),
+        // A Starknet account is a felt, not a checksummed EVM address — `getAddress` throws on one.
+        tester: (onStarknet ? account : getAddress(account)) as `0x${string}`,
         chainId,
         nonce: `n_${Math.floor(now).toString(16)}_${mission.missionKey}`,
         issuedAt: now,
         expiry: now + EVIDENCE_CLAIM_TTL_SECONDS,
       };
-      const typed = buildEvidenceClaimTypedData(claim);
-      let signature: string;
-      try {
-        signature = await walletClient.signTypedData({
-          account: getAddress(account), domain: typed.domain, types: typed.types, primaryType: typed.primaryType, message: typed.message,
-        });
-      } catch { setError("You declined the signature. Nothing was submitted."); return; }
+      let signature: string | string[];
+      if (onStarknet) {
+        // An account CONTRACT signs, so the answer is an array of felts and there is no address to
+        // recover: the server asks the account itself whether the signature is valid.
+        const sig = await starknet.signTypedData(buildStarknetEvidenceTypedData(claim, account));
+        if (!sig) { setError("You declined the signature. Nothing was submitted."); return; }
+        signature = sig;
+      } else {
+        const typed = buildEvidenceClaimTypedData(claim);
+        try {
+          signature = await walletClient!.signTypedData({
+            account: getAddress(account), domain: typed.domain, types: typed.types, primaryType: typed.primaryType, message: typed.message,
+          });
+        } catch { setError("You declined the signature. Nothing was submitted."); return; }
+      }
       const res = await fetch(`/api/campaigns/${campaignId}/submit`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ missionKey: mission.missionKey, evidence: evidence.trim(), note: submittedNote, claim, signature }),
@@ -241,7 +254,7 @@ function MissionCard({ campaignId, campaignIdHash, chainId, mission, live, isTar
       setOpen(false);
       await loadMine();
     } finally { setBusy(false); }
-  }, [wallet, evidence, composedNote, campaignId, campaignIdHash, chainId, mission, loadMine]);
+  }, [wallet, starknet, rail, evidence, composedNote, campaignId, campaignIdHash, chainId, mission, loadMine]);
 
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
   const soldOut = mission.full && !mine;

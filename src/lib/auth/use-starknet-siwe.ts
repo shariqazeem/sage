@@ -37,6 +37,17 @@ export interface StarknetSiweApi {
   error: string | null;
   signIn: (wallet: StarknetWallet) => Promise<boolean>;
   signOut: () => Promise<void>;
+  /**
+   * Sign typed data with the wallet that is signed in — used for the evidence commitment a
+   * mission-bound submission carries. Returns the felt array a Starknet signature is, or null if
+   * the person declined.
+   *
+   * The caller passes the structure; this only asks the wallet. What gets signed is built by ONE
+   * shared module (`starknet-evidence-typed-data.ts`) that the server verifies against, for the
+   * same reason sign-in takes its typed data from the server: a second implementation is a second
+   * thing to drift, and drift means every signature reads as forged.
+   */
+  signTypedData: (typedData: unknown) => Promise<string[] | null>;
 }
 
 export function useStarknetSiwe(): StarknetSiweApi {
@@ -153,6 +164,35 @@ export function useStarknetSiwe(): StarknetSiweApi {
     discovery.disconnect();
   }, [discovery]);
 
+  /**
+   * Ask the signed-in wallet to sign a structure. Null means the person declined, which is a
+   * normal answer and not an error to shout about.
+   *
+   * The wallet is re-discovered rather than held: discovery is what knows which extension the
+   * session belongs to, and holding a reference across a reconnect is how a signature ends up
+   * requested from the wrong one.
+   */
+  const signTypedData = useCallback(
+    async (typedData: unknown): Promise<string[] | null> => {
+      const wallet = discovery.wallets[0];
+      if (!wallet) {
+        setError("Reconnect your Starknet wallet to sign.");
+        return null;
+      }
+      try {
+        const sig = (await wallet.request({
+          type: "wallet_signTypedData",
+          params: typedData as never,
+        })) as string[] | { signature?: string[] };
+        const out = Array.isArray(sig) ? sig : (sig?.signature ?? []);
+        return out.length ? out.map(String) : null;
+      } catch {
+        return null;
+      }
+    },
+    [discovery.wallets],
+  );
+
   return {
     wallets: discovery.wallets,
     address,
@@ -162,5 +202,6 @@ export function useStarknetSiwe(): StarknetSiweApi {
     error: error ?? discovery.error,
     signIn,
     signOut,
+    signTypedData,
   };
 }
