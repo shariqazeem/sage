@@ -21,10 +21,14 @@ export function TesterSupplyProof({ compact = false }: { compact?: boolean }) {
   return (
     <section className={`tsp${compact ? " tsp-compact" : ""}`} aria-label="Tester supply">
       <p className="tsp-eyebrow">Testers are already here</p>
+      {/* NAMING ONE CHAIN HERE WENT STALE THE DAY A SECOND RAIL PAID SOMEONE. It also said something
+          that is not true of both: a GOAT payout is a public transaction, and on Starknet the
+          tester can collect into a shielded note — the receipt is on chain either way, but "public"
+          is a promise only one rail makes. */}
       <p className="tsp-lede">
         <strong>{s.testersPaid} people</strong> have been paid for verified testing work on Sage —{" "}
-        <strong>${s.usdcSettled.toFixed(2)} USDC</strong> settled on GOAT Mainnet, every payout a
-        public transaction.
+        <strong>${s.usdcSettled.toFixed(2)} USDC</strong> settled on-chain, every payout backed by a
+        receipt anyone can check.
       </p>
 
       <dl className="tsp-stats">

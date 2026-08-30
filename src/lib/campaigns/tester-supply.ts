@@ -1,4 +1,5 @@
 import "server-only";
+import { chainConfig } from "@/lib/deputy/networks";
 
 import { listCampaigns, listSubmissions } from "@/lib/db/campaigns";
 
@@ -41,9 +42,19 @@ export interface TesterSupply {
 }
 
 export function getTesterSupply(): TesterSupply {
+  /**
+   * EVERY MAINNET RAIL, NOT ONE CHAIN.
+   *
+   * This filtered on `chainId === 2345`, so the moment a second rail started paying people its
+   * payouts vanished from every number here — testers paid, USDC settled, missions paid, time to
+   * payout, all of it. Two real Starknet payouts existed and this said the rail did not.
+   *
+   * The registry already knows which chains are real money, and asking it means the next rail is
+   * counted the day it settles rather than the day somebody remembers this line.
+   */
   const mainnetCampaigns = new Set(
     listCampaigns()
-      .filter((c) => c.chainId === MAINNET && !c.sandbox)
+      .filter((c) => chainConfig(c.chainId).isMainnet && !c.sandbox)
       .map((c) => c.id),
   );
 
