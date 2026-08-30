@@ -187,24 +187,84 @@ export interface MissionTerms {
   paidCompletions: number;
 }
 
+/**
+ * Decode what the chain returned for one mission.
+ *
+ * Separated from the call and made total on purpose. `decodeVaultStatus` had to learn this the
+ * expensive way: it assumed a number, starknet.js handed it a CairoCustomEnum, `Number(object)`
+ * came back NaN -> 0, and every vault read as "paused" — the whole rail closed. The shapes a
+ * client returns for a Cairo type change between versions, so the safe assumption is that this
+ * function will one day be handed something it has not seen.
+ *
+ * `Boolean(m.exists)` was the same trap waiting: `Boolean("0x0")` is TRUE, so a mission the vault
+ * does not have would read as present. This runs at ATTACH, where the verdict decides whether a
+ * founder's plan is backed by the vault they funded — a fabricated "exists" there means being told
+ * a campaign is live when some of its missions can never pay.
+ *
+ * Unreadable THROWS rather than guessing, in either direction. The caller turns that into "could
+ * not read the vault, try again", which is honest and recoverable; a guess is neither.
+ */
+export function decodeMissionTerms(raw: unknown): MissionTerms {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error(`mission was unreadable (${raw === null ? "null" : typeof raw})`);
+  }
+  const o = raw as Record<string, unknown>;
+  const pick = (...names: string[]): unknown => {
+    for (const n of names) if (o[n] !== undefined) return o[n];
+    return undefined;
+  };
+
+  /** Cairo `bool` over the wire: a boolean, a 0/1 integer, or a hex string, depending on client. */
+  const asBool = (v: unknown): boolean => {
+    if (typeof v === "boolean") return v;
+    if (typeof v === "bigint") return v !== BigInt(0);
+    if (typeof v === "number" && Number.isFinite(v)) return v !== 0;
+    if (typeof v === "string") {
+      const t = v.trim().toLowerCase();
+      if (t === "true" || t === "false") return t === "true";
+      try {
+        return BigInt(t) !== BigInt(0);
+      } catch {
+        throw new Error(`mission "exists" was unreadable ("${v.slice(0, 24)}")`);
+      }
+    }
+    throw new Error(`mission "exists" was unreadable (${typeof v})`);
+  };
+
+  const asInt = (v: unknown, field: string): bigint => {
+    if (typeof v === "bigint") return v;
+    if (typeof v === "number" && Number.isInteger(v)) return BigInt(v);
+    if (typeof v === "string" && v.trim()) {
+      try {
+        return BigInt(v.trim());
+      } catch {
+        /* fall through to the throw */
+      }
+    }
+    throw new Error(`mission "${field}" was unreadable (${typeof v})`);
+  };
+
+  const exists = asBool(pick("exists"));
+  if (!exists) {
+    // A vault returns the zero struct for a mission it does not have. Nothing else is meaningful,
+    // and reading zeros as terms would be inventing a $0 mission that is not there.
+    return { exists: false, rewardBase: BigInt(0), maxCompletions: 0, paidCompletions: 0 };
+  }
+  return {
+    exists: true,
+    rewardBase: asInt(pick("reward", "rewardBase"), "reward"),
+    maxCompletions: Number(asInt(pick("max_completions", "maxCompletions"), "max_completions")),
+    paidCompletions: Number(asInt(pick("paid_completions", "paidCompletions"), "paid_completions")),
+  };
+}
+
 export async function readMission(
   vaultAddress: string,
   missionId: string,
 ): Promise<MissionTerms> {
   const provider = readProvider();
   const c = new Contract({ abi: ABI, address: vaultAddress, providerOrAccount: provider });
-  const m = (await c.call("get_mission", [missionId])) as {
-    reward: bigint;
-    max_completions: bigint;
-    paid_completions: bigint;
-    exists: boolean;
-  };
-  return {
-    exists: Boolean(m.exists),
-    rewardBase: BigInt(m.reward),
-    maxCompletions: Number(m.max_completions),
-    paidCompletions: Number(m.paid_completions),
-  };
+  return decodeMissionTerms(await c.call("get_mission", [missionId]));
 }
 
 export interface PayoutResult {
