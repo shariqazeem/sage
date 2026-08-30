@@ -14,8 +14,17 @@
 
 /** Class hashes known to expose `request_payout_to`, normalised (lower case, no leading zeros). */
 const SPLIT_CAPABLE: readonly string[] = [
-  // Populated when the split class is declared. Empty means every vault takes the public path,
-  // which is exactly the behaviour that shipped before the split existed.
+  /**
+   * SageVault with `request_payout_to`. Declared on mainnet 2026-08-30 in
+   * tx 0x17bd5c3cee03ffce89f8a4233af4632d72d78d1e8a0b9c8d007dd6ccb5858f0, and READ BACK off chain
+   * before being trusted here: 4390 Sierra felts, 19 entrypoints,
+   * `request_payout_to(mission_id, worker, payout_target, decision_digest, intent_hash)`.
+   *
+   * The predecessor 0x2770f9fd… is deliberately absent. Every vault deployed from it — including
+   * the live starkscan campaign — has no such entrypoint, and asking it would revert as an unknown
+   * selector.
+   */
+  "0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87",
 ];
 
 const norm = (v: string | null | undefined): string | null => {

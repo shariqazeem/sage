@@ -31,3 +31,22 @@ describe("which vaults can split earner from destination", () => {
     expect(classSupportsSplitPayout(listed)).toBe(classSupportsSplitPayout(listed.toUpperCase().replace("0X", "0x")));
   });
 });
+
+describe("the declared split class", () => {
+  it("is recognised as capable", () => {
+    // Read back off chain before it was written here: 19 entrypoints, request_payout_to present.
+    expect(
+      classSupportsSplitPayout("0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87"),
+    ).toBe(true);
+  });
+
+  it("is a DIFFERENT class from the one the live campaign runs", () => {
+    // If these ever collapsed to the same value, the guard would be waved through for a vault that
+    // cannot serve the call — the exact failure it exists to prevent.
+    const split = "0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87";
+    const legacy = "0x2770f9fde4668abd9bfffbf8aeca2ce5d104ed812054afa22cdc78356500e84";
+    expect(split).not.toBe(legacy);
+    expect(classSupportsSplitPayout(split)).toBe(true);
+    expect(classSupportsSplitPayout(legacy)).toBe(false);
+  });
+});
