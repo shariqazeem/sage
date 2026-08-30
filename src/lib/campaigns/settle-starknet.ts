@@ -4,7 +4,7 @@ import { starknetTxUrl } from "@/lib/starknet/explorer";
 import { updateSubmission } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import type { Campaign, Submission } from "@/lib/db/schema";
-import { derivePayoutIntent } from "@/lib/campaigns/settle-core";
+import { starknetPayoutIntent } from "@/lib/starknet/payout-intent";
 import { getDecisionBySubmission } from "@/lib/db/campaigns";
 import { payoutRouteFor, requestVaultPayout } from "@/lib/starknet/vault";
 import { escrowPayouts } from "@/lib/starknet/claims";
@@ -109,10 +109,27 @@ export async function settleOnStarknet(
   // A mission-bound campaign settles the mission the submission targeted; a legacy one has a
   // single implicit mission keyed by the campaign. Either way the vault holds the terms.
   const missionId = submission.missionIdHash ?? feltOf(campaign.id);
-  const { payoutIntentHash, decisionDigest } = derivePayoutIntent(
+  /**
+   * This rail derives its own commitments. The EVM one encodes the vault and recipient as ABI
+   * `address` — twenty bytes — and a Starknet address is a felt, so `getAddress` threw on it long
+   * before the encoder could. It only reaches that code when a DECISION EXISTS, which is why no
+   * dry run or test ever hit it: none of them had judged work. It fired the first time a founder
+   * released a held submission.
+   */
+  const decisionRow = getDecisionBySubmission(submission.id);
+  const { payoutIntentHash, decisionDigest } = starknetPayoutIntent(
     campaign,
     submission,
-    getDecisionBySubmission(submission.id),
+    decisionRow
+      ? {
+          id: decisionRow.id,
+          contentSha256: decisionRow.contentSha256 ?? null,
+          recommendation: decisionRow.brief.recommendation,
+          reasonCode: decisionRow.brief.reasonCode,
+          confidence: decisionRow.brief.confidence,
+          model: decisionRow.model ?? null,
+        }
+      : null,
   );
 
   /**
