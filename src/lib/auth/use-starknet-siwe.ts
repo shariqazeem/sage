@@ -146,10 +146,25 @@ export function useStarknetSiwe(): StarknetSiweApi {
           body: JSON.stringify({ address: account, signature: sig, issuedAt }),
         });
         if (!verifyRes.ok) {
-          // The server deliberately gives one message for every failure, so there is nothing more
-          // specific to report here without inventing it.
+          /**
+           * ONE failure has a different remedy, and the server already knows which.
+           *
+           * A Starknet account is counterfactual until its first OUTGOING transaction: it has an
+           * address and no contract, so there is nothing that can check a signature. "Try signing
+           * in again" is advice that can never work there, and it is what a fresh Xverse wallet
+           * hits — REPORTED live, after the server had already logged `undeployed` and returned a
+           * paragraph explaining it, which this threw away.
+           *
+           * Every OTHER failure keeps the single message on purpose: telling a prober whether the
+           * nonce or the signature was wrong tells them which one to change.
+           */
+          const body = (await verifyRes.json().catch(() => null)) as
+            | { error?: string; reason?: string }
+            | null;
           throw new Error(
-            "That signature could not be verified. Try signing in again.",
+            body?.reason === "undeployed" && body.error
+              ? body.error
+              : "That signature could not be verified. Try signing in again.",
           );
         }
         const { address: verified } = (await verifyRes.json()) as {

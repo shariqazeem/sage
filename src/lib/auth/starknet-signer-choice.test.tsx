@@ -115,3 +115,46 @@ describe("which wallet is asked to sign the evidence", () => {
     expect(sig).toEqual(["0xsig1"]);
   });
 });
+
+/**
+ * ONE SIGN-IN FAILURE HAS A DIFFERENT REMEDY, AND SAYING THE WRONG THING COSTS REAL TIME.
+ *
+ * A Starknet account is counterfactual until its first OUTGOING transaction: it has an address and
+ * no contract, so nothing exists that can check a signature. REPORTED live with a fresh Xverse
+ * wallet — the server logged `undeployed` and returned a paragraph explaining it, and the client
+ * threw that away and said "That signature could not be verified. Try signing in again", which is
+ * advice that can never work.
+ *
+ * Every OTHER failure keeps one message on purpose: telling a prober whether the nonce or the
+ * signature was wrong tells them which one to change.
+ */
+describe("what a failed sign-in tells you", () => {
+  const attempt = async (body: unknown, status = 401) => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("/nonce")) {
+        return new Response(JSON.stringify({ issuedAt: 1788000000, typedData: { message: {} } }), { status: 200 });
+      }
+      if (String(url).includes("/verify")) return new Response(JSON.stringify(body), { status });
+      return new Response(JSON.stringify({ address: null }), { status: 200 });
+    }));
+    const { result } = await signedInHook();
+    await act(async () => { await result.current.signIn(ready as never); });
+    return result.current.error;
+  };
+
+  it("explains an undeployed account instead of asking for another signature", async () => {
+    const err = await attempt({
+      reason: "undeployed",
+      error: "This wallet has no account contract on Starknet mainnet yet — the account is created when the wallet SENDS its first transaction.",
+    });
+    expect(err).toMatch(/no account contract/i);
+    expect(err).toMatch(/first transaction/i);
+    expect(err).not.toMatch(/try signing in again/i);
+  });
+
+  it("keeps ONE message for every other failure, so a prober learns nothing", async () => {
+    expect(await attempt({ error: "could not verify that signature" })).toMatch(
+      /could not be verified/i,
+    );
+  });
+});
