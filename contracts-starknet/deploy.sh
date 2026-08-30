@@ -78,7 +78,7 @@ if [ "$CONTRACT" = "vault" ]; then
 else
   echo "    Plus ~0.25 STRK to deploy."
 fi
-echo "    (Measured rate on the last declare was about half the estimate above.)"
+echo "    The live estimate is printed before anything is signed — trust that, not this."
 read -r -p "    Continue? [y/N] " ok
 [ "$ok" = "y" ] || [ "$ok" = "Y" ] || { echo "stopped."; exit 0; }
 echo

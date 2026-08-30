@@ -155,29 +155,30 @@ async function main() {
     /**
      * BOUND THE FEE OURSELVES, AND SAY WHAT IT WILL COST.
      *
-     * Starknet requires the account to cover the resource BOUND, not the eventual charge, and
-     * starknet.js defaults to a bound roughly twice the estimate. A declare that would really cost
-     * ~21 STRK therefore asked an account holding 38.85 for a 43.40 ceiling and was refused for
-     * insufficient balance — a confusing failure, because the money was there for the actual cost.
+     * Starknet requires the account to cover the resource BOUND, not the eventual charge, so a
+     * refusal reads as "insufficient balance" even when the balance would cover the real cost.
      *
-     * A 1.6x bound is generous against estimate error while staying far below double, and the
-     * estimate and the bound are both printed, so the number is a decision rather than a surprise.
+     * The multiplier is deliberately SMALL. A previous declare of a smaller class cost far less,
+     * and extrapolating from it badly underestimated this one — L2 gas price moves, so past cost
+     * per felt predicts nothing. The estimate is the number to trust; the margin only covers
+     * movement between estimating and landing.
      */
+    const FEE_MARGIN = 1.15; // enough for price movement between estimating and landing
     const est = await account.estimateDeclareFee({ contract: sierra, casm });
     const strk = (v) => `${(Number(v) / 1e18).toFixed(2)} STRK`;
     const bound = (v, mult) => (BigInt(v) * BigInt(Math.round(mult * 100))) / BigInt(100);
     const rb = est.resourceBounds;
     const bounded = {
       l1_gas: {
-        max_amount: "0x" + bound(rb.l1_gas.max_amount, 1.6).toString(16),
+        max_amount: "0x" + bound(rb.l1_gas.max_amount, FEE_MARGIN).toString(16),
         max_price_per_unit: rb.l1_gas.max_price_per_unit,
       },
       l1_data_gas: {
-        max_amount: "0x" + bound(rb.l1_data_gas.max_amount, 1.6).toString(16),
+        max_amount: "0x" + bound(rb.l1_data_gas.max_amount, FEE_MARGIN).toString(16),
         max_price_per_unit: rb.l1_data_gas.max_price_per_unit,
       },
       l2_gas: {
-        max_amount: "0x" + bound(rb.l2_gas.max_amount, 1.6).toString(16),
+        max_amount: "0x" + bound(rb.l2_gas.max_amount, FEE_MARGIN).toString(16),
         max_price_per_unit: rb.l2_gas.max_price_per_unit,
       },
     };
@@ -200,14 +201,14 @@ async function main() {
     }
 
     console.log(`estimated  ${strk(est.overall_fee)}`);
-    console.log(`bound      ${strk(ceiling)}  (1.6x — the chain requires you to cover THIS)`);
+    console.log(`bound      ${strk(ceiling)}  (${FEE_MARGIN}x — the chain requires you to cover THIS)`);
     if (balance !== null) {
       console.log(`balance    ${strk(balance)}`);
       if (balance < ceiling) {
         console.error(
           `\nNot enough STRK to cover the bound. Add ${strk(ceiling - balance)} and run again.`,
         );
-        console.error(`(The declare itself should only cost about ${strk(est.overall_fee)}.)`);
+        console.error(`(The declare itself is estimated at ${strk(est.overall_fee)}; the rest is margin and comes back unspent.)`);
         process.exit(1);
       }
     }
