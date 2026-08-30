@@ -238,7 +238,14 @@ export async function runDirectEval(opts: {
             ? `your draft stated ${verdict.unbacked.join(" and ")} but no tool ran this turn to back it`
             : "the founder asked you to pay someone a stated amount and no tool ran this turn";
           const corrected = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
-            { role: "assistant", content: reply },
+            /**
+             * The STRIPPED draft, as production sends it. The concierge assigns
+             * `reply = stripReasoningPrefix(...)` before the guard ever sees it, so a corrective
+             * round there never contains a <think> block. Feeding the raw one back handed a
+             * reasoning model its own monologue and invited it to continue reasoning instead of
+             * acting — an unfaithful replay that made the recovery look worse than it is.
+             */
+            { role: "assistant", content: stripped },
             { role: "user", content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
           ]);
           if (corrected.call) ({ call, reply, finish, outTokens } = corrected);
