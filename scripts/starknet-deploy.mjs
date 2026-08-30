@@ -163,29 +163,26 @@ async function main() {
      * per felt predicts nothing. The estimate is the number to trust; the margin only covers
      * movement between estimating and landing.
      */
-    const FEE_MARGIN = 1.15; // enough for price movement between estimating and landing
+    /**
+     * REPORT THE COST; DO NOT REBUILD THE BOUNDS.
+     *
+     * Starknet requires the sender to cover the resource BOUND rather than the eventual charge, so
+     * a refusal reads as "insufficient balance" even when the balance covers the real cost. That is
+     * worth SAYING — estimate, bound and balance are printed below before anything is signed.
+     *
+     * It is not worth hand-building. A first attempt constructed the bounds object itself and threw
+     * "Cannot mix BigInt and other types" from inside starknet.js: the estimate's fields are not all
+     * the same type, and re-assembling them mixed representations. starknet.js already derives a
+     * sound bound from its own estimate, and passing that through untouched removes an entire class
+     * of my own arithmetic from the path that spends money.
+     */
     const est = await account.estimateDeclareFee({ contract: sierra, casm });
-    const strk = (v) => `${(Number(v) / 1e18).toFixed(2)} STRK`;
-    const bound = (v, mult) => (BigInt(v) * BigInt(Math.round(mult * 100))) / BigInt(100);
+    const strk = (v) => `${(Number(BigInt(v)) / 1e18).toFixed(2)} STRK`;
     const rb = est.resourceBounds;
-    const bounded = {
-      l1_gas: {
-        max_amount: "0x" + bound(rb.l1_gas.max_amount, FEE_MARGIN).toString(16),
-        max_price_per_unit: rb.l1_gas.max_price_per_unit,
-      },
-      l1_data_gas: {
-        max_amount: "0x" + bound(rb.l1_data_gas.max_amount, FEE_MARGIN).toString(16),
-        max_price_per_unit: rb.l1_data_gas.max_price_per_unit,
-      },
-      l2_gas: {
-        max_amount: "0x" + bound(rb.l2_gas.max_amount, FEE_MARGIN).toString(16),
-        max_price_per_unit: rb.l2_gas.max_price_per_unit,
-      },
-    };
     const ceiling =
-      BigInt(bounded.l2_gas.max_amount) * BigInt(rb.l2_gas.max_price_per_unit) +
-      BigInt(bounded.l1_data_gas.max_amount) * BigInt(rb.l1_data_gas.max_price_per_unit) +
-      BigInt(bounded.l1_gas.max_amount) * BigInt(rb.l1_gas.max_price_per_unit);
+      BigInt(rb.l2_gas.max_amount) * BigInt(rb.l2_gas.max_price_per_unit) +
+      BigInt(rb.l1_data_gas.max_amount) * BigInt(rb.l1_data_gas.max_price_per_unit) +
+      BigInt(rb.l1_gas.max_amount) * BigInt(rb.l1_gas.max_price_per_unit);
 
     let balance = null;
     try {
@@ -201,20 +198,18 @@ async function main() {
     }
 
     console.log(`estimated  ${strk(est.overall_fee)}`);
-    console.log(`bound      ${strk(ceiling)}  (${FEE_MARGIN}x — the chain requires you to cover THIS)`);
+    console.log(`bound      ${strk(ceiling)}  (the chain requires you to cover THIS, not the estimate)`);
     if (balance !== null) {
       console.log(`balance    ${strk(balance)}`);
       if (balance < ceiling) {
-        console.error(
-          `\nNot enough STRK to cover the bound. Add ${strk(ceiling - balance)} and run again.`,
-        );
-        console.error(`(The declare itself is estimated at ${strk(est.overall_fee)}; the rest is margin and comes back unspent.)`);
+        console.error(`\nNot enough STRK to cover the bound. Add ${strk(ceiling - balance)} and run again.`);
+        console.error(`(The declare is estimated at ${strk(est.overall_fee)}; the rest comes back unspent.)`);
         process.exit(1);
       }
     }
     console.log("");
     console.log("declaring…");
-    const res = await account.declareIfNot({ contract: sierra, casm }, { resourceBounds: bounded });
+    const res = await account.declareIfNot({ contract: sierra, casm });
     if (res.transaction_hash) {
       console.log(`  tx ${res.transaction_hash}`);
       await provider.waitForTransaction(res.transaction_hash);
