@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FELT_MASK, STARKNET_PRIME, feltOf, missionFelt, toFelt } from "./felt";
+import { FELT_MASK, STARKNET_PRIME, feltOf, isFelt, missionFelt, toFelt } from "./felt";
 
 /**
  * "FELT252" NAMES THE TYPE, NOT THE BOUND.
@@ -69,5 +69,43 @@ describe("the id derivations built on it", () => {
     const hash = `0x${"f".repeat(64)}`; // the largest 256-bit value there is
     expect(asBig(missionFelt(hash, "camp-1"))).toBeLessThan(PRIME);
     expect(asBig(missionFelt(null, "camp-1"))).toBeLessThan(PRIME);
+  });
+});
+
+describe("the guard can never reject what toFelt produces", () => {
+  /**
+   * `planVaultDeployment` now refuses a mission id that is not a felt. That guard is only safe if
+   * the reduction every caller uses ALWAYS produces one — otherwise it would start refusing real
+   * deploys instead of catching mistakes.
+   *
+   * It holds by construction: toFelt masks to 251 bits, and 2^251 - 1 < 2^251 < PRIME. Pinned
+   * anyway, because "obviously always true" is what the 252-bit mask looked like before it turned
+   * out to admit roughly twice PRIME.
+   */
+  it("holds for the mask's own ceiling", () => {
+    expect(isFelt(toFelt("0x" + "f".repeat(64)))).toBe(true);
+    expect(BigInt(toFelt("0x" + "f".repeat(64)))).toBeLessThan(STARKNET_PRIME);
+  });
+
+  it("holds across the whole 256-bit input range", () => {
+    const cases = [
+      "0x0", "0x1",
+      "0x" + "f".repeat(63),
+      "0x" + "8" + "0".repeat(63),
+      "0x39c8721bf3388ef78c49a7a69c2eaa0f74e51f6c21cafad763f1734a5c8a347d",
+      "0x" + "a5".repeat(32),
+      "0x" + "f".repeat(64),
+    ];
+    for (const c of cases) {
+      expect(isFelt(toFelt(c)), c).toBe(true);
+    }
+  });
+
+  it("still rejects a raw 256-bit hash that was NOT reduced", () => {
+    // The whole point: the value a caller who forgot toFelt would pass.
+    expect(isFelt("0x39c8721bf3388ef78c49a7a69c2eaa0f74e51f6c21cafad763f1734a5c8a347d")).toBe(false);
+    expect(isFelt("0x" + "f".repeat(64))).toBe(false);
+    expect(isFelt("not-hex")).toBe(false);
+    expect(isFelt(null)).toBe(false);
   });
 });
