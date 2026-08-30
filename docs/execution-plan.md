@@ -76,42 +76,52 @@ campaign's own page. Neither was a model failure.
 
 ---
 
-## Track B — Starknet private launch (day 1–2, then it runs itself)
+## Tracks B & C — the launch sequence (paired: every post opens a campaign)
 
-The differentiator. Nobody else in the hackathon has private payouts.
+Replanned 31 Aug on the user's call: **launch by launch, and every feature launch ships with live
+work on the board.** Gigs and milestone grants have never been announced on X at all, so each post
+does double duty — it announces the feature AND puts money people can go earn right now.
 
-- [ ] Launch a real Starknet campaign, public, open to strangers
-- [ ] A real person who is not us submits, is judged, is paid, and **claims privately**
-- [ ] Add the proof where judges look: README, `/explorer`, the FC data room
-- [ ] X post #1 — privacy rail shipped (draft below)
-- [ ] Screen recording of the real flow
+Two rules that shape the calendar:
 
-**Video call: screen recording, not animation.** The whole claim is *this actually happened* —
-an animated explainer looks like every other hackathon promo and quietly forfeits the proof.
-Capture the real thing: submit → judged → autopay → claim link → collected into a shielded note →
-the Voyager transaction. 20–40s, no music, large text callouts, on-chain links visible.
-Animation is only right for Track D's credit-file concept, which is architecture rather than an
-event. **Never let a real claim link into a recording — it is bearer cash.**
+- **The campaign goes live BEFORE its post.** When the post lands the marketplace must already have
+  work on it; an empty board on launch day is the worst possible first impression, and it is the
+  state the board is in today.
+- **Tue/Wed peak, never weekends** (GOAT CMO playbooks). Links go in the self-reply — in-body links
+  cost 30-50% reach.
 
----
+### Launch A — privacy rail + gigs · post Tue 1 Sep
+The differentiator, and it debuts gigs to the public with money on the table. One post carries both
+because they are one story: Sage pays for work, it now does it privately, here is $10.
 
-## Track C — Public paid campaign (day 2–3, then it runs itself)
+- [ ] **Today:** ship the `intent_hash` event fix, so the post can claim the strong version
+- [ ] **Today:** launch the campaign — $10, $1.00 × 10 slots, one reward per wallet, Starknet
+- [ ] **Tue:** post `docs/posts/2026-08-31-strk20-privacy.md`
+- [ ] Screen recording of the real claim (never a live claim link on camera — bearer cash)
 
-Same pattern that worked in the OpenClaw GOAT bootcamp: real money attracts real testers.
+### Launch B — milestone grants · post Wed/Thu 2-3 Sep
+**Gated on two things, and neither is optional.** Grants have run in production ZERO times, and
+P-DIRECT found the equal-split defect where a founder saying "half and half, $40 total" gets no
+campaign at all. Announcing a lane that is broken for the commonest phrasing would be worse than
+not announcing it.
 
-- [ ] "$10 up for grabs" campaign — gig or milestone, whichever demos better
-- [ ] Launch gigs + milestone grants publicly as a feature, with a reason to try and earn
-- [ ] Screen recording of a launch (founder's-eye view this time, not the worker's)
-- [ ] X post #2 — money on the table, with the video
+- [ ] Fix the equal-split routing defect (deterministic split from the founder's stated total)
+- [ ] Prove ONE milestone grant end to end — walletless recipient, invite → earn → verify → pay →
+      cash out → record. Needs a second Telegram account.
+- [ ] Then launch a grant campaign + post
 
-**Funding is handled** (user, 31 Aug): ~$20 of campaigns to attract users, another ~$10 if they go
-well, funded on whichever rail we launch on. Indicative split — Starknet privacy pot big enough for
-several real claims, the $10 public GOAT pot, ~$2 for the milestone-grant demo.
+### Launch C — the results post · Thu/Fri, once real accounts exist
+**This is the one to tag @ellibenson on, and only this one.** A founder amplifying "look at my
+product" is an ask; amplifying "N people just used Starknet privacy for real income" is a gift to
+the ecosystem and is his narrative rather than ours. Tagging on the launch spends the favour on
+nothing.
 
-Do NOT raise the per-campaign caps to absorb it: budget absorption runs 5-20% and that is
-downstream of tester supply, not of the cap.
+- [ ] Post the count + links to the accounts people wrote
+- [ ] Proof into README / `/explorer` / the FC data room
 
----
+**Funding** (user, 31 Aug): $10 now, ~$20 more if it goes well, on whichever rail we launch on.
+Do NOT raise the per-campaign caps to absorb it — absorption runs 5-20% and that is downstream of
+tester supply, not of the cap.
 
 ## Track D — Future Caribbean (the six days)
 
