@@ -25,6 +25,7 @@ const LINKS = [
   { href: "/marketplace", label: "Find work" },
   // The capital story had no door on this page at all: /lender and /record were built, live, and
   // reachable only by typing the URL. An unlisted surface is an unbuilt one.
+  { href: "#privacy", label: "Private payouts" },
   { href: "#capital", label: "For lenders" },
   // Docs sit in the nav rather than only the footer: they are the surface that answers
   // "is this real and how does it work" for a founder who is not ready to click Launch.

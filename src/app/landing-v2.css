@@ -1910,3 +1910,117 @@ body:has(.slv2) {
   border-radius: 999px;
   background: var(--line-strong, #d8d3c9);
 }
+
+/* ══ PRIVACY — paid without publishing what you earn ═══════════════════════════════════
+   The dark act, and the only other one besides the close. Deliberate: this section is about
+   what is NOT visible, and inverting the page is the argument made in ink. */
+.slv2 .prv {
+  background: var(--dark);
+  color: #f3f1ea;
+  padding: clamp(80px, 13vh, 156px) var(--pad-x);
+}
+.slv2 .prv-in {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.slv2 .prv-eyebrow {
+  color: #e8b49a;
+  margin-bottom: 1.15rem;
+}
+.slv2 .prv-eyebrow .dot {
+  background: #e8b49a;
+}
+.slv2 .prv-h {
+  font-family: var(--font-display);
+  font-weight: 450;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  margin: 0 0 1.15rem;
+  color: #fdfcf8;
+}
+.slv2 .prv-h .soft {
+  color: #9ca19b;
+}
+.slv2 .prv-lede {
+  font-size: clamp(1rem, 1.35vw, 1.1rem);
+  line-height: 1.66;
+  color: #c9c8c2;
+  max-width: 64ch;
+  margin: 0 0 clamp(2rem, 4vw, 2.8rem);
+}
+.slv2 .prv-tight {
+  margin-top: -0.6rem;
+  margin-bottom: clamp(1.8rem, 3.5vw, 2.4rem);
+}
+.slv2 .prv-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: clamp(1.1rem, 2.4vw, 2rem);
+  margin-bottom: clamp(1.8rem, 3.5vw, 2.6rem);
+}
+.slv2 .prv-step p {
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: #c9c8c2;
+  margin: 0.4rem 0 0;
+}
+.slv2 .prv-n {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  color: #7e837d;
+}
+.slv2 .prv-scope {
+  border: 1px solid #2c3138;
+  border-radius: 14px;
+  padding: clamp(1.15rem, 2.2vw, 1.6rem);
+  margin-bottom: clamp(1.6rem, 3vw, 2.2rem);
+}
+.slv2 .prv-scope-h {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7e837d;
+  margin-bottom: 0.75rem;
+}
+.slv2 .prv-scope ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.slv2 .prv-scope li {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #c9c8c2;
+}
+.slv2 .prv-scope li b {
+  color: #fdfcf8;
+  font-weight: 600;
+}
+.slv2 .prv-note {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: #8e938d;
+  margin: 0.85rem 0 0;
+}
+.slv2 .prv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+.slv2 .prv-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  color: #e8b49a;
+  text-decoration: none;
+}
+.slv2 .prv-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

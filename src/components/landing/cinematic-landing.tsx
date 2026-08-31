@@ -10,6 +10,7 @@ import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
 import { SceneProof } from "./scene-proof";
 import { SceneCapital } from "./scene-capital";
+import { ScenePrivacy } from "./scene-privacy";
 import { SceneClose } from "./scene-close";
 
 interface Props {
@@ -45,6 +46,10 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem }: Prop
         <SceneLoop />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
+
+        {/* The argument in order: the money moved and you can check it · it moved without exposing
+            the person · and what it leaves behind is underwritable. */}
+        <ScenePrivacy />
 
         {/* After the ledger, never before it: "a file you can lend against" is a claim nobody
             should accept until they have seen the receipts it is built from. */}

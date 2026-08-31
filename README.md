@@ -16,6 +16,45 @@
 
 ---
 
+## Starknet · STRK20 privacy
+
+**In Sage, the payer is not a person.** An AI agent reads someone's work, decides on its own
+whether it deserves money, releases it from a vault it cannot exceed, and escrows it behind a
+commitment so nobody can tie the earning to the earner.
+
+Private payment rails move money a human already decided to send. The decision here is the
+autonomous part, and privacy is what makes it safe for the person receiving it: an agent that pays
+you should not also publish what you earn. That pairing — an unattended disbursement decision and
+an unlinkable payout — is what this project is.
+
+It already happened, unattended, on Starknet mainnet:
+
+| step | transaction |
+| --- | --- |
+| agent judged the work and released the reward | [`0x2b03ed65…49fb`](https://voyager.online/tx/0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb) |
+| Sage escrowed it behind `poseidon(secret)` | [`0x68ebf197…8af4`](https://voyager.online/tx/0x68ebf197f6e236fdb5ba62076d9a62446bcb4e8ee44155c1dcfe3f78b8d8af4) |
+
+No human approved that payout. Confidence 0.92 against a 0.85 threshold, judged by a model that
+cannot state an amount — the vault derives it — and gated by rules the agent has no way around.
+
+**Built on Starknet, not merely calling it.**
+
+| | |
+| --- | --- |
+| `SageClaims` — our Cairo escrow, integrates the STRK20 pool directly | [`0x6fe4d0…1cf57`](https://voyager.online/contract/0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57) |
+| `SageVault` — Cairo settlement, the reward is not an argument it can pass | class `0x715ab98f…0ffa87` |
+| qualifying pool claims | 3 `privacy_invoke` collections into shielded notes, in [`strk20.json`](strk20.json) |
+
+No owner, no admin, no pause, no upgrade path. No dependency on another project's contracts.
+35 tests on `SageClaims`, and every one of its eleven money guards verified by mutation — each
+deleted in turn to confirm a test actually goes red.
+
+**And it says what it does not do.** The privacy scope is written out line by line
+[below](#getting-paid-without-first-becoming-a-crypto-user), including the one thing still public.
+A claim a judge can falsify with one explorer query is worth less than a narrower one that holds.
+
+---
+
 You built something. Nobody is using it. Your friends said it looks nice.
 
 Point Sage at a product URL with a budget. It opens the product in a real browser and **uses**
@@ -56,8 +95,9 @@ worker names where it lands at the moment they collect.
 - **No gas at collection time.** `claim_to_address` is ungated by design — the preimage is the
   authority, not the caller — so Sage relays the transaction for someone holding no token at all.
   Proven in tests against a recipient with nothing.
-- **No public link between the work and the wallet.** The chain shows a deposit and a collection
-  joined by a hash nobody can invert.
+- **The money never lands in the worker's wallet.** Inside `SageClaims` a deposit and a collection
+  are joined only by a hash nobody can invert, so the escrow leg names no one. Scoped precisely
+  below — the *approval* record on the settling vault is public, and we do not pretend otherwise.
 - **A whole campaign settles in one operation.** `deposit_many` pays up to 32 workers at once,
   each behind their own commitment.
 - **Two doors.** A recipient already registered with the STRK20 pool collects into a *shielded
@@ -66,11 +106,22 @@ worker names where it lands at the moment they collect.
   recipients are receiving their first crypto and cannot register with the pool at all, which is
   precisely why the public door exists.
 
-**What stays private, stated honestly.** Funding is public: the total and the timing are visible,
-and the public door names the recipient of that leg. What is hidden is **who was on the payout
-list and who collected** — which, for an agent that pays people, is the part that matters. It is
-also strictly better than the status quo, where every payout permanently ties a wallet to a
-campaign to an amount.
+**What stays private, stated exactly.** Anyone can verify each of these against the chain, which is
+why they are written this precisely rather than as "private payouts".
+
+| | |
+| --- | --- |
+| **Private** | Who is on a payout list, and who collected. A commitment names nobody, and the collection leg is keyed by `poseidon(secret)`. |
+| **Private** | Where the money ends up. It never lands in the worker's wallet — they name the destination at collection, and a pool-registered wallet can take it straight into a shielded note. |
+| **Public** | Funding: the total and the timing. |
+| **Public** | The settling vault's `PayoutReleased`, which carries the worker as an indexed key — so *this wallet was approved for this amount* is on chain, even though the money went elsewhere. |
+| **Public** | The address named at the public collection door, for that leg only. |
+
+So: **private destination and private holdings, public approval record.** Removing the last line
+means emitting an opaque `intent_hash` in place of the recipient — the replay guard keys on the
+worker in storage and does not need the event — which is a contract change we will make rather than
+a claim we will round up. Stating it is the point: for a payments layer, a claim a judge can
+falsify in one block explorer query is worth less than a narrower one that holds.
 
 **What is still public on purpose.** Every figure this project reports stays independently
 verifiable: amounts, payout counts, batch totals and the live unclaimed balance are all on-chain.
@@ -103,11 +154,11 @@ and each can be re-derived from the source named beside it.
 
 | | | |
 |---|---|---|
-| **$48.10** | settled autonomously in USDC | [payout ledger](docs/stage2/payout-ledger.md) |
-| **16** | different people paid | on-chain transfer log |
-| **20** | autonomous payouts | one receipt page per transaction |
-| **42** | tester reports judged | 22 paid, **20 refused**, none unresolved |
-| **68** | distinct products inspected | 733 inspection jobs |
+| **$52.60** | settled autonomously in USDC | [payout ledger](docs/stage2/payout-ledger.md) |
+| **23** | different people paid | on-chain transfer log |
+| **28** | autonomous payouts | one receipt page per transaction |
+| **51** | submissions decided | 28 paid, **23 refused**, none unresolved |
+| **67** | distinct products inspected | 828 inspection jobs |
 | **175s** | median submission → USDC in wallet | fastest: 15 seconds |
 
 One campaign filled and paid **ten strangers in forty-five minutes**, with no human approving any
