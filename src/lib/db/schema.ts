@@ -1041,3 +1041,72 @@ export const recordPreferences = sqliteTable("record_preferences", {
 });
 
 export type RecordPreference = typeof recordPreferences.$inferSelect;
+
+/**
+ * CAPITAL IN — an advance against witnessed inflow. The transformation layer.
+ *
+ * Everything above this table is money going OUT on the founder's own decision. An advance is a
+ * third party's capital (first lender: the Sage pot itself) moving against a record the same
+ * system verified into existence — and repaid by the waterfall: each subsequent verified payout
+ * escrows as TWO claim legs, the pot's repayment slice and the worker's remainder.
+ *
+ * The terms are the published arithmetic, stored so /record can show its work: capacity was
+ * `multiple × verified 90-day inflow ÷ 3` (advanceCapacityUsd), and each payout routes at most
+ * `waterfallBps/10000` of itself to repayment. Sage still scores nobody — a lender supplied the
+ * multiple, and every number here is checkable against the formulas.
+ *
+ * ONE ACTIVE ADVANCE PER BORROWER (partial unique index in 0049): stacking advances against the
+ * same inflow is how "cash-flow lending" becomes payday lending, and refusing that shape in the
+ * schema is cheaper than refusing it in every code path.
+ */
+export const advances = sqliteTable(
+  "advances",
+  {
+    id: text("id").primaryKey(),
+    /** founderStorageKey form — chain-agnostic, like every other ownership key. */
+    borrowerWallet: text("borrower_wallet").notNull(),
+    principalBase: integer("principal_base").notNull(),
+    /** the lender's multiple of monthly verified inflow — THEIR risk appetite, never Sage's score. */
+    multiple: real("multiple").notNull(),
+    /** at most this fraction of each verified payout routes to repayment. 10000 = all of it. */
+    waterfallBps: integer("waterfall_bps").notNull(),
+    /** where repayment legs belong — the pot's address, on the rail the borrower earns on. */
+    potAddress: text("pot_address").notNull(),
+    status: text("status").$type<"active" | "repaid" | "written_off">().notNull().default("active"),
+    outstandingBase: integer("outstanding_base").notNull(),
+    /** the disbursement is itself a claim link — the advance out is private-capable too. */
+    disburseTx: text("disburse_tx"),
+    disburseClaimCommitment: text("disburse_claim_commitment"),
+    disburseClaimSecret: text("disburse_claim_secret"),
+    createdAt: integer("created_at").notNull(),
+    repaidAt: integer("repaid_at"),
+  },
+  (t) => [index("adv_borrower_idx").on(t.borrowerWallet)],
+);
+
+export type AdvanceRow = typeof advances.$inferSelect;
+
+/** One row per payout that repaid part of an advance — the credit file's repayment history. */
+export const advanceRepayments = sqliteTable(
+  "advance_repayments",
+  {
+    id: text("id").primaryKey(),
+    advanceId: text("advance_id").notNull(),
+    /** the verified payout this slice came out of — the witnessed event, not a bank promise. */
+    submissionId: text("submission_id").notNull(),
+    amountBase: integer("amount_base").notNull(),
+    /** the pot's leg: commitment on chain, secret held by the operator to collect later. */
+    claimCommitment: text("claim_commitment").notNull(),
+    claimSecret: text("claim_secret").notNull(),
+    escrowTx: text("escrow_tx").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    index("advrep_advance_idx").on(t.advanceId),
+    // A payout splits ONCE. Two repayment rows from one submission would mean the waterfall ran
+    // twice against the same money.
+    uniqueIndex("advrep_submission_unq").on(t.submissionId),
+  ],
+);
+
+export type AdvanceRepaymentRow = typeof advanceRepayments.$inferSelect;
