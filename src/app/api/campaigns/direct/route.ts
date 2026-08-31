@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
+import { quoteFor } from "@/lib/money/rates";
 import { getFounderAddress } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
@@ -38,7 +39,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const result = createDirectCampaign(parsed.data, session);
+  // Same edge rule as the MCP door: fetch the stamped rate here, refuse rather than guess.
+  let quote = null as Awaited<ReturnType<typeof quoteFor>>;
+  const code = parsed.data.currency?.trim().toUpperCase();
+  if (code && code !== "USD") {
+    quote = await quoteFor(code);
+    const pricedLocally =
+      parsed.data.splitTotalLocal !== undefined ||
+      parsed.data.milestones.some((m) => m.rewardLocal !== undefined);
+    if (!quote && pricedLocally) {
+      return NextResponse.json(
+        { error: `No exchange rate for ${code} is available right now — state the amount in USD, or try again shortly.` },
+        { status: 503 },
+      );
+    }
+  }
+  const result = createDirectCampaign(parsed.data, session, quote);
   if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
 
   return NextResponse.json({

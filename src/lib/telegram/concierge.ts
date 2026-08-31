@@ -285,7 +285,12 @@ export const DIRECT_CAMPAIGN_TOOL = {
       splitTotalUsd: {
         type: "number",
         description:
-          "The founder's TOTAL when they priced the whole thing rather than each tranche (\"half and half, $40 total\", \"$90 in three equal parts\"). Pass their total verbatim, OMIT rewardUsd on every milestone, and Sage divides it exactly — you compute nothing. Only when every milestone has slots:1. Never combine with rewardUsd.",
+          "The founder's TOTAL IN USD when they priced the whole thing rather than each tranche (\"half and half, $40 total\", \"$90 in three equal parts\"). Pass their total verbatim, OMIT rewardUsd on every milestone, and Sage divides it exactly — you compute nothing. Only when every milestone has slots:1. Never combine with rewardUsd.",
+      },
+      splitTotalLocal: {
+        type: "number",
+        description:
+          "The founder's whole-grant total IN THEIR OWN CURRENCY (\"J$10,000 in two equal parts\" → splitTotalLocal: 10000, currency: \"JMD\"). Their number verbatim — never convert it yourself; Sage converts at a stamped rate, then divides. Requires `currency`. Never combine with splitTotalUsd or rewardUsd.",
       },
       recipients: {
         type: "array",

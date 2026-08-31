@@ -7,6 +7,7 @@ import { listLaunchablePlans } from "@/lib/campaigns/launchable";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
 import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
+import { quoteFor } from "@/lib/money/rates";
 import { createRecipientInvite } from "@/lib/db/recipient-wallets";
 import { getCampaign as getCampaignRow } from "@/lib/db/campaigns";
 import { capFirstLook, capCheckEvidence, capGoalCheckpoints } from "@/lib/agent-api/capabilities";
@@ -432,8 +433,24 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
    * The model's own campaign-level vocabulary is accepted here for the same reason the block above
    * accepts it: measured, that is where it puts a stated total.
    */
+  /**
+   * "PASS THEIR TOTAL VERBATIM" means the LOCAL number when a currency is named. The model did
+   * exactly that for "J$10,000 in two equal parts" — splitTotalUsd: 10000, currency: JMD — and the
+   * USD cap refused it as > $5000. When a non-USD currency rides the call and no splitTotalLocal
+   * was given, the stated total belongs on the local field; Sage converts at the stamped rate.
+   */
+  const currencyCode = typeof args.currency === "string" ? args.currency.trim().toUpperCase() : "";
+  const statedLocalTotal = num(pickNum(args, "splitTotalLocal", "totalLocal", "totalBudgetLocal"));
+  const splitTotalLocal =
+    Number.isFinite(statedLocalTotal) && statedLocalTotal > 0
+      ? statedLocalTotal
+      : currencyCode && currencyCode !== "USD" && Number.isFinite(num(pickNum(args, "splitTotalUsd")))
+        ? num(pickNum(args, "splitTotalUsd"))
+        : NaN;
   const splitTotalUsd =
-    milestones.length > 1 &&
+    Number.isFinite(splitTotalLocal)
+      ? NaN // the total is local; never let the same number ride both fields
+      : milestones.length > 1 &&
     Number.isFinite(statedTotal) &&
     statedTotal > 0 &&
     milestones.every((m) => !("rewardUsd" in m))
@@ -443,6 +460,7 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
     ...(Number.isFinite(splitTotalUsd) && splitTotalUsd > 0 ? { splitTotalUsd } : {}),
+    ...(Number.isFinite(splitTotalLocal) && splitTotalLocal > 0 ? { splitTotalLocal } : {}),
     // A model often omits `kind` entirely. Infer it the way a reader would: several tranches of
     // one funded outcome is a grant; a single deliverable (or several slots of one) is a gig.
     kind:
@@ -672,7 +690,34 @@ export async function callSageTool(
           isError: false,
         };
       }
-      const created = createDirectCampaign(parsed.data, wallet);
+      /**
+       * The stamped rate, fetched HERE at the edge — the core stays pure. A local-priced campaign
+       * with no reachable rate is refused in words rather than priced on a guess: inventing an
+       * exchange rate is exactly the arithmetic nobody in this system is allowed to do.
+       */
+      let quote = null as Awaited<ReturnType<typeof quoteFor>>;
+      const code = parsed.data.currency?.trim().toUpperCase();
+      if (code && code !== "USD") {
+        quote = await quoteFor(code);
+        const pricedLocally =
+          parsed.data.splitTotalLocal !== undefined ||
+          parsed.data.milestones.some((m) => m.rewardLocal !== undefined);
+        if (!quote && pricedLocally) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  ok: false,
+                  error: `No exchange rate for ${code} is available right now, so amounts stated in ${code} cannot be priced. Ask the founder for the USD amount, or try again shortly.`,
+                }),
+              },
+            ],
+            isError: false,
+          };
+        }
+      }
+      const created = createDirectCampaign(parsed.data, wallet, quote);
       if (!created.ok) {
         return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: created.error }) }], isError: false };
       }

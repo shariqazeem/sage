@@ -5,7 +5,7 @@ import { keccak256, stringToHex, type Hex } from "viem";
 import { nanoid } from "nanoid";
 
 import { CHAINS } from "@/lib/deputy/networks";
-import { toUsdBase, type RateQuote } from "@/lib/money/currency";
+import { formatLocal, toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
@@ -197,9 +197,26 @@ export const directCampaignSchema = z.object({
    * in exact base units. Same bargain as `rewardLocal` — the model reports, Sage does the arithmetic.
    */
   splitTotalUsd: z.number().positive().max(DIRECT_LIMITS.totalUsdMax).optional(),
+  /**
+   * The same stated total, IN THE FOUNDER'S CURRENCY. "J$10,000 in two equal parts" is a whole-
+   * grant price exactly like "$40 total" — and capping the verbatim number against the USD limit
+   * locked those founders out (measured: pd-grant-currency-tranches, splitTotalUsd 10000 refused
+   * as > 5000). The model passes what it heard; Sage converts at the stamped rate, THEN divides.
+   * Same bargain as `rewardLocal`, same reason it exists.
+   */
+  splitTotalLocal: z.number().positive().max(10_000_000).optional(),
 }).superRefine((c, ctx) => {
   const priced = c.milestones.filter((m) => m.rewardUsd !== undefined).length;
   const all = c.milestones.length;
+  if (c.splitTotalUsd !== undefined && c.splitTotalLocal !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "one stated total, in one currency — splitTotalUsd or splitTotalLocal, never both" });
+    return;
+  }
+  if (c.splitTotalLocal !== undefined && (!c.currency || c.currency.toUpperCase() === "USD")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "splitTotalLocal needs `currency` — a local amount with no currency is not a price" });
+    return;
+  }
+  const splitTotal = c.splitTotalUsd ?? c.splitTotalLocal;
   // MIXED IS REFUSED, not guessed. Half-priced milestones plus a total has two readings — is the
   // total the whole grant or only the unpriced part? — and picking one silently mis-sizes someone's
   // money. A founder who priced some tranches can price the rest.
@@ -208,11 +225,11 @@ export const directCampaignSchema = z.object({
     return;
   }
   if (priced === all) {
-    if (c.splitTotalUsd !== undefined)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "splitTotalUsd cannot accompany per-milestone amounts" });
+    if (splitTotal !== undefined)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "a stated total cannot accompany per-milestone amounts" });
     return;
   }
-  if (c.splitTotalUsd === undefined) {
+  if (splitTotal === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "each milestone needs rewardUsd, or the campaign needs splitTotalUsd" });
     return;
   }
@@ -427,13 +444,33 @@ export function splitTotalBase(totalBase: bigint, milestones: number): bigint[] 
  * Anything comparing against `totalBudgetBase` must use this. Dollars are for display and for the
  * gates that are themselves written in dollars.
  */
+/**
+ * The stated whole-grant total in BASE UNITS, converted when the founder priced locally.
+ *
+ * `null` when the campaign is per-milestone priced. THROWS when a local total has no usable rate —
+ * pricing someone's grant on a missing quote would be inventing an exchange rate, which is the
+ * arithmetic the model is forbidden and Sage refuses to guess.
+ */
+export function splitTotalBaseOf(
+  input: Pick<DirectCampaignInput, "splitTotalUsd" | "splitTotalLocal" | "currency">,
+  quote: RateQuote | null,
+): bigint | null {
+  if (input.splitTotalUsd !== undefined) return usdToBase(input.splitTotalUsd);
+  if (input.splitTotalLocal === undefined) return null;
+  if (!quote || quote.currency.toUpperCase() !== (input.currency ?? "").toUpperCase()) {
+    throw new Error(
+      `no rate for ${input.currency ?? "?"} — cannot price ${input.splitTotalLocal} ${input.currency ?? ""} without one`,
+    );
+  }
+  return toUsdBase(input.splitTotalLocal, quote);
+}
+
 export function effectiveMilestoneBase(
   input: DirectCampaignInput,
   quote: RateQuote | null = null,
 ): bigint[] {
-  if (input.splitTotalUsd !== undefined) {
-    return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length);
-  }
+  const total = splitTotalBaseOf(input, quote);
+  if (total !== null) return splitTotalBase(total, input.milestones.length);
   return input.milestones.map((m) => usdToBase(resolveMilestoneUsd(m, quote)));
 }
 
@@ -441,10 +478,9 @@ export function effectiveMilestoneUsd(
   input: DirectCampaignInput,
   quote: RateQuote | null = null,
 ): number[] {
-  if (input.splitTotalUsd !== undefined) {
-    return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length).map(
-      (b) => Number(b) / 1_000_000,
-    );
+  const total = splitTotalBaseOf(input, quote);
+  if (total !== null) {
+    return splitTotalBase(total, input.milestones.length).map((b) => Number(b) / 1_000_000);
   }
   // THROUGH THE COMPILER'S OWN RESOLVER, not `m.rewardUsd` directly.
   //
@@ -511,14 +547,21 @@ export function compileDirectCampaign(
     (mixed pricing, a total alongside per-milestone amounts, multi-slot milestones), so reaching
     here means every milestone is unpriced and the total is the only amount anyone stated.
   */
-  const splitShares =
-    input.splitTotalUsd !== undefined
-      ? splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length)
-      : null;
+  let stated: bigint | null;
+  try {
+    stated = splitTotalBaseOf(input, quote);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  const splitShares = stated !== null ? splitTotalBase(stated, input.milestones.length) : null;
   if (splitShares && splitShares.some((b) => b < usdToBase(DIRECT_LIMITS.rewardUsdMin))) {
+    const said =
+      input.splitTotalLocal !== undefined && input.currency
+        ? formatLocal(input.splitTotalLocal, input.currency)
+        : `$${input.splitTotalUsd}`;
     return {
       ok: false,
-      error: `$${input.splitTotalUsd} split across ${input.milestones.length} milestones is under the $${DIRECT_LIMITS.rewardUsdMin} floor each — fund more, or use fewer milestones.`,
+      error: `${said} split across ${input.milestones.length} milestones is under the $${DIRECT_LIMITS.rewardUsdMin} floor each — fund more, or use fewer milestones.`,
     };
   }
 
@@ -583,9 +626,14 @@ export type CreateDirectResult =
  * the author (the operator wrote every word), recorded through the same verify-then-approve path the
  * human approval button uses — trust nothing stored, recompute every hash.
  */
-export function createDirectCampaign(input: DirectCampaignInput, founderWallet: string): CreateDirectResult {
+export function createDirectCampaign(
+  input: DirectCampaignInput,
+  founderWallet: string,
+  /** the stamped rate when the founder priced locally — fetched by the caller, never in the core. */
+  quote: RateQuote | null = null,
+): CreateDirectResult {
   const publicCampaignId = `${input.kind}-${nanoid(10)}`;
-  const compiled = compileDirectCampaign(input, publicCampaignId);
+  const compiled = compileDirectCampaign(input, publicCampaignId, quote);
   if (!compiled.ok) return { ok: false, error: compiled.error };
   const { plan, allocation, totalBudgetBase } = compiled;
 

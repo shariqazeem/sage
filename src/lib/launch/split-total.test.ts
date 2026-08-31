@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDirectCampaign, directCampaignSchema, effectiveMilestoneBase, effectiveMilestoneUsd, splitTotalBase } from "./direct-campaign";
+import { toUsdBase } from "@/lib/money/currency";
 
 const base = (usd: number) => BigInt(Math.round(usd * 1_000_000));
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, BigInt(0));
@@ -215,5 +216,80 @@ describe("the invariant CHECK must be exact, not just the split (P-DIRECT, 2026-
     const viaBase = effectiveMilestoneBase(input).reduce((a, b) => a + b, BigInt(0));
     expect(viaBase).toBe(BigInt(100_000_000));
     expect(viaCents).not.toBe(viaBase); // the exact defect, pinned so nobody "simplifies" it back
+  });
+});
+
+describe("a founder who prices the whole grant in THEIR currency (pd-grant-currency-tranches)", () => {
+  const JMD: import("@/lib/money/currency").RateQuote = {
+    base: "USD", currency: "JMD", rate: 155, source: "test", asOf: 1_900_000_000,
+  };
+  const localGrant = (over: Record<string, unknown> = {}) =>
+    directCampaignSchema.safeParse({ ...grant({ currency: "JMD", splitTotalLocal: 10_000 }), ...over });
+
+  it("J$10,000 in two equal parts now COMPILES — and the halves sum to the converted total exactly", () => {
+    const parsed = localGrant();
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    const r = compileDirectCampaign(parsed.data!, "g", JMD);
+    expect("plan" in r, "error" in r ? String((r as { error: string }).error) : "").toBe(true);
+    if (!("plan" in r)) return;
+    const total = r.plan.missions.reduce((a, m) => a + BigInt(m.rewardBase) * BigInt(m.maxCompletions), BigInt(0));
+    // toUsdBase floors: 10000/155 = $64.516129... → 64516129 base units, split 64516065+64516064... no —
+    // the identity under test is the INVARIANT, not the constant: parts === converted whole.
+    expect(total).toBe(toUsdBase(10_000, JMD));
+  });
+
+  it("refuses to price a local total with NO rate — a guessed exchange rate is model math by proxy", () => {
+    const parsed = localGrant();
+    const r = compileDirectCampaign(parsed.data!, "g", null);
+    expect("plan" in r).toBe(false);
+    if (!("error" in r)) return;
+    expect(r.error).toMatch(/no rate for JMD/i);
+  });
+
+  it("refuses one total in two currencies", () => {
+    expect(localGrant({ splitTotalUsd: 64 }).success).toBe(false);
+  });
+
+  it("refuses a local total with no currency named", () => {
+    const p = directCampaignSchema.safeParse(grant({ splitTotalLocal: 10_000 }));
+    expect(p.success).toBe(false);
+  });
+
+  it("the floor speaks the founder's units", () => {
+    // J$100 across 2 tranches ≈ $0.32 each — under the $0.50 floor; the refusal must say J$.
+    const parsed = localGrant({ splitTotalLocal: 100 });
+    expect(parsed.success).toBe(true);
+    const r = compileDirectCampaign(parsed.data!, "g", JMD);
+    expect("plan" in r).toBe(false);
+    if (!("error" in r)) return;
+    expect(r.error).toContain("J$");
+  });
+});
+
+describe("the mapper reads a currency campaign's total as LOCAL (the model's verbatim number)", () => {
+  it("moves splitTotalUsd onto splitTotalLocal when a non-USD currency rides the call", async () => {
+    const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
+    const mapped = mapDirectCampaignArgs({
+      kind: "grant", title: "Two tranches", currency: "JMD", splitTotalUsd: 10_000,
+      milestones: [
+        { title: "Catalogue", instructions: "publish the catalogue page", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
+        { title: "Review", instructions: "post the first review", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
+      ],
+    }) as { splitTotalUsd?: number; splitTotalLocal?: number };
+    expect(mapped.splitTotalLocal).toBe(10_000);
+    expect(mapped.splitTotalUsd).toBeUndefined();
+  });
+
+  it("leaves a genuine USD total alone", async () => {
+    const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
+    const mapped = mapDirectCampaignArgs({
+      kind: "grant", title: "Two tranches", splitTotalUsd: 40,
+      milestones: [
+        { title: "Catalogue", instructions: "publish the catalogue page", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
+        { title: "Review", instructions: "post the first review", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
+      ],
+    }) as { splitTotalUsd?: number; splitTotalLocal?: number };
+    expect(mapped.splitTotalUsd).toBe(40);
+    expect(mapped.splitTotalLocal).toBeUndefined();
   });
 });
