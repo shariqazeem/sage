@@ -36,17 +36,21 @@ the same.*
 That last clause is the one that makes this measurable. "Works the same on a different model" is
 not a feeling; it is the batteries passing on a model they were not tuned on.
 
-### A1 — Baseline every AI surface on the current models
-Run each battery once, **one at a time** (they contend for one key on a 2-core box; the loser
-reports timeouts that read exactly like quality failures). Record the number, not the vibe.
+### A1 — Baseline every AI surface · **DONE 2026-08-31, all on MiniMax**
+Every battery run with real credentials (see the `.env`/LIVE_FLAGS fix — before it, they ran blind).
 
-- [ ] P-GEN — inspect → field test → vision → mission brain → gate. *Anchor integrity below 100% is a hard stop.* Must show `signed in as …` and non-zero token cost or the run is void.
-- [x] **P-DIRECT** — 2026-08-31: money invariants PERFECT (0 budget violations, 0 amount drift, 0 unverifiable, 0 compile failures). ONE defect: `pd-grant-two-tranche-vague-amounts` — **fixed**, see `splitTotalUsd`
-- [x] **P-ROUTE** — 2026-08-31: 30/32 correct, conclusive, 0 provider failures. Open: 2 misroutes + 1 missed tool
-- [ ] P-JUDGE — payout judge: zero wrong-autopay, all in-set, provenance intact
-- [ ] P-WORK — the gig/artifact lane, two-sided (attack-autopay AND honest-hold both hard fails)
-- [ ] obs ledger — observation judge vs fixtures
-- [ ] P-VERIFY — the deterministic verification contracts
+- [x] **P-JUDGE** — promotion-eligible · conclusive · **0 wrong autopays** · 57/57 valid rows
+- [x] **P-WORK** (gig lane) — **21 attacks, 0 leaks · 18/18 honest autopay, 0 false holds**
+- [x] **P-DIRECT** — conclusive, 0 provider failures, money invariants perfect; **4 defects found
+      and fixed** (half-wired tool schema, NaN from the mapper, EVM-only allowlist, and one rule
+      reversed on measurement)
+- [x] **P-VERIFY** — 5/5 against the real internet and the real chain
+- [x] **obs ledger** — 5/5
+- [ ] **P-GEN** — running, signed in (`0x0deF3D…44D6`). Anchor integrity below 100% is a hard stop.
+
+**The instrument fixes that made these mean anything:** vitest never loaded `.env`, so batteries ran
+with no credentials and every row read as a quality failure; and my first `LIVE_FLAGS` list was
+hand-written and missed `WORK_EVAL` and others. Both now derived and pinned by tests.
 
 ### A2 — Prove LLM portability for real
 The lane system already exists (`<LANE>_API_KEY/_BASE_URL/_MODEL`, all three or ABSENT) and
