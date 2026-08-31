@@ -9,6 +9,7 @@ import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 
 import { PrivacyToggle } from "./privacy-toggle";
 import { buildWalletRecord } from "@/lib/campaigns/record";
+import { publicAdvances } from "@/lib/advance/public";
 import { money, short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 
@@ -56,6 +57,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   // Public unless this worker chose otherwise. Receipts are the point of the record for grants and
   // MSME capital; privacy is the worker's option, never a default imposed on the people it serves.
   const amountsPrivate = isRecordPrivate(record.wallet);
+  // Through the one redaction boundary — never the raw ledger, which carries bearer secrets.
+  const advs = publicAdvances(record.wallet, { amountsWithheld: amountsPrivate });
 
   return (
     <div className="spp">
@@ -191,6 +194,66 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               Published deterministic formulas over the receipt-anchored entries below — inputs a
               lender can underwrite on, never a score. Sage computes no creditworthiness verdict.
             </p>
+          </section>
+        )}
+
+        {/* THE ADVANCE FACILITY (capital in). Rendered only when a facility has actually run for
+            this wallet — an empty promise box would be marketing, and this page is receipts.
+            Repayment history leads because it is the one credit signal collateral-based lending
+            never produces: capital moved against this record, and the record paid it back. */}
+        {advs.length > 0 && (
+          <section className="rec-adv spp-reveal" aria-label="Advance facility">
+            <div className="rec-sig-head">
+              <span className="rec-sig-title">Advance facility</span>
+              <span className="rec-sig-v">waterfall on witnessed inflow</span>
+            </div>
+            <ul className="rec-adv-list">
+              {advs.map((a) => (
+                <li key={a.id} className="rec-adv-item">
+                  <div className="rec-adv-line">
+                    <span className={`rec-adv-status rec-adv-${a.status}`}>
+                      {a.status === "active" ? "Active" : a.status === "repaid" ? "Repaid" : "Written off"}
+                    </span>
+                    <span className="rec-adv-main">
+                      {a.principalUsd === null ? "Advance" : `$${a.principalUsd.toFixed(2)} advance`}
+                      {" · "}
+                      {a.status === "active" && a.outstandingUsd !== null
+                        ? `$${a.outstandingUsd.toFixed(2)} outstanding`
+                        : a.status === "repaid"
+                          ? `repaid from ${a.repayments.length} verified payout${a.repayments.length === 1 ? "" : "s"}`
+                          : "—"}
+                    </span>
+                    <span className="rec-adv-when">{dateOf(a.createdAtUnix)}</span>
+                  </div>
+                  <div className="rec-adv-terms">
+                    Terms, published: capacity was {a.terms.multipleOfMonthlyInflow}× monthly
+                    verified inflow (90d window ÷ 3); at most {a.terms.waterfallPct}% of each
+                    subsequent verified payout routes to repayment. Recourse is the Sage-routed
+                    remainder — nothing else.
+                  </div>
+                  {a.repayments.length > 0 && (
+                    <ul className="rec-adv-reps">
+                      {a.repayments.map((r) => (
+                        <li key={r.escrowTx + r.submissionId}>
+                          <span>{dateOf(r.atUnix)}</span>
+                          <span>
+                            {r.amountUsd === null ? "repayment" : `−$${r.amountUsd.toFixed(2)}`} routed
+                            from a verified payout
+                          </span>
+                          {r.escrowTxUrl ? (
+                            <a href={r.escrowTxUrl} target="_blank" rel="noreferrer noopener">
+                              escrow tx →
+                            </a>
+                          ) : (
+                            <span className="rec-adv-tx">{short(r.escrowTx)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 

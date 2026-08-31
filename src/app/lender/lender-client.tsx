@@ -51,6 +51,16 @@ interface Entry {
   proofUrl: string;
 }
 
+interface AdvanceOut {
+  id: string;
+  status: "active" | "repaid" | "written_off";
+  createdAtUnix: number;
+  principalUsd: number | null;
+  outstandingUsd: number | null;
+  terms: { multipleOfMonthlyInflow: number; waterfallPct: number };
+  repayments: Array<{ atUnix: number; amountUsd: number | null; escrowTxUrl: string | null }>;
+}
+
 interface RecordResponse {
   ok: boolean;
   error?: string;
@@ -59,6 +69,7 @@ interface RecordResponse {
   amountsWithheld: boolean;
   entries: Entry[];
   signals: Signals;
+  advances?: AdvanceOut[];
 }
 
 const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
@@ -233,6 +244,60 @@ export function LenderClient() {
                     </p>
                   </>
                 )}
+              </section>
+
+              {/* THE FACILITY — what actually happened when capital moved against a record like
+                  this. Repayment history is the answer to the lender's real question, and it is
+                  the one signal collateral files never contain. When the wallet has none, the
+                  panel states the pipe honestly instead of pretending: the facility is live, the
+                  LP today is Sage's own pot, and the call shown is the exact one a credit union
+                  would make. */}
+              <section className="lend-adv" aria-label="Advance facility">
+                <div className="lend-rows-h">
+                  <span>Advance facility</span>
+                  <span className="lend-adv-tag">waterfall on witnessed inflow</span>
+                </div>
+                {(data.advances ?? []).length > 0 ? (
+                  <ul className="lend-adv-list">
+                    {(data.advances ?? []).map((a) => (
+                      <li key={a.id}>
+                        <span className={`lend-adv-status is-${a.status}`}>
+                          {a.status === "repaid" ? "Repaid" : a.status === "active" ? "Active" : "Written off"}
+                        </span>
+                        <span className="lend-adv-what">
+                          {a.principalUsd === null ? "Advance" : usd(a.principalUsd)}
+                          {a.status === "repaid"
+                            ? ` — repaid from ${a.repayments.length} verified payout${a.repayments.length === 1 ? "" : "s"}, ≤${a.terms.waterfallPct}% of each`
+                            : a.outstandingUsd !== null
+                              ? ` — ${usd(a.outstandingUsd)} outstanding, ≤${a.terms.waterfallPct}% of each payout routes to repayment`
+                              : ""}
+                        </span>
+                        {a.repayments[0]?.escrowTxUrl ? (
+                          <a href={a.repayments[0].escrowTxUrl} target="_blank" rel="noreferrer noopener">
+                            escrow tx <ArrowRight size={12} aria-hidden />
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="lend-adv-none">
+                    No advance has run against this record yet. The facility is live — today&rsquo;s
+                    LP is Sage&rsquo;s own pot, and repayment routes from each subsequent verified
+                    payout (the waterfall), with recourse on the Sage-routed remainder only.
+                  </p>
+                )}
+                <div className="lend-adv-pipe">
+                  <span>The pipe is open — this is the exact call an institution&rsquo;s system would make:</span>
+                  <code>
+                    POST /api/admin/advance {"{"}&quot;action&quot;:&quot;disburse&quot;,&quot;wallet&quot;:&quot;{data.wallet.slice(0, 10)}…&quot;,&quot;usd&quot;:{capacity === null ? "0" : Math.max(0.5, Math.floor(capacity * 100) / 100).toFixed(2)},&quot;multiple&quot;:{Number.isFinite(m) ? m : 1}{"}"}
+                  </code>
+                  <span className="lend-adv-note">
+                    Operator-gated today (the LP is us); the server refuses any amount past the
+                    published capacity formula — the lender is bound by the same arithmetic shown
+                    above.
+                  </span>
+                </div>
               </section>
 
               <section className="lend-rows" aria-label="Verified payouts">

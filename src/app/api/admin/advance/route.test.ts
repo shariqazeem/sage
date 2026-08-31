@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const escrowPayouts = vi.fn(async () => ({ transactionHash: "0xd15b", totalBase: BigInt(0), count: 1 }));
 const walletCreditSignals = vi.fn();
-const advanceCapacityUsd = vi.fn(() => 1.0);
+const advanceCapacityUsd = vi.fn((..._a: unknown[]) => 1.0);
 
 vi.mock("@/lib/starknet/claims", () => ({ escrowPayouts: (...a: unknown[]) => escrowPayouts(...(a as [])) }));
 vi.mock("@/lib/starknet/config", () => ({

@@ -4,6 +4,7 @@ import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 import { publicRecord, publicSignals } from "@/lib/campaigns/record-privacy";
 import { siteUrl } from "@/lib/site";
+import { publicAdvances } from "@/lib/advance/public";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,10 +40,18 @@ export async function GET(
 
   const base = {
     ok: true as const,
-    schema: "sage.work-record.v3",
+    schema: "sage.work-record.v4",
     generatedAt: Math.floor(Date.now() / 1000),
     recordUrl: `${siteUrl()}/record/${record.wallet}`,
   };
+
+  /**
+   * v4 adds `advances` — the facility history through its one redaction boundary (publicAdvances):
+   * secrets never leave, and under a privacy choice the FIGURES withhold while the FACT remains,
+   * because "an advance existed and repaid from verified inflow" is the credit signal
+   * collateral-based lending never produces, and it survives redaction.
+   */
+  const advancesOut = publicAdvances(record.wallet, { amountsWithheld: withheld });
 
   if (!withheld) {
     return NextResponse.json({
@@ -51,6 +60,7 @@ export async function GET(
       amountsWithheld: false,
       entries: record.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
       signals,
+      advances: advancesOut,
     });
   }
 
@@ -60,6 +70,7 @@ export async function GET(
     ...pub,
     entries: pub.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
     signals: publicSignals(signals, record),
+    advances: advancesOut,
     disclosure: {
       note: "This worker has chosen not to publish payout amounts. Every entry is anchored to a transaction anyone can verify, so the payments remain provable without the income being public.",
       howToObtainAmounts: `${siteUrl()}/record/${pub.wallet}#disclosure`,

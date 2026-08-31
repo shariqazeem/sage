@@ -132,3 +132,35 @@
 }
 .rec-export a:hover { text-decoration: underline; }
 .rec-export span { font-size: 0.8125rem; line-height: 1.55; color: var(--ink-faint); }
+
+/* ── the advance facility — capital that moved against this record ─────────────────────
+   Same register as Sage Signals: facts and receipts, no verdicts. Status colours follow the
+   money-semantics rule — green strictly for repaid (money outcome), never as decoration. */
+.rec-adv {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin: 1.1rem 0 0;
+}
+.rec-adv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.9rem; }
+.rec-adv-line { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.rec-adv-status {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+}
+.rec-adv-repaid { color: #15803d; border-color: #b5d7c0; }
+.rec-adv-active { color: var(--accent); border-color: var(--accent-border); }
+.rec-adv-main { font-weight: 550; }
+.rec-adv-when { margin-left: auto; color: var(--ink-faint); font-size: 0.8125rem; }
+.rec-adv-terms { font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.55; margin-top: 0.35rem; }
+.rec-adv-reps { list-style: none; margin: 0.5rem 0 0; padding: 0.5rem 0 0; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 0.3rem; }
+.rec-adv-reps li { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.8125rem; }
+.rec-adv-reps li span:first-child { color: var(--ink-faint); font-family: var(--font-mono); }
+.rec-adv-reps a { margin-left: auto; color: var(--accent); text-decoration: none; }
+.rec-adv-reps a:hover { text-decoration: underline; }
+.rec-adv-tx { margin-left: auto; font-family: var(--font-mono); color: var(--ink-faint); }
