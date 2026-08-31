@@ -85,9 +85,8 @@ export default function Privacy() {
           <tr>
             <td><strong>Public</strong></td>
             <td>
-              The vault&apos;s <code>PayoutReleased</code>, which carries the worker as an indexed
-              key. <em>This wallet was approved for this amount</em> is on chain, even though the
-              money went elsewhere.
+              The vault&apos;s spending — every amount, mission and decision digest. Auditable, and
+              no longer attributable to a person.
             </td>
           </tr>
           <tr>
@@ -96,11 +95,27 @@ export default function Privacy() {
           </tr>
         </tbody>
       </table>
+      <h2>The approval record used to name you</h2>
       <p>
-        So: <strong>private destination and private holdings, public approval record.</strong>{" "}
-        Closing that last line means emitting an opaque intent hash in place of the recipient — the
-        replay guard keys on the worker in storage and does not need the event — which is a contract
-        change rather than a claim we round up.
+        <code>PayoutReleased</code> carried the worker as an <em>indexed</em> key, so filtering by a
+        wallet and totalling everything Sage ever paid it was one block-explorer query. A private
+        destination with a public approval record is not a private payout. It now emits an opaque
+        intent hash instead; replay protection is untouched, because it keys on the worker in
+        storage and never needed the event.
+      </p>
+      <p>
+        Writing the test for that found a second one. <code>PayoutRefused</code> named the recipient
+        too — a public, searchable record of someone being <em>turned down</em>, which on a privacy
+        rail is the last thing that should be attributable. Both events now identify the attempt
+        rather than the person, and the refused party can still find their own refusal because the
+        intent hash derives from their campaign and submission.
+      </p>
+      <p>
+        <em>
+          Written and tested; not yet the deployed class. The live campaign proving this rail runs
+          on the existing one, and swapping classes underneath it before that is proven would risk
+          the thing it demonstrates.
+        </em>
       </p>
 
       <h2>What stays public on purpose</h2>

@@ -114,14 +114,20 @@ why they are written this precisely rather than as "private payouts".
 | **Private** | Who is on a payout list, and who collected. A commitment names nobody, and the collection leg is keyed by `poseidon(secret)`. |
 | **Private** | Where the money ends up. It never lands in the worker's wallet — they name the destination at collection, and a pool-registered wallet can take it straight into a shielded note. |
 | **Public** | Funding: the total and the timing. |
-| **Public** | The settling vault's `PayoutReleased`, which carries the worker as an indexed key — so *this wallet was approved for this amount* is on chain, even though the money went elsewhere. |
 | **Public** | The address named at the public collection door, for that leg only. |
+| **Public** | The vault's spending — every amount, mission and decision digest. Auditable, and no longer attributable. |
 
-So: **private destination and private holdings, public approval record.** Removing the last line
-means emitting an opaque `intent_hash` in place of the recipient — the replay guard keys on the
-worker in storage and does not need the event — which is a contract change we will make rather than
-a claim we will round up. Stating it is the point: for a payments layer, a claim a judge can
-falsify in one block explorer query is worth less than a narrower one that holds.
+**The approval record used to name you. It no longer does.** `PayoutReleased` carried the worker
+as an *indexed* key, so filtering by a wallet and totalling everything Sage ever paid it was one
+block-explorer query — a private destination with a public approval record is not a private payout.
+It now emits an opaque `intent_hash`; replay protection is untouched because it keys on the worker
+in storage, which the event never needed. Writing the test for that found a second one:
+`PayoutRefused` named the recipient too, which is worse — a public, searchable record of someone
+being turned down. Both now identify the attempt rather than the person.
+
+*Written and tested, on the current `main`; not yet the deployed class. The live campaign proving
+this rail runs on the existing one, and swapping classes underneath it before that is proven would
+risk the thing it demonstrates.*
 
 **What is still public on purpose.** Every figure this project reports stays independently
 verifiable: amounts, payout counts, batch totals and the live unclaimed balance are all on-chain.
