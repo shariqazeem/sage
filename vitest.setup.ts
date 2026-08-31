@@ -22,9 +22,27 @@ import { join } from "node:path";
  * real credentials would change branches and could spend money. A real env var always wins, so an
  * explicit `FOO=bar npx vitest` still overrides the file.
  */
-const LIVE_FLAGS = [
-  "DIRECT_EVAL", "ROUTE_EVAL", "JUDGE_EVAL", "OBS_LIVE_EVAL", "VERIFY_LIVE",
-  "STARKNET_DRYRUN", "WORK_ONLY", "LIVE_EVAL", "PROMOTION_EVAL", "ENTAILMENT_EVAL",
+/**
+ * Every flag that GATES a live battery, derived from the batteries themselves.
+ *
+ * This was hand-written and immediately wrong: it missed WORK_EVAL, PAYOUT_DRILL, RENDER_LIVE and
+ * the whole GROUNDING_* family, and listed two flags that exist nowhere. A battery whose gate is
+ * missing here runs with NO credentials — the brain degrades to the keyword heuristic and every row
+ * reads as a quality failure, which is indistinguishable from a real regression.
+ *
+ * `live-flags.test.ts` scans the live tests for their `process.env.X === "1"` gates and fails if any
+ * is absent, so the next battery someone adds cannot quietly run blind.
+ */
+export const LIVE_FLAGS = [
+  "AUTH_ROUTE_TEST", "CANARY_CLOSURE", "CANARY_CLOSURE_DET", "CANARY_CLOSURE_V2",
+  "CANARY_CLOSURE_V2_DRY", "DIRECT_EVAL", "ENTAIL_EVAL", "ESCROW_PROVE", "FINAL_COMPOSITION",
+  "GROUNDING_CANARY_SMOKE", "GROUNDING_CANARY_SMOKE_DRYRUN", "GROUNDING_CRITIC2",
+  "GROUNDING_CRITIC2_DRYRUN", "GROUNDING_CRITIC_BAKEOFF", "GROUNDING_CRITIC_DRYRUN",
+  "GROUNDING_SEMANTIC", "GROUNDING_SEMANTIC_DRYRUN", "GROUNDING_SMOKE", "GROUNDING_SMOKE_DRYRUN",
+  "GROUNDING_SMOKE_RESUME", "GROUNDING_STRUCTURED", "GROUNDING_STRUCTURED_DRYRUN", "JUDGE_EVAL",
+  "LIVE_JUDGE_EVAL", "OBS_LIVE_EVAL", "PAYOUT_DRILL", "PROMOTION_EVAL", "PROMO_RESUME",
+  "RENDER_LIVE", "ROUTE_EVAL", "STARKNET_DRYRUN", "VERIFY_LIVE", "WORK_EVAL", "WORK_PROBE",
+  // Not a gate — an explicit escape hatch for running any live file by hand.
   "SAGE_TEST_ENV",
 ];
 if (LIVE_FLAGS.some((f) => process.env[f])) {
