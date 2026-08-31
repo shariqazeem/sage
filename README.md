@@ -20,7 +20,8 @@
 
 **In Sage, the payer is not a person.** An AI agent reads someone's work, decides on its own
 whether it deserves money, releases it from a vault it cannot exceed, and escrows it behind a
-commitment so nobody can tie the earning to the earner.
+commitment — so the money never lands in the wallet that earned it, and where it goes next is
+nobody's business but theirs.
 
 Private payment rails move money a human already decided to send. The decision here is the
 autonomous part, and privacy is what makes it safe for the person receiving it: an agent that pays
