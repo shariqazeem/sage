@@ -222,11 +222,23 @@ pub mod SageVault {
     pub struct PayoutReleased {
         #[key]
         pub mission_id: felt252,
+        /// THE PAYOUT'S IDENTITY, NOT THE PERSON'S.
+        ///
+        /// This key used to be the worker's address, which made the whole privacy story
+        /// incomplete: the money went to escrow and never touched their wallet, but the vault
+        /// still announced `this address was approved for this amount` in an INDEXED field —
+        /// so anyone could filter by a wallet and total up everything Sage ever paid it. A
+        /// private destination with a public approval record is not a private payout.
+        ///
+        /// `intent_hash` identifies the payout uniquely without naming anyone, and replay
+        /// protection is unaffected: it keys on the worker in STORAGE, which the event never
+        /// needed. What stays public is what should be — the amount, the mission, and the
+        /// decision digest — so the vault's spending remains fully auditable while ceasing to
+        /// be attributable.
         #[key]
-        pub recipient: ContractAddress,
+        pub intent_hash: felt252,
         pub amount: u128,
         pub decision_digest: felt252,
-        pub intent_hash: felt252,
     }
 
     /// A refusal is recorded too. A payout that did NOT happen, and why, is part of the record —
@@ -235,8 +247,15 @@ pub mod SageVault {
     pub struct PayoutRefused {
         #[key]
         pub mission_id: felt252,
+        /// KEYED BY THE ATTEMPT, NOT THE PERSON — for the same reason as `PayoutReleased`, and
+        /// with more at stake: a refusal naming a wallet is a public, searchable record of someone
+        /// being TURNED DOWN. On a privacy rail that is the last thing that should be attributable.
+        ///
+        /// The refused party can still find their own refusal: `intent_hash` is derived from their
+        /// campaign and submission, so whoever holds the intent can locate it and nobody else can
+        /// enumerate it. The reason still lands on chain as a code, which was always the point.
         #[key]
-        pub recipient: ContractAddress,
+        pub intent_hash: felt252,
         pub code: u8,
     }
 
@@ -444,57 +463,57 @@ pub mod SageVault {
         ) -> u8 {
             // 1. the vault must be able to pay at all
             if self.status.read() != VaultStatus::Active {
-                return self.refuse(mission_id, worker, refusal::NOT_ACTIVE);
+                return self.refuse(mission_id, intent_hash, refusal::NOT_ACTIVE);
             }
             // 2. only Sage's operator key may ask
             if get_caller_address() != self.operator.read() {
-                return self.refuse(mission_id, worker, refusal::NOT_OPERATOR);
+                return self.refuse(mission_id, intent_hash, refusal::NOT_OPERATOR);
             }
             // 3. the mission must exist — and THIS is where the amount comes from. The operator
             //    passed none, so no caller can inflate a payout.
             let mission = self.missions.read(mission_id);
             if !mission.exists {
-                return self.refuse(mission_id, worker, refusal::NO_SUCH_MISSION);
+                return self.refuse(mission_id, intent_hash, refusal::NO_SUCH_MISSION);
             }
             let reward = mission.reward;
             // 4. paying nowhere is not paying — and neither identity may be empty. A zero WORKER
             //    would make "one person, one payout" meaningless (every payout would share one
             //    replay key); a zero TARGET would burn the money.
             if worker.is_zero() || payout_target.is_zero() {
-                return self.refuse(mission_id, worker, refusal::ZERO_RECIPIENT);
+                return self.refuse(mission_id, intent_hash, refusal::ZERO_RECIPIENT);
             }
             // 5. a payout must carry its authorisation and its single-use commitment
             if decision_digest.is_zero() || intent_hash.is_zero() {
-                return self.refuse(mission_id, worker, refusal::MISSING_DIGESTS);
+                return self.refuse(mission_id, intent_hash, refusal::MISSING_DIGESTS);
             }
             // 6. one person, one payout, per mission
             if self.recipient_paid.read((mission_id, worker)) {
-                return self.refuse(mission_id, worker, refusal::ALREADY_PAID);
+                return self.refuse(mission_id, intent_hash, refusal::ALREADY_PAID);
             }
             // 7. the mission has completions left
             if mission.paid_completions >= mission.max_completions {
-                return self.refuse(mission_id, worker, refusal::MISSION_FULL);
+                return self.refuse(mission_id, intent_hash, refusal::MISSION_FULL);
             }
             // 8. this exact authorisation has not already settled. The check that survives a sweep
             //    re-firing, a retry, or a duplicated request.
             if self.used_intents.read(intent_hash) {
-                return self.refuse(mission_id, worker, refusal::INTENT_REPLAYED);
+                return self.refuse(mission_id, intent_hash, refusal::INTENT_REPLAYED);
             }
             // 9. cumulative spend stays under the ceiling fixed at funding
             let spent = self.total_spent.read();
             if spent + reward > self.budget_ceiling.read() {
-                return self.refuse(mission_id, worker, refusal::OVER_BUDGET);
+                return self.refuse(mission_id, intent_hash, refusal::OVER_BUDGET);
             }
             // 10. and under the daily rate, so a runaway is slow enough to notice
             let window = self.effective_window_spend();
             if window + reward > self.daily_cap.read() {
-                return self.refuse(mission_id, worker, refusal::OVER_DAILY_CAP);
+                return self.refuse(mission_id, intent_hash, refusal::OVER_DAILY_CAP);
             }
             // 11. and the money is actually here. Checked last because it is the only condition
             //     the owner can fix by funding rather than by waiting.
             let erc20 = IErc20Dispatcher { contract_address: self.token.read() };
             if erc20.balance_of(get_contract_address()) < reward.into() {
-                return self.refuse(mission_id, worker, refusal::INSUFFICIENT_BALANCE);
+                return self.refuse(mission_id, intent_hash, refusal::INSUFFICIENT_BALANCE);
             }
 
             // Commit BEFORE transferring. A revert in the token rolls all of this back together,
@@ -516,15 +535,15 @@ pub mod SageVault {
             erc20.transfer(payout_target, reward.into());
             self
                 .emit(
-                    // The receipt names WHO EARNED IT, not where it landed. Unchanged shape, so
-                    // every existing reader of this event keeps working; the destination is
-                    // visible in the token's own Transfer event.
+                    // The receipt names the PAYOUT, not the person. Both readers of this event
+                    // match on its selector alone, so dropping the recipient key breaks nothing;
+                    // and the money's destination was already the escrow account rather than the
+                    // worker, so naming them here only ever leaked.
                     PayoutReleased {
                         mission_id,
-                        recipient: worker,
+                        intent_hash,
                         amount: reward,
                         decision_digest,
-                        intent_hash,
                     },
                 );
             refusal::NONE
@@ -533,9 +552,9 @@ pub mod SageVault {
         /// Record the refusal and return its code. Emitting rather than reverting keeps the reason
         /// on chain, where a founder can see WHY a worker was not paid.
         fn refuse(
-            ref self: ContractState, mission_id: felt252, recipient: ContractAddress, code: u8,
+            ref self: ContractState, mission_id: felt252, intent_hash: felt252, code: u8,
         ) -> u8 {
-            self.emit(PayoutRefused { mission_id, recipient, code });
+            self.emit(PayoutRefused { mission_id, intent_hash, code });
             code
         }
     }
