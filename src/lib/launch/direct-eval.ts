@@ -12,6 +12,7 @@ import {
   directCampaignSchema,
   lintDirectCampaign,
   type DirectCampaignInput,
+  effectiveMilestoneBase,
   effectiveMilestoneUsd,
 } from "./direct-campaign";
 import { directCampaignCorrection } from "@/lib/mcp/server";
@@ -424,9 +425,12 @@ export async function runDirectEval(opts: {
               row.milestones = input.milestones.length;
               row.totalUsd = usd(compiled.totalBudgetBase);
               // THE frozen invariant: the sum of the parts IS the budget, exactly.
-              const eff = effectiveMilestoneUsd(input);
+              // BASE UNITS, never dollars. Re-deriving base from cents loses sub-cent precision
+              // on a split ($100 across three is 33333334/33333333/33333333), and this check then
+              // fails a plan whose parts sum to the budget exactly.
+              const eff = effectiveMilestoneBase(input);
               const sum = input.milestones.reduce(
-                (acc, m, i) => acc + BigInt(Math.round(eff[i] * 100)) * BigInt(10_000) * BigInt(m.slots),
+                (acc, m, i) => acc + eff[i] * BigInt(m.slots),
                 BigInt(0),
               );
               row.budgetExact = sum === compiled.totalBudgetBase;

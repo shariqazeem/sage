@@ -415,11 +415,44 @@ export function splitTotalBase(totalBase: bigint, milestones: number): bigint[] 
  * and each one that reached for `rewardUsd` directly would silently see 0 for a split grant and
  * wave it through.
  */
-export function effectiveMilestoneUsd(input: DirectCampaignInput): number[] {
-  if (input.splitTotalUsd === undefined) return input.milestones.map((m) => m.rewardUsd ?? 0);
-  return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length).map(
-    (b) => Number(b) / 1_000_000,
-  );
+/**
+ * What each milestone will pay, in BASE UNITS — the only form that can be compared exactly.
+ *
+ * The dollar version below cannot: a split is computed in 6-decimal base units, so $100 across
+ * three tranches is 33333334/33333333/33333333, and rendering that as dollars and re-deriving
+ * base from cents loses 10000 base units. P-DIRECT did exactly that and reported BUDGET INVARIANT
+ * BROKEN on a plan whose parts summed to the budget perfectly — a lossy CHECK, not lost money, but
+ * a check that cannot add up cannot catch a real break either.
+ *
+ * Anything comparing against `totalBudgetBase` must use this. Dollars are for display and for the
+ * gates that are themselves written in dollars.
+ */
+export function effectiveMilestoneBase(
+  input: DirectCampaignInput,
+  quote: RateQuote | null = null,
+): bigint[] {
+  if (input.splitTotalUsd !== undefined) {
+    return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length);
+  }
+  return input.milestones.map((m) => usdToBase(resolveMilestoneUsd(m, quote)));
+}
+
+export function effectiveMilestoneUsd(
+  input: DirectCampaignInput,
+  quote: RateQuote | null = null,
+): number[] {
+  if (input.splitTotalUsd !== undefined) {
+    return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length).map(
+      (b) => Number(b) / 1_000_000,
+    );
+  }
+  // THROUGH THE COMPILER'S OWN RESOLVER, not `m.rewardUsd` directly.
+  //
+  // Reading the raw field made this function disagree with the compiler for any campaign priced in
+  // another currency: the compiler converts `rewardLocal` at the stamped rate, this returned the
+  // unconverted number, and a gate comparing the two saw a budget that did not add up. It was
+  // written to be the one place that answers "what will this pay" and quietly was not.
+  return input.milestones.map((m) => resolveMilestoneUsd(m, quote));
 }
 
 export function resolveMilestoneUsd(

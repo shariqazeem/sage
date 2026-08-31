@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDirectCampaign, directCampaignSchema, effectiveMilestoneUsd, splitTotalBase } from "./direct-campaign";
+import { compileDirectCampaign, directCampaignSchema, effectiveMilestoneBase, effectiveMilestoneUsd, splitTotalBase } from "./direct-campaign";
 
 const base = (usd: number) => BigInt(Math.round(usd * 1_000_000));
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, BigInt(0));
@@ -172,5 +172,48 @@ describe("a named recipient may be on either rail", () => {
 
   it("still refuses something that is not an address at all", () => {
     for (const bad of ["not-a-wallet", "0x", "0xZZZZ", "0x" + "a".repeat(65)]) expect(withAllowlist(bad)).toBe(false);
+  });
+});
+
+describe("the invariant CHECK must be exact, not just the split (P-DIRECT, 2026-08-31)", () => {
+  const grantN = (n: number, totalUsd: number) =>
+    directCampaignSchema.parse({
+      kind: "grant",
+      title: "Tranches",
+      whyItMatters: "A grant released in equal parts as the work lands.",
+      splitTotalUsd: totalUsd,
+      milestones: Array.from({ length: n }, (_, i) => ({
+        title: `Tranche ${i + 1}`,
+        instructions: "Publish the agreed deliverable for this tranche.",
+        criteria: ["The deliverable is public", "It carries your submitting wallet address"],
+        evidence: { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" },
+        slots: 1,
+      })),
+    });
+
+  it("base-unit shares sum to the compiled budget for totals that do NOT divide into cents", () => {
+    // $100/3 is 33.333333… — the case that reported BUDGET INVARIANT BROKEN on a correct plan.
+    for (const [n, total] of [[3, 100], [3, 40], [7, 10], [6, 0.99], [9, 100]] as Array<[number, number]>) {
+      const input = grantN(n, total);
+      const r = compileDirectCampaign(input, "g");
+      if (!("plan" in r)) continue; // below the tangible floor — a different, tested refusal
+      const sum = effectiveMilestoneBase(input).reduce(
+        (a, b, i) => a + b * BigInt(input.milestones[i].slots), BigInt(0),
+      );
+      const compiled = r.plan.missions.reduce(
+        (a, m) => a + BigInt(m.rewardBase) * BigInt(m.maxCompletions), BigInt(0),
+      );
+      expect(sum, `${n} tranches of $${total}`).toBe(compiled);
+    }
+  });
+
+  it("the DOLLAR view is lossy for such a split — which is why the check may not use it", () => {
+    const input = grantN(3, 100);
+    const viaCents = effectiveMilestoneUsd(input).reduce(
+      (a, d) => a + BigInt(Math.round(d * 100)) * BigInt(10_000), BigInt(0),
+    );
+    const viaBase = effectiveMilestoneBase(input).reduce((a, b) => a + b, BigInt(0));
+    expect(viaBase).toBe(BigInt(100_000_000));
+    expect(viaCents).not.toBe(viaBase); // the exact defect, pinned so nobody "simplifies" it back
   });
 });
