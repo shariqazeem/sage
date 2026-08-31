@@ -63,9 +63,26 @@ Every battery run with real credentials (see the `.env`/LIVE_FLAGS fix — befor
 
 - [x] **P-JUDGE** — promotion-eligible · conclusive · **0 wrong autopays** · 57/57 valid rows
 - [x] **P-WORK** (gig lane) — **21 attacks, 0 leaks · 18/18 honest autopay, 0 false holds**
-- [x] **P-DIRECT** — conclusive, 0 provider failures, money invariants perfect; **4 defects found
-      and fixed** (half-wired tool schema, NaN from the mapper, EVM-only allowlist, and one rule
-      reversed on measurement)
+- [x] **P-DIRECT** — re-run after the fixes: **compileFailures 6 → 0**, confirming against the live
+      model that the half-wired tool schema, the NaN from the mapper and the EVM-only allowlist are
+      genuinely gone. The re-run also caught a regression of mine — a LOSSY budget CHECK, since
+      fixed. The compiler's split was always exact; the check was not, and a check that cannot add
+      up cannot catch a real break.
+
+      **Still open, and these are RECALL, not money** — the invariants hold on every row:
+      - the model still does not reach for `splitTotalUsd`: `thirds-of-a-total` and
+        `currency-tranches` produce no tool call at all. Schema and prompt now support it, so this
+        is PROMPT work — the model asks a question instead of acting, and `missedMoneyAction`
+        suppresses the corrective round precisely when a reply ends in "?"
+      - `pay my designer $50 when the logo page is live`, and the Spanish gig — the two misses
+        `docs/fc/what-is-left.md` already tracked
+      - `$4 each to the first 5 people` (per-person pricing) and `by Friday` (a deadline) produce
+        no campaign
+      - **over-eager the other way:** `send my cousin $200 when the bank approves her loan` DID
+        create a campaign, twice. A third party's private decision is nothing Sage can verify, so
+        it must refuse
+
+      This is the FC week's work: milestone grants are that track's centrepiece and this is their lane.
 - [x] **P-VERIFY** — 5/5 against the real internet and the real chain
 - [x] **obs ledger** — 5/5
 - [ ] **P-GEN** — running, signed in (`0x0deF3D…44D6`). Anchor integrity below 100% is a hard stop.
