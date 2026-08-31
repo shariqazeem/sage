@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Blocks, BookOpen, House, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
+import { Blocks, BookOpen, House, Landmark, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -13,16 +13,43 @@ import { useFounderSession } from "@/lib/auth/use-founder-session";
  * icon column; on hover it glides open into a labelled card (brand → nav → invite + wallet). Nav items
  * are real routes; active state comes from usePathname(). On mobile it reflows to a bottom icon bar (CSS).
  */
+/**
+ * TWO GROUPS, BECAUSE THE GROUPING IS THE NARRATIVE.
+ *
+ * Six items was the stated ceiling for a FLAT list — past that a rail stops being navigation and
+ * becomes a sitemap. Labelled groups change that arithmetic: nobody scans eight, they scan two
+ * headings and then four items under one of them.
+ *
+ * And the split says what the product is. WORK is money going out — define it, fund it, let the
+ * agent pay it. CAPITAL is money proven — every payout and refusal on chain, and the verified
+ * cash flow a lender can advance against. Sage is the cash-flow oracle; the rail should read that
+ * way before a single word of copy does.
+ *
+ * `/record/[wallet]` is deliberately NOT here. It is one person's credit file, so it belongs where
+ * a person is named — a receipt, an explorer row — not in global chrome where it has no subject.
+ */
 const NAV = [
-  { href: "/dashboard", label: "Home", Icon: House },
-  { href: "/launch", label: "Launch", Icon: Rocket },
-  { href: "/marketplace", label: "Marketplace", Icon: Compass },
-  { href: "/agent", label: "Agent", Icon: Sparkles },
-  // The infra surfaces: the receipts ledger, then the credibility docs. Six items is the ceiling —
-  // anything more and the rail stops being navigation and starts being a sitemap.
-  { href: "/explorer", label: "Explorer", Icon: Blocks },
-  { href: "/docs", label: "Docs", Icon: BookOpen },
+  {
+    group: "Work",
+    items: [
+      { href: "/dashboard", label: "Home", Icon: House },
+      { href: "/launch", label: "Launch", Icon: Rocket },
+      { href: "/marketplace", label: "Marketplace", Icon: Compass },
+      { href: "/agent", label: "Agent", Icon: Sparkles },
+    ],
+  },
+  {
+    group: "Capital",
+    items: [
+      { href: "/explorer", label: "Explorer", Icon: Blocks },
+      { href: "/lender", label: "Underwrite", Icon: Landmark },
+      { href: "/docs", label: "Docs", Icon: BookOpen },
+    ],
+  },
 ] as const;
+
+/** Every route the rail offers — the shell must survive all of them. Held by a test. */
+export const RAIL_ROUTES: readonly string[] = NAV.flatMap((g) => g.items.map((i) => i.href));
 
 function short(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
@@ -73,17 +100,24 @@ export function AppRail() {
           <SageMark size={20} />
           <span className="app-rail-label">sage</span>
         </Link>
-        {NAV.map(({ href, label, Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className={`app-rail-item${isActive(href) ? " on" : ""}`}
-            title={label}
-            aria-label={label}
-          >
-            <Icon size={19} strokeWidth={1.9} />
-            <span className="app-rail-label">{label}</span>
-          </Link>
+        {NAV.map(({ group, items }) => (
+          <div key={group} className="app-rail-group">
+            {/* Collapsed, the rail is an icon column and a heading would be a stray word, so the
+                label rides the same reveal as every other label. */}
+            <span className="app-rail-grouplabel app-rail-label">{group}</span>
+            {items.map(({ href, label, Icon }) => (
+              <Link
+                key={label}
+                href={href}
+                className={`app-rail-item${isActive(href) ? " on" : ""}`}
+                title={label}
+                aria-label={label}
+              >
+                <Icon size={19} strokeWidth={1.9} />
+                <span className="app-rail-label">{label}</span>
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 

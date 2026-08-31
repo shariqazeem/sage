@@ -9,6 +9,7 @@ import { NetworkChip } from "@/components/app/network-chip";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { GOAT_MAINNET_CHAIN_ID, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import "./app-shell.css";
+import { isAppRoute } from "./routes";
 
 /**
  * P27 — the one global app shell. Fixed/floating chrome (hover rail + top-center Home|Agent pill +
@@ -18,18 +19,6 @@ import "./app-shell.css";
  */
 // The FOUNDER app surfaces get the shell. The public tester board /c/[slug] does NOT — testers aren't
 // founders, so they keep the clean campaign-scoped header instead of the founder rail.
-function isAppRoute(p: string): boolean {
-  return (
-    /^\/dashboard/.test(p) ||
-    /^\/campaign\//.test(p) ||
-    /^\/launch/.test(p) ||
-    /^\/agent(\/|$)/.test(p) ||
-    // The marketplace is reachable from the founder rail, so the rail must survive the navigation —
-    // a nav item that makes its own chrome disappear is worse than no nav item.
-    /^\/marketplace/.test(p)
-  );
-}
-
 function ModePill({ pathname }: { pathname: string }) {
   const onAgent = pathname.startsWith("/agent");
   return (

@@ -157,6 +157,35 @@ html[data-app-shell="on"] .agent-page {
   opacity: 1;
 }
 
+/* ── grouped nav ───────────────────────────────────────────────────────────────────
+   The rail splits into Work and Capital. Collapsed it is still a plain icon column: the
+   heading rides the same reveal as every other label, and the group reserves no height,
+   so nothing shifts when the rail opens. */
+.app-rail-group {
+  display: contents;
+}
+.app-rail-grouplabel {
+  display: block;
+  height: 0;
+  overflow: hidden;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-left: 0.15rem;
+  transition: height var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+}
+.app-rail:hover .app-rail-grouplabel,
+.app-rail.is-expanded .app-rail-grouplabel {
+  height: 1.5rem;
+  padding-top: 0.6rem;
+}
+/* The first group's heading sits directly under the mark and needs no extra air. */
+.app-rail-group:first-of-type .app-rail-grouplabel {
+  padding-top: 0.25rem;
+}
+
 /* ── top-center mode pill ──────────────────────────────────────────────────────────── */
 .mode-pill {
   position: fixed;
