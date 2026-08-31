@@ -7,7 +7,9 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import { starknetPayoutIntent } from "@/lib/starknet/payout-intent";
 import { getDecisionBySubmission } from "@/lib/db/campaigns";
 import { payoutRouteFor, requestVaultPayout } from "@/lib/starknet/vault";
-import { escrowPayouts } from "@/lib/starknet/claims";
+import { escrowPayouts, type PayoutLeg } from "@/lib/starknet/claims";
+import { getActiveAdvance, recordRepayment } from "@/lib/db/advances";
+import { splitForAdvance } from "@/lib/advance/waterfall";
 import { mintClaimSecrets } from "@/lib/starknet/claim-link";
 import { starknetConfig } from "@/lib/starknet/config";
 import { announceCampaignSettledStarknet } from "@/lib/telegram/bot";
@@ -184,22 +186,87 @@ export async function settleOnStarknet(
      * the guarantee this product is built on.
      */
     if (secrets && escrowTarget) {
+      /**
+       * THE WATERFALL (capital-in, 2026-09-01 — explicit user authorization for this frozen file).
+       *
+       * When the earner holds an active advance, the escrow splits into TWO claim legs in the same
+       * `deposit_many`: the pot's repayment slice and the worker's remainder. Nothing above this
+       * point changes — the vault released the full reward exactly as always, and the split
+       * happens where the money was already being escrowed. All bigint, floor toward the worker
+       * (splitForAdvance), capped by the outstanding balance.
+       *
+       * The recourse this implements, stated honestly: repayment routes from SAGE-WITNESSED inflow
+       * only. A borrower who stops earning here stops repaying here — that is the published deal,
+       * not a hidden lien on a person.
+       */
+      const advance = getActiveAdvance(submission.wallet ?? "");
+      const split = advance
+        ? splitForAdvance(rewardBase, BigInt(advance.outstandingBase), advance.waterfallBps)
+        : null;
+      // Pot secrets are minted ONLY when a repayment leg exists; the worker keeps `secrets`.
+      const potSecrets = split && split.repayBase > BigInt(0) ? mintClaimSecrets() : null;
       try {
+        const legs: PayoutLeg[] = [];
+        // The worker's leg. A 100%-waterfall payout can route entirely to repayment — then there
+        // is no worker leg at all, because the Cairo contract refuses a zero-amount deposit and a
+        // zero claim would be a link that opens onto nothing.
+        const workerBase = split ? split.workerBase : rewardBase;
+        if (workerBase > BigInt(0)) {
+          legs.push({
+            claimCommitment: secrets.claimCommitment,
+            refundCommitment: secrets.refundCommitment,
+            amountBase: workerBase,
+          });
+        }
+        if (potSecrets && split) {
+          legs.push({
+            claimCommitment: potSecrets.claimCommitment,
+            refundCommitment: potSecrets.refundCommitment,
+            amountBase: split.repayBase,
+          });
+        }
         const escrow = await escrowPayouts(
-          [
-            {
-              claimCommitment: secrets.claimCommitment,
-              refundCommitment: secrets.refundCommitment,
-              amountBase: rewardBase,
-            },
-          ],
+          legs,
           Math.floor(Date.now() / 1000) + CLAIM_EXPIRY_SECONDS,
         );
+        if (potSecrets && split && advance) {
+          try {
+            recordRepayment({
+              advanceId: advance.id,
+              submissionId: submission.id,
+              amountBase: split.repayBase,
+              claimCommitment: potSecrets.claimCommitment,
+              claimSecret: potSecrets.claimSecret,
+              escrowTx: escrow.transactionHash,
+            });
+          } catch (ledgerErr) {
+            /**
+             * The money IS escrowed; only the ledger write failed. The pot's secret must not be
+             * lost with it — an unrecorded secret is stranded money — so it goes to the error log
+             * verbatim for operator recovery, and settlement still completes: the worker was paid
+             * and nothing about THEIR money is in doubt.
+             */
+            console.error(
+              "[settle-starknet] REPAYMENT LEDGER WRITE FAILED — recover manually:",
+              JSON.stringify({
+                advanceId: advance.id,
+                submissionId: submission.id,
+                amountBase: split.repayBase.toString(),
+                claimCommitment: potSecrets.claimCommitment,
+                claimSecret: potSecrets.claimSecret,
+                escrowTx: escrow.transactionHash,
+              }),
+              ledgerErr,
+            );
+          }
+        }
         updateSubmission(submission.id, {
           status: "paid",
           payoutTx: result.transactionHash,
-          claimSecret: secrets.claimSecret,
-          claimCommitment: secrets.claimCommitment,
+          // No worker leg (full-waterfall payout) → no claim link to show; the record's repayment
+          // history is the receipt for where the money went.
+          claimSecret: workerBase > BigInt(0) ? secrets.claimSecret : null,
+          claimCommitment: workerBase > BigInt(0) ? secrets.claimCommitment : null,
           claimEscrowTx: escrow.transactionHash,
           decidedAt: nowSeconds(),
         });

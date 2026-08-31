@@ -356,3 +356,112 @@ describe("paying a worker privately", () => {
     expect(a).not.toBe(b);
   });
 });
+
+/* ─────────────────────────── the waterfall (capital in) ───────────────────────────
+   The advances ledger below is the REAL module against the in-memory DB, so the schema's own
+   guards — one active advance, one repayment per payout — are part of what is under test. */
+describe("waterfall — an active advance splits the escrow", () => {
+  const privateRail = () => payoutRouteFor.mockResolvedValue("split");
+
+  const arm = async (over: Partial<{ principal: bigint; bps: number }> = {}) => {
+    const { createAdvance } = await import("@/lib/db/advances");
+    return createAdvance({
+      borrowerWallet: WORKER,
+      principalBase: over.principal ?? BigInt(200_000), // $0.20 against the $0.50 payout
+      multiple: 1,
+      waterfallBps: over.bps ?? 5000,
+      potAddress: SAGE_OPERATOR,
+    });
+  };
+
+  beforeEach(async () => {
+    const { db } = await import("@/lib/db");
+    const { advances, advanceRepayments } = await import("@/lib/db/schema");
+    db.delete(advanceRepayments).run();
+    db.delete(advances).run();
+  });
+
+  it("escrows TWO legs whose sum is EXACTLY the vault's release", async () => {
+    privateRail();
+    await arm(); // 50% of $0.50 = $0.25 > $0.20 outstanding → repay caps at $0.20
+    await settleOnStarknet(campaign(), submission());
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [{ amountBase: bigint; claimCommitment: string }[]];
+    expect(legs).toHaveLength(2);
+    expect(legs[0].amountBase + legs[1].amountBase).toBe(BigInt(500_000));
+    expect(legs[1].amountBase).toBe(BigInt(200_000)); // capped by the balance, never the fraction
+    expect(legs[0].claimCommitment).not.toBe(legs[1].claimCommitment);
+  });
+
+  it("records the repayment and retires the advance at zero", async () => {
+    privateRail();
+    const adv = await arm();
+    await settleOnStarknet(campaign(), submission());
+    const { advanceHistory } = await import("@/lib/db/advances");
+    const [row] = advanceHistory(WORKER);
+    expect(row.id).toBe(adv.id);
+    expect(row.status).toBe("repaid");
+    expect(row.outstandingBase).toBe(0);
+    expect(row.repayments).toHaveLength(1);
+    expect(row.repayments[0].amountBase).toBe(200_000);
+    expect(row.repayments[0].submissionId).toBe(submission().id);
+    expect(row.repayments[0].escrowTx).toBe("0xescrow");
+    // and the pot's secret is persisted — an unrecorded secret is stranded money
+    expect(row.repayments[0].claimSecret).toMatch(/^0x/);
+  });
+
+  it("the worker still gets THEIR claim — secrets on the submission are the worker leg's", async () => {
+    privateRail();
+    await arm();
+    await settleOnStarknet(campaign(), submission());
+    const patch = updateSubmission.mock.calls[0]![1] as Record<string, unknown>;
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [{ claimCommitment: string }[]];
+    expect(patch.claimCommitment).toBe(legs[0].claimCommitment);
+    const { advanceHistory } = await import("@/lib/db/advances");
+    expect(patch.claimCommitment).not.toBe(advanceHistory(WORKER)[0].repayments[0].claimCommitment);
+  });
+
+  it("a FAILED escrow records NO repayment — the ledger cannot outrun the chain", async () => {
+    privateRail();
+    await arm();
+    escrowPayouts.mockRejectedValueOnce(new Error("sequencer down"));
+    const out = await settleOnStarknet(campaign(), submission());
+    expect(out.settled).toBe(false);
+    const { advanceHistory } = await import("@/lib/db/advances");
+    const [row] = advanceHistory(WORKER);
+    expect(row.status).toBe("active");
+    expect(row.outstandingBase).toBe(200_000);
+    expect(row.repayments).toHaveLength(0);
+  });
+
+  it("full waterfall on a small balance: the worker leg exists whenever they are owed anything", async () => {
+    privateRail();
+    await arm({ bps: 10_000, principal: BigInt(100_000) }); // 100% routing, $0.10 owed
+    await settleOnStarknet(campaign(), submission());
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [{ amountBase: bigint }[]];
+    expect(legs).toHaveLength(2);
+    expect(legs[0].amountBase).toBe(BigInt(400_000)); // worker keeps the remainder
+    expect(legs[1].amountBase).toBe(BigInt(100_000));
+  });
+
+  it("100% waterfall, balance >= payout: ONE pot leg, no zero-amount claim, no dead link", async () => {
+    privateRail();
+    await arm({ bps: 10_000, principal: BigInt(2_000_000) }); // owes $2, earns $0.50
+    await settleOnStarknet(campaign(), submission());
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [{ amountBase: bigint }[]];
+    expect(legs).toHaveLength(1);
+    expect(legs[0].amountBase).toBe(BigInt(500_000));
+    const patch = updateSubmission.mock.calls[0]![1] as Record<string, unknown>;
+    expect(patch.status).toBe("paid");
+    expect(patch.claimSecret).toBeNull(); // nothing to claim — the receipt is the repayment row
+    const { advanceHistory } = await import("@/lib/db/advances");
+    expect(advanceHistory(WORKER)[0].outstandingBase).toBe(1_500_000);
+  });
+
+  it("no advance → ONE leg, byte-for-byte the old behaviour", async () => {
+    privateRail();
+    await settleOnStarknet(campaign(), submission());
+    const [legs] = escrowPayouts.mock.calls[0] as unknown as [{ amountBase: bigint }[]];
+    expect(legs).toHaveLength(1);
+    expect(legs[0].amountBase).toBe(BigInt(500_000));
+  });
+});
