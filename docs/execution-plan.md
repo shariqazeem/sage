@@ -98,7 +98,21 @@ Grants have run in production ZERO times and are the FC centrepiece.
 ## BUILD 4 — FC package
 
 - [ ] Corridor line: measured USDC settlement cost vs 7–9% remittance, on real payouts.
-- [ ] Fiat adapter interface + stub + architecture doc section (crypto-banned answer).
+- [ ] **Outcomes, not chains** (decided 1 Sep): /launch stops asking "GOAT or Starknet?" and asks
+      the only question a founder can answer — **Public payouts / Private payouts** — with the
+      chain as fine print. The router picks the rail; the confusion was ever asking. Stripe never
+      asks which card network. Copy + small UI, not architecture.
+- [ ] **Fiat adapter: Crossmint as the third door** (decided 1 Sep, upgrades the planned stub).
+      Real adapter implementation against Crossmint STAGING ($10 credits), honestly labelled:
+      production pending compliance onboarding. Scenes it unlocks are the brief's own — diaspora
+      card funds a grant (onramp), no-crypto recipient paid to an email wallet, fiat cash-out
+      (offramp) — and the credit event records identically whichever door discharged it.
+      HARD RULES: never touches GOAT/STRK20 rails (Crossmint supports neither — it is the third
+      route, not a replacement); no fourth identity system (Privy already covers walletless);
+      **1-hour timeboxed SPIKE FIRST** to verify chain list, credit coverage, and whether
+      onramp/offramp geography actually holds for the US/CA/UK → Caribbean corridor — if it
+      doesn't, it ships as an adapter demo and the doc says so. No claim that dies to one
+      judge question.
 - [ ] Verify lender API + CSV + audit export against the brief (exists — verify, don't rebuild).
 - [ ] Submission overview mapping every track criterion to a receipt-backed fact; data room;
       TRL update; demo videos (screen recordings — beat: the agent deciding, the split payout).
