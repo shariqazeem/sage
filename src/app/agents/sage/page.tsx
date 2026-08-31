@@ -1,4 +1,5 @@
 import "./agents.css";
+import { PublicNav } from "@/components/shell/public-nav";
 // the jailbreak box renders a real Deputy receipt — pull in its shared styles.
 import "../../app/app.css";
 import "../../app/demo-moments.css";
@@ -50,23 +51,33 @@ export function generateMetadata(): Metadata {
 
 export default function AgentPage() {
   const identity = getAgentIdentity();
-  const { reputation, receipts, recentDecisions, chainSplit } = getAgentProfile();
+  const { reputation, receipts, recentDecisions, chainSplit } =
+    getAgentProfile();
   ensureSandboxCampaign(); // the "try to jailbreak" box runs against this sandbox
   const led = attackLedger();
 
   return (
-    <AgentProfilePage
-      identity={identity}
-      wallet={agentWallet(identity)}
-      reputation={reputation}
-      chainSplit={chainSplit}
-      receipts={receipts}
-      recentDecisions={recentDecisions}
-      ledger={{
-        count: led.attackCount,
-        rows: led.rows.map((a) => ({ klass: a.klass, defense: DEFENSE_LABEL[a.defense] })),
-      }}
-      pnl={getAgentPnL()}
-    />
+    <>
+      {/* Sage's own public identity card — read by strangers and by other agents, so it needs a
+          door back into the product. It carries its own stylesheet, so it works here despite this
+          page importing none of the content sheets. */}
+      <PublicNav />
+      <AgentProfilePage
+        identity={identity}
+        wallet={agentWallet(identity)}
+        reputation={reputation}
+        chainSplit={chainSplit}
+        receipts={receipts}
+        recentDecisions={recentDecisions}
+        ledger={{
+          count: led.attackCount,
+          rows: led.rows.map((a) => ({
+            klass: a.klass,
+            defense: DEFENSE_LABEL[a.defense],
+          })),
+        }}
+        pnl={getAgentPnL()}
+      />
+    </>
   );
 }
