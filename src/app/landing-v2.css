@@ -1810,3 +1810,103 @@ body:has(.slv2) {
   .slv2 .stage-tag { opacity: 1; }
   .slv2 .stage-url .caret { opacity: 1; }
 }
+
+/* ══ CAPITAL — what the payouts become ═══════════════════════════════════════════════════
+   The act that makes Sage read as infrastructure rather than a payments feature. Kept on
+   paper, not the dark contrast act: this is the sober, institutional scene and it should
+   feel like a document a lender would read, not a pitch. */
+.slv2 .cap {
+  padding: clamp(80px, 13vh, 156px) var(--pad-x);
+  border-top: 1px solid var(--line);
+}
+.slv2 .cap-in {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.slv2 .cap-eyebrow {
+  margin-bottom: 1.15rem;
+}
+.slv2 .cap-h {
+  font-family: var(--font-display);
+  font-weight: 450;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  font-size: clamp(2rem, 4.4vw, 3.5rem);
+  margin: 0 0 1.1rem;
+  max-width: 20ch;
+}
+.slv2 .cap-lede {
+  font-size: clamp(1rem, 1.35vw, 1.125rem);
+  line-height: 1.62;
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin: 0 0 clamp(2.4rem, 5vw, 3.6rem);
+}
+.slv2 .cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: clamp(1rem, 2.2vw, 1.7rem);
+}
+.slv2 .cap-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: clamp(1.3rem, 2.2vw, 1.75rem);
+  background: var(--paper-2, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.slv2 .cap-k {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-4, #8b9098);
+}
+.slv2 .cap-ch {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.slv2 .cap-cb {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0;
+  flex: 1;
+}
+.slv2 .cap-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--terra, #c2410c);
+  text-decoration: none;
+}
+.slv2 .cap-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.slv2 .cap-note {
+  font-size: 0.8125rem;
+  color: var(--ink-4, #8b9098);
+}
+.slv2 .cap-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-size: 0.875rem;
+  color: var(--ink-3, #565c64);
+}
+.slv2 .cap-stats b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.slv2 .cap-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line-strong, #d8d3c9);
+}

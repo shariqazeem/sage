@@ -9,6 +9,7 @@ import { SceneHero } from "./scene-hero";
 import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
 import { SceneProof } from "./scene-proof";
+import { SceneCapital } from "./scene-capital";
 import { SceneClose } from "./scene-close";
 
 interface Props {
@@ -44,6 +45,10 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem }: Prop
         <SceneLoop />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
+
+        {/* After the ledger, never before it: "a file you can lend against" is a claim nobody
+            should accept until they have seen the receipts it is built from. */}
+        <SceneCapital totals={totals} />
 
         <SceneClose totals={totals} networkName={network.name} />
       </main>
