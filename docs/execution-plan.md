@@ -41,8 +41,8 @@ Run each battery once, **one at a time** (they contend for one key on a 2-core b
 reports timeouts that read exactly like quality failures). Record the number, not the vibe.
 
 - [ ] P-GEN — inspect → field test → vision → mission brain → gate. *Anchor integrity below 100% is a hard stop.* Must show `signed in as …` and non-zero token cost or the run is void.
-- [ ] P-DIRECT — gig vs grant vs testing routing, exact budget, faithful amounts (run on the VM)
-- [ ] P-ROUTE — tool routing across both surfaces incl. the recipient journey
+- [x] **P-DIRECT** — 2026-08-31: money invariants PERFECT (0 budget violations, 0 amount drift, 0 unverifiable, 0 compile failures). ONE defect: `pd-grant-two-tranche-vague-amounts` — **fixed**, see `splitTotalUsd`
+- [x] **P-ROUTE** — 2026-08-31: 30/32 correct, conclusive, 0 provider failures. Open: 2 misroutes + 1 missed tool
 - [ ] P-JUDGE — payout judge: zero wrong-autopay, all in-set, provenance intact
 - [ ] P-WORK — the gig/artifact lane, two-sided (attack-autopay AND honest-hold both hard fails)
 - [ ] obs ledger — observation judge vs fixtures
@@ -59,7 +59,8 @@ on a second model and comparing*.
 - [ ] Write the result up as the promotion evidence for a second approved judge identity
 
 ### A3 — Known open defects to close
-- [ ] P-DIRECT's two routing misses: a plainly-worded gig ("pay my designer $50 when the logo page is live") and one Spanish request produce **no campaign at all**
+- [x] The grant equal-split miss — **fixed 2026-08-31** (`splitTotalUsd`, deterministic base-unit split)
+- [ ] P-DIRECT's other routing misses: a plainly-worded gig ("pay my designer $50 when the logo page is live") and one Spanish request
 - [ ] Named-recipient gigs — "pay *my* designer" becomes an open bounty anyone can claim. Product decision, not a bug.
 - [ ] Every refusal reason readable by the person who received it; no dead ends
 - [ ] 16 stuck operator fees, $1.60, retried 1,914× each — Sage's own revenue, unbounded retry with no cap
@@ -119,7 +120,7 @@ Grants have run in production ZERO times and P-DIRECT found the equal-split defe
 $40 total" → no campaign). They now sit inside the Future Caribbean week, where they are the
 centrepiece anyway.
 
-- [ ] Fix the equal-split routing defect (deterministic split from the founder's stated total)
+- [x] Fix the equal-split routing defect — **done 2026-08-31**, deployed
 - [ ] Prove ONE grant end to end — walletless recipient, invite → earn → verify → pay → cash out →
       record. Needs a second Telegram account.
 - [ ] `intent_hash` event fix — upgrades the privacy claim to "no public earnings record"
