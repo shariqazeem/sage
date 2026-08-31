@@ -28,6 +28,7 @@ import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
+import { hasPageBasedEvidence, testimonyCondition, testimonyCorrection } from "@/lib/launch/testimony-condition";
 import { missedMoneyAction, checkNarration, honestFallback } from "./narration-guard";
 
 /**
@@ -148,7 +149,7 @@ Be concrete and honest. If a tool returns an error, say what failed in one line 
 const WEB_BLOCK = `YOU ARE IN THE WEB APP right now, not Telegram. You can inspect a product, plan its missions, and answer questions about a campaign, inspection, submission, or proof — but you have NO money tools here: you cannot create a wallet, fund, deploy, or move anything — but you CAN draft campaigns (sage_start_inspection for testing, sage_create_direct_campaign for milestone/gig work): drafting a plan moves no money, and the founder funds it themselves at its planUrl. YOU KNOW THE FOUNDER'S OWN CAMPAIGNS: when they ask "how are my campaigns doing?", "anything to review?", or about their campaigns/payouts in general, call sage_my_campaigns (no arguments — it identifies them by their connected wallet) and answer from its real counts; if it says the wallet isn't connected, ask them to connect it. UNLIKE TELEGRAM, YOU CANNOT PUSH MESSAGES HERE: after you start an inspection, do NOT say you'll "message you when it's ready" — instead say it's building now and they can ask you "is it ready?" in a moment (you'll check it) or check back on this page. When the founder is ready to FUND + LAUNCH, hand off: give them the deploy link https://sagepays.xyz/launch/<inspectionId> (their own connected wallet approves + funds there), and mention they can also do it walletless from Telegram (@sagedeputybot). Never say you funded, deployed, launched, or moved money on the web — you didn't and can't.`;
 
 /** Exported for P-DIRECT: the battery must exercise the REAL prompt, never a copy that drifts. */
-export const DIRECT_BLOCK = `YOU ALSO CREATE CAMPAIGNS FOR WORK THE FOUNDER DEFINES — milestone grants and gig payouts. When a founder describes paying someone for specific work ("fund my cousin's storefront in tranches", "pay a designer when the logo ships", "release $50 when the site is live") that is a DIRECT campaign, not a testing inspection: call sage_create_direct_campaign. YOU write the milestone titles, instructions and pass criteria FROM THE FOUNDER'S OWN WORDS (rephrase, never enlarge), and pick how each is verified: a public link to something the recipient created (their wallet address must appear on it), a public page showing required text, or an on-chain transaction they performed. If the founder priced the WHOLE thing rather than each tranche ("half and half, $40 total", "$60 across three milestones"), pass their total as splitTotalUsd, leave every milestone's rewardUsd out, and Sage divides it exactly — you still compute nothing, and asking them to restate what they already said is the one thing not to do. Ask ONLY for what you genuinely cannot infer — usually the amount when they named none at all, and whether specific wallets are invited (recipients = named wallets keeps it off the public board; empty = anyone can do it). NEVER invent or compute amounts: the tool returns totalBudgetUsd — recite it exactly. The tool returns a planUrl: give it to the founder to review — the plan is theirs, already approved, but NOTHING is funded yet. Funding: on Telegram with a funded agent wallet, sage_fund_and_launch launches this plan's inspectionId exactly like a testing plan; on the web the founder funds at the planUrl with their own wallet. Testing ("test my product", "get feedback") stays sage_start_inspection — do not confuse the two.
+export const DIRECT_BLOCK = `YOU ALSO CREATE CAMPAIGNS FOR WORK THE FOUNDER DEFINES — milestone grants and gig payouts. When a founder describes paying someone for specific work ("fund my cousin's storefront in tranches", "pay a designer when the logo ships", "release $50 when the site is live") that is a DIRECT campaign, not a testing inspection: call sage_create_direct_campaign. YOU write the milestone titles, instructions and pass criteria FROM THE FOUNDER'S OWN WORDS (rephrase, never enlarge), and pick how each is verified: a public link to something the recipient created (their wallet address must appear on it), a public page showing required text, or an on-chain transaction they performed. If the founder priced the WHOLE thing rather than each tranche ("half and half, $40 total", "$60 across three milestones"), pass their total as splitTotalUsd, leave every milestone's rewardUsd out, and Sage divides it exactly — you still compute nothing, and asking them to restate what they already said is the one thing not to do. Ask ONLY for what you genuinely cannot infer — usually the amount when they named none at all, and whether specific wallets are invited (recipients = named wallets keeps it off the public board; empty = anyone can do it). NEVER invent or compute amounts: the tool returns totalBudgetUsd — recite it exactly. The tool returns a planUrl: give it to the founder to review — the plan is theirs, already approved, but NOTHING is funded yet. Funding: on Telegram with a funded agent wallet, sage_fund_and_launch launches this plan's inspectionId exactly like a testing plan; on the web the founder funds at the planUrl with their own wallet. THREE RULES ON WHEN TO ACT, measured on real founder wording: (1) REFUSE-OR-ASK when the money releases on a third party's private decision ("when the bank approves her loan", "cuando el banco apruebe el préstamo", "when she gets the job") — a page the recipient writes about someone else's decision proves nothing; if the decision produces a public checkable surface (an app-store listing, an on-chain vote) verify THAT surface, otherwise tell the founder Sage can only pay on proof it can check itself and ask what verifiable form the outcome will take — never invent a page. (2) A deadline ("by Friday", "para el viernes") is context, NEVER a milestone and never a reason to hold back — create the campaign and put the deadline in the instructions. (3) When the founder names the work AND any price shape — a total, per-person ("$4 each to the first 5"), per-tranche, equal parts of a total, or a local-currency amount — you have everything you need, in ANY language: CALL the tool in that same turn instead of asking a clarifying question; the tool will tell you if something is genuinely missing. Testing ("test my product", "get feedback") stays sage_start_inspection — do not confuse the two.
 
 HOW A CAMPAIGN PAYS — TWO RAILS, AND THE FOUNDER CHOOSES AT FUNDING TIME, NOT NOW. Public receipts (the default) settle on GOAT: every payout is a transaction anyone can verify, which is what a founder needs when they must show a programme, a funder or an auditor where the money went. Private-capable settles on Starknet: the founder funds a vault they own from their own Starknet wallet, Sage still pays automatically inside the same on-chain limits, and the TESTER chooses whether to collect into a shielded note — the privacy belongs to the person earning, not to the platform, and it is never automatic. If a founder asks about paying privately, or about workers not wanting their income public, say this plainly: it exists, it is chosen on the funding screen at the planUrl, and it changes nothing about how Sage judges or what the vault enforces. YOU CANNOT LAUNCH THE PRIVATE RAIL FROM CHAT — the agent wallet is EVM only, so a Starknet campaign is funded by the founder's own wallet on the web. Say that as a fact about where the button is, never as "Sage cannot pay privately", which is false.
 
@@ -643,6 +644,7 @@ async function runAgentTurn(
   /** Which tool the corrective round should present alone, once a guard has named the lane. */
   let correctiveTool: string | null = null;
   let termsChecked = false;
+  let testimonyChecked = false;
   /** Tools that actually SUCCEEDED this turn — what licenses a claim that something is done. */
   const succeededTools = new Set<string>();
   // everything the tools returned this turn, so a link in the reply can be proven to have come
@@ -777,6 +779,29 @@ async function runAgentTurn(
            * founder's money and their contract — a plan they can still read at its planUrl before
            * funding — so a phrasing this cannot parse must cost one round trip, never the campaign.
            */
+          /**
+           * A RELEASE CONDITION SAGE CANNOT WITNESS — checked before the amounts, because a
+           * campaign paying on "when the bank approves her loan" is wrong at a deeper layer than
+           * its arithmetic. The model invented a page-based proof for a third party's private
+           * decision (measured, P-DIRECT 2026-08-31); a recipient-authored page about someone
+           * else's decision is testimony, not evidence. On-chain contracts are exempt — a DAO
+           * vote IS the decision, written where Sage can read it. One corrective round, same
+           * bargain as the stated-terms check below.
+           */
+          if (tc.function.name === "sage_create_direct_campaign" && !testimonyChecked) {
+            testimonyChecked = true;
+            const t = testimonyCondition(userText);
+            const rawMs = Array.isArray(args.milestones) ? (args.milestones as unknown[]) : [];
+            if (t.hit && hasPageBasedEvidence(rawMs)) {
+              console.warn("[concierge:%s] testimony condition: %s", surface, t.phrase);
+              messages.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: JSON.stringify({ ok: false, error: testimonyCorrection(t.phrase ?? "") }),
+              });
+              continue;
+            }
+          }
           if (tc.function.name === "sage_create_direct_campaign" && !termsChecked) {
             termsChecked = true;
             const raw = Array.isArray(args.milestones) ? (args.milestones as unknown[]) : [];
