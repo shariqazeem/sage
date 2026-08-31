@@ -85,7 +85,16 @@ Every battery run with real credentials (see the `.env`/LIVE_FLAGS fix — befor
       This is the FC week's work: milestone grants are that track's centrepiece and this is their lane.
 - [x] **P-VERIFY** — 5/5 against the real internet and the real chain
 - [x] **obs ledger** — 5/5
-- [ ] **P-GEN** — running, signed in (`0x0deF3D…44D6`). Anchor integrity below 100% is a hard stop.
+- [x] **P-GEN** — **13/13 categories, anchor integrity 100% on every one.** Static landing, docs,
+      SaaS marketing, an interactive SPA, a 26-state DOM world, e-commerce, a login wall, portfolio,
+      non-English, CNN, a WebGL scene, wallet-gated Uniswap, and a canvas game.
+
+      Honest caveat: not all green in ONE run. The full matrix showed 12/13, with `canvas-game`
+      timing out at 1500s during mission generation — **caused by me**, running builds and pm2
+      restarts on the 2-core VM while the battery held it. Retested alone on a quiet box it passes
+      clean (10 states, 3 missions, anchors 100%, no failures). Exactly the contention CLAUDE.md
+      warns produces timeouts indistinguishable from quality failures, and the script's own source
+      documents the same trap. **Do not run anything else on that box during a battery.**
 
 **The instrument fixes that made these mean anything:** vitest never loaded `.env`, so batteries ran
 with no credentials and every row read as a quality failure; and my first `LIVE_FLAGS` list was
