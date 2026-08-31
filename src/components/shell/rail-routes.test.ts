@@ -27,8 +27,14 @@ describe("rail routes keep their shell", () => {
     expect(isAppRoute("/docs")).toBe(false);
   });
 
-  it("shells the capital pages that are NOT in the rail — a receipt is not a loose document", () => {
-    for (const p of ["/record/0xabc", "/proof/0x123"]) expect(isAppRoute(p)).toBe(true);
+  it("shells the credit file, which is used inside the system", () => {
+    expect(isAppRoute("/record/0xabc")).toBe(true);
+  });
+
+  it("leaves /proof a standalone DOCUMENT — it is a receipt, not an app page", () => {
+    // The most-shared thing Sage produces, usually opened by someone who has never heard of it.
+    // Founder chrome offering "Launch a campaign" would turn an artifact into an advert.
+    expect(isAppRoute("/proof/0x123")).toBe(false);
   });
 
   it("leaves the public front door alone", () => {

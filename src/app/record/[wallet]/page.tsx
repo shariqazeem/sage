@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { SageMark } from "@/components/brand/sage-mark";
 import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 
@@ -61,12 +60,9 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   return (
     <div className="spp">
       <div className="spp-col">
-        {/* THE ONE MARK (P19): the same SageMark + top-bar pattern as /proof — never a re-drawn lookalike. */}
+        {/* The mark lives in the app rail on this route, so the page does not draw a second one —
+            /proof keeps the standalone mark-and-kicker treatment because it has no rail. */}
         <div className="spp-top spp-reveal">
-          <Link href="/" className="spp-brand" style={{ textDecoration: "none", color: "inherit" }}>
-            <SageMark size={26} />
-            <span className="spp-wordmark">Sage</span>
-          </Link>
           <span className="spp-kicker">Verified work record</span>
         </div>
 
