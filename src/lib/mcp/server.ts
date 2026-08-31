@@ -318,6 +318,27 @@ function bareHost(raw: string): string {
   }
 }
 
+/**
+ * WHAT THE MODEL IS TOLD WHEN ITS ARGS ARE REFUSED — one definition, because P-DIRECT sends this
+ * too.
+ *
+ * The battery had its own hand-copied version, and the day the rules changed (a founder may now
+ * price the whole grant with `splitTotalUsd` instead of each tranche) production said one thing and
+ * the battery said the old thing. A battery that hands the model worse guidance than production
+ * does is measuring a product that does not exist — the same reason CLAUDE.md requires batteries to
+ * import production's own prompt and tools rather than a copy.
+ */
+export function directCampaignCorrection(issues: string): string {
+  return (
+    `The campaign isn't valid yet. Fix ALL of these in ONE corrected call: ${issues}. ` +
+    `Every milestone needs slots (how many people may be paid, use 1 unless they said otherwise) ` +
+    `and a price: either rewardUsd on EVERY milestone, or — when the founder priced the whole thing ` +
+    `rather than each tranche — splitTotalUsd on the campaign with rewardUsd left off ALL of them, ` +
+    `and Sage divides it. Never a mix of the two. ` +
+    `If a detail is genuinely missing, ask the founder ONE question instead of guessing.`
+  );
+}
+
 export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const asArr = (v: unknown): string[] =>
     Array.isArray(v)
@@ -644,7 +665,7 @@ export async function callSageTool(
               type: "text",
               text: JSON.stringify({
                 ok: false,
-                error: `The campaign isn't valid yet. Fix ALL of these in ONE corrected call: ${all}. Every milestone needs rewardUsd (USDC per completion, from the founder) and slots (how many people may be paid, use 1 unless they said otherwise). If a detail is genuinely missing, ask the founder ONE question instead of guessing.`,
+                error: directCampaignCorrection(all),
               }),
             },
           ],

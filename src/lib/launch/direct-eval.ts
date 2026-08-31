@@ -14,6 +14,7 @@ import {
   type DirectCampaignInput,
   effectiveMilestoneUsd,
 } from "./direct-campaign";
+import { directCampaignCorrection } from "@/lib/mcp/server";
 import type { DirectFixture } from "./direct-fixtures";
 
 /**
@@ -347,7 +348,10 @@ export async function runDirectEval(opts: {
                 tool_call_id: (call as { id?: string })?.id ?? "call_0",
                 content: JSON.stringify({
                   ok: false,
-                  error: `The campaign isn't valid yet. Fix ALL of these in ONE corrected call: ${errText}. Every milestone needs rewardUsd and slots.`,
+                  // PRODUCTION'S OWN correction, not a copy: a battery that hands the model
+                  // different guidance than the product does is measuring a product that does not
+                  // exist. This one had drifted the moment splitTotalUsd landed.
+                  error: directCampaignCorrection(errText),
                 }),
               } as Msg,
             ]);
