@@ -138,12 +138,16 @@ const milestoneSchema = z.object({
    * stamped rate, and the result lands in `rewardUsd` below.
    */
   rewardLocal: z.number().positive().max(10_000_000).optional(),
+  /**
+   * Optional ONLY so a founder's stated TOTAL can drive an equal split — see
+   * `splitTotalUsd` on the campaign, which is the only thing that makes omitting this legal.
+   */
   rewardUsd: z
-    .number()
+    .optional(z.number()
     .positive()
     .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, "at most 2 decimals")
     .refine((v) => v >= DIRECT_LIMITS.rewardUsdMin, `at least $${DIRECT_LIMITS.rewardUsdMin} per completion`)
-    .refine((v) => v <= DIRECT_LIMITS.rewardUsdMax, `at most $${DIRECT_LIMITS.rewardUsdMax} per completion`),
+    .refine((v) => v <= DIRECT_LIMITS.rewardUsdMax, `at most $${DIRECT_LIMITS.rewardUsdMax} per completion`)),
   slots: z.number().int().min(1).max(DIRECT_LIMITS.slotsMax),
   effortMinutes: z.number().int().min(1).max(240).optional(),
 });
@@ -169,6 +173,43 @@ export const directCampaignSchema = z.object({
    * campaign is, so this is additive by construction.
    */
   currency: z.string().length(3).optional(),
+  /**
+   * THE FOUNDER'S STATED TOTAL, when they priced the whole thing instead of each tranche.
+   *
+   * "half when she publishes her catalogue and half when she posts her first review, $40 total"
+   * states everything — and produced no campaign at all. The schema demanded a per-milestone
+   * amount, the prompt forbids the model from computing one ("NEVER invent or compute amounts"),
+   * and its escape hatch is to ask. So it asked, `missedMoneyAction` saw a reply ending in a
+   * question and suppressed the corrective round, and the founder got a question instead of a
+   * grant. Measured by P-DIRECT 2026-08-31, the ONLY routing failure in that run.
+   *
+   * The model still computes nothing: it passes the total the founder said, and Sage divides it
+   * in exact base units. Same bargain as `rewardLocal` — the model reports, Sage does the arithmetic.
+   */
+  splitTotalUsd: z.number().positive().max(DIRECT_LIMITS.totalUsdMax).optional(),
+}).superRefine((c, ctx) => {
+  const priced = c.milestones.filter((m) => m.rewardUsd !== undefined).length;
+  const all = c.milestones.length;
+  // MIXED IS REFUSED, not guessed. Half-priced milestones plus a total has two readings — is the
+  // total the whole grant or only the unpriced part? — and picking one silently mis-sizes someone's
+  // money. A founder who priced some tranches can price the rest.
+  if (priced > 0 && priced < all) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "price every milestone, or none of them with splitTotalUsd" });
+    return;
+  }
+  if (priced === all) {
+    if (c.splitTotalUsd !== undefined)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "splitTotalUsd cannot accompany per-milestone amounts" });
+    return;
+  }
+  if (c.splitTotalUsd === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "each milestone needs rewardUsd, or the campaign needs splitTotalUsd" });
+    return;
+  }
+  // A TRANCHE IS RELEASED ONCE. An equal split across milestones that can each pay several people
+  // has no single honest reading, so that combination stays explicit rather than inferred.
+  if (c.milestones.some((m) => m.slots !== 1))
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "splitTotalUsd only applies when every milestone has exactly 1 slot" });
 });
 
 export type DirectCampaignInput = z.infer<typeof directCampaignSchema>;
@@ -190,6 +231,7 @@ const isBoilerplateCriterion = (c: string): boolean =>
  */
 export function lintDirectCampaign(input: DirectCampaignInput): string[] {
   const notes: string[] = [];
+  const effectiveUsd = effectiveMilestoneUsd(input);
   input.milestones.forEach((m, i) => {
     const label = `Milestone ${i + 1} ("${m.title}")`;
     if (m.evidence.kind === "public_url") {
@@ -214,9 +256,10 @@ export function lintDirectCampaign(input: DirectCampaignInput): string[] {
         `${label}: every criterion restates the automatic check (host + wallet marker). Sage's judge can only verify what the criteria name — say what must be VISIBLE on the page itself (the translated items, the commands, the image).`,
       );
     }
-    if ((m.evidence.kind === "public_url" || m.evidence.kind === "artifact_url") && m.rewardUsd >= 50) {
+    const payUsd = effectiveUsd[i];
+    if ((m.evidence.kind === "public_url" || m.evidence.kind === "artifact_url") && payUsd >= 50) {
       notes.push(
-        `${label}: pays $${m.rewardUsd} on a fetched-page proof — at this size consider adding an on-chain step, or a named recipient allowlist so only your person can claim it.`,
+        `${label}: pays $${payUsd} on a fetched-page proof — at this size consider adding an on-chain step, or a named recipient allowlist so only your person can claim it.`,
       );
     }
   });
@@ -337,10 +380,46 @@ function surfaceFor(input: DirectCampaignInput, publicCampaignId: string): strin
  * so every existing campaign compiles byte-identically and a corridor outage degrades to the
  * currency that always works rather than to a guess.
  */
+/**
+ * Divide a stated total into exact base-unit shares — the arithmetic the model is forbidden to do.
+ *
+ * Works in 6-decimal BASE units, never dollars, because $40/3 has no exact dollar answer and any
+ * rounding in USD breaks the invariant every other part of this file is built on:
+ * Σ(rewardBase × slots) === totalBudgetBase, EXACTLY. The remainder is handed out one base unit at
+ * a time to the earliest milestones, so the shares differ by at most 0.000001 USDC and the sum is
+ * the total by construction rather than by luck.
+ */
+export function splitTotalBase(totalBase: bigint, milestones: number): bigint[] {
+  if (milestones <= 0) return [];
+  const n = BigInt(milestones);
+  const each = totalBase / n;
+  const remainder = totalBase % n;
+  return Array.from({ length: milestones }, (_, i) => (BigInt(i) < remainder ? each + BigInt(1) : each));
+}
+
+/**
+ * What each milestone will ACTUALLY pay, in dollars, whichever way the founder priced it.
+ *
+ * One resolver so a gate cannot read a different number than the compiler pays. Every gate here —
+ * the $50 fetched-page lint, the exact-sum check, the eval's arithmetic — is written in dollars,
+ * and each one that reached for `rewardUsd` directly would silently see 0 for a split grant and
+ * wave it through.
+ */
+export function effectiveMilestoneUsd(input: DirectCampaignInput): number[] {
+  if (input.splitTotalUsd === undefined) return input.milestones.map((m) => m.rewardUsd ?? 0);
+  return splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length).map(
+    (b) => Number(b) / 1_000_000,
+  );
+}
+
 export function resolveMilestoneUsd(
-  m: { rewardLocal?: number; rewardUsd: number },
+  m: { rewardLocal?: number; rewardUsd?: number },
   quote: RateQuote | null,
 ): number {
+  // An UNPRICED milestone is the splitTotalUsd path, where the amount comes from splitTotalBase and
+  // never from here. Zero rather than a throw: the caller decides, and every caller that can reach
+  // this case checks for the split first.
+  if (m.rewardUsd === undefined) return 0;
   if (!quote || quote.currency === "USD" || m.rewardLocal === undefined) return m.rewardUsd;
   const base = toUsdBase(m.rewardLocal, quote);
   // Back to dollars at cent precision: the vault works in base units, but every gate downstream
@@ -384,12 +463,28 @@ export function compileDirectCampaign(
     verificationContract: m.evidence,
   }));
 
+  /*
+    The founder priced the grant as a whole. The schema has already refused every ambiguous shape
+    (mixed pricing, a total alongside per-milestone amounts, multi-slot milestones), so reaching
+    here means every milestone is unpriced and the total is the only amount anyone stated.
+  */
+  const splitShares =
+    input.splitTotalUsd !== undefined
+      ? splitTotalBase(usdToBase(input.splitTotalUsd), input.milestones.length)
+      : null;
+  if (splitShares && splitShares.some((b) => b < usdToBase(DIRECT_LIMITS.rewardUsdMin))) {
+    return {
+      ok: false,
+      error: `$${input.splitTotalUsd} split across ${input.milestones.length} milestones is under the $${DIRECT_LIMITS.rewardUsdMin} floor each — fund more, or use fewer milestones.`,
+    };
+  }
+
   const allocation: BudgetAllocation = {
     ok: true,
     reason: null,
     missions: input.milestones.map((m, i) => ({
       missionKey: candidates[i].missionKey,
-      rewardBase: usdToBase(resolveMilestoneUsd(m, quote)),
+      rewardBase: splitShares ? splitShares[i] : usdToBase(resolveMilestoneUsd(m, quote)),
       maxCompletions: BigInt(m.slots),
       weight: 5,
       effortMinutes: m.effortMinutes ?? 15,

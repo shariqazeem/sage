@@ -12,6 +12,7 @@ import {
   directCampaignSchema,
   lintDirectCampaign,
   type DirectCampaignInput,
+  effectiveMilestoneUsd,
 } from "./direct-campaign";
 import type { DirectFixture } from "./direct-fixtures";
 
@@ -371,8 +372,8 @@ export async function runDirectEval(opts: {
             row.firstShotMilestones = firstShot.milestones.length;
             const mismatches = checkStatedTerms(
               f.utterance,
-              firstShot.milestones.map((m) => ({
-                rewardUsd: m.rewardUsd,
+              firstShot.milestones.map((m, i) => ({
+                rewardUsd: effectiveMilestoneUsd(firstShot)[i],
                 rewardLocal: m.rewardLocal,
                 slots: m.slots,
               })),
@@ -419,8 +420,9 @@ export async function runDirectEval(opts: {
               row.milestones = input.milestones.length;
               row.totalUsd = usd(compiled.totalBudgetBase);
               // THE frozen invariant: the sum of the parts IS the budget, exactly.
+              const eff = effectiveMilestoneUsd(input);
               const sum = input.milestones.reduce(
-                (acc, m) => acc + BigInt(Math.round(m.rewardUsd * 100)) * BigInt(10_000) * BigInt(m.slots),
+                (acc, m, i) => acc + BigInt(Math.round(eff[i] * 100)) * BigInt(10_000) * BigInt(m.slots),
                 BigInt(0),
               );
               row.budgetExact = sum === compiled.totalBudgetBase;

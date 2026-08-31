@@ -5,6 +5,7 @@ import {
   compileDirectCampaign,
   createDirectCampaign,
   directCampaignSchema,
+  effectiveMilestoneUsd,
   lintDirectCampaign,
   type DirectCampaignInput,
 } from "./direct-campaign";
@@ -290,8 +291,9 @@ describe("productUrl is OPTIONAL — a grant to a person has no product page (P-
       expect(() => new URL(m.targetSurface)).not.toThrow();
     }
     // the exact-sum invariant is untouched by the change
+    const eff = effectiveMilestoneUsd(input);
     const sum = input.milestones.reduce(
-      (a, m) => a + BigInt(Math.round(m.rewardUsd * 100)) * BigInt(10_000) * BigInt(m.slots),
+      (a, m, i) => a + BigInt(Math.round(eff[i] * 100)) * BigInt(10_000) * BigInt(m.slots),
       BigInt(0),
     );
     expect(compiled.totalBudgetBase).toBe(sum);
