@@ -140,4 +140,105 @@ export const DIRECT_FIXTURES: DirectFixture[] = [
     about:
       "purely offline work. Either Sage asks for a checkable proof, or it compiles a contract that is honestly weak and the LINT must flag it. What it must never do is claim it verified a clean office.",
   },
+
+  // ── COMPLEX SHAPES a real founder sends (added 2026-08-31) ────────────────────────────
+  // Gigs and grants are the lanes Sage is judged on now, and everything above is a single
+  // tranche or an even split. These are the ones that arrive with structure.
+  {
+    id: "pd-grant-thirds-of-a-total",
+    category: "grant-complex",
+    utterance:
+      "I want to back a friend's catering side business with $90, released in three equal parts: when she publishes her menu page, when she posts her first booking, and when she shows a customer review.",
+    expect: "direct",
+    statedAmountUsd: 90,
+    statedMilestones: 3,
+    about: "Equal split of a stated total across THREE — $90/3 divides cleanly, unlike the $40/3 case",
+  },
+  {
+    id: "pd-grant-uneven-front-loaded",
+    category: "grant-complex",
+    utterance:
+      "$100 total for a shop owner getting online, but weight it early: $50 when the storefront page is up, $30 when the first product is listed, $20 when they announce their first sale.",
+    expect: "direct",
+    statedAmountUsd: 100,
+    statedMilestones: 3,
+    about: "UNEVEN explicit tranches — the split path must not fire, and the amounts must survive verbatim",
+  },
+  {
+    id: "pd-grant-mixed-evidence-kinds",
+    category: "grant-complex",
+    utterance:
+      "Fund a developer $60 in two steps: $35 when they deploy the contract on-chain and send the transaction, and $25 when the docs page for it is live and public.",
+    expect: "direct",
+    statedAmountUsd: 60,
+    statedMilestones: 2,
+    about: "One tranche on-chain, one a fetched page — the two contract kinds in a single grant",
+  },
+  {
+    id: "pd-gig-multi-slot-per-person-price",
+    category: "gig-complex",
+    utterance:
+      "I'll pay $4 each to the first 5 people who publish a short walkthrough of my onboarding flow with their wallet address on the page.",
+    expect: "direct",
+    statedMilestones: 1,
+    about: "PER-PERSON price over 5 slots = $20 total. Asserting $4 as the total would fail the product for doing the right arithmetic, so statedAmountUsd is deliberately omitted",
+  },
+  {
+    id: "pd-gig-long-deliverable-spec",
+    category: "gig-complex",
+    utterance:
+      "Pay $25 for this: a public comparison page of our pricing against two named competitors, with a table, at least 400 words, our current prices quoted exactly, and the writer's wallet address in the footer.",
+    expect: "direct",
+    statedAmountUsd: 25,
+    statedMilestones: 1,
+    about: "A dense multi-clause deliverable — the criteria must carry the constraints without inventing extras",
+  },
+  {
+    id: "pd-grant-currency-tranches",
+    category: "grant-complex",
+    utterance:
+      "Give a market seller J$10,000 in two equal parts — half when her catalogue is online, half when she posts her first review.",
+    expect: "direct",
+    statedMilestones: 2,
+    about: "Non-USD total AND an equal split. The model must not convert (rewardLocal), and must not divide (splitTotalUsd)",
+  },
+  {
+    id: "pd-gig-named-recipient",
+    category: "gig-complex",
+    utterance:
+      "Pay my designer $50 when the new logo page is live on our site. Only she should be able to claim it — her wallet is 0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434.",
+    expect: "direct",
+    statedAmountUsd: 50,
+    statedMilestones: 1,
+    about: "A NAMED recipient with a wallet — must become an allowlist, never an open bounty anyone can claim",
+  },
+  {
+    id: "pd-grant-conditional-on-someone-else",
+    category: "unverifiable",
+    utterance:
+      "Send my cousin $200 when the bank finally approves her loan application.",
+    expect: "not-direct",
+    statedAmountUsd: 200,
+    about: "Nothing Sage can verify: the condition is a third party's private decision. Must NOT compile into a payable mission",
+  },
+  {
+    id: "pd-gig-deadline-not-a-milestone",
+    category: "gig-complex",
+    utterance:
+      "$30 for a public write-up of our API, and I need it by Friday.",
+    expect: "direct",
+    statedAmountUsd: 30,
+    statedMilestones: 1,
+    about: "A deadline is not a second milestone. Inventing one from 'by Friday' is the defect this catches",
+  },
+  {
+    id: "pd-grant-spanish-tranches",
+    category: "gig-language",
+    utterance:
+      "Quiero dar $50 a una vendedora en dos partes iguales: la mitad cuando publique su catálogo y la mitad cuando muestre su primera venta.",
+    expect: "direct",
+    statedAmountUsd: 50,
+    statedMilestones: 2,
+    about: "Spanish AND an equal split — the plan must still be well-formed English",
+  },
 ];
