@@ -359,7 +359,15 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
            */
           criteria: asArr(m.criteria).length ? asArr(m.criteria) : title ? [title] : [],
           evidence,
-          rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")),
+          /**
+           * ABSENT IS NOT NaN. `Number(undefined)` is NaN, and the schema then reports
+           * "expected number, received NaN" about a field the founder priced at the campaign level
+           * and the model was right to leave out. Same trap already fixed below for `slots`; this
+           * is the other half of it, measured by P-DIRECT on the split-total fixtures 2026-08-31.
+           */
+          ...(Number.isFinite(num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")))
+            ? { rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")) }
+            : {}),
           /**
            * DEFAULT ONE. MEASURED by P-DIRECT: the model omits `slots` on nearly every milestone,
            * and `Number(undefined)` is NaN — which failed five campaigns on a field the founder
@@ -390,8 +398,30 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
     milestones[0].rewardUsd = statedTotal;
   }
 
+  /**
+   * SEVERAL TRANCHES, ONE STATED TOTAL — the founder priced the whole grant.
+   *
+   * The block above handles the single-milestone case, where the total IS the tranche. This is the
+   * general one: "half and half, $40 total" across two milestones, or "$90 in three equal parts".
+   * Sage divides it in exact base units; the model computes nothing, which is why it is allowed to
+   * omit every rewardUsd.
+   *
+   * Only when NONE of them is priced. A mix means the founder priced some tranches and left others,
+   * and dividing a total across that has two readings — the compiler refuses it rather than guess.
+   * The model's own campaign-level vocabulary is accepted here for the same reason the block above
+   * accepts it: measured, that is where it puts a stated total.
+   */
+  const splitTotalUsd =
+    milestones.length > 1 &&
+    Number.isFinite(statedTotal) &&
+    statedTotal > 0 &&
+    milestones.every((m) => !("rewardUsd" in m))
+      ? statedTotal
+      : num(pickNum(args, "splitTotalUsd"));
+
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
+    ...(Number.isFinite(splitTotalUsd) && splitTotalUsd > 0 ? { splitTotalUsd } : {}),
     // A model often omits `kind` entirely. Infer it the way a reader would: several tranches of
     // one funded outcome is a grant; a single deliverable (or several slots of one) is a gig.
     kind:

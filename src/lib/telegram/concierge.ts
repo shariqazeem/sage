@@ -270,17 +270,26 @@ export const DIRECT_CAMPAIGN_TOOL = {
               },
               required: ["kind"],
             },
-            rewardUsd: { type: "number", description: "USDC per completion, min 0.5, max 2 decimals. From the founder — never invented." },
+            rewardUsd: { type: "number", description: "USDC per completion, min 0.5, max 2 decimals. From the founder — never invented. OMIT on EVERY milestone when you pass splitTotalUsd; never omit it on only some." },
             slots: { type: "number", description: "Max paid completions, 1-50." },
             effortMinutes: { type: "number", description: "Optional estimated effort." },
           },
-          required: ["title", "instructions", "criteria", "evidence", "rewardUsd", "slots"],
+          // rewardUsd is NOT required here: a founder who priced the whole grant ("half and half,
+          // $40 total") states no per-tranche amount, and the model may not compute one. It passes
+          // splitTotalUsd instead and Sage divides. Listing it as required while the prompt said to
+          // omit it is a contradiction the model resolved by sending NaN — measured, 2026-08-31.
+          required: ["title", "instructions", "criteria", "evidence", "slots"],
         },
+      },
+      splitTotalUsd: {
+        type: "number",
+        description:
+          "The founder's TOTAL when they priced the whole thing rather than each tranche (\"half and half, $40 total\", \"$90 in three equal parts\"). Pass their total verbatim, OMIT rewardUsd on every milestone, and Sage divides it exactly — you compute nothing. Only when every milestone has slots:1. Never combine with rewardUsd.",
       },
       recipients: {
         type: "array",
         items: { type: "string" },
-        description: "Optional named recipient wallets (0x…). If set, ONLY they can submit and the campaign stays off the public board; empty = open to anyone.",
+        description: "Optional named recipient wallets — an EVM address or a Starknet address, whichever the founder gave. If set, ONLY they can submit and the campaign stays off the public board; empty = open to anyone.",
       },
     },
     required: ["kind", "title", "milestones"],

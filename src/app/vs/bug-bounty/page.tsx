@@ -1,4 +1,5 @@
 import "../../content.css";
+import { PublicNav } from "@/components/shell/public-nav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "@/lib/site";
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 export default function VsBugBountyPage() {
   return (
     <main className="prose-page">
+      <PublicNav />
       <div className="prose-wrap">
         <p className="prose-eyebrow">Comparison</p>
         <h1>Sage vs a bug bounty</h1>

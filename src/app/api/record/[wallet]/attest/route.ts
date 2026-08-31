@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { attestationChallenge } from "@/lib/verify/attestation-challenge";
 import { verifyMessage } from "viem";
 
 import {
@@ -28,16 +29,6 @@ export const dynamic = "force-dynamic";
  * ask about it, and the signature covers the FLOOR as well as the wallet — otherwise one signature
  * could be replayed across every floor and the oracle would be back.
  */
-
-/** The exact message a requester must sign. Explicit so a wallet UI can show what is being agreed. */
-export function attestationChallenge(wallet: string, floorUsd: number | null, issuedAt: number): string {
-  return [
-    "Sage earnings attestation",
-    `wallet: ${wallet.toLowerCase()}`,
-    floorUsd === null ? "floor: none" : `floor: at least $${floorUsd.toFixed(2)}`,
-    `issued: ${issuedAt}`,
-  ].join("\n");
-}
 
 /** How stale a signed challenge may be. Short: it only has to survive one round trip. */
 const CHALLENGE_MAX_AGE_SEC = 10 * 60;

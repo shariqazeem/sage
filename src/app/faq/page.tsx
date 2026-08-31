@@ -1,4 +1,5 @@
 import "../content.css";
+import { PublicNav } from "@/components/shell/public-nav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FAQ } from "@/lib/seo/faq";
@@ -26,6 +27,7 @@ export const metadata: Metadata = {
 export default function FaqPage() {
   return (
     <main className="prose-page">
+      <PublicNav />
       <div className="prose-wrap">
         <p className="prose-eyebrow">Frequently asked</p>
         <h1>Paid product testing, answered</h1>

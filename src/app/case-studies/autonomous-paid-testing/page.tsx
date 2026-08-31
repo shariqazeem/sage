@@ -1,4 +1,5 @@
 import "../../content.css";
+import { PublicNav } from "@/components/shell/public-nav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "@/lib/site";
@@ -28,6 +29,7 @@ export const metadata: Metadata = {
 export default function AutonomousPaidTestingCaseStudy() {
   return (
     <main className="prose-page">
+      <PublicNav />
       <div className="prose-wrap">
         <p className="prose-eyebrow">Case study</p>
         <h1>What happened when an AI agent paid 16 people to test software</h1>

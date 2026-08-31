@@ -113,7 +113,22 @@ describe("the model's own field names — measured raws (P-DIRECT round 5)", () 
     expect(r.data.milestones[0]!.slots).toBe(1);
   });
 
-  it("NEVER splits a total across several milestones — that would be guessing the founder's intent", () => {
+  /**
+   * THIS RULE REVERSED, 2026-08-31, on measurement.
+   *
+   * It used to fail loudly rather than "invent" a 20/20 split. But this exact shape — two
+   * tranches and one stated total — is how a founder says "half when she publishes her catalogue
+   * and half when she posts her first review, $40 total", and P-DIRECT measured it as the ONLY
+   * routing failure in the money lane: the founder stated everything and got a question back.
+   *
+   * Dividing what they said is not guessing. Guessing is the MIXED case (some tranches priced,
+   * some not: is the total the whole grant or only the rest?) and the multi-slot case, and both
+   * are still refused — below, and in split-total.test.ts.
+   *
+   * The model still computes nothing. It passes the founder's total through and Sage divides it
+   * in exact base units.
+   */
+  it("splits a stated total across unpriced tranches — the measured failure", () => {
     const r = parse({
       milestones: [
         { title: "First half of the work", instructions: "Do the first half of it", verificationMethod: "publicLink" },
@@ -121,7 +136,22 @@ describe("the model's own field names — measured raws (P-DIRECT round 5)", () 
       ],
       totalBudgetUsd: 40,
     });
-    expect(r.success).toBe(false); // fails loudly rather than inventing a 20/20 split
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.splitTotalUsd).toBe(40);
+    // The amounts are Sage's to compute, so the model's args carry none.
+    for (const m of r.data.milestones) expect(m.rewardUsd).toBeUndefined();
+  });
+
+  it("still refuses to split when SOME tranches are priced — that would be guessing", () => {
+    const r = parse({
+      milestones: [
+        { title: "First half of the work", instructions: "Do the first half of it", verificationMethod: "publicLink", rewardUsd: 30 },
+        { title: "Second half of the work", instructions: "Do the second half of it", verificationMethod: "publicLink" },
+      ],
+      totalBudgetUsd: 40,
+    });
+    expect(r.success).toBe(false);
   });
 
   it("does not rescue a total onto a multi-slot milestone either", () => {

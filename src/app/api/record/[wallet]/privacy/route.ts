@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { privacyChallenge } from "@/lib/verify/privacy-challenge";
 import { verifyMessage } from "viem";
 
 import { setRecordPrivate } from "@/lib/campaigns/record-preference";
@@ -6,24 +7,6 @@ import { setRecordPrivate } from "@/lib/campaigns/record-preference";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * POST /api/record/<wallet>/privacy — a worker turns payout amounts on or off on their own record.
- *
- * Only the wallet whose income it is may change this, so the choice is signed. Without that, anyone
- * could switch someone else's record public — which for a person who deliberately turned it off
- * would publish their income against their wishes, the exact harm the setting exists to prevent.
- *
- * The signature covers the DIRECTION as well as the wallet and the time, so a signature obtained
- * for one change cannot be replayed to make the opposite one.
- */
-export function privacyChallenge(wallet: string, amountsPrivate: boolean, issuedAt: number): string {
-  return [
-    "Sage record privacy",
-    `wallet: ${wallet.toLowerCase()}`,
-    `amounts: ${amountsPrivate ? "private" : "public"}`,
-    `issued: ${issuedAt}`,
-  ].join("\n");
-}
 
 const CHALLENGE_MAX_AGE_SEC = 10 * 60;
 

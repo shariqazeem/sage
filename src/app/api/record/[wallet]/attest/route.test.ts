@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { attestationChallenge } from "./route";
+import { attestationChallenge } from "@/lib/verify/attestation-challenge";
 
 const KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const account = privateKeyToAccount(KEY);

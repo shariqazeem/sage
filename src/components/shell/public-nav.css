@@ -1,0 +1,61 @@
+/* The public nav's own stylesheet, imported by the component.
+
+   It lived in content.css, which meant a page could render <PublicNav /> unstyled simply by
+   importing a different sheet — /agents/sage does exactly that. Chrome should carry its own
+   appearance so using it is one import, not two.
+
+   Measured on prod 2026-08-31: five content pages rendered with no navigation at all, so a
+   reader who arrived from search had the back button and nothing else. Quiet by design — it is
+   a way out, not a second header competing with the page's own title. */
+
+.pubnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.pubnav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  color: var(--ink-warm, var(--ink));
+  text-decoration: none;
+}
+.pubnav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+}
+.pubnav-links a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.pubnav-links a:hover {
+  color: var(--ink-warm, var(--ink));
+}
+.pubnav-cta {
+  background: var(--accent);
+  color: var(--accent-ink) !important;
+  padding: 0.42rem 0.85rem;
+  border-radius: 10px;
+  font-weight: 550;
+}
+.pubnav-cta:hover {
+  background: var(--accent-strong);
+}
+@media (max-width: 640px) {
+  .pubnav-links {
+    gap: 0.9rem;
+    font-size: 0.875rem;
+  }
+}

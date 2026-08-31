@@ -52,6 +52,16 @@ export const DIRECT_LIMITS = {
 /* ───────────────────────────────── input schema (operator-authored) ────── */
 
 const walletRe = /^0x[0-9a-fA-F]{40}$/;
+/**
+ * A RECIPIENT MAY BE ON EITHER RAIL.
+ *
+ * `walletRe` is an EVM address and stays that way — it also types `to` and `logEmitter` on an
+ * on-chain_tx contract, which really are EVM-only. But the ALLOWLIST names people, and a Starknet
+ * felt is up to 64 hex digits, so "pay my designer, her wallet is 0x04f1…f434" was refused as
+ * malformed on the rail Sage just launched. Measured by P-DIRECT, pd-gig-named-recipient,
+ * 2026-08-31.
+ */
+const recipientRe = /^0x[0-9a-fA-F]{1,64}$/;
 const hex32Re = /^0x[0-9a-fA-F]{64}$/;
 const selectorRe = /^0x[0-9a-fA-F]{8}$/;
 const decimalRe = /^[0-9]{1,30}$/;
@@ -166,7 +176,7 @@ export const directCampaignSchema = z.object({
   whyItMatters: z.string().min(10).max(600).optional(),
   milestones: z.array(milestoneSchema).min(1).max(DIRECT_LIMITS.milestonesMax),
   /** optional recipient allowlist — named grantees. Enforced at the submit route (app-level). */
-  allowlist: z.array(z.string().regex(walletRe)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
+  allowlist: z.array(z.string().regex(recipientRe)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
   /**
    * The currency the founder is THINKING in. Settlement is always USDC — this changes what the
    * numbers are called, never what the vault moves. Absent means USD, which is what every existing
