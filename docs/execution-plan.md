@@ -1,252 +1,125 @@
-# Execution plan — 2026-08-31 onward
+# THE FINAL WEEK — one system, two submissions
 
-The plan we are both working from. Written 2026-08-31 (Monday). Tick items as they land; when
-something turns out to be wrong, fix the line rather than remembering a correction.
+Rewritten 2026-09-01 with the user, on the settled thesis (Opus draft, Grok stress-test).
+**Future Caribbean closes Sat 6 Sep. STRK20 extended to Sun 7 Sep.** FC is the priority — Metis-
+recommended, we hold their 1st-place signal, and the Finance/Payments/MSME track rewards exactly
+what already exists. Both submissions come from ONE repo with different skins.
 
-**Status legend:** `[ ]` not started · `[~]` partly built · `[x]` done and verified on prod.
-
----
-
-## When you wake — the three things only you can do
-
-Everything else on this page that could be done without you, was. These need your wallet, your
-password, or your screen.
-
-1. **Collect the outstanding claim into a shielded note.** The autonomous payout's $0.50 is still
-   uncollected. Collecting it from your pool-registered wallet produces a FOURTH qualifying
-   transaction for `strk20.json` — and the only one whose payout was decided by the agent with no
-   human in it, which is a stronger entry than the three already listed. Send me the hash.
-2. **Declare the new vault class**, if you want the privacy fix live before judging:
-   `node scripts/starknet-deploy.mjs --contract vault --keystore <path> --account <path>`.
-   It asks for your password on purpose — a deliberate human gate on a mainnet write, which is why
-   I did not route around it. The recipient no longer appears in `PayoutReleased` or
-   `PayoutRefused`; both name the attempt instead. Written, tested, ABI regenerated, 68 Cairo tests
-   green.
-3. **Fund the $10 campaign, then record the demo.** The campaign must be live before the post, and
-   the marketplace is empty until it is. Shot list in `docs/posts/VIDEO-SPECS.md` — beat 3, the
-   agent deciding to pay, is the whole submission.
-
-Prod is healthy and verified: every page renders, the sweep is clean, and the only errors in the
-log predate the current process.
-
-## The one hard date
-
-**Future Caribbean closes Sunday 6 Sep.** Today is Mon 31 Aug — six days. Nothing else in this
-document has an external deadline.
-
-That forces one scheduling decision, and it is the only place this plan departs from the order as
-spoken:
-
-> **The campaigns launch first and run in the background; they do not wait for the hardening pass.**
-
-A campaign is only proof once *real people* show up, and that is wall-clock, not work — strangers
-took days to appear on the last two. Launching Starknet on day 1 and the public $10 pot on day 2
-means they are accumulating real claimants while the FC build happens. Serialising them behind an
-open-ended hardening pass would spend the whole six days and reach FC with nothing live.
-
-Agent hardening is therefore continuous and scoped to what the live campaigns and FC actually
-exercise, rather than a phase that must "finish" before anything ships.
+Prior week's results (batteries all green, 8 defects fixed, privacy events, shell/nav, posts) are
+in git history and memory. This file is only what remains.
 
 ---
 
-## Track A — The agentic system, everywhere (continuous)
+## The thesis, as it goes in both submissions
 
-Goal in the user's words: *any user, any tester, any product, any founder or freelancer or employee
-can use it and Sage works the best — no lack, ready to be used — and if we change the LLM it works
-the same.*
+> **Agentic working-capital infrastructure.** Sage witnesses performance, a vault bounds the
+> agent, rails discharge the obligation, the record is underwritable, and third-party capital can
+> sit behind the same judge.
 
-That last clause is the one that makes this measurable. "Works the same on a different model" is
-not a feeling; it is the batteries passing on a model they were not tuned on.
+```
+witness (agent)
+  → obligation (signed, capped)
+    → vault (cannot exceed)
+      → router (GOAT public · STRK20 claim · fiat adapter next)
+        → record (public tape or selective proof)
+          → capital in (advance — THE transformation)
+```
 
-### A1 — Baseline every AI surface · **DONE 2026-08-31, all on MiniMax**
-Every battery run with real credentials (see the `.env`/LIVE_FLAGS fix — before it, they ran blind).
+**Language rules (hard):**
+- NEVER "we removed credit risk." Say: *waterfall on witnessed inflow — recourse on the
+  Sage-routed remainder.* The borrower can stop using Sage; a Citi judge will say so in one line.
+- "Sage doesn't read cash flow. It **witnesses** it. In markets where the books don't exist,
+  Sage writes the book as the work happens."
+- The **45% refusal rate is the institutional asset** — lead with it everywhere.
+- Trade finance is the same loop with different evidence adapters — say "next adapter," never
+  claim a test receipt is a bill of lading.
+- CARICOM FX matching: one honest slide — netting becomes real on our own book when obligations
+  exist in two currencies; not built this week because inventing counterparties is an app, not
+  infrastructure.
+- Fiat / crypto-banned: adapter INTERFACE + "mark paid via partner" stub, clearly labelled. The
+  same verified credit event records either way — that is what makes it an infrastructure claim.
+- STRK20 skin: *income that can be borrowed against without being a public diary.* Pool-native
+  (claim → shield), viewing-key-shaped disclosure (floor attestation), matches how StarkWare
+  itself pitches STRK20 (privacy as a mode of activity, not a mixer).
 
-- [x] **P-JUDGE** — promotion-eligible · conclusive · **0 wrong autopays** · 57/57 valid rows
-- [x] **P-WORK** (gig lane) — **21 attacks, 0 leaks · 18/18 honest autopay, 0 false holds**
-- [x] **P-DIRECT** — re-run after the fixes: **compileFailures 6 → 0**, confirming against the live
-      model that the half-wired tool schema, the NaN from the mapper and the EVM-only allowlist are
-      genuinely gone. The re-run also caught a regression of mine — a LOSSY budget CHECK, since
-      fixed. The compiler's split was always exact; the check was not, and a check that cannot add
-      up cannot catch a real break.
-
-      **Still open, and these are RECALL, not money** — the invariants hold on every row:
-      - the model still does not reach for `splitTotalUsd`: `thirds-of-a-total` and
-        `currency-tranches` produce no tool call at all. Schema and prompt now support it, so this
-        is PROMPT work — the model asks a question instead of acting, and `missedMoneyAction`
-        suppresses the corrective round precisely when a reply ends in "?"
-      - `pay my designer $50 when the logo page is live`, and the Spanish gig — the two misses
-        `docs/fc/what-is-left.md` already tracked
-      - `$4 each to the first 5 people` (per-person pricing) and `by Friday` (a deadline) produce
-        no campaign
-      - **over-eager the other way:** `send my cousin $200 when the bank approves her loan` DID
-        create a campaign, twice. A third party's private decision is nothing Sage can verify, so
-        it must refuse
-
-      This is the FC week's work: milestone grants are that track's centrepiece and this is their lane.
-- [x] **P-VERIFY** — 5/5 against the real internet and the real chain
-- [x] **obs ledger** — 5/5
-- [x] **P-GEN** — **13/13 categories, anchor integrity 100% on every one.** Static landing, docs,
-      SaaS marketing, an interactive SPA, a 26-state DOM world, e-commerce, a login wall, portfolio,
-      non-English, CNN, a WebGL scene, wallet-gated Uniswap, and a canvas game.
-
-      Honest caveat: not all green in ONE run. The full matrix showed 12/13, with `canvas-game`
-      timing out at 1500s during mission generation — **caused by me**, running builds and pm2
-      restarts on the 2-core VM while the battery held it. Retested alone on a quiet box it passes
-      clean (10 states, 3 missions, anchors 100%, no failures). Exactly the contention CLAUDE.md
-      warns produces timeouts indistinguishable from quality failures, and the script's own source
-      documents the same trap. **Do not run anything else on that box during a battery.**
-
-**The instrument fixes that made these mean anything:** vitest never loaded `.env`, so batteries ran
-with no credentials and every row read as a quality failure; and my first `LIVE_FLAGS` list was
-hand-written and missed `WORK_EVAL` and others. Both now derived and pinned by tests.
-
-### A2 — Prove LLM portability for real
-The lane system already exists (`<LANE>_API_KEY/_BASE_URL/_MODEL`, all three or ABSENT) and
-`provider-profile.ts` handles reasoning overhead. What has never been done is *running the batteries
-on a second model and comparing*.
-
-- [ ] `scripts/lane-audit.mjs` first — print which provider each lane actually resolves to
-- [ ] Re-run P-JUDGE + P-WORK + P-DIRECT on a second model (MiniMax-M3 ↔ the alternative)
-- [ ] Any row that passes on one and fails on the other is a **portability defect**, not a model preference — fix the prompt/schema/budget, not the model choice
-- [ ] Write the result up as the promotion evidence for a second approved judge identity
-
-### A3 — Known open defects to close
-- [x] The grant equal-split miss — **fixed 2026-08-31** (`splitTotalUsd`, deterministic base-unit split)
-- [ ] P-DIRECT's other routing misses: a plainly-worded gig ("pay my designer $50 when the logo page is live") and one Spanish request
-- [ ] Named-recipient gigs — "pay *my* designer" becomes an open bounty anyone can claim. Product decision, not a bug.
-- [ ] Every refusal reason readable by the person who received it; no dead ends
-- [ ] 16 stuck operator fees, $1.60, retried 1,914× each — Sage's own revenue, unbounded retry with no cap
-- [ ] Rendered-evidence path (`RENDERED_EVIDENCE_MODE=enforce`) still unproven against a JS-only page
-
-### A4 — The defect class to hunt, not just the defects
-Two bugs on 2026-08-31 were both *Sage lying to itself*, invisible in any diff:
-the marker check refusing a worker's own address, and a publish-anywhere gig judged against the
-campaign's own page. Neither was a model failure.
-
-- [ ] Sweep every place a brief/criterion is assembled for a model and ask: **can this condition be satisfied at all?** (Same shape as the grounded-yield chain.)
-- [ ] Sweep every string built from optional data for the dangling case (`"created on ."`)
-- [ ] Standing rule: when a model holds work that passed every deterministic check, **suspect the brief before the model**
+**First lender is US** (the Sage Advance pot). One advance, disbursed and repaid on mainnet with
+receipts, beats any institutional letter of intent. The NYSE line: the facility works, the LP is
+still us, the pipe is open for a credit union.
 
 ---
 
-## Tracks B & C — the launch sequence (paired: every post opens a campaign)
+## BUILD 1 — Sage Advance (capital in + waterfall) · the transformation
 
-Replanned 31 Aug on the user's call: **launch by launch, and every feature launch ships with live
-work on the board.** Gigs and milestone grants have never been announced on X at all, so each post
-does double duty — it announces the feature AND puts money people can go earn right now.
+The one genuinely new layer. Everything else exists.
 
-Two rules that shape the calendar:
+- [ ] **Schema**: `advances` (borrower wallet, principal base, published terms: multiple,
+      waterfall fraction, pot address) + `advance_repayments` (payout id, leg amount, claim tx).
+      Migration. Deterministic formulas only — Sage still scores nobody.
+- [ ] **Disbursement**: pot → claim link to the borrower (reuses SageClaims; the advance itself is
+      private-capable). Operator-signed, capped by `advanceCapacityUsd` (exists).
+- [ ] **Waterfall — NO NEW CAIRO**: on the claims rail, `escrowPayouts` mints TWO legs via
+      `deposit_many` when the earner has an outstanding advance: repayment leg (pot's secret) +
+      remainder (worker's). Deterministic fraction from the advance terms. Vault flow byte-
+      untouched; this is additive AFTER the vault call in `settle-starknet.ts` (frozen-listed —
+      explicitly authorized by the user for this build; full test + mutation discipline; EVM flow
+      not touched — GOAT is "the next adapter" and we say so).
+- [ ] **Record**: `/record` shows advance outstanding / repaid-via-N-payouts with the published
+      arithmetic. Repayment history IS the credit story lenders ask for.
+- [ ] **Surface**: advance offer card on `/record` + "Fund this advance" on `/lender`
+      (lender supplies the multiple — `advanceCapacityUsd` already enforces the philosophy).
+- [ ] **THE PROOF**: one real advance on mainnet — worker with a real record takes an advance →
+      their next verified payout auto-splits → both legs' receipts land on `/record` and
+      `/explorer`. This is the FC demo's climax.
 
-- **The campaign goes live BEFORE its post.** When the post lands the marketplace must already have
-  work on it; an empty board on launch day is the worst possible first impression, and it is the
-  state the board is in today.
-- **Tue/Wed peak, never weekends** (GOAT CMO playbooks). Links go in the self-reply — in-body links
-  cost 30-50% reach.
+## BUILD 2 — milestone grants proven + direct-lane recall
 
-### Launch A — privacy rail + gigs (SOFT LAUNCH) · campaign + post BOTH TODAY, Mon 31 Aug
-User's call 31 Aug: ship today, ahead of the hackathon deadline; do not hold the launch for the
-`intent_hash` fix. The post therefore ships in its HONEST form — "private destination", not "no
-public earnings record". That fix moves into the FC week, and when it lands the claim upgrades.
+Grants have run in production ZERO times and are the FC centrepiece.
 
-- [ ] Fund + launch the campaign (below) — must be LIVE before the post
-- [ ] Post `docs/posts/2026-08-31-strk20-privacy.md`
-- [ ] Record the hackathon demo video
+- [ ] One real milestone grant end-to-end: walletless recipient (2nd Telegram account) —
+      invite → earn → verify → pay → cash out → record. Caribbean-flavoured framing
+      ("fund a market seller in two tranches") so the run IS the film.
+- [ ] Fix the over-eager route (MONEY-ADJACENT, do first): "when the bank approves her loan"
+      must REFUSE — an unverifiable third-party condition. Deterministic gate, not prompt hope.
+- [ ] Recall prompts: model must reach for `splitTotalUsd` (thirds-of-total, currency tranches);
+      designer gig; Spanish; per-person pricing; deadline≠milestone. Re-run P-DIRECT after.
+      One battery at a time; NOTHING else on the VM during a run.
 
-**The campaign, and the circularity it had to design around.** The obvious task — "get paid
-privately, then write up what that was like" — cannot work: the payout being written about is the
-payout for writing it. Nobody can file a first-hand account of an experience they have not had yet.
+## BUILD 3 — STRK20 completion
 
-So the mission asks for a write-up of HOW the private payout works, which anyone can research from
-the public contracts and the launch post. They then experience the claim as their reward. The post
-invites them to come back and add what collecting was actually like — unpaid, voluntary, and far
-more credible for being so. Launch C features whoever does.
+- [ ] **Declare the privacy class** (user: password) → new campaigns stop naming people in
+      `PayoutReleased`/`PayoutRefused`; README/docs claims upgrade to what is then deployed.
+- [ ] **4th qualifying pool tx**: user collects the outstanding autonomous-payout claim into a
+      shielded note → add to `strk20.json` (the only agent-decided one on the list).
+- [ ] **Floor attestation surfaced**: "/record can prove ≥$X 90-day verified inflow without
+      showing transactions" — wire the existing attest endpoint into the lender view. This is the
+      selective-disclosure half of "borrowable income, not a public diary."
+- [ ] Campaign live for STRK20 people ($10 gig — posts ready in `docs/posts/LAUNCH-KIT.md`).
 
-- kind: **gig**, rail: **Starknet**
-- **$1.00 × 10 slots, one reward per wallet** — $1 is the floor for something published under a
-  real name; $0.50 × 20 trades quality for reach and is the fallback, not the default
-- evidence: `artifact_url`, marker `wallet`, allowedHosts EMPTY (publish anywhere)
-- This lane is the one already PROVEN to autopay on Starknet (31 Aug, $0.50)
+## BUILD 4 — FC package
 
-### Launch B — milestone grants · moved into the FC week
-Grants have run in production ZERO times and P-DIRECT found the equal-split defect ("half and half,
-$40 total" → no campaign). They now sit inside the Future Caribbean week, where they are the
-centrepiece anyway.
-
-- [x] Fix the equal-split routing defect — **done 2026-08-31**, deployed
-- [ ] Prove ONE grant end to end — walletless recipient, invite → earn → verify → pay → cash out →
-      record. Needs a second Telegram account.
-- [ ] `intent_hash` event fix — upgrades the privacy claim to "no public earnings record"
-- [ ] Then a grant campaign + post
-
-### Launch C — the results post · once real accounts exist
-**The only post to tag @ellibenson on.** Amplifying "look at my product" is an ask; amplifying
-"N people just used Starknet privacy for real income" is a gift to the ecosystem and is his
-narrative rather than ours.
-
-**Funding** (user, 31 Aug): $10 now, ~$20 more if it goes well, on whichever rail we launch on.
-Do NOT raise the per-campaign caps to absorb it — absorption runs 5-20% and that is downstream of
-tester supply, not of the cap.
-
-## Track D — Future Caribbean (the six days)
-
-Track ask: *aggregate fragmented data → real-time credit profile → lending without collateral.*
-Sage's sentence: **Sage is the cash-flow oracle. Rails move the dollar. The file is what a lender
-(or Sage) can advance against.**
-
-Tick the CORE, show a path on the rest. Do not fake CARICOM FX, a bank integration, or a bureau
-score.
-
-More of this is already built than the list implies:
-
-| # | Item | State |
-|---|---|---|
-| 1 | Credit file v1 | `[x]` `credit-signals-v1` live — `src/lib/campaigns/credit.ts`, `/record`, `work-record.v2`. **Philosophy already frozen in code**: no Sage score, published formulas only |
-| 2 | Advance offer on the page | `[~]` `advanceCapacityUsd()` exists and the lender supplies the multiple. **Missing: the surface + "Fund this advance"** |
-| 3 | One real advance payout on GOAT | `[ ]` needs a funded pot |
-| 4 | Lender API + CSV | `[~]` `/api/record/[wallet]`, `/export`, `/attest`, `/privacy`, `/lender` all exist — **verify against the brief, don't rebuild** |
-| 5 | Compliance + audit export | `[~]` `/docs/compliance` + OFAC screening at three doors shipped; audit export to confirm |
-| 6 | Corridor fee line vs 8% remittance | `[ ]` |
-| 7 | Fiat-exit stub in the architecture doc | `[ ]` doc only — do not integrate a partner without keys |
-| 8 | One Caribbean narrative in the overview | `[~]` `docs/fc/submission-overview.md` exists |
-
-**Freeze the philosophy explicitly (item 1's real remaining work):**
-no Sage score · **empty ≠ deny** · **withheld ≠ fail** · the lender supplies the multiple ·
-every number has a published formula.
-
-**The biggest unproven claim, and the best demo:** milestone grants have run in production
-**zero times, ever**. Walletless recipients: zero invites, zero wallets. Recipient cash-out: never
-run. The public promise — *"for someone banks pretend don't exist, that record is the beginning of a
-real credit history"* — depends on invite → earn → verify → pay → cash out → record, which has
-never met a real human. Proving that loop once is simultaneously the FC demo, the unproven claim,
-and the first exercise of three untested subsystems. *Needs a second Telegram account.*
-
-- [ ] One real milestone grant on mainnet to a walletless recipient who then cashes out and holds a credit record
-
-STRK20 stays the private receive path. It does not have to carry the credit product.
+- [ ] Corridor line: measured USDC settlement cost vs 7–9% remittance, on real payouts.
+- [ ] Fiat adapter interface + stub + architecture doc section (crypto-banned answer).
+- [ ] Verify lender API + CSV + audit export against the brief (exists — verify, don't rebuild).
+- [ ] Submission overview mapping every track criterion to a receipt-backed fact; data room;
+      TRL update; demo videos (screen recordings — beat: the agent deciding, the split payout).
+- [ ] Agentic quality holds for ANY product: the standing batteries stay the gate for every
+      change (P-GEN for inspection-side, P-DIRECT for money lanes, P-WORK for gig judging).
 
 ---
 
-## Posting cadence
+## The week
 
-Post on every feature addition, through the FC build, not only at the end.
+| day | ships |
+|---|---|
+| **Mon 1** | Campaigns LIVE first (STRK20 gig + fund grant demo) — strangers need wall-clock. User: declare class, collect claim (4th tx), 2nd TG account. Me: refusal gate + recall fixes; advance schema. |
+| **Tue 2** | Milestone grant e2e (the film). Advance disbursement + surfaces. Launch post is out; campaign post fires. |
+| **Wed 3** | Waterfall implementation + mutation tests. **The real advance on mainnet.** |
+| **Thu 4** | Floor attestation in lender flow. Fiat adapter stub + corridor line. P-DIRECT re-run. |
+| **Fri 5** | Both submission packages assembled; demo videos recorded; results post (tag ellibenson only on RESULTS). |
+| **Sat 6** | **FC SUBMITTED (deadline).** STRK20 package final; submit same day — never use the Sun buffer by plan. |
+| **Sun 7** | Buffer only. |
 
-1. **Privacy rail** — Starknet private payouts + screen recording *(Track B)*
-2. **Money on the table** — public $10 campaign + launch recording *(Track C)*
-3. **Gigs + milestone grants** — the feature, with a reason to try
-4. **FC build-in-public** — one post per landed FC item
-
-Rules that survived the GOAT CMO playbooks: link goes in the **self-reply**, never the body
-(30–50% reach cost). A reply is worth ~27× a like. Tue/Wed peak, never weekends. Pair "Sage" with
-a unique qualifier — the bare word belongs to Sage Group / Sage Pay / Ask Sage.
-
----
-
-## Standing working rules
-
-- Verify on prod after rsync, before build+restart — a green build does not prove a complete sync
-- Deploys guarded on 0 pending/settling, via the app's own `better-sqlite3`
-- Any inspection / field-test / vision / mission-brain / gate change runs P-GEN before deploy
-- Mutation-test every new guard: delete it, watch the test go red
-- Validate the instrument before believing the reading — most "quality regressions" here have been broken rulers
-- **Decisions are CACHED.** A judge fix changes nothing for existing work until the decision row is dropped
-- Push `main` after every green prod deploy
+**Standing rules carry over**: deploy guard (0 pending/settling), checksum-verify every synced
+file, batteries one-at-a-time on a quiet box, mutation-test every new guard, decisions are cached,
+push main after green deploys, every number in a submission read from the chain or the DB — never
+typed.
