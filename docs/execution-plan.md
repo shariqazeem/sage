@@ -7,6 +7,28 @@ something turns out to be wrong, fix the line rather than remembering a correcti
 
 ---
 
+## When you wake — the three things only you can do
+
+Everything else on this page that could be done without you, was. These need your wallet, your
+password, or your screen.
+
+1. **Collect the outstanding claim into a shielded note.** The autonomous payout's $0.50 is still
+   uncollected. Collecting it from your pool-registered wallet produces a FOURTH qualifying
+   transaction for `strk20.json` — and the only one whose payout was decided by the agent with no
+   human in it, which is a stronger entry than the three already listed. Send me the hash.
+2. **Declare the new vault class**, if you want the privacy fix live before judging:
+   `node scripts/starknet-deploy.mjs --contract vault --keystore <path> --account <path>`.
+   It asks for your password on purpose — a deliberate human gate on a mainnet write, which is why
+   I did not route around it. The recipient no longer appears in `PayoutReleased` or
+   `PayoutRefused`; both name the attempt instead. Written, tested, ABI regenerated, 68 Cairo tests
+   green.
+3. **Fund the $10 campaign, then record the demo.** The campaign must be live before the post, and
+   the marketplace is empty until it is. Shot list in `docs/posts/VIDEO-SPECS.md` — beat 3, the
+   agent deciding to pay, is the whole submission.
+
+Prod is healthy and verified: every page renders, the sweep is clean, and the only errors in the
+log predate the current process.
+
 ## The one hard date
 
 **Future Caribbean closes Sunday 6 Sep.** Today is Mon 31 Aug — six days. Nothing else in this
