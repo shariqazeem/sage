@@ -268,7 +268,19 @@ const isBoilerplateCriterion = (c: string): boolean =>
  */
 export function lintDirectCampaign(input: DirectCampaignInput, quote: RateQuote | null = null): string[] {
   const notes: string[] = [];
-  const effectiveUsd = effectiveMilestoneUsd(input, quote);
+  /*
+    A lint is ADVICE — it must never take a caller down. effectiveMilestoneUsd throws its honest
+    "no rate" on a locally-priced plan with no quote, and that throw is correct at the money
+    boundary (compile refuses loudly on the same condition), but a quote-less LINT caller crashed
+    a whole battery row twice before anyone read the note. Advisory function, total by contract:
+    the missing rate becomes the first note instead of an exception.
+  */
+  let effectiveUsd: number[];
+  try {
+    effectiveUsd = effectiveMilestoneUsd(input, quote);
+  } catch (e) {
+    return [e instanceof Error ? e.message : String(e)];
+  }
   input.milestones.forEach((m, i) => {
     const label = `Milestone ${i + 1} ("${m.title}")`;
     if (m.evidence.kind === "public_url") {

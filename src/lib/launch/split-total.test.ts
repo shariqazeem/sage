@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDirectCampaign, directCampaignSchema, effectiveMilestoneBase, effectiveMilestoneUsd, splitTotalBase } from "./direct-campaign";
+import { compileDirectCampaign, directCampaignSchema, effectiveMilestoneBase, effectiveMilestoneUsd, lintDirectCampaign, splitTotalBase } from "./direct-campaign";
 import { toUsdBase } from "@/lib/money/currency";
 
 const base = (usd: number) => BigInt(Math.round(usd * 1_000_000));
@@ -392,5 +392,14 @@ describe("a gig priced per-tranche in the FOUNDER'S currency (visible currencies
     const r = compileDirectCampaign(p.data!, "g", JMD2);
     if (!("plan" in r)) throw new Error("compile failed");
     expect(r.plan.missions[0].rewardBase).toBe(BigInt(12_900_000));
+  });
+});
+
+describe("lint is total — advice never crashes the caller (round 9)", () => {
+  it("quote-less lint on a locally-priced plan returns the no-rate message as its one note", () => {
+    const input = directCampaignSchema.parse(grant({ currency: "JMD", splitTotalLocal: 10_000 }));
+    const notes = lintDirectCampaign(input);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("no rate for JMD");
   });
 });

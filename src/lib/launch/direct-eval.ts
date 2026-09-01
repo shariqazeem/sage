@@ -482,7 +482,11 @@ export async function runDirectEval(opts: {
               }
               row.allVerifiable = input.milestones.every((m) => !!m.evidence);
               if (!row.allVerifiable) violations.push(`${f.id}: a milestone has no verification contract`);
-              row.lintNotes = lintDirectCampaign(input);
+              // The THIRD quote-less call in this block (compile, budget check, now lint) —
+              // lint runs effectiveMilestoneUsd inside, and quote-less that throws the same
+              // honest "no rate" the other two did. Round 9 caught it; rounds 6-8 each caught
+              // one of its siblings. Two-lists drift, single-file edition.
+              row.lintNotes = lintDirectCampaign(input, evalQuote);
             }
           }
         } catch (e) {
