@@ -1,0 +1,13 @@
+{
+  "contracts": [
+    "0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57",
+    "0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87"
+  ],
+  "transactions": [
+    "0xb4a7cb07289eb2137bf4e13726f406154c1fef48d20625687af5acbf60b735",
+    "0x74e73f2964bd14f8383ea9322b7591e8039b8205c57ed7b1b514a8fa1e164cb",
+    "0x6ec8165b2d59600371a6e54552222d643c1bffcf5f73e66a1950f0cb9ca67a3"
+  ],
+  "demo_url": "https://sagepays.xyz",
+  "x": "https://x.com/sagepaysai"
+}
