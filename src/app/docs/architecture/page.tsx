@@ -168,7 +168,7 @@ export default function Architecture() {
         money movement, because a &ldquo;mark paid via partner&rdquo; button with no partner is
         theatre. Activation is a compliance onboarding, not a code change — the registry says
         exactly that, in{" "}
-        <a href="https://github.com/shariqshkt/sage/blob/main/src/lib/settlement/adapters.ts">
+        <a href="https://github.com/shariqazeem/sage/blob/main/src/lib/settlement/adapters.ts">
           one readable module
         </a>
         .

@@ -140,7 +140,7 @@ export default function OutcomesPage() {
         UTC from the settlement ledger — the same rows <Link href="/explorer">/explorer</Link>{" "}
         anchors to transactions. No figure on this page is typed into the copy; the arithmetic under
         each is in{" "}
-        <a href="https://github.com/shariqshkt/sage/blob/main/src/lib/outcomes/outcomes.ts">one
+        <a href="https://github.com/shariqazeem/sage/blob/main/src/lib/outcomes/outcomes.ts">one
         readable module</a>.
       </footer>
     </main>
