@@ -15,3 +15,6 @@
 .out-src a:hover, .out-how a:hover { text-decoration: underline; }
 .out-foot { border-top: 1px solid var(--border); margin-top: 1.8rem; padding-top: 1.2rem; font-size: 0.8125rem; color: var(--ink-faint); line-height: 1.65; }
 .out-foot a { color: var(--accent); text-decoration: none; }
+
+/* under the app shell the floating mode pill owns the top ~61px — clear it (token: tokens.css) */
+html[data-app-shell="on"] .out-page { padding-top: var(--pill-clear); }

@@ -8,6 +8,10 @@
  */
 
 :root {
+  /* clearance under the app shell's floating mode pill (fixed, bottom ≈ 61px) — consumed by
+     shelled pages whose own top padding is shallower; scoped on html[data-app-shell="on"] so
+     the same page class keeps its standalone spacing when unshelled (e.g. .spp on /proof). */
+  --pill-clear: 4.75rem;
   /* ── type families — defined ONCE, here (were in globals.css) ───── */
   /* The inner var() fallbacks keep `font-family` valid when a next/font variable is
    * missing: a bare undefined var() invalidates the whole declaration and the browser

@@ -215,3 +215,6 @@
 .lend-att-arith { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); }
 .lend-att-issuer { margin: 0; font-size: 0.75rem; color: var(--ink-faint); }
 .lend-rows-links { display: inline-flex; gap: 1rem; }
+
+/* under the app shell the floating mode pill owns the top ~61px — clear it (token: tokens.css) */
+html[data-app-shell="on"] .lend-page { padding-top: var(--pill-clear); }

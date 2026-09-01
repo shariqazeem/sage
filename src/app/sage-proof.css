@@ -281,3 +281,6 @@ body:has(.spp) { background: var(--bg); }
   color: var(--ink-muted);
 }
 .rec-withheld-note strong { color: var(--ink); font-weight: 600; }
+
+/* /record is shelled (the pill floats above); /proof is deliberately not — this fires only there */
+html[data-app-shell="on"] .spp-col { padding-top: var(--pill-clear); }
