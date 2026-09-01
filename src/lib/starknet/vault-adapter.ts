@@ -4,7 +4,7 @@ import { Contract, RpcProvider } from "starknet";
 import type { Address, Hash } from "viem";
 
 import type { ChainCampaignSnapshot } from "@/lib/campaigns/vault-agreement";
-import { starknetAddresses, starknetVaultClassHash } from "./config";
+import { isSageVaultClass, starknetAddresses, starknetVaultClassHash } from "./config";
 import { decodeVaultStatus } from "./vault";
 import { toFelt } from "./felt";
 import ABI from "./vault-abi.json" assert { type: "json" };
@@ -44,17 +44,18 @@ export async function readStarknetSnapshot(
 
   // The vault's own code must be the class Sage declared. Anything else is not a Sage vault,
   // whatever it answers to the getters below.
-  const expectedClass = starknetVaultClassHash();
   // Without a declared class there is nothing to compare provenance against, and "cannot check"
   // must never read as "checked and fine".
-  if (!expectedClass) throw new Error("STARKNET_VAULT_CLASS_HASH is not set");
+  if (!starknetVaultClassHash()) throw new Error("STARKNET_VAULT_CLASS_HASH is not set");
   let actualClass: string;
   try {
     actualClass = await provider.getClassHashAt(vault, "latest");
   } catch {
     throw new Error("no contract at that address");
   }
-  const factoryRecognizes = BigInt(actualClass) === BigInt(expectedClass);
+  // ANY class Sage declared — the privacy class for new vaults, the previous one for the three
+  // live vaults that predate it. See starknetKnownVaultClasses().
+  const factoryRecognizes = isSageVaultClass(actualClass);
 
   const c = new Contract({ abi: ABI, address: vault, providerOrAccount: provider });
   const [owner, operator, token, status, ceiling, campaignIdHash, missionPlanDigest] =

@@ -14,6 +14,8 @@ vi.mock("starknet", () => ({
 vi.mock("./config", () => ({
   starknetAddresses: () => ({ rpcUrl: "https://rpc", claims: "0x1", token: "0x2" }),
   starknetVaultClassHash: () => classHash,
+  // the real predicate's shape: recognised iff the chain's class is one Sage declared — here, the one
+  isSageVaultClass: (actual: string) => classHash !== null && BigInt(actual) === BigInt(classHash),
 }));
 
 let classHash: string | null = "0x603be1eb";

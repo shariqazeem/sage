@@ -121,3 +121,44 @@ export function starknetVaultClassHash(): string | null {
   }
   return v;
 }
+
+/**
+ * EVERY CLASS SAGE HAS DECLARED — the deploy target first, then the previous ones.
+ *
+ * Provenance ("is this vault Sage's code?") used to compare a vault against the ONE class in
+ * `STARKNET_VAULT_CLASS_HASH`. Declaring the privacy class (2026-09-02) made that a trap: the
+ * moment new campaigns deploy from the new class, the three live vaults on the previous class
+ * would read as "not a Sage vault" — payouts refused at the receipt check, the vault agreement,
+ * and the proof page's provenance line, for vaults that are exactly Sage's code one revision
+ * back. A vault is recognised if its class is ANY class Sage declared; new vaults still deploy
+ * from the first entry only. Previous classes ride `STARKNET_VAULT_CLASS_HASHES_PREVIOUS`,
+ * comma-separated; a malformed entry throws for the same reason a malformed target does.
+ */
+export function starknetKnownVaultClasses(): string[] {
+  const target = starknetVaultClassHash();
+  const previous = (clean(process.env.STARKNET_VAULT_CLASS_HASHES_PREVIOUS) ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  for (const v of previous) {
+    if (!/^0x[0-9a-fA-F]{1,64}$/.test(v)) {
+      throw new Error(`STARKNET_VAULT_CLASS_HASHES_PREVIOUS has an entry that is not a class hash: ${v}`);
+    }
+  }
+  const seen = new Set<bigint>();
+  const out: string[] = [];
+  for (const v of [target, ...previous]) {
+    if (!v) continue;
+    const n = BigInt(v);
+    if (seen.has(n)) continue;
+    seen.add(n);
+    out.push(v);
+  }
+  return out;
+}
+
+/** Is `actualClass` (as read from the chain) one of Sage's declared vault classes? */
+export function isSageVaultClass(actualClass: string, known: string[] = starknetKnownVaultClasses()): boolean {
+  const n = BigInt(actualClass);
+  return known.some((k) => BigInt(k) === n);
+}
