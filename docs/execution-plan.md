@@ -48,6 +48,42 @@ still us, the pipe is open for a credit union.
 
 ---
 
+## WHAT NEEDS YOU — Mon 1 Sep, night (everything else below is done or mine)
+
+1. **Fund + launch the $10 STRK20 gig** (posts ready: `docs/posts/LAUNCH-KIT.md`). Campaigns
+   need wall-clock with strangers before Sat.
+2. **Fund the grant-demo path**: agent wallet `0x3a60…8341` needs ≥$2.50 USDC + gas, and the
+   second Telegram account — then the milestone-grant e2e film runs per
+   `docs/runbooks/grant-e2e.md`.
+3. **Declare the privacy vault class** (password-gated `starknet-deploy.mjs`) — until then,
+   vault events keep naming recipients and the STRK20 package says "pending" in as many words.
+4. **Collect the outstanding claim into a shielded note** → the 4th qualifying tx for
+   `strk20.json` (the only agent-decided payout on that list).
+5. **Record the demo videos** (`docs/posts/VIDEO-SPECS.md`).
+6. **The real advance on mainnet** happens by itself once (1) and an earner exist — I run
+   `scripts/advance.mjs` the moment there's a funded record to lend against.
+
+### What landed overnight (Mon → Tue)
+
+- **P-DIRECT CERTIFIED** — two conclusive rounds + targeted 3/3 currency certification; money
+  invariants perfect; the battery gave up its last three quote-less calls; lint made total.
+- **Watch-don't-chat shipped**: the dashboard desk is LIVE (15s poll, honest heartbeat,
+  proven in-browser: a settlement arrived as "Paid $0.50 · proof" on an untouched page).
+- **The friction audit's big find, fixed end-to-end**: four surfaces derived "money settled"
+  four ways (three totals on one day) — and two real Starknet payouts had NEVER reached the
+  events journal. Journal now writes on the dispatch (both rails, every caller), prod rows
+  backfilled, `settledLedger()` is the one derivation with NAMED scopes, drift-tested.
+  Live now: explorer/outcomes-flow **$52.60/29** · marketplace/launch/outcomes-access
+  **$50.60/26/21 people** (dogfood excluded).
+- **Both submission packages assembled Monday** (Friday is now review-only): FC data room
+  (`docs/fc/data-room.md`, all 9 links verified 200) and STRK20
+  (`docs/strk20/submission.md`; manifest now lists BOTH contracts and serves at
+  https://sagepays.xyz/strk20.json, with a two-copies drift test).
+- P-ROUTE diagnostics read: green and conclusive; the lone ⚠ is the known reasoning-model
+  flake. Plan reconciled with built reality (BUILD 1 boxes, rail picker).
+
+---
+
 ## BUILD 1 — Sage Advance (capital in + waterfall) · the transformation
 
 The one genuinely new layer. Everything else exists.
