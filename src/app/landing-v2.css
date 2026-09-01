@@ -349,7 +349,11 @@ body:has(.slv2) {
 .slv2 .hero {
   min-height: 100svh;
   display: flex;
-  align-items: center;
+  /* column: the hero grid and the three doors stack; as a row the doors were squeezed into a
+     130px flex item beside the grid on every width (measured on the local preview). */
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
   padding: clamp(92px, 12vh, 128px) var(--pad-x) clamp(44px, 6vh, 72px);
   position: relative;
 }
@@ -2057,7 +2061,7 @@ body:has(.slv2) {
 .slv2 .hl-empty { padding: 26px 18px; font-size: 0.78rem; color: var(--ink-3); }
 
 /* ── the three doors ── */
-.slv2 .dr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: clamp(36px, 5vh, 56px); }
+.slv2 .dr { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: clamp(36px, 5vh, 56px); }
 .slv2 .dr-card {
   display: flex; flex-direction: column; gap: 8px; padding: 20px 20px 18px; text-decoration: none; color: inherit;
   border: 1px solid var(--line); border-radius: 16px; background: var(--paper);
