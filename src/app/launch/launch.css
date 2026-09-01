@@ -686,3 +686,20 @@
 }
 .lxs-invite input { margin-top: 4px; accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
 .lxs-invite b { font-weight: 600; color: var(--ink); }
+
+/* what happens next — the lifecycle on the budget step */
+.lxo-next {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px;
+  margin: 14px 0 0; padding: 0; list-style: none; counter-reset: nx;
+}
+.lxo-next li {
+  counter-increment: nx; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-muted);
+  padding-left: 1.5rem; position: relative;
+}
+.lxo-next li::before {
+  content: counter(nx); position: absolute; left: 0; top: 0.1rem;
+  width: 1.05rem; height: 1.05rem; border-radius: 999px; font-family: var(--font-mono); font-size: 0.6875rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent); background: var(--accent-soft, rgba(194, 65, 12, 0.08));
+}
+.lxo-next b { color: var(--ink); font-weight: 600; }

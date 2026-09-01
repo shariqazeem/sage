@@ -792,6 +792,16 @@ export function LaunchForm() {
             <span className="lxo-budget-unit">USDC</span>
           </div>
         )}
+        {/* ONBOARDING — the founder's whole lifecycle in one line, on the last thing they type.
+            Two human moments (approve, fund); everything else Sage does and narrates after. */}
+        {mode === "test" && step === 1 && (
+          <ol className="lxo-next" aria-label="What happens next">
+            <li><b>Sage inspects</b> your product in a real browser — a few minutes</li>
+            <li><b>You approve</b> the missions it designed</li>
+            <li><b>You fund once</b> — a vault Sage cannot exceed</li>
+            <li><b>Payouts run themselves</b>, each with a public receipt</li>
+          </ol>
+        )}
 
         <div className="lxo-hint">{step === 0 ? MODE_HINT[mode] : s.hint}</div>
         {!founder.authed && last && !showSignIn && (
