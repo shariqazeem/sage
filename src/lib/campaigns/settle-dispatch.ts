@@ -4,6 +4,8 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import { settleOnStarknet } from "./settle-starknet";
 import { settleApprovedSubmission, type SettleFlowResult } from "./settle-flow";
 import type { VaultStrategyDeps } from "./vault-strategy";
+import { recordEventOnce } from "@/lib/db/campaigns";
+import { short } from "@/lib/format";
 
 /**
  * What every caller of settlement needs to know, on either rail.
@@ -54,6 +56,31 @@ export async function settleByRail(
 ): Promise<RailSettleResult> {
   if (campaign.settlementRail === "starknet") {
     const o = await settleOnStarknet(campaign, submission);
+    /**
+     * THE LEDGER WRITE LIVES ON THE DISPATCH, NOT ON A CALLER.
+     *
+     * The EVM flow journals its own `settled` event inside the frozen flow, so every EVM
+     * settlement reaches the ledger whoever initiated it. The Starknet settler journals
+     * nothing by design — and its callers each did their own bookkeeping: the autopilot
+     * pipeline wrote `autopay_settled`, the sweep's manually-approved path wrote NOTHING.
+     * Measured on prod 2026-09-01: two real Starknet payouts (an approved held submission
+     * is exactly what a founder settles by hand) carried a payout_tx and no ledger event —
+     * invisible to the explorer headed "Every settlement", the reputation ledger, and
+     * every money total derived from events. Journaling here covers both callers and the
+     * next one somebody adds; `recordEventOnce` is idempotent by (kind, txHash), and the
+     * reputation aggregate dedupes by tx, so the pipeline's own `autopay_settled` row
+     * never double-counts.
+     */
+    if (o.settled && o.txHash) {
+      recordEventOnce({
+        campaignId: campaign.id,
+        submissionId: submission.id,
+        kind: "settled",
+        detail: o.recipient ? short(o.recipient) : null,
+        txHash: o.txHash,
+        amount: o.rewardBase === null ? null : Number(o.rewardBase),
+      });
+    }
     return {
       outcome: {
         settled: o.settled,

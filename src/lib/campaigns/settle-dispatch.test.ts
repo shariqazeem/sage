@@ -40,7 +40,12 @@ const settleOnStarknet = vi.fn(
   }),
 );
 
+const recordEventOnce = vi.fn((_input: Record<string, unknown>) => ({ event: {} as never, inserted: true }));
+
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/db/campaigns", () => ({
+  recordEventOnce: (input: Record<string, unknown>) => recordEventOnce(input),
+}));
 vi.mock("./settle-flow", () => ({
   settleApprovedSubmission: (...a: unknown[]) => settleApprovedSubmission(...(a as [])),
 }));
@@ -56,6 +61,7 @@ const submission = { id: "s1" } as never;
 beforeEach(() => {
   settleApprovedSubmission.mockClear();
   settleOnStarknet.mockClear();
+  recordEventOnce.mockClear();
 });
 
 describe("settling a founder-approved submission", () => {
@@ -150,5 +156,39 @@ describe("every caller settles through the dispatcher", () => {
       .filter((f) => !allowed.some((a) => f.endsWith(a)))
       .filter((f) => /import\s*\{[^}]*\bsettleOnStarknet\b/.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the dispatcher journals what the Starknet rail settles", () => {
+  /**
+   * Measured on prod 2026-09-01: two manually-approved Starknet payouts carried a payout_tx and
+   * NO ledger event — the EVM flow journals internally, the Starknet settler journals nothing,
+   * and only the autopilot caller was writing its own row. The explorer headed "Every
+   * settlement" was blind to real mainnet money. The write belongs on the dispatch, where every
+   * caller — sweep, pipeline, review tools, and the next one — passes through.
+   */
+  it("a settled Starknet payout writes the `settled` ledger event, amount and tx intact", async () => {
+    await settleByRail(campaign("starknet"), submission);
+    expect(recordEventOnce).toHaveBeenCalledTimes(1);
+    const arg = recordEventOnce.mock.calls[0]![0];
+    expect(arg.kind).toBe("settled");
+    expect(arg.txHash).toBe("0xstark");
+    expect(arg.amount).toBe(500000);
+    expect(arg.campaignId).toBe("c1");
+    expect(arg.submissionId).toBe("s1");
+  });
+
+  it("a refused Starknet payout journals nothing here — refusals have their own bookkeeping", async () => {
+    settleOnStarknet.mockResolvedValueOnce({
+      settled: false, txHash: "0xrefusal", explorerUrl: null, reason: "code 3",
+      recipient: null, rewardBase: null,
+    });
+    await settleByRail(campaign("starknet"), submission);
+    expect(recordEventOnce).not.toHaveBeenCalled();
+  });
+
+  it("the EVM rail's journal stays inside the frozen flow — the dispatcher adds no second row", async () => {
+    await settleByRail(campaign("evm"), submission);
+    expect(recordEventOnce).not.toHaveBeenCalled();
   });
 });
