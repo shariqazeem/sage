@@ -86,10 +86,8 @@ MSME backbone claim made concrete. Both are buildable this week.
 ## BUILD 5 — the front door (landing + onboarding as a million-dollar infra product)
 
 Method: change what a stranger reads in the first 10 seconds, not the palette.
-- [ ] **Numbers: one ledger, every rail** — landing totals from `settledLedger()` (all mainnet
-      rails), refusals from the decided ledger (explorer already did this; the landing kept the
-      old derivation — two-lists drift on the front door), copy "live on GOAT Network" → the
-      rails actually paying. Objective; ships first.
+- [x] **Numbers: one ledger, every rail** — SHIPPED Tue: the front door now reads $52.60 · 29 ·
+      across GOAT Network + Starknet · 23 refused on record, from the same rows as the explorer.
 - [ ] **Hero: say what it is and who it is for** — replace the riddle with a positioning line +
       the three audiences as doors (founders/companies · workers · lenders), each to its real
       surface. Copy shown to the user before it ships.
@@ -106,12 +104,16 @@ The FC backbone claim made concrete: an employer/MSME hands gigs and milestone g
 own staff or contractors, verified and paid the same way, without listing them publicly and
 with private-capable payouts. HARD CAP one day — if it cannot be REAL in a day it is a roadmap
 slide, never a mock.
-- [ ] `visibility: listed | unlisted` on campaigns — unlisted never appears on /marketplace or
-      the public boards; explorer completeness is unchanged (settlements are settlements).
-- [ ] Invite link for unlisted campaigns (`/c/<slug>` already exists as the campaign door) —
-      the company shares it with its people; nothing else changes in the recipient journey.
-- [ ] Launch-form toggle ("Only people I invite") + dashboard framing for a team's work.
-- [ ] Tests: unlisted never leaks to the board; the invite door still pays; ledger untouched.
+- [x] `visibility: listed | unlisted` (migration 0050, default listed) — hidden in `marketplace()`,
+      the ONE listing source (board, sitemap, the agent's mission list); explorer untouched.
+- [x] Invite link: the founder console shows the `/c/<id>` door with a copy button; the door
+      tells an invited person why it is not on the board.
+- [x] "Only people I invite" on BOTH pay doors (the sentence form at `?do=pay` and
+      `/launch/direct`) + the `invite only` chip on dashboard rows.
+- [x] Pinned: hidden while its listed twin shows · still real at its door · default listed ·
+      visibility rides the schema · unknown words refused. SHIPPED Tue 2 Sep.
+      Deploy lesson (2nd time): paths with `(group)`/`[param]` break rsync's remote shell —
+      stream via `ssh "cat > '<path>'"`; the checksum loop is what caught it.
 
 ## POSTS — after the builds, one feature per post, each a screen recording + copy I write
 
