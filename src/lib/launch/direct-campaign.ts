@@ -177,6 +177,8 @@ export const directCampaignSchema = z.object({
   milestones: z.array(milestoneSchema).min(1).max(DIRECT_LIMITS.milestonesMax),
   /** optional recipient allowlist — named grantees. Enforced at the submit route (app-level). */
   allowlist: z.array(z.string().regex(recipientRe)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
+  /** `unlisted` keeps the campaign off every public board; the founder shares its door. */
+  visibility: z.enum(["listed", "unlisted"]).optional(),
   /**
    * The currency the founder is THINKING in. Settlement is always USDC — this changes what the
    * numbers are called, never what the vault moves. Absent means USD, which is what every existing
@@ -633,6 +635,7 @@ export function compileDirectCampaign(
     ...compiled.plan,
     campaignKind: input.kind,
     ...(input.allowlist ? { allowlist: [...new Set(input.allowlist.map((w) => w.toLowerCase()))] } : {}),
+    ...(input.visibility ? { visibility: input.visibility } : {}),
     verifiabilityNote: `Every ${noun} in this campaign is verified against the operator's explicit contract (on-chain state, a transaction, or a public artifact) before any payment — the deterministic check runs first, and a submission that fails it is refused with the reason.`,
   };
   return { ok: true, plan, allocation, totalBudgetBase: total };

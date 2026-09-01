@@ -315,6 +315,12 @@ export function DashboardClient({
                         <span className="sb-row-title">{c.title}</span>
                         <span className="sb-row-meta">
                           <span>{chainConfig(c.chainId).chipLabel}</span>
+                          {c.visibility === "unlisted" && (
+                            <>
+                              <span className="sb-dot" aria-hidden>·</span>
+                              <span className="sb-invite-chip">invite only</span>
+                            </>
+                          )}
                           <span className="sb-dot" aria-hidden>·</span>
                           <span>{usd(c.rewardBase)} / mission</span>
                           <span className="sb-dot" aria-hidden>·</span>

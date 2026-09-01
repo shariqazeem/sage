@@ -7,6 +7,7 @@ import {
   setCampaignStatus,
   createMission,
   recordEvent,
+  getCampaign,
 } from "@/lib/db/campaigns";
 import { db } from "@/lib/db";
 import { campaigns, missions, submissions } from "@/lib/db/schema";
@@ -25,7 +26,7 @@ let seq = 0;
 const wallet = () => `0x${(++seq).toString(16).padStart(40, "0")}`;
 
 function campaign(
-  over: { status?: string; sandbox?: boolean; title?: string; chainId?: number; corpusSources?: number } = {},
+  over: { status?: string; sandbox?: boolean; title?: string; chainId?: number; corpusSources?: number; visibility?: "listed" | "unlisted" } = {},
 ) {
   const c = createCampaign({
     title: over.title ?? `camp-${++seq}`,
@@ -37,6 +38,7 @@ function campaign(
     // GOAT mainnet. The column default is the testnet, and a testnet campaign is deliberately not
     // listable, so a fixture that took the default would be testing the exclusion by accident.
     chainId: over.chainId ?? 2345,
+    ...(over.visibility ? { visibility: over.visibility } : {}),
   });
   setCampaignStatus(c.id, (over.status ?? "live") as never);
   // A CORPUS BY DEFAULT, because the default mission below is observation-based and observation work
@@ -443,5 +445,28 @@ describe("WORK PROOF — allowlisted campaigns are invite-only, never advertised
 
     db.update(campaigns).set({ allowlist: null }).where(eq(campaigns.id, c.id)).run();
     expect(marketplace().campaigns.some((x) => x.id === c.id)).toBe(true);
+  });
+});
+
+describe("Sage for teams — an unlisted campaign is reachable only through its own door", () => {
+  it("never appears on the board, while its listed twin does", () => {
+    const listed = campaign({ title: "listed-twin" });
+    mission(listed.id);
+    const unlisted = campaign({ title: "team-only", visibility: "unlisted" });
+    mission(unlisted.id);
+    const ids = marketplace().campaigns.map((c) => c.id);
+    expect(ids).toContain(listed.id);
+    expect(ids).not.toContain(unlisted.id);
+  });
+
+  it("is still a real campaign at its door — unlisted is discovery, not existence", () => {
+    const c = campaign({ title: "team-only", visibility: "unlisted" });
+    expect(getCampaign(c.id)?.visibility).toBe("unlisted");
+    expect(getCampaign(c.id)?.status).toBe("live");
+  });
+
+  it("the column defaults to listed, so every existing campaign stays on the board", () => {
+    const c = campaign({});
+    expect(getCampaign(c.id)?.visibility).toBe("listed");
   });
 });

@@ -239,7 +239,12 @@ export function marketplace(): MarketplaceView {
   // would invite strangers to do real work the submit route must then refuse (403) — the exact
   // "wasted work" failure this board exists to prevent. Same payability rule as a filled slot:
   // if YOU can't be paid for it, it isn't advertised to you.
-  const open = live.filter((c) => !(Array.isArray(c.allowlist) && c.allowlist.length > 0));
+  // SAGE FOR TEAMS — an UNLISTED campaign is reachable only through its own door. This is the one
+  // listing source (the marketplace page, the sitemap and the agent's mission list all read it),
+  // so hiding it here hides it everywhere a stranger could discover it.
+  const open = live.filter(
+    (c) => !(Array.isArray(c.allowlist) && c.allowlist.length > 0) && c.visibility !== "unlisted",
+  );
   const ids = open.map((c) => c.id);
   const missionRows = ids.length
     ? db.select().from(missions).where(inArray(missions.campaignId, ids)).all()

@@ -109,6 +109,8 @@ export function DirectCampaignForm() {
   const [whyItMatters, setWhyItMatters] = useState("");
   const [milestones, setMilestones] = useState<MilestoneDraft[]>([blankMilestone()]);
   const [allowlist, setAllowlist] = useState("");
+  // SAGE FOR TEAMS — off the public board; the founder shares the campaign's own door.
+  const [inviteOnly, setInviteOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -158,6 +160,7 @@ export function DirectCampaignForm() {
             ...(Number(m.effortMinutes) > 0 ? { effortMinutes: Number(m.effortMinutes) } : {}),
           })),
           ...(wallets.length > 0 ? { allowlist: wallets } : {}),
+          ...(inviteOnly ? { visibility: "unlisted" } : {}),
         }),
       });
       const data = await res.json();
@@ -317,12 +320,24 @@ export function DirectCampaignForm() {
       </button>
 
       <section className="lx-card pad-lg" aria-label="Recipients and total">
+        {/* SAGE FOR TEAMS — a company paying its own people. "Only people I invite" keeps the campaign
+            off every public board; its door (/c/<id>) is what the founder shares. Naming wallets is the
+            stricter, separate control: WHO can be paid, not who can find it. */}
+        <div className="lx-field">
+          <label className="lx-toggle" htmlFor="dx-invite">
+            <input id="dx-invite" type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
+            <span className="lx-toggle-text">
+              <b>Only people I invite</b>
+              <span>Stays off the public marketplace. You get a link to share with your team, contractors, or grantees — they work and get paid the same way.</span>
+            </span>
+          </label>
+        </div>
         <div className="lx-field">
           <label className="lx-label" htmlFor="dx-allow">Named recipients <span style={{ color: "var(--lx-muted)", fontWeight: 400 }}>(optional — wallet addresses, one per line)</span></label>
           <textarea id="dx-allow" className="lx-textarea" value={allowlist} onChange={(e) => setAllowlist(e.target.value)} placeholder="0x…" spellCheck={false} />
           <p className="lx-hint">
-            Leave empty and anyone can complete the work (it lists on the public marketplace). Name wallets and ONLY they
-            can submit — the campaign stays off the public board.
+            Leave empty and anyone with the link can complete the work. Name wallets and ONLY they can submit
+            {inviteOnly ? "." : " — a named list also keeps the campaign off the public board."}
           </p>
         </div>
 

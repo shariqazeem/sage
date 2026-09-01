@@ -17,6 +17,8 @@ export interface CampaignCard {
   title: string;
   status: string;
   chainId: number;
+  /** listed on the public board, or reachable only through its own door. */
+  visibility: "listed" | "unlisted";
   rewardBase: number;
   maxRecipients: number;
   /** total mission completion slots (V2: Σ mission caps; V1: maxRecipients). paid ≥ this ⇒ completed. */
@@ -132,6 +134,7 @@ export function getDeputyOverview(wallet: string | null): DeputyOverview {
       title: c.title,
       status: c.status,
       chainId: c.chainId,
+      visibility: c.visibility === "unlisted" ? "unlisted" : "listed",
       rewardBase: c.rewardAmount,
       maxRecipients: c.maxRecipients,
       totalCompletions,

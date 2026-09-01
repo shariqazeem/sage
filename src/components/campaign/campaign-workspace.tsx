@@ -69,6 +69,8 @@ export interface WorkspaceData {
   description: string;
   status: string;
   chainId: number;
+  /** Sage for teams: `unlisted` campaigns are reachable only through their own door. */
+  visibility: "listed" | "unlisted";
   isTestnet: boolean;
   autonomy: string;
   autopilotThreshold: number | null;
@@ -254,6 +256,7 @@ function OwnerGate({ data }: { data: WorkspaceData }) {
 
 function Console({ data }: { data: WorkspaceData }) {
   const [copied, setCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [showTech, setShowTech] = useState(false);
   const pct =
     data.fundedBase > 0
@@ -309,6 +312,26 @@ function Console({ data }: { data: WorkspaceData }) {
           </p>
           {data.description && (
             <p className="cw-lede cw-lede-desc">{data.description}</p>
+          )}
+          {/* SAGE FOR TEAMS — an invite-only campaign's door is the thing the founder shares.
+              Shown here, on the console, because the marketplace will never show it anywhere. */}
+          {data.visibility === "unlisted" && (
+            <div className="cw-invite" role="group" aria-label="Invite link">
+              <b>Invite only</b>
+              <span>Off the public board — share this door with your people:</span>
+              <code>{data.testerUrl}</code>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(data.testerUrl).then(
+                    () => setInviteCopied(true),
+                    () => setInviteCopied(false),
+                  );
+                }}
+              >
+                {inviteCopied ? "Copied" : "Copy link"}
+              </button>
+            </div>
           )}
         </div>
 

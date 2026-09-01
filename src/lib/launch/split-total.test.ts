@@ -403,3 +403,16 @@ describe("lint is total — advice never crashes the caller (round 9)", () => {
     expect(notes[0]).toContain("no rate for JMD");
   });
 });
+
+describe("Sage for teams — visibility rides from the founder's words to the row", () => {
+  it("`unlisted` survives the schema and reaches the compiled campaign input", () => {
+    // priced as a whole, like a real grant; the rule under test is the visibility field
+    const parsed = directCampaignSchema.safeParse(grant({ visibility: "unlisted", splitTotalUsd: 20 }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.visibility).toBe("unlisted");
+  });
+
+  it("an unknown visibility word is refused rather than guessed", () => {
+    expect(directCampaignSchema.safeParse(grant({ visibility: "secret", splitTotalUsd: 20 })).success).toBe(false);
+  });
+});

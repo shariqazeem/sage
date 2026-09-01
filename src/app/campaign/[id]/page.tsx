@@ -143,6 +143,7 @@ export default async function CampaignConsolePage({
     description: campaign.descriptionMd ?? "",
     status: campaign.status,
     chainId: e.chainId,
+    visibility: campaign.visibility === "unlisted" ? "unlisted" : "listed",
     isTestnet: e.isTestnet,
     autonomy: campaign.autonomy,
     autopilotThreshold: campaign.autopilotThreshold ?? null,

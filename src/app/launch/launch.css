@@ -667,3 +667,14 @@
 .lxs-err { margin: 0.6rem 0 0; font-size: 0.8125rem; line-height: 1.55; color: #dc2626; }
 .lxs-cur { min-width: 6.2rem; }
 .lxs-fx { font-size: 0.75rem; line-height: 1.55; margin: 0.45rem 0 0; }
+
+/* ── Sage for teams — the invite-only toggle on the Pay-for-work door ─────────────────────── */
+.lx-toggle {
+  display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; background: var(--bg);
+}
+.lx-toggle:hover { border-color: var(--accent-border, var(--accent)); }
+.lx-toggle input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+.lx-toggle-text { display: flex; flex-direction: column; gap: 3px; font-size: 0.875rem; line-height: 1.5; }
+.lx-toggle-text b { font-weight: 600; color: var(--ink); }
+.lx-toggle-text span { color: var(--ink-muted); font-size: 0.8125rem; }

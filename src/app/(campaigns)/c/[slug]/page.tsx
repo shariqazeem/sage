@@ -256,6 +256,14 @@ export default async function CampaignPublicPage({
             ? "Paid on-chain by Sage, every payout with a public receipt"
             : "Paid from an on-chain wallet with hard spending limits"}
         </div>
+        {/* SAGE FOR TEAMS — this door is the only way here; say so, so the person a company
+            invited understands why they will not find it on the board. */}
+        {campaign.visibility === "unlisted" && (
+          <p className="sb-invite-line">
+            <b>Invite only.</b> This campaign is not on the public marketplace — you are here because
+            someone shared its link with you. The work, the verification and the payout are the same.
+          </p>
+        )}
         <h1
           style={{
             fontSize: 27,

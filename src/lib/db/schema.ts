@@ -11,6 +11,7 @@ import type { StoredBrief } from "../deputy/brain-core";
 
 /** Which rail settles a campaign's payouts. See `campaigns.settlementRail`. */
 export type SettlementRail = "evm" | "starknet";
+export type CampaignVisibility = "listed" | "unlisted";
 
 /** The on-chain condition a campaign can auto-verify (condition_type = 'onchain'). */
 export interface OnchainCheck {
@@ -139,6 +140,14 @@ export const campaigns = sqliteTable("campaigns", {
    * unlikely.
    */
   sandbox: integer("sandbox", { mode: "boolean" }).notNull().default(false),
+  /**
+   * SAGE FOR TEAMS — who can find this campaign. `listed` is the public board; `unlisted` never
+   * appears on /marketplace, the sitemap or the agent's mission list, and is reached only through
+   * its own door (/c/<id>), which the founder shares. Settlements are settlements either way — the
+   * explorer's completeness is untouched, and a Starknet campaign stays private in its DESTINATION
+   * on top of being unlisted in its discovery. An allowlist can still narrow WHO gets paid.
+   */
+  visibility: text("visibility").notNull().default("listed").$type<CampaignVisibility>(),
   /** which vault contract backs this campaign — legacy rows default to policy_v1. */
   vaultKind: text("vault_kind").$type<VaultKind>().notNull().default("policy_v1"),
   /** V2: the on-chain campaign identity hash (bytes32 hex), else null. */
