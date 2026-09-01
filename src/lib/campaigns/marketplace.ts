@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campaigns, missions, submissions, type Campaign, type SettlementRail } from "@/lib/db/schema";
 import { isTestnetChain, tokenSymbol } from "@/lib/format";
 import { OBS_BAR } from "@/lib/deputy/observation-verify";
+import { settledLedger } from "./settled-ledger";
 
 /**
  * THE PUBLIC MARKETPLACE — every mission anyone can actually get paid for, right now.
@@ -156,58 +157,57 @@ function paidCountsByMission(missionIdHashes: string[]): Map<string, number> {
 }
 
 /**
- * What has actually been paid, read from settled submissions. A payout counts only with a real
- * transaction hash — "paid" without a hash is a claim, and this is the one place on the product
- * where a stranger decides whether any of it is real.
+ * What has actually been paid — read from THE SETTLED LEDGER, the same rows the explorer sums.
+ *
+ * This used to price paid submissions by a mission-reward lookup with no chain filter, which is
+ * how the marketplace, the launch page and the explorer showed three different totals on the
+ * same day (2026-09-01). Now: one deduped settlement event per row, mainnet only (a testnet
+ * payout moves no real money, so it has no place in this headline), operator dogfood excluded —
+ * the panel is titled "paid to real testers" and Sage paying itself is not that. The product
+ * host still comes from the mission that was paid; a row that cannot name one simply shows
+ * without a host rather than being dropped: the settlement is real either way.
  */
 function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd: number; count: number } } {
-  const rows = db
-    .select({
-      wallet: submissions.wallet,
-      payoutTx: submissions.payoutTx,
-      decidedAt: submissions.decidedAt,
-      createdAt: submissions.createdAt,
-      campaignId: submissions.campaignId,
-      missionIdHash: submissions.missionIdHash,
-    })
-    .from(submissions)
-    .where(and(eq(submissions.status, "paid"), isNotNull(submissions.payoutTx)))
-    .all();
-  if (rows.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0 } };
+  const ledger = settledLedger().filter((r) => r.mainnet && !r.operator && r.amountBase > 0);
+  if (ledger.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0 } };
 
-  // reward comes from the mission that was paid, so the amount is the real one, not the campaign's
-  // headline number.
-  const hashes = rows.map((r) => r.missionIdHash).filter((h): h is string => !!h);
-  const rewardBy = new Map<string, { reward: number; surface: string }>();
-  if (hashes.length > 0) {
-    for (const m of db
-      .select({ h: missions.missionIdHash, reward: missions.rewardAmount, surface: missions.targetSurface })
-      .from(missions)
-      .where(inArray(missions.missionIdHash, hashes))
-      .all()) {
-      rewardBy.set(m.h, { reward: m.reward, surface: m.surface });
-    }
-  }
+  const subIds = ledger.map((r) => r.submissionId).filter((x): x is string => !!x);
+  const hashBySub = new Map(
+    subIds.length === 0
+      ? []
+      : db
+          .select({ id: submissions.id, missionIdHash: submissions.missionIdHash })
+          .from(submissions)
+          .where(inArray(submissions.id, subIds))
+          .all()
+          .map((s2) => [s2.id, s2.missionIdHash]),
+  );
+  const hashes = [...new Set([...hashBySub.values()].filter((h): h is string => !!h))];
+  const surfaceByHash = new Map(
+    hashes.length === 0
+      ? []
+      : db
+          .select({ h: missions.missionIdHash, surface: missions.targetSurface })
+          .from(missions)
+          .where(inArray(missions.missionIdHash, hashes))
+          .all()
+          .map((m) => [m.h, m.surface]),
+  );
 
-  const payouts: MarketplacePayout[] = rows
-    .map((r) => {
-      const m = r.missionIdHash ? rewardBy.get(r.missionIdHash) : undefined;
-      return {
-        wallet: r.wallet,
-        usd: toUsd(m?.reward ?? 0),
-        txHash: r.payoutTx as string,
-        productHost: m ? hostOf(m.surface) : null,
-        at: r.decidedAt ?? r.createdAt,
-      };
-    })
-    // A PAYOUT WE CANNOT PRICE IS NOT PROOF. Legacy rows whose mission no longer resolves priced to
-    // zero and rendered as "$0.00" lines in the panel whose whole job is showing that people get
-    // paid — the opposite of its purpose. Five real payouts beat eight with three zeros among them.
-    .filter((p) => p.usd > 0);
-  payouts.sort((a, b) => b.at - a.at);
+  const payouts: MarketplacePayout[] = ledger.map((r) => {
+    const h = r.submissionId ? hashBySub.get(r.submissionId) : null;
+    const surface = h ? surfaceByHash.get(h) : null;
+    return {
+      wallet: r.wallet ?? "",
+      usd: r.amountBase / 1_000_000,
+      txHash: r.txHash,
+      productHost: surface ? hostOf(surface) : null,
+      at: r.at,
+    };
+  });
   return {
     recentPayouts: payouts.slice(0, 8),
-    paidToDate: { usd: payouts.reduce((s, p) => s + p.usd, 0), count: payouts.length },
+    paidToDate: { usd: payouts.reduce((sum, p) => sum + p.usd, 0), count: payouts.length },
   };
 }
 

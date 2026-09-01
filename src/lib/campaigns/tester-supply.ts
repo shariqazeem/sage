@@ -2,6 +2,7 @@ import "server-only";
 import { chainConfig } from "@/lib/deputy/networks";
 
 import { listCampaigns, listSubmissions } from "@/lib/db/campaigns";
+import { mainnetSettledToTesters, OPERATOR_WALLETS } from "./settled-ledger";
 
 /**
  * PROOF THAT TESTERS EXIST — the one thing a founder needs before funding anything.
@@ -16,15 +17,6 @@ import { listCampaigns, listSubmissions } from "@/lib/db/campaigns";
  */
 
 /** Wallets the operator controls. Paying ourselves proves nothing, so it never counts as supply. */
-const OPERATOR_WALLETS = new Set(
-  [
-    "0xdf70f6e8e656e5bb714ff0e8ca176d76f26890e3",
-    "0x0def3d4124d0cd1708aeffe6c1bc8182342a44d6",
-  ].map((w) => w.toLowerCase()),
-);
-
-/** GOAT Mainnet. Real USDC only. */
-const MAINNET = 2345;
 
 export interface TesterSupply {
   /** distinct external wallets that have been paid for verified work. */
@@ -63,10 +55,16 @@ export function getTesterSupply(): TesterSupply {
     (s) => s.status === "paid" && !OPERATOR_WALLETS.has(s.wallet.toLowerCase()),
   );
 
-  const rewardById = new Map(
-    listCampaigns().map((c) => [c.id, c.rewardAmount]),
-  );
-  const base = paid.reduce((sum, s) => sum + (rewardById.get(s.campaignId) ?? 0), 0);
+  /**
+   * MONEY COMES FROM THE SETTLED LEDGER, NOT A REWARD LOOKUP.
+   *
+   * Pricing paid submissions by the campaign's headline reward misreported every payout whose
+   * settled amount differed ($4.74/$5.26 splits, the $0.10 payout) — one of the three
+   * derivations behind three different public totals on 2026-09-01. The ledger prices each
+   * settlement by what the vault actually released; the pace and judgement stats below stay on
+   * submissions, which are the right source for THOSE.
+   */
+  const settled = mainnetSettledToTesters();
 
   const durations = paid
     .filter((s) => s.decidedAt != null && s.createdAt != null)
@@ -78,9 +76,9 @@ export function getTesterSupply(): TesterSupply {
   const decided = all.filter((s) => s.status !== "pending");
 
   return {
-    testersPaid: new Set(paid.map((s) => s.wallet.toLowerCase())).size,
-    usdcSettled: base / 1_000_000,
-    missionsPaid: paid.length,
+    testersPaid: settled.people,
+    usdcSettled: settled.usdcSettled,
+    missionsPaid: settled.payouts,
     medianSecondsToPayout: durations.length
       ? durations[Math.floor(durations.length / 2)]
       : null,

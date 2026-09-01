@@ -6,6 +6,7 @@ import {
   createSubmission,
   setCampaignStatus,
   createMission,
+  recordEvent,
 } from "@/lib/db/campaigns";
 import { db } from "@/lib/db";
 import { campaigns, missions, submissions } from "@/lib/db/schema";
@@ -292,6 +293,9 @@ describe("payout proof is read from settled transactions, never asserted", () =>
       .set({ status: "paid", missionIdHash: m.hash, payoutTx: "0xdeadbeef" })
       .where(eq(submissions.id, r.submission.id))
       .run();
+    // production always journals the settlement (the EVM flow internally, the dispatcher for
+    // Starknet) — the marketplace now prices from that ledger row, so the fixture writes it too.
+    recordEvent({ campaignId: c.id, submissionId: r.submission.id, kind: "settled", txHash: "0xdeadbeef", amount: 400_000 });
 
     const v = marketplace();
     const p = v.recentPayouts.find((x) => x.txHash === "0xdeadbeef");
@@ -324,21 +328,28 @@ describe("payout proof is read from settled transactions, never asserted", () =>
   });
 });
 
-describe("a payout we cannot price is not shown as proof", () => {
-  it("excludes a settled row whose mission no longer resolves", () => {
+describe("a payout the ledger priced needs no mission to be proof", () => {
+  /** REVERSED (2026-09-01): "unpriceable" existed because the amount was a mission lookup — a
+   *  ghost mission meant no price, and a $0.00 line was worse than no line. The ledger prices
+   *  by what the vault actually released, so a settled row whose mission no longer resolves is
+   *  still real money with a real amount — it shows without a product host, never as $0.00. */
+  it("shows a settled row whose mission no longer resolves, priced by the ledger, host unknown", () => {
     const c = campaign();
     const r = createSubmission({ campaignId: c.id, wallet: wallet() });
     if (!r.ok) throw new Error(r.error);
-    // paid, real hash, but the missionIdHash matches no mission → unpriceable
     db.update(submissions)
       .set({ status: "paid", missionIdHash: "0xghost", payoutTx: "0xunpriceable" })
       .where(eq(submissions.id, r.submission.id))
       .run();
+    recordEvent({ campaignId: c.id, submissionId: r.submission.id, kind: "settled", txHash: "0xunpriceable", amount: 250_000 });
 
     const v = marketplace();
-    expect(v.recentPayouts.find((p) => p.txHash === "0xunpriceable")).toBeUndefined();
-    // and it never contributes a zero to the headline count either
-    for (const p of v.recentPayouts) expect(p.usd).toBeGreaterThan(0);
+    const p = v.recentPayouts.find((x) => x.txHash === "0xunpriceable");
+    expect(p).toBeTruthy();
+    expect(p!.usd).toBe(0.25);
+    expect(p!.productHost).toBeNull();
+    // still never a $0.00 line
+    for (const x of v.recentPayouts) expect(x.usd).toBeGreaterThan(0);
   });
 });
 
