@@ -48,20 +48,91 @@ still us, the pipe is open for a credit union.
 
 ---
 
-## WHAT NEEDS YOU — Mon 1 Sep, night (everything else below is done or mine)
+## FRESH REVIEW — Tue 2 Sep (Fable 5.1, read against the live product, not the plan)
 
-1. **Fund + launch the $10 STRK20 gig** (posts ready: `docs/posts/LAUNCH-KIT.md`). Campaigns
-   need wall-clock with strangers before Sat.
-2. **Fund the grant-demo path**: agent wallet `0x3a60…8341` needs ≥$2.50 USDC + gas, and the
-   second Telegram account — then the milestone-grant e2e film runs per
-   `docs/runbooks/grant-e2e.md`.
-3. **Declare the privacy vault class** (password-gated `starknet-deploy.mjs`) — until then,
-   vault events keep naming recipients and the STRK20 package says "pending" in as many words.
-4. **Collect the outstanding claim into a shielded note** → the 4th qualifying tx for
-   `strk20.json` (the only agent-decided payout on that list).
-5. **Record the demo videos** (`docs/posts/VIDEO-SPECS.md`).
-6. **The real advance on mainnet** happens by itself once (1) and an earner exist — I run
-   `scripts/advance.mjs` the moment there's a funded record to lend against.
+**STRK20 — is the integration good enough to win?** Technically it is ahead of the field: a
+Cairo vault that derives the reward itself and answers refusals with a code, escrow keyed by a
+Poseidon commitment, gasless collection, a fully autonomous judge→vault→escrow→claim loop with
+three mainnet payouts, mutation-verified money guards, a control-row dry-run — and as of tonight
+the fourth qualifying tx: the agent-decided payout **collected into a shielded note**
+(`0x2765387…dbfe4`, `ClaimedPrivately`, 19:03 UTC). What decides a PRIVACY hackathon is not more
+rail — it is (a) a precise honest claim (we have it), (b) the claim being FULLY true → **the
+privacy class must be declared** (today the vault still names recipients in its events; the
+package says "pending" in as many words), (c) real usage → **the $10 gig must be live** so the
+traction post carries real numbers, and (d) first-touch legibility → the landing currently says
+"on GOAT Network" everywhere and shows GOAT-only totals: the STRK20 judge's first screen erases
+the rail being judged. Fixed today (objective).
+
+**FC — where the build stands.** The finance layer is complete and live (advance, waterfall,
+record, lender, attestation, fiat interface, outcomes, local currencies, gigs + grants certified,
+one settled ledger, data room). The two proofs that win it are user-gated (grant film, mainnet
+advance). The product-side gaps a judge FEELS: the landing reads as a clever demo rather than an
+infrastructure company (riddle hero, sketch illustration, wrong/GOAT-only numbers, "0% refused"
+where the ledger says 43% — the refusal rate is THE institutional asset and the front door denies
+it), and there is no story for a COMPANY using Sage privately for its own people — which is the
+MSME backbone claim made concrete. Both are buildable this week.
+
+## WHAT NEEDS YOU — Tue 2 Sep
+
+1. **Declare the privacy vault class** (`scripts/starknet-deploy.mjs`, passphrase) → then set
+   `STARKNET_VAULT_CLASS_HASH` on the VM to the new class and restart, so the gig deploys from it.
+   Do this BEFORE launching the gig: the campaign that strangers touch should be the one that
+   names nobody.
+2. **Fund + launch the $10 STRK20 gig** (posts ready in `docs/posts/LAUNCH-KIT.md`).
+3. **Fund `0x3a60…8341` (≥$2.50 + gas) + second Telegram account** → grant film per runbook.
+4. **Record the videos** — after 2 and 3 exist, so the footage is real money.
+5. ~~Collect the outstanding claim~~ **DONE** — 4th tx in `strk20.json`, served at the demo URL.
+
+## BUILD 5 — the front door (landing + onboarding as a million-dollar infra product)
+
+Method: change what a stranger reads in the first 10 seconds, not the palette.
+- [ ] **Numbers: one ledger, every rail** — landing totals from `settledLedger()` (all mainnet
+      rails), refusals from the decided ledger (explorer already did this; the landing kept the
+      old derivation — two-lists drift on the front door), copy "live on GOAT Network" → the
+      rails actually paying. Objective; ships first.
+- [ ] **Hero: say what it is and who it is for** — replace the riddle with a positioning line +
+      the three audiences as doors (founders/companies · workers · lenders), each to its real
+      surface. Copy shown to the user before it ships.
+- [ ] **Show the product, not a sketch** — where the landing illustrates, use the real surfaces
+      (explorer rows, the live desk, a proof receipt) — watch-don't-chat on the landing itself.
+- [ ] **Trust strip** — both mainnet rails, open source, the battery names, receipts count,
+      refusal rate. Facts a judge can click.
+- [ ] **Onboarding** — `/launch` is already clean; add "what happens next" (approve → fund →
+      watch → receipts), the walletless door, and a first-campaign path under 3 minutes.
+
+## BUILD 6 — Sage for teams (a company pays its own people, privately)
+
+The FC backbone claim made concrete: an employer/MSME hands gigs and milestone grants to its
+own staff or contractors, verified and paid the same way, without listing them publicly and
+with private-capable payouts. HARD CAP one day — if it cannot be REAL in a day it is a roadmap
+slide, never a mock.
+- [ ] `visibility: listed | unlisted` on campaigns — unlisted never appears on /marketplace or
+      the public boards; explorer completeness is unchanged (settlements are settlements).
+- [ ] Invite link for unlisted campaigns (`/c/<slug>` already exists as the campaign door) —
+      the company shares it with its people; nothing else changes in the recipient journey.
+- [ ] Launch-form toggle ("Only people I invite") + dashboard framing for a team's work.
+- [ ] Tests: unlisted never leaks to the board; the invite door still pays; ledger untouched.
+
+## POSTS — after the builds, one feature per post, each a screen recording + copy I write
+
+| # | when | feature | proof in the frame |
+| --- | --- | --- | --- |
+| P1 | Wed/Thu | STRK20 gig live: "paid $X to N people — nobody can read their income" | claim into a shielded note, explorer rows |
+| P2 | Thu | Caribbean currencies: a J$ grant composed, priced once, paid | launch form → outcomes reading |
+| P3 | Thu/Fri | The grant film: two tranches to a walletless seller | Telegram + record page |
+| P4 | Fri | The advance: verified inflow → capital → waterfall receipt | /lender → /record |
+| P5 | Fri | Sage for teams: a company pays its own people privately | unlisted campaign → private payout |
+Results post tags ellibenson on RESULTS only (existing rule).
+
+## The week, re-cut
+
+| | |
+| --- | --- |
+| **Tue 2** | Landing numbers fix (ship). BUILD 5 hero/doors/trust. User: declare class, fund + launch gig. |
+| **Wed 3** | BUILD 5 done. BUILD 6 (teams) built + tested. Grant film if funded; advance the moment an earner exists. |
+| **Thu 4** | P1 + P2 posted with real numbers. Recordings. Fixes from what the recordings expose. |
+| **Fri 5** | P3–P5. Final cross-read of both packages against the live site. Code freeze by evening. |
+| **Sat 6** | **FC submitted. STRK20 submitted the same day.** |
 
 ### Launch runway pre-flight (Mon night — clear for your funding tomorrow)
 
