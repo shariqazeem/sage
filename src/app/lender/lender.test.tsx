@@ -91,11 +91,14 @@ describe("the lender view", () => {
     );
   });
 
-  /** A withheld record must not read as a lender-blocking failure, nor invent a number. */
-  it("explains a withheld record instead of showing a figure", async () => {
+  /** A withheld record must not read as a lender-blocking failure, nor invent a number —
+   *  and since 1 Sep it is no longer a dead-end sentence: the verifier lives right there. */
+  it("prices a withheld record through the attestation verifier, never a figure", async () => {
     await look(record({ amountsWithheld: true, signals: { ...record().signals, inflow90dUsd: undefined } }));
     await waitFor(() => expect(screen.getByText(/withheld their amounts/i)).toBeTruthy());
-    expect(screen.getByText(/signed statement of earnings/i)).toBeTruthy();
+    expect(screen.getByText(/signed earnings floor/i)).toBeTruthy();
+    expect(screen.getByLabelText(/paste the earner's signed attestation/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /verify the attestation/i })).toBeTruthy();
   });
 
   /**
