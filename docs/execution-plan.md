@@ -92,6 +92,14 @@ Grants have run in production ZERO times and are the FC centrepiece.
       calls (stated-terms, compile, budget check, lint) — and `lintDirectCampaign` is now TOTAL:
       advice can never crash a caller again. Decision rule honored: stop burning rounds.
 
+### P-ROUTE standing (read 1 Sep)
+
+The last full run is GREEN and conclusive: 31/32, providerFailures 0, prematureConfirms 0.
+The single ⚠ (pr-web-gig run 2/2) is the reasoning-model flake documented in
+[[reasoning-model-portability]] — the `<think>` block consumed the turn and no tool call
+emerged; the same fixture routes correctly in run 1. Model variance, not a routing defect;
+nothing to fix.
+
 ## BUILD 3 — STRK20 completion
 
 - [ ] **Declare the privacy class** (user: password) → new campaigns stop naming people in

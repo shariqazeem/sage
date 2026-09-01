@@ -7,7 +7,7 @@ happened, or something a battery measured.
 
 | Lane | Ever run in production | Hardened by |
 |---|---|---|
-| Product testing | 15 campaigns, 54 products, 28 payouts | **P-GEN** (dozens of real sites) |
+| Product testing | 15 campaigns, 54 products, 29 payouts | **P-GEN** (dozens of real sites) |
 | Payout judging (url lane) | every payout | **P-JUDGE** (19 fixtures × 3) |
 | Gig / artifact lane | **1 campaign, ever** | **P-WORK** (14 × 3, 42/42 clean) |
 | Verification contracts | only `artifact_url` had ever executed | **P-VERIFY** (5/5 against the real chain + internet) |
