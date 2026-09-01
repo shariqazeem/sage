@@ -157,6 +157,23 @@ export default function Architecture() {
         <strong>witnesses</strong> it, and writes the book as the work happens.
       </p>
 
+      <h3>Where crypto cannot go</h3>
+      <p>
+        The router&rsquo;s third door is a <strong>licensed-partner fiat adapter</strong> — for the
+        jurisdictions and recipients a chain cannot reach. It is deliberately{" "}
+        <em>interface-ready, not live</em>: the contract is real and typed (a partner
+        implementation cannot ship without producing the same credit event — the record anchors to
+        the partner&rsquo;s disbursement reference instead of a transaction), the corridor
+        arithmetic works today, and the disburse function refuses in words rather than simulating
+        money movement, because a &ldquo;mark paid via partner&rdquo; button with no partner is
+        theatre. Activation is a compliance onboarding, not a code change — the registry says
+        exactly that, in{" "}
+        <a href="https://github.com/shariqshkt/sage/blob/main/src/lib/settlement/adapters.ts">
+          one readable module
+        </a>
+        .
+      </p>
+
       <h2>Degradation</h2>
       <p>
         With no model available, the judging layer falls back to a transparent keyword heuristic that{" "}
