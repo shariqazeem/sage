@@ -444,6 +444,10 @@ export async function runDirectEval(opts: {
                 continue;
               }
             }
+            // QUALITY READS: with DIRECT_DUMP=1 the model's full plan is kept on every row (not
+            // only the failures) and the compiled contract is printed in words below — the point
+            // of a quality round is to READ what the model designs, not to count green cells.
+            if (process.env.DIRECT_DUMP === "1") row.rawArgs = JSON.stringify(raw).slice(0, 6000);
             const compiled = compileDirectCampaign(input, `pdirect-${f.id}-${r}`, evalQuote);
             if (!compiled.ok) {
               row.error = compiled.error;
@@ -487,6 +491,18 @@ export async function runDirectEval(opts: {
               // honest "no rate" the other two did. Round 9 caught it; rounds 6-8 each caught
               // one of its siblings. Two-lists drift, single-file edition.
               row.lintNotes = lintDirectCampaign(input, evalQuote);
+              if (process.env.DIRECT_DUMP === "1") {
+                const eff = effectiveMilestoneUsd(input, evalQuote);
+                log(`  ── PLAN ${f.id} run${r + 1}: "${input.title}" (${input.kind}) total $${row.totalUsd}`);
+                input.milestones.forEach((m, i) => {
+                  const ev = m.evidence as { kind: string; expectedText?: string[]; allowedHosts?: string[]; markerKind?: string };
+                  log(`     ${String(i + 1).padStart(2, "0")} $${eff[i].toFixed(2)} × ${m.slots} · ${m.title}`);
+                  log(`        instructions: ${m.instructions.slice(0, 220)}`);
+                  log(`        criteria: ${(m.criteria ?? []).slice(0, 4).join(" | ").slice(0, 300)}`);
+                  log(`        evidence: ${ev.kind}${ev.expectedText ? ` expects "${ev.expectedText.join('" / "').slice(0, 160)}"` : ""}${ev.allowedHosts ? ` hosts=${JSON.stringify(ev.allowedHosts)}` : ""}${ev.markerKind ? ` marker=${ev.markerKind}` : ""}`);
+                });
+                if (row.lintNotes.length) log(`     notes: ${row.lintNotes.join(" · ").slice(0, 400)}`);
+              }
             }
           }
         } catch (e) {
