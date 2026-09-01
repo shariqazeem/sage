@@ -154,6 +154,34 @@ There is no dependency on any other project: it integrates the STRK20 **pool** d
 
 ---
 
+## The money infrastructure (what a dollar goes through)
+
+```
+witness (agent) → obligation (signed, capped) → vault (cannot exceed)
+   → router (GOAT public · Starknet private claim · licensed-fiat door, interface-ready)
+      → record (public tape or a signed earnings floor) → capital in (the Advance facility)
+```
+
+- **The founder never picks a chain.** They pick an outcome — *public receipts* or
+  *private-capable* — and the router picks the rail. The fiat door is a typed interface whose
+  disburse refuses in words until a licensed partner's keys exist: no simulated money movement.
+- **They price in their own money.** A grant composes as *"split J$10,000 across two
+  milestones"* — Caribbean denominations first-class (J$ · TT$ · EC$ · Bds$ · G · RD$ · G$ · B$ ·
+  BZ$ · SRD), converted once at a stamped, source-attributed rate; settlement is always USDC, and
+  no model ever does exchange arithmetic.
+- **The record is underwritable.** Every payout lands on the earner's verified work record
+  ([/record](https://sagepays.xyz/record/0xccbfb9bba88f282282a29aa1338175cc835e768d) ·
+  `sage.work-record.v4`), amounts withholdable with a **signed earnings floor** a lender verifies
+  off-platform — income that can be borrowed against without being a public diary.
+- **Capital comes back in.** The [Advance facility](https://sagepays.xyz/lender): capacity is
+  published arithmetic (the lender's multiple — Sage scores nobody), disbursement is a claim link,
+  and repayment is the **waterfall** — each next verified payout escrows as two legs, recourse on
+  the Sage-routed remainder only. One active advance per borrower, one repayment per payout,
+  enforced by the schema itself.
+- **Outcomes are readings, not claims.** [sagepays.xyz/outcomes](https://sagepays.xyz/outcomes)
+  answers cost, speed, access and flow from the settlement ledger at render time — including the
+  number that is honestly **not yet measured**.
+
 ## Proven, not promised
 
 Every figure below is a transaction on GOAT Network mainnet or a row in the production database,
@@ -162,9 +190,9 @@ and each can be re-derived from the source named beside it.
 | | | |
 |---|---|---|
 | **$52.60** | settled autonomously in USDC | [payout ledger](docs/stage2/payout-ledger.md) |
-| **23** | different people paid | on-chain transfer log |
-| **28** | autonomous payouts | one receipt page per transaction |
-| **51** | submissions decided | 28 paid, **23 refused**, none unresolved |
+| **22** | different people paid | on-chain transfer log |
+| **29** | autonomous payouts, across TWO mainnet rails | one receipt page per transaction |
+| **52** | submissions decided | 29 paid, **23 refused**, none unresolved |
 | **67** | distinct products inspected | 828 inspection jobs |
 | **175s** | median submission → USDC in wallet | fastest: 15 seconds |
 
