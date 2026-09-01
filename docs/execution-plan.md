@@ -52,24 +52,29 @@ still us, the pipe is open for a credit union.
 
 The one genuinely new layer. Everything else exists.
 
-- [ ] **Schema**: `advances` (borrower wallet, principal base, published terms: multiple,
+- [x] **Schema**: `advances` (borrower wallet, principal base, published terms: multiple,
       waterfall fraction, pot address) + `advance_repayments` (payout id, leg amount, claim tx).
       Migration. Deterministic formulas only — Sage still scores nobody.
-- [ ] **Disbursement**: pot → claim link to the borrower (reuses SageClaims; the advance itself is
+- [x] **Disbursement**: pot → claim link to the borrower (reuses SageClaims; the advance itself is
       private-capable). Operator-signed, capped by `advanceCapacityUsd` (exists).
-- [ ] **Waterfall — NO NEW CAIRO**: on the claims rail, `escrowPayouts` mints TWO legs via
+- [x] **Waterfall — NO NEW CAIRO**: on the claims rail, `escrowPayouts` mints TWO legs via
       `deposit_many` when the earner has an outstanding advance: repayment leg (pot's secret) +
       remainder (worker's). Deterministic fraction from the advance terms. Vault flow byte-
       untouched; this is additive AFTER the vault call in `settle-starknet.ts` (frozen-listed —
       explicitly authorized by the user for this build; full test + mutation discipline; EVM flow
       not touched — GOAT is "the next adapter" and we say so).
-- [ ] **Record**: `/record` shows advance outstanding / repaid-via-N-payouts with the published
+- [x] **Record**: `/record` shows advance outstanding / repaid-via-N-payouts with the published
       arithmetic. Repayment history IS the credit story lenders ask for.
-- [ ] **Surface**: advance offer card on `/record` + "Fund this advance" on `/lender`
+- [x] **Surface**: advance offer card on `/record` + "Fund this advance" on `/lender`
       (lender supplies the multiple — `advanceCapacityUsd` already enforces the philosophy).
 - [ ] **THE PROOF**: one real advance on mainnet — worker with a real record takes an advance →
       their next verified payout auto-splits → both legs' receipts land on `/record` and
       `/explorer`. This is the FC demo's climax.
+
+*(All five build boxes above VERIFIED BUILT 1 Sep — `src/lib/advance/` + `src/lib/db/advances.ts` +
+migration 0049, `scripts/advance.mjs` claim-link disbursement, the waterfall block in the frozen-listed
+`settle-starknet.ts` (user-authorized), the advance section live on `/record`, the facility on `/lender`.
+Only THE PROOF remains, and it needs a funded campaign + a real earner — user-gated.)*
 
 ## BUILD 2 — milestone grants proven + direct-lane recall
 
@@ -147,10 +152,10 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
 ## BUILD 4 — FC package
 
 - [x] Corridor line — live on /outcomes: the 8% corridor would have taken $4.21 of the $52.60 settled; recipients received it.
-- [ ] **Outcomes, not chains** (decided 1 Sep): /launch stops asking "GOAT or Starknet?" and asks
-      the only question a founder can answer — **Public payouts / Private payouts** — with the
-      chain as fine print. The router picks the rail; the confusion was ever asking. Stripe never
-      asks which card network. Copy + small UI, not architecture.
+- [x] **Outcomes, not chains** — BUILT (`deploy/rail-choice.tsx`): the founder answers
+      **Public receipts / Private-capable**, both options state their cost, the chain is fine
+      print; the choice survives a reload (`rail-persistence.test.tsx` — the silent-revert trap
+      is pinned).
 - [ ] **DEFERRED TO THE END** (user, 1 Sep): Crossmint third-door spike — after the outcomes
       surface and infra-feel pass; "make the existing financial system work as one" first.
 - [ ] **/outcomes — the brief's bar, answered with readings** (decided 1 Sep). One public page
