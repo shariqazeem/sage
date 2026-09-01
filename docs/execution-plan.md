@@ -72,7 +72,25 @@ where the ledger says 43% — the refusal rate is THE institutional asset and th
 it), and there is no story for a COMPANY using Sage privately for its own people — which is the
 MSME backbone claim made concrete. Both are buildable this week.
 
-## WHAT NEEDS YOU — Tue 2 Sep (updated evening)
+## STATE — Wed 3 Sep, early (Fable 5.1)
+
+- **Privacy class DECLARED and LIVE for new vaults** (`0x6d5577…`, tx `0x29abc18…fb87f`); the three
+  earlier vaults stay recognised via `STARKNET_VAULT_CLASS_HASHES_PREVIOUS` (pinned). The gig can
+  launch NOW on the class that names nobody.
+- **Deployed:** the rebuilt landing (plain hero, live rail, three doors, facts strip, a real run in
+  "how it works", Sage-for-teams scene), the composer with its live plan preview, the empty-desk
+  door, the manifest with a real vault instance + the 4th tx.
+- **P-GEN nonce 44** running detached on the VM (VM-local log; 42/43 were relaunches — the ssh relay
+  goes silent, always run batteries detached and read the VM file).
+
+## WHAT NEEDS YOU — Wed 3 Sep
+
+1. **Fund + launch the $10 STRK20 gig** — it deploys from the privacy class now. Posts in
+   `docs/posts/LAUNCH-KIT.md`; the series order in `docs/posts/BUILD-IN-PUBLIC-BACKLOG.md`.
+2. **Fund `0x3a60…8341` (≥$2.50 + gas) + second Telegram account** → grant film.
+3. **Record** — the teams post (`2026-09-02-sage-for-teams.md`) can be shot today on prod.
+
+## WHAT NEEDS YOU — Tue 2 Sep (updated evening) — superseded above
 
 **Top up ~20 STRK** to the operator `0x46a1747d854e74e5082c3215841b26dcff182a6a6fd7a1f83c3e1d045996101`.
 The privacy class (`0x6d5577…`, artifacts on the VM, key verified, `scripts/starknet-declare-env.mjs`
