@@ -4204,6 +4204,15 @@
   max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sb-desk-camp:hover { color: var(--accent); border-color: var(--accent-border); }
+/* the desk's quiet heartbeat — when Sage last recorded work, never a fake pulse */
+.sb-desk-beat {
+  margin-left: auto; font-size: 0.6875rem; font-family: var(--font-mono);
+  letter-spacing: 0.02em; color: var(--ink-faint); font-weight: 400; text-transform: none;
+}
+/* a row that arrived while the founder was watching settles in, calmly */
+@keyframes sb-desk-arrive { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.sb-desk-list .tb-act-row { animation: sb-desk-arrive 380ms var(--ease-out, ease-out) both; }
+@media (prefers-reduced-motion: reduce) { .sb-desk-list .tb-act-row { animation: none; } }
 
 /* ── the judge's cross-checks — counts in the console's own quiet register ──────────── */
 .cw-integrity { border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; margin-top: 0.9rem; }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Rocket, Sparkles, ArrowRight, ArrowUpRight, Check, CheckCircle2, CircleDot, Clock, Compass, HandCoins, Inbox, ShieldCheck, Square, XCircle } from "lucide-react";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import { reward as fmtReward } from "@/lib/format";
@@ -46,6 +46,15 @@ function statusMeta(c: CampaignCard): { group: Group; label: string } {
   return { group: "running", label: "Live" };
 }
 
+/** relative "worked Xm ago" — client-only (rendered behind the `live` mount guard). */
+function agoShort(fromSec: number): string {
+  const d = Math.max(0, Math.floor(Date.now() / 1000) - fromSec);
+  if (d < 60) return "worked just now";
+  if (d < 3600) return `worked ${Math.max(1, Math.round(d / 60))}m ago`;
+  if (d < 86400) return `worked ${Math.round(d / 3600)}h ago`;
+  return `worked ${Math.round(d / 86400)}d ago`;
+}
+
 const GROUP_ORDER: { key: Group; label: string; Icon: typeof CircleDot }[] = [
   { key: "running", label: "Running", Icon: CircleDot },
   { key: "stopped", label: "Stopped", Icon: Square },
@@ -53,7 +62,7 @@ const GROUP_ORDER: { key: Group; label: string; Icon: typeof CircleDot }[] = [
 ];
 
 export function DashboardClient({
-  desk,
+  desk: initialDesk,
   signedIn,
   address,
   campaigns,
@@ -62,6 +71,7 @@ export function DashboardClient({
   totalPaid,
 }: {
   desk: FounderDesk;
+  // (prop is the server seed; live state below owns the rendered value)
   signedIn: boolean;
   address: string | null;
   campaigns: CampaignCard[];
@@ -73,6 +83,43 @@ export function DashboardClient({
   const founder = useFounderSession();
   const [live, setLive] = useState(false);
   useEffect(() => setLive(true), []);
+
+  /**
+   * THE DESK, LIVE — the same watch-don't-chat discipline the campaign console already has,
+   * on the founder's home. Server-seeded, then polled at a calm workplace cadence (this is a
+   * desk, not a ticker); hidden tabs poll nothing; every row is a real ledger event via the
+   * one safe projection. A founder who leaves this page open sees Sage receive, verify and
+   * pay without ever reloading — which is the product doing its own demo.
+   */
+  const [desk, setDesk] = useState<FounderDesk>(initialDesk);
+  const deskSig = useRef(`${initialDesk.lastWorkedAt ?? 0}:${initialDesk.events.map((e) => e.id).join(",")}`);
+  useEffect(() => {
+    if (!signedIn) return;
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const res = await fetch("/api/founder/desk", { cache: "no-store" });
+        if (!res.ok) return;
+        const j = (await res.json()) as { desk?: FounderDesk };
+        const next = j.desk ?? { events: [], lastWorkedAt: null };
+        const s = `${next.lastWorkedAt ?? 0}:${next.events.map((e) => e.id).join(",")}`;
+        if (s === deskSig.current) return;
+        deskSig.current = s;
+        setDesk(next);
+      } catch {
+        /* transient — the next tick retries */
+      }
+    };
+    const timer = setInterval(() => void tick(), 15000);
+    const onVis = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [signedIn]);
 
   if (!signedIn) {
     return (
@@ -204,6 +251,9 @@ export function DashboardClient({
           <div className="sb-cat-label">
             <Sparkles size={13} strokeWidth={2.2} className="sb-cat-ico" />
             Sage at work
+            {live && desk.lastWorkedAt != null && (
+              <span className="sb-desk-beat">{agoShort(desk.lastWorkedAt)}</span>
+            )}
           </div>
           <div className="tb-act-list sb-desk-list">
             {desk.events.map((a) => {
