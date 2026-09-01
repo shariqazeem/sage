@@ -323,3 +323,60 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
     expect(mapped.splitTotalLocal).toBeUndefined();
   });
 });
+
+describe("createDirectCampaign threads the quote everywhere — the lint included", () => {
+  it("a local split survives create end to end (measured: the lint threw quote-less)", async () => {
+    const { createDirectCampaign } = await import("./direct-campaign");
+    const JMDq: import("@/lib/money/currency").RateQuote = { base: "USD", currency: "JMD", rate: 155, source: "test", asOf: 1_900_000_000 };
+    const input = directCampaignSchema.parse({ ...grant({ currency: "JMD", splitTotalLocal: 10_000 }) });
+    const r = createDirectCampaign(input, "0x" + "f1".repeat(20), JMDq);
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+  });
+});
+
+describe("a gig priced per-tranche in the FOUNDER'S currency (visible currencies, 1 Sep)", () => {
+  const JMD2: import("@/lib/money/currency").RateQuote = {
+    base: "USD", currency: "JMD", rate: 155, source: "test", asOf: 1_900_000_000,
+  };
+  const localGig = (over: Record<string, unknown> = {}) =>
+    directCampaignSchema.safeParse({
+      kind: "gig",
+      title: "Menu translation",
+      currency: "JMD",
+      milestones: [
+        { title: "Translate the menu", instructions: "publish the translated menu as a public page", criteria: ["The page is live"], evidence: { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" }, slots: 1, rewardLocal: 2000 },
+      ],
+      ...over,
+    });
+
+  it("J$2,000 for one deliverable is a PRICED milestone — schema, resolver, compiler", () => {
+    const p = localGig();
+    expect(p.success, JSON.stringify(p.error?.issues)).toBe(true);
+    const r = compileDirectCampaign(p.data!, "g", JMD2);
+    expect("plan" in r, "error" in r ? String((r as { error: string }).error) : "").toBe(true);
+    if (!("plan" in r)) return;
+    // exact conversion at cent precision through the resolver: 2000/155 = $12.90
+    expect(r.plan.missions[0].rewardBase).toBe(BigInt(12_900_000));
+  });
+
+  it("with NO rate it refuses in words — never a $0 mission", () => {
+    const r = compileDirectCampaign(localGig().data!, "g", null);
+    expect("plan" in r).toBe(false);
+    if (!("error" in r)) return;
+    expect(r.error).toMatch(/no rate for JMD/i);
+  });
+
+  it("a local amount with no currency named is not a price", () => {
+    expect(localGig({ currency: undefined }).success).toBe(false);
+  });
+
+  it("the local figure OUTRANKS a stray USD figure when a rate exists — the founder's words win", () => {
+    const p = localGig({
+      milestones: [{ title: "Translate the menu", instructions: "publish the translated menu as a public page", criteria: ["The page is live"], evidence: { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" }, slots: 1, rewardLocal: 2000, rewardUsd: 99 }],
+    });
+    expect(p.success).toBe(true);
+    const r = compileDirectCampaign(p.data!, "g", JMD2);
+    if (!("plan" in r)) throw new Error("compile failed");
+    expect(r.plan.missions[0].rewardBase).toBe(BigInt(12_900_000));
+  });
+});

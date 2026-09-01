@@ -7,6 +7,7 @@ import { withTransientRetry } from "@/lib/llm/retry";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
+import { quoteFor } from "@/lib/money/rates";
 import {
   compileDirectCampaign,
   directCampaignSchema,
@@ -425,7 +426,25 @@ export async function runDirectEval(opts: {
             violations.push(`${f.id}: model args failed the schema — ${row.error}`);
           } else {
             const input: DirectCampaignInput = parsed.data;
-            const compiled = compileDirectCampaign(input, `pdirect-${f.id}-${r}`);
+            /**
+             * PRODUCTION'S OWN RATE PATH. Both real doors fetch the stamped quote before
+             * compiling; a battery that compiles quote-less measures a product that does not
+             * exist (round 7: three "no rate for JMD" refusals on correctly-composed local
+             * plans). A rates outage mid-battery is an INSTRUMENT failure, scored like a
+             * provider failure — never a product violation.
+             */
+            let evalQuote = null as Awaited<ReturnType<typeof quoteFor>>;
+            const localCode = input.currency?.trim().toUpperCase();
+            if (localCode && localCode !== "USD") {
+              evalQuote = await quoteFor(localCode);
+              if (!evalQuote && (input.splitTotalLocal !== undefined || input.milestones.some((m) => m.rewardLocal !== undefined))) {
+                row.error = `rates API unavailable for ${localCode} — instrument, not product`;
+                providerFailures += 1;
+                rows.push(row);
+                continue;
+              }
+            }
+            const compiled = compileDirectCampaign(input, `pdirect-${f.id}-${r}`, evalQuote);
             if (!compiled.ok) {
               row.error = compiled.error;
               violations.push(`${f.id}: compiler refused — ${compiled.error}`);

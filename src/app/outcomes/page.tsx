@@ -2,6 +2,7 @@ import "./outcomes.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { readOutcomes } from "@/lib/outcomes/outcomes";
+import { CURRENCIES } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -124,9 +125,15 @@ export default function OutcomesPage() {
               <b>{railName(r.rail)}</b> — {r.payouts} payout{r.payouts === 1 ? "" : "s"}
             </span>
           ))}
-          . Obligations can be denominated in {o.denominationsSupported} currencies (Caribbean
-          receivers and diaspora senders), converted at a stamped, source-attributed rate —
-          settlement is always the USD stablecoin.
+          . Obligations denominate in {o.denominationsSupported} currencies — the Caribbean&rsquo;s
+          own first:{" "}
+          <span className="mono">
+            {CURRENCIES.filter((c) => c.region === "caribbean").map((c) => `${c.symbol} ${c.code}`).join(" · ")}
+          </span>{" "}
+          — plus the diaspora senders (
+          <span className="mono">{CURRENCIES.filter((c) => c.region === "sender").map((c) => c.code).join(", ")}</span>
+          ), each converted once at a stamped, source-attributed rate. Settlement is always the USD
+          stablecoin; the founder prices in their own money and never does exchange arithmetic.
         </p>
         <p className="out-src">
           <b>Not yet measured:</b> intra-regional corridor flow — no BBD- or JMD-denominated

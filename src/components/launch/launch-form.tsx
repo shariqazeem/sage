@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { CURRENCIES } from "@/lib/money/currency";
 import { X, HandCoins, Plus, ScanSearch } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
@@ -67,7 +68,7 @@ const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "
 
 /** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
  *  founder edits, the same way the goal chips write proven goal shapes. */
-const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: string; tranches: Partial<Tranche>[] }[] = [
+const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: string; currency?: string; tranches: Partial<Tranche>[] }[] = [
   { label: "Design gig", who: "my designer", slots: "1", tranches: [{ amount: "50", deliverable: "the new logo page is live", verify: "link" }] },
   { label: "Translation job", who: "a translator", slots: "1", tranches: [{ amount: "20", deliverable: "my menu is published in English as a public page", verify: "link" }] },
   { label: "Open bounty", who: "anyone", slots: "3", tranches: [{ amount: "5", deliverable: "they publish a working setup guide for my product", verify: "link" }] },
@@ -76,6 +77,17 @@ const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: st
     who: "a market seller I know",
     slots: "1",
     splitTotal: "40",
+    tranches: [
+      { deliverable: "she publishes her catalogue as a public page", verify: "link" },
+      { deliverable: "she publishes her first customer review page", verify: "link" },
+    ],
+  },
+  {
+    label: "Grant in J$",
+    who: "a market seller in Kingston",
+    slots: "1",
+    currency: "JMD",
+    splitTotal: "10000",
     tranches: [
       { deliverable: "she publishes her catalogue as a public page", verify: "link" },
       { deliverable: "she publishes her first customer review page", verify: "link" },
@@ -150,6 +162,13 @@ export function LaunchForm() {
   const [tranches, setTranches] = useState<Tranche[]>([blankTranche()]);
   /** "" = each tranche priced by the founder; a number = ONE stated total, split exactly by Sage. */
   const [splitTotal, setSplitTotal] = useState("");
+  /**
+   * THE FOUNDER'S OWN CURRENCY, VISIBLE — not hidden behind the dollar. A market seller is funded
+   * in J$, a Trinidad hotel thinks in TT$, and the track is ABOUT those denominations. Settlement
+   * stays USDC; Sage converts at a stamped, source-attributed rate at compile — the founder types
+   * THEIR number and never does exchange arithmetic.
+   */
+  const [currency, setCurrency] = useState("USD");
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -218,9 +237,14 @@ export function LaunchForm() {
 
   const splitting = tranches.length > 1 && splitTotal.trim() !== "";
 
+  const isLocal = currency !== "USD";
+  const curSymbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$";
+
   const trancheValid = (t: Tranche): boolean => {
     if (t.deliverable.trim().length < 8) return false;
-    if (!splitting && !(Number(t.amount) >= 0.5)) return false;
+    // In a local currency the tangible floor is enforced SERVER-side after conversion (it refuses
+    // in the founder's own units); the client only insists the number is a number.
+    if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return false;
     if (t.verify === "page" && t.expectedText.trim().length < 3) return false;
     if (t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return false;
     return true;
@@ -229,7 +253,7 @@ export function LaunchForm() {
   const payValid = (): boolean =>
     pay.who.trim().length >= 2 &&
     tranches.every(trancheValid) &&
-    (!splitting || Number(splitTotal) >= 0.5 * tranches.length);
+    (!splitting || (isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length));
 
   /**
    * DISPLAY-ONLY mirror of the server's exact base-unit split (splitTotalBase): floor + remainder
@@ -280,6 +304,7 @@ export function LaunchForm() {
         return {
           title: (cap.length >= 4 ? cap : `Milestone ${i + 1}`).slice(0, 80),
           instructions: `You are paid when ${d}. ${proofLine}`,
+          ...(splitting ? {} : isLocal ? { rewardLocal: Number(t.amount) } : {}),
           criteria: [
             cap,
             t.verify === "link"
@@ -290,14 +315,19 @@ export function LaunchForm() {
           ],
           evidence,
           slots,
-          ...(splitting ? {} : { rewardUsd: Number(t.amount) }),
+          ...(splitting || isLocal ? {} : { rewardUsd: Number(t.amount) }),
         };
       });
       const body = {
         kind: isGrant ? "grant" : "gig",
         title: title.length >= 4 ? title : "Pay for work",
         milestones,
-        ...(splitting ? { splitTotalUsd: Number(splitTotal) } : {}),
+        ...(isLocal ? { currency } : {}),
+        ...(splitting
+          ? isLocal
+            ? { splitTotalLocal: Number(splitTotal) }
+            : { splitTotalUsd: Number(splitTotal) }
+          : {}),
       };
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
@@ -550,6 +580,25 @@ export function LaunchForm() {
                 onChange={(e) => setP("who", e.target.value)}
                 aria-label="Who gets paid"
               />
+              <span className="lxs-word">in</span>
+              <select
+                className="lxs-token lxs-sel lxs-cur"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                aria-label="The currency you are pricing in"
+              >
+                {/* Caribbean receivers first — the denominations this exists for — then senders. */}
+                {CURRENCIES.filter((c) => c.code === "USD" || c.region === "caribbean").map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.symbol} {c.code}
+                  </option>
+                ))}
+                {CURRENCIES.filter((c) => c.region === "sender").map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.symbol} {c.code}
+                  </option>
+                ))}
+              </select>
               {tranches.length === 1 && (
                 <>
                   <span className="lxs-word">·</span>
@@ -573,7 +622,7 @@ export function LaunchForm() {
               <div className="lxs-tranche" key={i}>
                 <div className="lxs-line">
                   {tranches.length > 1 && <span className="lxs-n mono">{String(i + 1).padStart(2, "0")}</span>}
-                  <span className="lxs-word">$</span>
+                  <span className="lxs-word">{curSymbol}</span>
                   {splitting ? (
                     <span className="lxs-token lxs-amt lxs-split-preview mono" aria-label="Computed share">
                       {splitPreview()[i]}
@@ -666,7 +715,7 @@ export function LaunchForm() {
               {tranches.length > 1 && (
                 <label className="lxs-splitlab">
                   <span className="lxs-word">or split one total:</span>
-                  <span className="lxs-word">$</span>
+                  <span className="lxs-word">{curSymbol}</span>
                   <input
                     className="lxs-token lxs-amt"
                     type="number"
@@ -682,6 +731,13 @@ export function LaunchForm() {
               )}
             </div>
 
+            {isLocal && (
+              <p className="lxs-fx muted">
+                You price in {curSymbol} {currency}; recipients are paid in USDC, converted once at
+                a stamped, source-attributed rate when you fund — Sage never does exchange
+                arithmetic on your behalf mid-flight.
+              </p>
+            )}
             <div className="lxo-chips lxs-ex" role="group" aria-label="Start from an example">
               {PAY_EXAMPLES.map((ex) => (
                 <button
@@ -692,6 +748,7 @@ export function LaunchForm() {
                     setPay({ who: ex.who, slots: ex.slots });
                     setTranches(ex.tranches.map((t) => ({ ...blankTranche(), ...t })));
                     setSplitTotal(ex.splitTotal ?? "");
+                    setCurrency(ex.currency ?? "USD");
                     setPayErr(null);
                   }}
                 >

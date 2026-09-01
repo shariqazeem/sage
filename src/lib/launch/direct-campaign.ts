@@ -206,8 +206,18 @@ export const directCampaignSchema = z.object({
    */
   splitTotalLocal: z.number().positive().max(10_000_000).optional(),
 }).superRefine((c, ctx) => {
-  const priced = c.milestones.filter((m) => m.rewardUsd !== undefined).length;
+  // Priced means priced — in USD or in the founder's own currency. Counting only rewardUsd made
+  // a J$-per-tranche gig read as unpriced and refused, which is the dollar hiding the track's own
+  // denominations.
+  const priced = c.milestones.filter((m) => m.rewardUsd !== undefined || m.rewardLocal !== undefined).length;
   const all = c.milestones.length;
+  if (
+    c.milestones.some((m) => m.rewardLocal !== undefined) &&
+    (!c.currency || c.currency.toUpperCase() === "USD")
+  ) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "rewardLocal needs `currency` — a local amount with no currency is not a price" });
+    return;
+  }
   if (c.splitTotalUsd !== undefined && c.splitTotalLocal !== undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "one stated total, in one currency — splitTotalUsd or splitTotalLocal, never both" });
     return;
@@ -256,9 +266,9 @@ const isBoilerplateCriterion = (c: string): boolean =>
  * submissions, so it cannot become a key-mining oracle (the NO-ORACLE rule is about the answer
  * key; this is about the question).
  */
-export function lintDirectCampaign(input: DirectCampaignInput): string[] {
+export function lintDirectCampaign(input: DirectCampaignInput, quote: RateQuote | null = null): string[] {
   const notes: string[] = [];
-  const effectiveUsd = effectiveMilestoneUsd(input);
+  const effectiveUsd = effectiveMilestoneUsd(input, quote);
   input.milestones.forEach((m, i) => {
     const label = `Milestone ${i + 1} ("${m.title}")`;
     if (m.evidence.kind === "public_url") {
@@ -495,15 +505,15 @@ export function resolveMilestoneUsd(
   m: { rewardLocal?: number; rewardUsd?: number },
   quote: RateQuote | null,
 ): number {
-  // An UNPRICED milestone is the splitTotalUsd path, where the amount comes from splitTotalBase and
-  // never from here. Zero rather than a throw: the caller decides, and every caller that can reach
-  // this case checks for the split first.
+  // The FOUNDER'S currency converts first: a milestone priced in J$ with a stamped rate resolves
+  // through the rate, whether or not a USD figure also rides the row. Only then fall back to USD;
+  // an unpriced milestone (the split path) resolves 0 and every caller checks the split first.
+  if (quote && quote.currency !== "USD" && m.rewardLocal !== undefined) {
+    const base = toUsdBase(m.rewardLocal, quote);
+    return Math.round(Number(base) / 10_000) / 100;
+  }
   if (m.rewardUsd === undefined) return 0;
-  if (!quote || quote.currency === "USD" || m.rewardLocal === undefined) return m.rewardUsd;
-  const base = toUsdBase(m.rewardLocal, quote);
-  // Back to dollars at cent precision: the vault works in base units, but every gate downstream
-  // (the floor, the caps, the lint) is written in dollars and must keep seeing dollars.
-  return Math.round(Number(base) / 10_000) / 100;
+  return m.rewardUsd;
 }
 
 export function compileDirectCampaign(
@@ -547,6 +557,10 @@ export function compileDirectCampaign(
     (mixed pricing, a total alongside per-milestone amounts, multi-slot milestones), so reaching
     here means every milestone is unpriced and the total is the only amount anyone stated.
   */
+  const locallyPriced = input.milestones.some((m) => m.rewardLocal !== undefined);
+  if (locallyPriced && (!quote || quote.currency.toUpperCase() !== (input.currency ?? "").toUpperCase())) {
+    return { ok: false, error: `no rate for ${input.currency ?? "?"} — cannot price amounts stated in ${input.currency ?? "that currency"} without one` };
+  }
   let stated: bigint | null;
   try {
     stated = splitTotalBaseOf(input, quote);
@@ -708,6 +722,6 @@ export function createDirectCampaign(
     revisionId: revision.id,
     totalBudgetBase,
     planUrl: `/launch/${job.id}`,
-    strengthNotes: lintDirectCampaign(input),
+    strengthNotes: lintDirectCampaign(input, quote),
   };
 }

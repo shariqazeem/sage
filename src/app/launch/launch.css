@@ -665,3 +665,5 @@
 .lxs-splitlab { display: inline-flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
 .lxs-split-preview { display: inline-flex; align-items: center; min-width: 3.2rem; justify-content: center; color: var(--accent); border-bottom: 1px dashed var(--accent-border); cursor: default; }
 .lxs-err { margin: 0.6rem 0 0; font-size: 0.8125rem; line-height: 1.55; color: #dc2626; }
+.lxs-cur { min-width: 6.2rem; }
+.lxs-fx { font-size: 0.75rem; line-height: 1.55; margin: 0.45rem 0 0; }
