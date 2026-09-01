@@ -678,3 +678,11 @@
 .lx-toggle-text { display: flex; flex-direction: column; gap: 3px; font-size: 0.875rem; line-height: 1.5; }
 .lx-toggle-text b { font-weight: 600; color: var(--ink); }
 .lx-toggle-text span { color: var(--ink-muted); font-size: 0.8125rem; }
+
+/* the sentence-form's invite-only line (Pay-for-work door) */
+.lxs-invite {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0.9rem 0 0.2rem; cursor: pointer;
+  font-size: 0.875rem; line-height: 1.5;
+}
+.lxs-invite input { margin-top: 4px; accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+.lxs-invite b { font-weight: 600; color: var(--ink); }

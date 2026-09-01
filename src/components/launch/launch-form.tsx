@@ -170,6 +170,8 @@ export function LaunchForm() {
    */
   const [currency, setCurrency] = useState("USD");
   const [payBusy, setPayBusy] = useState(false);
+  // SAGE FOR TEAMS — off the public board; the campaign's own door is what the founder shares.
+  const [inviteOnly, setInviteOnly] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
@@ -328,6 +330,7 @@ export function LaunchForm() {
             ? { splitTotalLocal: Number(splitTotal) }
             : { splitTotalUsd: Number(splitTotal) }
           : {}),
+        ...(inviteOnly ? { visibility: "unlisted" as const } : {}),
       };
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
@@ -738,6 +741,16 @@ export function LaunchForm() {
                 arithmetic on your behalf mid-flight.
               </p>
             )}
+            {/* SAGE FOR TEAMS — a company paying its own staff, contractors or grantees. One
+                sentence, one checkbox: the campaign stays off every public board and the founder
+                gets its door to share. Verification and payout are unchanged. */}
+            <label className="lxs-invite">
+              <input type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
+              <span>
+                <b>Only people I invite.</b>{" "}
+                <span className="muted">Stays off the public marketplace — you get a link to share with your team, contractors or grantees. Same verification, same payout.</span>
+              </span>
+            </label>
             <div className="lxo-chips lxs-ex" role="group" aria-label="Start from an example">
               {PAY_EXAMPLES.map((ex) => (
                 <button
