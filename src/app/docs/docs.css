@@ -297,3 +297,33 @@
     display: none;
   }
 }
+
+/* ── the money path — six layers, each a door ───────────────────────────────────────────
+   A map, not an illustration: semantic list, themable, zero overflow risk, every row lands
+   somewhere live. The connector is drawn, the exploration is the reader's. */
+.arch-flow { list-style: none; margin: 1.4rem 0; padding: 0; counter-reset: layer; }
+.arch-flow li {
+  position: relative;
+  padding: 0.85rem 0 0.85rem 3.1rem;
+  counter-increment: layer;
+}
+.arch-flow li::before {
+  content: counter(layer, decimal-leading-zero);
+  position: absolute; left: 0; top: 0.95rem;
+  font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  width: 2.1rem; text-align: right;
+}
+/* the spine — stops at the last layer, because the path ends where capital enters */
+.arch-flow li::after {
+  content: ""; position: absolute; left: 2.55rem; top: 2.1rem; bottom: -0.4rem;
+  width: 1px; background: var(--border-strong);
+}
+.arch-flow li:last-child::after { display: none; }
+.arch-flow-name { font-weight: 600; letter-spacing: -0.01em; margin-bottom: 0.15rem; }
+.arch-flow-what { font-size: 0.9375rem; line-height: 1.6; color: var(--ink-muted); max-width: 58ch; }
+.arch-flow-see {
+  display: inline-block; margin-top: 0.3rem;
+  font-size: 0.8125rem; color: var(--accent); text-decoration: none;
+}
+.arch-flow-see:hover { text-decoration: underline; text-underline-offset: 3px; }

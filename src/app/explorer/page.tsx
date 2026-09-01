@@ -150,7 +150,9 @@ export default function ExplorerPage() {
           payouts run inside on-chain caps,
           recipients are screened against the OFAC SDN list, and no human reviewed any autonomous
           decision — read{" "}
-          <Link href="/docs/compliance">how the controls work</Link>.
+          <Link href="/docs/compliance">how the controls work</Link>. What these rows add up to —
+          cost, speed, access, flow — is measured on{" "}
+          <Link href="/outcomes">system outcomes</Link>.
         </footer>
       </div>
     </div>

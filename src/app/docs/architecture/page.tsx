@@ -91,6 +91,72 @@ export default function Architecture() {
         <Link href="/docs/settlement">Settlement &amp; proof</Link>.
       </p>
 
+      <h2>The money path</h2>
+      <p>
+        The three layers above are the safety story. This is the capital story — what the system
+        actually does to a dollar, from the moment work is claimed to the moment capital moves
+        against the record it left behind. Each layer is live; follow any of them.
+      </p>
+      <ol className="arch-flow" aria-label="The money path, witness to capital">
+        <li>
+          <div className="arch-flow-name">Witness</div>
+          <div className="arch-flow-what">
+            The agent reads the work and gathers its own evidence — in a real browser, on-chain, or
+            from the artifact itself. It refuses what it cannot verify.
+          </div>
+          <Link href="/explorer" className="arch-flow-see">every judgment, incl. refusals →</Link>
+        </li>
+        <li>
+          <div className="arch-flow-name">Obligation</div>
+          <div className="arch-flow-what">
+            A verified claim becomes a signed, capped obligation: this person is owed this amount,
+            for this evidence. Rail-agnostic; deterministically compiled from the funder&rsquo;s own
+            words.
+          </div>
+          <Link href="/docs/missions" className="arch-flow-see">how work compiles →</Link>
+        </li>
+        <li>
+          <div className="arch-flow-name">Vault</div>
+          <div className="arch-flow-what">
+            The contract derives the exact amount, enforces caps and replays, and can say no. The
+            agent proposes; the vault disposes.
+          </div>
+          <Link href="/docs/settlement" className="arch-flow-see">what the vault enforces →</Link>
+        </li>
+        <li>
+          <div className="arch-flow-name">Router</div>
+          <div className="arch-flow-what">
+            Rails are routes, not products: the public tape on GOAT, the private claim on Starknet —
+            a worker collects to any address, including a shielded note — and a fiat adapter as the
+            next door. The funder picks an outcome; the router picks the rail.
+          </div>
+          <Link href="/docs/privacy" className="arch-flow-see">the private route →</Link>
+        </li>
+        <li>
+          <div className="arch-flow-name">Record</div>
+          <div className="arch-flow-what">
+            Every discharged obligation lands on the earner&rsquo;s verified work record — inflow,
+            counterparties, tenure, refusal-tested — theirs to share, redact, or prove a floor from
+            without publishing a figure.
+          </div>
+          <Link href="/lender" className="arch-flow-see">what a lender sees →</Link>
+        </li>
+        <li>
+          <div className="arch-flow-name">Capital in</div>
+          <div className="arch-flow-what">
+            Third-party capital advances against the record and repays itself from the next
+            verified payouts — the waterfall, with recourse on the Sage-routed remainder only.
+            Cash-flow lending where the books never existed, because the system wrote the books.
+          </div>
+          <Link href="/outcomes" className="arch-flow-see">does it change outcomes? →</Link>
+        </li>
+      </ol>
+      <p>
+        In the markets this is built for, the middle of that picture is the missing infrastructure:
+        the work is real, the books are not. Sage doesn&rsquo;t read cash flow — it{" "}
+        <strong>witnesses</strong> it, and writes the book as the work happens.
+      </p>
+
       <h2>Degradation</h2>
       <p>
         With no model available, the judging layer falls back to a transparent keyword heuristic that{" "}
@@ -102,6 +168,7 @@ export default function Architecture() {
         items={[
           { href: "/docs/missions", title: "Missions & budget" },
           { href: "/docs/safety", title: "The safety model", label: "Or" },
+          { href: "/outcomes", title: "System outcomes — the readings", label: "Or" },
         ]}
       />
     </Doc>

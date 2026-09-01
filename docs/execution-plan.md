@@ -75,7 +75,9 @@ The one genuinely new layer. Everything else exists.
 
 Grants have run in production ZERO times and are the FC centrepiece.
 
-- [ ] One real milestone grant end-to-end: walletless recipient (2nd Telegram account) —
+- [ ] **READY — runbook at `docs/runbooks/grant-e2e.md`**, every prerequisite verified on prod
+      except the two user items (fund the agent wallet `0x3a60…8341` ≥$2.50 USDC + gas; second
+      Telegram account). One real milestone grant end-to-end: walletless recipient —
       invite → earn → verify → pay → cash out → record. Caribbean-flavoured framing
       ("fund a market seller in two tranches") so the run IS the film.
 - [ ] Fix the over-eager route (MONEY-ADJACENT, do first): "when the bank approves her loan"

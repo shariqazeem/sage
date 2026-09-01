@@ -2024,3 +2024,5 @@ body:has(.slv2) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.slv2 .cap-stat-link { color: var(--terra, #c2410c); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; }
+.slv2 .cap-stat-link:hover { text-decoration: underline; text-underline-offset: 3px; }

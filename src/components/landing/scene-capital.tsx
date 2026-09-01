@@ -99,6 +99,10 @@ export function SceneCapital({
           <span className="cap-stat">
             <b>{refusalPct}%</b> refused on record
           </span>
+          <span className="cap-dot" aria-hidden />
+          <Link href="/outcomes" className="cap-stat cap-stat-link">
+            the readings <ArrowRight size={12} strokeWidth={2} />
+          </Link>
         </div>
       </Reveal>
     </section>
