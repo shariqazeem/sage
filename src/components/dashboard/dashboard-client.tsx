@@ -295,6 +295,13 @@ export function DashboardClient({
           <p className="sage-hint sb-dash-empty-p">
             No campaigns yet — launch one above and Sage will design the missions.
           </p>
+          {/* ONBOARDING — a new founder should see the thing working before funding anything:
+              the public ledger and a live board are one click away. */}
+          <p className="sage-hint sb-dash-empty-p">
+            Want to see it working first? Open the{" "}
+            <Link href="/explorer">public ledger</Link> or{" "}
+            <Link href="/marketplace">a live board</Link> — every payout there is a real transaction.
+          </p>
         </div>
       ) : (
         grouped.map((g) => (
