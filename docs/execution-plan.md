@@ -117,12 +117,14 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
 - [ ] Fix the top disconnections the audit names
 - [x] First ecosystem pass (1 Sep): both doors on the home, human greeting, ?do=pay deep door,
       console → briefed agent hand-off
-- [ ] **WATCH, DON'T CHAT (user thesis, 1 Sep)** — the UX centerpiece is the agent VISIBLY working,
-      not a chat box: the user's own delight moments were watching it pay and watching it inspect.
-      Rank: live visible agent work > direct manipulation > chat (kept, side door). Next unit: the
-      dashboard's live "Sage is working" feed from the events ledger (submission_received →
-      decision_recorded → autopay_settled with tx + amount — the source already exists), then the
-      console's activity strip made alive.
+- [x] **WATCH, DON'T CHAT (user thesis, 1 Sep) — SHIPPED same day.** The console's strip was
+      already live (SageActivity, 5s poll); the founder's HOME was the gap — a server snapshot
+      that said nothing while Sage judged and paid. Now `/api/founder/desk` (founder-scoped by
+      construction, anonymous → empty desk with the loader never consulted, pinned) + a calm 15s
+      poll with hidden-tab and sig-diff discipline; honest "worked Xm ago" heartbeat; one quiet
+      380ms entrance per arriving row. Proven in the browser: page open and untouched, a
+      submission made the section appear from empty, a settlement arrived as "Paid $0.50 · proof"
+      with the heartbeat flipping to "worked just now".
 - [ ] Million-dollar pass on the surfaces the journeys actually touch
 
 ## BUILD 4 — FC package
