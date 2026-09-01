@@ -72,6 +72,15 @@ one settlement ledger (`src/lib/campaigns/settled-ledger.ts`) with **named scope
   per borrower, one repayment per payout (both DB-enforced). Status: **facility live; first
   mainnet advance pending a funded campaign** — stated on /outcomes in those words.
 
+## Sage for teams (shipped 2 Sep) — the backbone claim made concrete
+
+An employer or MSME hands gigs and milestone grants to its **own** staff, contractors or
+grantees: "Only people I invite" keeps the campaign off every public board, the founder
+shares its door, and the work is verified and paid exactly the same way — on the
+private-capable rail if they choose. Payroll for verified deliverables, no HR system, no
+bank account on the recipient's side, and every payout still lands on the worker's
+verified record. Live at https://sagepays.xyz/launch?do=pay.
+
 ## Why trust the agent (tested, not asserted)
 
 - **The LLM proposes, the vault disposes** — no model ever computes a money amount.

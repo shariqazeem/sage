@@ -62,6 +62,12 @@ no access to credit — and no public ledger of their income, or no safety. Sage
 the vault proves the money moved; the commitment keeps their name out of it; the record is
 theirs, and they decide who reads it.
 
+## Inside companies (shipped 2 Sep)
+
+The same private rail now runs **inside a company**: an employer hands gigs and grants to
+its own people with "Only people I invite" — off every public board — and pays them through
+the commitment-keyed escrow. A team's pay is neither a public ledger nor a public listing.
+
 ## Live doors
 
 Product https://sagepays.xyz · explorer `/explorer` · a real record `/record/<wallet>` ·
