@@ -25,8 +25,8 @@ We are now paying people through a commitment instead of an address — and they
 
 Two contracts do it.
 
-SageVault enforces the funding ceiling and per-wallet replay, and answers a refused payout with a code rather than reverting, so the reason lands on-chain where the person refused can read it.
-0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87
+SageVault (the class every campaign's vault deploys from) enforces the funding ceiling and per-wallet replay, answers a refused payout with a code rather than reverting so the reason lands on-chain where the person refused can read it — and its events name the payout, never the person.
+0x6d55773e63601dfbd861c78e03c5ac3085b472d7c067d9c5634da03a00b5aa0
 
 SageClaims holds the escrowed payout against poseidon(secret) and never learns who you are. The claim leg is keyed by the commitment, not by the person. Refunds carry their own commitment and an expiry, so money can never be stranded.
 0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57
