@@ -71,12 +71,20 @@ describe("mapDirectCampaignArgs", () => {
     if (kept.success) expect(kept.data.title).toBe("Karachi Grill menu");
   });
 
-  it("still refuses substance it cannot rescue: no milestones, junk host", () => {
+  it("still refuses substance it cannot rescue: no milestones", () => {
     expect(parse(gig({ milestones: [] })).success).toBe(false);
+  });
+
+  /** REVERSED on round-8 measurement: the model writes "any public host" for an open bounty, and
+   *  an empty allow-list already MEANS publish-anywhere — the artifact's real authorship binding
+   *  is the wallet marker, and empty hosts is a documented operator choice. Refusing a fundable
+   *  campaign over placeholder host words served nobody. */
+  it("host words that are not hosts rescue to the empty allow-list, never a refusal", () => {
     const junk = parse(gig({
       milestones: [{ ...gig().milestones[0], evidence: { kind: "artifact_url", allowedHosts: ["not a host at all"] } }],
     }));
-    expect(junk.success).toBe(false);
+    expect(junk.success).toBe(true);
+    if (junk.success) expect((junk.data.milestones[0].evidence as { allowedHosts: string[] }).allowedHosts).toEqual([]);
   });
 });
 

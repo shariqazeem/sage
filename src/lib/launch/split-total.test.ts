@@ -334,6 +334,20 @@ describe("createDirectCampaign threads the quote everywhere — the lint include
   });
 });
 
+describe("host words that mean ANYWHERE drop to the empty allow-list (round 8)", () => {
+  it("junk hosts drop; real hosts survive; full URLs normalize", async () => {
+    const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
+    const hosts = (allowedHosts: unknown[]) =>
+      (mapDirectCampaignArgs({
+        kind: "gig", title: "Open bounty",
+        milestones: [{ title: "Write a setup guide", instructions: "publish a public setup guide", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts }, slots: 1, rewardUsd: 5 }],
+      }) as { milestones: Array<{ evidence: { allowedHosts: string[] } }> }).milestones[0].evidence.allowedHosts;
+    expect(hosts(["any public host"])).toEqual([]); // the words MEAN anywhere
+    expect(hosts(["https://app.example.com/path"])).toEqual(["app.example.com"]);
+    expect(hosts(["Example.com", "anywhere"])).toEqual(["example.com"]);
+  });
+});
+
 describe("a gig priced per-tranche in the FOUNDER'S currency (visible currencies, 1 Sep)", () => {
   const JMD2: import("@/lib/money/currency").RateQuote = {
     base: "USD", currency: "JMD", rate: 155, source: "test", asOf: 1_900_000_000,

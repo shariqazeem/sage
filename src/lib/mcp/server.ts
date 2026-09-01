@@ -354,7 +354,15 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
         const ev = (m.evidence ?? {}) as Record<string, unknown>;
         const evidence =
           ev.kind === "artifact_url"
-            ? { kind: "artifact_url", allowedHosts: asArr(ev.allowedHosts).map(bareHost), markerKind: "wallet" }
+            ? {
+                kind: "artifact_url",
+                // After normalization, anything that is not hostname-shaped is DROPPED, not passed
+                // through to a refusal: the model writes "any public host" for an open bounty, and
+                // an empty allow-list already MEANS "publish anywhere" — which is exactly what
+                // those words say. A real host always survives bareHost. Measured, round 8.
+                allowedHosts: asArr(ev.allowedHosts).map(bareHost).filter((h) => /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(h)),
+                markerKind: "wallet",
+              }
             : ev.kind === "public_url"
               ? { kind: "public_url", expectedText: asArr(ev.expectedText) }
               : ev.kind === "onchain_tx"
