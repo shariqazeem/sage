@@ -149,7 +149,10 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
       doesn't, it ships as an adapter demo and the doc says so. No claim that dies to one
       judge question.
 - [x] Lender API verified + extended: work-record.v4 with the advances block through one redaction boundary; CSV export standing.
-- [ ] Submission overview mapping every track criterion to a receipt-backed fact; data room;
+- [x] Submission overview refreshed (1 Sep) — two rails + outcome picker, the money path, the
+      advance facility + waterfall, selective disclosure, /outcomes readings, v4 API; numbers
+      re-read from the live DB ($52.60 · 29 payouts · 22 earners · 44% refused of 52); the two
+      pending receipts named honestly (first advance round-trip; grant e2e). Data room;
       TRL update; demo videos (screen recordings — beat: the agent deciding, the split payout).
 - [ ] Agentic quality holds for ANY product: the standing batteries stay the gate for every
       change (P-GEN for inspection-side, P-DIRECT for money lanes, P-WORK for gig judging).
