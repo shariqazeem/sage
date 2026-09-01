@@ -4204,3 +4204,12 @@
   max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sb-desk-camp:hover { color: var(--accent); border-color: var(--accent-border); }
+
+/* ── the judge's cross-checks — counts in the console's own quiet register ──────────── */
+.cw-integrity { border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; margin-top: 0.9rem; }
+.cw-int-lede { font-size: 0.8125rem; line-height: 1.55; color: var(--ink-muted); margin: 0.35rem 0 0.55rem; }
+.cw-int-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.28rem; }
+.cw-int-list li { font-size: 0.8125rem; color: var(--ink-muted); display: flex; gap: 0.45rem; align-items: baseline; }
+.cw-int-list li .mono { min-width: 1.4rem; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cw-int-list li.is-hit { color: var(--ink); }
+.cw-int-list li.is-hit .mono { color: var(--accent); font-weight: 600; }

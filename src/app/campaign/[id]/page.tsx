@@ -64,11 +64,33 @@ export default async function CampaignConsolePage({
   const rewardByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.rewardBase]));
 
   // Submissions carry founder-visible tester detail — only compose them for the owner.
+  /**
+   * THE JUDGE'S CROSS-SUBMISSION WORK, COUNTED — the intelligence the founder paid for, visible.
+   * Every decided submission was checked against every other on this campaign (the artifact-twin
+   * index and near-duplicate detection are exactly that), and the specific catches are counted by
+   * their REAL signal names — never invented, never estimated.
+   */
+  const integrity = { decided: 0, twins: 0, nearDups: 0, freshWallets: 0, clusters: 0, otherFlags: 0 };
+
   const submissions: WorkspaceSubmission[] = isOwner
     ? listSubmissions(campaign.id)
         .sort((a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt))
         .map((s) => {
           const decision = getDecisionBySubmission(s.id);
+          if (decision) {
+            integrity.decided += 1;
+            const obs = observationFromRow(decision);
+            if (obs?.barReasons?.includes("near_dup")) integrity.nearDups += 1;
+            const fb = obs ? null : briefFromRow(decision);
+            for (const f of fb?.fraudSignals ?? []) {
+              const sig = (f.signal ?? "").toLowerCase();
+              if (sig.includes("duplicate artifact")) integrity.twins += 1;
+              else if (sig.includes("near-dup") || sig.includes("near dup")) integrity.nearDups += 1;
+              else if (sig.includes("fresh wallet")) integrity.freshWallets += 1;
+              else if (sig.includes("funded by another submitter")) integrity.clusters += 1;
+              else integrity.otherFlags += 1;
+            }
+          }
           // Observation missions are judged against Sage's own eyes — show the observation verdict
           // (matched N of M), never the url-lane brain's confidence % or evidence_mismatch reason.
           const observation = observationFromRow(decision);
@@ -115,6 +137,7 @@ export default async function CampaignConsolePage({
 
   const data: WorkspaceData = {
     isOwner,
+    integrity,
     id: campaign.id,
     title: campaign.title,
     description: campaign.descriptionMd ?? "",

@@ -51,8 +51,19 @@ export interface WorkspaceMission {
   full: boolean;
 }
 
+export interface WorkspaceIntegrity {
+  decided: number;
+  twins: number;
+  nearDups: number;
+  freshWallets: number;
+  clusters: number;
+  otherFlags: number;
+}
+
 export interface WorkspaceData {
   isOwner: boolean;
+  /** the judge's cross-submission work, counted from real signal names — see the console loader. */
+  integrity: WorkspaceIntegrity;
   id: string;
   title: string;
   description: string;
@@ -519,6 +530,37 @@ function Console({ data }: { data: WorkspaceData }) {
               <Sparkles size={13} /> Ask Sage about this campaign
             </Link>
           </div>
+
+          {/* THE JUDGE'S CROSS-CHECKS — the intelligence the founder paid for, visible in its own
+              words. Counts come from the decisions' real signal names; nothing here is estimated.
+              Rendered only once work has been decided — a promise box would be marketing. */}
+          {data.isOwner && data.integrity.decided > 0 && (
+            <div className="cw-integrity">
+              <div className="cw-sec-k">Integrity checks</div>
+              <p className="cw-int-lede">
+                Every submission is judged against Sage&rsquo;s own evidence <em>and against every
+                other submission</em> on this campaign — content twins, near-duplicates, wallet
+                patterns.
+              </p>
+              <ul className="cw-int-list">
+                <li>
+                  <span className="mono">{data.integrity.decided}</span> cross-checked
+                </li>
+                <li className={data.integrity.twins > 0 ? "is-hit" : ""}>
+                  <span className="mono">{data.integrity.twins}</span> duplicate artifacts caught
+                </li>
+                <li className={data.integrity.nearDups > 0 ? "is-hit" : ""}>
+                  <span className="mono">{data.integrity.nearDups}</span> near-duplicates caught
+                </li>
+                <li className={data.integrity.clusters > 0 ? "is-hit" : ""}>
+                  <span className="mono">{data.integrity.clusters}</span> funding-cluster flags
+                </li>
+                <li>
+                  <span className="mono">{data.integrity.freshWallets}</span> fresh-wallet cautions
+                </li>
+              </ul>
+            </div>
+          )}
 
           {/* missions */}
           <div className="cw-sec-label">Missions</div>
