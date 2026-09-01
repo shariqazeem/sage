@@ -72,7 +72,15 @@ where the ledger says 43% — the refusal rate is THE institutional asset and th
 it), and there is no story for a COMPANY using Sage privately for its own people — which is the
 MSME backbone claim made concrete. Both are buildable this week.
 
-## WHAT NEEDS YOU — Tue 2 Sep
+## WHAT NEEDS YOU — Tue 2 Sep (updated evening)
+
+**Top up ~20 STRK** to the operator `0x46a1747d854e74e5082c3215841b26dcff182a6a6fd7a1f83c3e1d045996101`.
+The privacy class (`0x6d5577…`, artifacts on the VM, key verified, `scripts/starknet-declare-env.mjs`
+ready) estimates at **41.84 STRK** against a 27.29 balance — pure L2 gas for a 210 KB class, tip-
+independent. The moment it lands I declare, set `STARKNET_VAULT_CLASS_HASH`, restart, and update
+the packages. Then launch the gig. Everything else below stands.
+
+### (superseded list)
 
 1. **Declare the privacy vault class** (`scripts/starknet-deploy.mjs`, passphrase) → then set
    `STARKNET_VAULT_CLASS_HASH` on the VM to the new class and restart, so the gig deploys from it.
@@ -88,13 +96,14 @@ MSME backbone claim made concrete. Both are buildable this week.
 Method: change what a stranger reads in the first 10 seconds, not the palette.
 - [x] **Numbers: one ledger, every rail** — SHIPPED Tue: the front door now reads $52.60 · 29 ·
       across GOAT Network + Starknet · 23 refused on record, from the same rows as the explorer.
-- [ ] **Hero: say what it is and who it is for** — replace the riddle with a positioning line +
-      the three audiences as doors (founders/companies · workers · lenders), each to its real
-      surface. Copy shown to the user before it ships.
-- [ ] **Show the product, not a sketch** — where the landing illustrates, use the real surfaces
-      (explorer rows, the live desk, a proof receipt) — watch-don't-chat on the landing itself.
-- [ ] **Trust strip** — both mainnet rails, open source, the battery names, receipts count,
-      refusal rate. Facts a judge can click.
+- [x] **Hero** (Tue, built + gated, deploy waits for the running P-GEN): "Pay people for work
+      an AI has verified." + the three doors (founders & teams · workers · lenders).
+- [x] **The product, not a sketch** (Tue): the hero's right column is the LIVE settlement rail;
+      "how it works" shows a REAL run — the mission, its observed criteria, the verdict with the
+      judge's verbatim quote, linking to the receipt (`loadShowcase`, pinned; empty ledger → the
+      illustration). New scene: Sage for teams.
+- [x] **Facts strip** (Tue): rails · settled+refused live · six batteries · open source · Metis
+      1st place — every item a link.
 - [ ] **Onboarding** — `/launch` is already clean; add "what happens next" (approve → fund →
       watch → receipts), the walletless door, and a first-campaign path under 3 minutes.
 
@@ -114,6 +123,27 @@ slide, never a mock.
       visibility rides the schema · unknown words refused. SHIPPED Tue 2 Sep.
       Deploy lesson (2nd time): paths with `(group)`/`[param]` break rsync's remote shell —
       stream via `ssh "cat > '<path>'"`; the checksum loop is what caught it.
+
+## BUILD 7 — the composer (gigs · bounties · grants as a daily tool)
+
+The pay door is the surface founders, companies and teams will touch every day, and today it
+is a fill-in-the-blanks sentence. Rebuild it as a real composer, same server contract:
+- [ ] Type up front (gig · bounty · milestone grant), title, who, currency, invite-only — one card.
+- [ ] Deliverables as row-cards: amount · what must be true · how Sage verifies (in plain words).
+- [ ] **Live plan preview** beside the form — the deterministic mirror of what will compile: exact
+      split, the verification contract per tranche in words, the rail, the door, "refuses if…".
+      Watching the plan form as you type is the watch-don't-chat feel without a chat.
+- [ ] Templates as cards; the compile → plan → fund path unchanged (`/api/campaigns/direct`).
+
+## QUALITY ROUND — the agentic lanes before the campaigns launch (user, Tue)
+
+MiniMax-M3 is free through FC; spend it on quality, keep the lanes portable so the next provider
+is a config change. One battery at a time on the VM, NOTHING else there during a run.
+- [ ] **P-GEN nonce 42 running** (Tue evening) — read the generated missions for QUALITY, not
+      pass/fail: grounding, specificity, budget sense, verifiability.
+- [ ] Compile a spread of gigs/grants locally and READ the plans + strength notes.
+- [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
+- [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
 
 ## POSTS — after the builds, one feature per post, each a screen recording + copy I write
 
