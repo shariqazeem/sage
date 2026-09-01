@@ -92,14 +92,16 @@ Grants have run in production ZERO times and are the FC centrepiece.
       `PayoutReleased`/`PayoutRefused`; README/docs claims upgrade to what is then deployed.
 - [ ] **4th qualifying pool tx**: user collects the outstanding autonomous-payout claim into a
       shielded note → add to `strk20.json` (the only agent-decided one on the list).
-- [ ] **Floor attestation surfaced**: "/record can prove ≥$X 90-day verified inflow without
-      showing transactions" — wire the existing attest endpoint into the lender view. This is the
-      selective-disclosure half of "borrowable income, not a public diary."
+- [x] **Floor attestation surfaced** (1 Sep): the earner issues a signed lifetime floor on their
+      withheld record (owner-gated, EVM signing; Starknet stated as next); the lender pastes and
+      verifies it on /lender — subject-match trap covered, per-active-month arithmetic in floors
+      only, issuer published for off-platform verification. Proven live: prod refused a
+      foreign-signed document with "signed by a different issuer".
 - [ ] Campaign live for STRK20 people ($10 gig — posts ready in `docs/posts/LAUNCH-KIT.md`).
 
 ## BUILD 4 — FC package
 
-- [ ] Corridor line: measured USDC settlement cost vs 7–9% remittance, on real payouts.
+- [x] Corridor line — live on /outcomes: the 8% corridor would have taken $4.21 of the $52.60 settled; recipients received it.
 - [ ] **Outcomes, not chains** (decided 1 Sep): /launch stops asking "GOAT or Starknet?" and asks
       the only question a founder can answer — **Public payouts / Private payouts** — with the
       chain as fine print. The router picks the rail; the confusion was ever asking. Stripe never
@@ -112,7 +114,10 @@ Grants have run in production ZERO times and are the FC centrepiece.
       the advance facility), flow (settled capital, funders, currencies, rails). Every number
       derived, every claim linked to receipts, gaps stated as NOT YET MEASURED. This is the
       infrastructure "feel": a system publishes its outcomes; an app publishes its features.
-- [ ] Fiat adapter: Crossmint as the third door (spike rules unchanged, at the end).
+- [x] **Fiat adapter interface** (1 Sep): SETTLEMENT_DOORS registry + typed FiatDisbursement
+      contract (cannot ship without the identical credit event) + real corridor quote + a disburse
+      that refuses in words. Architecture doc: "Where crypto cannot go".
+- [ ] Crossmint as that door's first implementation (spike rules unchanged, at the end).
       Real adapter implementation against Crossmint STAGING ($10 credits), honestly labelled:
       production pending compliance onboarding. Scenes it unlocks are the brief's own — diaspora
       card funds a grant (onramp), no-crypto recipient paid to an email wallet, fiat cash-out
@@ -123,7 +128,7 @@ Grants have run in production ZERO times and are the FC centrepiece.
       onramp/offramp geography actually holds for the US/CA/UK → Caribbean corridor — if it
       doesn't, it ships as an adapter demo and the doc says so. No claim that dies to one
       judge question.
-- [ ] Verify lender API + CSV + audit export against the brief (exists — verify, don't rebuild).
+- [x] Lender API verified + extended: work-record.v4 with the advances block through one redaction boundary; CSV export standing.
 - [ ] Submission overview mapping every track criterion to a receipt-backed fact; data room;
       TRL update; demo videos (screen recordings — beat: the agent deciding, the split payout).
 - [ ] Agentic quality holds for ANY product: the standing batteries stay the gate for every
