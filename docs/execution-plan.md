@@ -109,7 +109,14 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
 - [ ] Friction audit: founder journey (land → connect → launch → fund → watch → payouts) and
       worker journey (marketplace → submit → claim → record → advance), walked in the browser
 - [ ] Fix the top disconnections the audit names
-- [ ] The agent as connective tissue on web, not a separate page you leave to
+- [x] First ecosystem pass (1 Sep): both doors on the home, human greeting, ?do=pay deep door,
+      console → briefed agent hand-off
+- [ ] **WATCH, DON'T CHAT (user thesis, 1 Sep)** — the UX centerpiece is the agent VISIBLY working,
+      not a chat box: the user's own delight moments were watching it pay and watching it inspect.
+      Rank: live visible agent work > direct manipulation > chat (kept, side door). Next unit: the
+      dashboard's live "Sage is working" feed from the events ledger (submission_received →
+      decision_recorded → autopay_settled with tx + amount — the source already exists), then the
+      console's activity strip made alive.
 - [ ] Million-dollar pass on the surfaces the journeys actually touch
 
 ## BUILD 4 — FC package
