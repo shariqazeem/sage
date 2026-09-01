@@ -284,6 +284,20 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
     expect(mapped.currency).toBe("JMD");
   });
 
+  it("an INVENTED chain id defaults to the settlement chain; a KNOWN one passes untouched", async () => {
+    const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
+    const m = (chainId: unknown) =>
+      (mapDirectCampaignArgs({
+        kind: "gig", title: "Deploy check",
+        milestones: [
+          { title: "Deploy the contract", instructions: "deploy it and send the tx", criteria: ["deployed"], evidence: { kind: "onchain_tx", chainId, to: "0x" + "a".repeat(40) }, slots: 1, rewardUsd: 10 },
+        ],
+      }) as { milestones: Array<{ evidence: { chainId: number } }> }).milestones[0].evidence.chainId;
+    expect(m(1)).toBe(2345);        // famous-chain invention → where Sage settles
+    expect(m(undefined)).toBe(2345); // absence → the default
+    expect(m(59902)).toBe(59902);    // a chain Sage KNOWS passes through untouched
+  });
+
   it("a per-milestone LOCAL amount survives the mapper alongside its currency", async () => {
     const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
     const mapped = mapDirectCampaignArgs({

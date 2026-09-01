@@ -73,7 +73,7 @@ const hostRe = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+
  * truthful for campaigns settled on it — and accepting it here would compile a milestone whose
  * verification can never run: a contract that looks valid and refuses every submission.
  */
-const chainIdKnown = (id: number) => !!CHAINS[id]?.evm;
+export const chainIdKnown = (id: number) => !!CHAINS[id]?.evm;
 
 /** onchain_tx — at least one shape constraint beyond tester-binding, or the contract would verify
  *  ANY transaction the tester ever sent (too weak to gate money). */

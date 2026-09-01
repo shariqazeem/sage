@@ -6,7 +6,7 @@ import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listLaunchablePlans } from "@/lib/campaigns/launchable";
 import { marketplace } from "@/lib/campaigns/marketplace";
 import { siteUrl } from "@/lib/site";
-import { createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
+import { chainIdKnown, createDirectCampaign, directCampaignSchema } from "@/lib/launch/direct-campaign";
 import { quoteFor } from "@/lib/money/rates";
 import { createRecipientInvite } from "@/lib/db/recipient-wallets";
 import { getCampaign as getCampaignRow } from "@/lib/db/campaigns";
@@ -360,7 +360,15 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
               : ev.kind === "onchain_tx"
                 ? {
                     kind: "onchain_tx",
-                    chainId: num(ev.chainId),
+                    /**
+                     * A FOUNDER WHO NAMED NO CHAIN meant the one Sage settles on. The model,
+                     * asked to fill the field anyway, reaches for famous chain ids (1, 8453…)
+                     * and the schema refuses them as unknown — measured, P-DIRECT round 5
+                     * (pd-grant-mixed-evidence-kinds). Known ids pass through untouched, so a
+                     * founder who really said "on Ethereum" still fails LOUDLY rather than
+                     * being silently rerouted; only absence and invention default to 2345.
+                     */
+                    chainId: chainIdKnown(num(ev.chainId)) ? num(ev.chainId) : 2345,
                     ...(typeof ev.to === "string" && ev.to ? { to: ev.to } : {}),
                     ...(typeof ev.methodSelector === "string" && ev.methodSelector ? { methodSelector: ev.methodSelector } : {}),
                     ...(typeof ev.minValueWei === "string" && ev.minValueWei ? { minValueWei: ev.minValueWei } : {}),
