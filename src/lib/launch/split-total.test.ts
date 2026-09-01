@@ -275,9 +275,25 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
         { title: "Catalogue", instructions: "publish the catalogue page", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
         { title: "Review", instructions: "post the first review", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1 },
       ],
-    }) as { splitTotalUsd?: number; splitTotalLocal?: number };
+    }) as { splitTotalUsd?: number; splitTotalLocal?: number; currency?: string };
     expect(mapped.splitTotalLocal).toBe(10_000);
     expect(mapped.splitTotalUsd).toBeUndefined();
+    // …and the currency SURVIVES — round 5 measured the rescue building a local total the schema
+    // then refused, because the mapper read the currency and discarded it. A field the rescue
+    // depends on must ride the same output.
+    expect(mapped.currency).toBe("JMD");
+  });
+
+  it("a per-milestone LOCAL amount survives the mapper alongside its currency", async () => {
+    const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
+    const mapped = mapDirectCampaignArgs({
+      kind: "gig", title: "Menu translation", currency: "JMD",
+      milestones: [
+        { title: "Translate the menu", instructions: "publish the translated menu page", criteria: ["live"], evidence: { kind: "artifact_url", allowedHosts: [] }, slots: 1, rewardUsd: 15, rewardLocal: 2000 },
+      ],
+    }) as { currency?: string; milestones: Array<{ rewardLocal?: number }> };
+    expect(mapped.currency).toBe("JMD");
+    expect(mapped.milestones[0].rewardLocal).toBe(2000);
   });
 
   it("leaves a genuine USD total alone", async () => {

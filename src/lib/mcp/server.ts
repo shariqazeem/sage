@@ -390,6 +390,9 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
           ...(Number.isFinite(num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")))
             ? { rewardUsd: num(pickNum(m, "rewardUsd", "amount", "amountUsd", "payoutUsd", "priceUsd", "reward", "usd")) }
             : {}),
+          ...(Number.isFinite(num(pickNum(m, "rewardLocal", "amountLocal", "localAmount")))
+            ? { rewardLocal: num(pickNum(m, "rewardLocal", "amountLocal", "localAmount")) }
+            : {}),
           /**
            * DEFAULT ONE. MEASURED by P-DIRECT: the model omits `slots` on nearly every milestone,
            * and `Number(undefined)` is NaN — which failed five campaigns on a field the founder
@@ -459,6 +462,7 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
 
   const recipients = asArr(args.recipients ?? args.allowlist);
   return {
+    ...(currencyCode && currencyCode !== "USD" ? { currency: currencyCode } : {}),
     ...(Number.isFinite(splitTotalUsd) && splitTotalUsd > 0 ? { splitTotalUsd } : {}),
     ...(Number.isFinite(splitTotalLocal) && splitTotalLocal > 0 ? { splitTotalLocal } : {}),
     // A model often omits `kind` entirely. Infer it the way a reader would: several tranches of
