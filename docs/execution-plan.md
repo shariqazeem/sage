@@ -63,6 +63,14 @@ still us, the pipe is open for a credit union.
 6. **The real advance on mainnet** happens by itself once (1) and an earner exist — I run
    `scripts/advance.mjs` the moment there's a funded record to lend against.
 
+### Launch runway pre-flight (Mon night — clear for your funding tomorrow)
+
+GOAT head fresh (4s) · operator gas covers **~1,547 settlements** at the last settle's cost ·
+Starknet RPC live (block 14.18M) + operator configured · `deputy-watch` online 2d (autopilot
+ticks alive) · sweep endpoint fails closed · lanes: MiniMax-M3 on PAYOUT/CONCIERGE/MISSION,
+Haiku on OBS_JUDGE, Gemini-Flash-Lite on VISION, fallback armed · disk 62%. Crossmint spike is
+credential-gated: no CROSSMINT key on the VM — needs a staging key from you when its turn comes.
+
 ### What landed overnight (Mon → Tue)
 
 - **P-DIRECT CERTIFIED** — two conclusive rounds + targeted 3/3 currency certification; money
