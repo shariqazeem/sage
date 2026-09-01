@@ -651,3 +651,17 @@
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
+
+/* ── milestone rows — the same sentence grammar, stacked ────────────────────────────────
+   A tranche is one more sentence, not a new form. The index tick and the hairline keep a
+   multi-row grant readable without ever looking like a spreadsheet. */
+.lxs-tranche { padding: 0.15rem 0; }
+.lxs-tranche + .lxs-tranche { border-top: 1px dashed var(--lx-border, var(--border)); margin-top: 0.35rem; padding-top: 0.5rem; }
+.lxs-n { font-size: 0.6875rem; letter-spacing: 0.08em; color: var(--ink-faint); align-self: center; }
+.lxs-sub { margin-top: 0.3rem; }
+.lxs-x { display: inline-flex; align-items: center; justify-content: center; width: 1.55rem; height: 1.55rem; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--ink-faint); cursor: pointer; }
+.lxs-x:hover { color: #dc2626; border-color: var(--border-strong); }
+.lxs-actions { gap: 1rem; flex-wrap: wrap; align-items: baseline; margin-top: 0.4rem; }
+.lxs-splitlab { display: inline-flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
+.lxs-split-preview { display: inline-flex; align-items: center; min-width: 3.2rem; justify-content: center; color: var(--accent); border-bottom: 1px dashed var(--accent-border); cursor: default; }
+.lxs-err { margin: 0.6rem 0 0; font-size: 0.8125rem; line-height: 1.55; color: #dc2626; }

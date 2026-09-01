@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { HandCoins, Plus, ScanSearch } from "lucide-react";
+import { X, HandCoins, Plus, ScanSearch } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -59,25 +59,34 @@ const VERIFY_OPTIONS = [
   },
 ];
 
-type PayDraft = { who: string; amount: string; deliverable: string; verify: string; slots: string };
+type PayDraft = { who: string; slots: string };
 
-/** Tap-to-fill examples — the blank-page killer. Each writes a complete working sentence the
+/** One payment line the founder composes — a tranche of a grant, or the whole of a gig. */
+type Tranche = { amount: string; deliverable: string; verify: string; expectedText: string; toAddr: string };
+const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "" });
+
+/** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
  *  founder edits, the same way the goal chips write proven goal shapes. */
-const PAY_EXAMPLES: { label: string; fill: Partial<PayDraft> }[] = [
-  { label: "Design gig", fill: { who: "my designer", amount: "50", deliverable: "the new logo page is live", verify: "link", slots: "1" } },
-  { label: "Translation job", fill: { who: "a translator", amount: "20", deliverable: "my menu is published in English as a public page", verify: "link", slots: "1" } },
-  { label: "Open bounty", fill: { who: "anyone", amount: "5", deliverable: "they publish a working setup guide for my product", verify: "page", slots: "3" } },
+const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: string; tranches: Partial<Tranche>[] }[] = [
+  { label: "Design gig", who: "my designer", slots: "1", tranches: [{ amount: "50", deliverable: "the new logo page is live", verify: "link" }] },
+  { label: "Translation job", who: "a translator", slots: "1", tranches: [{ amount: "20", deliverable: "my menu is published in English as a public page", verify: "link" }] },
+  { label: "Open bounty", who: "anyone", slots: "3", tranches: [{ amount: "5", deliverable: "they publish a working setup guide for my product", verify: "link" }] },
+  {
+    label: "Milestone grant",
+    who: "a market seller I know",
+    slots: "1",
+    splitTotal: "40",
+    tranches: [
+      { deliverable: "she publishes her catalogue as a public page", verify: "link" },
+      { deliverable: "she publishes her first customer review page", verify: "link" },
+    ],
+  },
 ];
-
-/** Multi-tranche grants don't fit a one-payment sentence — that conversation belongs to the agent.
- *  The handoff carries a complete worked example, so the founder edits a paragraph, never writes one. */
-const MILESTONE_ASK =
-  "Set up a milestone grant: fund my cousin's shop $60 in three milestones — $20 when the shop page is published, $20 when the first product is listed, $20 when the first sale is announced on the page. Verify each milestone by fetching the public link they submit and checking it carries their own wallet address.";
 
 /** The one-line trust hint under each door — everything longer was deleted, not moved. */
 const MODE_HINT = {
   test: "Sage only reads your product. Approve the plan, fund once — payouts run themselves, each with a public receipt.",
-  pay: "Your sentence goes to Sage in chat — it writes the plan, you approve and fund once. Work that fails verification is never paid.",
+  pay: "You compose it; Sage compiles the plan deterministically — no chat, no model. Approve and fund once; work that fails verification is never paid.",
 } as const;
 
 /**
@@ -137,7 +146,12 @@ export function LaunchForm() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("do") === "pay") setMode("pay");
   }, []);
-  const [pay, setPay] = useState<PayDraft>({ who: "", amount: "", deliverable: "", verify: "link", slots: "1" });
+  const [pay, setPay] = useState<PayDraft>({ who: "", slots: "1" });
+  const [tranches, setTranches] = useState<Tranche[]>([blankTranche()]);
+  /** "" = each tranche priced by the founder; a number = ONE stated total, split exactly by Sage. */
+  const [splitTotal, setSplitTotal] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
   // (one job, not two); a fresh form (new page/reload) is a new turn. The server namespaces it.
@@ -199,18 +213,112 @@ export function LaunchForm() {
     router.push(`/agent?ask=${encodeURIComponent(words)}`);
   };
 
-  const payValid = (): boolean =>
-    pay.who.trim().length >= 2 && Number(pay.amount) >= 0.5 && pay.deliverable.trim().length >= 8;
+  const setT = (i: number, key: keyof Tranche, v: string) =>
+    setTranches((ts) => ts.map((t, j) => (j === i ? { ...t, [key]: v } : t)));
 
-  /** The finished sentence IS the spec — compiled verbatim into the ask the agent plans from. */
-  const composePayAsk = (): string => {
-    const v = VERIFY_OPTIONS.find((o) => o.value === pay.verify) ?? VERIFY_OPTIONS[0]!;
-    const slots = Math.max(1, Math.min(50, Math.round(Number(pay.slots) || 1)));
-    return (
-      `Set up a gig campaign: pay ${pay.who.trim()} $${Number(pay.amount)} when ${pay.deliverable.trim().replace(/\.+$/, "")}. ` +
-      (slots === 1 ? "One person can earn it. " : `Up to ${slots} people can each earn it. `) +
-      `Verify it by ${v.ask}.`
+  const splitting = tranches.length > 1 && splitTotal.trim() !== "";
+
+  const trancheValid = (t: Tranche): boolean => {
+    if (t.deliverable.trim().length < 8) return false;
+    if (!splitting && !(Number(t.amount) >= 0.5)) return false;
+    if (t.verify === "page" && t.expectedText.trim().length < 3) return false;
+    if (t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return false;
+    return true;
+  };
+
+  const payValid = (): boolean =>
+    pay.who.trim().length >= 2 &&
+    tranches.every(trancheValid) &&
+    (!splitting || Number(splitTotal) >= 0.5 * tranches.length);
+
+  /**
+   * DISPLAY-ONLY mirror of the server's exact base-unit split (splitTotalBase): floor + remainder
+   * one unit at a time. The server is the authority; this exists so the founder WATCHES the split
+   * happen as they type the total — direct manipulation, the agent's arithmetic visible.
+   */
+  const splitPreview = (): string[] => {
+    const totalBase = BigInt(Math.round(Number(splitTotal || 0) * 100)) * BigInt(10_000);
+    const n = BigInt(tranches.length);
+    if (n === BigInt(0) || totalBase <= BigInt(0)) return tranches.map(() => "—");
+    const each = totalBase / n;
+    const rem = totalBase % n;
+    return tranches.map((_, i) =>
+      (Number(BigInt(i) < rem ? each + BigInt(1) : each) / 1_000_000).toFixed(2),
     );
+  };
+
+  /**
+   * THE SENTENCES COMPILE DIRECTLY — no chat, no model. The rows the founder composed become the
+   * exact `DirectCampaignInput` the deterministic compiler takes; multi-tranche is a grant, one
+   * line is a gig, and a stated total rides `splitTotalUsd` so Sage does the division in base
+   * units. Errors come back as the compiler's own words, under the form.
+   */
+  const submitPay = async () => {
+    if (!payValid() || payBusy) return;
+    setPayErr(null);
+    setPayBusy(true);
+    try {
+      const isGrant = tranches.length > 1;
+      const who = pay.who.trim();
+      const slots = isGrant ? 1 : Math.max(1, Math.min(50, Math.round(Number(pay.slots) || 1)));
+      const title = `Pay ${who}`.slice(0, 80);
+      const milestones = tranches.map((t, i) => {
+        const d = t.deliverable.trim().replace(/\.+$/, "");
+        const cap = d.charAt(0).toUpperCase() + d.slice(1);
+        const evidence =
+          t.verify === "page"
+            ? { kind: "public_url", expectedText: [t.expectedText.trim()] }
+            : t.verify === "onchain"
+              ? { kind: "onchain_tx", chainId: 2345, to: t.toAddr.trim() }
+              : { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" };
+        const proofLine =
+          t.verify === "page"
+            ? "Submit the public page showing the required text."
+            : t.verify === "onchain"
+              ? "Submit the transaction hash, sent from your own submitting wallet."
+              : "Submit the public link to what you made — it must visibly carry your own wallet address.";
+        return {
+          title: (cap.length >= 4 ? cap : `Milestone ${i + 1}`).slice(0, 80),
+          instructions: `You are paid when ${d}. ${proofLine}`,
+          criteria: [
+            cap,
+            t.verify === "link"
+              ? "The page carries the submitting wallet address"
+              : t.verify === "page"
+                ? `The page contains: "${t.expectedText.trim()}"`
+                : "The transaction was sent by the submitting wallet",
+          ],
+          evidence,
+          slots,
+          ...(splitting ? {} : { rewardUsd: Number(t.amount) }),
+        };
+      });
+      const body = {
+        kind: isGrant ? "grant" : "gig",
+        title: title.length >= 4 ? title : "Pay for work",
+        milestones,
+        ...(splitting ? { splitTotalUsd: Number(splitTotal) } : {}),
+      };
+      const res = await fetch("/api/campaigns/direct", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; planUrl?: string };
+      if (res.status === 401) {
+        setShowSignIn(true);
+        setPayErr("Sign in with your wallet to create this — then press Continue again.");
+        return;
+      }
+      if (!res.ok || !data.ok || !data.planUrl) {
+        throw new Error(data.error ?? "The plan could not be compiled.");
+      }
+      router.push(data.planUrl.replace(/^https?:\/\/[^/]+/, ""));
+    } catch (e) {
+      setPayErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPayBusy(false);
+    }
   };
 
   const submit = async () => {
@@ -261,7 +369,7 @@ export function LaunchForm() {
     if ((e.target as HTMLElement).tagName === "TEXTAREA" && !e.metaKey) return;
     e.preventDefault();
     if (mode === "pay" && step === 0) {
-      if (payValid()) handOffToAgent(composePayAsk());
+      if (payValid()) void submitPay();
       return;
     }
     if (step < STEPS.length - 1) next();
@@ -426,6 +534,9 @@ export function LaunchForm() {
         {/* PAY FOR WORK — a sentence you finish, not a form (and never a paragraph to derive).
             The tokens compose the exact structured ask the agent needs; the examples fill the
             sentence in one tap. Continue hands the founder's finished sentence to Sage in chat. */}
+        {/* PAY FOR WORK — sentences you finish, never a form to derive. One line is a gig; add a
+            line and it is a milestone grant; type ONE total and watch Sage split it live. The rows
+            compile DIRECTLY into the deterministic campaign compiler — no chat, no model. */}
         {step === 0 && mode === "pay" && (
           <div className="lxs">
             <div className="lxs-line">
@@ -439,70 +550,160 @@ export function LaunchForm() {
                 onChange={(e) => setP("who", e.target.value)}
                 aria-label="Who gets paid"
               />
-              <span className="lxs-word">$</span>
-              <input
-                className="lxs-token lxs-amt"
-                type="number"
-                min="0.5"
-                step="0.5"
-                placeholder="50"
-                value={pay.amount}
-                onChange={(e) => setP("amount", e.target.value)}
-                aria-label="Amount in USDC"
-              />
-              <span className="lxs-word">when</span>
-              <input
-                className="lxs-token lxs-when"
-                type="text"
-                placeholder="the new logo page is live"
-                value={pay.deliverable}
-                onChange={(e) => setP("deliverable", e.target.value)}
-                aria-label="What must be true when the work is done"
-              />
+              {tranches.length === 1 && (
+                <>
+                  <span className="lxs-word">·</span>
+                  <select
+                    className="lxs-token lxs-sel"
+                    value={pay.slots}
+                    onChange={(e) => setP("slots", e.target.value)}
+                    aria-label="How many people can earn it"
+                  >
+                    {["1", "2", "3", "5", "10"].map((c) => (
+                      <option key={c} value={c}>
+                        {c === "1" ? "1 person" : `${c} people`}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
-            <div className="lxs-line">
-              <span className="lxs-word">Sage verifies</span>
-              <select
-                className="lxs-token lxs-sel"
-                value={pay.verify}
-                onChange={(e) => setP("verify", e.target.value)}
-                aria-label="How Sage verifies the work"
+
+            {tranches.map((t, i) => (
+              <div className="lxs-tranche" key={i}>
+                <div className="lxs-line">
+                  {tranches.length > 1 && <span className="lxs-n mono">{String(i + 1).padStart(2, "0")}</span>}
+                  <span className="lxs-word">$</span>
+                  {splitting ? (
+                    <span className="lxs-token lxs-amt lxs-split-preview mono" aria-label="Computed share">
+                      {splitPreview()[i]}
+                    </span>
+                  ) : (
+                    <input
+                      className="lxs-token lxs-amt"
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      placeholder={tranches.length > 1 ? "20" : "50"}
+                      value={t.amount}
+                      onChange={(e) => setT(i, "amount", e.target.value)}
+                      aria-label={`Amount for milestone ${i + 1}`}
+                    />
+                  )}
+                  <span className="lxs-word">when</span>
+                  <input
+                    className="lxs-token lxs-when"
+                    type="text"
+                    placeholder={i === 0 ? "the new logo page is live" : "the next milestone is true"}
+                    value={t.deliverable}
+                    onChange={(e) => setT(i, "deliverable", e.target.value)}
+                    aria-label={`What must be true for milestone ${i + 1}`}
+                  />
+                  {tranches.length > 1 && (
+                    <button
+                      type="button"
+                      className="lxs-x"
+                      aria-label={`Remove milestone ${i + 1}`}
+                      onClick={() => setTranches((ts) => ts.filter((_, j) => j !== i))}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <div className="lxs-line lxs-sub">
+                  <span className="lxs-word">Sage verifies</span>
+                  <select
+                    className="lxs-token lxs-sel"
+                    value={t.verify}
+                    onChange={(e) => setT(i, "verify", e.target.value)}
+                    aria-label={`How Sage verifies milestone ${i + 1}`}
+                  >
+                    {VERIFY_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  {t.verify === "page" && (
+                    <>
+                      <span className="lxs-word">showing</span>
+                      <input
+                        className="lxs-token lxs-when"
+                        type="text"
+                        placeholder="the exact text that must appear"
+                        value={t.expectedText}
+                        onChange={(e) => setT(i, "expectedText", e.target.value)}
+                        aria-label="Required text on the page"
+                      />
+                    </>
+                  )}
+                  {t.verify === "onchain" && (
+                    <>
+                      <span className="lxs-word">to</span>
+                      <input
+                        className="lxs-token lxs-when mono"
+                        type="text"
+                        placeholder="0x… contract or recipient"
+                        value={t.toAddr}
+                        onChange={(e) => setT(i, "toAddr", e.target.value)}
+                        aria-label="The address the transaction must go to"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <div className="lxs-line lxs-actions">
+              <button
+                type="button"
+                className="lx-edit-link"
+                onClick={() => setTranches((ts) => [...ts, blankTranche(ts[ts.length - 1]?.verify)])}
               >
-                {VERIFY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <span className="lxs-word">·</span>
-              <select
-                className="lxs-token lxs-sel"
-                value={pay.slots}
-                onChange={(e) => setP("slots", e.target.value)}
-                aria-label="How many people can earn it"
-              >
-                {["1", "2", "3", "5", "10"].map((c) => (
-                  <option key={c} value={c}>
-                    {c === "1" ? "1 person" : `${c} people`}
-                  </option>
-                ))}
-              </select>
+                <Plus size={14} /> Add a milestone
+                {tranches.length === 1 && <span className="muted"> — turns this into a grant, released tranche by tranche</span>}
+              </button>
+              {tranches.length > 1 && (
+                <label className="lxs-splitlab">
+                  <span className="lxs-word">or split one total:</span>
+                  <span className="lxs-word">$</span>
+                  <input
+                    className="lxs-token lxs-amt"
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    placeholder="40"
+                    value={splitTotal}
+                    onChange={(e) => setSplitTotal(e.target.value)}
+                    aria-label="One total, split equally by Sage"
+                  />
+                  <span className="muted">Sage divides it exactly — you compute nothing</span>
+                </label>
+              )}
             </div>
+
             <div className="lxo-chips lxs-ex" role="group" aria-label="Start from an example">
               {PAY_EXAMPLES.map((ex) => (
                 <button
                   key={ex.label}
                   type="button"
                   className="lxo-chip"
-                  onClick={() => setPay((p) => ({ ...p, ...ex.fill }))}
+                  onClick={() => {
+                    setPay({ who: ex.who, slots: ex.slots });
+                    setTranches(ex.tranches.map((t) => ({ ...blankTranche(), ...t })));
+                    setSplitTotal(ex.splitTotal ?? "");
+                    setPayErr(null);
+                  }}
                 >
                   {ex.label}
                 </button>
               ))}
             </div>
-            <button type="button" className="lx-edit-link lxs-milestones" onClick={() => handOffToAgent(MILESTONE_ASK)}>
-              Milestones instead? Sage structures a multi-payment grant with you in chat →
-            </button>
+            {payErr && (
+              <p className="lxs-err" role="alert">
+                {payErr}
+              </p>
+            )}
           </div>
         )}
 
@@ -560,17 +761,17 @@ export function LaunchForm() {
           </button>
         ) : (
           <span className="lxo-step-count">
-            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : "One step — Sage does the rest in chat"}
+            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : "One step — the plan compiles when you continue"}
           </span>
         )}
         {mode === "pay" && step === 0 ? (
           <button
             type="button"
             className="lx-btn"
-            onClick={() => handOffToAgent(composePayAsk())}
-            disabled={!payValid()}
+            onClick={() => void submitPay()}
+            disabled={!payValid() || payBusy}
           >
-            Set it up with Sage
+            {payBusy ? "Compiling the plan…" : tranches.length > 1 ? "Create the grant" : "Create the gig"}
             <span aria-hidden>→</span>
           </button>
         ) : last ? (
