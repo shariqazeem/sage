@@ -80,11 +80,17 @@ Grants have run in production ZERO times and are the FC centrepiece.
       Telegram account). One real milestone grant end-to-end: walletless recipient —
       invite → earn → verify → pay → cash out → record. Caribbean-flavoured framing
       ("fund a market seller in two tranches") so the run IS the film.
-- [ ] Fix the over-eager route (MONEY-ADJACENT, do first): "when the bank approves her loan"
-      must REFUSE — an unverifiable third-party condition. Deterministic gate, not prompt hope.
-- [ ] Recall prompts: model must reach for `splitTotalUsd` (thirds-of-total, currency tranches);
-      designer gig; Spanish; per-person pricing; deadline≠milestone. Re-run P-DIRECT after.
-      One battery at a time; NOTHING else on the VM during a run.
+- [x] Fix the over-eager route (1 Sep): `testimony-condition.ts` — a deterministic
+      AUTHORITY/DECISION/APPLICATION gate wired into the concierge before stated-terms; "when
+      the bank approves her loan" now gets the honest refusal, never a campaign.
+- [x] **P-DIRECT CERTIFIED (1 Sep, rounds 8–10).** Two conclusive full rounds (0 provider
+      failures) with the money invariants PERFECT — budget violations 0, amount drift 0,
+      invented milestones 0, unverifiable missions 0 — then a targeted 3/3-clean certification
+      of the currency row (J$ tranches → stamped quote → exact split). Residuals are model
+      flakes that pass in sibling rounds (no-tool 2/63) plus one correct schema refusal of an
+      unpriced local amount. Along the way the battery itself gave up its last three quote-less
+      calls (stated-terms, compile, budget check, lint) — and `lintDirectCampaign` is now TOTAL:
+      advice can never crash a caller again. Decision rule honored: stop burning rounds.
 
 ## BUILD 3 — STRK20 completion
 
