@@ -128,12 +128,12 @@ slide, never a mock.
 
 The pay door is the surface founders, companies and teams will touch every day, and today it
 is a fill-in-the-blanks sentence. Rebuild it as a real composer, same server contract:
-- [ ] Type up front (gig · bounty · milestone grant), title, who, currency, invite-only — one card.
-- [ ] Deliverables as row-cards: amount · what must be true · how Sage verifies (in plain words).
-- [ ] **Live plan preview** beside the form — the deterministic mirror of what will compile: exact
-      split, the verification contract per tranche in words, the rail, the door, "refuses if…".
-      Watching the plan form as you type is the watch-don't-chat feel without a chat.
-- [ ] Templates as cards; the compile → plan → fund path unchanged (`/api/campaigns/direct`).
+- [x] Kind up front (gig · bounty · milestone grant), who, currency, invite-only — one card. (Tue)
+- [x] Deliverables as row-cards: pays · what must be true · how Sage verifies, in plain words. (Tue)
+- [x] **Live plan preview** beside the form — exact split, each contract in words, door, who,
+      "refuses if…", "then…" — verified reacting to typing on the local preview. (Tue)
+- [x] Templates kept as chips; the compile → plan → fund path unchanged. Deploy waits for P-GEN.
+- [ ] After deploy: compose a real gig and a real J$ grant end-to-end on prod, screen-record it (P2).
 
 ## QUALITY ROUND — the agentic lanes before the campaigns launch (user, Tue)
 
