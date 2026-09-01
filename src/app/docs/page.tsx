@@ -51,6 +51,19 @@ export default function DocsOverview() {
         ]}
       />
 
+      <h2>Beyond testing — the money lanes</h2>
+      <p>
+        The verify-then-pay machine also runs <strong>gigs</strong> and{" "}
+        <strong>milestone grants</strong>, composed by hand and compiled with no model in the path;
+        prices can be stated in the Caribbean&rsquo;s own currencies (J$, TT$, EC$, Bds$ and the
+        rest — converted once at a stamped rate, settled in USDC). Every payout builds the
+        earner&rsquo;s <strong>verified work record</strong>, a lender can verify a{" "}
+        <strong>signed earnings floor</strong> without the record publishing a figure, and the{" "}
+        <strong>Advance facility</strong> lends against witnessed inflow — repaid by the waterfall.
+        The system&rsquo;s outcomes — cost, speed, access, flow — are measured live on{" "}
+        <Link href="/outcomes">/outcomes</Link>.
+      </p>
+
       <h2>Who it is for</h2>
       <p>
         Founders with a live product and not enough real users to know what breaks. You have a URL

@@ -74,6 +74,24 @@ export default function HowItWorks() {
         ended or filled.
       </p>
 
+      <h2>The same loop pays for anything you can define</h2>
+      <p>
+        Testing is one instance of a more general machine: <em>verify a claim against evidence the
+        agent gathers itself, then move money inside hard limits</em>. So the same five steps run{" "}
+        <strong>gigs</strong> (&ldquo;pay my designer $50 when the logo page is live&rdquo;) and{" "}
+        <strong>milestone grants</strong> (&ldquo;split J$10,000 across two milestones&rdquo;) —
+        composed by hand on <Link href="/launch">/launch</Link>, compiled deterministically with no
+        model in the path, and priced in the founder&rsquo;s own currency: the Caribbean
+        denominations are first-class, converted once at a stamped, source-attributed rate, settled
+        in USDC.
+      </p>
+      <p>
+        And the loop leaves something behind: every payout lands on the earner&rsquo;s{" "}
+        <strong>verified work record</strong>, which the{" "}
+        <Link href="/lender">Advance facility</Link> can lend against — repaid by the waterfall from
+        their next verified payouts. Money out, a record built, capital back in.
+      </p>
+
       <h2>Where the human actually is</h2>
       <p>
         Exactly twice in the whole lifecycle: <strong>approve the plan</strong>, and{" "}
