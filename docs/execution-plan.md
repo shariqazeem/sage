@@ -102,7 +102,15 @@ Grants have run in production ZERO times and are the FC centrepiece.
       the only question a founder can answer — **Public payouts / Private payouts** — with the
       chain as fine print. The router picks the rail; the confusion was ever asking. Stripe never
       asks which card network. Copy + small UI, not architecture.
-- [ ] **Fiat adapter: Crossmint as the third door** (decided 1 Sep, upgrades the planned stub).
+- [ ] **DEFERRED TO THE END** (user, 1 Sep): Crossmint third-door spike — after the outcomes
+      surface and infra-feel pass; "make the existing financial system work as one" first.
+- [ ] **/outcomes — the brief's bar, answered with readings** (decided 1 Sep). One public page
+      computing the four outcome bars from the LIVE ledger: cost vs the 7–9% corridor, speed
+      (submission → settled, verification included), access (people paid, refusal integrity,
+      the advance facility), flow (settled capital, funders, currencies, rails). Every number
+      derived, every claim linked to receipts, gaps stated as NOT YET MEASURED. This is the
+      infrastructure "feel": a system publishes its outcomes; an app publishes its features.
+- [ ] Fiat adapter: Crossmint as the third door (spike rules unchanged, at the end).
       Real adapter implementation against Crossmint STAGING ($10 credits), honestly labelled:
       production pending compliance onboarding. Scenes it unlocks are the brief's own — diaspora
       card funds a grant (onramp), no-crypto recipient paid to an email wallet, fiat cash-out

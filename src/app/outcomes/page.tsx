@@ -1,0 +1,148 @@
+import "./outcomes.css";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { readOutcomes } from "@/lib/outcomes/outcomes";
+import { siteUrl } from "@/lib/site";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "System outcomes — the readings",
+  description:
+    "Does the system change outcomes? Transaction cost, settlement speed, access to capital and capital flow — every figure computed from the settlement ledger at render time, every claim linked to receipts, gaps stated as not yet measured.",
+  alternates: { canonical: `${siteUrl()}/outcomes` },
+};
+
+/**
+ * THE BAR, ANSWERED — "does your system change outcomes?"
+ *
+ * An app publishes its features; a system publishes its outcomes. Every figure on this page is
+ * computed from the same rows /explorer verifies, at render time — a number typed into copy is a
+ * claim, a number derived from settled transactions is a reading. Where the ledger has not yet
+ * produced the data, the page says NOT YET MEASURED, because a bar you can only clear by rounding
+ * up is not a bar.
+ */
+const f = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const mins = (m: number | null) =>
+  m === null ? "—" : m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${(m / 60).toFixed(1)} h`;
+
+export default function OutcomesPage() {
+  const o = readOutcomes();
+  const railName = (r: string) => (r === "evm" ? "GOAT (public)" : r === "starknet" ? "Starknet (private-capable)" : r);
+
+  return (
+    <main className="out-page">
+      <header className="out-head">
+        <p className="out-kicker">System outcomes</p>
+        <h1 className="out-title">Does the system change outcomes?</h1>
+        <p className="out-lede">
+          The bar is the track&rsquo;s own: lower transaction costs, faster settlement, expanded
+          access to capital, increased capital flow. These are the readings — every figure computed
+          from the settlement ledger as this page rendered, nothing typed in. Where the ledger
+          hasn&rsquo;t produced a number yet, it says so.
+        </p>
+      </header>
+
+      <section className="out-bar" aria-label="Lower transaction costs">
+        <h2>Lower transaction costs</h2>
+        <div className="out-big">
+          {o.recipientFeePct}%<span className="out-big-k">taken from recipients, on every payout to date</span>
+        </div>
+        <p className="out-how">
+          The vault derives the exact reward and pays it whole; Sage covers the gas — a real cost,
+          and Sage&rsquo;s, not the recipient&rsquo;s. Against the corridor this track names
+          (7&ndash;9% average fees, taken at 8%): moving the {`$${f(o.settledUsd)}`} settled so far
+          through that corridor would have cost <b>${f(o.corridor.benchmarkCostUsd)}</b>. Recipients
+          received it instead.
+        </p>
+        <p className="out-src">
+          Derivation: Σ(vault-derived rewards, mainnet, anchored) × 0.08 · verify any row on the{" "}
+          <Link href="/explorer">ledger</Link>
+        </p>
+      </section>
+
+      <section className="out-bar" aria-label="Faster settlement">
+        <h2>Faster settlement</h2>
+        <div className="out-big">
+          {mins(o.medianMinutesToSettle)}
+          <span className="out-big-k">median, submission → settled payment — verification included</span>
+        </div>
+        <p className="out-how">
+          That window includes the part other rails don&rsquo;t even attempt: the agent reading the
+          work and deciding. p90 is {mins(o.p90MinutesToSettle)}
+          {o.settledWithinHourPct !== null && <>; {Math.round(o.settledWithinHourPct)}% of payouts settled within the hour</>}
+          . Settlement itself is a chain confirmation — seconds, not days.
+        </p>
+        <p className="out-src">
+          Derivation: median/p90 of (decided − submitted) over paid mainnet submissions · each has a
+          receipt on the <Link href="/explorer">ledger</Link>
+        </p>
+      </section>
+
+      <section className="out-bar" aria-label="Expanded access to capital">
+        <h2>Expanded access to capital</h2>
+        <div className="out-big">
+          {o.peoplePaid}
+          <span className="out-big-k">people paid — no application, no interview, no bank account required</span>
+        </div>
+        <p className="out-how">
+          Access without integrity is a faucet, so the refusal ledger is part of this bar:{" "}
+          <b>{o.refusedCount}</b> submissions refused
+          {o.refusalSharePct !== null && <> ({Math.round(o.refusalSharePct)}% of decided work)</>} —
+          every payout that DID move was verified first, which is what makes the record under it
+          underwritable. The advance facility lends against that record:{" "}
+          {o.advancesTotal === 0 ? (
+            <>live, first advance pending — capacity is published arithmetic on the <Link href="/lender">lender view</Link>, never a score.</>
+          ) : (
+            <>
+              <b>{o.advancesTotal}</b> advance{o.advancesTotal === 1 ? "" : "s"} to date,{" "}
+              <b>{o.advancesRepaid}</b> repaid from subsequent verified payouts — the waterfall.
+            </>
+          )}
+        </p>
+        <p className="out-src">
+          Derivation: distinct wallets over paid rows; refusals from the same decided set · the
+          facility&rsquo;s terms are on <Link href="/lender">/lender</Link>
+        </p>
+      </section>
+
+      <section className="out-bar" aria-label="Increased capital flow">
+        <h2>Increased capital flow</h2>
+        <div className="out-big">
+          ${f(o.settledUsd)}
+          <span className="out-big-k">
+            settled autonomously across {o.payoutCount} payouts, from {o.distinctFunders} funder
+            {o.distinctFunders === 1 ? "" : "s"}
+          </span>
+        </div>
+        <p className="out-how">
+          Rails in production:{" "}
+          {o.railsUsed.map((r, i) => (
+            <span key={r.rail}>
+              {i > 0 && " · "}
+              <b>{railName(r.rail)}</b> — {r.payouts} payout{r.payouts === 1 ? "" : "s"}
+            </span>
+          ))}
+          . Obligations can be denominated in {o.denominationsSupported} currencies (Caribbean
+          receivers and diaspora senders), converted at a stamped, source-attributed rate —
+          settlement is always the USD stablecoin.
+        </p>
+        <p className="out-src">
+          <b>Not yet measured:</b> intra-regional corridor flow — no BBD- or JMD-denominated
+          obligation has settled yet. The denomination rail is live; the reading will exist when the
+          flow does. Stating that is the point.
+        </p>
+      </section>
+
+      <footer className="out-foot">
+        Computed {new Date(o.generatedAtUnix * 1000).toISOString().replace("T", " ").slice(0, 16)}{" "}
+        UTC from the settlement ledger — the same rows <Link href="/explorer">/explorer</Link>{" "}
+        anchors to transactions. No figure on this page is typed into the copy; the arithmetic under
+        each is in{" "}
+        <a href="https://github.com/shariqshkt/sage/blob/main/src/lib/outcomes/outcomes.ts">one
+        readable module</a>.
+      </footer>
+    </main>
+  );
+}

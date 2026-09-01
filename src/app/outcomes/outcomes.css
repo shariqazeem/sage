@@ -1,0 +1,17 @@
+/* ── system outcomes — readings, not claims ─────────────────────────────────────────────
+   Receipt-minimal register: paper, ink, mono for figures. The page is a report, and a report
+   does not decorate. */
+.out-page { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.5rem 4rem; }
+.out-kicker { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 0 0 0.6rem; }
+.out-title { font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 0.8rem; }
+.out-lede { color: var(--ink-muted); line-height: 1.65; margin: 0 0 2.2rem; max-width: 60ch; }
+.out-bar { border-top: 1px solid var(--border); padding: 1.6rem 0 1.4rem; }
+.out-bar h2 { font-size: 0.8125rem; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 0.7rem; font-weight: 550; }
+.out-big { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 600; letter-spacing: -0.02em; display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.7rem; }
+.out-big-k { font-family: var(--font-sans); font-size: 0.875rem; font-weight: 450; color: var(--ink-muted); letter-spacing: 0; }
+.out-how { line-height: 1.65; margin: 0 0 0.6rem; color: var(--ink); max-width: 62ch; }
+.out-src { font-size: 0.8125rem; color: var(--ink-faint); line-height: 1.6; margin: 0; }
+.out-src a, .out-how a { color: var(--accent); text-decoration: none; }
+.out-src a:hover, .out-how a:hover { text-decoration: underline; }
+.out-foot { border-top: 1px solid var(--border); margin-top: 1.8rem; padding-top: 1.2rem; font-size: 0.8125rem; color: var(--ink-faint); line-height: 1.65; }
+.out-foot a { color: var(--accent); text-decoration: none; }

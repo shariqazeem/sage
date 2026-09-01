@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Blocks, BookOpen, House, Landmark, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
+import { Blocks, BookOpen, Gauge, House, Landmark, Rocket, Sparkles, Send, Wallet, Compass } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -42,6 +42,7 @@ const NAV = [
     group: "Capital",
     items: [
       { href: "/explorer", label: "Explorer", Icon: Blocks },
+      { href: "/outcomes", label: "Outcomes", Icon: Gauge },
       { href: "/lender", label: "Underwrite", Icon: Landmark },
       { href: "/docs", label: "Docs", Icon: BookOpen },
     ],

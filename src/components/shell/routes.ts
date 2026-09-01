@@ -28,6 +28,7 @@ export function isAppRoute(p: string): boolean {
     /^\/agent(\/|$)/.test(p) ||
     /^\/marketplace/.test(p) ||
     /^\/explorer/.test(p) ||
+    /^\/outcomes/.test(p) ||
     /^\/record\//.test(p) ||
     /^\/lender/.test(p)
   );
