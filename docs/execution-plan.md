@@ -183,7 +183,13 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
       380ms entrance per arriving row. Proven in the browser: page open and untouched, a
       submission made the section appear from empty, a settlement arrived as "Paid $0.50 · proof"
       with the heartbeat flipping to "worked just now".
-- [ ] Million-dollar pass on the surfaces the journeys actually touch
+- [x] Million-dollar pass, first sweep (1 Sep night): mobile walk of every money surface —
+      marketplace, outcomes, explorer, record, lender, dashboard. One systemic fix shipped: the
+      floating mode pill overlapped the first line of all four shelled money pages on mobile —
+      one `--pill-clear` token, scoped on `html[data-app-shell="on"]` so /proof keeps its
+      standalone spacing. Everything else measured clean (a suspected explorer row overlap was a
+      screenshot-scaling artifact — the DOM shows a 12px gap). The user's own eye on Fri remains
+      the final pass.
 
 ## BUILD 4 — FC package
 
