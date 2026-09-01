@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Eye, Wand2, ShieldCheck, Check, X, MousePointer2, Lock } from "lucide-react";
+import { usd } from "@/lib/format";
+import type { Showcase } from "@/lib/landing/showcase";
 
 /**
  * WORKFLOW — "One URL becomes a campaign." A sticky visual stage pinned beside three
@@ -34,7 +37,7 @@ const CHAPTERS = [
   },
 ];
 
-export function SceneWorkflow() {
+export function SceneWorkflow({ showcase }: { showcase: Showcase | null }) {
   const [active, setActive] = useState(0);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -92,7 +95,7 @@ export function SceneWorkflow() {
         <div className="wf-grid">
           <div className="wf-stage-col">
             <div className="wf-stage" data-active={active}>
-              <WfVisual active={active} />
+              {showcase ? <RealVisual active={active} sc={showcase} /> : <WfVisual active={active} />}
             </div>
           </div>
 
@@ -116,7 +119,7 @@ export function SceneWorkflow() {
                 <p className="wf-body">{c.body}</p>
                 {/* mobile-only inline visual */}
                 <div className="wf-stage wf-stage-inline" data-active={i}>
-                  <WfVisual active={i} />
+                  {showcase ? <RealVisual active={i} sc={showcase} /> : <WfVisual active={i} />}
                 </div>
               </div>
             ))}
@@ -193,6 +196,78 @@ function WfVisual({ active }: { active: number }) {
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * THE REAL RUN. One mission Sage designed for a real product, and the verdict that paid it —
+ * loaded from the ledger, never typed in. Chapter 1 shows what Sage observed (the mission's
+ * own criteria are observed facts about the product), chapter 2 the mission as it shipped to
+ * the board, chapter 3 the decision: each criterion met or not, with the verbatim quote the
+ * judge cited. The sketch above remains only as the fallback for an empty ledger.
+ */
+function RealVisual({ active, sc }: { active: number; sc: Showcase }) {
+  if (active === 0) {
+    return (
+      <div className="art">
+        <div className="art-h">
+          <span>What Sage saw · {sc.targetHost}</span>
+          <span className="real">real run</span>
+        </div>
+        <p className="art-t">{sc.campaignTitle}</p>
+        <ul className="art-list">
+          {sc.mission.criteria.slice(0, 3).map((c, i) => (
+            <li key={i}><span className="k">observed</span><span>{c}</span></li>
+          ))}
+        </ul>
+        <div className="art-f">
+          <span>Recorded in Sage&rsquo;s own browser, before any mission existed.</span>
+        </div>
+      </div>
+    );
+  }
+  if (active === 1) {
+    return (
+      <div className="art">
+        <div className="art-h">
+          <span>Mission · {sc.mission.verifiabilityClass === "url-verifiable" ? "url-verifiable" : "observation-based"}</span>
+          <span className="real">real run</span>
+        </div>
+        <p className="art-t">{sc.mission.title}</p>
+        <ul className="art-list">
+          {sc.mission.criteria.slice(0, 3).map((c, i) => (
+            <li key={i}><span className="k">criterion</span><span>{c}</span></li>
+          ))}
+        </ul>
+        <div className="art-f">
+          <span>reward <b className="mono">{usd(sc.mission.rewardBase / 1_000_000)}</b> · allocated deterministically</span>
+          <span>{sc.railLabel}</span>
+        </div>
+      </div>
+    );
+  }
+  const quoted = sc.decision.criteria.find((c) => c.quote) ?? sc.decision.criteria[0];
+  return (
+    <div className="art">
+      <div className="art-h">
+        <span>Verdict · {Math.round(sc.decision.confidence * 100)}% confidence</span>
+        <span className="real">real run</span>
+      </div>
+      <ul className="art-list">
+        {sc.decision.criteria.slice(0, 3).map((c, i) => (
+          <li key={i}>
+            <span className={c.met ? "art-ok" : "art-no"}>{c.met ? <Check size={13} strokeWidth={3} /> : <X size={13} strokeWidth={2.8} />}</span>
+            <span>{c.criterion.length > 110 ? `${c.criterion.slice(0, 108)}…` : c.criterion}</span>
+          </li>
+        ))}
+      </ul>
+      {quoted?.quote && <p className="art-quote">&ldquo;{quoted.quote.length > 160 ? `${quoted.quote.slice(0, 158)}…` : quoted.quote}&rdquo;</p>}
+      <div className="art-f">
+        <span>Recommendation: <b className={sc.decision.recommendation === "pay" ? "art-ok" : "art-no"}>{sc.decision.recommendation}</b> · the vault released it</span>
+        <Link href={`/proof/${sc.txHash}`}>receipt →</Link>
       </div>
     </div>
   );

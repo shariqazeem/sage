@@ -1,70 +1,70 @@
 import Link from "next/link";
-import { ArrowRight, Lock, MousePointer2, Check, ShieldCheck } from "lucide-react";
-import { usd } from "@/lib/format";
-import { Reveal } from "./reveal";
+import { ArrowRight, ArrowUpRight, Check, Lock, X } from "lucide-react";
+import { usd, short, since } from "@/lib/format";
+import { chainConfig } from "@/lib/deputy/networks";
+import type { PayoutReceipt } from "@/lib/deputy/chain";
 
 /**
- * HERO — "It sees the work. It does it again. Then it pays."
- * Fully visible at first paint (no reveal gate on the copy or the stage frame). The
- * Sage Browser Stage is a real HTML/CSS/SVG object: a floating browser with a URL in
- * the bar, a terracotta agent cursor travelling to an observed control, observed-fact
- * chips, an event rail, and a verification receipt — a controlled, truthful depiction
- * of the mechanism. No fabricated amount, tester, or transaction appears here; the one
- * real money figure is the live aggregate below the copy.
+ * HERO — say what it is and who it is for, and put the product beside it.
+ *
+ * The previous hero was a riddle ("It sees the work. It does it again. Then it pays.") next
+ * to a hand-drawn browser: clever, and the first thing a judge read was a puzzle beside a
+ * sketch. Infrastructure introduces itself plainly and shows the real thing — so the right
+ * column is now the live settlement rail: real amounts, real rails, real transactions, each
+ * one a receipt anyone can open. No fabricated row ever appears here (the standing rule); an
+ * empty feed renders an honest waiting state.
  */
 export function SceneHero({
   paidUsd,
   payoutCount,
+  refusedCount,
   networkName,
+  feed,
+  now,
 }: {
   paidUsd: number;
   payoutCount: number;
+  refusedCount: number;
   networkName: string;
+  feed: PayoutReceipt[];
+  now: number;
 }) {
+  const rows = feed.slice(0, 5);
   return (
-    <section className="hero" aria-label="Sage — verified work, paid autonomously">
+    <section className="hero" aria-label="Sage — payment infrastructure for verified work">
       <div className="hero-in">
         <div className="hero-copy">
           <span className="hero-eyebrow eyebrow">
             <span className="dot" aria-hidden />
-            Verified work, paid autonomously
+            Payment infrastructure for verified work
           </span>
 
           <h1 className="display">
-            It sees the work.
+            Pay people for work
             <br />
-            It does it again.
-            <br />
-            <span className="soft">Then it pays.</span>
+            <span className="soft">an AI has verified.</span>
           </h1>
 
           <p className="lede hero-lede">
-            Point Sage at a product to test, or tell it who to pay and for what — a gig, a
-            bounty, a milestone grant. It verifies every claim itself, in a real browser or
-            on-chain, and settles only what checks out, from a vault it can never exceed.
+            Gigs, milestone grants, product testing. An agent checks every deliverable itself,
+            a vault it cannot exceed releases the money, and every payout lands as a public
+            receipt — or a private note. Live on two mainnet rails.
           </p>
 
           <div className="hero-actions">
             <Link href="/launch" className="btn btn-primary">
               Launch a campaign <ArrowRight size={17} strokeWidth={2.2} />
             </Link>
-            <a href="#how" className="btn btn-ghost">
-              Watch Sage work
-            </a>
-            {/* The board, not one campaign. This pointed at a single flagship campaign that had
-                long since filled, so the landing page's one call-to-action for TESTERS sent a
-                stream of real people to a dead page — measured on 2026-08-17, while a live
-                marketplace of open missions sat one route away. */}
-            <Link href="/marketplace" className="btn btn-quiet">
-              Explore live missions <ArrowRight size={13} strokeWidth={2} />
+            <Link href="/explorer" className="btn btn-ghost">
+              See every payout
             </Link>
           </div>
 
           <div className="hero-stat">
             <span className="hero-stat-v mono">{usd(paidUsd)}</span>
             <span className="hero-stat-k mono">
-              paid to real testers · {payoutCount} verified payout
-              {payoutCount === 1 ? "" : "s"} across {networkName}
+              settled · {payoutCount} verified payout{payoutCount === 1 ? "" : "s"} ·{" "}
+              {refusedCount} refused · {networkName}
             </span>
           </div>
 
@@ -74,62 +74,73 @@ export function SceneHero({
           </span>
         </div>
 
-        {/* ── Sage Browser Stage ── */}
+        {/* ── the live settlement rail: the product, not a picture of it ── */}
         <div className="hero-stage-col">
-          <Reveal className="stage">
-            <div className="stage-browser">
-              <div className="stage-chrome">
-                <span className="stage-dots" aria-hidden>
-                  <i />
-                  <i />
-                  <i />
-                </span>
-                <span className="stage-url">
-                  <Lock size={12} strokeWidth={2.4} className="lock" />
-                  app.yourproduct.com
-                  <span className="caret" aria-hidden />
-                </span>
-              </div>
-
-              <div className="stage-viewport" role="img" aria-label="Sage exploring a product, observing a control, and permitting a payout after verification">
-                <div className="stage-skeleton" aria-hidden>
-                  <div className="sk-title" />
-                  <div className="sk-row w-72" />
-                  <div className="sk-row w-40" />
-                  <div className="sk-row w-56" />
-                  <div className="sk-card">
-                    <div className="sk-row w-40" style={{ flex: 1 }} />
-                    <span className="sk-cta scanned">Start</span>
-                  </div>
-                </div>
-                <span className="stage-tag t1" aria-hidden>observed · heading</span>
-                <span className="stage-tag t2" aria-hidden>observed · row</span>
-                <span className="stage-tag t3" aria-hidden>action · Start</span>
-                <MousePointer2 className="stage-cursor" size={20} strokeWidth={2.2} aria-hidden fill="currentColor" />
-              </div>
+          <div className="hl" aria-label="Latest settlements, live">
+            <div className="hl-h">
+              <span className="hl-title">Latest settlements</span>
+              <span className="hl-live mono">
+                <span className="hl-dot" aria-hidden /> live · mainnet
+              </span>
             </div>
-
-            <div className="stage-rail" aria-hidden>
-              <span className="rail-ev on"><span className="tick" />Product opened</span>
-              <span className="rail-ev on"><span className="tick" />Control observed</span>
-              <span className="rail-ev on"><span className="tick" />Action replayed</span>
-              <span className="rail-ev on"><span className="tick" />Outcome matched</span>
-              <span className="rail-ev pay"><span className="tick" />Payout permitted</span>
+            {rows.length === 0 ? (
+              <div className="hl-empty mono">Watching for work — receipts land here as Sage settles.</div>
+            ) : (
+              <ul className="hl-rows">
+                {rows.map((r) => (
+                  <li key={r.txHash}>
+                    <Link href={`/proof/${r.txHash}`} className="hl-row">
+                      <span className={`hl-ic ${r.settled ? "ok" : "no"}`}>
+                        {r.settled ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={2.8} />}
+                      </span>
+                      <span className="hl-main">
+                        <span className="hl-line">
+                          {r.settled ? "Paid" : "Refused"}{" "}
+                          <span className="mono">{short(r.recipient)}</span>
+                        </span>
+                        <span className="hl-sub mono">
+                          {chainConfig(r.chainId).chipLabel} · {short(r.txHash)}
+                        </span>
+                      </span>
+                      <span className={`hl-amt mono ${r.settled ? "ok" : "no"}`}>
+                        {r.settled ? usd(r.amount) : "held"}
+                      </span>
+                      <span className="hl-ago mono">{since(r.timestamp, now)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="hl-f">
+              <span className="mono">Every row is a transaction you can open.</span>
+              <Link href="/explorer" className="hl-all mono">
+                All {payoutCount} <ArrowUpRight size={12} strokeWidth={2.2} />
+              </Link>
             </div>
-
-            <div className="stage-receipt">
-              <div className="rc-top">
-                <span className="rc-check"><Check size={11} strokeWidth={3.2} /></span>
-                Replay reproduced
-              </div>
-              <div className="rc-amt">Payout permitted</div>
-              <div className="rc-sub">
-                <ShieldCheck size={11} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-                settles only within the approved policy
-              </div>
-            </div>
-          </Reveal>
+          </div>
         </div>
+      </div>
+
+      {/* ── who it is for — three doors, each to its real surface ── */}
+      <div className="dr wrap" aria-label="Who Sage is for">
+        <Link href="/launch" className="dr-card">
+          <span className="dr-k mono">For founders &amp; teams</span>
+          <span className="dr-t">Test a product, pay a gig, fund milestones.</span>
+          <span className="dr-s">Or hand work to your own people, off the public board — verified and paid the same way.</span>
+          <span className="dr-cta">Launch <ArrowRight size={13} strokeWidth={2.2} /></span>
+        </Link>
+        <Link href="/marketplace" className="dr-card">
+          <span className="dr-k mono">For workers</span>
+          <span className="dr-t">Do verified work, get paid in USDC.</span>
+          <span className="dr-s">No application, no interview, no bank account. Your record is yours — and you choose who reads it.</span>
+          <span className="dr-cta">Find work <ArrowRight size={13} strokeWidth={2.2} /></span>
+        </Link>
+        <Link href="/lender" className="dr-card">
+          <span className="dr-k mono">For lenders</span>
+          <span className="dr-t">Underwrite verified cash flow.</span>
+          <span className="dr-s">Published arithmetic over receipt-anchored inflow, never a score. Advance against it under the same policy.</span>
+          <span className="dr-cta">Lender view <ArrowRight size={13} strokeWidth={2.2} /></span>
+        </Link>
       </div>
     </section>
   );

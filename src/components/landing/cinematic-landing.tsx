@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PayoutReceipt } from "@/lib/deputy/chain";
 import type { EcosystemStatus } from "@/lib/ecosystem/status";
+import type { Showcase } from "@/lib/landing/showcase";
 import { EcosystemStrip } from "@/components/ecosystem/ecosystem-strip";
 import { SageMark } from "@/components/brand/sage-mark";
 import { geist } from "./fonts";
@@ -8,6 +9,8 @@ import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
 import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
+import { SceneTrust } from "./scene-trust";
+import { SceneTeams } from "./scene-teams";
 import { SceneProof } from "./scene-proof";
 import { SceneCapital } from "./scene-capital";
 import { ScenePrivacy } from "./scene-privacy";
@@ -19,6 +22,7 @@ interface Props {
   feed: PayoutReceipt[];
   now: number;
   ecosystem: EcosystemStatus;
+  showcase: Showcase | null;
 }
 
 /**
@@ -29,7 +33,7 @@ interface Props {
  * panel, and /docs/compliance. Showing everything is what an app does; infrastructure shows the
  * primitive and the receipts. Server Component; numbers all derive from ONE source (`feed`).
  */
-export function CinematicLanding({ network, totals, feed, now, ecosystem }: Props) {
+export function CinematicLanding({ network, totals, feed, now, ecosystem, showcase }: Props) {
   return (
     <div className={`slv2 ${geist.variable}`}>
       <LandingNav />
@@ -38,12 +42,24 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem }: Prop
         <SceneHero
           paidUsd={totals.paidUsd}
           payoutCount={totals.payoutCount}
+          refusedCount={totals.refusedCount}
+          networkName={network.name}
+          feed={feed}
+          now={now}
+        />
+
+        <SceneTrust
+          paidUsd={totals.paidUsd}
+          payoutCount={totals.payoutCount}
+          refusedCount={totals.refusedCount}
           networkName={network.name}
         />
 
-        <SceneWorkflow />
+        <SceneWorkflow showcase={showcase} />
 
         <SceneLoop />
+
+        <SceneTeams />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
 

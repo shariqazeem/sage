@@ -23,11 +23,11 @@ export function SceneClose({
           judgment, and a wallet.
         </h2>
         <p className="cl-sub">
-          Give Sage a product and a small budget. It will find what deserves testing,
-          recruit real people, verify the work, and pay inside the rules you approved.
+          Give Sage a product, a gig, or a grant — and a budget. It verifies the work itself,
+          pays inside the rules you approved, and leaves a receipt for every decision.
         </p>
         <div className="cl-actions">
-          <Link href="/dashboard" className="btn cl-cta-primary">
+          <Link href="/launch" className="btn cl-cta-primary">
             Launch your first campaign <ArrowRight size={17} strokeWidth={2.2} />
           </Link>
           <Link href="/marketplace" className="btn cl-cta-ghost">

@@ -4,6 +4,7 @@ import { chainConfig } from "@/lib/deputy/networks";
 import { getPublicReceipts } from "@/lib/erc8004/reputation";
 import { countDecidedSubmissions } from "@/lib/db/campaigns";
 import { mainnetSettled, settledLedger } from "@/lib/campaigns/settled-ledger";
+import { loadShowcase } from "@/lib/landing/showcase";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
 
@@ -65,6 +66,7 @@ export default async function HomePage() {
   const net = { name: railNames.length > 0 ? railNames.join(" + ") : chainConfig(2345).name, chainId: 2345 };
 
   const ecosystem = await ecosystemStatus();
+  const showcase = loadShowcase();
 
   return (
     <CinematicLanding
@@ -73,6 +75,7 @@ export default async function HomePage() {
       feed={feed}
       now={Date.now()}
       ecosystem={ecosystem}
+      showcase={showcase}
     />
   );
 }
