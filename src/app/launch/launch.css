@@ -703,3 +703,52 @@
   color: var(--accent); background: var(--accent-soft, rgba(194, 65, 12, 0.08));
 }
 .lxo-next b { color: var(--ink); font-weight: 600; }
+
+/* ============================================================================
+   THE COMPOSER — gigs · bounties · milestone grants, with the plan forming beside it
+   ============================================================================ */
+.cmp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.85fr); gap: 20px; align-items: start; }
+.cmp-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cmp-card { border: 1px solid var(--lx-line); border-radius: 10px; background: var(--lx-bg, #fff); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.cmp-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cmp-k { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lx-muted); }
+.cmp-types { display: inline-flex; border: 1px solid var(--lx-line); border-radius: 999px; padding: 2px; gap: 2px; }
+.cmp-type { font: inherit; font-size: 0.78rem; padding: 4px 11px; border-radius: 999px; border: 0; background: transparent; color: var(--lx-muted); cursor: pointer; }
+.cmp-type.on { background: var(--accent); color: #fff; }
+.cmp-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.cmp-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cmp-grow { flex: 1 1 220px; }
+.cmp-label { font-size: 0.72rem; color: var(--lx-muted); letter-spacing: 0.02em; }
+.cmp-input { width: 100%; }
+.cmp-sel { min-width: 9rem; }
+.cmp-amt { flex: 0 0 9.5rem; }
+.cmp-amt-wrap { display: flex; align-items: center; gap: 6px; }
+.cmp-cur { color: var(--lx-muted); font-size: 0.9rem; }
+.cmp-computed { display: inline-flex; align-items: center; height: 2.4rem; padding: 0 0.6rem; border: 1px dashed var(--lx-line-strong); border-radius: 6px; font-size: 0.95rem; color: var(--lx-ink); }
+.cmp-help { font-size: 0.75rem; color: var(--lx-muted); line-height: 1.45; flex: 1 1 220px; align-self: center; }
+.cmp-invite { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; line-height: 1.5; cursor: pointer; }
+.cmp-invite input { margin-top: 4px; accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+.cmp-invite b { font-weight: 600; color: var(--lx-ink); }
+.cmp-x { font: inherit; font-size: 0.75rem; color: var(--lx-muted); background: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.cmp-x:hover { color: var(--err, #dc2626); }
+.cmp-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.cmp-split { display: flex; flex-direction: column; gap: 5px; }
+.cmp-ex { margin-top: 4px; }
+/* the preview */
+.cmp-preview { position: sticky; top: 5.25rem; border: 1px solid var(--lx-line); border-radius: 10px; background: var(--lx-surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.cmp-preview-h { display: flex; align-items: center; justify-content: space-between; }
+.cmp-live { font-size: 0.66rem; color: var(--ok, #15803d); letter-spacing: 0.04em; }
+.cmp-pv-total { display: flex; flex-direction: column; gap: 2px; }
+.cmp-pv-amt { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--lx-ink); font-variant-numeric: tabular-nums; }
+.cmp-pv-k { font-size: 0.78rem; color: var(--lx-muted); }
+.cmp-pv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cmp-pv-list li { display: flex; gap: 10px; align-items: flex-start; }
+.cmp-pv-n { font-size: 0.68rem; color: var(--accent); margin-top: 3px; }
+.cmp-pv-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cmp-pv-body b { font-size: 0.86rem; color: var(--lx-ink); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.cmp-pv-verify { font-size: 0.76rem; color: var(--lx-muted); line-height: 1.45; }
+.cmp-pv-pay { font-size: 0.74rem; color: var(--ok, #15803d); }
+.cmp-pv-facts { list-style: none; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--lx-line); display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; color: var(--lx-ink); line-height: 1.45; }
+.cmp-pv-facts li { display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 8px; }
+.cmp-pv-facts li .mono { font-size: 0.66rem; color: var(--lx-muted); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 3px; }
+@media (max-width: 900px) { .cmp-grid { grid-template-columns: 1fr; } .cmp-preview { position: static; } }

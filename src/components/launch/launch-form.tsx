@@ -571,204 +571,195 @@ export function LaunchForm() {
             line and it is a milestone grant; type ONE total and watch Sage split it live. The rows
             compile DIRECTLY into the deterministic campaign compiler — no chat, no model. */}
         {step === 0 && mode === "pay" && (
-          <div className="lxs">
-            <div className="lxs-line">
-              <span className="lxs-word">Pay</span>
-              <input
-                autoFocus
-                className="lxs-token lxs-who"
-                type="text"
-                placeholder="my designer"
-                value={pay.who}
-                onChange={(e) => setP("who", e.target.value)}
-                aria-label="Who gets paid"
-              />
-              <span className="lxs-word">in</span>
-              <select
-                className="lxs-token lxs-sel lxs-cur"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                aria-label="The currency you are pricing in"
-              >
-                {/* Caribbean receivers first — the denominations this exists for — then senders. */}
-                {CURRENCIES.filter((c) => c.code === "USD" || c.region === "caribbean").map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.symbol} {c.code}
-                  </option>
-                ))}
-                {CURRENCIES.filter((c) => c.region === "sender").map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.symbol} {c.code}
-                  </option>
-                ))}
-              </select>
-              {tranches.length === 1 && (
-                <>
-                  <span className="lxs-word">·</span>
-                  <select
-                    className="lxs-token lxs-sel"
-                    value={pay.slots}
-                    onChange={(e) => setP("slots", e.target.value)}
-                    aria-label="How many people can earn it"
-                  >
-                    {["1", "2", "3", "5", "10"].map((c) => (
-                      <option key={c} value={c}>
-                        {c === "1" ? "1 person" : `${c} people`}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
-            </div>
+          <div className="cmp">
+            {/* THE COMPOSER. The pay door used to be a fill-in-the-blanks sentence; founders,
+                companies and teams will use this every day, so it is now a real instrument:
+                the work on the left, and on the right the plan Sage will compile from it —
+                the exact split, each verification contract in plain words, the rail and the
+                door — updating as you type. The preview is the deterministic client mirror of
+                the compiler; no model runs here and no amount is ever computed by one. Same
+                POST body as before. */}
+            <div className="cmp-grid">
+              <div className="cmp-form">
+                <div className="cmp-card">
+                  <div className="cmp-card-h">
+                    <span className="cmp-k mono">{tranches.length > 1 ? "Milestone grant" : Number(pay.slots) > 1 ? "Open bounty" : "Gig"}</span>
+                    <div className="cmp-types" role="group" aria-label="Kind of work">
+                      <button type="button" className={`cmp-type${tranches.length === 1 && Number(pay.slots) <= 1 ? " on" : ""}`} onClick={() => { setTranches((ts) => [ts[0] ?? blankTranche()]); setP("slots", "1"); setSplitTotal(""); }}>Gig</button>
+                      <button type="button" className={`cmp-type${tranches.length === 1 && Number(pay.slots) > 1 ? " on" : ""}`} onClick={() => { setTranches((ts) => [ts[0] ?? blankTranche()]); setP("slots", "3"); setSplitTotal(""); }}>Bounty</button>
+                      <button type="button" className={`cmp-type${tranches.length > 1 ? " on" : ""}`} onClick={() => { setTranches((ts) => (ts.length > 1 ? ts : [...ts, blankTranche(ts[0]?.verify)])); setP("slots", "1"); }}>Milestone grant</button>
+                    </div>
+                  </div>
+                  <div className="cmp-row">
+                    <label className="cmp-field cmp-grow">
+                      <span className="cmp-label">Who is this for</span>
+                      <input className="lx-input cmp-input" type="text" placeholder="my designer · a translator · anyone" value={pay.who} onChange={(e) => setP("who", e.target.value)} />
+                    </label>
+                    <label className="cmp-field">
+                      <span className="cmp-label">Priced in</span>
+                      <select className="lx-input cmp-input cmp-sel" value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="The currency you are pricing in">
+                        {CURRENCIES.filter((c) => c.code === "USD" || c.region === "caribbean").map((c) => (
+                          <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
+                        ))}
+                        {CURRENCIES.filter((c) => c.region === "sender").map((c) => (
+                          <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {tranches.length === 1 && (
+                      <label className="cmp-field">
+                        <span className="cmp-label">How many can earn it</span>
+                        <select className="lx-input cmp-input cmp-sel" value={pay.slots} onChange={(e) => setP("slots", e.target.value)}>
+                          {["1", "2", "3", "5", "10"].map((c) => (
+                            <option key={c} value={c}>{c === "1" ? "1 person" : `${c} people`}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                  <label className="cmp-invite">
+                    <input type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
+                    <span><b>Only people I invite.</b> <span className="muted">Off the public marketplace — you get a link to share with your team, contractors or grantees.</span></span>
+                  </label>
+                </div>
 
-            {tranches.map((t, i) => (
-              <div className="lxs-tranche" key={i}>
-                <div className="lxs-line">
-                  {tranches.length > 1 && <span className="lxs-n mono">{String(i + 1).padStart(2, "0")}</span>}
-                  <span className="lxs-word">{curSymbol}</span>
-                  {splitting ? (
-                    <span className="lxs-token lxs-amt lxs-split-preview mono" aria-label="Computed share">
-                      {splitPreview()[i]}
-                    </span>
-                  ) : (
-                    <input
-                      className="lxs-token lxs-amt"
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      placeholder={tranches.length > 1 ? "20" : "50"}
-                      value={t.amount}
-                      onChange={(e) => setT(i, "amount", e.target.value)}
-                      aria-label={`Amount for milestone ${i + 1}`}
-                    />
-                  )}
-                  <span className="lxs-word">when</span>
-                  <input
-                    className="lxs-token lxs-when"
-                    type="text"
-                    placeholder={i === 0 ? "the new logo page is live" : "the next milestone is true"}
-                    value={t.deliverable}
-                    onChange={(e) => setT(i, "deliverable", e.target.value)}
-                    aria-label={`What must be true for milestone ${i + 1}`}
-                  />
+                {tranches.map((t, i) => (
+                  <div className="cmp-card cmp-tranche" key={i}>
+                    <div className="cmp-card-h">
+                      <span className="cmp-k mono">{tranches.length > 1 ? `Milestone ${String(i + 1).padStart(2, "0")}` : "The work"}</span>
+                      {tranches.length > 1 && (
+                        <button type="button" className="cmp-x" aria-label={`Remove milestone ${i + 1}`} onClick={() => setTranches((ts) => ts.filter((_, j) => j !== i))}>
+                          <X size={13} /> remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="cmp-row">
+                      <label className="cmp-field cmp-amt">
+                        <span className="cmp-label">{splitting ? "Share (computed)" : "Pays"}</span>
+                        {splitting ? (
+                          <span className="cmp-computed mono">{curSymbol}{splitPreview()[i]}</span>
+                        ) : (
+                          <span className="cmp-amt-wrap">
+                            <span className="cmp-cur mono">{curSymbol}</span>
+                            <input className="lx-input cmp-input mono" type="number" min="0.5" step="0.5" placeholder={tranches.length > 1 ? "20" : "50"} value={t.amount} onChange={(e) => setT(i, "amount", e.target.value)} aria-label={`Amount for milestone ${i + 1}`} />
+                          </span>
+                        )}
+                      </label>
+                      <label className="cmp-field cmp-grow">
+                        <span className="cmp-label">What must be true</span>
+                        <input className="lx-input cmp-input" type="text" placeholder={i === 0 ? "the new logo page is live" : "the next milestone is true"} value={t.deliverable} onChange={(e) => setT(i, "deliverable", e.target.value)} aria-label={`What must be true for milestone ${i + 1}`} />
+                      </label>
+                    </div>
+                    <div className="cmp-row">
+                      <label className="cmp-field">
+                        <span className="cmp-label">How Sage verifies</span>
+                        <select className="lx-input cmp-input cmp-sel" value={t.verify} onChange={(e) => setT(i, "verify", e.target.value)} aria-label={`How Sage verifies milestone ${i + 1}`}>
+                          {VERIFY_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {t.verify === "page" && (
+                        <label className="cmp-field cmp-grow">
+                          <span className="cmp-label">Text that must appear</span>
+                          <input className="lx-input cmp-input" type="text" placeholder="the exact text that must appear" value={t.expectedText} onChange={(e) => setT(i, "expectedText", e.target.value)} />
+                        </label>
+                      )}
+                      {t.verify === "onchain" && (
+                        <label className="cmp-field cmp-grow">
+                          <span className="cmp-label">Transaction must go to</span>
+                          <input className="lx-input cmp-input mono" type="text" placeholder="0x… contract or recipient" value={t.toAddr} onChange={(e) => setT(i, "toAddr", e.target.value)} />
+                        </label>
+                      )}
+                      {t.verify === "link" && (
+                        <span className="cmp-help">Sage fetches the link they publish and checks it shows the finished work and carries their wallet address.</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="cmp-actions">
+                  <button type="button" className="lx-edit-link" onClick={() => setTranches((ts) => [...ts, blankTranche(ts[ts.length - 1]?.verify)])}>
+                    <Plus size={14} /> Add a milestone
+                    {tranches.length === 1 && <span className="muted"> — turns this into a grant, released tranche by tranche</span>}
+                  </button>
                   {tranches.length > 1 && (
-                    <button
-                      type="button"
-                      className="lxs-x"
-                      aria-label={`Remove milestone ${i + 1}`}
-                      onClick={() => setTranches((ts) => ts.filter((_, j) => j !== i))}
-                    >
-                      <X size={13} />
-                    </button>
+                    <label className="cmp-split">
+                      <span className="cmp-label">Or one total, split exactly by Sage</span>
+                      <span className="cmp-amt-wrap">
+                        <span className="cmp-cur mono">{curSymbol}</span>
+                        <input className="lx-input cmp-input mono" type="number" min="1" step="0.5" placeholder="40" value={splitTotal} onChange={(e) => setSplitTotal(e.target.value)} aria-label="One total, split equally by Sage" />
+                      </span>
+                    </label>
                   )}
                 </div>
-                <div className="lxs-line lxs-sub">
-                  <span className="lxs-word">Sage verifies</span>
-                  <select
-                    className="lxs-token lxs-sel"
-                    value={t.verify}
-                    onChange={(e) => setT(i, "verify", e.target.value)}
-                    aria-label={`How Sage verifies milestone ${i + 1}`}
-                  >
-                    {VERIFY_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  {t.verify === "page" && (
-                    <>
-                      <span className="lxs-word">showing</span>
-                      <input
-                        className="lxs-token lxs-when"
-                        type="text"
-                        placeholder="the exact text that must appear"
-                        value={t.expectedText}
-                        onChange={(e) => setT(i, "expectedText", e.target.value)}
-                        aria-label="Required text on the page"
-                      />
-                    </>
-                  )}
-                  {t.verify === "onchain" && (
-                    <>
-                      <span className="lxs-word">to</span>
-                      <input
-                        className="lxs-token lxs-when mono"
-                        type="text"
-                        placeholder="0x… contract or recipient"
-                        value={t.toAddr}
-                        onChange={(e) => setT(i, "toAddr", e.target.value)}
-                        aria-label="The address the transaction must go to"
-                      />
-                    </>
-                  )}
+
+                <div className="lxo-chips lxs-ex cmp-ex" role="group" aria-label="Start from an example">
+                  {PAY_EXAMPLES.map((ex) => (
+                    <button
+                      key={ex.label}
+                      type="button"
+                      className="lxo-chip"
+                      onClick={() => {
+                        setPay({ who: ex.who, slots: ex.slots });
+                        setTranches(ex.tranches.map((t) => ({ ...blankTranche(), ...t })));
+                        setSplitTotal(ex.splitTotal ?? "");
+                        setCurrency(ex.currency ?? "USD");
+                        setPayErr(null);
+                      }}
+                    >
+                      {ex.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
 
-            <div className="lxs-line lxs-actions">
-              <button
-                type="button"
-                className="lx-edit-link"
-                onClick={() => setTranches((ts) => [...ts, blankTranche(ts[ts.length - 1]?.verify)])}
-              >
-                <Plus size={14} /> Add a milestone
-                {tranches.length === 1 && <span className="muted"> — turns this into a grant, released tranche by tranche</span>}
-              </button>
-              {tranches.length > 1 && (
-                <label className="lxs-splitlab">
-                  <span className="lxs-word">or split one total:</span>
-                  <span className="lxs-word">{curSymbol}</span>
-                  <input
-                    className="lxs-token lxs-amt"
-                    type="number"
-                    min="1"
-                    step="0.5"
-                    placeholder="40"
-                    value={splitTotal}
-                    onChange={(e) => setSplitTotal(e.target.value)}
-                    aria-label="One total, split equally by Sage"
-                  />
-                  <span className="muted">Sage divides it exactly — you compute nothing</span>
-                </label>
-              )}
+              {/* ── the plan, forming ── */}
+              <aside className="cmp-preview" aria-label="What Sage will compile">
+                <div className="cmp-preview-h">
+                  <span className="cmp-k mono">What Sage will do</span>
+                  <span className="cmp-live mono">forms as you type</span>
+                </div>
+                <div className="cmp-pv-total">
+                  <span className="cmp-pv-amt mono">
+                    {curSymbol}
+                    {splitting
+                      ? Number(splitTotal || 0).toFixed(2)
+                      : (tranches.reduce((a, t) => a + (Number(t.amount) || 0), 0) * (tranches.length === 1 ? Number(pay.slots) || 1 : 1)).toFixed(2)}
+                  </span>
+                  <span className="cmp-pv-k">
+                    {tranches.length > 1
+                      ? `across ${tranches.length} milestones, released one by one`
+                      : Number(pay.slots) > 1
+                        ? `${pay.slots} people × ${curSymbol}${Number(tranches[0]?.amount || 0).toFixed(2)}`
+                        : "one deliverable, one payout"}
+                    {isLocal ? ` · converted once to USDC at a stamped rate` : ""}
+                  </span>
+                </div>
+                <ol className="cmp-pv-list">
+                  {tranches.map((t, i) => {
+                    const opt = VERIFY_OPTIONS.find((o) => o.value === t.verify);
+                    return (
+                      <li key={i}>
+                        <span className="cmp-pv-n mono">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="cmp-pv-body">
+                          <b>{t.deliverable.trim() || "…what must be true"}</b>
+                          <span className="cmp-pv-verify">Sage verifies by {opt?.ask ?? "checking the evidence"}{t.verify === "page" && t.expectedText.trim() ? ` — it must show “${t.expectedText.trim()}”` : ""}.</span>
+                          <span className="cmp-pv-pay mono">{splitting ? `${curSymbol}${splitPreview()[i]}` : `${curSymbol}${Number(t.amount || 0).toFixed(2)}`} released on verification</span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <ul className="cmp-pv-facts">
+                  <li><span className="mono">door</span>{inviteOnly ? "invite-only — off the public board" : "listed on the marketplace"}</li>
+                  <li><span className="mono">who</span>{pay.who.trim() || "anyone who can do it"}{tranches.length === 1 && Number(pay.slots) > 1 ? ` · up to ${pay.slots} people` : ""}</li>
+                  <li><span className="mono">refuses if</span>the evidence does not show the deliverable, is not theirs, or repeats another submission</li>
+                  <li><span className="mono">then</span>you approve the plan, fund once, and payouts run with receipts</li>
+                </ul>
+              </aside>
             </div>
 
-            {isLocal && (
-              <p className="lxs-fx muted">
-                You price in {curSymbol} {currency}; recipients are paid in USDC, converted once at
-                a stamped, source-attributed rate when you fund — Sage never does exchange
-                arithmetic on your behalf mid-flight.
-              </p>
-            )}
-            {/* SAGE FOR TEAMS — a company paying its own staff, contractors or grantees. One
-                sentence, one checkbox: the campaign stays off every public board and the founder
-                gets its door to share. Verification and payout are unchanged. */}
-            <label className="lxs-invite">
-              <input type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
-              <span>
-                <b>Only people I invite.</b>{" "}
-                <span className="muted">Stays off the public marketplace — you get a link to share with your team, contractors or grantees. Same verification, same payout.</span>
-              </span>
-            </label>
-            <div className="lxo-chips lxs-ex" role="group" aria-label="Start from an example">
-              {PAY_EXAMPLES.map((ex) => (
-                <button
-                  key={ex.label}
-                  type="button"
-                  className="lxo-chip"
-                  onClick={() => {
-                    setPay({ who: ex.who, slots: ex.slots });
-                    setTranches(ex.tranches.map((t) => ({ ...blankTranche(), ...t })));
-                    setSplitTotal(ex.splitTotal ?? "");
-                    setCurrency(ex.currency ?? "USD");
-                    setPayErr(null);
-                  }}
-                >
-                  {ex.label}
-                </button>
-              ))}
-            </div>
             {payErr && (
               <p className="lxs-err" role="alert">
                 {payErr}
