@@ -99,6 +99,19 @@ Grants have run in production ZERO times and are the FC centrepiece.
       foreign-signed document with "signed by a different issuer".
 - [ ] Campaign live for STRK20 people ($10 gig — posts ready in `docs/posts/LAUNCH-KIT.md`).
 
+## BUILD 3.5 — the web app as the product (user directive, 1 Sep)
+
+**"Focus on sagepays.xyz over Telegram for both submissions."** The app must: work easy, look
+million-dollar, do everything inside itself, and feel like ONE ecosystem — every surface connected.
+Method: walk the real journeys first, name the friction concretely, fix the top items — never a
+blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what judges touch.
+
+- [ ] Friction audit: founder journey (land → connect → launch → fund → watch → payouts) and
+      worker journey (marketplace → submit → claim → record → advance), walked in the browser
+- [ ] Fix the top disconnections the audit names
+- [ ] The agent as connective tissue on web, not a separate page you leave to
+- [ ] Million-dollar pass on the surfaces the journeys actually touch
+
 ## BUILD 4 — FC package
 
 - [x] Corridor line — live on /outcomes: the 8% corridor would have taken $4.21 of the $52.60 settled; recipients received it.
