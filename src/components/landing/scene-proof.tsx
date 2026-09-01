@@ -17,7 +17,7 @@ export function SceneProof({
   now,
 }: {
   feed: PayoutReceipt[];
-  totals: { paidUsd: number; payoutCount: number; blockedCount: number };
+  totals: { paidUsd: number; payoutCount: number; refusedCount: number };
   networkName: string;
   now: number;
 }) {
@@ -33,12 +33,12 @@ export function SceneProof({
           <h2 className="h2">Every decision leaves a receipt.</h2>
           <p className="lede pf-lede">
             What Sage saw, what it replayed, why it paid or held, and what moved on-chain —
-            publicly checkable. Live on {networkName}.
+            publicly checkable. Live on {networkName}, mainnet.
           </p>
           <div className="pf-stats mono">
             <span><b>{usd(totals.paidUsd)}</b> settled</span>
             <span><b>{totals.payoutCount}</b> verified payout{totals.payoutCount === 1 ? "" : "s"}</span>
-            <span><b>{totals.blockedCount}</b> blocked on-chain</span>
+            <span><b>{totals.refusedCount}</b> refused on record</span>
           </div>
         </div>
 

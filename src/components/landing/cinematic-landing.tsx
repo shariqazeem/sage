@@ -15,7 +15,7 @@ import { SceneClose } from "./scene-close";
 
 interface Props {
   network: { name: string; chainId: number };
-  totals: { paidUsd: number; payoutCount: number; blockedCount: number };
+  totals: { paidUsd: number; payoutCount: number; refusedCount: number };
   feed: PayoutReceipt[];
   now: number;
   ecosystem: EcosystemStatus;

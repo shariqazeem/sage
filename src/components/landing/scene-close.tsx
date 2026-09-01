@@ -11,7 +11,7 @@ export function SceneClose({
   totals,
   networkName,
 }: {
-  totals: { paidUsd: number; payoutCount: number; blockedCount: number };
+  totals: { paidUsd: number; payoutCount: number; refusedCount: number };
   networkName: string;
 }) {
   return (
@@ -43,7 +43,7 @@ export function SceneClose({
             <b>{totals.payoutCount}</b> verified payout{totals.payoutCount === 1 ? "" : "s"}
           </span>
           <span className="cl-dot" aria-hidden />
-          <span className="cl-stat">live on {networkName}</span>
+          <span className="cl-stat">live across {networkName}</span>
         </div>
       </Reveal>
     </section>

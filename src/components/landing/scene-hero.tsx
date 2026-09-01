@@ -64,7 +64,7 @@ export function SceneHero({
             <span className="hero-stat-v mono">{usd(paidUsd)}</span>
             <span className="hero-stat-k mono">
               paid to real testers · {payoutCount} verified payout
-              {payoutCount === 1 ? "" : "s"} on {networkName}
+              {payoutCount === 1 ? "" : "s"} across {networkName}
             </span>
           </div>
 

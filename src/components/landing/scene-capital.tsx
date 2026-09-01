@@ -21,10 +21,10 @@ import { Reveal } from "./reveal";
 export function SceneCapital({
   totals,
 }: {
-  totals: { paidUsd: number; payoutCount: number; blockedCount: number };
+  totals: { paidUsd: number; payoutCount: number; refusedCount: number };
 }) {
-  const decided = totals.payoutCount + totals.blockedCount;
-  const refusalPct = decided > 0 ? Math.round((totals.blockedCount / decided) * 100) : 0;
+  const decided = totals.payoutCount + totals.refusedCount;
+  const refusalPct = decided > 0 ? Math.round((totals.refusedCount / decided) * 100) : 0;
 
   return (
     <section className="cap" id="capital" aria-label="Verified cash flow and underwriting">

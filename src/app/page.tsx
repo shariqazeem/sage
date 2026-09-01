@@ -1,7 +1,9 @@
 import "./landing-v2.css";
 import type { Metadata } from "next";
 import { chainConfig } from "@/lib/deputy/networks";
-import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
+import { getPublicReceipts } from "@/lib/erc8004/reputation";
+import { countDecidedSubmissions } from "@/lib/db/campaigns";
+import { mainnetSettled, settledLedger } from "@/lib/campaigns/settled-ledger";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
 
@@ -37,26 +39,30 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  // The landing is the MAINNET showcase — GOAT Network, real USDC. Only real GOAT
-  // payouts appear.
-  const net = chainConfig(2345);
-
-  // ── ONE coherent source of truth for every number on the page ──
-  // The deduped real journal (sandbox-excluded), not the vault's raw on-chain log
-  // (which carried old test spends and rendered as phantom totals). The hero, proof
-  // rail, and closing stats all read THIS.
-  // The RAIL is a display window (the most recent receipts). The TOTALS are the whole
-  // record. Summing the window was the bug: getPublicReceipts() caps at 12, so as payouts
-  // accumulated the hero total silently became "the last twelve" and drifted away from the
-  // real figure — it read $34.47 against a true $48.10. A number a visitor is invited to
-  // verify on-chain must come from the full journal, never from what fits on screen.
-  const feed = getPublicReceipts().filter((h) => h.chainId === 2345);
-  const record = getAgentChainSplit().find((c) => c.chainId === 2345);
+  /**
+   * ONE LEDGER, EVERY RAIL — the landing read GOAT alone (`chainId === 2345`) and derived
+   * "refused" from on-chain rejections, so the front door said "$51.10 · 26 payouts on GOAT
+   * Network · 0% refused" while the explorer, one click away, said $52.60 · 29 · 43% across two
+   * rails. A privacy-hackathon judge's first screen erased the rail being judged, and the number
+   * the whole capital story leans on (the refusal rate is the institutional asset) was denied by
+   * the page that introduces it. The explorer fixed both derivations weeks ago; this page kept
+   * its own copy. Same rows now: the settled ledger for money, the decided ledger for refusals.
+   */
+  const isMainnetRail = (chainId: number | null | undefined) =>
+    chainId != null && chainConfig(chainId).isMainnet;
+  const feed = getPublicReceipts().filter((h) => isMainnetRail(h.chainId));
+  const settled = mainnetSettled();
+  const decided = countDecidedSubmissions();
   const totals = {
-    paidUsd: record?.settledUsd ?? 0,
-    payoutCount: record?.payouts ?? 0,
-    blockedCount: record?.blocks ?? 0,
+    paidUsd: settled.usdcSettled,
+    payoutCount: settled.payouts,
+    refusedCount: decided.rejected,
   };
+  // The rails that have actually settled real money, most payouts first — "GOAT Network + Starknet".
+  const railCounts = new Map<number, number>();
+  for (const r of settledLedger()) if (r.mainnet) railCounts.set(r.chainId, (railCounts.get(r.chainId) ?? 0) + 1);
+  const railNames = [...railCounts.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => chainConfig(id).name);
+  const net = { name: railNames.length > 0 ? railNames.join(" + ") : chainConfig(2345).name, chainId: 2345 };
 
   const ecosystem = await ecosystemStatus();
 
