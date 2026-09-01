@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square, Compass} from "lucide-react";
+import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square, Compass, HandCoins } from "lucide-react";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import "@/styles/wallet-connect.css";
@@ -104,17 +104,15 @@ export function DashboardClient({
       <div className="sb-welcome">
         <div>
           <div className="sage-eyebrow dash-eyebrow">Founder dashboard</div>
-        <h1 className="sb-welcome-h1 dash-display">
-          Welcome back
-          {address && (
-            <>
-              ,<br />
-              <span className="sb-welcome-name mono">{short(address)}</span>
-            </>
-          )}
-        </h1>
+        {/* A greeting, not a hex dump. The address is identity plumbing — real products greet
+            the person and keep the key in the small print. */}
+        <h1 className="sb-welcome-h1 dash-display">Your money at work.</h1>
         <p className="sb-welcome-sub">
-          Point Sage at a product and it designs paid testing missions — or just ask.
+          Test a product, pay for a deliverable, or fund milestones — Sage verifies every claim
+          itself and settles from a vault it can never exceed.
+          {address && (
+            <span className="sb-welcome-wallet mono"> {short(address)}</span>
+          )}
         </p>
         </div>
         <div className="sb-dash-stats">
@@ -142,10 +140,23 @@ export function DashboardClient({
           <span className="sb-home-card-ico">
             <Rocket size={20} strokeWidth={1.9} />
           </span>
-          <span className="sb-home-card-title dash-h3">Launch a campaign</span>
+          <span className="sb-home-card-title dash-h3">Test my product</span>
           <span className="sb-home-card-desc">
-            Give Sage a product URL and a budget — it explores the product itself, designs missions,
-            and pays verified testers on-chain.
+            Give Sage a URL and a budget — it explores the product itself, designs missions, and
+            pays verified testers on-chain.
+          </span>
+          <span className="sb-home-card-cta">
+            Start <ArrowRight size={14} strokeWidth={2.2} />
+          </span>
+        </Link>
+        <Link href="/launch?do=pay" className="sage-agent-card sb-agent-tap sb-home-card">
+          <span className="sb-home-card-ico">
+            <HandCoins size={20} strokeWidth={1.9} />
+          </span>
+          <span className="sb-home-card-title dash-h3">Pay for work</span>
+          <span className="sb-home-card-desc">
+            A gig, a bounty, a milestone grant — say it once. Sage verifies the deliverable itself
+            and releases each payment only on proof.
           </span>
           <span className="sb-home-card-cta">
             Start <ArrowRight size={14} strokeWidth={2.2} />

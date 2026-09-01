@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
+import { Sparkles,
   ShieldCheck,
   Copy,
   Check,
@@ -509,6 +509,15 @@ function Console({ data }: { data: WorkspaceData }) {
                 Open board <ExternalLink size={13} />
               </Link>
             </div>
+            {/* THE ECOSYSTEM TISSUE: from any campaign, the agent one click away and already
+                briefed. Reuses the /agent?ask= prefill — composer, never auto-sent, so the
+                founder always sees the words before Sage acts on them. */}
+            <Link
+              href={`/agent?ask=${encodeURIComponent(`How is my campaign "${data.title}" (${data.id}) doing — anything that needs my attention?`)}`}
+              className="cw-link cw-ask-sage"
+            >
+              <Sparkles size={13} /> Ask Sage about this campaign
+            </Link>
           </div>
 
           {/* missions */}

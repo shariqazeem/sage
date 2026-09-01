@@ -4189,3 +4189,7 @@
 .cw-decide-err {
   color: var(--danger, #dc2626);
 }
+
+/* the console's agent hand-off — quiet, present, already briefed */
+.cw-ask-sage { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.65rem; font-size: 0.8125rem; }
+.sb-welcome-wallet { color: var(--ink-faint); font-size: 0.8125rem; }

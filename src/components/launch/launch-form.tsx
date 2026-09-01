@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HandCoins, Plus, ScanSearch } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
@@ -129,6 +129,14 @@ export function LaunchForm() {
   /** THE TWO DOORS (move 5): "test" = the bootcamp-winning inspection flow, byte-identical.
    *  "pay" = the sentence composer for funder-defined work. Both drafts survive a mode switch. */
   const [mode, setMode] = useState<"test" | "pay">("test");
+  // A door elsewhere in the app can open THIS door directly (?do=pay) — the dashboard's
+  // "Pay for work" card lands on the gig sentence, not on a toggle it must find first.
+  // An EFFECT, not the state initializer: the initializer runs against the server-rendered
+  // value during hydration and the param silently loses (measured — the toggle stayed on
+  // "test" with ?do=pay in the address bar). Same pattern as the agent page's ?ask=.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("do") === "pay") setMode("pay");
+  }, []);
   const [pay, setPay] = useState<PayDraft>({ who: "", amount: "", deliverable: "", verify: "link", slots: "1" });
   const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
