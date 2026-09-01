@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { advances, campaigns, missions, submissions } from "@/lib/db/schema";
 import { CURRENCIES, corridorCost, type CorridorCost } from "@/lib/money/currency";
 import { isTestnetChain } from "@/lib/format";
+import { OPERATOR_WALLETS, settledLedger } from "@/lib/campaigns/settled-ledger";
 
 /**
  * THE BRIEF'S BAR, AS READINGS — "does your system change outcomes?" answered from the ledger.
@@ -42,6 +43,8 @@ export interface OutcomeReadings {
 export interface SettledRow {
   wallet: string;
   rewardBase: number;
+  /** payout to one of Sage's own wallets — real settled money, but not "a person given access". */
+  operator: boolean;
   createdAt: number;
   decidedAt: number | null;
   posterWallet: string;
@@ -92,7 +95,9 @@ export function deriveOutcomes(
     medianMinutesToSettle: median(minutes),
     p90MinutesToSettle: quantile(minutes, 0.9),
     settledWithinHourPct: withinHour,
-    peoplePaid: new Set(paid.map((r) => r.wallet.toLowerCase())).size,
+    // dogfood is real settled money (the flow bar counts it) but not expanded access — Sage
+    // paying its own wallet is not "a person paid with no application".
+    peoplePaid: new Set(paid.filter((r) => !r.operator).map((r) => r.wallet.toLowerCase())).size,
     refusedCount: refused.length,
     refusalSharePct: decided > 0 ? (refused.length / decided) * 100 : null,
     advancesTotal: advanceRows.length,
@@ -110,6 +115,17 @@ export function deriveOutcomes(
 
 /** IO — mainnet only, decided work only: an outcome is something that HAPPENED. */
 export function readOutcomes(): OutcomeReadings {
+  /**
+   * MONEY FROM THE SETTLED LEDGER, BEHAVIOUR FROM SUBMISSIONS.
+   *
+   * The page promises "every figure computed from the settlement ledger" — and this loader was
+   * the fourth surface pricing payouts by a mission-reward lookup instead (it agreed with the
+   * ledger only while every settlement happened to match its mission's headline). Timing,
+   * refusals and funders genuinely live on submissions; the AMOUNT of a paid row now comes from
+   * its settlement event, keyed by the anchoring tx. The lookup remains only as the fallback for
+   * a row the journal somehow missed — and the journal is written on the dispatch now.
+   */
+  const amountByTx = new Map(settledLedger().map((r) => [r.txHash, r.amountBase]));
   const rows = db
     .select({
       wallet: submissions.wallet,
@@ -148,7 +164,9 @@ export function readOutcomes(): OutcomeReadings {
   return deriveOutcomes(
     mainnet.map((r) => ({
       wallet: r.wallet ?? "",
-      rewardBase: r.missionReward ?? r.campaignReward ?? 0,
+      rewardBase:
+        (r.payoutTx ? amountByTx.get(r.payoutTx) : undefined) ?? r.missionReward ?? r.campaignReward ?? 0,
+      operator: OPERATOR_WALLETS.has((r.wallet ?? "").toLowerCase()),
       createdAt: r.createdAt,
       decidedAt: r.decidedAt,
       posterWallet: r.posterWallet ?? "",

@@ -4,6 +4,7 @@ import { deriveOutcomes, type SettledRow } from "./outcomes";
 const row = (over: Partial<SettledRow>): SettledRow => ({
   wallet: "0xaa",
   rewardBase: 500_000,
+  operator: false,
   createdAt: 1_000,
   decidedAt: 1_600, // 10 minutes
   posterWallet: "0xf1",
@@ -77,5 +78,18 @@ describe("deriveOutcomes", () => {
     expect(o.medianMinutesToSettle).toBeNull();
     expect(o.refusalSharePct).toBeNull();
     expect(o.corridor.savedPct).toBeNull();
+  });
+});
+
+describe("access counts people, not Sage's own wallets", () => {
+  it("an operator payout is settled money on the flow bar but never a person on the access bar", () => {
+    const o = deriveOutcomes(
+      [row({}), row({ wallet: "0xop", operator: true })],
+      [],
+      2_000,
+    );
+    expect(o.settledUsd).toBe(1); // flow: real money either way
+    expect(o.payoutCount).toBe(2);
+    expect(o.peoplePaid).toBe(1); // access: dogfood is not access
   });
 });
