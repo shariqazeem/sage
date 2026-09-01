@@ -6,15 +6,15 @@
 
 ## The system, running
 
-| Door | URL | What you'll see |
-| --- | --- | --- |
-| Product | https://sagepays.xyz | The launch flow: one intent → funded vault → autonomous verified payouts |
-| Marketplace | https://sagepays.xyz/marketplace | Open paid work; empties when every funded slot fills — that is the system working |
-| Explorer | https://sagepays.xyz/explorer | **Every settlement and every refusal**, each anchored to a transaction |
-| Outcomes | https://sagepays.xyz/outcomes | The track's own bar (cost, speed, access, flow) computed LIVE from the settlement ledger — nothing typed in |
-| Work record | [`/record/<wallet>`](https://sagepays.xyz/record/0xccbfb9bba88f282282a29aa1338175cc835e768d) | A worker's verified cash-flow history + published credit signals (`credit-signals-v2`), CSV + JSON |
-| Lender view | https://sagepays.xyz/lender | Underwriting on verified inflow: published arithmetic, signed floor attestations, the advance facility |
-| Proof receipt | [`/proof/<tx>`](https://sagepays.xyz/proof/0x8df7767860692a12fed6f90fe8a88d9a103686bbaa9ceee3d067a1e7c6250069) | One payout, fully cited: evidence → decision → on-chain settlement |
+| Door          | URL                                                                                                            | What you'll see                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Product       | https://sagepays.xyz                                                                                           | The launch flow: one intent → funded vault → autonomous verified payouts                                    |
+| Marketplace   | https://sagepays.xyz/marketplace                                                                               | Open paid work; empties when every funded slot fills — that is the system working                           |
+| Explorer      | https://sagepays.xyz/explorer                                                                                  | **Every settlement and every refusal**, each anchored to a transaction                                      |
+| Outcomes      | https://sagepays.xyz/outcomes                                                                                  | The track's own bar (cost, speed, access, flow) computed LIVE from the settlement ledger — nothing typed in |
+| Work record   | [`/record/<wallet>`](https://sagepays.xyz/record/0xccbfb9bba88f282282a29aa1338175cc835e768d)                   | A worker's verified cash-flow history + published credit signals (`credit-signals-v2`), CSV + JSON          |
+| Lender view   | https://sagepays.xyz/lender                                                                                    | Underwriting on verified inflow: published arithmetic, signed floor attestations, the advance facility      |
+| Proof receipt | [`/proof/<tx>`](https://sagepays.xyz/proof/0x8df7767860692a12fed6f90fe8a88d9a103686bbaa9ceee3d067a1e7c6250069) | One payout, fully cited: evidence → decision → on-chain settlement                                          |
 
 ## The four claims, each with its receipt
 
