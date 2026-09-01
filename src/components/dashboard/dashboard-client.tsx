@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Rocket, Sparkles, ArrowRight, Check, CircleDot, Square, Compass, HandCoins } from "lucide-react";
+import { Rocket, Sparkles, ArrowRight, ArrowUpRight, Check, CheckCircle2, CircleDot, Clock, Compass, HandCoins, Inbox, ShieldCheck, Square, XCircle } from "lucide-react";
+import type { FounderDesk } from "@/lib/campaigns/founder-activity";
+import { reward as fmtReward } from "@/lib/format";
+import "@/styles/tester-board.css";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import "@/styles/wallet-connect.css";
@@ -50,6 +53,7 @@ const GROUP_ORDER: { key: Group; label: string; Icon: typeof CircleDot }[] = [
 ];
 
 export function DashboardClient({
+  desk,
   signedIn,
   address,
   campaigns,
@@ -57,6 +61,7 @@ export function DashboardClient({
   approvedRecipients,
   totalPaid,
 }: {
+  desk: FounderDesk;
   signedIn: boolean;
   address: string | null;
   campaigns: CampaignCard[];
@@ -189,6 +194,51 @@ export function DashboardClient({
           </span>
         </Link>
       </div>
+
+      {/* THE DESK — what the agent did lately, across everything you own. The workplace's own
+          register: the same safe activity vocabulary as every campaign board (projection built in
+          one place, an aggregation of safe rows is safe), each line naming its campaign. Rendered
+          only when work exists — an empty promise box would be marketing. */}
+      {desk.events.length > 0 && (
+        <section className="sb-cat sb-desk" aria-label="Sage at work">
+          <div className="sb-cat-label">
+            <Sparkles size={13} strokeWidth={2.2} className="sb-cat-ico" />
+            Sage at work
+          </div>
+          <div className="tb-act-list sb-desk-list">
+            {desk.events.map((a) => {
+              const tone = a.kind === "paid" ? "pos" : a.kind === "verified" ? "accent" : a.kind === "held" ? "warn" : a.kind === "blocked" ? "dan" : "";
+              return (
+                <div key={`${a.campaignId}:${a.id}`} className={`tb-act-row${tone ? ` ${tone}` : ""}`}>
+                  <span className="tb-act-ico">
+                    {a.kind === "received" ? <Inbox size={14} /> : a.kind === "verified" ? <ShieldCheck size={14} /> : a.kind === "paid" ? <CheckCircle2 size={14} /> : a.kind === "held" ? <Clock size={14} /> : <XCircle size={14} />}
+                  </span>
+                  <span className="tb-act-text">
+                    {a.kind === "received" && "New submission received"}
+                    {a.kind === "verified" && (a.confidencePct != null ? `Evidence verified · ${a.confidencePct}% confidence` : "Evidence verified")}
+                    {a.kind === "paid" && (
+                      <>
+                        Paid <b className="mono">{a.amountBase != null ? fmtReward(a.amountBase, 2345) : "reward"}</b>
+                        {a.wallet ? <> to <span className="mono">{short(a.wallet)}</span></> : null}
+                      </>
+                    )}
+                    {a.kind === "held" && (a.reasonClass ? `Held: ${a.reasonClass}` : "Held for review")}
+                    {a.kind === "blocked" && `Blocked · ${a.reasonClass ?? "integrity check"}`}
+                  </span>
+                  {a.kind === "paid" && a.txHash ? (
+                    <a className="tb-act-proof" href={`/proof/${a.txHash}`}>
+                      <ArrowUpRight size={12} /> proof
+                    </a>
+                  ) : null}
+                  <button className="sb-desk-camp" onClick={() => router.push(`/campaign/${a.campaignId}`)}>
+                    {a.campaignTitle}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {campaigns.length === 0 ? (
         <div className="sage-agent-card sb-dash-empty">

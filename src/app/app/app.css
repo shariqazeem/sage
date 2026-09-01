@@ -4193,3 +4193,14 @@
 /* the console's agent hand-off — quiet, present, already briefed */
 .cw-ask-sage { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.65rem; font-size: 0.8125rem; }
 .sb-welcome-wallet { color: var(--ink-faint); font-size: 0.8125rem; }
+
+/* ── the desk — the agent's recent work, in the board's own activity vocabulary ──────── */
+.sb-desk-list { border: 1px solid var(--border); border-radius: 10px; background: var(--paper-2, #fff); }
+.sb-desk-camp {
+  margin-left: 0.6rem; flex: none;
+  font-size: 0.6875rem; font-family: var(--font-mono); letter-spacing: 0.02em;
+  color: var(--ink-faint); background: none; border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.12rem 0.55rem; cursor: pointer;
+  max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sb-desk-camp:hover { color: var(--accent); border-color: var(--accent-border); }

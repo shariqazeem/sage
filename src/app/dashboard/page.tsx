@@ -3,6 +3,7 @@ import { listCampaigns } from "@/lib/db/campaigns";
 import { reconcileStoppedMany } from "@/lib/campaigns/reconcile-stopped";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { loadFounderDesk, type FounderDesk } from "@/lib/campaigns/founder-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,14 @@ export default async function DashboardPage() {
     await reconcileStoppedMany(mine);
   }
   const overview = getDeputyOverview(wallet);
+  // The desk: the agent's recent work across everything this founder owns — server-fresh on every
+  // load (the page is force-dynamic), no polling chrome on the home.
+  const desk: FounderDesk = wallet ? loadFounderDesk(wallet, 8) : { events: [], lastWorkedAt: null };
   return (
     <DashboardClient
       signedIn={!!wallet}
       address={wallet}
+      desk={desk}
       campaigns={overview.campaigns}
       paidAmountBase={overview.paidAmountBase}
       approvedRecipients={overview.approvedRecipients}
