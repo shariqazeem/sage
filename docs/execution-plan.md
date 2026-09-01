@@ -112,9 +112,18 @@ million-dollar, do everything inside itself, and feel like ONE ecosystem — eve
 Method: walk the real journeys first, name the friction concretely, fix the top items — never a
 blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what judges touch.
 
-- [ ] Friction audit: founder journey (land → connect → launch → fund → watch → payouts) and
-      worker journey (marketplace → submit → claim → record → advance), walked in the browser
-- [ ] Fix the top disconnections the audit names
+- [x] Friction audit walked (1 Sep) — marketplace, launch, explorer, record, outcomes, claim,
+      dashboard. THE find: four surfaces derived "money settled" four ways and showed three
+      different totals on one day — including a rail whose manually-approved settlements never
+      reached the events journal at all (two real Starknet payouts, invisible on the page headed
+      "Every settlement").
+- [x] Fixed the top disconnections (1 Sep): the settlement journal now writes on the DISPATCH
+      (every caller, both rails; two prod rows backfilled from mission-derived amounts) and
+      `settledLedger()` is the one derivation every money surface reads — explorer/outcomes-flow
+      headline $52.60/29 (every settlement), marketplace/launch/outcomes-access $50.60/26/21
+      (to testers, dogfood excluded). Different numbers now mean different NAMED scopes, never
+      drift; the drift test asserts launch ≡ ledger on the same seeded rows. Still empty-board:
+      the marketplace waits on the user's $10 campaign, a funding event, not a defect.
 - [x] First ecosystem pass (1 Sep): both doors on the home, human greeting, ?do=pay deep door,
       console → briefed agent hand-off
 - [x] **WATCH, DON'T CHAT (user thesis, 1 Sep) — SHIPPED same day.** The console's strip was
