@@ -8,7 +8,10 @@ import { Reveal } from "./reveal";
  * backed elsewhere on the page, which is what keeps this from being a sticker wall.
  */
 const MARKS: { name: string; role: string; href: string }[] = [
-  { name: "GOAT Network", role: "settles every payout · real USDC", href: "https://www.goat.network" },
+  { name: "GOAT Network", role: "public receipts · real USDC", href: "https://www.goat.network" },
+  // The second mainnet rail. It was missing from the strip that says what Sage ships with, on
+  // the same day the page's numbers were GOAT-only — the front door kept erasing the rail.
+  { name: "Starknet", role: "private-capable payouts · Cairo vault + claims", href: "https://www.starknet.io" },
   { name: "Metis", role: "ecosystem · Stage 2 bootcamp", href: "https://www.metis.io" },
   { name: "ClawUp", role: "first builder campaigns", href: "https://clawup.org" },
 ];
