@@ -616,7 +616,7 @@ function MissionCard({
               {mine.status === "paid" && mine.claim ? (
                 <ClaimHandoff reward={rewardLabel} url={mine.claim.url} />
               ) : mine.status === "paid" && mine.payoutTx ? (
-                <PaidShare reward={rewardLabel} tx={mine.payoutTx} />
+                <PaidShare reward={rewardLabel} tx={mine.payoutTx} wallet={rail === "starknet" ? starknet.address : wallet.address} />
               ) : null}
               {/* P23: a retryable hold reads as PROGRESS — the "Almost there" beat + the coaching block below
                   carry it; the verdict card (which shows a "HOLD" chip) is reserved for verified/final states. */}
@@ -854,7 +854,7 @@ function ClaimHandoff({ reward, url }: { reward: string; url: string }) {
   );
 }
 
-function PaidShare({ reward, tx }: { reward: string; tx: string }) {
+function PaidShare({ reward, tx, wallet }: { reward: string; tx: string; wallet?: string | null }) {
   const [copied, setCopied] = useState(false);
   const origin =
     typeof window !== "undefined"
@@ -869,6 +869,14 @@ function PaidShare({ reward, tx }: { reward: string; tx: string }) {
         <a className="sage-sub-link" href={`/proof/${tx}`}>
           <ExternalLink size={13} /> View your proof receipt
         </a>
+        {/* THE ASSET THE PAYOUT LEFT BEHIND. Being paid is the moment; the record is what it
+            builds — the verified history a lender can underwrite. Handing it here, at the delight
+            moment, is what turns one payout into a reason to come back. */}
+        {wallet && (
+          <a className="sage-sub-link" href={`/record/${wallet.toLowerCase()}`}>
+            <ExternalLink size={13} /> Your verified work record
+          </a>
+        )}
         <button
           onClick={() => {
             void navigator.clipboard?.writeText(shareText).then(() => {

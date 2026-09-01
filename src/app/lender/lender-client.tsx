@@ -394,9 +394,16 @@ export function LenderClient() {
               <section className="lend-rows" aria-label="Verified payouts">
                 <div className="lend-rows-h">
                   <span>Verified payouts</span>
-                  <a href={`/api/record/${data.wallet}/export?multiple=${encodeURIComponent(multiple)}`}>
-                    <Download size={14} aria-hidden /> CSV
-                  </a>
+                  <span className="lend-rows-links">
+                    {/* the HUMAN page — shareable, privacy-toggled by its owner; the CSV is the
+                        machine door. Both doors, side by side, nobody lost. */}
+                    <a href={`/record/${data.wallet.toLowerCase()}`}>
+                      <ArrowRight size={14} aria-hidden /> Full record
+                    </a>
+                    <a href={`/api/record/${data.wallet}/export?multiple=${encodeURIComponent(multiple)}`}>
+                      <Download size={14} aria-hidden /> CSV
+                    </a>
+                  </span>
                 </div>
                 <ul>
                   {data.entries.slice(0, 25).map((e) => (

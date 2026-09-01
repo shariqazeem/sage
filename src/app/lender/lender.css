@@ -214,3 +214,4 @@
 .lend-att-line b { color: #15803d; }
 .lend-att-arith { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); }
 .lend-att-issuer { margin: 0; font-size: 0.75rem; color: var(--ink-faint); }
+.lend-rows-links { display: inline-flex; gap: 1rem; }
