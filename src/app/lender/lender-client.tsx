@@ -101,6 +101,42 @@ export function LenderClient() {
     }
   }, [wallet]);
 
+  const [attPaste, setAttPaste] = useState("");
+  const [attVerdict, setAttVerdict] = useState<null | {
+    valid: boolean; reason: string | null; subject: string; expiresAt: number;
+    claims: { earnedAtLeastUsd?: number; completions: number; monthsActive: number; verificationPassRate: number | null };
+    anchorsCount: number; expectedIssuer: string;
+  }>(null);
+  const [attError, setAttError] = useState<string | null>(null);
+  const [attChecking, setAttChecking] = useState(false);
+
+  const verifyAtt = useCallback(async () => {
+    setAttError(null);
+    setAttVerdict(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(attPaste);
+    } catch {
+      setAttError("That isn't valid JSON — paste the whole attestation document.");
+      return;
+    }
+    setAttChecking(true);
+    try {
+      const res = await fetch("/api/attest/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ attestation: parsed }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string } & NonNullable<typeof attVerdict>;
+      if (!res.ok || !j.ok) throw new Error(j.error ?? "That could not be verified.");
+      setAttVerdict(j);
+    } catch (e) {
+      setAttError(e instanceof Error ? e.message : "That could not be verified.");
+    } finally {
+      setAttChecking(false);
+    }
+  }, [attPaste]);
+
   const m = Number(multiple);
   const monthly = data?.signals.inflow90dUsd !== undefined ? data.signals.inflow90dUsd / 3 : null;
   const capacity = monthly !== null && Number.isFinite(m) && m > 0 ? monthly * m : null;
@@ -224,11 +260,66 @@ export function LenderClient() {
                   />
                 </div>
                 {data.amountsWithheld ? (
-                  <p className="lend-calc-note">
-                    This earner has withheld their amounts. The activity above is still verified and
-                    checkable — to price it, ask them for a signed statement of earnings, which
-                    proves a floor without publishing the figure.
-                  </p>
+                  <div className="lend-att">
+                    <p className="lend-calc-note">
+                      This earner has withheld their amounts — the activity above stays verified
+                      and checkable. To price it, ask them for their <b>signed earnings floor</b>
+                      (they issue it on their own record page) and paste it here:
+                    </p>
+                    <textarea
+                      value={attPaste}
+                      onChange={(e) => setAttPaste(e.target.value)}
+                      placeholder='{"schema":"sage.earnings-attestation.v1", …}'
+                      rows={4}
+                      spellCheck={false}
+                      aria-label="Paste the earner's signed attestation"
+                    />
+                    <button onClick={() => void verifyAtt()} disabled={attChecking || !attPaste.trim()}>
+                      {attChecking ? "Verifying…" : "Verify the attestation"}
+                    </button>
+                    {attError && <p className="lend-error" role="alert">{attError}</p>}
+                    {attVerdict && !attVerdict.valid && (
+                      <p className="lend-error" role="alert">
+                        NOT valid — {attVerdict.reason}. Do not lend against this document.
+                      </p>
+                    )}
+                    {attVerdict?.valid && (
+                      <div className="lend-att-ok">
+                        {attVerdict.subject.toLowerCase() !== data.wallet.toLowerCase() && (
+                          <p className="lend-error" role="alert">
+                            Valid signature, WRONG wallet: this attestation is for{" "}
+                            {attVerdict.subject.slice(0, 10)}…, not the record you looked up.
+                          </p>
+                        )}
+                        <p className="lend-att-line">
+                          <b>Verified:</b> lifetime earnings{" "}
+                          {attVerdict.claims.earnedAtLeastUsd !== undefined
+                            ? `≥ $${attVerdict.claims.earnedAtLeastUsd.toFixed(2)}`
+                            : "floor not stated"}{" "}
+                          · {attVerdict.claims.completions} completions ·{" "}
+                          {attVerdict.anchorsCount} on-chain anchors · expires{" "}
+                          {new Date(attVerdict.expiresAt * 1000).toISOString().slice(0, 10)}
+                        </p>
+                        {attVerdict.claims.earnedAtLeastUsd !== undefined &&
+                          attVerdict.claims.monthsActive > 0 && (
+                            <p className="lend-att-line lend-att-arith">
+                              Your arithmetic, floors only: ≥ $
+                              {(attVerdict.claims.earnedAtLeastUsd / attVerdict.claims.monthsActive).toFixed(2)}
+                              /active month (floor ÷ {attVerdict.claims.monthsActive} active months)
+                              × your multiple {Number.isFinite(m) ? m : 0} = capacity ≥ $
+                              {Number.isFinite(m)
+                                ? ((attVerdict.claims.earnedAtLeastUsd / attVerdict.claims.monthsActive) * m).toFixed(2)
+                                : "0.00"}
+                              . A floor, never the figure — that is the point.
+                            </p>
+                          )}
+                        <p className="lend-att-issuer">
+                          Signed by Sage&rsquo;s published issuer {attVerdict.expectedIssuer.slice(0, 10)}… —
+                          reproducible off-platform with any EVM library.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <p className="lend-calc-out">

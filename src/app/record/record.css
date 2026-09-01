@@ -164,3 +164,21 @@
 .rec-adv-reps a { margin-left: auto; color: var(--accent); text-decoration: none; }
 .rec-adv-reps a:hover { text-decoration: underline; }
 .rec-adv-tx { margin-left: auto; font-family: var(--font-mono); color: var(--ink-faint); }
+
+/* ── the attestation card — selective disclosure, issued in place ───────────────────── */
+.att-note { font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.6; margin: 0.6rem 0 0; }
+.att-card { margin-top: 0.7rem; border-top: 1px dashed var(--border); padding-top: 0.7rem; }
+.att-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.att-row label { font-size: 0.8125rem; font-weight: 550; }
+.att-prefix { color: var(--ink-faint); font-family: var(--font-mono); }
+.att-row input { width: 6.5rem; font-family: var(--font-mono); font-size: 0.875rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.att-row button { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8125rem; font-weight: 550; padding: 0.4rem 0.7rem; border-radius: 6px; border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent); cursor: pointer; }
+.att-row button:disabled { opacity: 0.55; cursor: default; }
+.att-spin { animation: att-rot 0.9s linear infinite; }
+@keyframes att-rot { to { transform: rotate(360deg); } }
+.att-hint { font-size: 0.75rem; color: var(--ink-faint); line-height: 1.55; margin: 0.45rem 0 0; }
+.att-hint a { color: var(--accent); text-decoration: none; }
+.att-err { font-size: 0.8125rem; color: #dc2626; margin: 0.45rem 0 0; }
+.att-out { position: relative; margin-top: 0.6rem; }
+.att-out textarea { width: 100%; font-family: var(--font-mono); font-size: 0.6875rem; line-height: 1.5; padding: 0.6rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; }
+.att-copy { position: absolute; top: 0.45rem; right: 0.45rem; display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; padding: 0.25rem 0.5rem; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--ink-muted); cursor: pointer; }

@@ -8,6 +8,7 @@ import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 
 import { PrivacyToggle } from "./privacy-toggle";
+import { AttestCard } from "./attest-card";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { publicAdvances } from "@/lib/advance/public";
 import { money, short } from "@/lib/format";
@@ -104,9 +105,9 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
             <p>
               <strong>This worker has chosen not to publish payout amounts.</strong> Every entry
               below is anchored to a transaction anyone can verify, so each payment is provable
-              without this page publishing what someone earns. Sage can issue a scoped, signed
-              statement of earnings when they ask for one.
+              without this page publishing what someone earns.
             </p>
+            <AttestCard wallet={record.wallet} />
           </section>
         )}
 
