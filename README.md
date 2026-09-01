@@ -142,6 +142,9 @@ Privacy removes the line back to a person, not the receipts.
 | class hash | `0x3a36f06cbacff3127b00b8fd11b34242a2ae92b3b9fd87fc0376dcfd8c71168` |
 | declare | [`0x48cc40…1284`](https://voyager.online/tx/0x48cc40b881dd1d2916b320e53d24bf3b02ebc39c89ef70e4d30f6a88bf01284) |
 | deploy | [`0x2ee164…b637`](https://voyager.online/tx/0x2ee164e6cc00789b0750d9cc95f70a35fd6975d1fe1372b4eaced7b08f9b637) |
+| `SageVault` privacy class (declared 2026-09-02) | `0x6d55773e63601dfbd861c78e03c5ac3085b472d7c067d9c5634da03a00b5aa0` — `PayoutReleased`/`PayoutRefused` keyed by `intent_hash`, naming nobody |
+| declare | [`0x29abc1…b87f`](https://voyager.online/tx/0x29abc1846275b4cb6f90715dbec6e9187d60d2b81a77a82b5044cd30d1fb87f) |
+| previous `SageVault` class (three live vaults) | `0x715ab98f0d29548209259a6283d1b1db317b07b4f16441b068c02eaa40ffa87` |
 
 35 tests, and every one of its eleven money guards verified by mutation — each guard deleted in
 turn to confirm a test actually goes red. After deployment the class hash at the address was

@@ -82,7 +82,8 @@ the packages. Then launch the gig. Everything else below stands.
 
 ### (superseded list)
 
-1. **Declare the privacy vault class** (`scripts/starknet-deploy.mjs`, passphrase) → then set
+1. ~~Declare the privacy vault class~~ **DECLARED 2 Sep** — `0x6d5577…`, tx `0x29abc18…fb87f`; production flips to it with the next deploy (old vaults stay recognised).
+   *(was:)* Declare the privacy vault class (`scripts/starknet-deploy.mjs`, passphrase) → then set
    `STARKNET_VAULT_CLASS_HASH` on the VM to the new class and restart, so the gig deploys from it.
    Do this BEFORE launching the gig: the campaign that strangers touch should be the one that
    names nobody.

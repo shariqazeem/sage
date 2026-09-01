@@ -34,7 +34,9 @@ testnet. (Note: the code constant `DEFAULT_CHAIN_ID` is 59902 — see Known drif
 **Two settlement rails.** `campaign.settlementRail` is `"evm"` or `"starknet"`, and it — not
 the chain id — decides which settler pays. EVM covers GOAT and Metis through the V2
 `CampaignVault`; **Starknet mainnet** (recorded internally as chainId **900001**) settles
-through a Cairo `SageVault`, class `0x2770f9fde4668abd9bfffbf8aeca2ce5d104ed812054afa22cdc78356500e84`.
+through a Cairo `SageVault`. The deploy class is `STARKNET_VAULT_CLASS_HASH` (the privacy class
+`0x6d5577…5aa0`, declared 2026-09-02, events keyed by `intent_hash`); vaults on earlier declared classes
+(`STARKNET_VAULT_CLASS_HASHES_PREVIOUS`) stay recognised — `starknetKnownVaultClasses()`.
 The rails are independent by construction: a founder signs in with **either** an EVM wallet
 (SIWE) or a Starknet one, and identity is compared by `sameFounder` alone
 (`src/lib/auth/founder.ts`) — never by chain.

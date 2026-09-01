@@ -50,10 +50,10 @@ other settlement on https://sagepays.xyz/explorer.
   disclose: payout amounts on `/record/<wallet>` can be withheld by the wallet's owner
   (owner-gated), and the **floor attestation** lets them prove "lifetime verified income ≥ X"
   to a lender with their own signature — disclosure as a choice, wallet-signed, oracle-safe.
-- **Pending (named honestly):** the privacy vault class that stops naming recipients in
-  `PayoutReleased`/`PayoutRefused` events is written and password-gated behind the declare
-  script (user action). Until it is declared, existing vaults' events name recipients; the
-  escrow leg is already commitment-keyed.
+- **Declared (2 Sep):** the privacy vault class `0x6d5577…` — `PayoutReleased` and `PayoutRefused`
+  are keyed by `intent_hash`, so the vault's approval record names nobody; declare tx
+  `0x29abc18…fb87f`. New campaigns deploy from it. The three earlier vaults remain on the previous
+  class; their escrow leg was already commitment-keyed.
 
 ## Why it matters (the sentence judges keep hearing from us)
 

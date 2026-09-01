@@ -35,7 +35,8 @@
   reward, enforces caps + replay protection; the settlement event is the source of truth.
   Technical spec: [`docs/CAMPAIGN_VAULT_V2.md`](../CAMPAIGN_VAULT_V2.md).
 - **Starknet mainnet** — `SageVault` (Cairo; refusals answer with a CODE on-chain, so the
-  reason lands where the recipient can read it) + `SageClaims` (escrow pool behind bearer
+  reason lands where the recipient can read it; the privacy class declared 2 Sep keys its
+  events by `intent_hash`, naming nobody) + `SageClaims` (escrow pool behind bearer
   claim links; 35 tests, eleven money guards each verified by mutation). Addresses, class
   hashes and declare/deploy txs: [README, "Live on Starknet mainnet"](../../README.md) —
   kept in one place deliberately.
