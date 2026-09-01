@@ -520,24 +520,30 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign runs on GOAT with real USDC.</p>
+          <p className="lxd-own">This campaign pays real USDC.</p>
+          {/* The wallet's own dialog will name the chain, so the button names it too — matching
+              what the founder is about to see is clarity, not chain-speak. */}
           <button className="lx-btn" onClick={() => void siwe.switchToChain(2345)}>
-            Switch to GOAT Mainnet
+            Switch network to continue <span className="lxd-net-fine">GOAT Mainnet</span>
           </button>
         </div>
       ) : (
         <div className="lxd-chain-pick">
           <button className="lx-btn" disabled={busy} onClick={onClaim}>
-            {busy ? "Securing…" : `Secure plan ownership · ${chainConfig(siwe.chainId).chipLabel}`}
+            {busy ? "Securing…" : "Secure plan ownership"}
           </button>
           {siwe.chainId !== 2345 && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
-              Switch to GOAT Mainnet (real USDC)
+              Switch to real USDC <span className="lxd-net-fine">GOAT Mainnet</span>
             </button>
           )}
         </div>
       )}
-      {siwe.address && <div className="lxd-sub-addr mono">Connected: {short(siwe.address)}</div>}
+      {siwe.address && (
+        <div className="lxd-sub-addr mono">
+          Connected: {short(siwe.address)} · {chainConfig(siwe.chainId).chipLabel}
+        </div>
+      )}
     </div>
   );
 }
@@ -575,7 +581,7 @@ function LimitsPanel(props: {
           <input className="lx-input" type="number" min="1" max="1000" step="1" value={perWalletCap} onChange={(e) => setPerWalletCap(e.target.value)} />
           <span className="lx-hint">Most times one wallet can be paid across the whole campaign. 1 = strongest Sybil resistance.</span>
         </div>
-        <Field label="Network"><span>{chainConfig(chainId).chipLabel}{chainConfig(chainId).isMainnet ? "" : " (testnet)"}</span></Field>
+        <Field label="Settles on"><span>{chainConfig(chainId).chipLabel}{chainConfig(chainId).isMainnet ? "" : " (testnet)"}</span></Field>
         <Field label="Owner (you)"><span className="mono">{short(founder)}</span></Field>
         <Field label="Guardian"><span className="mono">{short(founder)}</span></Field>
       </div>
