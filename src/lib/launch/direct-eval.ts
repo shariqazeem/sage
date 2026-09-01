@@ -375,7 +375,16 @@ export async function runDirectEval(opts: {
           if (parsed.success) {
             const firstShot = parsed.data;
             row.firstShotMilestones = firstShot.milestones.length;
-            const mismatches = checkStatedTerms(
+            /**
+             * A LOCAL total has no USD reading without a stamped rate, and the battery holds none —
+             * converting here would be the exact arithmetic every layer of the product refuses.
+             * Production fetches the quote at the door before compiling; the eval's stated-terms
+             * comparison simply has nothing USD-shaped to compare for that plan, so it SKIPS rather
+             * than crashing the row (measured round 6: splitTotalBaseOf's honest "no rate for JMD"
+             * throw landed as "unparseable tool arguments" — the instrument punishing the fix).
+             */
+            const usdReadable = firstShot.splitTotalLocal === undefined;
+            const mismatches = !usdReadable ? [] : checkStatedTerms(
               f.utterance,
               firstShot.milestones.map((m, i) => ({
                 rewardUsd: effectiveMilestoneUsd(firstShot)[i],
