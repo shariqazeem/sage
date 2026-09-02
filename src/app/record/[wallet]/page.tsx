@@ -13,6 +13,10 @@ import { buildWalletRecord } from "@/lib/campaigns/record";
 import { publicAdvances } from "@/lib/advance/public";
 import { money, short } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
+import { getSessionAddress } from "@/lib/auth/session";
+import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
+import { buildLinkedRecord, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { LinkWalletsButton } from "./link-wallets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +64,18 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   const amountsPrivate = isRecordPrivate(record.wallet);
   // Through the one redaction boundary — never the raw ledger, which carries bearer secrets.
   const advs = publicAdvances(record.wallet, { amountsWithheld: amountsPrivate });
+  // ONE BUSINESS, MANY RAILS — the linked set, and whether THIS viewer can link a second wallet to
+  // this record (signed in with both, and this record is one of them). Comparison by value on
+  // both rails: EVM addresses are checksummed in sessions; Starknet felts vary in padding.
+  const same = (a: string | null, b: string) => { try { return a !== null && BigInt(a) === BigInt(b); } catch { return false; } };
+  const [evmSession, starknetSession] = await Promise.all([getSessionAddress(), getStarknetSessionAddress()]);
+  const linked = buildLinkedRecord(record.wallet);
+  const business = linked && linked.wallets.length > 1 ? linked : null;
+  const businessPrivate = amountsPrivate || (business?.wallets ?? []).some((w) => isRecordPrivate(w));
+  const viewerOwnsThis = same(evmSession, record.wallet) || same(starknetSession, record.wallet);
+  const alreadyLinked = evmSession && starknetSession ? linkedWalletsOf(evmSession).some((w) => same(w, starknetSession)) : true;
+  const canLink = !!evmSession && !!starknetSession && viewerOwnsThis && !alreadyLinked;
+  const otherLabel = same(evmSession, record.wallet) ? "Starknet" : "Ethereum";
 
   return (
     <div className="spp">
@@ -97,6 +113,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
         </section>
 
         <PrivacyToggle wallet={record.wallet} amountsPrivate={amountsPrivate} />
+        {canLink && <LinkWalletsButton otherLabel={otherLabel} />}
 
         {/* Shown only when the worker chose it. A record that quietly dropped its amounts would
             read as incomplete; one that says why reads as deliberate — which it is. */}
@@ -195,6 +212,31 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               Published deterministic formulas over the receipt-anchored entries below — inputs a
               lender can underwrite on, never a score. Sage computes no creditworthiness verdict.
             </p>
+          </section>
+        )}
+
+        {business && (
+          <section className="rec-biz spp-reveal" aria-label="One business, many rails">
+            <div className="rec-sig-head">
+              <span className="rec-sig-title">One business · {business.wallets.length} wallets</span>
+              <span className="rec-sig-ver mono">linked by their own sign-ins</span>
+            </div>
+            <p className="rec-biz-lede">
+              The same published formulas, run over every wallet this one is linked to — a business paid on
+              two rails by different funders is one credit file, not two halves.
+            </p>
+            <ul className="rec-biz-wallets">
+              {business.wallets.map((w) => (
+                <li key={w}><Link href={`/record/${w}`} className="mono">{short(w)}</Link>{same(w, record.wallet) ? <span className="rec-biz-this">this record</span> : null}</li>
+              ))}
+            </ul>
+            <div className="rec-biz-grid">
+              <div><span className="rec-biz-k">verified inflow</span><span className="rec-biz-v mono">{businessPrivate ? "withheld" : `$${business.record.totalUsd.toFixed(2)}`}</span></div>
+              <div><span className="rec-biz-k">completions</span><span className="rec-biz-v mono">{business.record.completions}</span></div>
+              <div><span className="rec-biz-k">distinct funders</span><span className="rec-biz-v mono">{business.signals.distinctPayers}</span></div>
+              <div><span className="rec-biz-k">months active</span><span className="rec-biz-v mono">{business.signals.monthsActive}</span></div>
+              <div><span className="rec-biz-k">pass rate</span><span className="rec-biz-v mono">{business.signals.verificationPassRate === null ? "—" : `${Math.round(business.signals.verificationPassRate * 100)}%`}</span></div>
+            </div>
           </section>
         )}
 

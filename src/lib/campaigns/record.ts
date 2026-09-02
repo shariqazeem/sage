@@ -1,4 +1,5 @@
 import "server-only";
+import { settledLedger } from "./settled-ledger";
 
 import { getCampaign, getMissionByHash, listPaidSubmissionsByWallet } from "@/lib/db/campaigns";
 
@@ -71,13 +72,17 @@ export function buildWalletRecord(walletRaw: string): WalletRecord | null {
     paid = listPaidSubmissionsByWallet(v);
   }
 
+  const ledgerAmountByTx = new Map(settledLedger().map((r) => [r.txHash, r.amountBase]));
   const entries: RecordEntry[] = [];
   for (const s of paid) {
     if (!s.payoutTx) continue; // paid without a tx would be an inconsistency — never show unanchored rows
     const campaign = getCampaign(s.campaignId);
     if (!campaign || campaign.sandbox) continue;
     const mission = s.missionIdHash ? getMissionByHash(campaign.id, s.missionIdHash) : null;
-    const amountBase = mission?.rewardAmount ?? campaign.rewardAmount;
+    // MONEY FROM THE SETTLED LEDGER FIRST — what the vault actually released, keyed by the
+    // anchoring tx; the reward lookup remains only for a row whose settlement never reached the
+    // journal (the journal is written on the dispatch now). Same rule as every public total.
+    const amountBase = ledgerAmountByTx.get(s.payoutTx) ?? mission?.rewardAmount ?? campaign.rewardAmount;
     entries.push({
       at: s.decidedAt ?? s.createdAt,
       campaignId: campaign.id,

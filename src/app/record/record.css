@@ -182,3 +182,19 @@
 .att-out { position: relative; margin-top: 0.6rem; }
 .att-out textarea { width: 100%; font-family: var(--font-mono); font-size: 0.6875rem; line-height: 1.5; padding: 0.6rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; }
 .att-copy { position: absolute; top: 0.45rem; right: 0.45rem; display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; padding: 0.25rem 0.5rem; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--ink-muted); cursor: pointer; }
+
+/* ── one business, many rails ─────────────────────────────────────────────────────────────── */
+.rec-biz { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 0 0 22px; background: var(--bg); }
+.rec-biz-lede { margin: 6px 0 12px; font-size: 0.875rem; line-height: 1.55; color: var(--ink-muted); }
+.rec-biz-wallets { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.8125rem; }
+.rec-biz-wallets a { color: var(--accent); text-decoration: none; }
+.rec-biz-this { margin-left: 6px; font-family: var(--font-mono); font-size: 0.66rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.rec-biz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px 18px; }
+.rec-biz-grid > div { display: flex; flex-direction: column; gap: 3px; }
+.rec-biz-k { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+.rec-biz-v { font-size: 1.05rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rec-link { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.rec-link-btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 0.8125rem; color: var(--accent); background: none; border: 1px solid var(--accent-border, var(--accent)); border-radius: 6px; padding: 0.35rem 0.75rem; cursor: pointer; }
+.rec-link-btn:disabled { opacity: 0.6; cursor: default; }
+.rec-link-hint { font-size: 0.75rem; color: var(--ink-faint); }
+.rec-link-err { font-size: 0.75rem; color: var(--err, #dc2626); }

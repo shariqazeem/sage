@@ -5,8 +5,7 @@ import {
   real,
   sqliteTable,
   text,
-  uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+  uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 import type { StoredBrief } from "../deputy/brain-core";
 
 /** Which rail settles a campaign's payouts. See `campaigns.settlementRail`. */
@@ -1043,6 +1042,22 @@ export type FeedbackRow = typeof feedback.$inferSelect;
  * for someone who would rather not carry a public income graph, and never a default imposed on the
  * people the record is meant to serve.
  */
+/**
+ * ONE BUSINESS, MANY RAILS — wallets a person has proven control of (each with its own sign-in)
+ * linked into one credit file. A Caribbean seller paid on GOAT by one funder and on Starknet by
+ * another is one business; without this she had two records and a lender saw half of each.
+ * Undirected: stored once in canonical order (a < b); the closure is walked at read time.
+ */
+export const walletLinks = sqliteTable(
+  "wallet_links",
+  {
+    walletA: text("wallet_a").notNull(),
+    walletB: text("wallet_b").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.walletA, t.walletB] })],
+);
+
 export const recordPreferences = sqliteTable("record_preferences", {
   wallet: text("wallet").primaryKey(),
   amountsPrivate: integer("amounts_private", { mode: "boolean" }).notNull().default(false),

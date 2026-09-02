@@ -1,0 +1,78 @@
+import "server-only";
+import { eq, or } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { walletLinks } from "@/lib/db/schema";
+import { countDecidedSubmissionsByWallet, getCampaign } from "@/lib/db/campaigns";
+import { computeCreditSignals, type CreditSignals } from "./credit";
+import { buildWalletRecord, type WalletRecord } from "./record";
+
+/**
+ * ONE BUSINESS, MANY RAILS.
+ *
+ * The brief's core ask is to aggregate fragmented data into one coherent business profile. Sage's
+ * record was per wallet, and a wallet is per rail — so a seller paid on GOAT by one funder and on
+ * Starknet by another had two half-records, and a lender underwrote half a business. A link is made
+ * only between wallets the SAME viewer is signed in with at the same time (EVM sign-in + Starknet
+ * sign-in — each already proves control of its wallet); nothing is claimed, everything is proven
+ * by the sessions that exist. The combined record is the union of receipt-anchored entries with the
+ * same published formulas run over it. Nothing here scores anybody.
+ */
+
+const norm = (w: string) => w.trim().toLowerCase();
+const canonical = (a: string, b: string): [string, string] => (norm(a) < norm(b) ? [norm(a), norm(b)] : [norm(b), norm(a)]);
+
+export function linkWallets(a: string, b: string, now = Math.floor(Date.now() / 1000)): { linked: boolean } {
+  const [x, y] = canonical(a, b);
+  if (x === y) return { linked: false };
+  const exists = db.select().from(walletLinks).where(eq(walletLinks.walletA, x)).all().some((r) => r.walletB === y);
+  if (exists) return { linked: false };
+  db.insert(walletLinks).values({ walletA: x, walletB: y, createdAt: now }).run();
+  return { linked: true };
+}
+
+/** Every wallet reachable from `wallet` through links, including itself — the business. */
+export function linkedWalletsOf(wallet: string): string[] {
+  const start = norm(wallet);
+  const seen = new Set<string>([start]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const w = queue.shift() as string;
+    const rows = db.select().from(walletLinks).where(or(eq(walletLinks.walletA, w), eq(walletLinks.walletB, w))).all();
+    for (const r of rows) {
+      for (const other of [r.walletA, r.walletB]) {
+        if (!seen.has(other)) { seen.add(other); queue.push(other); }
+      }
+    }
+  }
+  return [...seen].sort();
+}
+
+export interface LinkedRecord {
+  /** every wallet in the business, sorted; length 1 means "no links" */
+  wallets: string[];
+  record: WalletRecord;
+  signals: CreditSignals;
+  decided: { paid: number; rejected: number };
+}
+
+/** The union of the linked wallets' records, with the published formulas run over the union. */
+export function buildLinkedRecord(wallet: string, nowSec = Math.floor(Date.now() / 1000)): LinkedRecord | null {
+  const wallets = linkedWalletsOf(wallet);
+  const records = wallets.map((w) => buildWalletRecord(w)).filter((r): r is WalletRecord => r !== null);
+  if (records.length === 0) return null;
+  const entries = records.flatMap((r) => r.entries).sort((a, b) => b.at - a.at);
+  const merged: WalletRecord = {
+    wallet: norm(wallet),
+    totalUsd: records.reduce((s, r) => s + r.totalUsd, 0),
+    completions: records.reduce((s, r) => s + r.completions, 0),
+    distinctCampaigns: new Set(entries.map((e) => e.campaignId)).size,
+    firstAt: entries.length ? Math.min(...entries.map((e) => e.at)) : null,
+    lastAt: entries.length ? Math.max(...entries.map((e) => e.at)) : null,
+    entries,
+  };
+  const decided = wallets
+    .map((w) => countDecidedSubmissionsByWallet(w))
+    .reduce((acc, d) => ({ paid: acc.paid + d.paid, rejected: acc.rejected + d.rejected }), { paid: 0, rejected: 0 });
+  const signals = computeCreditSignals(merged, decided, (id) => getCampaign(id)?.posterWallet ?? null, nowSec);
+  return { wallets, record: merged, signals, decided };
+}

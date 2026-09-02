@@ -5,6 +5,7 @@ import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 import { publicRecord, publicSignals } from "@/lib/campaigns/record-privacy";
 import { siteUrl } from "@/lib/site";
 import { publicAdvances } from "@/lib/advance/public";
+import { buildLinkedRecord } from "@/lib/campaigns/wallet-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,24 @@ export async function GET(
    * collateral-based lending never produces, and it survives redaction.
    */
   const advancesOut = publicAdvances(record.wallet, { amountsWithheld: withheld });
+  // ONE BUSINESS, MANY RAILS — the wallets this one is linked to, with the same published formulas
+  // run over the union. Amounts are withheld whenever ANY linked wallet keeps its amounts private:
+  // a private wallet must not become readable through a public one it is linked to.
+  const lk = buildLinkedRecord(record.wallet);
+  const linkedWithheld = withheld || (lk?.wallets ?? []).some((w) => isRecordPrivate(w));
+  const linked =
+    lk && lk.wallets.length > 1
+      ? {
+          wallets: lk.wallets,
+          amountsWithheld: linkedWithheld,
+          completions: lk.record.completions,
+          distinctCampaigns: lk.record.distinctCampaigns,
+          distinctPayers: lk.signals.distinctPayers,
+          monthsActive: lk.signals.monthsActive,
+          verificationPassRate: lk.signals.verificationPassRate,
+          ...(linkedWithheld ? {} : { totalUsd: lk.record.totalUsd, signals: lk.signals }),
+        }
+      : null;
 
   if (!withheld) {
     return NextResponse.json({
@@ -61,6 +80,7 @@ export async function GET(
       entries: record.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
       signals,
       advances: advancesOut,
+    linked,
     });
   }
 
@@ -71,6 +91,7 @@ export async function GET(
     entries: pub.entries.map((e) => ({ ...e, proofUrl: `${siteUrl()}${e.proofPath}` })),
     signals: publicSignals(signals, record),
     advances: advancesOut,
+    linked,
     disclosure: {
       note: "This worker has chosen not to publish payout amounts. Every entry is anchored to a transaction anyone can verify, so the payments remain provable without the income being public.",
       howToObtainAmounts: `${siteUrl()}/record/${pub.wallet}#disclosure`,
