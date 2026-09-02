@@ -48,7 +48,7 @@ describe("copied deliverable — wired end to end through the real decision path
         objective: "Publish a public API write-up on GitHub, marked with your wallet.",
         instructions: "1. Create a public repository. 2. Write the API guide in its README. 3. Put your wallet address on the page. 4. Submit the repository link.",
         criteria: ["The README documents authentication, campaigns, submit and proof.", "The page carries the submitter's wallet address."],
-        evidenceRequirements: ["The public repository URL."],
+        evidenceRequirements: "The public repository URL.",
         evidenceList: ["The public repository URL."],
         verificationContract: { kind: "artifact_url", allowedHosts: ["github.com"], markerKind: "wallet" },
       })
