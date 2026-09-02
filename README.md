@@ -313,6 +313,21 @@ ships.
 Any change to inspection, the field test, the mission brain or the gates also runs the P-GEN matrix
 battery (`scripts/mission-eval-matrix.mjs`). Anchor integrity below 100% is a hard stop.
 
+The money lanes have their own live batteries, each importing production's own prompts and tools:
+P-DIRECT (founder briefs → compiled gigs and grants: correct lane, exact budget, faithful amounts,
+verifiable contracts), P-WORK (gig judging against attack fixtures *and* honest-work fixtures — an
+attack that pays and honest work that holds are both failures) and P-JUDGE (the payout judge:
+zero wrong auto-pays across the hostile set). A judge model is promoted only on this evidence.
+
+**Cheating is held, not argued with.** Deliverables verify against contracts, not prose: on-chain
+reads for on-chain proofs, and for created artifacts a live page on an allowed host that carries the
+submitter's own wallet marker. Around that: exact and paraphrase dedup on reports, a fingerprint of
+the fetched artifact body so a copied page with the marker swapped is held as copied work, GitHub
+provenance (a fork, or a repository older than the gig), wallet-freshness and funding-graph signals,
+a per-wallet payout cap, a daily submit limit, and the vault's per-recipient replay protection.
+Each is a hold for a human to review — a false "you copied" is worse than a miss — and a rate limit
+on a third-party API never holds an honest tester.
+
 ---
 
 ## Interfaces
