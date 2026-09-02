@@ -68,6 +68,13 @@ The same private rail now runs **inside a company**: an employer hands gigs and 
 its own people with "Only people I invite" — off every public board — and pays them through
 the commitment-keyed escrow. A team's pay is neither a public ledger nor a public listing.
 
+## The stranger-facing campaign (live 3 Sep)
+
+`gig-1c3e_FjffE` — "Explain Sage's private payout on Starknet", ten paid slots, public. Its vault
+`0x2394a632e74e60e8d46d5eda15dc6001d8a8b29dd1e93c25ee2ae0fcccb9770` is the first mainnet instance of
+the declared privacy class; every settlement it makes keys its events by intent hash and names nobody.
+Door: https://sagepays.xyz/c/gig-1c3e_FjffE · settlements: https://sagepays.xyz/explorer
+
 ## Live doors
 
 Product https://sagepays.xyz · explorer `/explorer` · a real record `/record/<wallet>` ·

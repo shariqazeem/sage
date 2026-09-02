@@ -307,6 +307,11 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       2 after one correction, zero refused rows; the Urdu gig compiles ($15) and the local-currency
       grant compiles ($63.23 at the stamped rate). All three money-lane batteries are green on the
       deployed stack: P-DIRECT, P-WORK, P-JUDGE.
+- [x] **CAMPAIGN LIVE (Thu, ~19:50 UTC):** `gig-1c3e_FjffE` — "Explain Sage's private payout on
+      Starknet", $1.10 × 10, public, artifact contract (any host, wallet marker), autopilot at 0.85,
+      one payout per wallet. Vault `0x2394a6…9770` — confirmed on-chain as the FIRST mainnet instance
+      of the declared privacy class `0x6d5577…5aa0`. Door: https://sagepays.xyz/c/gig-1c3e_FjffE.
+      Watching for the first submission; holds are reviewed as they appear.
 - [x] **Sixteenth, from the user composing the first public gig (Thu):** the composer had no title
       field — the 'what must be true' sentence became the mission title verbatim, cut at 80 chars
       mid-word on the marketplace card, and the tester steps glued 'You are paid when' onto an
