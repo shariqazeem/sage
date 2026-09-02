@@ -208,6 +208,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       different missions". Pinned by `mission-brain-coerce.test.ts` + `mission-prompt.floor.test.ts`.
       Row 6 itself was the 1500s battery timeout: the brain took 106s; the field test on 18 states
       took the rest — a latency fact to watch, not a defect. Ships in the batch; P-GEN 46 judges it.
+- [x] **P-GEN 45 grid (Wed):** 12/13 PASS, anchors 100% on every completed row, coverage PASS on
+      all of them (spa-app 1→4, webgl-world 1→5, canvas-game 2→5), ~227k tokens. The one failure is
+      the dom-world timeout — the sixth finding, fixed in the batch. Rows read for defects: allbirds,
+      telegram (no invented login step), brittanychiang (critic killed a link inventory; the reward
+      is finding four, fixed in the batch), gitlab-fr (verbatim French anchors), agora (two reading
+      missions → the floor now says flows, never reading). **Batch deployed → P-GEN 46 validates
+      divisibility + v4.4 together; anchors must stay 100%.**
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
