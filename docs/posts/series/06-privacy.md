@@ -6,7 +6,7 @@ So on Starknet, Sage pays in two halves. A Cairo vault releases the reward — t
 
 Auditable in aggregate. Private in the destination. The vault's approval record now names the payout, never the person.
 
-There's $10 on the board right now to try it. Do a short piece of real work, get paid privately, and tell us what that was like.
+There's $10 on the board right now to try it. Do a short piece of real work, get paid privately, and tell us what that was like. (Best on desktop with a Starknet wallet — Ready or Braavos — signing proves you control the address; it moves nothing.)
 
 **Self-reply:** {campaign door} · contracts and the fourth qualifying transaction in {sagepays.xyz/strk20.json}
 
