@@ -355,7 +355,7 @@ function evidenceRequirement(c: VerificationContract): string {
       const where =
         c.allowedHosts.length > 0
           ? ` on ${c.allowedHosts.join(" or ")}`
-          : " — you may publish it on any public page (a blog, a gist, a paste, your own site)";
+          : " — publish it somewhere that stays: a blog post, a dev.to or Medium article, a GitHub gist or repo, a Notion page, or your own site (temporary paste services don't count)";
       return `A public link to the artifact you created${where}. It must visibly contain ${marker}.`;
     }
     case "public_url":

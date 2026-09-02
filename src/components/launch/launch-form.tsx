@@ -697,7 +697,7 @@ export function LaunchForm() {
                         </label>
                       )}
                       {t.verify === "link" && (
-                        <span className="cmp-help">Sage fetches the link they publish and checks it shows the finished work and carries their wallet address.</span>
+                        <span className="cmp-help">Sage fetches the link they publish and checks it shows the finished work and carries their wallet address. Durable pages only — a blog, dev.to, Medium, GitHub, Notion, their own site; paste services are refused.</span>
                       )}
                     </div>
                   </div>

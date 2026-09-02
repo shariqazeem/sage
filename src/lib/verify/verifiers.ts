@@ -167,6 +167,13 @@ export function matchOnchainState(returnedWord: string, c: OnchainStateContract,
 /* ─────────────────────────── artifact URL ─────────────────────────── */
 
 /** PURE: given a fetched artifact, is it live, on an allowed host, and provably the tester's? */
+/** Anonymous, expiring paste services — a page there is not a published deliverable. */
+export const TEMPORARY_HOSTS = [
+  "paste.rs", "pastebin.com", "hastebin.com", "ghostbin.co", "ghostbin.com", "rentry.co", "rentry.org", "justpaste.it",
+  "dpaste.org", "dpaste.com", "controlc.com", "paste.ee", "privatebin.net", "txt.fyi", "telegra.ph", "pastes.io",
+  "paste2.org", "ideone.com", "codepad.org", "paste.ofcode.org", "bpa.st", "0bin.net", "paste.centos.org", "pastecode.io",
+];
+
 export function matchArtifact(
   input: { status: number; finalUrl: string; bodyText: string },
   c: ArtifactUrlContract,
@@ -189,6 +196,11 @@ export function matchArtifact(
   // names neither the host they used nor the one required.
   if (allowed.length > 0 && !allowed.some((h) => host === h || host.endsWith(`.${h}`)))
     return fail(`host ${host} not allowed`, `That link is on ${host} — this mission requires a link on ${allowed.join(" or ")}.`);
+  // "PUBLISH ANYWHERE" IS NOT "A THROWAWAY PASTE". The first public gig's two submissions were paste.rs
+  // pages — anonymous, expiring, three sentences each — because the evidence text itself had suggested
+  // "a paste". A deliverable is something that stays where the operator and a lender can find it.
+  if (allowed.length === 0 && TEMPORARY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`)))
+    return fail(`temporary host ${host}`, `That link is on ${host}, a temporary paste service — publish the work somewhere that stays (a blog, dev.to, Medium, a GitHub gist or repo, a Notion page, your own site) and submit that link.`);
   const hay = norm(input.bodyText);
   // THE MARKER — proof the artifact is THEIRS, not a generic page anyone could link. A parrot who
   // pastes the product's homepage fails here: the homepage doesn't carry their wallet/handle/nonce.
@@ -207,11 +219,21 @@ export function matchArtifact(
 }
 
 /** ASYNC: fetch the artifact (redirects followed) and match. Any fetch failure → HOLD. */
+/** A browser-rendered read of a page — injected in tests; the guarded headless renderer in production. */
+export type ArtifactRenderer = (url: string) => Promise<{ text: string | null; finalUrl: string | null }>;
+
+async function defaultRenderer(url: string): Promise<{ text: string | null; finalUrl: string | null }> {
+  // dynamic import: this module pulls no browser deps unless a render actually fires
+  const { renderEvidence } = await import("@/lib/deputy/evidence-render");
+  const r = await renderEvidence(url);
+  return { text: r.text, finalUrl: r.finalUrl };
+}
+
 export async function verifyArtifactUrl(
   c: ArtifactUrlContract,
   url: string,
   marker: string,
-  deps: { fetchImpl?: typeof fetch } = {},
+  deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null } = {},
 ): Promise<VerificationResult> {
   const f = deps.fetchImpl ?? fetch;
   try {
@@ -219,7 +241,30 @@ export async function verifyArtifactUrl(
     if (u.protocol !== "https:") return { verified: false, strength: "strong", detail: "non-https", publicDetail: "Artifact links must be https." };
     const res = await f(u.toString(), { redirect: "follow" });
     const body = (await res.text()).slice(0, 200_000);
-    return matchArtifact({ status: res.status, finalUrl: res.url || u.toString(), bodyText: body }, c, marker);
+    const finalUrl = res.url || u.toString();
+    const staticResult = matchArtifact({ status: res.status, finalUrl, bodyText: body }, c, marker);
+    if (staticResult.verified || res.status >= 400) return staticResult;
+    /**
+     * CLIENT-RENDERED PAGES. A Notion page, and most modern blogs, return a scaffold to a plain fetch —
+     * the wallet the worker put on the page is only there once the browser has run. The first public
+     * gig held a genuine Notion write-up for "marker absent" while paying a paste. When the static
+     * read misses, the page is read again in the guarded headless browser (the same renderer the
+     * judge's evidence uses) and matched on what a person would actually see. A render that fails or
+     * returns nothing keeps the static verdict — it can only ever ADD a verified path, never remove one.
+     */
+    if (deps.render === null) return staticResult;
+    if (!/marker absent|missing "/.test(staticResult.detail)) return staticResult;
+    try {
+      const render = deps.render ?? defaultRenderer;
+      const r = await render(u.toString());
+      if (r.text && r.text.trim().length > 0) {
+        const rendered = matchArtifact({ status: 200, finalUrl: r.finalUrl || finalUrl, bodyText: r.text }, c, marker);
+        if (rendered.verified) return { ...rendered, detail: `${rendered.detail} (browser-rendered)` };
+      }
+    } catch {
+      /* the static verdict stands */
+    }
+    return staticResult;
   } catch {
     return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — try again in a moment." };
   }

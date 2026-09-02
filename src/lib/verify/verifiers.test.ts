@@ -158,7 +158,7 @@ describe("artifact_url with NO host restriction — the MSME case (P-DIRECT 2026
   const unpinned = { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" } as const;
 
   it("accepts ANY host when the operator pinned none — the marker is the binding", () => {
-    for (const url of ["https://paste.rs/x1", "https://some-shop.example/menu", "https://notes.site/abc"]) {
+    for (const url of ["https://notes.example/x1", "https://some-shop.example/menu", "https://notes.site/abc"]) {
       const r = matchArtifact(
         { status: 200, finalUrl: url, bodyText: `Shop page. Published by ${marker}` },
         unpinned as never,
@@ -179,8 +179,8 @@ describe("artifact_url with NO host restriction — the MSME case (P-DIRECT 2026
   });
 
   it("a PINNED host list still binds exactly as before", () => {
-    const pinned = { kind: "artifact_url", allowedHosts: ["paste.rs"], markerKind: "wallet" } as const;
-    const ok = matchArtifact({ status: 200, finalUrl: "https://paste.rs/x", bodyText: marker }, pinned as never, marker);
+    const pinned = { kind: "artifact_url", allowedHosts: ["notes.example"], markerKind: "wallet" } as const;
+    const ok = matchArtifact({ status: 200, finalUrl: "https://notes.example/x", bodyText: marker }, pinned as never, marker);
     expect(ok.verified).toBe(true);
     const off = matchArtifact({ status: 200, finalUrl: "https://elsewhere.io/x", bodyText: marker }, pinned as never, marker);
     expect(off.verified).toBe(false);
