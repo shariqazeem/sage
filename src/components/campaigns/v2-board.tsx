@@ -1,4 +1,3 @@
-import type React from "react";
 "use client";
 
 import {
@@ -1142,9 +1141,9 @@ function StarknetSubmitGate({
 }
 
 /** Turn bare URLs and sagepays.xyz paths in a sentence into links a worker can click. Pure. */
-export function linkify(text: string): React.ReactNode[] {
+export function linkify(text: string): ReactNode[] {
   const re = /(https?:\/\/[^\s"')<>]+|(?:^|(?<=[\s(]))sagepays\.xyz(?:\/[^\s"')<>]*)?)/g;
-  const out: React.ReactNode[] = [];
+  const out: ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
   let k = 0;
