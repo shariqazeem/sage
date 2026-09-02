@@ -26,7 +26,16 @@
 }
 .lx * { box-sizing: border-box; }
 
-.lx-wrap { max-width: 760px; margin: 0 auto; padding: 40px 22px 96px; }
+/* THE LAUNCH FAMILY TAKES THE SHELL'S WIDTH, like the dashboard and the marketplace — a 760px
+   column in the middle of a 1440px screen boxed the composer into a vertical stack beside
+   acres of paper (the founder's own screenshot, 2 Sep). Same recipe as .sb-board: full width,
+   left padding that clears the rail, a sane ceiling so forms don't run to the horizon on
+   ultra-wide screens, and 16px sides on phones. */
+.lx-wrap { width: 100%; max-width: 1320px; margin: 0; padding: 40px clamp(1.5rem, 3vw, 3rem) 96px clamp(6rem, 7vw, 7.5rem); }
+@media (max-width: 720px) { .lx-wrap { padding-left: 16px; padding-right: 16px; padding-bottom: 92px; } }
+/* readable line lengths stay bounded even when the page is wide */
+.lx-hero { max-width: 62rem; }
+.lxo-input, .lxo-budget { max-width: 52rem; }
 .lx-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .lx-mark { width: 30px; height: 30px; border-radius: var(--r-md); background: var(--lx-ink); display: grid; place-items: center; }
 .lx-mark span { width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid var(--lx-bg); }
@@ -707,7 +716,7 @@
 /* ============================================================================
    THE COMPOSER — gigs · bounties · milestone grants, with the plan forming beside it
    ============================================================================ */
-.cmp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.85fr); gap: 20px; align-items: start; }
+.cmp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 440px); gap: 24px; align-items: start; }
 .cmp-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .cmp-card { border: 1px solid var(--lx-line); border-radius: 10px; background: var(--lx-bg, #fff); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
 .cmp-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
