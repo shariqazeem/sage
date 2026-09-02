@@ -279,6 +279,12 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       page; HELD for review, never auto-rejected. Pinned by `fingerprint.test.ts` +
       `dedup-artifact.test.ts`. Next layer if time allows: GitHub provenance (fork flag, repo
       created before the gig).
+- [x] **GitHub provenance (Thu):** for a github.com artifact that verifies, Sage reads the public
+      repository record: a FORK, or a repository created more than a day before the gig existed,
+      is held for the founder with a plain reason (the marker proves the page is theirs NOW, not
+      that the work was done FOR this gig). A rate-limited or unreachable API yields NO signal —
+      an honest tester is never held for GitHub's limit. `GITHUB_TOKEN` (optional) only raises
+      the limit. Pinned by `github-provenance.test.ts` + `work-proof-github.test.ts`.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.

@@ -287,6 +287,7 @@ export async function ensureDecision(
       wallet: submission.wallet,
       evidenceUrl: submission.evidenceUrl,
       note: submission.note,
+      campaignCreatedAt: campaign.createdAt,
     });
     if (wp.outcome === "transient") return null; // pending — retried on the next sweep
     if (wp.outcome === "definitive") {

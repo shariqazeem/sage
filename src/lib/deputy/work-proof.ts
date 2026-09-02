@@ -13,6 +13,7 @@ import type {
   VerificationResult,
 } from "@/lib/verify/contract";
 import { matchOnchainState, matchPublicUrl, verifyArtifactUrl, verifyOnchainTx } from "@/lib/verify/verifiers";
+import { checkGithubProvenance, parseGithubRepo } from "@/lib/verify/github-provenance";
 
 /**
  * WORK PROOF — the judge-side lane (docs/work-proof-design.md §C).
@@ -86,6 +87,8 @@ export interface WorkProofSubmission {
   wallet: string;
   evidenceUrl: string | null;
   note: string | null;
+  /** when the campaign was created — lets a github artifact's provenance be compared against the gig's own age. */
+  campaignCreatedAt?: number;
 }
 
 export interface WorkProofDeps {
@@ -186,6 +189,13 @@ export async function runWorkProof(
           return definitive("marker kind not issuable", "Internal: this mission's marker kind isn't supported yet — held for the operator.");
         }
         const r = await (deps.verifyArtifact ?? verifyArtifactUrl)(contract, url, marker, { fetchImpl: deps.fetchImpl });
+        // PROVENANCE (github.com only): a fork, or a repository older than the gig, is held for the
+        // founder — the marker proves the page is theirs NOW, not that the work was done FOR this gig.
+        // The API degrading (rate limit, outage) yields no signal: an honest tester is never held for it.
+        if (r.verified && submission.campaignCreatedAt && parseGithubRepo(url)) {
+          const prov = await checkGithubProvenance(url, { campaignCreatedAt: submission.campaignCreatedAt, fetchImpl: deps.fetchImpl });
+          if (prov.signal) return definitive(`github provenance: ${prov.signal.reason}`, prov.signal.publicDetail);
+        }
         return classify(r, () =>
           [
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
