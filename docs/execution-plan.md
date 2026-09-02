@@ -290,8 +290,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       (was 12), one correction (was 4). One failure remains and it is a different one: the Urdu gig's
       tool-call arguments arrived as truncated JSON ("Unexpected end of JSON input") — a non-Latin
       deliverable spec is token-expensive and the concierge's tool-call answer ran out of room.
-      Reading the parse site next; the fix shape is the mission ladder's (more room on a MEASURED
-      truncation, never speculatively).
+      Fixed the mission ladder's way: the concierge re-asks ONCE with the next budget rung when the
+      provider itself reports the cut (finish_reason "length") on a turn carrying a tool call —
+      never speculatively, and safe because no tool has run yet. Pinned by `truncation-retry.test.ts`.
+- [x] **Instrument, not product (Thu):** three "P-WORK died" verdicts were my liveness pattern —
+      vitest renames its process to `node (vitest)`, so no `pgrep vitest.*work-eval` can see it. The
+      battery was alive each time. Waiters now match the `npm exec` wrapper with a `[c]` so the ssh
+      command line cannot match itself.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [x] **P-JUDGE (Thu, MiniMax-M3, 3 runs):** zero wrong-autopay across 57/57 valid rows, no provider
       failures, promotion-eligible and conclusive. Every hostile fixture held (direct, paraphrased,

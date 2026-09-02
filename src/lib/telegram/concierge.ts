@@ -203,7 +203,7 @@ type ChatMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 interface ChatResponse {
-  choices?: Array<{ message?: { role: "assistant"; content: string | null; tool_calls?: ToolCall[] } }>;
+  choices?: Array<{ message?: { role: "assistant"; content: string | null; tool_calls?: ToolCall[] }; finish_reason?: string | null }>;
 }
 
 // Sage's tools as OpenAI-style function definitions. The read/inspect tools come from the public MCP
@@ -537,6 +537,9 @@ async function chatCompletion(
    * still judge whether it chose correctly, so this compels action without compelling an answer.
    */
   forceTool = false,
+  /** retry rung for the answer budget — raised ONLY after a MEASURED truncation (finish_reason
+   *  "length"), never speculatively; see the mission architect's ladder for the same rule. */
+  escalation = 0,
 ): Promise<ChatResponse> {
   return withTransientRetry(
     async () => {
@@ -563,7 +566,7 @@ async function chatCompletion(
            * reply. Generation is billed by tokens PRODUCED, so a short chat turn still costs a
            * short chat turn; this is a ceiling, not a spend.
            */
-          max_tokens: outputBudget(5_000, profileFor(model(), base())),
+          max_tokens: outputBudget(5_000, profileFor(model(), base()), escalation),
           messages,
           tools,
           tool_choice: forceTool ? "required" : "auto",
@@ -688,7 +691,18 @@ async function runAgentTurn(
       const roundTools = selfCorrected && correctiveTool
         ? tools.filter((t) => t.function?.name === correctiveTool)
         : tools;
-      const data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected);
+      let data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected);
+      /**
+       * A TOOL CALL CUT MID-JSON IS NOT AN ANSWER. On MiniMax a long, stochastic <think> block precedes
+       * the call, and a non-Latin deliverable spec is token-expensive: P-DIRECT's Urdu gig arrived as
+       * `Unexpected end of JSON input` and the founder got nothing. The provider says so itself
+       * (finish_reason "length"), so the turn is re-asked ONCE with the next budget rung — a measured
+       * truncation buys more room; nothing else does. Safe by construction: no tool has run yet.
+       */
+      if (data.choices?.[0]?.finish_reason === "length" && data.choices[0]?.message?.tool_calls?.length) {
+        console.warn("[concierge:%s] tool call truncated (finish=length) — re-asking with more room", surface);
+        data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, 1);
+      }
       const msg = data.choices?.[0]?.message;
       if (!msg) {
         reply = "I couldn't reach my brain just now — try again in a moment.";
