@@ -38,14 +38,42 @@ export const dynamic = "force-dynamic";
  * campaign's reward pool live, the settled feed links each payout to its on-chain
  * proof, and the submit panel is the same input/button system as the app.
  */
+/**
+ * THE CARD A LINK SHOWS. For a single-deliverable gig the mission IS the campaign, so the card
+ * carries the mission's title and its price — not "Testing campaign · host" (the V2 deploy's default
+ * name, which a direct gig inherited on launch day) and not the testing boilerplate.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const c = getCampaign(slug);
+  const head = c ? boardHeadline(c) : null;
   return {
     // The layout template appends "· Sage"; adding it here rendered it twice in the tab.
-    title: c ? c.title : "Reward campaign",
+    title: head?.title ?? "Reward campaign",
     description:
+      head?.description ??
       "A paid testing mission on Sage. Do the work, submit your evidence, and an AI agent pays you real USDC from an on-chain vault — every payout a verifiable receipt.",
+    openGraph: head ? { title: head.title, description: head.description } : undefined,
+    twitter: head ? { title: head.title, description: head.description } : undefined,
+  };
+}
+
+/** The title and one-line description a board presents — the mission's own for a single-deliverable gig. */
+function boardHeadline(c: NonNullable<ReturnType<typeof getCampaign>>): { title: string; description: string } {
+  const e = hasMissionPlan(c.vaultKind) ? v2Economics(c) : null;
+  const one = e && e.missions.length === 1 ? e.missions[0] : null;
+  const rail = c.vaultKind === "sage_vault_starknet" ? "Starknet — privately, if you choose" : "GOAT Network";
+  const isDirect = c.kind === "gig" || c.kind === "grant";
+  if (isDirect && one) {
+    const each = (one.rewardBase / 1_000_000).toLocaleString("en-US", { style: "currency", currency: "USD" });
+    return {
+      title: one.title,
+      description: `${each} for each of ${one.maxCompletions} ${one.maxCompletions === 1 ? "person" : "people"}, verified and paid by an AI agent on ${rail}. No application, no interview, no human approving the payout.`,
+    };
+  }
+  return {
+    title: c.title,
+    description: `A paid ${isDirect ? "gig" : "testing mission"} on Sage. Do the work, submit your evidence, and an AI agent pays you USDC from an on-chain vault on ${rail} — every payout a verifiable receipt.`,
   };
 }
 
@@ -103,8 +131,10 @@ export default async function CampaignPublicPage({
               ? "Paid from a vault with hard spending limits — privately, if you choose"
               : "Paid from a founder-owned vault with hard on-chain limits"}
           </div>
-          <h1 className="tb-hero-title">{campaign.title}</h1>
-          {campaign.descriptionMd && (
+          <h1 className="tb-hero-title">{boardHeadline(campaign).title}</h1>
+          {/* a direct campaign's "description" is its own board URL (v2-setup stores productUrl there) —
+              a bare link under the headline is noise, not a description */}
+          {campaign.descriptionMd && !/^https?:\/\/\S+$/.test(campaign.descriptionMd.trim()) && (
             <p className="tb-hero-desc">{campaign.descriptionMd}</p>
           )}
 

@@ -49,7 +49,7 @@ const SITE = siteUrl();
 const TITLE =
   "AI agent that pays testers for verified product feedback · Sage";
 const DESCRIPTION =
-  "Sage points an AI agent at your live product, designs paid user-testing missions from what it actually sees, and pays human testers in USDC for verified evidence. Every payout comes from an on-chain vault the agent cannot exceed and publishes a receipt anyone can check.";
+  "Sage is an AI agent that pays people for work it has verified: it tests your product with paid missions, runs gigs, bounties and milestone grants, and pays human workers in USDC from an on-chain vault it can never exceed. Public receipts on GOAT Network, private payouts on Starknet, every refusal on record.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

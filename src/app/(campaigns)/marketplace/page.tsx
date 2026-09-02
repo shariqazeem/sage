@@ -15,9 +15,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Get paid to test products",
+  title: "Get paid for verified work",
   description:
-    "Every paid testing mission open on Sage right now. Pick one, do the task, describe what you saw, and get paid in USDC. No application and no interview: an AI agent checks your evidence against what it observed in the product itself.",
+    "Every paid mission, gig and bounty open on Sage right now. Pick one, do the work, submit your evidence, and an AI agent verifies it and pays you in USDC — publicly on GOAT Network or privately on Starknet. No application, no interview, no human approving the payout.",
   alternates: { canonical: "/marketplace" },
 };
 

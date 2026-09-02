@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 // palette matches tokens.css instead of drifting.
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Sage: hire an AI worker, give it a budget, not your keys";
+export const alt = "Sage: pay people for work an AI has verified — public receipts on GOAT, private payouts on Starknet";
 
 const PAPER = "#fbfbf9";
 const INK = "#1a1d21";
@@ -39,9 +39,9 @@ export default function OG() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontSize: 70, fontWeight: 800, letterSpacing: -2.5, lineHeight: 1.05 }}>Hire an AI worker.</div>
-          <div style={{ fontSize: 70, fontWeight: 800, letterSpacing: -2.5, lineHeight: 1.05, color: ACCENT }}>
-            Give it a budget, not your keys.
+          <div style={{ fontSize: 66, fontWeight: 800, letterSpacing: -2.5, lineHeight: 1.05 }}>Pay people for work</div>
+          <div style={{ fontSize: 66, fontWeight: 800, letterSpacing: -2.5, lineHeight: 1.05, color: ACCENT }}>
+            an AI has verified.
           </div>
         </div>
 
@@ -56,7 +56,7 @@ export default function OG() {
             paddingTop: 28,
           }}
         >
-          <div style={{ display: "flex" }}>Autonomous USDC payouts for verified work — every one a receipt.</div>
+          <div style={{ display: "flex" }}>Testing · gigs · grants — USDC on GOAT, privately on Starknet, every payout a receipt.</div>
           <div style={{ display: "flex" }}>sagepays.xyz</div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 import { NextResponse } from "next/server";
 
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
@@ -312,7 +313,9 @@ export async function POST(
   const result = await attachV2Campaign(
     {
       publicCampaignId: plan.plan.publicCampaignId,
-      title: campaignTitle(job?.productUrl ?? ""),
+      // A direct campaign is titled by its OPERATOR, not by the product host — the first public gig
+      // recorded "Testing campaign · sagepays.xyz" on this rail while the EVM runner already knew better.
+      title: parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? ""),
       productUrl: job?.productUrl ?? "",
       chainId: STARKNET_MAINNET_KEY,
       expectedToken: cfg.tokenAddress,
@@ -365,7 +368,7 @@ export async function POST(
   recordEvent({
     campaignId: result.campaignId,
     kind: "campaign_created",
-    detail: `${campaignTitle(job?.productUrl ?? "")} · private-capable, vault ${vaultAddress.slice(0, 12)}…`,
+    detail: `${parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? "")} · private-capable, vault ${vaultAddress.slice(0, 12)}…`,
   });
 
   return NextResponse.json({ ok: true, campaignId: result.campaignId, vaultAddress });
