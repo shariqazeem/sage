@@ -15,7 +15,10 @@ import { WORK_FIXTURES } from "./work-fixtures";
  * Blanket strictness and blanket leniency both fail this battery; only judgment passes it.
  */
 const LIVE = process.env.WORK_EVAL === "1";
-const MODEL = process.env.WORK_MODEL?.trim() || process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "deepseek/deepseek-v4-flash";
+// The judge runs on the PAYOUT lane, so its default model is the lane's own. Resolving to the shared
+// chain's model first sent "anthropic/claude-haiku-4-5" to api.minimax.io — llm 400 three times per
+// row, every row a heuristic fallback, and a battery that measured nothing (2026-09-03).
+const MODEL = process.env.WORK_MODEL?.trim() || process.env.PAYOUT_MODEL?.trim() || process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "deepseek/deepseek-v4-flash";
 const RUNS = Math.max(1, Number(process.env.WORK_RUNS) || 1);
 /** WORK_ONLY=wp-honest-menu-full,wp-bluff-claim — iterate a hypothesis on 2 fixtures in ~30s
  *  instead of a 13-minute full battery. A filtered run is NEVER promotion evidence. */

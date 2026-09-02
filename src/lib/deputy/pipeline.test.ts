@@ -506,6 +506,24 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
   });
 
+  it("HOLDS a copied deliverable — a marker-swapped fork of another wallet's artifact — before any settle", async () => {
+    const { artifactFingerprint } = await import("./fingerprint");
+    const A = "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6";
+    const B = "0x9a8B7c6D5e4F3a2B1c0D9e8F7a6B5c4D3e2F1a0B";
+    const body = (w: string) =>
+      `Deliverable page by ${w}: the public API is documented — bearer authentication, the campaigns list, the submit endpoint with an evidence link and a note, the proof endpoint keyed by transaction hash, rate limits per wallet per day, error codes with a public detail line, and examples for curl and fetch. Marker ${w}.`;
+    const honest = artifactFingerprint(body(A), [A]);
+    const copy = artifactFingerprint(body(B).replace("examples for curl", "worked examples for curl"), [B]);
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, wallet: B, note: "my own write-up, see the link" } as never);
+    vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec1", contentSha256: null, artifactFingerprint: copy } as never);
+    vi.mocked(listSubmissionsForDedup).mockReturnValue([{ note: "done — see repo", contentSha256: "ff", artifactFingerprint: honest }]);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toMatch(/copied work/i);
+    expect(casSubmissionStatus).not.toHaveBeenCalled();
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
   it("never pays once the wallet has reached its per-campaign payout cap", async () => {
     // 2026-08-14: the outcome is now CLOSED rather than held forever (the cap never resets, so the
     // hold could never be released) — but the money property this pin guards is unchanged: the

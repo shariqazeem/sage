@@ -11,7 +11,8 @@ import { JUDGE_FIXTURES } from "./judge-fixtures";
  *   JUDGE_EVAL=1 JUDGE_MODEL=anthropic/claude-haiku-4-5 JUDGE_RUNS=3 npx vitest run judge-eval.live
  */
 const LIVE = process.env.JUDGE_EVAL === "1";
-const MODEL = process.env.JUDGE_MODEL?.trim() || process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "deepseek/deepseek-v4-flash";
+// the judge runs on the PAYOUT lane, so its default is the lane's own model — never the shared chain's (see work-eval)
+const MODEL = process.env.JUDGE_MODEL?.trim() || process.env.PAYOUT_MODEL?.trim() || process.env.LLM_MODEL?.trim() || process.env.DEPUTY_MODEL?.trim() || "deepseek/deepseek-v4-flash";
 const RUNS = Math.max(1, Number(process.env.JUDGE_RUNS) || 1);
 
 describe.runIf(LIVE)("P-JUDGE — live semantic battery (production path)", () => {

@@ -292,7 +292,15 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       JS-only shell; authorless evidence; author-date mismatch; eloquent note over thin evidence);
       genuine rich evidence auto-paid 3/3; terse and feedback-style genuine work went to review,
       never to a wrong pay. The judge is what it claims to be.
-- [ ] P-WORK (gig judging) — running next; read the briefs.
+- [ ] P-WORK (gig judging) — first launch was BLIND: the harness defaulted to the shared chain's
+      model (`LLM_MODEL` = claude-haiku) on the PAYOUT lane's provider (MiniMax) → `llm 400` ×3 per
+      row, every verdict a heuristic fallback, a battery that measured nothing. Both judge harnesses
+      now default to `PAYOUT_MODEL`; relaunched with the lane's model. Read the briefs when it lands.
+- [x] **Copied-work JOIN proven against the real database (Thu):** `decisions-fingerprint.test.ts`
+      drives the real decision path — artifact verified by the real work-proof lane, fingerprint
+      stored on the decision row, dedup query returns it, marker-swapped copy from a second wallet
+      recognised — plus a pipeline case that HOLDS it before any settle. Every piece had a unit test;
+      this is the one that proves they are wired to each other.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
 
 ## VIDEOS + POSTS — built Wed (`docs/posts/series/`, `docs/posts/videos/`)
