@@ -22,5 +22,6 @@ node scripts/video/render.mjs --board docs/posts/videos/boards/07-fc-demo.json -
 node scripts/video/render.mjs --board docs/posts/videos/boards/08-strk20-demo.json --out docs/posts/videos
 ```
 
-Before rendering, update every caption marked LIVE in the two boards with the explorer's current
-numbers; the `_refresh` field in each board says exactly which ones.
+Before rendering, update every caption marked LIVE in the two boards with the live numbers —
+`./scripts/live-numbers.sh` prints the facts strip, the outcomes gaps and the manifest counts the way a
+judge would read them; the `_refresh` field in each board says exactly which captions carry them.
