@@ -143,6 +143,14 @@ slide, never a mock.
       Deploy lesson (2nd time): paths with `(group)`/`[param]` break rsync's remote shell —
       stream via `ssh "cat > '<path>'"`; the checksum loop is what caught it.
 
+## WIDTH — every working surface is a board (user, Wed)
+
+The launch page sat in a 760px column on a 1440px screen and stacked the composer vertically
+beside acres of paper. Now the launch family, explorer, lender and record take the board recipe
+(full width past the rail, 1320px ceiling, 16px sides on phones; /proof keeps its receipt
+column; the tester board goes 720→960 and stays a column by design; /outcomes stays a reading
+page). Measured at 1440/1024/390. Deploys with the battery batch.
+
 ## BUILD 7 — the composer (gigs · bounties · grants as a daily tool)
 
 The pay door is the surface founders, companies and teams will touch every day, and today it
