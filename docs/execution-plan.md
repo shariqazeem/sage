@@ -262,8 +262,10 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       Counts: yara 6 (was a dead-end), allbirds 7, play2048 6, telegram 5, cnn 5, agora 5. The
       grid's one soft flag: docs planned ONE mission (a $200 install quickstart) — the rule's
       "never reading missions" over-applied to documentation. `mb-v4.5-qa` names the docs flows
-      (search, navigation, quickstart-to-working-result, interactive examples/toggles). Deploys
-      after the P-DIRECT dump; the docs row of P-GEN 50 validates it.
+      (search, navigation, quickstart-to-working-result, interactive examples/toggles). Deployed.
+      **P-GEN 50 docs row (Thu): 1 → 5 missions, anchors 100%** — quickstart to a working setup,
+      Ctrl+K search, sidebar navigation, two reach-and-identify lookups; the critic rejected a
+      quote-the-title candidate on its own. The floor is met with flows.
 - [x] **P-DIRECT dump (Thu):** 20/21 fixtures compiled; the one failure, `pd-grant-currency-tranches`,
       was a TOOL-SCHEMA DRIFT: the compiler accepts `currency` and a milestone's `rewardLocal`, the
       field descriptions told the model to pass them, and the JSON schema the model is shown never
