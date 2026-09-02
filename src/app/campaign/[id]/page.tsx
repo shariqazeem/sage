@@ -127,6 +127,8 @@ export default async function CampaignConsolePage({
              * text, which is a standing safety rule.
              */
             account: s.note ?? null,
+            /** the link Sage fetched and judged — the note above is what they WROTE, this is what they SUBMITTED. */
+            evidenceUrl: s.evidenceUrl ?? null,
             /** what this report was worth — a paid report should say so in money, not just a chip. */
             rewardBase: rewardByHash.get(s.missionIdHash ?? "") ?? null,
           };

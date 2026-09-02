@@ -204,7 +204,7 @@ export async function runWorkProof(
           [
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
             `KIND: created artifact · STRENGTH: ${r.strength} · RESULT: PASSED`,
-            `Sage fetched ${url} itself: it is live on an operator-allowed host and visibly carries the submitter's own marker (their wallet address) — a generic or copied page cannot pass this.`,
+            `Sage fetched ${url} itself: it is live on an operator-allowed host and visibly carries the submitter's own marker (their wallet address) — a generic or copied page cannot pass this. The marker was matched BY VALUE: an address written with or without leading zeros (0x01ab… / 0x1ab…) is the same account, so a spelling difference of that kind is NOT a mismatch and must not be reported as one`,
             r.publicDetail,
           ].join("\n"),
         );

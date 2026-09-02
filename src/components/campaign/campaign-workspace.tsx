@@ -38,6 +38,8 @@ export interface WorkspaceSubmission {
   at: number;
   /** what the tester actually WROTE — the deliverable. Owner-only; never rendered publicly. */
   account: string | null;
+  /** the evidence link they submitted — what Sage fetched and judged. */
+  evidenceUrl?: string | null;
   /** the mission's reward, so a paid report can state its own value. */
   rewardBase: number | null;
 }
@@ -115,7 +117,9 @@ function HeldDecision({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  const decide = async (decision: "approve" | "reject") => {
+  const [askReason, setAskReason] = useState(false);
+  const [reason, setReason] = useState("");
+  const decide = async (decision: "approve" | "reject", reasonText?: string) => {
     setError(null);
     setBusy(decision);
     try {
@@ -124,7 +128,7 @@ function HeldDecision({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ decision }),
+          body: JSON.stringify(reasonText ? { decision, reason: reasonText } : { decision }),
         },
       );
       const json = (await res.json()) as {
@@ -162,13 +166,28 @@ function HeldDecision({
       >
         {busy === "approve" ? "Releasing…" : "Release payment"}
       </button>
-      <button
-        className="sage-btn sage-btn-sm"
-        disabled={busy !== null}
-        onClick={() => void decide("reject")}
-      >
-        {busy === "reject" ? "Refusing…" : "Refuse"}
-      </button>
+      {!askReason ? (
+        <button className="sage-btn sage-btn-sm" disabled={busy !== null} onClick={() => setAskReason(true)}>
+          Refuse
+        </button>
+      ) : (
+        <span className="cw-decide-reason">
+          <input
+            className="lx-input"
+            type="text"
+            maxLength={300}
+            placeholder="Why — one line the submitter will see (optional)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <button className="sage-btn sage-btn-sm" disabled={busy !== null} onClick={() => void decide("reject", reason.trim() || undefined)}>
+            {busy === "reject" ? "Refusing…" : "Confirm refusal"}
+          </button>
+          <button className="sage-btn sage-btn-sm" disabled={busy !== null} onClick={() => setAskReason(false)}>
+            Cancel
+          </button>
+        </span>
+      )}
       {error && <span className="cw-card-note cw-decide-err">{error}</span>}
     </span>
   );
@@ -467,6 +486,14 @@ function Console({ data }: { data: WorkspaceData }) {
                           </p>
                         )}
 
+                        {s.evidenceUrl && (
+                          <p className="cw-card-note">
+                            Evidence:{" "}
+                            <a href={s.evidenceUrl} target="_blank" rel="noopener noreferrer" className="cw-link">
+                              {s.evidenceUrl.length > 72 ? `${s.evidenceUrl.slice(0, 72)}…` : s.evidenceUrl}
+                            </a>
+                          </p>
+                        )}
                         <footer className="cw-card-foot">
                           {s.state === "paid" && s.rewardBase != null && (
                             <span className="cw-card-amt mono">
