@@ -272,6 +272,7 @@ export const DIRECT_CAMPAIGN_TOOL = {
               required: ["kind"],
             },
             rewardUsd: { type: "number", description: "USDC per completion, min 0.5, max 2 decimals. From the founder — never invented. OMIT on EVERY milestone when you pass splitTotalUsd; never omit it on only some." },
+            rewardLocal: { type: "number", description: "The per-completion amount IN THE FOUNDER'S OWN CURRENCY when they priced it that way (\"J$2,000 per listing\" → rewardLocal: 2000 and top-level currency: \"JMD\"). Their number verbatim — never convert. REQUIRES the top-level currency field." },
             slots: { type: "number", description: "Max paid completions, 1-50." },
             effortMinutes: { type: "number", description: "Optional estimated effort." },
           },
@@ -291,6 +292,16 @@ export const DIRECT_CAMPAIGN_TOOL = {
         type: "number",
         description:
           "The founder's whole-grant total IN THEIR OWN CURRENCY (\"J$10,000 in two equal parts\" → splitTotalLocal: 10000, currency: \"JMD\"). Their number verbatim — never convert it yourself; Sage converts at a stamped rate, then divides. Requires `currency`. Never combine with splitTotalUsd or rewardUsd.",
+      },
+      currency: {
+        type: "string",
+        description:
+          "ISO 4217 code of the currency the founder is THINKING in (\"JMD\", \"TTD\", \"PKR\"). REQUIRED whenever you pass splitTotalLocal or any milestone rewardLocal — a local amount with no currency is not a price and the server refuses it. Omit for USD. Settlement is always USDC; Sage converts at a stamped rate.",
+      },
+      visibility: {
+        type: "string",
+        enum: ["listed", "unlisted"],
+        description: "unlisted = keep the campaign OFF every public board; the founder shares its invite link. Use it when the founder says private, invite-only, internal, or \"only my people\". Default listed.",
       },
       recipients: {
         type: "array",

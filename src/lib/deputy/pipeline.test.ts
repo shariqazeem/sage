@@ -497,7 +497,7 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
   it("HOLDS a near-duplicate (paraphrased) report before any settle", async () => {
     vi.mocked(getSubmission).mockReturnValue({ ...submission, note: FARM_NOTE } as never);
     vi.mocked(listSubmissionsForDedup).mockReturnValue([
-      { note: FARM_NOTE.replace("signup", "sign up").replace("get started", "Get Started"), contentSha256: null },
+      { note: FARM_NOTE.replace("signup", "sign up").replace("get started", "Get Started"), contentSha256: null, artifactFingerprint: null },
     ]);
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");

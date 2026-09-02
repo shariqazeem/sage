@@ -264,6 +264,21 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       "never reading missions" over-applied to documentation. `mb-v4.5-qa` names the docs flows
       (search, navigation, quickstart-to-working-result, interactive examples/toggles). Deploys
       after the P-DIRECT dump; the docs row of P-GEN 50 validates it.
+- [x] **P-DIRECT dump (Thu):** 20/21 fixtures compiled; the one failure, `pd-grant-currency-tranches`,
+      was a TOOL-SCHEMA DRIFT: the compiler accepts `currency` and a milestone's `rewardLocal`, the
+      field descriptions told the model to pass them, and the JSON schema the model is shown never
+      declared either (nor `visibility`). The model cannot send what it is not shown. Declared all
+      three, the mapper forwards `visibility`, and `direct-tool-schema.drift.test.ts` reads the zod
+      schema against the tool schema so the two lists cannot drift again.
+- [x] **Copied work across wallets (Thu, from the user's question):** an artifact contract binds a
+      page to a wallet by its marker; a fork of an honest page with the marker swapped had different
+      bytes and a different report, and nothing looked at the body. Now the artifact verifier returns
+      a MinHash fingerprint of the fetched body (marker stripped), it is persisted on the decision
+      (migration 0052), and `findCopiedArtifact` holds a near-identical artifact at the same
+      calibrated threshold as report paraphrase — artifact_url lanes only, never the shared product
+      page; HELD for review, never auto-rejected. Pinned by `fingerprint.test.ts` +
+      `dedup-artifact.test.ts`. Next layer if time allows: GitHub provenance (fork flag, repo
+      created before the gig).
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.

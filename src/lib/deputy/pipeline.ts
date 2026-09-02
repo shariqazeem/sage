@@ -20,7 +20,7 @@ import {
   setObservationShadow,
   updateSubmission,
 } from "@/lib/db/campaigns";
-import { findDuplicate, findNearDuplicate } from "./dedup";
+import { findCopiedArtifact, findDuplicate, findNearDuplicate } from "./dedup";
 import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 
 /** CORPUS READINESS FLOOR — observation autopay requires at least this many distinct private-corpus
@@ -753,7 +753,7 @@ export async function runDeputyOnSubmission(
   // wallet). The vault already caps total loss; this stops one person farming
   // multiple seats. Pre-check only — the frozen brain is untouched.
   const dup = findDuplicate(
-    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null },
+    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
     listPaidSubmissionsForDedup(campaign.id, submissionId),
   );
   if (dup) {
@@ -776,7 +776,7 @@ export async function runDeputyOnSubmission(
   // EARLIER genuine account as a near-dup at settle time, holding work the bar had passed. The
   // copycat itself still gets caught — from ITS side, the genuine account is an earlier submission.
   const near = findNearDuplicate(
-    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null },
+    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
     isObservation
       ? listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt)
       : listSubmissionsForDedup(campaign.id, submissionId),
@@ -784,6 +784,23 @@ export async function runDeputyOnSubmission(
   if (near) {
     const reason = `possible duplicate account — ${near.reason}`;
     agentLog(cid, "near_dedup", { duplicate: true, similarity: near.similarity });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
+  }
+
+  // c4. COPIED DELIVERABLE (2026-09-03) — the artifact body itself, fingerprinted with the marker
+  // stripped, against every other submission on the campaign. Only artifact_url lanes carry a
+  // fingerprint, so a shared product page can never collide. HELD, never auto-rejected.
+  const copied = findCopiedArtifact(
+    { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
+    listSubmissionsForDedup(campaign.id, submissionId),
+  );
+  if (copied) {
+    const reason = `possible copied work — ${copied.reason}`;
+    agentLog(cid, "copied_artifact", { duplicate: true, similarity: copied.similarity });
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
       journalHeld(campaign, submission, reason, cid);
       return { action: "held", reason, correlationId: cid };

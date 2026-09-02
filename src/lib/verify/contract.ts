@@ -93,6 +93,10 @@ export interface VerificationResult {
   detail: string;
   /** leak-safe, tester/founder-readable one-liner — never an answer-key string. */
   publicDetail: string;
+  /** artifact_url only: a MinHash fingerprint of the fetched artifact body with the submitter's
+   *  marker stripped — lets the dedup layer recognise a COPIED deliverable across wallets without
+   *  storing the page. Absent for other kinds and for bodies too short to fingerprint. */
+  artifactFingerprint?: string | null;
 }
 
 /** The verification strength a contract kind establishes when it verifies. */

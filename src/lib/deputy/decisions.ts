@@ -281,6 +281,7 @@ export async function ensureDecision(
   //                     term in front of the frozen gate, so payouts only get stricter.
   const workProofContract = parseWorkProofContract(mission?.verificationContract ?? null);
   let workProofReport: string | null = null;
+  let workProofFingerprint: string | null = null;
   if (workProofContract) {
     const wp = await runWorkProof(workProofContract, {
       wallet: submission.wallet,
@@ -333,6 +334,7 @@ export async function ensureDecision(
         : { ...brief, engine: "heuristic", model: WORKPROOF_VERIFIER_MODEL, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
     }
     workProofReport = wp.report;
+    workProofFingerprint = wp.result.artifactFingerprint ?? null;
   }
 
   // OBSERVATION MISSIONS — THE URL-EVIDENCE BRAIN HAS NO JURISDICTION HERE, SO IT ABSTAINS.
@@ -570,6 +572,8 @@ export async function ensureDecision(
       parserVersion: brief.parserVersion ?? null,
     },
     contentSha256: brief.contentSha256,
+    // artifact_url lanes: the fetched body's fingerprint (marker stripped) — the copied-work detector's input
+    artifactFingerprint: workProofFingerprint,
     evidenceOk: brief.evidenceOk,
     latencyMs: brief.latencyMs,
     costUsd: brief.costUsd,

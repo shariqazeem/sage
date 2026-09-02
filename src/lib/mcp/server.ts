@@ -507,6 +507,8 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
     ...(typeof args.whyItMatters === "string" && args.whyItMatters.trim() ? { whyItMatters: args.whyItMatters } : {}),
     milestones,
     ...(recipients.length > 0 ? { allowlist: recipients } : {}),
+    // the founder's invite-only door — only the literal the compiler accepts; anything else stays listed
+    ...(args.visibility === "unlisted" ? { visibility: "unlisted" as const } : {}),
   };
 }
 

@@ -1,3 +1,4 @@
+import { artifactFingerprint } from "@/lib/deputy/fingerprint";
 import "server-only";
 
 import { createPublicClient, http, type Hex } from "viem";
@@ -196,7 +197,13 @@ export function matchArtifact(
   for (const t of c.mustContain ?? []) {
     if (!hay.includes(norm(t))) return fail(`missing "${t}"`, "That page is missing something the mission required.");
   }
-  return { verified: true, strength: "strong", detail: "artifact live + tester-marked", publicDetail: "Verified: the object you created is live and carries your marker." };
+  return {
+    verified: true,
+    strength: "strong",
+    detail: "artifact live + tester-marked",
+    publicDetail: "Verified: the object you created is live and carries your marker.",
+    artifactFingerprint: artifactFingerprint(input.bodyText, markerVariants(marker)),
+  };
 }
 
 /** ASYNC: fetch the artifact (redirects followed) and match. Any fetch failure → HOLD. */

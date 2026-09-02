@@ -389,6 +389,9 @@ export const decisions = sqliteTable(
     observationShadow: text("observation_shadow", { mode: "json" }).$type<Record<string, unknown>>(),
     /** sha256 of the fetched evidence bytes (provenance), or null. */
     contentSha256: text("content_sha256"),
+    /** artifact_url lanes only: MinHash fingerprint of the fetched artifact body (marker stripped), so a
+     *  COPIED deliverable is recognised across wallets. Null elsewhere. See deputy/fingerprint.ts. */
+    artifactFingerprint: text("artifact_fingerprint"),
     evidenceOk: integer("evidence_ok", { mode: "boolean" }).notNull().default(false),
     latencyMs: integer("latency_ms"),
     /** estimated USD cost of the LLM call (fraction of a cent), or null. */

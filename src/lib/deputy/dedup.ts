@@ -15,6 +15,8 @@
 
 /** Trivially short notes are ignored for text-dedup so genuine one-liners
  *  ("nice app") can't collide by accident. */
+import { fingerprintSimilarity } from "./fingerprint";
+
 const MIN_NOTE_LEN = 24;
 
 export interface DedupCandidate {
@@ -22,6 +24,10 @@ export interface DedupCandidate {
   note: string | null;
   /** sha256 of the fetched evidence bytes, or null when there was no evidence. */
   contentSha256: string | null;
+  /** artifact_url lanes: MinHash fingerprint of the fetched artifact body with the submitter's marker
+   *  stripped (deputy/fingerprint.ts), or null. The copied-deliverable vector: a fork of an honest
+   *  page with the marker swapped has different bytes and a different report — only this sees it. */
+  artifactFingerprint?: string | null;
 }
 
 export type DuplicateHit = { reason: string };
@@ -117,6 +123,34 @@ export function findNearDuplicate(
   if (bestSim === 0) return null;
   return {
     reason: `near-identical report to another submission (${Math.round(bestSim * 100)}% match) — possible multi-wallet farming`,
+    similarity: bestSim,
+  };
+}
+
+/**
+ * COPIED DELIVERABLE across wallets — the artifact-body counterpart of the report check above. The
+ * artifact contract binds a page to a wallet by its marker; a cheater forks an honest page, swaps the
+ * marker and submits from a fresh wallet. Bytes differ, the report differs, and until now nothing
+ * looked at the body. Fingerprints are MinHash signatures over the same bigram shingles (marker
+ * stripped), so the calibrated threshold carries over. HELD for review, never auto-rejected, and only
+ * ever present on artifact_url lanes — a shared product page (public_url) never gets one, so honest
+ * testers quoting the same page can never collide here.
+ */
+export function findCopiedArtifact(
+  current: DedupCandidate,
+  prior: DedupCandidate[],
+  threshold = NEAR_DUP_THRESHOLD,
+): (DuplicateHit & { similarity: number }) | null {
+  if (!current.artifactFingerprint) return null;
+  let bestSim = 0;
+  for (const p of prior) {
+    if (!p.artifactFingerprint) continue;
+    const sim = fingerprintSimilarity(current.artifactFingerprint, p.artifactFingerprint);
+    if (sim >= threshold && sim > bestSim) bestSim = sim;
+  }
+  if (bestSim === 0) return null;
+  return {
+    reason: `near-identical artifact to another submission (${Math.round(bestSim * 100)}% match) — possible copied work`,
     similarity: bestSim,
   };
 }
