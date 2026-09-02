@@ -69,17 +69,17 @@ export const metadata: Metadata = {
     "on-chain escrow for agents",
   ],
   alternates: { canonical: "/" },
+  // THE CARD IS NOT THE <title>. An explicit root twitter/openGraph title overrides every page's own
+  // (Next merges per top-level key), so a gig link on X showed the SEO string "AI agent that pays
+  // testers…" instead of the mission's name — measured on launch day. The root now sets only the
+  // card TYPE and site; each page's title and description flow into its own card.
   openGraph: {
     type: "website",
     siteName: "Sage",
     url: SITE,
-    title: TITLE,
-    description: DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
   },
   robots: {
     index: true,
