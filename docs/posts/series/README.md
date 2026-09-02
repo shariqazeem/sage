@@ -1,9 +1,14 @@
-# The series — how to post
+# The series — the compressed schedule (deadline week)
 
-One post per day, in order. Video attached to the post; the link goes in the FIRST reply (in-body
-links cost 30–50% reach). Tuesday/Wednesday peak; never weekends. Reply to every reply (a reply
-≈ 27 likes of signal). Tag @ellibenson on RESULTS only (post 6's results, later), never on launches.
+Post 1 is out. Two a day from Wed: **18:30 PKT** (FC / Caribbean morning) and **23:00 PKT**
+(Starknet / crypto peak). Video on the post, link in the FIRST reply, reply to every reply.
 
-Rebuild any video after a product change:
-    node scripts/video/capture.mjs            # real screenshots from prod
-    node scripts/video/render.mjs --board docs/posts/videos/boards/<n>.json
+| day | 18:30 PKT | 23:00 PKT |
+| --- | --- | --- |
+| Wed 3 | 02 the ledger | 05 teams |
+| Thu 4 | 03 credit file + advance (tag Future Caribbean) | 06 private payouts + the $25 gig (link in reply) |
+| Fri 5 | 04 composer + J$ currencies (combined) | the Caribbean post ("this is for you") |
+| Sat 6 | results (tag @EliBenSasson, Starknet, Future Caribbean) | the thesis post |
+
+Rebuild any video after a product change: `node scripts/video/capture.mjs` then
+`node scripts/video/render.mjs --board docs/posts/videos/boards/<n>.json`.
