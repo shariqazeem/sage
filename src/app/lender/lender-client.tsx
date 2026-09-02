@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Download, Loader2, Search } from "lucide-react";
 
 /**
@@ -83,8 +83,12 @@ export function LenderClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const look = useCallback(async () => {
-    const w = wallet.trim();
+  /**
+   * `explicit` lets a prefilled link run the lookup before React state has caught up — a judge
+   * or a lender opening `/lender?wallet=0x…` should land on the record, not on an empty form.
+   */
+  const look = useCallback(async (explicit?: string) => {
+    const w = (typeof explicit === "string" ? explicit : wallet).trim();
     if (!w) return;
     setLoading(true);
     setError(null);
@@ -100,6 +104,19 @@ export function LenderClient() {
       setLoading(false);
     }
   }, [wallet]);
+
+  // A LINKABLE LENDER VIEW. The record page has always been linkable; the lender view could only be
+  // reached by pasting. `/lender?wallet=<address>` prefills and looks up on mount — the address must
+  // look like a wallet (an EVM address or a Starknet felt); anything else is ignored, never fetched.
+  useEffect(() => {
+    const w = new URLSearchParams(window.location.search).get("wallet")?.trim() ?? "";
+    if (/^0x[0-9a-fA-F]{40,64}$/.test(w)) {
+      setWallet(w);
+      void look(w);
+    }
+    // mount only — the link is read once; typing afterwards is the lender's own action
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [attPaste, setAttPaste] = useState("");
   const [attVerdict, setAttVerdict] = useState<null | {

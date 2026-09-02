@@ -5,7 +5,8 @@ Every answer below points at something live. Where the honest answer is "not yet
 **"You removed credit risk?"** No. The advance is a **waterfall on witnessed inflow** — the next verified
 payout auto-splits at the published fraction — with **recourse on the Sage-routed remainder**. A borrower
 can stop using Sage; what we remove is the *information* problem, not the risk. The terms are published
-arithmetic on `/lender`, never a score.
+arithmetic on `/lender` — open it prefilled for a real record:
+https://sagepays.xyz/lender?wallet=0xccbfb9bba88f282282a29aa1338175cc835e768d — never a score.
 
 **"Where does the credit data come from? Self-reported cash flow is worthless."** It is not reported at
 all. Sage *witnesses* the work — browses the product, fetches the artifact, reads the chain — and the vault

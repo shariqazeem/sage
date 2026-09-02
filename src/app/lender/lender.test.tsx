@@ -50,6 +50,26 @@ const look = async (body: unknown, ok = true) => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("the lender view", () => {
+  /** A judge or a lender who is HANDED a link must land on the record, not on an empty form. */
+  it("looks up the wallet named in the link, without any typing", async () => {
+    window.history.replaceState({}, "", "/lender?wallet=0x00000000000000000000000000000000000000aa");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => record() })));
+    render(<LenderClient />);
+    await waitFor(() => expect(screen.getByText(/verified inflow, 90d/i)).toBeTruthy());
+    expect((screen.getByLabelText(/wallet address/i) as HTMLInputElement).value).toBe("0x00000000000000000000000000000000000000aa");
+    window.history.replaceState({}, "", "/lender");
+  });
+
+  it("ignores a link whose wallet is not wallet-shaped — nothing is fetched", async () => {
+    window.history.replaceState({}, "", "/lender?wallet=not-a-wallet");
+    const f = vi.fn(async () => ({ ok: true, json: async () => record() }));
+    vi.stubGlobal("fetch", f);
+    render(<LenderClient />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(f).not.toHaveBeenCalled();
+    window.history.replaceState({}, "", "/lender");
+  });
+
   it("shows the underwriting inputs a credit decision turns on", async () => {
     await look(record());
     await waitFor(() => expect(screen.getByText(/verified inflow, 90d/i)).toBeTruthy());
