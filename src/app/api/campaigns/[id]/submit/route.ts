@@ -24,7 +24,8 @@ import { computeEvidenceDigest, verifyEvidenceClaim, type EvidenceClaim } from "
 import { verifyStarknetEvidenceClaim } from "@/lib/campaigns/starknet-evidence-claim";
 import { readClaimSignature } from "@/lib/campaigns/claim-signature";
 import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
-import { observationFromRow } from "@/lib/deputy/decisions";
+import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
+import { retryVerdict } from "@/lib/campaigns/retry";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
 import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reservation";
@@ -177,6 +178,18 @@ export async function POST(
         if ((existing.attempt ?? 1) >= OBS_MAX_ATTEMPTS) {
           return NextResponse.json({ error: `You've used all ${OBS_MAX_ATTEMPTS} attempts on this mission — it's now with the founder for review.` }, { status: 409 });
         }
+        reviseTargetId = existing.id;
+      }
+    } else {
+      // GIG / URL-LANE RETRY — the same coached second try testing reports get. A wallet whose page
+      // was refused or held (not for fraud, not approved) may submit a corrected link against its
+      // own slot; the old judgment is cleared and the new page is judged fresh. Measured on the
+      // first public gig: a refusal was final for the wallet, so "fix it and resubmit" was a lie.
+      const existing = getWalletMissionSubmission(mission.missionIdHash, wallet);
+      if (existing) {
+        const dec = getDecisionBySubmission(existing.id);
+        const verdict = retryVerdict(existing, dec ? briefFromRow(dec) : null);
+        if (!verdict.ok) return NextResponse.json({ error: verdict.error }, { status: 409 });
         reviseTargetId = existing.id;
       }
     }
