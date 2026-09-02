@@ -284,3 +284,9 @@ body:has(.spp) { background: var(--bg); }
 
 /* /record is shelled (the pill floats above); /proof is deliberately not — this fires only there */
 html[data-app-shell="on"] .spp-col { padding-top: var(--pill-clear); }
+
+/* /record is shelled and a working surface: board width. /proof is not shelled — a receipt stays a
+   receipt, in its column. */
+html[data-app-shell="on"] .spp { padding-left: clamp(6rem, 7vw, 7.5rem); padding-right: clamp(1.5rem, 3vw, 3rem); }
+html[data-app-shell="on"] .spp-col { max-width: 1320px; margin: 0; }
+@media (max-width: 720px) { html[data-app-shell="on"] .spp { padding-left: 16px; padding-right: 16px; } }

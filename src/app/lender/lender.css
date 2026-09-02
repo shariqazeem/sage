@@ -218,3 +218,8 @@
 
 /* under the app shell the floating mode pill owns the top ~61px — clear it (token: tokens.css) */
 html[data-app-shell="on"] .lend-page { padding-top: var(--pill-clear); }
+
+/* the lender view as a board (see explorer.css for the recipe) */
+html[data-app-shell="on"] .lend-page { padding-left: clamp(6rem, 7vw, 7.5rem); padding-right: clamp(1.5rem, 3vw, 3rem); }
+html[data-app-shell="on"] .lend-wrap { max-width: 1320px; margin: 0; }
+@media (max-width: 720px) { html[data-app-shell="on"] .lend-page { padding-left: 16px; padding-right: 16px; } }

@@ -57,3 +57,10 @@
 
 /* under the app shell the floating mode pill owns the top ~61px — clear it (token: tokens.css) */
 html[data-app-shell="on"] .exp { padding-top: var(--pill-clear); }
+
+/* THE LEDGER AS A BOARD, not a centered column — the same recipe as the dashboard (full width,
+   left padding that clears the rail, a 1320px ceiling, 16px sides on phones). Long transaction
+   hashes finally have room. Scoped to the shell so nothing else that shares these classes moves. */
+html[data-app-shell="on"] .exp { padding-left: clamp(6rem, 7vw, 7.5rem); padding-right: clamp(1.5rem, 3vw, 3rem); }
+html[data-app-shell="on"] .exp-col { max-width: 1320px; margin: 0; }
+@media (max-width: 720px) { html[data-app-shell="on"] .exp { padding-left: 16px; padding-right: 16px; } }

@@ -107,7 +107,9 @@
 }
 
 .sb-shell {
-  max-width: 720px;
+  /* 720 → 960: the tester's board is a column by design (cards read top to bottom), but 720
+     left the activity strip and mission cards cramped on any laptop. */
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 20px;
   animation: sb-fadein 0.5s ease 0.4s both;
