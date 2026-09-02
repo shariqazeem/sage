@@ -5,7 +5,7 @@ BASE="${1:-https://sagepays.xyz}"
 html=$(curl -s --max-time 30 "$BASE/")
 echo "landing facts strip:"
 settled=$(echo "$html" | grep -o '\$[0-9][0-9,.]*' | head -1)
-payouts=$(echo "$html" | grep -o 'children\\":[0-9]\+}\],\\" verified payouts' | grep -o '[0-9]\+' | head -1)
+payouts=$(echo "$html" | grep -o 'settled[^}]\{0,200\}children\\":[0-9]\+' | head -1 | grep -o '[0-9]\+$')
 refused=$(echo "$html" | grep -o '[0-9]\+ · [0-9]\+%' | head -1)
 echo "  settled $settled · verified payouts ${payouts:-?} · refused on record ${refused:-?}"
 echo "outcomes:"; curl -s --max-time 30 "$BASE/outcomes" | grep -o 'Not yet measured\|NOT YET MEASURED' | sort | uniq -c | sed 's/^/  gaps: /'
