@@ -346,6 +346,15 @@ Results post tags ellibenson on RESULTS only (existing rule).
 - Three batteries were **stopped early** once their remaining rows could only re-measure a defect
   already fixed — an hour each of a five-day window.
 
+**Anti-cheat, from your question (Thu):** a copied deliverable — a fork of an honest page with the
+marker swapped, submitted from a fresh wallet — is now HELD as "possible copied work" (artifact body
+fingerprint, marker stripped, same calibrated threshold as report paraphrase; artifact lanes only,
+never the shared product page). GitHub deliverables also get provenance: a fork, or a repository
+older than the gig, is held with a plain reason; GitHub's rate limit never holds an honest tester.
+The payout judge re-passed P-JUDGE: zero wrong auto-pays across 57 rows, every hostile fixture held.
+The existing layers stay: marker binding, on-chain deterministic checks, exact/paraphrase report
+dedup, wallet freshness, per-wallet cap, daily submit limit, funding-graph clusters, vault replay.
+
 **Watch (not urgent):** the fallback provider was never needed in P-GEN 49; a url-verifiable-only
 plan on a wallet-gated product spends ~$11 of a $4.9k budget (capacity = the model's own counts) —
 honest, but a founder-facing weakness to decide on after the deadline, not before.
