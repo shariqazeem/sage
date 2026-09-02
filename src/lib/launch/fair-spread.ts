@@ -22,7 +22,7 @@ export function spreadOverpaidMissions(
   opts: { minRewardBase: bigint; factor?: number; rounds?: number },
 ): BudgetAllocation {
   const factor = BigInt(Math.max(1, Math.round(opts.factor ?? 2)));
-  let counts = new Map(input.map((m) => [m.missionKey, m.suggestedMaxCompletions]));
+  const counts = new Map(input.map((m) => [m.missionKey, m.suggestedMaxCompletions]));
   let current = allocation;
   for (let round = 0; round < (opts.rounds ?? 4); round++) {
     if (!current.ok) return current;
