@@ -82,8 +82,14 @@ ${sceneHtml}
       // crossfade: a scene fades in over f from its start and fades OUT over f after its end,
       // so the outgoing image dissolves under the incoming one — never a cut to blank paper.
       if(t>=s.a&&t<s.b+s.f){const fin=s.a===0?1:Math.min(1,(t-s.a)/s.f);const fout=t>=s.b?Math.max(0,1-(t-s.b)/s.f):1;o=Math.min(fin,fout);if(s.b>=total-0.001&&t>s.b-s.f)o=Math.min(o,(s.b-t)/s.f);}
-      s.el.style.opacity=o.toFixed(3);s.el.style.visibility=o>0?'visible':'hidden';
-      if(o>0)for(const anim of s.el.getAnimations({subtree:true})){anim.pause();anim.currentTime=Math.max(0,t-s.a)*1000;}
+      // captions never overlap: the outgoing caption is gone by the boundary, the incoming one
+      // arrives after it — only the SHOTS dissolve through each other.
+      let oc=0;const fo=0.35,fx=0.25;
+      if(t>=s.a&&t<s.b){const cin=s.a===0?1:Math.min(1,(t-s.a)/fo);const cout=t>=s.b-fx?Math.max(0,(s.b-t)/fx):1;oc=Math.min(cin,cout);}
+      const fr=s.el.querySelector('.frame'),ov=s.el.querySelector('.overlay');
+      if(fr)fr.style.opacity=o.toFixed(3);if(ov)ov.style.opacity=(s.el.classList.contains('card')?o:oc).toFixed(3);
+      const vis=Math.max(o,oc);s.el.style.opacity='1';s.el.style.visibility=vis>0?'visible':'hidden';
+      if(vis>0)for(const anim of s.el.getAnimations({subtree:true})){anim.pause();anim.currentTime=Math.max(0,t-s.a)*1000;}
     }
   };
   document.fonts.ready.then(()=>{for(const s of scenes){const o=s.el.querySelector('.overlay');const img=s.el.querySelector('.shot');if(img&&o){img.style.setProperty('--shot-top',(o.getBoundingClientRect().height+${Math.round(H * 0.02)})+'px');}}window.__ready=true;});
