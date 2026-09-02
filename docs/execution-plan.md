@@ -158,11 +158,24 @@ is a fill-in-the-blanks sentence. Rebuild it as a real composer, same server con
 
 MiniMax-M3 is free through FC; spend it on quality, keep the lanes portable so the next provider
 is a config change. One battery at a time on the VM, NOTHING else there during a run.
-- [ ] **P-GEN nonce 42 running** (Tue evening) — read the generated missions for QUALITY, not
-      pass/fail: grounding, specificity, budget sense, verifiability.
+- [x] **P-GEN nonce 44 read as it runs** (Wed): missions are grounded and specific (page-weight
+      audit against the site's own claim; sidebar navigation Sage verifies by fetching). Two real
+      defects found by READING, both fixed and pinned: (1) a bare `token` in the category hints
+      framed tailwindcss.com/docs and plausible.io as web3 for the mission brain; (2) on the
+      fair-capacity path the top mission absorbed the pot into the model's tiny count — $76.39 × 2
+      for a 12-minute signup, $55.74 × 3 for a 30-minute docs task — `spreadOverpaidMissions`
+      now sends the same pot to more people at the fair rate (allocator untouched, Σ exact).
+      Deploy after the battery finishes.
 - [ ] Compile a spread of gigs/grants locally and READ the plans + strength notes.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
+
+## VIDEOS + POSTS — built Wed (`docs/posts/series/`, `docs/posts/videos/`)
+
+Real footage only: `scripts/video/capture.mjs` screenshots the live product, `render.mjs` turns a
+storyboard into an H.264 mp4 (camera + captions in the product's own type). Six delivered: the
+opener montage (42s) and one-idea singles — ledger, credit file + advance, composer, teams,
+private payouts (pairs with the gig launch). One post per day; link in the first reply.
 
 ## POSTS — after the builds, one feature per post, each a screen recording + copy I write
 

@@ -42,6 +42,7 @@ import {
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
+import { spreadOverpaidMissions } from "./fair-spread";
 import { compilePlan } from "./plan";
 import { recordFieldTestStep } from "./field-test-progress";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -550,6 +551,21 @@ export async function inspectAndPlan(
         { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
       );
       if (spread.ok) allocation = spread;
+      // And no completion on the capped path pays far beyond its fair rate: the pot a qualitative
+      // mission was sized for (up to 50 × its effort ceiling) must reach that many people, not two.
+      // Measured 2 Sep: $76.39 × 2 for a 12-minute signup, $55.74 × 3 for a 30-minute docs task.
+      allocation = spreadOverpaidMissions(
+        missions.map((m) => ({
+          missionKey: m.missionKey,
+          weight: m.rewardWeight,
+          suggestedMaxCompletions: fairCounts.get(m.missionKey) ?? m.maxCompletions,
+          priority: m.priority,
+          effortMinutes: m.effortMinutes,
+        })),
+        allocation,
+        effectiveBudgetBase,
+        { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
+      );
     }
     allocation.missions = splitCompletionsForSample(
       allocation.missions,

@@ -53,12 +53,12 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   .scene{position:absolute;inset:0;opacity:0;transition:opacity var(--fade) ease}
   .scene.on{opacity:1}
   .frame{position:absolute;inset:0;overflow:hidden}
-  .shot{position:absolute;left:50%;top:0;width:${Math.round(W * 0.92)}px;transform:translateX(-50%) scale(1);transform-origin:50% 0;border-radius:14px;box-shadow:0 30px 80px rgba(26,29,33,.16);top:${Math.round(H * 0.16)}px;animation-timing-function:linear;animation-fill-mode:both}
+  .shot{position:absolute;left:50%;width:${Math.round(W * 0.92)}px;transform:translateX(-50%) scale(1);transform-origin:50% 0;border-radius:14px;box-shadow:0 30px 80px rgba(26,29,33,.16);top:var(--shot-top,${Math.round(H * 0.16)}px);animation-timing-function:linear;animation-fill-mode:both}
   .kb-zoom{animation-name:kbz}.kb-up{animation-name:kbu}.kb-down{animation-name:kbd}.kb-still{animation-name:none}
   @keyframes kbz{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.06)}}
-  @keyframes kbu{from{transform:translate(-50%,0)}to{transform:translate(-50%,-${Math.round(H * 0.22)}px)}}
-  @keyframes kbd{from{transform:translate(-50%,-${Math.round(H * 0.18)}px)}to{transform:translate(-50%,0)}}
-  .overlay{position:absolute;left:0;right:0;top:0;padding:${Math.round(H * 0.045)}px ${Math.round(W * 0.05)}px 0;background:linear-gradient(180deg,var(--paper) 62%,rgba(251,251,249,0))}
+  @keyframes kbu{from{transform:translate(-50%,0)}to{transform:translate(-50%,-${Math.round(H * 0.12)}px)}}
+  @keyframes kbd{from{transform:translate(-50%,-${Math.round(H * 0.10)}px)}to{transform:translate(-50%,0)}}
+  .overlay{position:absolute;left:0;right:0;top:0;padding:${Math.round(H * 0.045)}px ${Math.round(W * 0.05)}px ${Math.round(H * 0.02)}px;background:var(--paper)}
   .kicker{font-family:'JetBrains Mono',monospace;font-size:${Math.round(H * 0.022)}px;letter-spacing:.12em;text-transform:uppercase;color:var(--terra);margin-bottom:${Math.round(H * 0.012)}px}
   .title{font-size:${Math.round(H * 0.058)}px;font-weight:700;letter-spacing:-.025em;line-height:1.08;max-width:${Math.round(W * 0.7)}px}
   .sub{font-size:${Math.round(H * 0.03)}px;color:var(--ink2);margin-top:${Math.round(H * 0.014)}px;max-width:${Math.round(W * 0.66)}px;line-height:1.35}
@@ -66,7 +66,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   .scene.card .overlay{top:50%;transform:translateY(-50%);background:none;text-align:left}
   .scene.card .title{font-size:${Math.round(H * 0.085)}px;max-width:${Math.round(W * 0.82)}px}
   .scene.card .sub{font-size:${Math.round(H * 0.036)}px;max-width:${Math.round(W * 0.78)}px}
-  .brand{position:absolute;right:${Math.round(W * 0.045)}px;bottom:${Math.round(H * 0.045)}px;font-weight:700;font-size:${Math.round(H * 0.03)}px;display:flex;align-items:center;gap:10px;color:var(--ink)}
+  .brand{position:absolute;right:${Math.round(W * 0.05)}px;top:${Math.round(H * 0.045)}px;font-weight:700;font-size:${Math.round(H * 0.03)}px;display:flex;align-items:center;gap:10px;color:var(--ink)}
   .brand i{width:${Math.round(H * 0.024)}px;height:${Math.round(H * 0.024)}px;border-radius:999px;background:var(--terra);display:inline-block}
   .brand .u{font-family:'JetBrains Mono',monospace;font-weight:500;font-size:${Math.round(H * 0.022)}px;color:var(--ink3);margin-left:6px}
 </style></head><body>
@@ -76,7 +76,7 @@ ${sceneHtml}
   const scenes=[...document.querySelectorAll('.scene')];
   const t0=performance.now();
   function tick(){const t=(performance.now()-t0)/1000;for(const s of scenes){const a=+s.dataset.start,b=+s.dataset.end;s.classList.toggle('on',t>=a&&t<b+0.01);}if(t<${total + 1})requestAnimationFrame(tick);}
-  document.fonts.ready.then(()=>{window.__ready=true;tick();});
+  document.fonts.ready.then(()=>{for(const s of scenes){const o=s.querySelector('.overlay');const img=s.querySelector('.shot');if(img&&o){img.style.setProperty('--shot-top',(o.getBoundingClientRect().height+${Math.round(H * 0.02)})+'px');}}window.__ready=true;tick();});
 </script></body></html>`;
 
 mkdirSync(out, { recursive: true });

@@ -28,8 +28,10 @@ const SHOTS = [
   { name: "record-signals", path: "/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", w: 1440, h: 900, scrollTo: "text=Sage signals" },
   { name: "lender", path: "/lender", w: 1440, h: 900 },
   { name: "marketplace", path: "/marketplace", w: 1440, h: 900 },
-  { name: "composer", path: "/launch?do=pay", w: 1440, h: 1000, click: "text=Design gig", scrollTo: ".cmp-grid" },
-  { name: "composer-grant", path: "/launch?do=pay", w: 1440, h: 1100, click: "text=Grant in J$", scrollTo: ".cmp-grid" },
+  // element-clipped: the composer is the subject, not the page around it
+  { name: "composer", path: "/launch?do=pay", w: 1440, h: 1000, click: "text=Design gig", clip: ".cmp-grid", pad: 28 },
+  { name: "composer-grant", path: "/launch?do=pay", w: 1440, h: 1200, click: "text=Grant in J$", clip: ".cmp-grid", pad: 28 },
+  { name: "record-signals-tight", path: "/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", w: 1440, h: 900, clip: ".rec-sig, [aria-label='Sage signals']", pad: 28 },
   { name: "board", path: "/c/gig-CNTNilT30v", w: 1440, h: 900 },
   { name: "proof", path: "/proof/0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb", w: 1440, h: 900 },
   { name: "launch", path: "/launch", w: 1440, h: 900 },
@@ -51,7 +53,15 @@ for (const s of SHOTS) {
   });
   const page = await ctx.newPage();
   try {
+    // the floating mode pill and the feedback tab are app chrome for a signed-in founder; in a
+    // still they photobomb the subject (measured: the pill sat over the composer's header)
+    await page.addInitScript(() => {
+      const st = document.createElement("style");
+      st.textContent = ".mode-pill,[class*='feedback-fab'],button:has(> svg + span):where([class*='feedback']){display:none!important}";
+      document.addEventListener("DOMContentLoaded", () => document.head.appendChild(st));
+    });
     await page.goto(base + s.path, { waitUntil: "networkidle", timeout: 60_000 });
+    await page.addStyleTag({ content: ".mode-pill{display:none!important} [class*='fb-']:has(> svg){display:none!important}" }).catch(() => {});
     await page.waitForTimeout(800);
     if (s.click) { await page.click(s.click, { timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(600); }
     if (s.scrollTo) {
@@ -61,7 +71,18 @@ for (const s of SHOTS) {
       await page.evaluate(() => window.scrollBy(0, -88));
       await page.waitForTimeout(700);
     }
-    await page.screenshot({ path: join(out, `${s.name}.png`), fullPage: false });
+    if (s.clip) {
+      const el = page.locator(s.clip).first();
+      const box = await el.boundingBox();
+      if (!box) throw new Error(`clip target not found: ${s.clip}`);
+      const pad = s.pad ?? 0;
+      await page.evaluate((y) => window.scrollTo(0, Math.max(0, y)), Math.max(0, box.y + (await page.evaluate(() => window.scrollY)) - pad));
+      await page.waitForTimeout(400);
+      const b2 = await el.boundingBox();
+      await page.screenshot({ path: join(out, `${s.name}.png`), fullPage: false, clip: { x: Math.max(0, b2.x - pad), y: Math.max(0, b2.y - pad), width: Math.min(s.w - Math.max(0, b2.x - pad), b2.width + pad * 2), height: Math.min(s.h - Math.max(0, b2.y - pad), b2.height + pad * 2) } });
+    } else {
+      await page.screenshot({ path: join(out, `${s.name}.png`), fullPage: false });
+    }
     console.log("shot", s.name);
   } catch (e) {
     console.log("FAILED", s.name, String(e.message).slice(0, 100));
