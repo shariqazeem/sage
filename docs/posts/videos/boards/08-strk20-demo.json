@@ -29,7 +29,7 @@
    "motion": "pan-up"
   },
   {
-   "shot": "proof.png",
+   "shot": "proof-private.png",
    "kicker": "The qualifying transactions — LIVE",
    "title": "Judge → vault → escrow → claim, no human in the loop.",
    "caption": "PayoutReleased · ClaimedPrivately — events keyed by intent hash, recipients never named",
