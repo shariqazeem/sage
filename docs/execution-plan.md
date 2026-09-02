@@ -312,6 +312,11 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       one payout per wallet. Vault `0x2394a6…9770` — confirmed on-chain as the FIRST mainnet instance
       of the declared privacy class `0x6d5577…5aa0`. Door: https://sagepays.xyz/c/gig-1c3e_FjffE.
       Watching for the first submission; holds are reviewed as they appear.
+- [x] **Nineteenth, from the reply's card still showing the SEO line (Thu):** the root layout set an
+      explicit twitter/openGraph title, and Next merges per top-level key, so it overrode every page's
+      own card title; a gig board also sent the small card with no image. Now the root sets only the
+      card type and site, each page's title flows into its card, and gig boards send the large card
+      with the default image. X caches a card per exact URL — repost with a query variant.
 - [x] **Eighteenth, from the user pasting a link into X (Thu):** every link card still showed the
       retired positioning ("Hire an AI worker, give it a budget, not your keys") and a gig's board was
       titled "Testing campaign · host" with its own URL as the description — the Starknet deploy route
