@@ -307,6 +307,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       2 after one correction, zero refused rows; the Urdu gig compiles ($15) and the local-currency
       grant compiles ($63.23 at the stamped rate). All three money-lane batteries are green on the
       deployed stack: P-DIRECT, P-WORK, P-JUDGE.
+- [x] **Sixteenth, from the user composing the first public gig (Thu):** the composer had no title
+      field — the 'what must be true' sentence became the mission title verbatim, cut at 80 chars
+      mid-word on the marketplace card, and the tester steps glued 'You are paid when' onto an
+      instruction sentence. A 300-char criterion cap surfaced as a raw schema path. Now: the card
+      title is the sentence's first clause at a word boundary or the founder's own typed title (new
+      optional field), the preview shows it above the sentence, the instruction reads 'What must be
+      true: …'. The raw-error message and a character counter are next.
 - [x] **The FC loop, rehearsed without money (Thu):** every link the package cites resolves; both
       flagship receipts render as settled; the outcomes page computes live with honest gaps; the
       lender view renders a real record with the multiple arithmetic, the facility block and the exact
