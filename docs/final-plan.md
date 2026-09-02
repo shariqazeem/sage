@@ -109,7 +109,7 @@ import (self-reported flows are exactly what the record refuses); a credit SCORE
 
 **Why one, and why this shape.** One campaign is one headline and one link. Five people paid
 privately is five rows on the explorer and five records — the STRK20 jury sees usage, the FC jury
-sees the loop. So: **one $25 gig · 5 slots × $5 · Starknet · listed publicly.**
+sees the loop. So: **one $25 gig · 8–10 slots ($2.50–$3.13 each) · Starknet · listed publicly** — and it pays us back: each verified page is a testimonial + backlink naming Sage at sagepays.xyz.
 
 - **Title:** Try a private payout and write up what happened
 - **What must be true:** the worker publishes a public page (blog, Notion, GitHub gist, dev.to…)
@@ -118,7 +118,7 @@ sees the loop. So: **one $25 gig · 5 slots × $5 · Starknet · listed publicly
   their submitting wallet address (the artifact marker).
 - **How Sage verifies:** the link they publish (artifact_url, wallet marker) — deterministic
   pre-gate, then the judge reads the account.
-- **Who:** anyone · 5 people · $5 each · priced in USD · Public marketplace (NOT invite-only).
+- **Who:** anyone · 8–10 people · $2.50–$3.13 each · priced in USD · Public marketplace (NOT invite-only).
 - **Where it goes:** composer → Pay for work → Gig → 5 people → verify "the link they publish" →
   Private-capable rail → fund $25 → live. The full inputs are in `docs/posts/CAMPAIGN-25.md`.
 - **If Starknet or FC repost:** a second $25 as a **milestone grant priced in J$** — two tranches
