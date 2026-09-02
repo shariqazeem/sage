@@ -75,3 +75,6 @@ promotion-evidence/.private/
 # announcement video artifacts (rebuildable: scripts/video/*)
 docs/posts/videos/shots/
 docs/posts/videos/*.mp4
+
+# video renderer scratch frames (hundreds of MB per render)
+docs/posts/videos/.frames-*/

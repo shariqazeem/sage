@@ -1,16 +1,78 @@
 {
  "name": "08-strk20-demo",
  "_refresh": "Saturday, before rendering: re-run capture.mjs; confirm the four qualifying transactions in strk20.json are the ones named in the captions marked LIVE; update settled/payout counts on the explorer scene.",
- "size": [1920, 1080],
+ "size": [
+  1920,
+  1080
+ ],
  "scenes": [
-  { "title": "Income you can borrow against — without a public diary.", "sub": "Sage on Starknet · STRK20 privacy · sagepays.xyz", "seconds": 4.5, "fade": 0.4 },
-  { "shot": "landing-hero.png", "kicker": "The product, with users", "title": "An AI judge that pays real people real USDC on mainnet.", "caption": "product testing · gigs · milestone grants — a working payments product first, privacy as a mode of it", "seconds": 5, "motion": "zoom" },
-  { "shot": "landing-privacy.png", "kicker": "The exact privacy claim", "title": "The agent decides the payout in public. The recipient collects it privately.", "caption": "a Cairo vault derives the reward and answers refusals with a code · escrow keyed by a Poseidon commitment · gasless claim", "seconds": 6, "motion": "pan-up" },
-  { "shot": "proof.png", "kicker": "The qualifying transactions — LIVE", "title": "Judge → vault → escrow → claim, no human in the loop.", "caption": "PayoutReleased · ClaimedPrivately — the privacy class hides recipients in events, keyed by intent hash", "seconds": 6, "motion": "zoom" },
-  { "shot": "explorer.png", "kicker": "Both rails, one ledger — LIVE", "title": "Every settlement and every refusal, on either chain.", "caption": "GOAT public payouts and Starknet shielded claims sit on the same tape", "seconds": 5, "motion": "pan-up" },
-  { "shot": "record-signals-tight.png", "kicker": "Selective disclosure", "title": "A floor attestation, not a diary.", "caption": "a lender learns that inflow clears a threshold — never the list of payments that made it", "seconds": 5, "motion": "pan-up" },
-  { "shot": "landing-teams.png", "kicker": "Inside companies", "title": "Private payouts to your own people.", "caption": "unlisted campaigns · linked wallets across EVM and Starknet · same judge, same receipt", "seconds": 4.5, "motion": "zoom" },
-  { "shot": "docs-settlement.png", "kicker": "Verifiable, not trusted", "title": "The rail is mutation-tested and dry-run against the live vault.", "caption": "a control row that must refuse proves the simulation can say no", "seconds": 4.5, "motion": "pan-up" },
-  { "title": "Privacy as a mode of activity, not a mixer.", "sub": "Contracts, transactions and the manifest are public at sagepays.xyz/strk20.json", "seconds": 5, "fade": 0.5 }
+  {
+   "title": "Income you can borrow against — without a public diary.",
+   "sub": "Sage on Starknet · STRK20 privacy · sagepays.xyz",
+   "seconds": 4.5,
+   "fade": 0.4
+  },
+  {
+   "shot": "landing-hero.png",
+   "kicker": "The product, with users",
+   "title": "An AI judge that pays real people real USDC on mainnet.",
+   "caption": "product testing · gigs · milestone grants — a payments product first, privacy as a mode of it",
+   "seconds": 5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "landing-privacy.png",
+   "kicker": "The exact privacy claim",
+   "title": "The agent decides the payout in public. The recipient collects it privately.",
+   "caption": "a Cairo vault derives the reward and codes its refusals · Poseidon-keyed escrow · gasless claim",
+   "seconds": 6,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "proof.png",
+   "kicker": "The qualifying transactions — LIVE",
+   "title": "Judge → vault → escrow → claim, no human in the loop.",
+   "caption": "PayoutReleased · ClaimedPrivately — events keyed by intent hash, recipients never named",
+   "seconds": 6,
+   "motion": "zoom"
+  },
+  {
+   "shot": "explorer.png",
+   "kicker": "Both rails, one ledger — LIVE",
+   "title": "Every settlement and every refusal, on either chain.",
+   "caption": "GOAT public payouts and Starknet shielded claims sit on the same tape",
+   "seconds": 5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "record-signals-tight.png",
+   "kicker": "Selective disclosure",
+   "title": "A floor attestation, not a diary.",
+   "caption": "a lender learns that inflow clears a threshold — never the payments that made it",
+   "seconds": 5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "landing-teams.png",
+   "kicker": "Inside companies",
+   "title": "Private payouts to your own people.",
+   "caption": "unlisted campaigns · linked wallets across EVM and Starknet · same judge, same receipt",
+   "seconds": 4.5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "docs-settlement.png",
+   "kicker": "Verifiable, not trusted",
+   "title": "The rail is mutation-tested and dry-run against the live vault.",
+   "caption": "a control row that must refuse proves the simulation can say no",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "title": "Privacy as a mode of activity, not a mixer.",
+   "sub": "Contracts, transactions and the manifest are public at sagepays.xyz/strk20.json",
+   "seconds": 5,
+   "fade": 0.5
+  }
  ]
 }
