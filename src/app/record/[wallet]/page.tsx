@@ -17,6 +17,8 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { buildLinkedRecord, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { LinkWalletsButton } from "./link-wallets";
+import { TakeAdvanceButton } from "./take-advance";
+import { offerFor } from "@/lib/advance/self-serve";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,6 +77,10 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   const viewerOwnsThis = same(evmSession, record.wallet) || same(starknetSession, record.wallet);
   const alreadyLinked = evmSession && starknetSession ? linkedWalletsOf(evmSession).some((w) => same(w, starknetSession)) : true;
   const canLink = !!evmSession && !!starknetSession && viewerOwnsThis && !alreadyLinked;
+  // WORKING CAPITAL, SELF-SERVE — the owner sees what the published formula allows right now and can
+  // take it in one click; everyone else sees the facility's terms on the lender view instead.
+  const offer = viewerOwnsThis ? offerFor(record.wallet) : null;
+  const showTake = !!offer && offer.terms.armed && !offer.active && offer.offerUsd >= 0.1;
   const otherLabel = same(evmSession, record.wallet) ? "Starknet" : "Ethereum";
 
   return (
@@ -240,6 +246,18 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           </section>
         )}
 
+        {showTake && offer && (
+          <section className="rec-adv spp-reveal" aria-label="Working capital">
+            <div className="rec-sig-head">
+              <span className="rec-sig-title">Working capital</span>
+              <span className="rec-sig-sub mono">capacity ${offer.capacityUsd.toFixed(2)} · = {offer.terms.multiple}× monthly verified inflow</span>
+            </div>
+            <TakeAdvanceButton wallet={record.wallet} offerUsd={offer.offerUsd} multiple={offer.terms.multiple} waterfallBps={offer.terms.waterfallBps} />
+          </section>
+        )}
+        {offer?.active && (
+          <p className="rec-link-hint">Advance outstanding: ${offer.active.outstandingUsd.toFixed(2)} of ${offer.active.principalUsd.toFixed(2)} — repaid automatically from your next verified payouts.</p>
+        )}
         {/* THE ADVANCE FACILITY (capital in). Rendered only when a facility has actually run for
             this wallet — an empty promise box would be marketing, and this page is receipts.
             Repayment history leads because it is the one credit signal collateral-based lending

@@ -51,8 +51,9 @@ Loom/Drive link. Cut line 12:00 PKT: after it only numbers, videos, forms.
 1. The 5-minute film that shows agents doing the work (inspection, design, judging, refusing,
    paying, the record, the lender view, the advance capacity) — half the rubric is that.
 2. A Caribbean obligation settled (the J$ grant) — turns "not yet measured" into a reading.
-3. The advance disbursed and repaid once on mainnet — the capital-in leg; only possible after a
-   real earner exists, so it rides on the gig paying out.
+3. The advance disbursed and repaid once on mainnet — the capital-in leg. Now SELF-SERVE (Thu night):
+   a worker with a record takes it from their record page in one click; the pot needs ~$5 USDC on
+   Starknet, then the gig's first earner can be the first borrower on camera.
 4. The team story in one paragraph: solo founder, Metis 1st place, production mainnet, 4,000 tests.
 
 ## Explicit non-builds

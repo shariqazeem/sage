@@ -198,3 +198,10 @@
 .rec-link-btn:disabled { opacity: 0.6; cursor: default; }
 .rec-link-hint { font-size: 0.75rem; color: var(--ink-faint); }
 .rec-link-err { font-size: 0.75rem; color: var(--err, #dc2626); }
+
+/* self-serve working capital — the owner's one-click advance and the claim link, shown once */
+.rec-take { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.rec-take-title { font-weight: 650; }
+.rec-take-claim { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rec-take-claim code { font-family: var(--font-mono); font-size: 12px; word-break: break-all; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--paper-2, #f6f6f3); }
+.rec-take-done { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }

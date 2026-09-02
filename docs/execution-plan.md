@@ -487,6 +487,7 @@ The one genuinely new layer. Everything else exists.
       arithmetic. Repayment history IS the credit story lenders ask for.
 - [x] **Surface**: advance offer card on `/record` + "Fund this advance" on `/lender`
       (lender supplies the multiple — `advanceCapacityUsd` already enforces the philosophy).
+- [x] **SELF-SERVE (Thu 3 Sep):** the borrower takes the advance from their own record page — owner session, published formula, operator terms from env, pot escrow, claim link once, waterfall repayment; operator route shares the same disbursement function. Pot needs ~$5 USDC.
 - [ ] **THE PROOF**: one real advance on mainnet — worker with a real record takes an advance →
       their next verified payout auto-splits → both legs' receipts land on `/record` and
       `/explorer`. This is the FC demo's climax.

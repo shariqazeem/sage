@@ -287,6 +287,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `INSPECTION_REPLAY_MODE` † | `"shadow"` re-performs a safe observed transition to confirm it reproduces. **Required for grounded plan selection, not optional telemetry** — `safeTransitionsEstablished` demands every `action_outcome` criterion cite a REPRODUCED transition, so unset (its default) blocks every grounded plan containing one and ships the weaker legacy plan instead. | Grounded selection blocked for action missions |
 | `STARKNET_RPC_URL` † / `STARKNET_ACCOUNT_ADDRESS` † / `STARKNET_PRIVATE_KEY` † | The Starknet operator account — the key the Cairo vault accepts as its operator. All required together, or the rail is absent. | Starknet campaigns cannot settle |
 | `STARKNET_VAULT_CLASS_HASH` † | The declared `SageVault` class new vaults deploy from | Starknet deploy refuses rather than guessing |
+| `ADVANCE_SELF_SERVE` † / `ADVANCE_MAX_USD` † / `ADVANCE_MULTIPLE` † / `ADVANCE_WATERFALL_BPS` † | Self-serve working capital on `/record`: `"1"` arms the owner's one-click advance; max principal (default 5), the lender multiple on monthly verified inflow (default 1), the repayment share of each next verified payout (default 5000 = 50%). The money is the operator's Starknet pot. | Off — the door 404s; the operator route still works |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---

@@ -1,13 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { advanceCapacityUsd, walletCreditSignals } from "@/lib/campaigns/credit";
-import { advanceHistory, createAdvance, recordDisbursement } from "@/lib/db/advances";
-import { escrowPayouts } from "@/lib/starknet/claims";
-import { claimUrl, mintClaimSecrets } from "@/lib/starknet/claim-link";
-import { starknetConfig } from "@/lib/starknet/config";
-import { siteUrl } from "@/lib/site";
+import { disburseAdvance } from "@/lib/advance/disburse";
+import { advanceHistory } from "@/lib/db/advances";
 
 /** cent-exact USD → 6-decimal base units — the same one-liner the direct compiler uses. */
-const usdToBase = (usd: number): bigint => BigInt(Math.round(usd * 100)) * BigInt(10_000);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,72 +58,15 @@ export async function POST(req: NextRequest) {
   if (body.action !== "disburse") {
     return NextResponse.json({ error: `unknown action: ${body.action ?? "(none)"}` }, { status: 400 });
   }
-  const wallet = (body.wallet ?? "").trim();
-  const usd = Number(body.usd);
-  const multiple = Number(body.multiple ?? 1);
-  const waterfallBps = Number(body.waterfallBps ?? 5000);
-  if (!wallet || !Number.isFinite(usd) || usd <= 0) {
-    return NextResponse.json({ error: "wallet and a positive usd amount are required" }, { status: 400 });
-  }
-
-  // THE PUBLISHED FORMULA BINDS THE LENDER TOO. Capacity comes from the live record at this
-  // moment, with the lender's multiple — an operator cannot advance past their own formula.
-  const rec = walletCreditSignals(wallet);
-  if (!rec) {
-    return NextResponse.json({ error: "no verified work record for that wallet — capacity is $0.00" }, { status: 409 });
-  }
-  const capacity = advanceCapacityUsd(rec.signals, multiple);
-  if (usd > capacity) {
-    return NextResponse.json(
-      { error: `$${usd.toFixed(2)} exceeds capacity $${capacity.toFixed(2)} (= ${multiple}× monthly verified inflow, 90d window)` },
-      { status: 409 },
-    );
-  }
-
-  if (body.dryRun) {
-    return NextResponse.json({ ok: true, dryRun: true, capacityUsd: capacity, wouldDisburseUsd: usd, waterfallBps });
-  }
-
-  const cfg = starknetConfig();
-  if (!cfg) return NextResponse.json({ error: "Starknet settlement is not configured" }, { status: 503 });
-
-  // One active advance per borrower — the schema throws, we answer in words.
-  let advance;
-  try {
-    advance = createAdvance({
-      borrowerWallet: wallet,
-      principalBase: usdToBase(usd),
-      multiple,
-      waterfallBps,
-      potAddress: cfg.accountAddress,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error && /UNIQUE/i.test(e.message) ? "that wallet already has an active advance — one at a time, by design" : String(e) },
-      { status: 409 },
-    );
-  }
-
-  try {
-    const secrets = mintClaimSecrets();
-    const escrow = await escrowPayouts(
-      [{ claimCommitment: secrets.claimCommitment, refundCommitment: secrets.refundCommitment, amountBase: usdToBase(usd) }],
-      Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60,
-    );
-    recordDisbursement(advance.id, { tx: escrow.transactionHash, claimCommitment: secrets.claimCommitment, claimSecret: secrets.claimSecret });
-    return NextResponse.json({
-      ok: true,
-      advanceId: advance.id,
-      capacityUsd: capacity,
-      disburseTx: escrow.transactionHash,
-      // BEARER CASH — shown once, here, to the operator who will hand it to the borrower.
-      claimUrl: claimUrl(siteUrl(), secrets.claimSecret),
-    });
-  } catch (e) {
-    // The row exists with no money behind it — say so plainly; the operator retries or voids.
-    return NextResponse.json(
-      { error: `advance ${advance.id} created but DISBURSEMENT FAILED (${e instanceof Error ? e.message : String(e)}) — nothing was escrowed; retry will be refused by the one-active guard, resolve the row first`, advanceId: advance.id },
-      { status: 502 },
-    );
-  }
+  // ONE disbursement function, shared with the self-serve door (lib/advance/disburse.ts), so the
+  // operator and the borrower are bound by exactly the same rules.
+  const r = await disburseAdvance({
+    wallet: (body.wallet ?? "").trim(),
+    usd: Number(body.usd),
+    multiple: Number(body.multiple ?? 1),
+    waterfallBps: Number(body.waterfallBps ?? 5000),
+    dryRun: !!body.dryRun,
+  });
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+  return NextResponse.json(r);
 }
