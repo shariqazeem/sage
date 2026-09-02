@@ -1,0 +1,45 @@
+{
+ "name": "06-privacy",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "Getting paid should not publish what you earn.",
+   "sub": "So on Starknet, Sage pays in two halves.",
+   "seconds": 4,
+   "fade": 0.4
+  },
+  {
+   "shot": "landing-privacy.png",
+   "kicker": "sagepays.xyz \u2014 private payouts",
+   "title": "The vault releases. The escrow names nobody.",
+   "caption": "a Cairo vault derives the reward \u00b7 a Poseidon commitment holds it",
+   "seconds": 5.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "explorer.png",
+   "kicker": "Auditable in aggregate",
+   "title": "Private in the destination.",
+   "caption": "the funding total and approvals are public; who collected is not",
+   "seconds": 4.5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "proof.png",
+   "kicker": "A Starknet receipt",
+   "title": "Collected with a one-time link \u2014 into a shielded note if you choose.",
+   "caption": "Sage pays the gas; a wallet with no tokens can still be paid",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "title": "Income you can borrow against, without a public diary.",
+   "sub": "sagepays.xyz",
+   "seconds": 3,
+   "fade": 0.5
+  }
+ ]
+}

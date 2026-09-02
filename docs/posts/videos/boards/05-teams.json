@@ -1,0 +1,45 @@
+{
+ "name": "05-teams",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "Pay your own people for verified work.",
+   "sub": "Off the public board. Inside your company.",
+   "seconds": 3.5,
+   "fade": 0.4
+  },
+  {
+   "shot": "composer.png",
+   "kicker": "One checkbox",
+   "title": "Only people I invite.",
+   "caption": "the campaign never appears on the marketplace \u2014 you share its door",
+   "seconds": 5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "landing-teams.png",
+   "kicker": "sagepays.xyz \u2014 for teams",
+   "title": "Same judge. Same vault. Same receipt.",
+   "caption": "no HR system, no invoices, no bank account on their side",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "board.png",
+   "kicker": "The door",
+   "title": "They open the link, do the work, get paid.",
+   "caption": "and every payout still lands on their own verified record",
+   "seconds": 4,
+   "motion": "zoom"
+  },
+  {
+   "title": "Tick the box. Share the door.",
+   "sub": "sagepays.xyz/launch?do=pay",
+   "seconds": 2.5,
+   "fade": 0.5
+  }
+ ]
+}

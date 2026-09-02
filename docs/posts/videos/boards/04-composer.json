@@ -1,0 +1,37 @@
+{
+ "name": "04-composer",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "Say the work. Watch the plan form.",
+   "sub": "Gigs, bounties, milestone grants \u2014 compiled, not chatted.",
+   "seconds": 3.5,
+   "fade": 0.4
+  },
+  {
+   "shot": "composer.png",
+   "kicker": "sagepays.xyz/launch",
+   "title": "What must be true, and how Sage verifies it.",
+   "caption": "the link they publish \u00b7 text on a page \u00b7 an on-chain transaction",
+   "seconds": 5.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "composer-grant.png",
+   "kicker": "A milestone grant, priced in J$",
+   "title": "One total, split exactly. Converted once.",
+   "caption": "no model ever computes an amount \u2014 the vault derives the reward",
+   "seconds": 5.5,
+   "motion": "pan-up"
+  },
+  {
+   "title": "Approve the plan. Fund once. Payouts run themselves.",
+   "sub": "sagepays.xyz/launch?do=pay",
+   "seconds": 3,
+   "fade": 0.5
+  }
+ ]
+}

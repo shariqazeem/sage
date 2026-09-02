@@ -1,0 +1,85 @@
+{
+ "name": "01-opener",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "We won the OpenClaw bootcamp in August.",
+   "sub": "Then we went quiet and built. Here is what Sage is now.",
+   "seconds": 4,
+   "fade": 0.4
+  },
+  {
+   "shot": "landing-hero.png",
+   "kicker": "sagepays.xyz",
+   "title": "Pay people for work an AI has verified.",
+   "caption": "gigs \u00b7 milestone grants \u00b7 product testing \u2014 two mainnet rails",
+   "seconds": 5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "explorer.png",
+   "kicker": "The public ledger",
+   "title": "Every settlement. Every refusal.",
+   "caption": "$52.60 settled \u00b7 29 payouts \u00b7 23 refused \u2014 each one a transaction",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "landing-realrun.png",
+   "kicker": "How it works \u2014 a real run",
+   "title": "What Sage saw, what it designed, what it paid.",
+   "caption": "the judge's verbatim quote sits under every verdict",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "composer.png",
+   "kicker": "Gigs \u00b7 bounties \u00b7 grants",
+   "title": "The plan forms as you type.",
+   "caption": "exact split \u00b7 verification in plain words \u00b7 no model computes a number",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "landing-teams.png",
+   "kicker": "Inside a company",
+   "title": "Pay your own people, off the public board.",
+   "caption": "one checkbox \u00b7 one link \u00b7 same verification, same receipt",
+   "seconds": 4,
+   "motion": "zoom"
+  },
+  {
+   "shot": "record-signals.png",
+   "kicker": "The credit file",
+   "title": "Every payout leaves a record a lender can underwrite.",
+   "caption": "published formulas over receipt-anchored inflow \u2014 never a score",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "lender.png",
+   "kicker": "Capital",
+   "title": "Advance against verified inflow.",
+   "caption": "repaid by a waterfall on the next verified payout",
+   "seconds": 4,
+   "motion": "zoom"
+  },
+  {
+   "shot": "landing-privacy.png",
+   "kicker": "Starknet",
+   "title": "Getting paid should not publish what you earn.",
+   "caption": "escrow keyed by a commitment \u00b7 collect into a shielded note",
+   "seconds": 4,
+   "motion": "pan-up"
+  },
+  {
+   "title": "Payment infrastructure for verified work.",
+   "sub": "Live on GOAT Network and Starknet \u00b7 sagepays.xyz",
+   "seconds": 3.5,
+   "fade": 0.5
+  }
+ ]
+}

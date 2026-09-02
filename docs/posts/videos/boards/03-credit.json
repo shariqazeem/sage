@@ -1,0 +1,53 @@
+{
+ "name": "03-credit",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "Every payout leaves a record a lender can underwrite.",
+   "sub": "For people whose work is real and whose paperwork does not exist.",
+   "seconds": 4,
+   "fade": 0.4
+  },
+  {
+   "shot": "record.png",
+   "kicker": "sagepays.xyz/record",
+   "title": "A verified work record.",
+   "caption": "earned, verified \u00b7 completions \u00b7 funders \u00b7 every row a transaction",
+   "seconds": 4.5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "record-signals.png",
+   "kicker": "Sage signals",
+   "title": "Published formulas. Never a score.",
+   "caption": "pass rate \u00b7 verified inflow per month \u00b7 distinct funders \u00b7 tenure",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "lender.png",
+   "kicker": "sagepays.xyz/lender",
+   "title": "Underwrite verified cash flow.",
+   "caption": "the lender supplies the multiple; Sage publishes the arithmetic",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "landing-capital.png",
+   "kicker": "The advance",
+   "title": "Capital moves before the next invoice clears.",
+   "caption": "repaid by a waterfall on witnessed inflow \u2014 under the same policy",
+   "seconds": 4,
+   "motion": "zoom"
+  },
+  {
+   "title": "The record is yours. You decide who reads it.",
+   "sub": "sagepays.xyz/lender",
+   "seconds": 2.5,
+   "fade": 0.5
+  }
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "name": "02-ledger",
+ "size": [
+  1280,
+  720
+ ],
+ "scenes": [
+  {
+   "title": "Every settlement. Every refusal.",
+   "sub": "The public ledger of an AI that pays people.",
+   "seconds": 3.5,
+   "fade": 0.4
+  },
+  {
+   "shot": "explorer.png",
+   "kicker": "sagepays.xyz/explorer",
+   "title": "One ledger, every rail.",
+   "caption": "$52.60 settled \u00b7 29 mainnet payouts \u00b7 GOAT Network + Starknet",
+   "seconds": 5,
+   "motion": "pan-up"
+  },
+  {
+   "shot": "proof.png",
+   "kicker": "A receipt",
+   "title": "What it saw, what it replayed, why it paid.",
+   "caption": "evidence \u2192 decision \u2192 on-chain settlement, one page per payout",
+   "seconds": 5,
+   "motion": "zoom"
+  },
+  {
+   "shot": "outcomes-flow.png",
+   "kicker": "sagepays.xyz/outcomes",
+   "title": "Readings, not claims.",
+   "caption": "cost \u00b7 speed \u00b7 access \u00b7 flow \u2014 computed from the ledger as the page renders",
+   "seconds": 4.5,
+   "motion": "pan-up"
+  },
+  {
+   "title": "Refusals are listed with the same weight as payments.",
+   "sub": "That is what makes the payments mean something.",
+   "seconds": 3,
+   "fade": 0.5
+  }
+ ]
+}

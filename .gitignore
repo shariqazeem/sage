@@ -71,3 +71,7 @@ next-env.d.ts
 # transient smoke checkpoint (never committed; evidence artifact IS committed)
 promotion-evidence/*.checkpoint.json
 promotion-evidence/.private/
+
+# announcement video artifacts (rebuildable: scripts/video/*)
+docs/posts/videos/shots/
+docs/posts/videos/*.mp4
