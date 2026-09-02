@@ -52,3 +52,50 @@ export function spreadOverpaidMissions(
   }
   return current;
 }
+
+
+/**
+ * WHEN THE REMAINDER WILL NOT DIVIDE, RE-EXPRESS THE POT AND RETURN THE RESIDUAL.
+ *
+ * Measured on plausible.io (P-GEN 45): the sample policy had already raised the signup mission
+ * to 48 completions, but the balancer's remainder — 143,127,302 base units — has no divisor at
+ * or below 48 except 2, so the allocator's exact-division search (correct, and frozen) could only
+ * express it as $71.56 × 2. Raising the count changes nothing; divisibility is the wall.
+ *
+ * On the CAPPED path the budget being allocated is fair CAPACITY, a derived number, not the
+ * founder's money — so the honest move is to pay the mission's pot as n completions at (or just
+ * above) its fair rate and hand the sub-cent residual back to the founder: the capped budget
+ * shrinks by that residual, Σ(reward × count) equals the new budget exactly, and the plan says
+ * it spends a few base units less. Never called off the capped path.
+ */
+export function spreadOverpaidMissionsExactly(
+  input: WeightedMission[],
+  allocation: BudgetAllocation,
+  budgetBase: bigint,
+  opts: { minRewardBase: bigint; factor?: number },
+): { allocation: BudgetAllocation; budgetBase: bigint } {
+  const current = spreadOverpaidMissions(input, allocation, budgetBase, opts);
+  if (!current.ok) return { allocation: current, budgetBase };
+  const factor = BigInt(Math.max(1, Math.round(opts.factor ?? 2)));
+  let residual = BigInt(0);
+  const missions = current.missions.map((a) => {
+    const m = input.find((x) => x.missionKey === a.missionKey);
+    if (!m) return a;
+    const ceiling = effortCeilingBase(m.effortMinutes, opts.minRewardBase) ?? TANGIBLE_PREFERRED_REWARD_BASE;
+    const fair = ceiling > TANGIBLE_PREFERRED_REWARD_BASE ? ceiling : TANGIBLE_PREFERRED_REWARD_BASE;
+    if (a.rewardBase <= fair * factor) return a;
+    const pot = a.rewardBase * a.maxCompletions;
+    let n = pot / fair; // floor: as many people as the pot pays at the fair rate
+    if (n > MAX_COMPLETIONS) n = MAX_COMPLETIONS;
+    if (n <= a.maxCompletions) return a;
+    const reward = pot / n; // ≥ fair by construction
+    residual += pot - reward * n;
+    return { ...a, rewardBase: reward, maxCompletions: n };
+  });
+  if (residual === BigInt(0) && missions.every((x, i) => x === current.missions[i])) return { allocation: current, budgetBase };
+  const next = budgetBase - residual;
+  return {
+    allocation: { ...current, missions, totalBudgetBase: next, allocatedBase: next },
+    budgetBase: next,
+  };
+}

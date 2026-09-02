@@ -42,7 +42,7 @@ import {
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
-import { spreadOverpaidMissions } from "./fair-spread";
+import { spreadOverpaidMissionsExactly } from "./fair-spread";
 import { compilePlan } from "./plan";
 import { recordFieldTestStep } from "./field-test-progress";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
@@ -554,7 +554,10 @@ export async function inspectAndPlan(
       // And no completion on the capped path pays far beyond its fair rate: the pot a qualitative
       // mission was sized for (up to 50 × its effort ceiling) must reach that many people, not two.
       // Measured 2 Sep: $76.39 × 2 for a 12-minute signup, $55.74 × 3 for a 30-minute docs task.
-      allocation = spreadOverpaidMissions(
+      // When the remainder simply will not divide (measured: 143,127,302 base units with no divisor
+      // ≤ 48 but 2), the pot is re-expressed at the fair rate and the sub-cent residual returns to
+      // the founder — the capped budget is capacity, not their money, so it may shrink by it.
+      const exact = spreadOverpaidMissionsExactly(
         missions.map((m) => ({
           missionKey: m.missionKey,
           weight: m.rewardWeight,
@@ -566,6 +569,11 @@ export async function inspectAndPlan(
         effectiveBudgetBase,
         { minRewardBase: TANGIBLE_MIN_REWARD_BASE },
       );
+      allocation = exact.allocation;
+      if (exact.budgetBase !== effectiveBudgetBase) {
+        effectiveBudgetBase = exact.budgetBase;
+        unspentBase = input.totalBudgetBase - exact.budgetBase;
+      }
     }
     allocation.missions = splitCompletionsForSample(
       allocation.missions,

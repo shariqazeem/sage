@@ -57,3 +57,44 @@ describe("spreadOverpaidMissions — the capped path pays the fair rate to more 
     for (const m of after.missions) expect(usd(m.rewardBase)).toBeLessThanOrEqual(6 * 2 + 0.01); // fair for 30m = $6
   });
 });
+
+import { spreadOverpaidMissionsExactly } from "./fair-spread";
+
+describe("spreadOverpaidMissionsExactly — the remainder that would not divide (plausible.io, P-GEN 45)", () => {
+  // the brain's exact inputs, with the sample policy's raised count already applied to the signup
+  const PROD: WeightedMission[] = [
+    { missionKey: "homepage-cta-to-registration", weight: 3, suggestedMaxCompletions: 5, priority: "high", effortMinutes: 5 },
+    { missionKey: "docs-onboarding-navigation", weight: 3, suggestedMaxCompletions: 5, priority: "high", effortMinutes: 5 },
+    { missionKey: "first-time-account-registration", weight: 6, suggestedMaxCompletions: 48, priority: "high", effortMinutes: 15 },
+    { missionKey: "docs-add-website-next-step", weight: 3, suggestedMaxCompletions: 4, priority: "medium", effortMinutes: 5 },
+  ];
+  const B = BigInt(164_000_000);
+
+  it("reproduces $71.56 × 2, then pays the fair rate to ~48 people with the sum exact against the shrunk budget", () => {
+    const first = allocateBudget(PROD, B, { minRewardBase: TANGIBLE_MIN_REWARD_BASE });
+    const signup0 = first.missions.find((m) => m.missionKey === "first-time-account-registration")!;
+    expect(usd(signup0.rewardBase)).toBeGreaterThan(60); // the measured defect
+    expect(Number(signup0.maxCompletions)).toBe(2);
+    const { allocation, budgetBase } = spreadOverpaidMissionsExactly(PROD, first, B, { minRewardBase: TANGIBLE_MIN_REWARD_BASE });
+    expect(allocation.ok).toBe(true);
+    const signup = allocation.missions.find((m) => m.missionKey === "first-time-account-registration")!;
+    expect(usd(signup.rewardBase)).toBeLessThanOrEqual(6);
+    expect(usd(signup.rewardBase)).toBeGreaterThanOrEqual(3); // never below the fair rate
+    expect(Number(signup.maxCompletions)).toBeGreaterThanOrEqual(40);
+    expect(sum(allocation)).toBe(budgetBase); // exact against the returned budget
+    expect(allocation.totalBudgetBase).toBe(budgetBase);
+    expect(B - budgetBase).toBeLessThan(BigInt(100)); // the residual is sub-cent
+  });
+
+  it("a plan already at fair rates comes back untouched with the same budget", () => {
+    const fair: WeightedMission[] = [
+      { missionKey: "a", weight: 5, suggestedMaxCompletions: 10, priority: "high", effortMinutes: 10 },
+      { missionKey: "b", weight: 5, suggestedMaxCompletions: 10, priority: "medium", effortMinutes: 10 },
+    ];
+    const budget = BigInt(60_000_000);
+    const first = allocateBudget(fair, budget, { minRewardBase: TANGIBLE_MIN_REWARD_BASE });
+    const r = spreadOverpaidMissionsExactly(fair, first, budget, { minRewardBase: TANGIBLE_MIN_REWARD_BASE });
+    expect(r.allocation).toBe(first);
+    expect(r.budgetBase).toBe(budget);
+  });
+});
