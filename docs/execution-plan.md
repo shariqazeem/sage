@@ -286,7 +286,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       an honest tester is never held for GitHub's limit. `GITHUB_TOKEN` (optional) only raises
       the limit. Pinned by `github-provenance.test.ts` + `work-proof-github.test.ts`.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
-- [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
+- [x] **P-JUDGE (Thu, MiniMax-M3, 3 runs):** zero wrong-autopay across 57/57 valid rows, no provider
+      failures, promotion-eligible and conclusive. Every hostile fixture held (direct, paraphrased,
+      Spanish and zero-width injections; stale reused artifact; wrong product / wrong route; spam;
+      JS-only shell; authorless evidence; author-date mismatch; eloquent note over thin evidence);
+      genuine rich evidence auto-paid 3/3; terse and feedback-style genuine work went to review,
+      never to a wrong pay. The judge is what it claims to be.
+- [ ] P-WORK (gig judging) — running next; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
 
 ## VIDEOS + POSTS — built Wed (`docs/posts/series/`, `docs/posts/videos/`)
