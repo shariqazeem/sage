@@ -55,7 +55,10 @@ function dedupeFindings(f: MapFinding[]): MapFinding[] {
 // enriches INTERACTIVE products; static non-English pages rely on these). This label is descriptive
 // only — never a safety input — so a miss is cosmetic, never a money or anchor risk.
 const CATEGORY_HINTS: [RegExp, string][] = [
-  [/wallet|crypto|onchain|web3|token|defi|blockchain|cartera|portefeuille/i, "web3 / crypto"],
+  // NO BARE "token": "design tokens" (tailwindcss.com/docs) and "API token" (plausible.io) both
+  // read as crypto on the 2 Sep P-GEN run — a docs site and an analytics product were framed as
+  // web3 for the mission brain. Crypto-specific terms only, on word boundaries.
+  [/\b(?:wallets?|crypto|on-?chain|web3|defi|blockchain|tokenomics|stablecoins?|smart contracts?|nfts?|airdrops?|cartera|portefeuille)\b/i, "web3 / crypto"],
   [/docs?|documentation|api reference|sdk|developer|developpeur|entwickler|desarrollador/i, "developer tool / docs"],
   [/pricing|subscribe|plans|checkout|cart|shop|store|tarifs|boutique|panier|abonn|preise|warenkorb|kaufen|precios|tienda|carrito|comprar|prezzi|negozio|loja/i, "commerce / saas"],
   [/dashboard|analytics|workspace|projects?|tableau de bord|espace de travail|arbeitsbereich/i, "saas app"],
