@@ -34,8 +34,6 @@ const SHOTS = [
   { name: "record-signals-tight", path: "/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", w: 1440, h: 900, clip: ".rec-sig, [aria-label='Sage signals']", pad: 28 },
   { name: "board", path: "/c/gig-CNTNilT30v", w: 1440, h: 900 },
   { name: "proof", path: "/proof/0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb", w: 1440, h: 900 },
-  // the ClaimedPrivately payout — the receipt that names no recipient; the STRK20 demo must show THIS one
-  { name: "proof-private", path: "/proof/0x27653876982a1373f38fb288a7fde55c8b51d52f25daa4511f3875b1badbfe4", w: 1440, h: 900 },
   { name: "launch", path: "/launch", w: 1440, h: 900 },
   { name: "docs-settlement", path: "/docs/settlement", w: 1440, h: 900 },
   { name: "m-landing", path: "/", w: 390, h: 844, mobile: true },

@@ -1,6 +1,6 @@
 {
  "name": "08-strk20-demo",
- "_refresh": "Saturday, before rendering: re-run capture.mjs; confirm the four qualifying transactions in strk20.json are the ones named in the captions marked LIVE; update settled/payout counts on the explorer scene.",
+ "_refresh": "Saturday, before rendering: re-run capture.mjs; the receipt scene shows the autonomous Starknet settlement (0x2b03ed…49fb — the four manifest transactions are pool, escrow and claim legs and have no receipt page); update settled/payout counts on the explorer scene.",
  "size": [
   1920,
   1080
@@ -24,15 +24,15 @@
    "shot": "landing-privacy.png",
    "kicker": "The exact privacy claim",
    "title": "The agent decides the payout in public. The recipient collects it privately.",
-   "caption": "a Cairo vault derives the reward and codes its refusals · Poseidon-keyed escrow · gasless claim",
+   "caption": "the privacy class keys events by intent hash — recipients never named on-chain · gasless claim",
    "seconds": 6,
    "motion": "pan-up"
   },
   {
-   "shot": "proof-private.png",
-   "kicker": "The qualifying transactions — LIVE",
+   "shot": "proof.png",
+   "kicker": "The autonomous payout — LIVE",
    "title": "Judge → vault → escrow → claim, no human in the loop.",
-   "caption": "PayoutReleased · ClaimedPrivately — events keyed by intent hash, recipients never named",
+   "caption": "judged from the submitter's own words · vault released · escrow took it · a claim link collected it",
    "seconds": 6,
    "motion": "zoom"
   },

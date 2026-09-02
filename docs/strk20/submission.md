@@ -32,7 +32,7 @@ Class hashes and declare/deploy transactions: [README, "Live on Starknet mainnet
 | `0xb4a7cb07…0b735`  | The pool exists and is funded — escrow is real money, not an interface                                        |
 | `0x74e73f29…164cb`  | A payout escrowed against a commitment — the worker's address appears nowhere in the leg                      |
 | `0x6ec8165b…ca67a3` | A bearer claim collected — the link, not the identity, is the key                                             |
-| _(pending, user)_   | The outstanding autonomous payout collected into a **shielded note** — the only agent-decided one on the list |
+| `0x27653876…dbfe4` | The autonomous payout collected into a **shielded note** (`ClaimedPrivately`) — the only agent-decided one on the list |
 
 And the loop with **no human anywhere in it**, both on mainnet, both checkable now:
 autonomous payout `0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb`
