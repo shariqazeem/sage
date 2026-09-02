@@ -166,7 +166,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       for a 12-minute signup, $55.74 × 3 for a 30-minute docs task — `spreadOverpaidMissions`
       now sends the same pot to more people at the fair rate (allocator untouched, Σ exact).
       Deploy after the battery finishes.
-- [ ] Compile a spread of gigs/grants locally and READ the plans + strength notes.
+- [x] Third defect from reading (Wed): coverage was capped by the prompt itself — "design 3–6
+      candidate missions" — so a rich store got three missions and spent $15.80 of $4,416.
+      The architect now designs one mission per distinct observed flow (4–6 small, 6–10 rich;
+      never padded). Prompt `mb-v4.2-qa`. **Validated by P-GEN 45 after deploy, anchors must
+      stay 100%** — the standing policy for any mission-brain change.
+- [ ] Deploy the three fixes when P-GEN 44 lands (no builds during a run) → P-GEN 45 → read.
+- [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
 
