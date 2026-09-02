@@ -9,7 +9,7 @@
  *   node scripts/video/render.mjs --board docs/posts/videos/boards/opener.json [--out docs/posts/videos]
  */
 import { chromium } from "playwright";
-import { readFileSync, mkdirSync, readdirSync, renameSync, unlinkSync, existsSync } from "node:fs";
+import { readFileSync, mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
@@ -18,7 +18,9 @@ const boardPath = arg("board");
 if (!boardPath) throw new Error("--board <storyboard.json>");
 const out = arg("out", "docs/posts/videos");
 const board = JSON.parse(readFileSync(boardPath, "utf8"));
-const [W, H] = board.size ?? [1280, 720];
+const [W, H] = board.size ?? [1920, 1080];
+const FPS = Number(arg("fps", "30"));
+const CRF = arg("crf", "16");
 const shotsDir = resolve(board.shotsDir ?? "docs/posts/videos/shots");
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -50,10 +52,9 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   :root{--paper:#fbfbf9;--ink:#1a1d21;--ink2:#4b5057;--ink3:#8a8f98;--terra:#c2410c;--line:#e6e6e2;--ok:#15803d}
   html,body{margin:0;width:${W}px;height:${H}px;background:var(--paper);overflow:hidden;font-family:Inter,system-ui,sans-serif;color:var(--ink)}
-  .scene{position:absolute;inset:0;opacity:0;transition:opacity var(--fade) ease}
-  .scene.on{opacity:1}
+  .scene{position:absolute;inset:0;opacity:0;visibility:hidden}
   .frame{position:absolute;inset:0;overflow:hidden}
-  .shot{position:absolute;left:50%;width:${Math.round(W * 0.92)}px;transform:translateX(-50%) scale(1);transform-origin:50% 0;border-radius:14px;box-shadow:0 30px 80px rgba(26,29,33,.16);top:var(--shot-top,${Math.round(H * 0.16)}px);animation-timing-function:linear;animation-fill-mode:both}
+  .shot{position:absolute;left:50%;width:${Math.round(W * 0.92)}px;transform:translateX(-50%) scale(1);transform-origin:50% 0;border-radius:14px;box-shadow:0 30px 80px rgba(26,29,33,.16);top:var(--shot-top,${Math.round(H * 0.16)}px);animation-timing-function:linear;animation-fill-mode:both;animation-play-state:paused}
   .kb-zoom{animation-name:kbz}.kb-up{animation-name:kbu}.kb-down{animation-name:kbd}.kb-still{animation-name:none}
   @keyframes kbz{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.06)}}
   @keyframes kbu{from{transform:translate(-50%,0)}to{transform:translate(-50%,-${Math.round(H * 0.12)}px)}}
@@ -73,28 +74,41 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 ${sceneHtml}
 <div class="brand"><i></i>Sage<span class="u">sagepays.xyz</span></div>
 <script>
-  const scenes=[...document.querySelectorAll('.scene')];
-  const t0=performance.now();
-  function tick(){const t=(performance.now()-t0)/1000;for(const s of scenes){const a=+s.dataset.start,b=+s.dataset.end;s.classList.toggle('on',t>=a&&t<b+0.01);}if(t<${total + 1})requestAnimationFrame(tick);}
-  document.fonts.ready.then(()=>{for(const s of scenes){const o=s.querySelector('.overlay');const img=s.querySelector('.shot');if(img&&o){img.style.setProperty('--shot-top',(o.getBoundingClientRect().height+${Math.round(H * 0.02)})+'px');}}window.__ready=true;tick();});
+  const scenes=[...document.querySelectorAll('.scene')].map(el=>({el,a:+el.dataset.start,b:+el.dataset.end,f:parseFloat(getComputedStyle(el).getPropertyValue('--fade'))||0.5}));
+  const total=${total};
+  window.__seek=(t)=>{
+    for(const s of scenes){
+      let o=0;
+      // crossfade: a scene fades in over f from its start and fades OUT over f after its end,
+      // so the outgoing image dissolves under the incoming one — never a cut to blank paper.
+      if(t>=s.a&&t<s.b+s.f){const fin=s.a===0?1:Math.min(1,(t-s.a)/s.f);const fout=t>=s.b?Math.max(0,1-(t-s.b)/s.f):1;o=Math.min(fin,fout);if(s.b>=total-0.001&&t>s.b-s.f)o=Math.min(o,(s.b-t)/s.f);}
+      s.el.style.opacity=o.toFixed(3);s.el.style.visibility=o>0?'visible':'hidden';
+      if(o>0)for(const anim of s.el.getAnimations({subtree:true})){anim.pause();anim.currentTime=Math.max(0,t-s.a)*1000;}
+    }
+  };
+  document.fonts.ready.then(()=>{for(const s of scenes){const o=s.el.querySelector('.overlay');const img=s.el.querySelector('.shot');if(img&&o){img.style.setProperty('--shot-top',(o.getBoundingClientRect().height+${Math.round(H * 0.02)})+'px');}}window.__ready=true;});
 </script></body></html>`;
 
 mkdirSync(out, { recursive: true });
-const tmpDir = join(out, `.rec-${board.name}`);
-mkdirSync(tmpDir, { recursive: true });
+const tmpDir = join(out, `.frames-${board.name}`);
+execFileSync("rm", ["-rf", tmpDir]); mkdirSync(tmpDir, { recursive: true });
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, recordVideo: { dir: tmpDir, size: { width: W, height: H } } });
+const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();
 await page.setContent(html, { waitUntil: "load" });
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 30_000 });
-await page.waitForTimeout((total + 0.6) * 1000);
+const frames = Math.round(total * FPS);
+const t0 = Date.now();
+for (let i = 0; i < frames; i++) {
+  await page.evaluate((t) => window.__seek(t), i / FPS);
+  await page.screenshot({ path: join(tmpDir, `f${String(i).padStart(5, "0")}.png`), type: "png", animations: "disabled", caret: "hide" });
+}
 await ctx.close();
 await browser.close();
-const webm = readdirSync(tmpDir).find((f) => f.endsWith(".webm"));
 const mp4 = join(out, `${board.name}.mp4`);
 if (existsSync(mp4)) unlinkSync(mp4);
-// H.264 + yuv420p + faststart: what X, LinkedIn and phones all accept. Trim the first 0.4s of blank.
-execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", "0.4", "-i", join(tmpDir, webm), "-t", String(total), "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart", "-an", mp4]);
-unlinkSync(join(tmpDir, webm)); try { renameSync(tmpDir, tmpDir); } catch {}
+// lossless frames → H.264 at a quality X keeps intact (crf 16, slow preset, 4:2:0 for phones)
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(FPS), "-i", join(tmpDir, "f%05d.png"), "-c:v", "libx264", "-preset", "slow", "-crf", CRF, "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", mp4]);
 execFileSync("rm", ["-rf", tmpDir]);
+console.log(`frames ${frames} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 console.log(`rendered ${mp4} · ${total}s · ${W}x${H}`);
