@@ -1,5 +1,6 @@
 "use client";
 
+import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CURRENCIES } from "@/lib/money/currency";
@@ -63,8 +64,8 @@ const VERIFY_OPTIONS = [
 type PayDraft = { who: string; slots: string };
 
 /** One payment line the founder composes — a tranche of a grant, or the whole of a gig. */
-type Tranche = { amount: string; deliverable: string; verify: string; expectedText: string; toAddr: string };
-const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "" });
+type Tranche = { amount: string; deliverable: string; verify: string; expectedText: string; toAddr: string; title?: string };
+const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
 
 /** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
  *  founder edits, the same way the goal chips write proven goal shapes. */
@@ -307,9 +308,13 @@ export function LaunchForm() {
             : t.verify === "onchain"
               ? "Submit the transaction hash, sent from your own submitting wallet."
               : "Submit the public link to what you made — it must visibly carry your own wallet address.";
+        // The founder's sentence is the CRITERION; the card title is its first clause (or the title they
+        // typed). "You are paid when …" only read for a state sentence ("the page is live") and broke
+        // for an instruction ("Read …, then write …") — "What must be true:" reads for both.
+        const typedTitle = (t.title ?? "").trim();
         return {
-          title: (cap.length >= 4 ? cap : `Milestone ${i + 1}`).slice(0, 80),
-          instructions: `You are paid when ${d}. ${proofLine}`,
+          title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),
+          instructions: `What must be true: ${cap}. ${proofLine}`,
           ...(splitting ? {} : isLocal ? { rewardLocal: Number(t.amount) } : {}),
           criteria: [
             cap,
@@ -675,6 +680,10 @@ export function LaunchForm() {
                           ))}
                         </select>
                       </label>
+                      <label className="cmp-field cmp-grow">
+                        <span className="cmp-label">Title on the card (optional)</span>
+                        <input className="lx-input cmp-input" type="text" placeholder={t.deliverable.trim() ? missionTitleFrom(t.deliverable, i) : "derived from the sentence above"} value={t.title ?? ""} onChange={(e) => setT(i, "title", e.target.value)} maxLength={80} aria-label={`Card title for milestone ${i + 1}`} />
+                      </label>
                       {t.verify === "page" && (
                         <label className="cmp-field cmp-grow">
                           <span className="cmp-label">Text that must appear</span>
@@ -759,7 +768,8 @@ export function LaunchForm() {
                       <li key={i}>
                         <span className="cmp-pv-n mono">{String(i + 1).padStart(2, "0")}</span>
                         <span className="cmp-pv-body">
-                          <b>{t.deliverable.trim() || "…what must be true"}</b>
+                          <b>{(t.title ?? "").trim().length >= 4 ? (t.title ?? "").trim() : t.deliverable.trim() ? missionTitleFrom(t.deliverable, i) : "…what must be true"}</b>
+                          {t.deliverable.trim() && <span className="cmp-pv-crit">{t.deliverable.trim()}</span>}
                           <span className="cmp-pv-verify">Sage verifies by {opt?.ask ?? "checking the evidence"}{t.verify === "page" && t.expectedText.trim() ? ` — it must show “${t.expectedText.trim()}”` : ""}.</span>
                           <span className="cmp-pv-pay mono">{splitting ? `${curSymbol}${splitPreview()[i]}` : `${curSymbol}${Number(t.amount || 0).toFixed(2)}`} released on verification</span>
                         </span>

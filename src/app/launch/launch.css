@@ -761,3 +761,6 @@
 .cmp-pv-facts li { display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 8px; }
 .cmp-pv-facts li .mono { font-size: 0.66rem; color: var(--lx-muted); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 3px; }
 @media (max-width: 900px) { .cmp-grid { grid-template-columns: 1fr; } .cmp-preview { position: static; } }
+
+/* the founder's sentence under the derived card title in the live preview */
+.cmp-pv-crit { display: block; color: var(--ink-muted, #6b6f76); font-size: 0.92em; margin-top: 2px; }
