@@ -123,7 +123,7 @@ Method: change what a stranger reads in the first 10 seconds, not the palette.
       illustration). New scene: Sage for teams.
 - [x] **Facts strip** (Tue): rails · settled+refused live · six batteries · open source · Metis
       1st place — every item a link.
-- [ ] **Onboarding** — `/launch` is already clean; add "what happens next" (approve → fund →
+- [x] **Onboarding** (lifecycle line on the budget step, walletless door, composer) — `/launch` is already clean; add "what happens next" (approve → fund →
       watch → receipts), the walletless door, and a first-campaign path under 3 minutes.
 
 ## BUILD 6 — Sage for teams (a company pays its own people, privately)
@@ -322,7 +322,7 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       stored on the decision row, dedup query returns it, marker-swapped copy from a second wallet
       recognised — plus a pipeline case that HOLDS it before any settle. Every piece had a unit test;
       this is the one that proves they are wired to each other.
-- [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
+- [x] Fix what reading exposes — prompts and gates — then re-run the touched battery (14 findings; P-GEN 49 + the money lanes green).
 
 ## VIDEOS + POSTS — built Wed (`docs/posts/series/`, `docs/posts/videos/`)
 
@@ -476,9 +476,9 @@ nothing to fix.
 
 ## BUILD 3 — STRK20 completion
 
-- [ ] **Declare the privacy class** (user: password) → new campaigns stop naming people in
+- [x] **Declare the privacy class** (declared Tue 2 Sep, class `0x6d5577…5aa0`) → new campaigns stop naming people in
       `PayoutReleased`/`PayoutRefused`; README/docs claims upgrade to what is then deployed.
-- [ ] **4th qualifying pool tx**: user collects the outstanding autonomous-payout claim into a
+- [x] **4th qualifying pool tx** (collected, `0x2765387…dbfe4` ClaimedPrivately): user collects the outstanding autonomous-payout claim into a
       shielded note → add to `strk20.json` (the only agent-decided one on the list).
 - [x] **Floor attestation surfaced** (1 Sep): the earner issues a signed lifetime floor on their
       withheld record (owner-gated, EVM signing; Starknet stated as next); the lender pastes and
@@ -533,7 +533,7 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
       is pinned).
 - [ ] **DEFERRED TO THE END** (user, 1 Sep): Crossmint third-door spike — after the outcomes
       surface and infra-feel pass; "make the existing financial system work as one" first.
-- [ ] **/outcomes — the brief's bar, answered with readings** (decided 1 Sep). One public page
+- [x] **/outcomes — the brief's bar, answered with readings** (live; gaps read NOT YET MEASURED). One public page
       computing the four outcome bars from the LIVE ledger: cost vs the 7–9% corridor, speed
       (submission → settled, verification included), access (people paid, refusal integrity,
       the advance facility), flow (settled capital, funders, currencies, rails). Every number
