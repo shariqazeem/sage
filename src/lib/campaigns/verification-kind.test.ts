@@ -15,9 +15,11 @@ describe("the board's evidence coaching follows the operator's contract", () => 
     const board = readFileSync(resolve(process.cwd(), "src/components/campaigns/v2-board.tsx"), "utf8");
     expect(board).toMatch(/kind === "artifact_url"/);
     expect(board).toMatch(/a public page <b>you created<\/b>/);
-    for (const f of ["src/lib/campaigns/marketplace.ts", "src/app/campaign/[id]/page.tsx"]) {
-      const src = readFileSync(resolve(process.cwd(), f), "utf8");
-      expect(src, f).toMatch(/verificationKind/);
-    }
+    // the public board gets V2MissionView (which carries the kind) straight from v2Economics; the
+    // marketplace's own mapper reads the kind from the raw contract
+    const market = readFileSync(resolve(process.cwd(), "src/lib/campaigns/marketplace.ts"), "utf8");
+    expect(market).toMatch(/verificationKindOf\(m\.verificationContract\)/);
+    const econ = readFileSync(resolve(process.cwd(), "src/lib/campaigns/v2-economics.ts"), "utf8");
+    expect(econ).toMatch(/verificationKind: verificationKindOf\(m\.verificationContract\)/);
   });
 });

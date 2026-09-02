@@ -1,3 +1,4 @@
+import { verificationKindOf } from "./v2-economics";
 import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
@@ -291,7 +292,7 @@ export function marketplace(): MarketplaceView {
       paid,
       remainingSlots,
       verifiabilityClass: m.verifiabilityClass,
-      ...(m.verificationKind ? { verificationKind: m.verificationKind } : {}),
+      ...(verificationKindOf(m.verificationContract) ? { verificationKind: verificationKindOf(m.verificationContract) } : {}),
     });
     byCampaign.set(m.campaignId, list);
   }
