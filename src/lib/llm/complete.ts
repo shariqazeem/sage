@@ -16,6 +16,11 @@ const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 // 45s was too tight on a lite model + gateway latency → provider_timeout. Give it real headroom;
 // env-tunable for slow providers/sites.
 const TIMEOUT_MS = Math.max(20_000, Number(process.env.LLM_TIMEOUT_MS) || 90_000);
+/** The slowest generation rate a budget is allowed to assume. MEASURED 2026-09-02: MiniMax-M3
+ *  produced 6,583 tokens in 116s (~57 tok/s) on an architect-sized prompt; 40 leaves margin. */
+const MIN_TOKENS_PER_SEC = 40;
+/** headroom for connection setup and the provider's own queue, on top of pure generation time. */
+const QUEUE_GRACE_MS = 30_000;
 
 export interface LlmComplete {
   /** the parsed JSON object the model returned. */
@@ -467,13 +472,26 @@ export async function llmCompleteJson(opts: {
   const policy: ParsePolicy = opts.parsePolicy ?? "repair";
   const schemaName = opts.responseSchema?.name ?? null;
   const controller = new AbortController();
+  const maxOut = outputBudget(opts.maxTokens ?? 3500, profile, opts.escalation ?? 0);
   // A reasoning model costs more SECONDS, not just more tokens — the mission architect measured
   // 63-151s per call on MiniMax against a 90s default, so a correct token budget alone would still
-  // have been aborted. An explicit LLM_TIMEOUT_MS always wins; otherwise take the provider's own.
-  const budgetMs = process.env.LLM_TIMEOUT_MS ? TIMEOUT_MS : Math.max(TIMEOUT_MS, profile.timeoutMs);
-  const timer = setTimeout(() => controller.abort(), budgetMs);
+  // have been aborted. An explicit LLM_TIMEOUT_MS always wins; otherwise take the provider's own —
+  // and never less than the time the budget we just asked for takes to PRODUCE. A model that fills
+  // its budget (MiniMax does, measured) generates max_tokens at ~40-60 tok/s; a timeout below that
+  // aborts a call for being exactly as long as we asked, which is how P-GEN 46-48 read as "the
+  // provider's heavy tail" — the tail was ours.
+  const budgetMs = process.env.LLM_TIMEOUT_MS
+    ? TIMEOUT_MS
+    : Math.max(TIMEOUT_MS, profile.timeoutMs, Math.ceil(maxOut / MIN_TOKENS_PER_SEC) * 1000 + QUEUE_GRACE_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await oneAtATime(() => fetch(p.endpoint, {
+    // THE TIMER STARTS WHEN THE REQUEST DOES, not when it joins the queue. Every LLM call in this
+    // process is serialized (below); a call that waited behind two 130s generations used to have
+    // its whole timeout spent before it reached the provider, and was recorded as provider_timeout
+    // on a one-page site while the provider answered a trivial prompt in two seconds.
+    const res = await oneAtATime(() => {
+      timer = setTimeout(() => controller.abort(), budgetMs);
+      return fetch(p.endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
       signal: controller.signal,
@@ -487,7 +505,7 @@ export async function llmCompleteJson(opts: {
          * gets 4200 of ANSWER on a reasoning model, rather than 4200 minus a stochastic think
          * block, which truncates the JSON it was in the middle of writing.
          */
-        max_tokens: outputBudget(opts.maxTokens ?? 3500, profile, opts.escalation ?? 0),
+        max_tokens: maxOut,
         /**
          * ASK FOR THE STRICTEST MODE THIS PROVIDER ACTUALLY IMPLEMENTS.
          *
@@ -513,7 +531,8 @@ export async function llmCompleteJson(opts: {
           { role: "user", content: opts.user },
         ],
       }),
-    }));
+      });
+    });
     if (!res.ok) {
       // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.
       throw new LlmCompletionError({

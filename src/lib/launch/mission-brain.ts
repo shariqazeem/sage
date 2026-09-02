@@ -207,6 +207,23 @@ export function defaultVerificationMethod(m: Pick<CandidateMission, "objective" 
  * distinct observed states (the same threshold the rule's floor uses) or a wide crawl.
  */
 export const MISSION_COUNT_BANDS = { small: "4 to 6", rich: "6 to 10" } as const;
+
+/**
+ * The architect's ANSWER budget, sized from the band it was just asked for. MEASURED (2026-09-02,
+ * MiniMax-M3, a six-mission docs plan): 22,110 answer chars ≈ 5.5–6.6k tokens, i.e. ~1,100 tokens
+ * per mission. The budget used to be a flat 4,200 — enough for the three or four missions the old
+ * "3 to 6" hint produced, and below every plan the count rule now designs. A too-small answer
+ * budget does not fail cleanly: the answer truncates (`finish=length`), the ladder escalates and
+ * re-generates, each attempt is minutes of reasoning, and the retries run into the lane timeout —
+ * which is how P-GEN 46–48 read as "the provider's heavy tail". Over-budgeting costs nothing
+ * (billing is per token produced); under-budgeting cost the whole category.
+ */
+export const ARCHITECT_TOKENS_PER_MISSION = 1_100;
+export function architectAnswerTokens(map: Pick<ProductMapV1, "pagesInspected" | "fieldTest">): number {
+  const band = missionCountHintFor(map);
+  const maxMissions = Number(band.split(" to ")[1]);
+  return maxMissions * ARCHITECT_TOKENS_PER_MISSION;
+}
 export function missionCountHintFor(map: Pick<ProductMapV1, "pagesInspected" | "fieldTest">): string {
   const states = map.fieldTest?.states?.length ?? 0;
   const pages = map.pagesInspected + (map.fieldTest?.pages?.length ?? 0);
@@ -424,7 +441,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
         : base) + shapeNudge;
-      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation });
+      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation });
       const arr = extractMissionArray(r.json);
       if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
@@ -498,7 +515,7 @@ async function architectOnFallback(
       { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
     );
     const user = correction ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly: ${correction}` : base;
-    const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: 0.3, useFallback: true });
+    const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: 0.3, useFallback: true });
     const arr = extractMissionArray(r.json);
     const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
     if (candidates.length === 0) return null;

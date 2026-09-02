@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ARCHITECT_SYSTEM, MISSION_PROMPT_VERSION, buildArchitectUser } from "./mission-prompt";
-import { MISSION_COUNT_BANDS, missionCountHintFor } from "./mission-brain";
+import { ARCHITECT_TOKENS_PER_MISSION, MISSION_COUNT_BANDS, architectAnswerTokens, missionCountHintFor } from "./mission-brain";
 
 /**
  * The count rule has TWO edges. v4.2 added the ceiling ("distinct means distinct") after a plan
@@ -31,6 +31,20 @@ describe("architect count rule — a ceiling AND a floor", () => {
       expect(ARCHITECT_SYSTEM).toMatch(new RegExp(`${lo}–${hi}`)); // "4–6" / "6–10" in the rule text
     }
     expect(buildArchitectUser("{}", { goal: "g", targetUsers: "", missionCountHint: rich })).toMatch(/Design 6 to 10 missions — one per DISTINCT observed flow/);
+  });
+
+  it("the architect's answer budget covers the band it asked for — never a flat number below the plan", () => {
+    const small = { pagesInspected: 3, fieldTest: undefined };
+    const rich = { pagesInspected: 1, fieldTest: { pages: [], states: Array.from({ length: 8 }, () => ({})) } as never };
+    for (const [map, band] of [[small, MISSION_COUNT_BANDS.small], [rich, MISSION_COUNT_BANDS.rich]] as const) {
+      const maxMissions = Number(band.split(" to ")[1]);
+      expect(architectAnswerTokens(map)).toBe(maxMissions * ARCHITECT_TOKENS_PER_MISSION);
+    }
+    expect(ARCHITECT_TOKENS_PER_MISSION).toBeGreaterThanOrEqual(1_000); // measured ~1,100 on a real six-mission plan
+    expect(architectAnswerTokens(rich)).toBeGreaterThan(architectAnswerTokens(small));
+    const src = readFileSync(resolve(process.cwd(), "src/lib/launch/mission-brain.ts"), "utf8");
+    expect(src).not.toMatch(/maxTokens: 4200/); // the flat budget is gone from both architect calls
+    expect((src.match(/maxTokens: architectAnswerTokens\(map\)/g) ?? []).length).toBe(2);
   });
 
   it("the corrective round steers a gate-only death differently from a critic rejection", () => {

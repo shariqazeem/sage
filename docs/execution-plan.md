@@ -246,6 +246,16 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       fallback plan is never mistaken for a primary one; the gate judges both alike. `useFallback`
       is fail-closed (no fallback → `llm_not_configured`, never a silent re-run of the primary).
       Pinned by `src/lib/llm/fallback.test.ts` + a structural read of the ladder. → P-GEN 48.
+- [x] **Tenth, from P-GEN 48 (Wed) — the "heavy tail" was ours, twice over:** (1) every LLM call in
+      the process is serialized, and the abort timer started when a call JOINED the queue, not when
+      it reached the provider — a one-page site behind two 130s generations had spent its 300s
+      before it started and was recorded `provider_timeout` while the provider answered a trivial
+      prompt in 2s. The timer now arms inside the queue slot. (2) The architect's answer budget was
+      a flat 4,200 tokens; a real six-mission plan measures ~6.6k (22,110 chars, ~1,100/mission), so
+      every plan the count rule now designs truncated, the ladder re-generated for minutes, and the
+      retries ran into the timeout. The budget now scales with the band (7k small / 11k rich) and
+      the timeout never sits below producing that budget at 40 tok/s (measured 57). P-GEN 48 rows
+      that did land: tailwind 2→5 missions, all anchors 100%. Stopped at 9 rows → **P-GEN 49.**
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
