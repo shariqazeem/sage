@@ -285,6 +285,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       that the work was done FOR this gig). A rate-limited or unreachable API yields NO signal —
       an honest tester is never held for GitHub's limit. `GITHUB_TOKEN` (optional) only raises
       the limit. Pinned by `github-provenance.test.ts` + `work-proof-github.test.ts`.
+- [x] **P-DIRECT confirm (Thu, 1 run):** the local-currency grant now compiles — `pd-grant-currency-
+      tranches` → 2 tranches, $63.23 at the stamped J$ rate, budget exact. First-shot compiles 14
+      (was 12), one correction (was 4). One failure remains and it is a different one: the Urdu gig's
+      tool-call arguments arrived as truncated JSON ("Unexpected end of JSON input") — a non-Latin
+      deliverable spec is token-expensive and the concierge's tool-call answer ran out of room.
+      Reading the parse site next; the fix shape is the mission ladder's (more room on a MEASURED
+      truncation, never speculatively).
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [x] **P-JUDGE (Thu, MiniMax-M3, 3 runs):** zero wrong-autopay across 57/57 valid rows, no provider
       failures, promotion-eligible and conclusive. Every hostile fixture held (direct, paraphrased,
