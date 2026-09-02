@@ -56,7 +56,7 @@ export default function OG() {
             paddingTop: 28,
           }}
         >
-          <div style={{ display: "flex" }}>Testing · gigs · grants — USDC on GOAT, privately on Starknet, every payout a receipt.</div>
+          <div style={{ display: "flex" }}>Testing · gigs · grants — paid in USDC, privately on Starknet.</div>
           <div style={{ display: "flex" }}>sagepays.xyz</div>
         </div>
       </div>
