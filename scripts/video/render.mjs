@@ -9,12 +9,17 @@
  *   node scripts/video/render.mjs --board docs/posts/videos/boards/opener.json [--out docs/posts/videos]
  */
 import { chromium } from "playwright";
-import { readFileSync, mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { readFileSync, mkdirSync, unlinkSync, existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : d; };
 const boardPath = arg("board");
+
+// The frames are ~1 MB each and only exist to feed ffmpeg; two renders left 336 MB of PNGs behind and
+// filled a nearly-full disk (2026-09-02). Remove them once the encode has succeeded — a failed encode
+// keeps them for inspection.
+rmSync(tmpDir, { recursive: true, force: true });
 if (!boardPath) throw new Error("--board <storyboard.json>");
 const out = arg("out", "docs/posts/videos");
 const board = JSON.parse(readFileSync(boardPath, "utf8"));
