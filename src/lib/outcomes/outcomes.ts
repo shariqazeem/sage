@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { advances, campaigns, missions, submissions } from "@/lib/db/schema";
 import { CURRENCIES, corridorCost, type CorridorCost } from "@/lib/money/currency";
 import { isTestnetChain } from "@/lib/format";
-import { OPERATOR_WALLETS, settledLedger } from "@/lib/campaigns/settled-ledger";
+import { OPERATOR_WALLETS, decidedOnMainnet, settledLedger } from "@/lib/campaigns/settled-ledger";
 
 /**
  * THE BRIEF'S BAR, AS READINGS — "does your system change outcomes?" answered from the ledger.
@@ -161,7 +161,7 @@ export function readOutcomes(): OutcomeReadings {
 
   const adv = db.select({ status: advances.status }).from(advances).all();
 
-  return deriveOutcomes(
+  const readings = deriveOutcomes(
     mainnet.map((r) => ({
       wallet: r.wallet ?? "",
       rewardBase:
@@ -176,4 +176,8 @@ export function readOutcomes(): OutcomeReadings {
     adv,
     Math.floor(Date.now() / 1000),
   );
+  // the refusal share is derived ONCE for every surface (settled-ledger.ts) — the pure function keeps
+  // its own arithmetic for tests, the page shows the same number the explorer and landing show
+  const decidedShared = decidedOnMainnet();
+  return { ...readings, refusedCount: decidedShared.refused, refusalSharePct: decidedShared.sharePct };
 }

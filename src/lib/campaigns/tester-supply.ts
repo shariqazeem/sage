@@ -2,7 +2,7 @@ import "server-only";
 import { chainConfig } from "@/lib/deputy/networks";
 
 import { listCampaigns, listSubmissions } from "@/lib/db/campaigns";
-import { mainnetSettledToTesters, OPERATOR_WALLETS } from "./settled-ledger";
+import { mainnetSettledToTesters, OPERATOR_WALLETS, decidedOnMainnet } from "./settled-ledger";
 
 /**
  * PROOF THAT TESTERS EXIST — the one thing a founder needs before funding anything.
@@ -29,8 +29,10 @@ export interface TesterSupply {
   medianSecondsToPayout: number | null;
   /** how many were paid in the last 7 days — recency is what makes supply believable. */
   paidLast7Days: number;
-  /** share of submissions that did NOT result in a payout, 0-100. Judgement, not a rubber stamp. */
-  heldOrRejectedPct: number;
+  /** share of judged mainnet submissions refused, 0-100 — the SAME number the explorer, landing and
+   *  outcomes page show (settled-ledger.ts `decidedOnMainnet`). It used to be "anything not paid,
+   *  held included" over this module's own population: 50% here against 43% one click away. */
+  refusalSharePct: number;
 }
 
 export function getTesterSupply(): TesterSupply {
@@ -73,7 +75,6 @@ export function getTesterSupply(): TesterSupply {
     .sort((a, b) => a - b);
 
   const weekAgo = Math.floor(Date.now() / 1000) - 7 * 86400;
-  const decided = all.filter((s) => s.status !== "pending");
 
   return {
     testersPaid: settled.people,
@@ -83,9 +84,7 @@ export function getTesterSupply(): TesterSupply {
       ? durations[Math.floor(durations.length / 2)]
       : null,
     paidLast7Days: paid.filter((s) => (s.decidedAt ?? 0) >= weekAgo).length,
-    heldOrRejectedPct: decided.length
-      ? Math.round(((decided.length - paid.length) / decided.length) * 100)
-      : 0,
+    refusalSharePct: decidedOnMainnet().sharePct,
   };
 }
 

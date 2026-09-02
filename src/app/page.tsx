@@ -2,8 +2,7 @@ import "./landing-v2.css";
 import type { Metadata } from "next";
 import { chainConfig } from "@/lib/deputy/networks";
 import { getPublicReceipts } from "@/lib/erc8004/reputation";
-import { countDecidedSubmissions } from "@/lib/db/campaigns";
-import { mainnetSettled, settledLedger } from "@/lib/campaigns/settled-ledger";
+import { mainnetSettled, settledLedger, decidedOnMainnet } from "@/lib/campaigns/settled-ledger";
 import { loadShowcase } from "@/lib/landing/showcase";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
@@ -53,11 +52,12 @@ export default async function HomePage() {
     chainId != null && chainConfig(chainId).isMainnet;
   const feed = getPublicReceipts().filter((h) => isMainnetRail(h.chainId));
   const settled = mainnetSettled();
-  const decided = countDecidedSubmissions();
+  const decided = decidedOnMainnet(); // one derivation with the explorer, outcomes and launch pages
   const totals = {
     paidUsd: settled.usdcSettled,
     payoutCount: settled.payouts,
-    refusedCount: decided.rejected,
+    refusedCount: decided.refused,
+    refusalPct: decided.sharePct,
   };
   // The rails that have actually settled real money, most payouts first — "GOAT Network + Starknet".
   const railCounts = new Map<number, number>();

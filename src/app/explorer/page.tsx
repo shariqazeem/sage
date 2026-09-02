@@ -1,3 +1,4 @@
+import { decidedOnMainnet } from "@/lib/campaigns/settled-ledger";
 import "./explorer.css";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -5,7 +6,6 @@ import Link from "next/link";
 import { SageMark } from "@/components/brand/sage-mark";
 import { ExplorerSearch } from "@/components/explorer/explorer-search";
 import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
-import { countDecidedSubmissions } from "@/lib/db/campaigns";
 import { chainConfig } from "@/lib/deputy/networks";
 import { short, usd } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -65,10 +65,11 @@ export default function ExplorerPage() {
    *
    * Settlements still come from the chain-anchored feed: a payout must be provable on-chain.
    */
-  const decided = countDecidedSubmissions();
-  const blocks = decided.rejected;
-  const judged = decided.paid + decided.rejected;
-  const refusalShare = judged > 0 ? Math.round((blocks / judged) * 100) : 0;
+  // ONE derivation for every surface (settled-ledger.ts) — this page, the landing, the outcomes page
+  // and the launch page showed 43 / 44 / 44 / 50 on the same day from four arithmetics.
+  const decided = decidedOnMainnet();
+  const blocks = decided.refused;
+  const refusalShare = decided.sharePct;
   const now = Date.now();
 
   return (

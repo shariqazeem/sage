@@ -303,6 +303,15 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       2 after one correction, zero refused rows; the Urdu gig compiles ($15) and the local-currency
       grant compiles ($63.23 at the stamped rate). All three money-lane batteries are green on the
       deployed stack: P-DIRECT, P-WORK, P-JUDGE.
+- [x] **Fifteenth, from a judge's cold walk of prod (Thu):** the refusal rate — the number the whole
+      capital story leans on — read 43% on the explorer, 44% on the landing and outcomes pages, 50%
+      on the launch page: four arithmetics over four populations. Now ONE derivation
+      (`decidedOnMainnet` in settled-ledger.ts: judged mainnet, non-sandbox submissions; held is not a
+      verdict) used by all four, pinned by `refusal-share.drift.test.ts` (structural read of every
+      surface + a real-DB check that testnet and held rows never enter). Same walk: every link the
+      FC package and data room cite resolves; both flagship receipts render as settled; the advance
+      facility computes live capacity against two real records with no money moving
+      ($0.17 and $0.33 at the 1× multiple).
 - [x] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words (done; the two
       defects it exposed — tool-schema drift and the truncated tool call — are fixed above).
 - [x] **P-JUDGE (Thu, MiniMax-M3, 3 runs):** zero wrong-autopay across 57/57 valid rows, no provider

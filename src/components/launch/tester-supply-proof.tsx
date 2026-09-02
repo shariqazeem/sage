@@ -45,15 +45,15 @@ export function TesterSupplyProof({ compact = false }: { compact?: boolean }) {
           <dd>{s.paidLast7Days}</dd>
         </div>
         <div>
-          <dt>Not paid out</dt>
-          <dd>{s.heldOrRejectedPct}%</dd>
+          <dt>Refused on record</dt>
+          <dd>{s.refusalSharePct}%</dd>
         </div>
       </dl>
 
       <p className="tsp-note">
-        That last number matters as much as the others: Sage held or refused{" "}
-        {s.heldOrRejectedPct}% of submissions. You are funding verified work, not attendance — and no
-        human reviewed any of it.
+        That last number matters as much as the others: Sage refused {s.refusalSharePct}% of the
+        submissions it judged. You are funding verified work, not attendance — and no human reviewed
+        any of it.
       </p>
 
       {!compact && (

@@ -18,7 +18,7 @@ import { SceneClose } from "./scene-close";
 
 interface Props {
   network: { name: string; chainId: number };
-  totals: { paidUsd: number; payoutCount: number; refusedCount: number };
+  totals: { paidUsd: number; payoutCount: number; refusedCount: number; refusalPct: number };
   feed: PayoutReceipt[];
   now: number;
   ecosystem: EcosystemStatus;
@@ -52,6 +52,7 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
           paidUsd={totals.paidUsd}
           payoutCount={totals.payoutCount}
           refusedCount={totals.refusedCount}
+          refusalPct={totals.refusalPct}
           networkName={network.name}
         />
 

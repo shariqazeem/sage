@@ -1,8 +1,8 @@
 import "server-only";
-import { and, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campaigns, events, submissions } from "@/lib/db/schema";
-import { chainConfig } from "@/lib/deputy/networks";
+import { CHAINS, chainConfig } from "@/lib/deputy/networks";
 
 /**
  * THE SETTLED LEDGER — one derivation of "money that actually moved", for every surface.
@@ -126,4 +126,33 @@ export function mainnetSettledToTesters(
     payouts: m.length,
     people: new Set(m.filter((r) => r.wallet).map((r) => (r.wallet as string).toLowerCase())).size,
   };
+}
+
+/**
+ * THE REFUSAL SHARE — one derivation, for every surface.
+ *
+ * Measured 2026-09-02 on a single judge's walk: the explorer said 43%, the landing and the outcomes
+ * page said 44%, the launch page said 50% — three arithmetics over three populations (all rails vs
+ * mainnet settlements vs "anything not paid, held included"). The refusal rate is the number the
+ * whole capital story leans on, so it is computed here once: judged submissions on real-money,
+ * non-sandbox campaigns — paid or refused — and the share of them refused. Held work is not a
+ * verdict and is not counted either way.
+ */
+export function decidedOnMainnet(): { paid: number; refused: number; sharePct: number } {
+  const mainnetIds = Object.keys(CHAINS).map(Number).filter((id) => chainConfig(id).isMainnet);
+  const rows = db
+    .select({ status: submissions.status, c: sql<number>`count(*)` })
+    .from(submissions)
+    .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+    .where(and(inArray(campaigns.chainId, mainnetIds), eq(campaigns.sandbox, false), inArray(submissions.status, ["paid", "rejected"])))
+    .groupBy(submissions.status)
+    .all();
+  let paid = 0;
+  let refused = 0;
+  for (const r of rows) {
+    if (r.status === "paid") paid = Number(r.c);
+    if (r.status === "rejected") refused = Number(r.c);
+  }
+  const judged = paid + refused;
+  return { paid, refused, sharePct: judged > 0 ? Math.round((refused / judged) * 100) : 0 };
 }

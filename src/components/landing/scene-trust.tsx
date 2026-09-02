@@ -9,15 +9,16 @@ export function SceneTrust({
   paidUsd,
   payoutCount,
   refusedCount,
+  refusalPct,
   networkName,
 }: {
   paidUsd: number;
   payoutCount: number;
   refusedCount: number;
+  /** computed once in settled-ledger.ts (decidedOnMainnet) — never re-derived here. */
+  refusalPct: number;
   networkName: string;
 }) {
-  const judged = payoutCount + refusedCount;
-  const refusalPct = judged > 0 ? Math.round((refusedCount / judged) * 100) : 0;
   const facts: { k: string; v: string; href: string }[] = [
     { k: "Mainnet rails", v: networkName, href: "/docs/settlement" },
     { k: "Settled, verified", v: `${usd(paidUsd)} · ${payoutCount} payouts`, href: "/explorer" },
