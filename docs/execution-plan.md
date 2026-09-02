@@ -296,6 +296,33 @@ Results post tags ellibenson on RESULTS only (existing rule).
 | **Fri 5** | P3–P5. Final cross-read of both packages against the live site. Code freeze by evening. |
 | **Sat 6** | **FC submitted. STRK20 submitted the same day.** |
 
+### What landed Wed → Thu (overnight, autonomous) · what needs you Thursday
+
+**Needs you (in order):**
+1. **Fund + launch the $25 gig** — 8–10 people, Starknet, public, the write-up gig in
+   `docs/posts/CAMPAIGN-25.md`. Prod is on the new mission stack (below); the composer's "Pay a
+   supplier" template and the invite door are live if you want the gig unlisted first.
+2. **Post 2 (18:30 PKT) and post 5 (23:00 PKT)** from `docs/posts/series/` — copy is written, videos
+   rendered at 1920×1080 in `docs/posts/videos/`. Link goes in the first reply, never the body.
+3. Nothing else is blocked on you. Batteries continue on the VM one at a time; every deploy is
+   guarded, checksummed, and pushed.
+
+**What landed (all deployed to prod, pushed to main, gate green at 4,063 tests):**
+- The quality round found **ten defects by reading generated plans** — none visible in a green grid
+  (the list is in the section below). The last four were the mission brain's own failure modes on
+  rich products: a count rule with a ceiling but no floor, the critic's prompt cutting the last
+  mission, a lane timeout below the architect's tail, and an abort timer that started before the
+  process-wide LLM queue. **P-GEN 49 is the first fully green run of the new stack: 13/13, anchors
+  100%, zero timeouts.** `mb-v4.5-qa` (docs flows named) deploys after the money-lane dump.
+- Wallet links (EVM ↔ Starknet, both sessions required) are live: a business can present one
+  record; the lender JSON carries `linked`.
+- Three batteries were **stopped early** once their remaining rows could only re-measure a defect
+  already fixed — an hour each of a five-day window.
+
+**Watch (not urgent):** the fallback provider was never needed in P-GEN 49; a url-verifiable-only
+plan on a wallet-gated product spends ~$11 of a $4.9k budget (capacity = the model's own counts) —
+honest, but a founder-facing weakness to decide on after the deadline, not before.
+
 ### Launch runway pre-flight (Mon night — clear for your funding tomorrow)
 
 GOAT head fresh (4s) · operator gas covers **~1,547 settlements** at the last settle's cost ·
