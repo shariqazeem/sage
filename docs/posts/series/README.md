@@ -9,6 +9,18 @@ Post 1 is out. Two a day from Wed: **18:30 PKT** (FC / Caribbean morning) and **
 | Thu 4 | 03 credit file + advance (tag Future Caribbean) | 06 private payouts + the $25 gig (link in reply) |
 | Fri 5 | 04 composer + J$ currencies (combined) | the Caribbean post ("this is for you") |
 | Sat 6 | results (tag @EliBenSasson, Starknet, Future Caribbean) | the thesis post |
+| Sat 6 (last 10 h) | **final demo videos**: `07-fc-demo` (~65 s) and `08-strk20-demo` (~45 s) — boards drafted Thu; capture fresh shots, refresh the LIVE captions, render, submit both together | — |
 
 Rebuild any video after a product change: `node scripts/video/capture.mjs` then
 `node scripts/video/render.mjs --board docs/posts/videos/boards/<n>.json`.
+
+## Rendering the final demos (Saturday)
+
+```bash
+node scripts/video/capture.mjs --out docs/posts/videos/shots --base https://sagepays.xyz
+node scripts/video/render.mjs --board docs/posts/videos/boards/07-fc-demo.json --out docs/posts/videos
+node scripts/video/render.mjs --board docs/posts/videos/boards/08-strk20-demo.json --out docs/posts/videos
+```
+
+Before rendering, update every caption marked LIVE in the two boards with the explorer's current
+numbers; the `_refresh` field in each board says exactly which ones.

@@ -1,0 +1,20 @@
+{
+ "name": "07-fc-demo",
+ "_refresh": "Saturday, before rendering: re-run capture.mjs against prod, then update the captions marked LIVE with the explorer's numbers (settled / payouts / refused) and the record page's figures. Nothing else changes.",
+ "size": [1920, 1080],
+ "scenes": [
+  { "title": "Sage — pay for verified work.", "sub": "Future Caribbean · Finance, Payments & MSME Capital · sagepays.xyz", "seconds": 4, "fade": 0.4 },
+  { "shot": "landing-hero.png", "kicker": "The product", "title": "Pay people for work an AI has verified.", "caption": "gigs · milestone grants · product testing — two mainnet rails, one judge", "seconds": 5, "motion": "zoom" },
+  { "shot": "landing-doors.png", "kicker": "Three doors", "title": "Founders & teams · workers · lenders.", "caption": "one intent, two human moments: approve the plan, fund it — Sage does the rest and shows its work", "seconds": 4.5, "motion": "pan-up" },
+  { "shot": "composer-grant.png", "kicker": "Milestone grants in the founder's own currency", "title": "\"J$10,000 in two equal parts.\"", "caption": "Sage converts at a stamped rate, splits in exact base units — no model ever computes a money amount", "seconds": 5, "motion": "pan-up" },
+  { "shot": "landing-realrun.png", "kicker": "A real run", "title": "What Sage saw, what it designed, what it paid.", "caption": "the judge's verbatim quote sits under every verdict — evidence, not prose", "seconds": 5, "motion": "pan-up" },
+  { "shot": "proof.png", "kicker": "The receipt", "title": "Every payout cites its evidence and anchors to a transaction.", "caption": "the vault derives the amount, enforces the caps, refuses replays — the AI proposes, the vault disposes", "seconds": 5, "motion": "zoom" },
+  { "shot": "explorer.png", "kicker": "The public ledger — LIVE", "title": "Every settlement. Every refusal.", "caption": "$52.60 settled · 29 payouts · 23 refused — a 45% refusal rate is the institutional asset", "seconds": 5, "motion": "pan-up" },
+  { "shot": "landing-facts.png", "kicker": "Tested adversarially", "title": "An attack that pays and honest work that holds are both failures.", "caption": "P-JUDGE: zero wrong auto-pays across 57 rows · P-WORK: 14 attacks, zero leaks · copied work and Sybil clusters held", "seconds": 5, "motion": "pan-up" },
+  { "shot": "record-signals-tight.png", "kicker": "The credit file", "title": "Every payout leaves a record a lender can underwrite.", "caption": "published formulas over receipt-anchored inflow — witnessed, never self-reported, never a score", "seconds": 5, "motion": "pan-up" },
+  { "shot": "landing-capital.png", "kicker": "Capital in", "title": "The Sage Advance: a waterfall on witnessed inflow.", "caption": "recourse on the Sage-routed remainder — the facility works, the LP is still us, the pipe is open", "seconds": 5, "motion": "zoom" },
+  { "shot": "lender.png", "kicker": "For lenders", "title": "Underwrite from the tape, not the story.", "caption": "one JSON endpoint per record · linked wallets across rails · selective disclosure where privacy is required", "seconds": 4.5, "motion": "pan-up" },
+  { "shot": "landing-teams.png", "kicker": "Inside a company", "title": "Pay your own people, off the public board.", "caption": "one checkbox · one link · same verification, same receipt", "seconds": 4, "motion": "zoom" },
+  { "title": "Witness → obligation → vault → router → record → capital.", "sub": "Sage writes the book as the work happens. Open source · live on mainnet · sagepays.xyz", "seconds": 5, "fade": 0.5 }
+ ]
+}
