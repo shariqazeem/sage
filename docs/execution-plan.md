@@ -193,6 +193,21 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       registration page — "distinct means distinct: missions ending on the same page merge"
       (`mb-v4.3-qa`). P-GEN 45 so far: excalidraw 1→4, play2048 2→5, tailwind correctly "docs".
       Deploys with the 28-file batch after 45 → **P-GEN 46 validates divisibility + v4.3 together.**
+- [x] **Sixth, from reading P-GEN 45's yara.garden row (Wed):** the count rule has TWO edges. The
+      v4.2 rule read as "one flow → one mission" collapsed an 18-state interactive world into ONE
+      onboarding mission (v4.1 had designed four: intake, location tabs, notes, companion switch).
+      The critic accepted it on every rubric point; the deterministic gate refused it for a single
+      empty prose field (`verificationMethod`); the corrective round re-emitted the same lone
+      mission; the founder got `needs_input` with two generic questions. Three caller-side fixes,
+      no frozen layer touched: (1) the rule now states a FLOOR — flows are counted from the map's
+      distinct states, a linear onboarding is ONE mission and everything after it is its own, a
+      map of 8+ states never yields fewer than three (`mb-v4.4-qa`); (2) a missing verification
+      method is stated by code from the mission's evidence shape — the gate still refuses an EMPTY
+      one, so this is a fill, not a weakening; (3) a gate-only death on a reviewer-accepted
+      candidate steers the corrective round to re-emit complete and WIDEN, instead of "design
+      different missions". Pinned by `mission-brain-coerce.test.ts` + `mission-prompt.floor.test.ts`.
+      Row 6 itself was the 1500s battery timeout: the brain took 106s; the field test on 18 states
+      took the rest — a latency fact to watch, not a defect. Ships in the batch; P-GEN 46 judges it.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.

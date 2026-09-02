@@ -185,6 +185,20 @@ export function extractMissionArray(json: unknown): unknown[] {
   return [];
 }
 
+/**
+ * The verification method Sage ACTUALLY applies, stated deterministically from the mission's own
+ * evidence shape — used only when the model left the field empty. This is not a weakened gate: the
+ * gate still refuses an empty method, but a reviewer-accepted mission no longer dies on a missing
+ * line of prose that code can state more honestly than a model can (measured: yara.garden — the one
+ * candidate for an 18-state map was accepted by the critic and refused by the gate on exactly this
+ * field, and the founder got a dead-end instead of a plan).
+ */
+export function defaultVerificationMethod(m: Pick<CandidateMission, "objective" | "criteria" | "evidenceRequirements">): string {
+  return classifyVerifiability(m) === "url-verifiable"
+    ? "Sage re-opens the cited public page itself and matches the tester's quoted text and reached URL against what is actually there; a match that Sage can reproduce is what releases the reward."
+    : "Sage judges the tester's own account of what happened against these criteria and against the states it observed itself during inspection; the vault releases the reward only for an account that reproduces the observed outcome.";
+}
+
 /** Coerce a raw model object into a well-typed CandidateMission (or null if unusable). */
 export function coerceMission(raw: unknown, i: number): CandidateMission | null {
   const o = (raw ?? {}) as Record<string, unknown>;
@@ -211,7 +225,9 @@ export function coerceMission(raw: unknown, i: number): CandidateMission | null 
     conditions: asArr(o.conditions).slice(0, 8),
     rewardWeight: clampNum(o.rewardWeight, 1, 10, 5),
     maxCompletions: clampNum(o.maxCompletions, 1, 50, 3),
-    verificationMethod: asStr(o.verificationMethod, 800),
+    verificationMethod:
+      asStr(o.verificationMethod, 800).trim() ||
+      defaultVerificationMethod({ objective, criteria: asArr(o.criteria).slice(0, 12), evidenceRequirements: asArr(o.evidenceRequirements).slice(0, 12) }),
     confidence: asFloat(o.confidence, 0.6),
     assumptions: asArr(o.assumptions).slice(0, 6),
     disallowed: asArr(o.disallowed).slice(0, 8),
@@ -639,9 +655,15 @@ export async function runMissionBrain(
       .filter((c) => c.decision === "reject" || c.decision === "revise")
       .flatMap((c) => (c.reasons ?? []).slice(0, 2).map((x) => `${c.missionKey}: critic — ${x}`));
     const issues = [...gateIssues, ...criticIssues].slice(0, 10).join("; ");
+    // Two different steers for two different deaths. A critic rejection means the SHAPE was wrong —
+    // design different missions. A gate-only death on a reviewer-accepted candidate means the shape
+    // was fine and a field was missing — re-emit it complete, and widen the plan so one mission's
+    // slip can never again take the whole plan down with it (measured: yara.garden, one candidate
+    // for an 18-state map, critic accepted, gate refused on an empty verificationMethod → the
+    // architect re-emitted the same lone mission and the founder got a dead-end).
     const steer = criticIssues.length > 0
       ? "\nDesign DIFFERENT missions that survive that review: each must make the tester DO something and name the specific on-screen outcome that proves it happened — never a mission that only confirms text or elements exist."
-      : "";
+      : "\nThe reviewer ACCEPTED these missions — they failed only on the listed fields. RE-EMIT each one with EVERY field filled in, and ADD the other distinct flows the product map shows (different screens, tabs, states or controls — never a rephrasing), so the plan no longer rests on a single mission.";
     narrate("first draft rejected by the quality gate — redesigning from the exact reasons");
     const arch2 = await architect(map, founder, issues ? `${issues}${steer}` : "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
     if (arch2.ok) { arch = arch2; r = await run(arch2); }
