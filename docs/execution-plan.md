@@ -189,6 +189,10 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       $71.56 × 2. Fix on the capped path: pay the pot at the fair rate to n people and return the
       sub-cent residual to the founder (capacity is not their money) — Σ exact against the shrunk
       budget. Pinned on the brain's exact inputs. Deploys after P-GEN 45 → validated by P-GEN 46.
+- [x] **Fifth, from reading P-GEN 45 (Wed):** plausible.io's four missions had three ending on the
+      registration page — "distinct means distinct: missions ending on the same page merge"
+      (`mb-v4.3-qa`). P-GEN 45 so far: excalidraw 1→4, play2048 2→5, tailwind correctly "docs".
+      Deploys with the 28-file batch after 45 → **P-GEN 46 validates divisibility + v4.3 together.**
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
