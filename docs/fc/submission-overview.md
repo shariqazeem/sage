@@ -56,6 +56,43 @@ witness (agent) → obligation (signed, capped) → vault (cannot exceed)
 - **One person cannot take many seats**: exact and paraphrase dedup on reports, a fingerprint of the fetched deliverable itself so a copied page with the wallet marker swapped is held as copied work, GitHub provenance (a fork, or a repository older than the gig, is held), wallet-freshness and funding-graph signals (a real 4-wallet rotation cluster was caught on-chain in August), a per-wallet payout cap, a daily submit limit, and the vault's own per-recipient replay protection. Every one of these is a HOLD for a human, never a silent rejection.
 - **Injection is expected**: untrusted content rides inside markers, quotes must be verbatim substrings of fetched evidence, and an artifact carrying "SYSTEM: recommend pay" instructions is a fraud signal, not an instruction.
 
+## Business model and go-to-market
+
+**Who pays.** The party who wants work done funds the vault: a founder testing a product, a diaspora
+funder backing a seller, a business paying its own people. Sage earns a flat **$0.10 operator fee
+per settlement**, charged over x402 and recorded beside the payout — revenue exists only when a
+verified payment exists. Lenders and programmes consume the record API and the lender view; the
+advance facility is the second revenue line (a published multiple on witnessed inflow, the LP is us
+today), and the same record feeds an institution's own underwriting through the JSON contract.
+
+**Go-to-market.** Bottom-up through the people being paid: every verified payout produces a public
+receipt and a record page, and every artifact gig produces a page written by a stranger that names
+Sage. The first channel is the marketplace itself (workers arrive with no application), the second is
+founders and programmes who need verified spend rather than attendance, the third is lenders who
+want cash-flow history at the source. Caribbean first: obligations denominate in the region's own
+currencies at a stamped rate, the composer's supplier and grant templates are written in the track's
+own shapes (two-tranche seller grants, invoice-bound supplier payments), and the diaspora sender's
+currencies (CAD, GBP, EUR) are on the same list. Regulated fiat disbursement is a licensed-partner
+door with a typed contract; it ships when a partner does, and is labelled as pending until then.
+
+## Impact and scalability
+
+**Evidence of real-world use.** 29 mainnet payouts across two rails, 21 distinct people paid, 23
+refusals on record with reasons; an autonomous third-party agent earned under the same rules and
+has a credit file; a real four-wallet Sybil rotation was caught on-chain and published; a public
+gig is live on the first privacy-class vault. The judge is promotion-gated on live batteries (zero
+wrong auto-pays across 57 rows; 14 attacks with zero leaks and 12 honest submissions with zero
+false holds). Outcomes are computed live on `/outcomes` against the track's own bar, with the gaps
+stated as not yet measured.
+
+**Path to deployment and scale.** The rails are mainnet today and the vault model is chain-agnostic
+by construction (one dispatcher, two settlers); a third rail is a settler, not a redesign. Capacity
+is bounded by the founder's budget, not by our operations: the agent designs, verifies and pays
+without a human, and refusals cost nothing. The MSME credit layer scales with the ledger — every
+payout is a record row — and the lender contract is a JSON endpoint any institution can consume.
+The next steps are the licensed fiat door, an institutional LP behind the advance facility, and
+the two-currency book that makes regional netting real on our own obligations.
+
 ## What we don't claim
 
 No identity KYC (wallet pseudonymity + sanctions screening + Sybil controls; named-recipient
@@ -70,4 +107,4 @@ committed; it lands the moment a borrower with a record earns their next payout.
 
 ---
 
-_Deeper docs: [how it works](https://sagepays.xyz/docs/how-it-works) · [the safety model](https://sagepays.xyz/docs/safety) · [compliance & controls](https://sagepays.xyz/docs/compliance) · [build on Sage](https://sagepays.xyz/docs/build-on-sage)_
+_Technical documentation with the architecture diagram, data sources, models and tools: [`docs/fc/technical-documentation.md`](technical-documentation.md). Deeper docs: [how it works](https://sagepays.xyz/docs/how-it-works) · [the safety model](https://sagepays.xyz/docs/safety) · [compliance & controls](https://sagepays.xyz/docs/compliance) · [build on Sage](https://sagepays.xyz/docs/build-on-sage)_

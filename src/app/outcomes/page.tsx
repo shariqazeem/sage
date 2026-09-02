@@ -140,6 +140,16 @@ export default function OutcomesPage() {
           obligation has settled yet. The denomination rail is live; the reading will exist when the
           flow does. Stating that is the point.
         </p>
+        <p className="oc-note">
+          <b>What the region pays today, from the public series:</b>{" "}
+          {o.publicCorridors.filter((c) => c.pct !== null).map((c) => `${c.countryName} ${c.pct!.toFixed(2)}%`).join(" · ")}
+          {" "}of a $200 transfer in ({o.publicCorridorSource.name.replace("World Bank, World Development Indicators — ", "World Bank WDI ")},
+          latest readings {Math.max(...o.publicCorridors.filter((c) => c.year !== null).map((c) => c.year as number))},
+          fetched {o.publicCorridorSource.fetchedOn}). No public reading yet for{" "}
+          {o.publicCorridors.filter((c) => c.pct === null).map((c) => c.countryName).join(", ")} — those are held to the
+          brief&rsquo;s 8%. When an obligation settles in one of these currencies, this page benchmarks it against its own
+          corridor, not a regional average.
+        </p>
       </section>
 
       <footer className="out-foot">

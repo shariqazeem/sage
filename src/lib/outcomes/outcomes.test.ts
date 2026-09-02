@@ -93,3 +93,14 @@ describe("access counts people, not Sage's own wallets", () => {
     expect(o.peoplePaid).toBe(1); // access: dogfood is not access
   });
 });
+
+describe("the public data layer rides beside the ledger", () => {
+  it("carries the vendored World Bank readings with their source and date", () => {
+    const r = deriveOutcomes([], [], 1_756_900_000);
+    const jm = r.publicCorridors.find((c) => c.country === "JM");
+    expect(jm?.pct).toBe(3.59);
+    expect(r.publicCorridors.some((c) => c.pct === null)).toBe(true); // an absent reading is reported, not invented
+    expect(r.publicCorridorSource.url).toMatch(/worldbank/);
+    expect(r.publicCorridorSource.fetchedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});

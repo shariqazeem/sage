@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { advances, campaigns, missions, submissions } from "@/lib/db/schema";
 import { CURRENCIES, corridorCost, type CorridorCost } from "@/lib/money/currency";
+import { allCorridorReadings, PUBLIC_CORRIDOR_SOURCE, type CorridorReading } from "@/lib/money/public-corridors";
 import { isTestnetChain } from "@/lib/format";
 import { OPERATOR_WALLETS, decidedOnMainnet, settledLedger } from "@/lib/campaigns/settled-ledger";
 
@@ -36,6 +37,10 @@ export interface OutcomeReadings {
   distinctFunders: number;
   railsUsed: { rail: string; payouts: number }[];
   denominationsSupported: number; // the currency registry — capability, labelled as such
+  /** the track's "required data layer": the public inbound remittance cost per Caribbean receiver,
+   *  vendored and dated (World Bank WDI) — what each currency's corridor costs today, next to ours. */
+  publicCorridors: CorridorReading[];
+  publicCorridorSource: { name: string; url: string; fetchedOn: string };
   generatedAtUnix: number;
 }
 
@@ -109,6 +114,8 @@ export function deriveOutcomes(
       .map(([rail, payouts]) => ({ rail, payouts }))
       .sort((a, b) => b.payouts - a.payouts),
     denominationsSupported: CURRENCIES.length,
+    publicCorridors: allCorridorReadings(),
+    publicCorridorSource: { ...PUBLIC_CORRIDOR_SOURCE },
     generatedAtUnix: nowSec,
   };
 }
