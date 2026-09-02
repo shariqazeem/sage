@@ -58,12 +58,12 @@ keep saying so plainly (they do). The $25 gig adds private payouts to that recor
 - ✅ **P1 Minimal pass** (Wed: nav trimmed, one Options disclosure on /launch) — strip what does not speak for itself (section 4).
 
 **SHOULD (Fri):**
-- **F2 One business, many rails** — link wallets (EVM + Starknet, each proving control with the
+- ✅ **F2 One business, many rails** (Wed, built + gated; deploys with the next batch) — link wallets (EVM + Starknet, each proving control with the
   sign-in it already has) into ONE record: combined verified inflow, funders, tenure; lender JSON
   carries the linked set. "Aggregate fragmented data" made literal; a Caribbean seller paid on
   GOAT by one funder and on Starknet by another has one credit file.
-- **P2 The results surfaces for the campaign** — the gig's board, explorer rows and records are
-  what the videos film; make sure they read perfectly on a phone.
+- ✅ **P2 The results surfaces for the campaign** (measured at 390px Tue/Wed) — the gig's board, explorer rows and records are
+  what the videos film; they read on a phone.
 
 **CUT LINE — Sat 12:00 PKT.** After it: packages, numbers, videos, forms. Nothing else.
 
