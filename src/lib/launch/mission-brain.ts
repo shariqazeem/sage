@@ -430,9 +430,44 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
   return { ok: false, error: lastError, detail: architectFailureDetail(lastThrown) };
 }
 
+/**
+ * The critic's candidates JSON is capped by the prompt builder (20k chars). Five rich missions run
+ * ~4k chars each, so the LAST mission arrived cut mid-criterion, the critic honestly reported "the
+ * submitted mission text is truncated", and that mission died — measured on app.uniswap.org (P-GEN
+ * 45): five candidates, the fifth rejected as truncated, its stored text complete. The count rule
+ * now designs 6–10 missions for a rich map, which would cut the tail of every rich plan. So the
+ * critic reviews candidates in BATCHES that fit under the cap, each batch against the full map, and
+ * the verdicts are concatenated. Greedy, order-preserving, every candidate exactly once; a single
+ * candidate wider than the cap gets a batch of its own (the gate bounds its fields separately).
+ */
+export const CRITIC_BATCH_CHARS = 16_000;
+export function batchForCritic(candidates: CandidateMission[], maxChars = CRITIC_BATCH_CHARS): CandidateMission[][] {
+  const batches: CandidateMission[][] = [];
+  let cur: CandidateMission[] = [];
+  for (const c of candidates) {
+    const next = [...cur, c];
+    if (cur.length > 0 && JSON.stringify({ missions: next }).length > maxChars) {
+      batches.push(cur);
+      cur = [c];
+    } else {
+      cur = next;
+    }
+  }
+  if (cur.length > 0) batches.push(cur);
+  return batches;
+}
+
 async function critic(candidates: CandidateMission[], map: ProductMapV1): Promise<MissionCritique[]> {
-  const candJson = JSON.stringify({ missions: candidates });
   const mapJson = compactMapForLlm(map);
+  const out: MissionCritique[] = [];
+  for (const batch of batchForCritic(candidates)) {
+    out.push(...(await criticBatch(batch, mapJson)));
+  }
+  return out;
+}
+
+async function criticBatch(candidates: CandidateMission[], mapJson: string): Promise<MissionCritique[]> {
+  const candJson = JSON.stringify({ missions: candidates });
   try {
     const r = await llmCompleteJson({
       system: CRITIC_SYSTEM,

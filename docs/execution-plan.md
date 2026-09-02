@@ -215,6 +215,15 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       is finding four, fixed in the batch), gitlab-fr (verbatim French anchors), agora (two reading
       missions → the floor now says flows, never reading). **Batch deployed → P-GEN 46 validates
       divisibility + v4.4 together; anchors must stay 100%.**
+- [x] **Seventh, from reading P-GEN 45's uniswap row (Wed):** the critic's prompt cuts the candidates
+      JSON at 20k chars. Five rich missions ran 23,109 chars, the fifth arrived cut mid-criterion, the
+      critic honestly said "the submitted mission text is truncated" and the mission died — its
+      stored text complete. Measured across the run: rows sit at 14–17k with 4–5 missions, so the
+      6–10 the count rule now designs would cut the tail of EVERY rich plan. The critic now reviews
+      in batches under the cap (`batchForCritic`, 16k), each against the full map, verdicts
+      concatenated; pinned by `mission-brain-critic-batch.test.ts` incl. a structural read that the
+      batch cap stays under the builder's cut. Two lists that drift, again: the architect's count
+      and the critic's cap were two numbers that had to agree. Ships after P-GEN 46 → P-GEN 47.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
