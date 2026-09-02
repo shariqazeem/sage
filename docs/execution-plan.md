@@ -307,6 +307,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       2 after one correction, zero refused rows; the Urdu gig compiles ($15) and the local-currency
       grant compiles ($63.23 at the stamped rate). All three money-lane batteries are green on the
       deployed stack: P-DIRECT, P-WORK, P-JUDGE.
+- [x] **The FC loop, rehearsed without money (Thu):** every link the package cites resolves; both
+      flagship receipts render as settled; the outcomes page computes live with honest gaps; the
+      lender view renders a real record with the multiple arithmetic, the facility block and the exact
+      API call; the advance facility's capacity dry-runs against two real records ($0.17, $0.33) with
+      no money moving; the lender view is now LINKABLE (`/lender?wallet=…`) so a judge lands on the
+      record, not an empty form. Deploys build beside the live server and swap — zero missing-chunk
+      errors on the first swap deploy. What remains needs funds: the gig, the grant film, the advance.
 - [x] **Fifteenth, from a judge's cold walk of prod (Thu):** the refusal rate — the number the whole
       capital story leans on — read 43% on the explorer, 44% on the landing and outcomes pages, 50%
       on the launch page: four arithmetics over four populations. Now ONE derivation
