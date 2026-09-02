@@ -145,7 +145,7 @@ export function buildArchitectUser(
     stripMarkers(founder.targetUsers ?? "").trim()
       ? `FOUNDER TARGET USERS (trusted): ${stripMarkers(founder.targetUsers).slice(0, 800)}`
       : "",
-    founder.missionCountHint ? `Design ${founder.missionCountHint} missions.` : "",
+    founder.missionCountHint ? `Design ${founder.missionCountHint} missions — one per DISTINCT observed flow, never padded (the count rule above decides; this is its band for THIS map).` : "",
     // DOCUMENTED IS NOT OBSERVED. When a connect-wallet or sign-in wall stops Sage, it reads the
     // product's own docs so the plan still knows what a signed-in user is meant to reach. That is a
     // real, quotable observation OF THE DOCS — and it is not a report of Sage watching the feature

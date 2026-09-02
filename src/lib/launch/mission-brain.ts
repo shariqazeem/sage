@@ -199,6 +199,20 @@ export function defaultVerificationMethod(m: Pick<CandidateMission, "objective" 
     : "Sage judges the tester's own account of what happened against these criteria and against the states it observed itself during inspection; the vault releases the reward only for an account that reproduces the observed outcome.";
 }
 
+/**
+ * The count band the USER prompt asks for, derived from the map's richness so it says the same thing
+ * as the system rule (4–6 for a small product, 6–10 for a rich one). It used to be a fixed
+ * "3 to 6" — a second list that contradicted the rule the architect had just been given, and on
+ * P-GEN 46 static rows were designed at 2–3 while the rule asked for 4–6. Rich = eight or more
+ * distinct observed states (the same threshold the rule's floor uses) or a wide crawl.
+ */
+export const MISSION_COUNT_BANDS = { small: "4 to 6", rich: "6 to 10" } as const;
+export function missionCountHintFor(map: Pick<ProductMapV1, "pagesInspected" | "fieldTest">): string {
+  const states = map.fieldTest?.states?.length ?? 0;
+  const pages = map.pagesInspected + (map.fieldTest?.pages?.length ?? 0);
+  return states >= 8 || pages >= 6 ? MISSION_COUNT_BANDS.rich : MISSION_COUNT_BANDS.small;
+}
+
 /** Coerce a raw model object into a well-typed CandidateMission (or null if unusable). */
 export function coerceMission(raw: unknown, i: number): CandidateMission | null {
   const o = (raw ?? {}) as Record<string, unknown>;
@@ -402,7 +416,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
     try {
       const base = buildArchitectUser(
         mapJson,
-        { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: "3 to 6" },
+        { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map) },
         { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
       );
       // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).

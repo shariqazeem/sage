@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ARCHITECT_SYSTEM, MISSION_PROMPT_VERSION } from "./mission-prompt";
+import { ARCHITECT_SYSTEM, MISSION_PROMPT_VERSION, buildArchitectUser } from "./mission-prompt";
+import { MISSION_COUNT_BANDS, missionCountHintFor } from "./mission-brain";
 
 /**
  * The count rule has TWO edges. v4.2 added the ceiling ("distinct means distinct") after a plan
@@ -17,6 +18,19 @@ describe("architect count rule — a ceiling AND a floor", () => {
     expect(ARCHITECT_SYSTEM).toMatch(/DISTINCT means distinct/);
     expect(ARCHITECT_SYSTEM).toMatch(/eight or more distinct states never yields fewer than three missions/);
     expect(ARCHITECT_SYSTEM).toMatch(/linear intake\/onboarding is ONE mission/i);
+  });
+
+  it("the user prompt's count band is the system rule's band, derived from the map — two lists read by one test", () => {
+    // small: a static crawl with no field test; rich: eight observed states (the floor's own threshold)
+    const small = missionCountHintFor({ pagesInspected: 3, fieldTest: undefined });
+    const rich = missionCountHintFor({ pagesInspected: 1, fieldTest: { pages: [], states: Array.from({ length: 8 }, () => ({})) } as never });
+    expect(small).toBe(MISSION_COUNT_BANDS.small);
+    expect(rich).toBe(MISSION_COUNT_BANDS.rich);
+    for (const band of Object.values(MISSION_COUNT_BANDS)) {
+      const [lo, hi] = band.split(" to ");
+      expect(ARCHITECT_SYSTEM).toMatch(new RegExp(`${lo}–${hi}`)); // "4–6" / "6–10" in the rule text
+    }
+    expect(buildArchitectUser("{}", { goal: "g", targetUsers: "", missionCountHint: rich })).toMatch(/Design 6 to 10 missions — one per DISTINCT observed flow/);
   });
 
   it("the corrective round steers a gate-only death differently from a critic rejection", () => {

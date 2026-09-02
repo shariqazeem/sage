@@ -224,6 +224,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       concatenated; pinned by `mission-brain-critic-batch.test.ts` incl. a structural read that the
       batch cap stays under the builder's cut. Two lists that drift, again: the architect's count
       and the critic's cap were two numbers that had to agree. Ships after P-GEN 46 → P-GEN 47.
+- [x] **Eighth, from P-GEN 46's failures (Wed):** plausible.io and allbirds.com FAILED as
+      `provider_timeout` with no brain output — the MiniMax architect call crossed the lane's 180s
+      timeout twice on each (successful calls in the same run ran 98–177s; the profile's comment
+      still said "measured 63–151s"). A timeout must cover the tail of the job it guards: 300s.
+      Same run, same shape: the USER prompt still said "Design 3 to 6 missions" under a system
+      rule that says 4–6/6–10 — the band is now derived from the map (8+ states or a wide crawl →
+      6–10) and one test reads both texts. Ships with the critic batching → **P-GEN 47.**
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.

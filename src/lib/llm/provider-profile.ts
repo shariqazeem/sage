@@ -78,7 +78,11 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       // strict:true, it returned a <think> block, a markdown fence, and invented field names
       // (is_supported/reasoning). Strictness therefore stays in our own parser + the gate.
       jsonMode: "object",
-      timeoutMs: 180_000, // measured 63-151s for one architect call
+      // MEASURED AGAIN 2026-09-02 (P-GEN 46, count rule mb-v4.4): successful architect calls ran
+      // 98-177s and two rows (plausible.io, allbirds.com) crossed 180s twice each and failed the
+      // whole category as provider_timeout. A timeout must cover the TAIL of the job it guards,
+      // not the median of an older, smaller one; the ladder still stops after two aborts.
+      timeoutMs: 300_000,
       multimodal: false, // MEASURED: accepts image_url, returns 200, and reports seeing no image
     },
   },
