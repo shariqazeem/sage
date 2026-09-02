@@ -312,6 +312,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       one payout per wallet. Vault `0x2394a6…9770` — confirmed on-chain as the FIRST mainnet instance
       of the declared privacy class `0x6d5577…5aa0`. Door: https://sagepays.xyz/c/gig-1c3e_FjffE.
       Watching for the first submission; holds are reviewed as they appear.
+- [x] **Seventeenth, from the user reading the live board (Thu):** the mission card showed the title,
+      the title again as "Deliverable", and NO task — the founder's sentence and its link lived only in
+      the compiled instructions, which the card never rendered; the evidence coaching carried the
+      product-testing wording on an artifact gig. Now: the compiled objective carries the sentence, the
+      card has a "What to do" block with clickable links (`linkify`), the duplicated line is
+      suppressed, and the coaching follows the operator's contract kind. Live data untouched (the
+      mission spec digest covers the objective); the live gig shows the task through its instructions.
 - [x] **Sixteenth, from the user composing the first public gig (Thu):** the composer had no title
       field — the 'what must be true' sentence became the mission title verbatim, cut at 80 chars
       mid-word on the marketplace card, and the tester steps glued 'You are paid when' onto an

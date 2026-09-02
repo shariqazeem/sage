@@ -542,7 +542,9 @@ export function compileDirectCampaign(
   const candidates: CandidateMission[] = input.milestones.map((m, i) => ({
     missionKey: slugify(m.title, i, taken),
     title: m.title,
-    objective: `${input.kind === "grant" ? "Milestone" : "Deliverable"}: ${m.title}`,
+    // The title became a short derived clause (2026-09-03); the objective must carry the founder's
+    // full sentence, or the board says the title twice and the worker never sees the task.
+    objective: `${input.kind === "grant" ? "Milestone" : "Deliverable"}: ${m.criteria[0] && m.criteria[0] !== m.title ? m.criteria[0] : m.title}`,
     instructions: m.instructions,
     targetSurface: surfaceFor(input, publicCampaignId),
     criteria: m.criteria,

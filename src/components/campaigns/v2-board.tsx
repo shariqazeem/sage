@@ -1,3 +1,4 @@
+import type React from "react";
 "use client";
 
 import {
@@ -562,8 +563,17 @@ function MissionCard({
         </div>
       ) : (
         <>
-          {mission.objective && (
+          {mission.objective && mission.objective !== `Deliverable: ${mission.title}` && mission.objective !== `Milestone: ${mission.title}` && (
             <p className="v2-mission-obj">{mission.objective}</p>
+          )}
+          {/* THE TASK, IN FULL, WITH ITS LINKS. The first public gig of launch week showed a worker the
+              title, the title again as "Deliverable", and no steps — the founder's sentence and its
+              URL lived only in the compiled instructions, which the card never rendered. */}
+          {mission.instructions && mission.verifiabilityClass !== "observation-based" && (
+            <div className="v2-mission-task">
+              <span className="v2-mission-task-k">What to do</span>
+              <p>{linkify(mission.instructions.replace(/^What must be true:\s*/i, ""))}</p>
+            </div>
           )}
           <div className="v2-mission-meta">
             <span className="v2-slots">
@@ -1129,4 +1139,26 @@ function StarknetSubmitGate({
       ]}
     />
   );
+}
+
+/** Turn bare URLs and sagepays.xyz paths in a sentence into links a worker can click. Pure. */
+export function linkify(text: string): React.ReactNode[] {
+  const re = /(https?:\/\/[^\s"')<>]+|(?:^|(?<=[\s(]))sagepays\.xyz(?:\/[^\s"')<>]*)?)/g;
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const raw = m[0].replace(/[.,;:]+$/, "");
+    const href = raw.startsWith("http") ? raw : `https://${raw}`;
+    out.push(
+      <a key={`l${k++}`} href={href} target="_blank" rel="noopener noreferrer">
+        {raw}
+      </a>,
+    );
+    last = m.index + raw.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
 }
