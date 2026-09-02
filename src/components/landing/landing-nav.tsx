@@ -31,7 +31,6 @@ const LINKS = [
   // Docs sit in the nav rather than only the footer: they are the surface that answers
   // "is this real and how does it work" for a founder who is not ready to click Launch.
   { href: "/docs", label: "Docs" },
-  { href: "/dashboard", label: "Dashboard" },
 ];
 
 /**

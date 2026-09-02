@@ -79,7 +79,8 @@ export default function HowItWorks() {
         Testing is one instance of a more general machine: <em>verify a claim against evidence the
         agent gathers itself, then move money inside hard limits</em>. So the same five steps run{" "}
         <strong>gigs</strong> (&ldquo;pay my designer $50 when the logo page is live&rdquo;) and{" "}
-        <strong>milestone grants</strong> (&ldquo;split J$10,000 across two milestones&rdquo;) —
+        <strong>milestone grants</strong> (&ldquo;split J$10,000 across two milestones&rdquo;) and{" "}
+        <strong>supplier payments</strong> (&ldquo;release $60 when the delivery confirmation for invoice INV-1042 is public&rdquo; — trade finance whose paperwork is the payment itself) —
         composed by hand on <Link href="/launch">/launch</Link>, compiled deterministically with no
         model in the path, and priced in the founder&rsquo;s own currency: the Caribbean
         denominations are first-class, converted once at a stamped, source-attributed rate, settled

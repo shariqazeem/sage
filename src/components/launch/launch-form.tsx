@@ -72,6 +72,9 @@ const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: st
   { label: "Design gig", who: "my designer", slots: "1", tranches: [{ amount: "50", deliverable: "the new logo page is live", verify: "link" }] },
   { label: "Translation job", who: "a translator", slots: "1", tranches: [{ amount: "20", deliverable: "my menu is published in English as a public page", verify: "link" }] },
   { label: "Open bounty", who: "anyone", slots: "3", tranches: [{ amount: "5", deliverable: "they publish a working setup guide for my product", verify: "link" }] },
+  // TRADE FINANCE IN THE BRIEF'S OWN WORDS: a supplier is paid when the delivery verifies — the
+  // payment generates its own paperwork. Supplier credit shaped by delivery, on a real surface.
+  { label: "Pay a supplier", who: "my supplier", slots: "1", tranches: [{ amount: "60", deliverable: "the delivery confirmation for invoice INV-1042 is published on a public page", verify: "page", expectedText: "INV-1042 delivered" }] },
   {
     label: "Milestone grant",
     who: "a market seller I know",
