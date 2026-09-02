@@ -196,6 +196,7 @@ export function LaunchForm() {
    * Open when a goal already exists so a returning founder never loses sight of their own words.
    */
   const [showGoal, setShowGoal] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -478,6 +479,12 @@ export function LaunchForm() {
                 cannot be bothered to write still hands Sage a sharp goal, and the founder who can
                 write gets a head start to edit. "Let Sage decide" is a first-class choice, not a
                 fallback: it clears the goal, and the pipeline treats that as full delegation. */}
+            {/* ONE DISCLOSURE, NOT THREE. The three optional inputs (steer, repo, test login) sat as
+                three separate "+" links under the URL — a row of small decisions before the one
+                that matters. They open together behind one line; anything already filled keeps
+                them open. */}
+            {showOptions || showGoal || showRepo || showAuth || form.goal || form.repoUrl || form.testEmail ? (
+              <>
             {showGoal || form.goal ? (
               <>
                 <div className="lxo-chips" role="group" aria-label="Quick goals">
@@ -562,6 +569,12 @@ export function LaunchForm() {
             ) : (
               <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowAuth(true)}>
                 <Plus size={14} /> Add a test login <span className="muted">— optional, unlocks work behind your login</span>
+              </button>
+            )}
+              </>
+            ) : (
+              <button type="button" className="lx-edit-link lxo-addrepo" onClick={() => setShowOptions(true)}>
+                <Plus size={14} /> Options <span className="muted">— steer what gets tested, add a GitHub repo, add a test login</span>
               </button>
             )}
           </>
