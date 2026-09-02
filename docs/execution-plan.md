@@ -297,7 +297,12 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       vitest renames its process to `node (vitest)`, so no `pgrep vitest.*work-eval` can see it. The
       battery was alive each time. Waiters now match the `npm exec` wrapper with a `[c]` so the ssh
       command line cannot match itself.
-- [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
+- [x] **P-DIRECT final (Thu, after the concierge fix) — PASSED:** 15 first-shot compiles (was 12),
+      2 after one correction, zero refused rows; the Urdu gig compiles ($15) and the local-currency
+      grant compiles ($63.23 at the stamped rate). All three money-lane batteries are green on the
+      deployed stack: P-DIRECT, P-WORK, P-JUDGE.
+- [x] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words (done; the two
+      defects it exposed — tool-schema drift and the truncated tool call — are fixed above).
 - [x] **P-JUDGE (Thu, MiniMax-M3, 3 runs):** zero wrong-autopay across 57/57 valid rows, no provider
       failures, promotion-eligible and conclusive. Every hostile fixture held (direct, paraphrased,
       Spanish and zero-width injections; stale reused artifact; wrong product / wrong route; spam;
