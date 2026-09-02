@@ -105,6 +105,11 @@ verified record. Live at https://sagepays.xyz/launch?do=pay.
   daily limits. Forensics: [`sybil-cluster-forensics.md`](./sybil-cluster-forensics.md).
 - Compliance posture: [`compliance-statement.md`](./compliance-statement.md).
 
+## Judge Q&A
+
+The questions a Citi, M-KOPA or DRW judge will ask, each answered in one breath with a live pointer:
+[`docs/fc/judge-qa.md`](judge-qa.md).
+
 ## Honesty ledger — what we do NOT claim
 
 [`what-is-left.md`](./what-is-left.md) is the standing document. Highlights: the gig/artifact
