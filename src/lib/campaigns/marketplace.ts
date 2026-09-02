@@ -291,6 +291,7 @@ export function marketplace(): MarketplaceView {
       paid,
       remainingSlots,
       verifiabilityClass: m.verifiabilityClass,
+      ...(m.verificationKind ? { verificationKind: m.verificationKind } : {}),
     });
     byCampaign.set(m.campaignId, list);
   }

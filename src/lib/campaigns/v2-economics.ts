@@ -30,8 +30,18 @@ export interface V2MissionView {
   status: string;
   /** P16 money gate — "observation-based" missions are founder-approved (never auto-paid). */
   verifiabilityClass: "url-verifiable" | "observation-based";
+  /** the operator's explicit verification contract kind, when the mission carries one — what the board's
+   *  evidence coaching is keyed by (an artifact gig asks for the page YOU created, not "text you saw"). */
+  verificationKind?: VerificationKindView;
   /** true once every completion slot is paid (the mission is full). */
   full: boolean;
+}
+
+export type VerificationKindView = "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
+const KINDS: readonly VerificationKindView[] = ["artifact_url", "public_url", "onchain_tx", "onchain_state", "observation"];
+export function verificationKindOf(contract: unknown): VerificationKindView | undefined {
+  const k = (contract as { kind?: unknown } | null)?.kind;
+  return typeof k === "string" && (KINDS as readonly string[]).includes(k) ? (k as VerificationKindView) : undefined;
 }
 
 export interface V2Economics {
@@ -73,6 +83,7 @@ export function v2Economics(campaign: Campaign): V2Economics {
       remainingSlots,
       status: m.status,
       verifiabilityClass: m.verifiabilityClass,
+      ...(verificationKindOf(m.verificationContract) ? { verificationKind: verificationKindOf(m.verificationContract) } : {}),
       full: remainingSlots === 0,
     };
   });

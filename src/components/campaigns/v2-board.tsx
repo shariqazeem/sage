@@ -64,6 +64,8 @@ export interface MissionView {
   status: string;
   /** P16 — "observation-based" missions are founder-approved after Sage's assessment (never auto-paid). */
   verifiabilityClass?: "url-verifiable" | "observation-based";
+  /** the operator's verification contract kind — keys the evidence coaching below. */
+  verificationKind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
 }
 
 interface MySubmission {
@@ -491,6 +493,7 @@ function MissionCard({
         evidenceList={mission.evidenceList}
         observation={isObservation}
         requirementsShown={prompts.length > 0}
+        kind={mission.verificationKind}
       />
       {isObservation ? (
         <>
@@ -729,10 +732,12 @@ function EvidenceCoaching({
   /** true when the requirements are already rendered as the form's own field labels — repeating the
    *  first one above them reads as a bug, not as coaching. */
   requirementsShown = false,
+  kind,
 }: {
   evidenceList: string[];
   observation?: boolean;
   requirementsShown?: boolean;
+  kind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
 }) {
   const list = requirementsShown ? [] : evidenceList;
   if (observation) {
@@ -784,21 +789,57 @@ function EvidenceCoaching({
           <span>{list[0]}</span>
         </div>
       )}
-      <div className="tb-coach-row">
-        <span className="ok">Works</span>
-        <span>
-          a public URL anyone can open — e.g.{" "}
-          <code>https://yourproduct.com/pricing</code> or a block-explorer tx
-          page — plus the exact text you saw.
-        </span>
-      </div>
-      <div className="tb-coach-row">
-        <span className="no">Won&apos;t work</span>
-        <span>
-          screenshots, images, file uploads, or logged-in / private pages. Sage
-          reads public web pages as text only.
-        </span>
-      </div>
+      {/* The coaching follows the operator's contract. The first public gig of launch week was an
+          artifact gig whose board still said "plus the exact text you saw" — the product-testing
+          wording — and a stranger has no way to know which sentence applies to them. */}
+      {kind === "artifact_url" ? (
+        <>
+          <div className="tb-coach-row">
+            <span className="ok">Works</span>
+            <span>
+              a public page <b>you created</b> — a blog post, a dev.to or Medium article, a GitHub gist, a
+              Notion page, your own site — that visibly shows your submitting wallet address. Any host.
+            </span>
+          </div>
+          <div className="tb-coach-row">
+            <span className="no">Won&apos;t work</span>
+            <span>
+              someone else&apos;s page, a copy of another submission with your address swapped in, a page
+              without your wallet on it, screenshots, or anything behind a login. Sage fetches the link
+              itself and checks the page carries your marker.
+            </span>
+          </div>
+        </>
+      ) : kind === "onchain_tx" || kind === "onchain_state" ? (
+        <>
+          <div className="tb-coach-row">
+            <span className="ok">Works</span>
+            <span>the transaction hash (or a block-explorer link to it), sent from your own submitting wallet.</span>
+          </div>
+          <div className="tb-coach-row">
+            <span className="no">Won&apos;t work</span>
+            <span>a transaction from another wallet, or a screenshot of one. Sage reads the chain directly.</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="tb-coach-row">
+            <span className="ok">Works</span>
+            <span>
+              a public URL anyone can open — e.g.{" "}
+              <code>https://yourproduct.com/pricing</code> or a block-explorer tx
+              page — plus the exact text you saw.
+            </span>
+          </div>
+          <div className="tb-coach-row">
+            <span className="no">Won&apos;t work</span>
+            <span>
+              screenshots, images, file uploads, or logged-in / private pages. Sage
+              reads public web pages as text only.
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
