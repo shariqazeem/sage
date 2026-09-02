@@ -304,10 +304,12 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       JS-only shell; authorless evidence; author-date mismatch; eloquent note over thin evidence);
       genuine rich evidence auto-paid 3/3; terse and feedback-style genuine work went to review,
       never to a wrong pay. The judge is what it claims to be.
-- [ ] P-WORK (gig judging) — first launch was BLIND: the harness defaulted to the shared chain's
-      model (`LLM_MODEL` = claude-haiku) on the PAYOUT lane's provider (MiniMax) → `llm 400` ×3 per
-      row, every verdict a heuristic fallback, a battery that measured nothing. Both judge harnesses
-      now default to `PAYOUT_MODEL`; relaunched with the lane's model. Read the briefs when it lands.
+- [x] **P-WORK (Thu, MiniMax-M3 ×2) — PASSED, conclusive:** 14 attack fixtures (bluff claims, card
+      parroting, marker-only pages, AI filler, wrong deliverable, partial work, injection in the
+      artifact…) → zero leaks; 12 honest fixtures → zero false holds, autopay 12/12; provenance
+      violations 0. The first launch was BLIND: the harness defaulted to the shared chain's model on
+      the PAYOUT lane's provider (`llm 400` ×3 per row, every verdict a heuristic fallback). Both
+      judge harnesses now default to `PAYOUT_MODEL`.
 - [x] **Copied-work JOIN proven against the real database (Thu):** `decisions-fingerprint.test.ts`
       drives the real decision path — artifact verified by the real work-proof lane, fingerprint
       stored on the decision row, dedup query returns it, marker-swapped copy from a second wallet
