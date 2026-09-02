@@ -312,6 +312,13 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       one payout per wallet. Vault `0x2394a6…9770` — confirmed on-chain as the FIRST mainnet instance
       of the declared privacy class `0x6d5577…5aa0`. Door: https://sagepays.xyz/c/gig-1c3e_FjffE.
       Watching for the first submission; holds are reviewed as they appear.
+- [x] **Eighteenth, from the user pasting a link into X (Thu):** every link card still showed the
+      retired positioning ("Hire an AI worker, give it a budget, not your keys") and a gig's board was
+      titled "Testing campaign · host" with its own URL as the description — the Starknet deploy route
+      never got the direct-title fix the EVM runner has. Now: the share card reads "Pay people for
+      work an AI has verified" with both rails; the marketplace card covers missions, gigs and
+      bounties; a single-deliverable gig's board, title and card are the mission's own with its price;
+      bare-URL descriptions are not rendered; the Starknet route titles direct campaigns by operator.
 - [x] **Seventeenth, from the user reading the live board (Thu):** the mission card showed the title,
       the title again as "Deliverable", and NO task — the founder's sentence and its link lived only in
       the compiled instructions, which the card never rendered; the evidence coaching carried the
