@@ -231,6 +231,12 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       Same run, same shape: the USER prompt still said "Design 3 to 6 missions" under a system
       rule that says 4–6/6–10 — the band is now derived from the map (8+ states or a wide crawl →
       6–10) and one test reads both texts. Ships with the critic batching → **P-GEN 47.**
+- [x] **P-GEN 46 stopped at 9 rows (Wed):** every row that produced a plan held anchors 100%;
+      yara.garden now plans (3 missions, was a dead-end); the two failures and the telegram row's
+      battery timeout were all the eighth finding (the 180s lane timeout), so the remaining rows
+      would have measured nothing new. Deployed the critic batching + 300s timeout + derived count
+      band and pushed. **P-GEN 47 running — the validation of the whole batch: anchors 100%,
+      no provider_timeout row, rich maps at 6–10 missions, tails reviewed whole.**
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
