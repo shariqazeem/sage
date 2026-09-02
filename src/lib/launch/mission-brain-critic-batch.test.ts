@@ -47,6 +47,15 @@ describe("batchForCritic — every candidate reviewed whole, in order, exactly o
     expect(batchForCritic([])).toEqual([]);
   });
 
+  it("a primary that times out twice hands the architect — and a timed-out review — to the secondary provider once", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/lib/launch/mission-brain.ts"), "utf8");
+    // the ladder: second timeout → one fallback attempt → stop (never a third primary attempt)
+    expect(src).toMatch(/if \(lastError === "provider_timeout" && \+\+timeouts >= 2\) \{\s*const fb = await architectOnFallback\(/);
+    expect(src).toMatch(/useFallback: true \}\);\s*const arr = extractMissionArray/);
+    // the critic: only a provider_timeout, only once, only when a fallback exists
+    expect(src).toMatch(/if \(!useFallback && classifyBrainError\(e\) === "provider_timeout" && fallbackLlm\(\)\) return criticBatch\(candidates, mapJson, true\)/);
+  });
+
   it("the batch cap stays under the prompt builder's own cut, so a batch is never truncated", () => {
     const src = readFileSync(resolve(process.cwd(), "src/lib/launch/mission-prompt.ts"), "utf8");
     const m = src.match(/candidatesJson\.slice\(0, ([\d_]+)\)/);

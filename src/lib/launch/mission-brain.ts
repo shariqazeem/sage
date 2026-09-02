@@ -9,7 +9,7 @@ import "server-only";
  * until it passes the gate.
  */
 
-import { llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
+import { fallbackLlm, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { backoffMs } from "@/lib/llm/retry";
 import { missionModel } from "@/lib/llm/mission-model";
 import {
@@ -437,7 +437,12 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       // Only a real truncation buys more room — never a shape failure, which more tokens cannot fix.
       if (wasTruncated(e)) escalation++;
       // ...and a TIMEOUT buys nothing: re-issuing the identical request just spends the clock again.
-      if (lastError === "provider_timeout" && ++timeouts >= 2) break;
+      // After the second one, the PRIMARY is the problem — try the secondary provider once, then stop.
+      if (lastError === "provider_timeout" && ++timeouts >= 2) {
+        const fb = await architectOnFallback(mapJson, founder, map, correction);
+        if (fb) return fb;
+        break;
+      }
 
     }
   }
@@ -471,6 +476,38 @@ export function batchForCritic(candidates: CandidateMission[], maxChars = CRITIC
   return batches;
 }
 
+/**
+ * ONE architect attempt on the secondary provider (`LLM_FALLBACK_*`), taken only after the primary
+ * timed out twice. Measured (P-GEN 47, motherfuckingwebsite.com): the MiniMax architect crossed a
+ * 300s timeout twice on a one-page site while answering a trivial prompt in two seconds; the
+ * founder's launch died with a fast second provider configured and idle. The answer is judged by
+ * the same critic and the same deterministic gate as any other; `model`/`provider` record which
+ * provider actually answered, so a fallback plan is never mistaken for a primary one.
+ */
+async function architectOnFallback(
+  mapJson: string,
+  founder: FounderLaunchInput,
+  map: ProductMapV1,
+  correction?: string,
+): Promise<ArchitectResult | null> {
+  if (!fallbackLlm()) return null;
+  try {
+    const base = buildArchitectUser(
+      mapJson,
+      { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map) },
+      { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
+    );
+    const user = correction ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly: ${correction}` : base;
+    const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: 4200, temperature: 0.3, useFallback: true });
+    const arr = extractMissionArray(r.json);
+    const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
+    if (candidates.length === 0) return null;
+    return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
+  } catch {
+    return null;
+  }
+}
+
 async function critic(candidates: CandidateMission[], map: ProductMapV1): Promise<MissionCritique[]> {
   const mapJson = compactMapForLlm(map);
   const out: MissionCritique[] = [];
@@ -480,7 +517,7 @@ async function critic(candidates: CandidateMission[], map: ProductMapV1): Promis
   return out;
 }
 
-async function criticBatch(candidates: CandidateMission[], mapJson: string): Promise<MissionCritique[]> {
+async function criticBatch(candidates: CandidateMission[], mapJson: string, useFallback = false): Promise<MissionCritique[]> {
   const candJson = JSON.stringify({ missions: candidates });
   try {
     const r = await llmCompleteJson({
@@ -488,8 +525,7 @@ async function criticBatch(candidates: CandidateMission[], mapJson: string): Pro
       user: buildCriticUser(candJson, mapJson),
       maxTokens: 3000,
       temperature: 0,
-      model: missionModel(),
-      lane: "MISSION",
+      ...(useFallback ? { useFallback: true } : { model: missionModel(), lane: "MISSION" as const }),
     });
     const arr = (r.json as { critiques?: unknown[] })?.critiques;
     if (!Array.isArray(arr)) return [];
@@ -507,7 +543,10 @@ async function criticBatch(candidates: CandidateMission[], mapJson: string): Pro
         } as MissionCritique;
       })
       .filter((c) => c.missionKey.length > 0);
-  } catch {
+  } catch (e) {
+    // The primary's heavy tail again: a timed-out review gets ONE attempt on the secondary provider.
+    // Any other failure stays an empty verdict list — the deterministic gate still judges every mission.
+    if (!useFallback && classifyBrainError(e) === "provider_timeout" && fallbackLlm()) return criticBatch(candidates, mapJson, true);
     return [];
   }
 }

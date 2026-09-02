@@ -237,6 +237,15 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       would have measured nothing new. Deployed the critic batching + 300s timeout + derived count
       band and pushed. **P-GEN 47 running — the validation of the whole batch: anchors 100%,
       no provider_timeout row, rich maps at 6–10 missions, tails reviewed whole.**
+- [x] **Ninth, from P-GEN 47's first row (Wed):** motherfuckingwebsite.com — one page — died as
+      `provider_timeout` after the MiniMax architect crossed the new 300s twice, while the same
+      provider answered a trivial prompt in 2s. The mission lane had NO failover: the ladder broke
+      on the second timeout with `LLM_FALLBACK_*` (claude-haiku-4-5, fast) configured and idle.
+      Now: after the second timeout the architect makes ONE attempt on the secondary provider,
+      and a timed-out critic review does the same; `model`/`provider` record who answered so a
+      fallback plan is never mistaken for a primary one; the gate judges both alike. `useFallback`
+      is fail-closed (no fallback → `llm_not_configured`, never a silent re-run of the primary).
+      Pinned by `src/lib/llm/fallback.test.ts` + a structural read of the ladder. → P-GEN 48.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.

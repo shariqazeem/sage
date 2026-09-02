@@ -105,6 +105,22 @@ export function resolveLlm(modelOverride?: string, lane?: Lane): ResolvedProvide
   return { endpoint: `${base}/chat/completions`, key, model, host: hostOf(base) };
 }
 
+/**
+ * The secondary provider (`LLM_FALLBACK_*`, all three or absent — the same all-or-nothing rule as a
+ * lane). A caller reaches for it ONLY after the primary has failed in a way retrying cannot fix —
+ * measured: the MiniMax mission architect crossed its lane timeout twice in a row on the simplest
+ * product in the battery while answering a trivial prompt in two seconds, so the founder's launch
+ * died of one provider's heavy tail with a second, fast provider configured and idle.
+ */
+export function fallbackLlm(modelOverride?: string): ResolvedProvider | null {
+  const key = process.env.LLM_FALLBACK_API_KEY?.trim();
+  const rawBase = process.env.LLM_FALLBACK_BASE_URL?.trim();
+  const model = process.env.LLM_FALLBACK_MODEL?.trim();
+  if (!key || !rawBase || !model) return null;
+  const base = rawBase.replace(/\/+$/, "");
+  return { endpoint: `${base}/chat/completions`, key, model: modelOverride?.trim() || model, host: hostOf(base) };
+}
+
 export function llmModel(): string {
   return resolveLlm()?.model ?? DEFAULT_MODEL;
 }
@@ -438,8 +454,13 @@ export async function llmCompleteJson(opts: {
   /** retry rung: 0 = typical budget, higher = more room for a provider that truncated. Only raise
    *  it in response to a MEASURED truncation (finish_reason "length"), never speculatively. */
   escalation?: number;
+  /** run this call on the secondary provider (`LLM_FALLBACK_*`) instead of the lane / shared chain.
+   *  Throws `llm_not_configured` when no fallback is configured — never silently re-runs the
+   *  primary. Reach for it only after the primary failed in a way retrying cannot fix. */
+  useFallback?: boolean;
 }): Promise<LlmComplete> {
-  const p = resolveLlm(opts.model, opts.lane);
+  // an explicit model override is the PRIMARY's model — it must not be carried onto the fallback
+  const p = opts.useFallback ? fallbackLlm() : resolveLlm(opts.model, opts.lane);
   if (!p) throw new Error("llm_not_configured");
   const profile = profileFor(p.model, p.endpoint);
   const started = Date.now();
