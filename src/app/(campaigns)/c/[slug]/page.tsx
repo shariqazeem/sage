@@ -53,8 +53,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description:
       head?.description ??
       "A paid testing mission on Sage. Do the work, submit your evidence, and an AI agent pays you real USDC from an on-chain vault — every payout a verifiable receipt.",
-    openGraph: head ? { title: head.title, description: head.description } : undefined,
-    twitter: head ? { title: head.title, description: head.description } : undefined,
+    openGraph: head ? { title: head.title, description: head.description, images: ["/opengraph-image"] } : undefined,
+    twitter: head ? { card: "summary_large_image", title: head.title, description: head.description, images: ["/opengraph-image"] } : undefined,
   };
 }
 
