@@ -63,6 +63,14 @@ one settlement ledger (`src/lib/campaigns/settled-ledger.ts`) with **named scope
   rows — pass rate, verified inflow/month, distinct funders, tenure, recency. **No invented
   score; Sage computes no creditworthiness verdict.** JSON: `/api/record/<wallet>`
   (`sage.work-record.v4`, one redaction boundary).
+- **One business, many rails** (2 Sep): wallets a person has proven control of — each with its
+  own sign-in, EVM and Starknet — link into ONE credit file: the union of receipt-anchored entries
+  with the same published formulas run over it, carried in the lender JSON as `linked`. The
+  brief's "aggregate fragmented data into a coherent business profile", with nothing self-reported:
+  a seller paid on GOAT by one funder and on Starknet by another is one business, not two halves.
+- **Supplier payments** (2 Sep): a "Pay a supplier" shape in the composer — the tranche releases
+  when the delivery confirmation carrying the invoice number is public. Trade finance whose
+  paperwork is the payment itself.
 - **Floor attestation**: the earner signs a lifetime-floor statement over their withheld
   record with their own wallet; the lender paste-verifies it on /lender. Oracle-safe by
   design (no live pre-submission feedback anywhere — the NO-ORACLE policy).
