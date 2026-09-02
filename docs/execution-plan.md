@@ -179,7 +179,10 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       The architect now designs one mission per distinct observed flow (4–6 small, 6–10 rich;
       never padded). Prompt `mb-v4.2-qa`. **Validated by P-GEN 45 after deploy, anchors must
       stay 100%** — the standing policy for any mission-brain change.
-- [ ] Deploy the three fixes when P-GEN 44 lands (no builds during a run) → P-GEN 45 → read.
+- [x] **P-GEN 44 baseline (Wed):** 13/13, anchors 100% every row, no failures, ~231k tokens;
+      coverage flagged two one-mission plans (spa-app, webgl-world) — the cap the prompt change
+      lifts. Deployed the batch (categorizer, fair spread, mb-v4.2-qa, the board-width pass,
+      landing cleanup) → **P-GEN 45 running** to validate: anchors must stay 100%, coverage should rise.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
