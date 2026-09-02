@@ -266,6 +266,10 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       **P-GEN 50 docs row (Thu): 1 → 5 missions, anchors 100%** — quickstart to a working setup,
       Ctrl+K search, sidebar navigation, two reach-and-identify lookups; the critic rejected a
       quote-the-title candidate on its own. The floor is met with flows.
+- [x] **P-GEN 50 grid (Thu): 13/13, every check PASS on every row, anchors 100%, zero failures,
+      ~236k tokens.** Counts: mfw 4, docs 5, plausible 7, excalidraw 2 (a 4-state map — thin map,
+      thin plan), play2048 6, yara 5, allbirds/telegram/gitlab/cnn/agora 3–5, uniswap 4. The mission
+      prompt is FROZEN at `mb-v4.5-qa` for the deadline; the quality round is closed.
 - [x] **P-DIRECT dump (Thu):** 20/21 fixtures compiled; the one failure, `pd-grant-currency-tranches`,
       was a TOOL-SCHEMA DRIFT: the compiler accepts `currency` and a milestone's `rewardLocal`, the
       field descriptions told the model to pass them, and the JSON schema the model is shown never

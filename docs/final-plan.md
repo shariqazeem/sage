@@ -83,7 +83,7 @@ import (self-reported flows are exactly what the record refuses); a credit SCORE
 | autonomous payout on Starknet end to end | proven 2026-08-31; the $25 gig re-proves it with strangers | ☐ campaign |
 | autonomous payout on GOAT | 26 mainnet payouts; the grant film re-proves walletless | ☐ user-gated |
 | gigs/grants compile for any founder | P-DIRECT certified; dump-mode read Thu — two defects fixed (tool-schema drift, truncated tool call); final run 15/21 first-shot, 0 refused | ✅ (Thu) |
-| any product inspectable | P-GEN 49 13/13 anchors 100%, zero timeouts; P-GEN 50 validates the docs-flow rule (docs 1 → 5) | ✅ (Thu; 50 in flight) |
+| any product inspectable | P-GEN 49 and 50 both 13/13, every check PASS, anchors 100%; docs 1 → 5 under the frozen prompt `mb-v4.5-qa` | ✅ (Thu) |
 | judge holds duplicates/near-dups/rotations | integrity panel + Sybil controls fired in production | ✅ |
 | onboarding: land → launch → fund → watch | doors, lifecycle line, live desk, board widths | ✅ (Tue) |
 | mobile: board, claim, record, explorer | measured 390px, no overflow; wallet gate honest | ✅ |
