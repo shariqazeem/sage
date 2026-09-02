@@ -256,6 +256,14 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       retries ran into the timeout. The budget now scales with the band (7k small / 11k rich) and
       the timeout never sits below producing that budget at 40 tok/s (measured 57). P-GEN 48 rows
       that did land: tailwind 2→5 missions, all anchors 100%. Stopped at 9 rows → **P-GEN 49.**
+- [x] **P-GEN 49 (Wed night) — the first fully green run of the new stack:** 13/13 ready, anchors
+      100% every row, zero failures, zero timeouts, every brain call answered by the primary in
+      65–258s (the scaled timeout covered the tail; the fallback was never needed), ~242k tokens.
+      Counts: yara 6 (was a dead-end), allbirds 7, play2048 6, telegram 5, cnn 5, agora 5. The
+      grid's one soft flag: docs planned ONE mission (a $200 install quickstart) — the rule's
+      "never reading missions" over-applied to documentation. `mb-v4.5-qa` names the docs flows
+      (search, navigation, quickstart-to-working-result, interactive examples/toggles). Deploys
+      after the P-DIRECT dump; the docs row of P-GEN 50 validates it.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
