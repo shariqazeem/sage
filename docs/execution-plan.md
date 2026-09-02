@@ -183,6 +183,12 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       coverage flagged two one-mission plans (spa-app, webgl-world) — the cap the prompt change
       lifts. Deployed the batch (categorizer, fair spread, mb-v4.2-qa, the board-width pass,
       landing cleanup) → **P-GEN 45 running** to validate: anchors must stay 100%, coverage should rise.
+- [x] **Fourth defect, from reading P-GEN 45's plausible row (Wed):** the spread had not taken —
+      the wall was DIVISIBILITY, not the count: the remainder 143,127,302 base units has no
+      divisor ≤ 48 but 2, so the frozen allocator's exact-division search could only write
+      $71.56 × 2. Fix on the capped path: pay the pot at the fair rate to n people and return the
+      sub-cent residual to the founder (capacity is not their money) — Σ exact against the shrunk
+      budget. Pinned on the brain's exact inputs. Deploys after P-GEN 45 → validated by P-GEN 46.
 - [ ] P-DIRECT in dump mode (`DIRECT_DUMP=1`) — read the model's gig/grant plans in words.
 - [ ] P-WORK (gig judging) and P-JUDGE (payout judge) after P-GEN; read the briefs.
 - [ ] Fix what reading exposes — prompts and gates — then re-run the touched battery.
