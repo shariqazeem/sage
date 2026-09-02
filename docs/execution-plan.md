@@ -312,6 +312,14 @@ is a config change. One battery at a time on the VM, NOTHING else there during a
       one payout per wallet. Vault `0x2394a6…9770` — confirmed on-chain as the FIRST mainnet instance
       of the declared privacy class `0x6d5577…5aa0`. Door: https://sagepays.xyz/c/gig-1c3e_FjffE.
       Watching for the first submission; holds are reviewed as they appear.
+- [x] **Twentieth, from the FIRST STRANGER SUBMISSION (Thu night):** a tweet with the phrase but no
+      wallet, no sagepays.xyz and no write-up reached the MODEL — which held it correctly at 0.93 — but
+      the deterministic marker check should have refused it first. The contract parser treated an
+      empty allow-list ("publish anywhere") as "not a contract", so the whole deterministic lane was
+      skipped for every any-host artifact gig while the verifier itself accepts an empty list. Two
+      lists drift, again. Fixed + pinned (`work-proof-anyhost.test.ts`). The deploy guard now lets a
+      HELD submission (pending with a decision) through — it is stable across a restart; only
+      mid-judgment and settling work block.
 - [x] **Nineteenth, from the reply's card still showing the SEO line (Thu):** the root layout set an
       explicit twitter/openGraph title, and Next merges per top-level key, so it overrode every page's
       own card title; a gig board also sent the small card with no image. Now the root sets only the

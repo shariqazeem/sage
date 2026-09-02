@@ -12,7 +12,10 @@ if S 'pgrep -f "^node scripts/mission-eval-matri[x]" >/dev/null || pgrep -f "npm
 echo "== guard: pending/settling submissions =="
 cat > /tmp/guard.cjs <<'JS'
 const db = require("/home/ubuntu/sage/node_modules/better-sqlite3")("/home/ubuntu/sage/var/sage.db", { readonly: true });
-const rows = db.prepare("select status, count(*) as n from submissions where status in ('pending','settling') group by status").all();
+// settling, or pending with NO decision yet (mid-judgment) — a held submission (pending + a decision row) is
+// stable across a restart and must not block a deploy for as long as a founder takes to review it.
+const rows = db.prepare(`select s.status, count(*) as n from submissions s left join decisions d on d.submission_id = s.id
+  where s.status = 'settling' or (s.status = 'pending' and d.id is null) group by s.status`).all();
 console.log(JSON.stringify(rows)); process.exit(rows.length ? 1 : 0);
 JS
 ssh -o StrictHostKeyChecking=no -i $KEY $VM "cat > /home/ubuntu/guard.cjs" < /tmp/guard.cjs

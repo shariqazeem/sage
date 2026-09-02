@@ -62,7 +62,11 @@ export function parseWorkProofContract(raw: unknown): VerificationContract | nul
         ? (c as unknown as OnchainStateContract)
         : null;
     case "artifact_url":
-      return Array.isArray(c.allowedHosts) && c.allowedHosts.length > 0 && typeof c.markerKind === "string"
+      // An EMPTY allow-list is "publish anywhere" (the verifier skips the host check for it) — it is a
+      // valid contract, not a missing one. Requiring a non-empty list here silently dropped the whole
+      // deterministic lane for every any-host gig: the first public gig's tweet, with no wallet on it,
+      // reached the model instead of being refused for "marker absent" (2026-09-03). Two lists drift.
+      return Array.isArray(c.allowedHosts) && typeof c.markerKind === "string"
         ? (c as unknown as ArtifactUrlContract)
         : null;
     case "public_url":
