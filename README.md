@@ -303,6 +303,16 @@ docs/               Architecture notes, Stage 2 reports, archived build history
 
 ---
 
+## Architecture, data sources, models
+
+The current agentic workflow (three brains, a browser agent, deterministic compilers and gates, two
+settlement rails, the sweep) as one diagram, with the data sources, models and third-party tools:
+[`docs/fc/technical-documentation.md`](docs/fc/technical-documentation.md). The Future Caribbean
+submission package: [`docs/fc/submission-overview.md`](docs/fc/submission-overview.md) ·
+[`docs/fc/compliance-statement.md`](docs/fc/compliance-statement.md) · [`docs/fc/judge-qa.md`](docs/fc/judge-qa.md).
+
+---
+
 ## Testing and safety
 
 The red-team suite in `tests/redteam/` guards the pieces that can silently unbound money movement:
