@@ -26,7 +26,7 @@ export function TesterSupplyProof({ compact = false }: { compact?: boolean }) {
           tester can collect into a shielded note — the receipt is on chain either way, but "public"
           is a promise only one rail makes. */}
       <p className="tsp-lede">
-        <strong>{s.testersPaid} people</strong> have been paid for verified testing work on Sage —{" "}
+        <strong>{s.testersPaid} {s.testersPaid === 1 ? "person" : "people"}</strong> {s.testersPaid === 1 ? "has" : "have"} been paid for verified testing work on Sage —{" "}
         <strong>${s.usdcSettled.toFixed(2)} USDC</strong> settled on-chain, every payout backed by a
         receipt anyone can check.
       </p>
