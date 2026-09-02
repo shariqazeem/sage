@@ -48,14 +48,14 @@ keep saying so plainly (they do). The $25 gig adds private payouts to that recor
 - **Q1 Quality round** — P-GEN 46 validates the divisibility fix (anchors 100%, coverage up);
   P-DIRECT in dump mode (read every gig/grant plan in words); P-WORK; P-JUDGE. Fix what reading
   exposes. One battery at a time; deploys between batteries.
-- **Q2 Starknet deploy pre-flight** — simulate a UDC deployment of the PRIVACY class with the app's
+- ✅ **Q2 Starknet deploy pre-flight** (Wed 08:40 PKT: simulated clean on mainnet, predicted address matched) — simulate a UDC deployment of the PRIVACY class with the app's
   own constructor calldata from the operator account (commits nothing). The $25 gig will be the
   first vault ever deployed from that class on mainnet; the founder's deploy must not be the test.
 - **Q3 Consistency matrix** (section 3) — run every check, fix every red.
-- **F1 Supplier-credit shape in the composer** — a "Pay a supplier" template (milestone grant
+- ✅ **F1 Supplier-credit shape in the composer** (Wed) — a "Pay a supplier" template (milestone grant
   released on verified delivery; invoice number as the required text) + one line on /docs and the
   data room. Trade finance in the brief's own words, on a real surface.
-- **P1 Minimal pass** — strip what does not speak for itself (section 4).
+- ✅ **P1 Minimal pass** (Wed: nav trimmed, one Options disclosure on /launch) — strip what does not speak for itself (section 4).
 
 **SHOULD (Fri):**
 - **F2 One business, many rails** — link wallets (EVM + Starknet, each proving control with the
@@ -79,7 +79,7 @@ import (self-reported flows are exactly what the record refuses); a credit SCORE
 | every public money number from one ledger | landing/explorer/outcomes/marketplace/launch read `settledLedger`; drift test | ✅ (Tue) |
 | Starknet settlements reach the ledger from every caller | journal on the dispatch, pinned | ✅ |
 | old vaults recognised beside the privacy class | live provenance test on the real chain | ✅ |
-| privacy class deploys from the app | **Q2 simulation** | ☐ |
+| privacy class deploys from the app | **Q2 simulation** | ✅ (Wed) |
 | autonomous payout on Starknet end to end | proven 2026-08-31; the $25 gig re-proves it with strangers | ☐ campaign |
 | autonomous payout on GOAT | 26 mainnet payouts; the grant film re-proves walletless | ☐ user-gated |
 | gigs/grants compile for any founder | P-DIRECT certified; dump-mode read this week | ☐ Q1 |
