@@ -714,3 +714,12 @@ a Telegram link that mints them a wallet), posts work, funds it once; unlisted w
 members-only at submit; Free holds three members, Pro (paid as one USDC transfer on GOAT that Sage
 verifies from the receipt) removes the cap and opens private payouts and advances. See
 `docs/teams.md`. Public campaigns survive invite-gated; product inspection stays the free hook.
+
+### Finding 31 (2026-09-04, while making unlisted work members-only)
+
+31. **Invite-only never reached the campaign row.** The composer's toggle wrote `visibility` into the
+    plan, the preview even said "invite-only — off the public board", and no attach caller handed it
+    to `attachV2Campaign`, so every invite-only campaign deployed listed and open. Typed through the
+    approved plan now (`DeploymentReadyPlan.visibility`) from every caller — web, Starknet, Telegram —
+    with a structural test that reads the callers. The door now decides the payout default too:
+    members-only autopays, public work starts with the team releasing each payout.
