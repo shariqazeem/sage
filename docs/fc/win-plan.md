@@ -59,3 +59,14 @@ Loom/Drive link. Cut line 12:00 PKT: after it only numbers, videos, forms.
 ## Explicit non-builds
 The FX matching/netting engine (one honest slide); external data import beyond public datasets;
 a credit score; a fiat rail without a licensed partner.
+
+## Update — 5 Sep (the agent turn)
+
+The Pro plan and every seat gate are gone; the "team releases public payouts" default is gone. The
+agent decides on every door, guarded on the open one by a finalization window it runs itself; a
+treasury lets a founder fund once and the agent launch every plan; email sign-in works; the FC
+package lives inside the product at /workspace/capital. The founder plan:
+`docs/strategy/autonomous-paymaster.md`. Both demo boards were rewritten around the agent and
+re-rendered from fresh shots (`docs/posts/videos/07-fc-demo.mp4`, `08-strk20-demo.mp4`).
+Still needed from the founder: a funded Starknet campaign on the fixed private route, so the
+manifest carries private transaction hashes; the video's hosted URL in `strk20.json`.

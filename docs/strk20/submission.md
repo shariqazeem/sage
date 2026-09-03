@@ -69,6 +69,20 @@ no access to credit — and no public ledger of their income, or no safety. Sage
 the vault proves the money moved; the commitment keeps their name out of it; the record is
 theirs, and they decide who reads it.
 
+## What changed on 5 Sep (the agent turn)
+
+- **The agent decides on every door.** On an open campaign it approves at once and settles after a
+  30-minute finalization window in which it re-runs the near-duplicate, copied-artifact and
+  wallet-cluster watch against everything that arrived since; a hit revokes with the reason on
+  chain. Members-only work pays immediately. `src/lib/deputy/finalization.ts`.
+- **Fund once.** A treasury — a Privy agent wallet under a mandate policy whose only reclaim address
+  is the founder's own wallet — from which the agent deploys, funds and activates every approved
+  plan itself. `src/lib/treasury/`.
+- **No wallet to be paid, no signature to receive.** An email or a Telegram chat is the account;
+  Sage keeps the wallet and pays the gas. The recipient opens the escrow by a one-time link, into a
+  shielded note if they choose.
+- **No plans, no seats.** Sage earns on what it settles.
+
 ## Inside companies (shipped 2 Sep)
 
 The same private rail now runs **inside a company**: an employer hands gigs and grants to

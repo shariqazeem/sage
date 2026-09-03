@@ -1,78 +1,62 @@
 {
- "name": "08-strk20-demo",
- "_refresh": "Saturday, before rendering: re-run capture.mjs; the receipt scene shows the autonomous Starknet settlement (0x2b03ed…49fb — the four manifest transactions are pool, escrow and claim legs and have no receipt page); update settled/payout counts on the explorer scene.",
- "size": [
-  1920,
-  1080
- ],
- "scenes": [
-  {
-   "title": "Income you can borrow against — without a public diary.",
-   "sub": "Sage on Starknet · STRK20 privacy · sagepays.xyz",
-   "seconds": 4.5,
-   "fade": 0.4
-  },
-  {
-   "shot": "landing-hero.png",
-   "kicker": "The product, with users",
-   "title": "An AI judge that pays real people real USDC on mainnet.",
-   "caption": "product testing · gigs · milestone grants — a payments product first, privacy as a mode of it",
-   "seconds": 5,
-   "motion": "zoom"
-  },
-  {
-   "shot": "landing-privacy.png",
-   "kicker": "The exact privacy claim",
-   "title": "The agent decides the payout in public. The recipient collects it privately.",
-   "caption": "the privacy class keys events by intent hash — recipients never named on-chain · gasless claim",
-   "seconds": 6,
-   "motion": "pan-up"
-  },
-  {
-   "shot": "proof.png",
-   "kicker": "The autonomous payout — LIVE",
-   "title": "Judge → vault → escrow → claim, no human in the loop.",
-   "caption": "judged from the submitter's own words · vault released · escrow took it · a claim link collected it",
-   "seconds": 6,
-   "motion": "zoom"
-  },
-  {
-   "shot": "explorer.png",
-   "kicker": "Both rails, one ledger — LIVE",
-   "title": "Every settlement and every refusal, on either chain.",
-   "caption": "GOAT public payouts and Starknet shielded claims sit on the same tape",
-   "seconds": 5,
-   "motion": "pan-up"
-  },
-  {
-   "shot": "record-signals-tight.png",
-   "kicker": "Selective disclosure",
-   "title": "A floor attestation, not a diary.",
-   "caption": "a lender learns that inflow clears a threshold — never the payments that made it",
-   "seconds": 5,
-   "motion": "pan-up"
-  },
-  {
-   "shot": "landing-teams.png",
-   "kicker": "Inside companies",
-   "title": "Private payouts to your own people.",
-   "caption": "unlisted campaigns · linked wallets across EVM and Starknet · same judge, same receipt",
-   "seconds": 4.5,
-   "motion": "zoom"
-  },
-  {
-   "shot": "docs-settlement.png",
-   "kicker": "Verifiable, not trusted",
-   "title": "The rail is mutation-tested and dry-run against the live vault.",
-   "caption": "a control row that must refuse proves the simulation can say no",
-   "seconds": 4.5,
-   "motion": "pan-up"
-  },
-  {
-   "title": "Privacy as a mode of activity, not a mixer.",
-   "sub": "Contracts, transactions and the manifest are public at sagepays.xyz/strk20.json",
-   "seconds": 5,
-   "fade": 0.5
-  }
- ]
+  "name": "08-strk20-demo",
+  "_refresh": "Before rendering: capture fresh shots (node scripts/video/capture.mjs; signed-in pages via --base http://localhost:3000 --session <addr>); the receipt scene must show a PRIVATE Starknet settlement once one exists on the fixed route; update the explorer counts.",
+  "size": [
+    1920,
+    1080
+  ],
+  "scenes": [
+    {
+      "title": "An AI agent that pays people privately, on Starknet.",
+      "sub": "Sage · STRK20 Private Sprint · sagepays.xyz",
+      "seconds": 4.5
+    },
+    {
+      "shot": "landing-hero.png",
+      "title": "The payer is not a person.",
+      "caption": "an agent inspects, verifies, decides and pays from a vault it cannot exceed — publicly on GOAT, privately on Starknet",
+      "seconds": 5
+    },
+    {
+      "shot": "proof.png",
+      "title": "Judge → vault → escrow → claim. No human in the loop.",
+      "caption": "the Cairo vault releases the reward to Sage; Sage escrows it behind a Poseidon commitment; the worker opens it — into a shielded note if they choose",
+      "seconds": 5.5
+    },
+    {
+      "shot": "workspace-home.png",
+      "title": "Aggregate spend public. Per-recipient private.",
+      "caption": "the organization sees what it paid; the ledger never names who — the private-payroll shape, run by an agent",
+      "seconds": 5
+    },
+    {
+      "shot": "explorer.png",
+      "title": "Every settlement and every refusal, on either chain.",
+      "caption": "GOAT public payouts and Starknet shielded claims on one tape — a refusal is a code on chain, not a revert",
+      "seconds": 5
+    },
+    {
+      "shot": "start.png",
+      "title": "No wallet app to be paid. No signature to receive.",
+      "caption": "an email or a Telegram chat is the account; Sage keeps the wallet and pays the gas",
+      "seconds": 4.5
+    },
+    {
+      "shot": "settings-treasury.png",
+      "title": "Fund once. The agent launches from a treasury under a mandate.",
+      "caption": "a per-campaign cap the policy enforces; unspent money can only return to the founder",
+      "seconds": 5
+    },
+    {
+      "shot": "record-signals-tight.png",
+      "title": "A record you can borrow against — without a public diary.",
+      "caption": "a lender learns that inflow clears a threshold, never the payments that made it",
+      "seconds": 5
+    },
+    {
+      "title": "Auditable in aggregate. Private in the destination. Decided by the agent.",
+      "sub": "Contracts, transactions and the manifest: sagepays.xyz/strk20.json · open source",
+      "seconds": 5
+    }
+  ]
 }
