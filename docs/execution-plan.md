@@ -734,3 +734,14 @@ verifies from the receipt) removes the cap and opens private payouts and advance
     meantime; a hit revokes with the reason written out. Members-only work pays at once. The Pro
     plan and its gates were removed the same day: Sage earns on settlement and on financing, not on
     seats. See `docs/strategy/autonomous-paymaster.md`.
+
+### Finding 33 (2026-09-04, deploying the live objects)
+
+**A deploy that synced nothing reported "all 5 checksums match".** `scripts/deploy-prod.sh` takes the
+path of a LIST FILE; called with the paths themselves (from a `$LIST` that zsh did not word-split), every
+per-file step errored, the checksum step compared two stale `/tmp` files and printed green, the old tree
+was rebuilt and restarted, and `git push` ran — so for eleven minutes the public repo was ahead of prod and
+every new route 404'd. The build's exit code was the only truthful signal and nothing read it.
+**Rule:** a deploy is believed only when the log shows `== sync N files ==` with the expected N *and* a
+curl of a route that did not exist before answers 200. Both are now in the deploy job's probe step.
+

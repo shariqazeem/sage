@@ -70,6 +70,10 @@ failure; token budgets are declared as answer sizes and each provider's reasonin
 by a profile. Compute is spent where it changes an outcome: the browser loop makes zero model calls,
 deterministic checks run before any model, and refusals cost nothing.
 
+### The ledger, drawn
+
+The organization's console renders the agent's work as objects rather than messages, each bound to a record: the **vault** (locked capital cut into mission allocations to the base unit, paid slots drained, released coins linked to receipts), the **settling lane** (agent-approved payouts counting their finalization window down, with the sweep's own three checks as lights — `watchReadings()` feeds both the display and the verdict), and the public **wallet graph** at `/graph/<campaign>` (payout, gas-funding and consolidation edges from chain reads and recorded links; a linked cluster is one person's wallets and is held). Nothing is animated that did not happen — the rule that the feed never fabricates progress, applied to the visual layer.
+
 ## Data sources
 
 - **The product itself** — fetched HTML, rendered pages, screenshots, console errors (the Field Test).

@@ -96,6 +96,14 @@ the commitment-keyed escrow. A team's pay is neither a public ledger nor a publi
 the declared privacy class; every settlement it makes keys its events by intent hash and names nobody.
 Door: https://sagepays.xyz/c/gig-1c3e_FjffE · settlements: https://sagepays.xyz/explorer
 
+## The ledger, drawn (4 Sep)
+
+The judged surfaces stopped being forms. Three objects, each backed by an event or a chain read:
+
+- **Wallet graph**, public: `https://sagepays.xyz/graph/gig-1c3e_FjffE` — the first Starknet gig, which one operator took with twelve wallets. Gas edges come from Starknet `Transfer` events on the STRK and ETH tokens (`transfersTo`, read live and cached ten minutes); consolidation edges are the `wallet_links` the sweep recorded when a paid wallet forwarded its USDC to another submitter; payout edges are the vault's own settlements. The picture is the forensic that found the farm, kept alive for every campaign.
+- **Settling lane** (founder console and Home): every agent-approved payout with its finalization-window countdown and the three watch lights (near-duplicate, copied artifact, wallet cluster) — the same functions the sweep runs at maturity.
+- **The vault, drawn** (console): the locked amount cut into mission allocations exactly, paid slots drained, every released coin linked to its receipt. For a Starknet campaign the tray shows what left the vault; who claimed it is not on the ledger.
+
 ## Live doors
 
 Product https://sagepays.xyz · explorer `/explorer` · a real record `/record/<wallet>` ·

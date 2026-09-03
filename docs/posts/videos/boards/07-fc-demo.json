@@ -42,6 +42,12 @@
       "seconds": 5
     },
     {
+      "shot": "console.png",
+      "title": "The vault, drawn.",
+      "sub": "what is locked, cut into the missions exactly · every coin out sits with its receipt · approved payouts count their window down in the open",
+      "seconds": 5
+    },
+    {
       "shot": "proof.png",
       "title": "Every payout cites its evidence and anchors to a transaction.",
       "caption": "the vault sets the amount, enforces caps, refuses replays — the AI proposes, the vault disposes",
@@ -54,9 +60,9 @@
       "seconds": 5
     },
     {
-      "shot": "landing-facts.png",
-      "title": "The farm that took a whole gig — and what now stops it.",
-      "caption": "wallet clusters and copies are held or revoked in a finalization window the agent runs itself; zero wrong auto-pays across the promotion batteries",
+      "shot": "graph.png",
+      "title": "The ledger as a picture.",
+      "sub": "one operator took the first Starknet gig with twelve wallets — gas chains and payouts forwarded to one hub, drawn from the chain · linked clusters are held, and revoked inside the window",
       "seconds": 5.5
     },
     {

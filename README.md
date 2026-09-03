@@ -215,6 +215,14 @@ of the ten payments.
 
 ---
 
+## The ledger, drawn
+
+Sage does not narrate. The console draws the things the agent actually does, and every motion is a recorded event or a chain read:
+
+- **The vault, drawn.** One bar is the money the organization locked, cut into the missions' allocations exactly (Σ reward × slots = funded, to the base unit — the budget invariant, visible). Each slot is a coin in the rack; a paid slot is drained and its coin sits in the released tray with the receipt behind it. The reward per mission is fixed on-chain: the agent can ask for a slot, never an amount.
+- **The settling lane.** Every payout the agent approved on an open campaign is a ticket whose ring counts its finalization window down. Its three lights — near-duplicate, copied artifact, wallet cluster — are the sweep's own checks, run now (`watchReadings` in `src/lib/deputy/finalization.ts` feeds both the lights and the verdict, so they cannot disagree). A ticket leaves the lane only when the ledger records a settlement or a revocation.
+- **The wallet graph** — public at `/graph/<campaign>`, linked from every explorer row. Nodes are the vault and every submitter; edges are the vault's payouts, consolidation links the watch recorded (a payout forwarded between submitters), and gas funding read from the chain (Starknet STRK/ETH transfers, EVM first funder). A linked cluster glows: one person's wallets, and the agent holds every payout in it. The farm that took the first Starknet gig is drawn there from the chain, not from a story.
+
 ## How it works
 
 Five steps. A human is in none of them.

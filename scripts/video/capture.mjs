@@ -25,6 +25,11 @@ const SHOTS = [
   { name: "settings-treasury", path: "/workspace/settings", w: 1440, h: 1000, signedIn: true, scrollTo: "text=Treasury" },
   { name: "capital", path: "/workspace/capital", w: 1440, h: 900, signedIn: true },
   { name: "work", path: "/dashboard", w: 1440, h: 900, signedIn: true },
+  // the console's living objects: the vault drawn, the settling lane, the wallet graph
+  { name: "console", path: "/campaign/xzGT6znS70", w: 1440, h: 1000, signedIn: true },
+  { name: "console-lane", path: "/campaign/xzGT6znS70", w: 1440, h: 900, signedIn: true, scrollTo: "text=Settling — the finalization window" },
+  // public: the farmed gig's wallet graph — every edge an on-chain fact or a recorded link
+  { name: "graph", path: "/graph/gig-1c3e_FjffE", w: 1440, h: 900 },
   { name: "landing-doors", path: "/", w: 1440, h: 900, scrollTo: ".dr" },
   { name: "landing-facts", path: "/", w: 1440, h: 900, scrollTo: ".tr" },
   { name: "landing-realrun", path: "/", w: 1440, h: 900, scrollTo: "#how" },

@@ -30,9 +30,21 @@
       "seconds": 5
     },
     {
+      "shot": "console-lane.png",
+      "title": "Approved, then watched.",
+      "sub": "the agent approves at once; the payout finalizes after a window it uses to catch copies and clusters — the lights are the sweep's own checks",
+      "seconds": 5
+    },
+    {
       "shot": "explorer.png",
       "title": "Every settlement and every refusal, on either chain.",
       "caption": "GOAT public payouts and Starknet shielded claims on one tape — a refusal is a code on chain, not a revert",
+      "seconds": 5
+    },
+    {
+      "shot": "graph.png",
+      "title": "The farm, drawn from the chain.",
+      "sub": "twelve wallets, one operator: gas funded by the previous submitter, payouts forwarded to one hub · the watch links them, and every linked wallet is held",
       "seconds": 5
     },
     {
