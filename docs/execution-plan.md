@@ -790,3 +790,32 @@ work simply never arms the mandate.
 and sits arguable for a veto window on the same ring the settling lane uses. The founder watches a
 real decision against a real clock and can stop it or tell it to go now. A dashboard that only
 reports afterwards would have been the failure mode.
+
+## The roster (2026-09-04) — Sage's own supply, and the only distribution it does
+
+**The hole the mandate exposed.** An agent that launches work nobody sees just proves the board was
+empty: the campaign goes quiet, the tick reclaims it, and a founder's attention paid for nothing.
+Sage had no way to reach a worker at all — a submitter was a wallet and a note, and four of fifty-four
+ever came back.
+
+**What it is.** People who have been paid can ask to be told when there is more work. One tap on their
+own verified work record opens Telegram; one word stops it forever. When a listed campaign goes live,
+the sweep tells the eligible members once.
+
+**The rules are pure and tested, because the failure mode is spam to real people**
+(`src/lib/roster/alerts.ts`): opt-in only, since being paid is not consent; a cooldown per person, so
+five launches in an hour cannot become five messages; never about work they already did; and never
+about a campaign with no claimable slots, which would be a lie with a link on it. The announcement is
+recorded as an event whether or not anyone was eligible, so a campaign is considered exactly once.
+
+**The honest limit.** The Telegram link is single-use and short-lived, and possession of it is the
+only proof of wallet ownership. Someone who minted a link for another person's wallet and opened it
+themselves would receive that wallet's alerts and displace the owner's chat. The harm is bounded — the
+messages carry only public board information and the owner re-links in one click — and the
+alternative, a wallet signature, is exactly the friction this product exists to remove.
+
+**A defect caught before it reached anyone.** The roster was read once per sweep and never updated as
+messages went out, so the cooldown applied only BETWEEN sweeps: a tick that found three new campaigns
+would have sent one person three messages. The in-memory roster is now kept current as it sends, and
+a test asserts that three campaigns in one run is still one message.
+

@@ -393,6 +393,13 @@
       "when": 1788508800007,
       "tag": "0055_operator_mandate",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1788595200007,
+      "tag": "0056_work_alerts",
+      "breakpoints": true
     }
   ]
 }

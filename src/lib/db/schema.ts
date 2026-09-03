@@ -395,7 +395,9 @@ export type EventKind =
   /** the standing mandate reclaimed a board nobody came to; the money went back to the treasury. */
   | "operator_reclaimed"
   /** the agent launched this campaign itself, under a founder's standing mandate. */
-  | "operator_launched";
+  | "operator_launched"
+  /** the roster was told about this work — recorded once per campaign, whether or not anyone was eligible. */
+  | "work_announced";
 
 /**
  * An append-only log of things that actually happened. Every row is emitted at
@@ -1068,6 +1070,47 @@ export type NewAgentWallet = typeof agentWallets.$inferInsert;
  * a bare "launch" had no context and the model could wander (e.g. inspect a hallucinated URL).
  * Persisting the short rolling history here makes the agent survive restarts.
  */
+/**
+ * THE ROSTER — people who have done paid work and asked to be told when there is more.
+ *
+ * Sage had no way to reach a worker at all: a submitter was a wallet and a note, so every campaign
+ * had to find its people from scratch and nobody ever came back. Measured on 2026-09-04: four of
+ * fifty-four submitters ever worked twice. This is the channel, and it is opt-in only — a row exists
+ * because someone asked for it, never because they were paid.
+ */
+export const workAlerts = sqliteTable("work_alerts", {
+  /** the worker's wallet in its minimal form — one row per person, either rail. */
+  walletKey: text("wallet_key").primaryKey(),
+  /** the wallet as they gave it, for display and for matching submissions. */
+  wallet: text("wallet").notNull(),
+  channel: text("channel").$type<"telegram">().notNull(),
+  /** the Telegram chat id to send to. */
+  target: text("target").notNull(),
+  /** set when they asked to stop. A muted row is kept, so re-joining is one message, not a new identity. */
+  mutedAt: integer("muted_at"),
+  lastNotifiedAt: integer("last_notified_at"),
+  notifyCount: integer("notify_count").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type WorkAlert = typeof workAlerts.$inferSelect;
+
+/**
+ * A single-use token binding a wallet to whoever opens it in Telegram. Minted on the worker's own
+ * board, spent by the bot's /start. Short-lived, because possession of the link is the only proof
+ * that the person in the chat is the person who owns that wallet.
+ */
+export const alertTokens = sqliteTable("alert_tokens", {
+  token: text("token").primaryKey(),
+  wallet: text("wallet").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export type AlertToken = typeof alertTokens.$inferSelect;
+
 export const conciergeChats = sqliteTable("concierge_chats", {
   /** the Telegram chat id. */
   chatId: text("chat_id").primaryKey(),

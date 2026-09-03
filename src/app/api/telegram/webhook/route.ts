@@ -1,3 +1,4 @@
+import { muteByChat, redeemAlertToken } from "@/lib/db/roster";
 import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
@@ -72,6 +73,33 @@ export async function POST(req: Request): Promise<Response> {
       await sendTelegram(chatId, text, { html: false });
     });
     return NextResponse.json({ ok: true });
+  }
+
+  // THE ROSTER: /start al_<token> — a worker who has been paid asks to be told when there is more
+  // work. The token is single-use and short-lived: possession of the link is the only proof that the
+  // person in this chat owns that wallet.
+  if (cmd.kind === "start" && cmd.payload?.startsWith("al_")) {
+    const token = cmd.payload;
+    after(async () => {
+      const r = redeemAlertToken(token, chatId);
+      await sendTelegram(
+        chatId,
+        r.ok
+          ? `Done. When new paid work opens that you haven't already done, Sage will message you here — at most one message a day, and only work that can actually pay.\n\nSend "stop" any time to stop them.`
+          : r.reason,
+        { html: false },
+      );
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Leaving must be as easy as one word, and it must work before anything else reads the message.
+  if (cmd.kind === "unknown" && /^\s*(stop|unsubscribe)\s*$/i.test(msg.text ?? "")) {
+    const muted = muteByChat(chatId);
+    if (muted > 0) {
+      after(async () => { await sendTelegram(chatId, "Stopped — no more work alerts. Open the link on your work record again if you change your mind.", { html: false }); });
+      return NextResponse.json({ ok: true });
+    }
   }
 
   if (cmd.kind === "start" && cmd.payload?.startsWith("rcp_")) {

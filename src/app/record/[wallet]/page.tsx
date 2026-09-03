@@ -1,3 +1,5 @@
+import { WorkAlerts } from "@/components/live/work-alerts";
+import "@/styles/live.css";
 import "../../sage-proof.css";
 import "../record.css";
 import type { Metadata } from "next";
@@ -96,6 +98,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           <h1 className="rec-title">Verified Work Record</h1>
           <div className="rec-wallet">{record.wallet}</div>
         </header>
+
+        {record.completions > 0 && <WorkAlerts wallet={record.wallet} />}
 
         <section className="rec-stats spp-reveal" aria-label="Record totals">
           <div className="rec-stat">

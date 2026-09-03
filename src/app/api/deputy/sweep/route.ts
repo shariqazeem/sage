@@ -1,3 +1,4 @@
+import { announceNewWork } from "@/lib/roster/notify";
 import { runOperatorTick } from "@/lib/operator/tick";
 import { NextResponse, after, type NextRequest } from "next/server";
 import {
@@ -78,6 +79,8 @@ async function runSweep() {
     finalization: { waiting: 0, finalized: 0, revoked: 0 },
     /** the standing mandate's own turn: what the agent proposed, committed, launched and reclaimed. */
     operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
+    /** new work the roster was told about, and how many people were reached. */
+    roster: { campaigns: 0, sent: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -216,6 +219,14 @@ async function runSweep() {
 
   // Where the paid money went: forwards between submitters link their wallets for every future judgment.
   summary.consolidation = await watchPayoutConsolidation().catch(() => ({ scanned: 0, linked: 0 }));
+
+  // SUPPLY. Tell the people who asked that new work exists — once per campaign, ever, and never more
+  // than one message per person per cooldown. Without it the agent launches into an empty room: a
+  // campaign nobody sees goes quiet and is reclaimed, which spends attention to prove nothing.
+  summary.roster = await announceNewWork().catch((e) => {
+    console.error("[sweep] roster announce failed:", e instanceof Error ? e.message : e);
+    return { campaigns: 0, sent: 0 };
+  });
 
   // THE STANDING MANDATE. Founders who armed one get the agent's own turn here: reclaim dead boards,
   // deploy what it committed to, commit what has matured past its veto window, propose the next

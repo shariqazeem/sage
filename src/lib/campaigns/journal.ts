@@ -35,6 +35,7 @@ const META: Record<EventKind, JournalMeta> = {
   campaign_quiet_nudge: { tone: "neutral", label: "Founder nudged" },
   operator_reclaimed: { tone: "blocked", label: "Sage reclaimed the budget" },
   operator_launched: { tone: "action", label: "Sage launched this" },
+  work_announced: { tone: "neutral", label: "Sage told the roster" },
   fee_settled: { tone: "neutral", label: "Operator fee paid" },
   fee_pending: { tone: "timelocked", label: "Operator fee pending" },
   // Public, deliberately. This journal is read by testers, and someone who has been waiting is
