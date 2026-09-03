@@ -205,6 +205,14 @@ if you must touch them, that suite must stay green.
   seat caps: Sage earns on settlement and financing (`docs/strategy/autonomous-paymaster.md`).
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
+- **The agent may decide WHERE to spend, never HOW MUCH.** Under a founder's standing mandate
+  (`src/lib/operator/`) a model picks the position — which surface the founder named, which kind of
+  work — and the pure policy sizes it from the ceilings and the observed results. A proposal naming
+  an amount is rejected; a surface outside the founder's own set is refused rather than sanitised.
+  Every move is recorded with its reason BEFORE money moves and is vetoable for a window.
+- **Reaching a person is opt-in, always.** The roster (`src/lib/roster/`) messages only people who
+  asked, at most one campaign per person per cooldown, never about work they already did, and never
+  about a campaign with no claimable slots. Being paid is not consent.
 
 ---
 
@@ -295,6 +303,9 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `STARKNET_RPC_URL` † / `STARKNET_ACCOUNT_ADDRESS` † / `STARKNET_PRIVATE_KEY` † | The Starknet operator account — the key the Cairo vault accepts as its operator. All required together, or the rail is absent. | Starknet campaigns cannot settle |
 | `STARKNET_VAULT_CLASS_HASH` † | The declared `SageVault` class new vaults deploy from | Starknet deploy refuses rather than guessing |
 | `ADVANCE_SELF_SERVE` † / `ADVANCE_MAX_USD` † / `ADVANCE_MULTIPLE` † / `ADVANCE_WATERFALL_BPS` † | Self-serve working capital on `/record`: `"1"` arms the owner's one-click advance; max principal (default 5), the lender multiple on monthly verified inflow (default 1), the repayment share of each next verified payout (default 5000 = 50%). The money is the operator's Starknet pot. | Off — the door 404s; the operator route still works |
+| `IDENTITY_TIERS` † | `"1"` arms standing on the submit door: work paying above the open ceiling needs a record (2+ payouts across 2+ campaigns, no linked wallets). OFF by default — a tier gate over an empty board is a closed door with nowhere to earn the key, so arm it once there is open low-paid work | Every campaign stays claimable by anyone |
+| `IDENTITY_OPEN_CEILING_USD` † | The reward at or below which work is open to anyone | $2.00 |
+| `AUTOPAY_HOURLY_CAP` † | Payouts per campaign per hour before the autopilot holds on pace | 4 |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---

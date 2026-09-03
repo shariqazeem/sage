@@ -1,3 +1,5 @@
+import { meetsTier, openTierCeilingBase, requiredTier, tierRefusal } from "@/lib/identity/tier";
+import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
 import { campaignWorkspace, isWorkspaceMemberAddress } from "@/lib/db/workspaces";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
@@ -118,6 +120,20 @@ export async function POST(
   // SAGE FOR TEAMS — an unlisted campaign launched from a workspace is that workspace's own work:
   // only its members can submit. A stranger with the link is told whose door it is, not refused
   // in silence. Listed workspace campaigns stay open, as the founder chose.
+  // STANDING. Better-paid work asks for a record first, so splitting one worker into a dozen fresh
+  // wallets divides their standing instead of multiplying their slots — the farm's one unavoidable
+  // cost. Work at or below the open ceiling is claimable by anyone, which is how standing is earned.
+  if (identityTiersArmed()) {
+    const need = requiredTier(campaign.rewardAmount);
+    const standing = standingOf(wallet);
+    if (!meetsTier(standing.tier, need)) {
+      return NextResponse.json(
+        { error: tierRefusal(standing, need, campaign.rewardAmount, openTierCeilingBase()) },
+        { status: 403 },
+      );
+    }
+  }
+
   if (campaign.visibility === "unlisted") {
     const ws = campaignWorkspace(campaign);
     if (ws && !isWorkspaceMemberAddress(ws.id, wallet)) {
