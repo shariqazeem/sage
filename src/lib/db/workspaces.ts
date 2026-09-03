@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
-import { campaigns, workspaceInvites, workspaceMembers, workspaces, type Campaign, type Workspace, type WorkspaceInvite, type WorkspaceMember, type WorkspaceRole } from "./schema";
+import { campaigns, workspaceInvites, workspaceMembers, workspacePayments, workspaces, type Campaign, type Workspace, type WorkspaceInvite, type WorkspaceMember, type WorkspacePayment, type WorkspaceRole } from "./schema";
 import { nowSeconds } from "./keys";
 import { founderStorageKey, sameFounder } from "@/lib/auth/founder";
 
@@ -182,4 +182,20 @@ export function listWorkspaceCampaigns(ws: Workspace): Campaign[] {
 
 export function assignCampaignToWorkspace(campaignId: string, workspaceId: string): void {
   db.update(campaigns).set({ workspaceId }).where(eq(campaigns.id, campaignId)).run();
+}
+
+/** Record a plan payment once; a hash already spent returns null and changes nothing. */
+export function recordPlanPayment(input: { txHash: string; workspaceId: string; chainId: number; payer: string; amountBase: bigint; planUntil: number }): WorkspacePayment | null {
+  const res = db
+    .insert(workspacePayments)
+    .values({ txHash: input.txHash.toLowerCase(), workspaceId: input.workspaceId, chainId: input.chainId, payer: input.payer.toLowerCase(), amountBase: Number(input.amountBase), paidAt: nowSeconds(), planUntil: input.planUntil })
+    .onConflictDoNothing()
+    .run();
+  if (res.changes === 0) return null;
+  setWorkspacePlan(input.workspaceId, "pro", input.planUntil);
+  return db.select().from(workspacePayments).where(eq(workspacePayments.txHash, input.txHash.toLowerCase())).get() ?? null;
+}
+
+export function listPlanPayments(workspaceId: string): WorkspacePayment[] {
+  return db.select().from(workspacePayments).where(eq(workspacePayments.workspaceId, workspaceId)).orderBy(workspacePayments.paidAt).all();
 }

@@ -1,3 +1,4 @@
+import { notifyWorkspaceNewWork } from "@/lib/telegram/workspace-notify";
 import "server-only";
 
 import { getAddress, isAddress, type Address, type Hex } from "viem";
@@ -8,7 +9,7 @@ import { chainConfig } from "@/lib/deputy/networks";
 import { db } from "@/lib/db";
 import { campaigns, missions as missionsTable } from "@/lib/db/schema";
 import { nowSeconds } from "@/lib/db/keys";
-import { recordEvent } from "@/lib/db/campaigns";
+import { getCampaign, recordEvent } from "@/lib/db/campaigns";
 import {
   computeCampaignPlan,
   missionIdHash as computeMissionIdHash,
@@ -513,6 +514,15 @@ export async function attachV2Campaign(
     kind: "campaign_created",
     detail: input.title,
   });
+
+  // SAGE FOR TEAMS — the team hears about its work the moment it is live. Best-effort, off the
+  // money path: a failed message never un-creates a campaign.
+  try {
+    const created = getCampaign(preview.publicCampaignId);
+    if (created) void notifyWorkspaceNewWork(created).catch(() => undefined);
+  } catch {
+    /* never on the critical path */
+  }
 
   return {
     ok: true,

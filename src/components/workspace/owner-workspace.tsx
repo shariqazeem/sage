@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowUpRight, Building2, CheckCircle2, Copy, Inbox, Link2, Loader2, Lock, Rocket, ShieldCheck, Sparkles, Users, X } from "lucide-react";
 import { reward as fmtReward, networkLabel, short, since } from "@/lib/format";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
+import { ProPay } from "./pro-pay";
 import type { SettlementRail, WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 
 export interface OwnerView {
@@ -211,9 +212,10 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
                 </ul>
               </div>
             </div>
-            <p className="sage-hint" style={{ marginTop: 10 }}>
-              {ws.plan === "pro" && ws.planUntil ? `Pro until ${new Date(ws.planUntil * 1000).toISOString().slice(0, 10)}.` : "Pro is paid in USDC from your wallet — coming to this card next."}
-            </p>
+            {ws.plan === "pro" && ws.planUntil ? (
+              <p className="sage-hint" style={{ marginTop: 10 }}>Pro until {new Date(ws.planUntil * 1000).toISOString().slice(0, 10)}. Pay again any time to extend.</p>
+            ) : null}
+            <ProPay workspaceId={ws.id} priceUsd={ws.proPriceUsd} />
           </div>
         </div>
       </div>

@@ -352,6 +352,21 @@ export const workspaceInvites = sqliteTable(
 );
 export type WorkspaceInvite = typeof workspaceInvites.$inferSelect;
 
+export const workspacePayments = sqliteTable(
+  "workspace_payments",
+  {
+    txHash: text("tx_hash").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    chainId: integer("chain_id").notNull(),
+    payer: text("payer").notNull(),
+    amountBase: integer("amount_base").notNull(),
+    paidAt: integer("paid_at").notNull(),
+    planUntil: integer("plan_until").notNull(),
+  },
+  (t) => [index("workspace_payments_workspace_idx").on(t.workspaceId)],
+);
+export type WorkspacePayment = typeof workspacePayments.$inferSelect;
+
 /** The real events that form a Deputy's work journal (§2d) — never fabricated. */
 export type EventKind =
   | "campaign_created"
