@@ -764,3 +764,12 @@
 
 /* the founder's sentence under the derived card title in the live preview */
 .cmp-pv-crit { display: block; color: var(--ink-muted, #6b6f76); font-size: 0.92em; margin-top: 2px; }
+
+/* ── the gig brain: describe the work, Sage drafts the brief ─────────────────────────────── */
+.cmp-draft-hint { font-size: 12px; }
+.cmp-draft-ta { min-height: 74px; resize: vertical; line-height: 1.5; margin-top: 8px; }
+.cmp-draft-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; line-height: 1.45; }
+.cmp-draft-note { font-size: 12.5px; margin: 8px 0 0; }
+.cmp-pv-criteria { margin: 6px 0 2px; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: var(--sec); }
+.cmp-pv-criteria li + li { margin-top: 2px; }
+.cmp-err { color: var(--dan); font-size: 12.5px; margin: 8px 0 0; }

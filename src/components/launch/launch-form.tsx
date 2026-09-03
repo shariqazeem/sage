@@ -64,8 +64,40 @@ const VERIFY_OPTIONS = [
 type PayDraft = { who: string; slots: string };
 
 /** One payment line the founder composes — a tranche of a grant, or the whole of a gig. */
-type Tranche = { amount: string; deliverable: string; verify: string; expectedText: string; toAddr: string; title?: string };
+type Tranche = {
+  amount: string;
+  deliverable: string;
+  verify: string;
+  expectedText: string;
+  toAddr: string;
+  title?: string;
+  /** Drafted by Sage from the founder's sentence (the gig brain) — the steps, the acceptance
+   *  criteria with an effort bar, the word floor. Absent when the founder composed by hand. */
+  instructions?: string;
+  criteria?: string[];
+  minWords?: number;
+  effortMinutes?: number;
+};
 const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
+
+/** A drafted milestone, as the draft route returns it. */
+type DraftMilestone = {
+  title: string;
+  deliverable: string;
+  instructions: string;
+  criteria: string[];
+  evidence:
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[] }
+    | { kind: "public_url"; expectedText: string[] }
+    | { kind: "onchain_tx"; chainId?: number; to?: string };
+  effortMinutes?: number;
+};
+type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; milestones: DraftMilestone[] };
+
+/** The composer's slot select offers fixed counts; a drafted count snaps to the nearest one it offers. */
+const SLOT_OPTIONS = ["1", "2", "3", "5", "10"];
+const snapSlots = (n: number): string => SLOT_OPTIONS.reduce((best, o) => (Math.abs(Number(o) - n) < Math.abs(Number(best) - n) ? o : best), "1");
+const MARKER_CRITERION = "The page carries the submitting wallet address";
 
 /** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
  *  founder edits, the same way the goal chips write proven goal shapes. */
@@ -102,7 +134,7 @@ const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: st
 /** The one-line trust hint under each door — everything longer was deleted, not moved. */
 const MODE_HINT = {
   test: "Sage only reads your product. Approve the plan, fund once — payouts run themselves, each with a public receipt.",
-  pay: "You compose it; Sage compiles the plan deterministically — no chat, no model. Approve and fund once; work that fails verification is never paid.",
+  pay: "Describe it and Sage drafts the brief — steps, criteria, evidence rule. You set the money; the plan compiles deterministically and no model ever sets an amount. Approve and fund once; work that fails verification is never paid.",
 } as const;
 
 /**
@@ -177,6 +209,12 @@ export function LaunchForm() {
   // SAGE FOR TEAMS — off the public board; the campaign's own door is what the founder shares.
   const [inviteOnly, setInviteOnly] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
+  // THE GIG BRAIN: one sentence in, a complete brief out — Sage drafts the words, the founder keeps the money.
+  const [draftText, setDraftText] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  const [draftNotes, setDraftNotes] = useState<string[]>([]);
+  const [draftWhy, setDraftWhy] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   // One request id per form mount — the request-scoped idempotency token. A double-submit reuses it
   // (one job, not two); a fresh form (new page/reload) is a new turn. The server namespaces it.
@@ -284,6 +322,51 @@ export function LaunchForm() {
    * line is a gig, and a stated total rides `splitTotalUsd` so Sage does the division in base
    * units. Errors come back as the compiler's own words, under the form.
    */
+  const draftWithSage = async () => {
+    if (draftText.trim().length < 10 || draftBusy) return;
+    setDraftErr(null);
+    setDraftNotes([]);
+    setDraftBusy(true);
+    try {
+      const res = await fetch("/api/campaigns/direct/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ intent: draftText.trim(), ...(isHttpUrl(form.productUrl) ? { productUrl: form.productUrl.trim() } : {}) }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; draft?: Draft; notes?: string[] };
+      if (res.status === 401) {
+        setShowSignIn(true);
+        setDraftErr("Sign in with your wallet to let Sage draft this — then press Draft again.");
+        return;
+      }
+      if (!res.ok || !data.ok || !data.draft) throw new Error(data.error ?? "Sage couldn't draft this.");
+      const d = data.draft;
+      setP("who", d.who);
+      setP("slots", d.milestones.length > 1 ? "1" : snapSlots(d.slots));
+      setDraftWhy(d.whyItMatters ?? "");
+      setDraftNotes(data.notes ?? []);
+      // Amounts the founder already typed survive the draft: money is theirs, words are Sage's.
+      setTranches((prev) =>
+        d.milestones.map((m, i) => ({
+          amount: prev[i]?.amount ?? "",
+          title: m.title,
+          deliverable: m.deliverable,
+          verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
+          expectedText: m.evidence.kind === "public_url" ? (m.evidence.expectedText[0] ?? "") : "",
+          toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
+          instructions: m.instructions,
+          criteria: m.criteria,
+          ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
+          ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
+        })),
+      );
+    } catch (e) {
+      setDraftErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
   const submitPay = async () => {
     if (!payValid() || payBusy) return;
     setPayErr(null);
@@ -312,20 +395,25 @@ export function LaunchForm() {
         // typed). "You are paid when …" only read for a state sentence ("the page is live") and broke
         // for an instruction ("Read …, then write …") — "What must be true:" reads for both.
         const typedTitle = (t.title ?? "").trim();
+        // Drafted criteria are the founder-approved brief; the automatic check is appended so the
+        // judge's rubric and the deterministic gate never disagree about the marker.
+        const drafted = (t.criteria ?? []).map((c) => c.trim()).filter((c) => c.length >= 4);
+        const autoCriterion =
+          t.verify === "link"
+            ? MARKER_CRITERION
+            : t.verify === "page"
+              ? `The page contains: "${t.expectedText.trim()}"`
+              : "The transaction was sent by the submitting wallet";
+        const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.includes(autoCriterion) ? [] : [autoCriterion])] : [cap, autoCriterion];
+        const draftedSteps = (t.instructions ?? "").trim();
         return {
           title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),
-          instructions: `What must be true: ${cap}. ${proofLine}`,
+          instructions: draftedSteps.length >= 10 ? draftedSteps.slice(0, 2000) : `What must be true: ${cap}. ${proofLine}`,
           ...(splitting ? {} : isLocal ? { rewardLocal: Number(t.amount) } : {}),
-          criteria: [
-            cap,
-            t.verify === "link"
-              ? "The page carries the submitting wallet address"
-              : t.verify === "page"
-                ? `The page contains: "${t.expectedText.trim()}"`
-                : "The transaction was sent by the submitting wallet",
-          ],
-          evidence,
+          criteria,
+          evidence: t.verify === "link" && t.minWords ? { ...evidence, minWords: t.minWords } : evidence,
           slots,
+          ...(t.effortMinutes ? { effortMinutes: t.effortMinutes } : {}),
           ...(splitting || isLocal ? {} : { rewardUsd: Number(t.amount) }),
         };
       });
@@ -333,6 +421,7 @@ export function LaunchForm() {
         kind: isGrant ? "grant" : "gig",
         title: title.length >= 4 ? title : "Pay for work",
         milestones,
+        ...(draftWhy.trim().length >= 10 ? { whyItMatters: draftWhy.trim().slice(0, 600) } : {}),
         ...(isLocal ? { currency } : {}),
         ...(splitting
           ? isLocal
@@ -602,6 +691,33 @@ export function LaunchForm() {
                 POST body as before. */}
             <div className="cmp-grid">
               <div className="cmp-form">
+                {/* THE GIG BRAIN. One sentence — what, for whom, how many, what good looks like — and
+                    Sage drafts the steps, the acceptance criteria with an effort bar, and the evidence
+                    rule, for any kind of work. The founder edits and approves; the money stays theirs. */}
+                <div className="cmp-card cmp-draft">
+                  <div className="cmp-card-h">
+                    <span className="cmp-k mono">Describe the work</span>
+                    <span className="muted cmp-draft-hint">Sage drafts the brief; you set the pay</span>
+                  </div>
+                  <textarea
+                    className="lx-input cmp-input cmp-draft-ta"
+                    rows={3}
+                    placeholder="e.g. Pay 5 people to each publish a short guide to setting up my product, on their own blog, with a screenshot of it running…"
+                    value={draftText}
+                    onChange={(e) => setDraftText(e.target.value)}
+                    disabled={draftBusy}
+                  />
+                  <div className="cmp-draft-row">
+                    <button type="button" className="lx-btn" onClick={() => void draftWithSage()} disabled={draftBusy || draftText.trim().length < 10}>
+                      {draftBusy ? "Sage is drafting…" : "Draft with Sage"}
+                    </button>
+                    <span className="muted">Steps, acceptance criteria and the evidence rule — for software, writing, design, a catalogue, a delivery, anything.</span>
+                  </div>
+                  {draftErr && <p className="cmp-err">{draftErr}</p>}
+                  {draftNotes.map((n, i) => (
+                    <p className="muted cmp-draft-note" key={i}>{n}</p>
+                  ))}
+                </div>
                 <div className="cmp-card">
                   <div className="cmp-card-h">
                     <span className="cmp-k mono">{tranches.length > 1 ? "Milestone grant" : Number(pay.slots) > 1 ? "Open bounty" : "Gig"}</span>
@@ -770,6 +886,14 @@ export function LaunchForm() {
                         <span className="cmp-pv-body">
                           <b>{(t.title ?? "").trim().length >= 4 ? (t.title ?? "").trim() : t.deliverable.trim() ? missionTitleFrom(t.deliverable, i) : "…what must be true"}</b>
                           {t.deliverable.trim() && <span className="cmp-pv-crit">{t.deliverable.trim()}</span>}
+                          {(t.criteria?.length ?? 0) > 0 && (
+                            <ul className="cmp-pv-criteria">
+                              {t.criteria!.map((c, k) => (
+                                <li key={k}>{c}</li>
+                              ))}
+                              {t.minWords ? <li>At least {t.minWords} words of the worker&rsquo;s own writing (checked before any model reads it)</li> : null}
+                            </ul>
+                          )}
                           <span className="cmp-pv-verify">Sage verifies by {opt?.ask ?? "checking the evidence"}{t.verify === "page" && t.expectedText.trim() ? ` — it must show “${t.expectedText.trim()}”` : ""}.</span>
                           <span className="cmp-pv-pay mono">{splitting ? `${curSymbol}${splitPreview()[i]}` : `${curSymbol}${Number(t.amount || 0).toFixed(2)}`} released on verification</span>
                         </span>

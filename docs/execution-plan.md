@@ -640,3 +640,27 @@ blind repaint. Telegram stays (it is proven infrastructure), but the WEB is what
 file, batteries one-at-a-time on a quiet box, mutation-test every new guard, decisions are cached,
 push main after green deploys, every number in a submission read from the chain or the DB — never
 typed.
+
+### Thursday night, 4 Sep — the first gig's submissions, judged and re-judged
+
+21. **The console said "Verified · settling" for a payout the copy gate had held.** The founder's
+    row state came from the decision brief alone; the hold was in the journal. Both surfaces now
+    read the journal through one function (`autopayForSubmission`); a refused row reads "Refused"
+    with its reason.
+22. **A refused or held worker was told nothing.** The founder's reason was stored and never shown;
+    the copy gate's reason never shown; the judge's unmet criteria never summarised — on a page with
+    no form. `/me` now returns the reason (founder's words > autopilot's reason > unmet criteria >
+    judge summary) with attempts left, and both boards open the revise path. Proven live: a
+    refused worker revised within five minutes.
+23. **The copy gate fingerprinted the website, not the work.** Two different dev.to articles were
+    "94–97% near-identical" because both were mostly dev.to; their bodies were 8% alike. I refused
+    an honest worker on that number before measuring. Fingerprints, the word floor and the new
+    source-overlap check read content elements only; stored fingerprints on the live gig were
+    rewritten; the worker was paid on the next sweep ($1.10, `0x4862ddb1…`).
+24. **Before any model, an artifact gig now refuses:** temporary paste hosts, hosts Sage cannot
+    read without signing in (x.com, instagram, linkedin…), pages under the contract's `minWords`,
+    and deliverables that are ≥50% the source page's own text (25–50% is reported to the judge).
+    Honest rewrites of the source measured 0.03–0.05.
+
+Campaign `gig-1c3e_FjffE` at 01:30 AST: 4 paid (Notion, dev.to ×2, one paste.rs judged before the
+paste rule), 5 refused with reasons (tweet, three pastes, one wrongly-held-then-paid copy), 0 held.
