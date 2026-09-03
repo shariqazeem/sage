@@ -7,13 +7,8 @@ import { SageMark } from "@/components/brand/sage-mark";
 import { geist } from "./fonts";
 import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
-import { SceneLoop } from "./scene-loop";
 import { SceneWorkflow } from "./scene-workflow";
-import { SceneTrust } from "./scene-trust";
-import { SceneTeams } from "./scene-teams";
 import { SceneProof } from "./scene-proof";
-import { SceneCapital } from "./scene-capital";
-import { ScenePrivacy } from "./scene-privacy";
 import { SceneClose } from "./scene-close";
 
 interface Props {
@@ -48,29 +43,12 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
           now={now}
         />
 
-        <SceneTrust
-          paidUsd={totals.paidUsd}
-          payoutCount={totals.payoutCount}
-          refusedCount={totals.refusedCount}
-          refusalPct={totals.refusalPct}
-          networkName={network.name}
-        />
-
+        {/* SAGE FOR TEAMS (2026-09-04): the landing says one thing four times — what it is, how it
+            runs, that it is real, and where to start. Trust, loop, teams, privacy and capital are
+            documented, not paraded: a new team read nine scenes and opened none of the doors. */}
         <SceneWorkflow showcase={showcase} />
 
-        <SceneLoop />
-
-        <SceneTeams />
-
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
-
-        {/* The argument in order: the money moved and you can check it · it moved without exposing
-            the person · and what it leaves behind is underwritable. */}
-        <ScenePrivacy />
-
-        {/* After the ledger, never before it: "a file you can lend against" is a claim nobody
-            should accept until they have seen the receipts it is built from. */}
-        <SceneCapital totals={totals} />
 
         <SceneClose totals={totals} networkName={network.name} />
       </main>

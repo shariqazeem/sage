@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Blocks, BookOpen, Gauge, House, Landmark, Rocket, Sparkles, Send, Wallet, Compass, Users } from "lucide-react";
+import { Blocks, BookOpen, House, Rocket, Settings, Sparkles, Send, Wallet, Users } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -28,23 +28,25 @@ import { useFounderSession } from "@/lib/auth/use-founder-session";
  * `/record/[wallet]` is deliberately NOT here. It is one person's credit file, so it belongs where
  * a person is named — a receipt, an explorer row — not in global chrome where it has no subject.
  */
+// SAGE FOR TEAMS (2026-09-04): the rail is the workspace. Six items, one group of work and one of
+// account; the capital surfaces (/explorer, /outcomes, /lender) and the public board stay reachable
+// from the pages and the docs that need them, not from global chrome where a new team saw eleven
+// doors and opened none.
 const NAV = [
   {
-    group: "Work",
+    group: "Workspace",
     items: [
-      { href: "/dashboard", label: "Home", Icon: House },
-      { href: "/workspace", label: "Workspace", Icon: Users },
-      { href: "/launch", label: "Launch", Icon: Rocket },
-      { href: "/marketplace", label: "Marketplace", Icon: Compass },
+      { href: "/workspace", label: "Home", Icon: House },
+      { href: "/dashboard", label: "Work", Icon: Blocks },
+      { href: "/launch", label: "Post work", Icon: Rocket },
+      { href: "/workspace/people", label: "People", Icon: Users },
       { href: "/agent", label: "Agent", Icon: Sparkles },
     ],
   },
   {
-    group: "Capital",
+    group: "Account",
     items: [
-      { href: "/explorer", label: "Explorer", Icon: Blocks },
-      { href: "/outcomes", label: "Outcomes", Icon: Gauge },
-      { href: "/lender", label: "Underwrite", Icon: Landmark },
+      { href: "/workspace/settings", label: "Settings", Icon: Settings },
       { href: "/docs", label: "Docs", Icon: BookOpen },
     ],
   },

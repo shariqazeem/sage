@@ -61,6 +61,9 @@ export function ProPay({ workspaceId, priceUsd }: { workspaceId: string; priceUs
         abi: TRANSFER_ABI,
         functionName: "transfer",
         args: [getAddress(terms.to), parseUnits(String(terms.priceUsd), 6)],
+        // GOAT caps a transaction at 16.7M gas and the wallet's estimate fell back to 21M ("gas limit
+        // too high", seen live). An ERC-20 transfer needs well under 100k; pinning it removes the guess.
+        gas: BigInt(120_000),
       });
       setBusy("confirm");
       const until = await confirm(txHash);

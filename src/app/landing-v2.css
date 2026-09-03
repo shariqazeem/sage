@@ -1745,3 +1745,7 @@ body:has(.slv2) {
 .slv2 .art-f a { color: var(--terra); text-decoration: none; }
 .slv2 .art-ok { color: var(--ok, #15803d); font-weight: 600; }
 .slv2 .art-no { color: var(--err, #dc2626); font-weight: 600; }
+
+/* two doors now (teams · the people doing the work) — the lender door moved inside the product */
+.slv2 .dr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .slv2 .dr { grid-template-columns: 1fr; } }

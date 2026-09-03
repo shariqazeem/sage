@@ -9,7 +9,7 @@ import { limitsOf, planOf, proPriceUsd } from "@/lib/workspaces/plan";
 import { listSubmissions } from "@/lib/db/campaigns";
 import { loadFounderDesk } from "@/lib/campaigns/founder-activity";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
-import { WorkspaceGate } from "@/components/workspace/workspace-gate";
+import { redirect } from "next/navigation";
 import { OwnerWorkspace, type OwnerView } from "@/components/workspace/owner-workspace";
 import { MemberWorkspace, type MemberView } from "@/components/workspace/member-workspace";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
@@ -29,7 +29,7 @@ export const metadata = {
  */
 export default async function WorkspacePage() {
   const ctx = await workspaceContext();
-  if (!ctx) return <WorkspaceGate />;
+  if (!ctx) redirect("/start?next=/workspace");
 
   if (ctx.owned) {
     const ws = ctx.owned;
@@ -63,7 +63,7 @@ export default async function WorkspacePage() {
 
   // a member of someone else's workspace(s)
   const teams = workspacesForAddress(ctx.address);
-  if (teams.length === 0) return <WorkspaceGate signedIn address={ctx.address} />;
+  if (teams.length === 0) redirect("/start");
   const work: MemberView["work"] = teams.flatMap((ws) =>
     listWorkspaceCampaigns(ws)
       .filter((c) => c.status === "live" && !c.sandbox)

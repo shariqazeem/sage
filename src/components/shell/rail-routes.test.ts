@@ -15,9 +15,11 @@ describe("rail routes keep their shell", () => {
     expect(orphans, `these rail links would destroy the rail: ${orphans.join(", ")}`).toEqual([]);
   });
 
-  it("still offers the capital surfaces — the FC story has to be reachable", () => {
-    expect(RAIL_ROUTES).toContain("/explorer");
-    expect(RAIL_ROUTES).toContain("/lender");
+  it("the capital surfaces keep their shell even though the rail no longer lists them", () => {
+    expect(isAppRoute("/explorer")).toBe(true);
+    expect(isAppRoute("/lender")).toBe(true);
+    expect(RAIL_ROUTES).toContain("/workspace");
+    expect(RAIL_ROUTES).toContain("/workspace/people");
   });
 
   it("keeps /docs OUT of the shell, deliberately", () => {

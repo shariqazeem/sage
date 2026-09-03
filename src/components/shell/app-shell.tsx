@@ -23,7 +23,7 @@ function ModePill({ pathname }: { pathname: string }) {
   const onAgent = pathname.startsWith("/agent");
   return (
     <div className="mode-pill" role="group" aria-label="Mode">
-      <Link href="/dashboard" className={`mode-seg${onAgent ? "" : " on"}`}>
+      <Link href="/workspace" className={`mode-seg${onAgent ? "" : " on"}`}>
         <House size={14} strokeWidth={2} /> Home
       </Link>
       <Link href="/agent" className={`mode-seg${onAgent ? " on" : ""}`}>

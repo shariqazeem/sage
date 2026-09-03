@@ -16,20 +16,10 @@ import { SageMark } from "@/components/brand/sage-mark";
  * "Marketplace" said what the page IS; "Find work" says what it is FOR, which is the only thing the
  * person on that side of the market cares about.
  */
+// Three links and one door. Everything else lives inside the product, after sign-in.
 const LINKS = [
   { href: "#how", label: "How it works" },
-  // The real ledger, not a section about it.
   { href: "/explorer", label: "Live proof" },
-  // The market has two sides. The landing sells the founder side; this is the only door for the
-  // people who do the work, and without it a tester can only arrive via a link a founder sent them.
-  { href: "/marketplace", label: "Find work" },
-  // The capital story had no door on this page at all: /lender and /record were built, live, and
-  // reachable only by typing the URL. An unlisted surface is an unbuilt one.
-  { href: "#teams", label: "For teams" },
-  { href: "#privacy", label: "Private payouts" },
-  { href: "#capital", label: "For lenders" },
-  // Docs sit in the nav rather than only the footer: they are the surface that answers
-  // "is this real and how does it work" for a founder who is not ready to click Launch.
   { href: "/docs", label: "Docs" },
 ];
 
@@ -53,8 +43,8 @@ export function LandingNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/launch" className="nav-cta">
-            Launch a campaign
+          <Link href="/start" className="nav-cta">
+            Sign in
           </Link>
         </nav>
         <button

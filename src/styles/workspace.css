@@ -40,3 +40,37 @@
 .ws-tier .price { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
 .ws-tier ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--sec); line-height: 1.6; }
 .ws-onboard { max-width: 520px; margin: 48px auto; }
+
+/* ── /start: the one door ── */
+.st-shell { max-width: 560px; margin: 0 auto; padding: 40px 22px 64px; }
+.st-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 22px; }
+.st-steps { list-style: none; margin: 0 0 18px; padding: 0; display: flex; gap: 14px; font-size: 12.5px; color: var(--sec); }
+.st-step { display: inline-flex; align-items: center; gap: 7px; }
+.st-step.on { color: var(--ink); font-weight: 600; }
+.st-step-n { width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 1px solid var(--border); color: var(--sec); }
+.st-step.on .st-step-n { border-color: var(--accent); color: var(--accent); }
+.st-step.done .st-step-n { background: var(--accent); border-color: var(--accent); color: #fff; }
+.st-card { border: 1px solid var(--border); border-radius: 16px; padding: 24px 22px; background: var(--paper, #fbfbf9); box-shadow: var(--shadow-rest, 0 1px 2px rgba(0,0,0,.04)); }
+.st-h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; color: var(--ink); }
+.st-p { font-size: 14px; color: var(--sec); line-height: 1.55; margin: 0 0 16px; }
+.st-choices { display: flex; flex-direction: column; gap: 10px; }
+.st-choice { text-align: left; display: grid; grid-template-columns: 24px 1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 2px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: transparent; cursor: pointer; font: inherit; color: var(--ink); }
+.st-choice:hover { border-color: var(--accent); }
+.st-choice svg { grid-row: 1 / span 2; color: var(--accent); align-self: center; }
+.st-choice-t { font-size: 14.5px; font-weight: 650; }
+.st-choice-s { font-size: 12.5px; color: var(--sec); line-height: 1.45; }
+.st-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.st-back { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--sec); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.st-back:hover { color: var(--accent); }
+
+/* ── workspace home: the checklist ── */
+.ws-check { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 720px) { .ws-check { grid-template-columns: 1fr; } }
+.ws-check li { border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ws-check li.done { border-color: color-mix(in srgb, var(--pos) 40%, transparent); }
+.ws-check-n { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 1px solid var(--border); color: var(--sec); }
+.ws-check li.done .ws-check-n { background: var(--pos); border-color: var(--pos); color: #fff; }
+.ws-check-t { font-size: 13.5px; font-weight: 650; color: var(--ink); }
+.ws-check-s { font-size: 12.5px; color: var(--sec); line-height: 1.45; }
+.ws-check a { font-size: 12.5px; color: var(--accent); text-decoration: none; font-weight: 600; margin-top: auto; }
+.ws-nav { display: flex; gap: 8px; flex-wrap: wrap; }
