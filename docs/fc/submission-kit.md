@@ -17,7 +17,7 @@ and turns every payout into a credit record that unlocks working capital without
 - Overview: https://github.com/shariqazeem/sage/blob/main/docs/fc/submission-overview.md
 - Architecture + data sources: https://github.com/shariqazeem/sage/blob/main/docs/fc/technical-documentation.md
 - Compliance statement (450 words): https://github.com/shariqazeem/sage/blob/main/docs/fc/compliance-statement.md
-- Video (64 s): https://github.com/shariqazeem/sage/raw/main/docs/posts/videos/07-fc-demo.mp4
+- Video (64 s): https://sagepays.xyz/videos/07-fc-demo.mp4
 - Live ledger: https://sagepays.xyz/explorer · Outcomes against the track's bar: https://sagepays.xyz/outcomes
 - Lender view: https://sagepays.xyz/lender · A record: https://sagepays.xyz/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048
 - Strategy: https://github.com/shariqazeem/sage/blob/main/docs/strategy/autonomous-paymaster.md
