@@ -46,6 +46,15 @@ export function linkWallets(a: string, b: string, now = Math.floor(Date.now() / 
 }
 
 /** Every wallet reachable from `wallet` through links, including itself — the business. */
+/** The wallets linked DIRECTLY to this one — the rows the watch recorded, not their closure. */
+export function directLinksOf(wallet: string): string[] {
+  const rows = db.select().from(walletLinks).where(or(inArray(walletLinks.walletA, forms(wallet)), inArray(walletLinks.walletB, forms(wallet)))).all();
+  const me = key(wallet);
+  const out = new Map<string, string>();
+  for (const r of rows) for (const other of [r.walletA, r.walletB]) if (key(other) !== me && !out.has(key(other))) out.set(key(other), other);
+  return [...out.values()].sort();
+}
+
 export function linkedWalletsOf(wallet: string): string[] {
   const start = norm(wallet);
   const seen = new Map<string, string>([[key(start), start]]);

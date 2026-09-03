@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkWallets, linkedWalletsOf } from "./wallet-links";
+import { directLinksOf, linkWallets, linkedWalletsOf } from "./wallet-links";
 
 /**
  * The link table is written by the consolidation watch with the chain's padded felt and read by the
@@ -28,5 +28,11 @@ describe("wallet links — one wallet, every spelling", () => {
     expect(linkWallets(e1, e2).linked).toBe(true);
     expect(keys(linkedWalletsOf(e1.toLowerCase()))).toContain("0x2");
     expect(keys(linkedWalletsOf("0x2"))).toContain(e1.toLowerCase());
+  });
+  it("direct links are the recorded rows; the closure is who they reach", () => {
+    const B = "0x0499b03b05e4409e1a48de30aac576381d6f650ad6c36fec664301bec8da11d5";
+    linkWallets(HUB, A); linkWallets(HUB, B);
+    expect(keys(directLinksOf(unpad(A)))).toEqual([unpad(HUB)]);
+    expect(keys(linkedWalletsOf(unpad(A))).sort()).toEqual([unpad(HUB), unpad(A), unpad(B)].sort());
   });
 });

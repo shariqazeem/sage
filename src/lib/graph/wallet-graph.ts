@@ -1,7 +1,7 @@
 import "server-only";
 import type { Campaign } from "@/lib/db/schema";
 import { getDecisionBySubmission, listSubmissions } from "@/lib/db/campaigns";
-import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { directLinksOf, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { briefFromRow } from "@/lib/deputy/decisions";
 import { firstFunderOf } from "@/lib/deputy/funding-graph";
 import { defaultRpc, ETH_TOKEN, latestBlock, type Rpc, STRK_TOKEN, transfersTo } from "@/lib/starknet/transfers";
@@ -97,17 +97,21 @@ export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean 
     nodes.push({ id: bare(w), kind: "wallet", label: `${w.slice(0, 6)}…${w.slice(-4)}`, status, clustered: false, paidBase: paid.length * campaign.rewardAmount, flags: [...flags] });
     for (let i = 0; i < paid.length; i++) edges.push({ from: "vault", to: bare(w), kind: "payout", amountBase: campaign.rewardAmount });
   }
-  // consolidation links recorded by the watch, between wallets of this campaign
+  // consolidation links recorded by the watch, between wallets of this campaign: the ROWS are the
+  // edges (a payout forwarded from one to the other); the closure only says who is in a cluster
   const seen = new Set<string>();
   for (const w of wallets) {
-    for (const l of linkedWalletsOf(w)) {
+    for (const l of directLinksOf(w)) {
       const a = bare(w), b = bare(l);
       if (a === b || !byBare.has(b)) continue;
       const key = [a, b].sort().join("|");
       if (seen.has(key)) continue;
       seen.add(key);
       edges.push({ from: a, to: b, kind: "consolidation" });
-      for (const n of nodes) if (n.id === a || n.id === b) n.clustered = true;
+    }
+    if (linkedWalletsOf(w).some((l) => bare(l) !== bare(w) && byBare.has(bare(l)))) {
+      const me = nodes.find((n) => n.id === bare(w));
+      if (me) me.clustered = true;
     }
   }
   // gas funding, from the chain (cached with the graph)
