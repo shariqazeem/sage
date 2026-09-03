@@ -34,12 +34,11 @@ in several languages; an attack that pays and honest work that holds are both fa
 reward from the mission, enforces budget, per-payment and completion caps, velocity and replay
 protection, and can refuse; a compromised model can propose, never move funds. Submitter content is
 confined inside untrusted-data markers; an injection detector and a confidence hardener force human
-review on fraud signals; a red-team suite guards these layers in CI. Real-money autonomy must be
-explicitly armed, and a kill switch and stop/withdraw paths are tested.
+review on fraud signals. Real-money autonomy must be explicitly armed, and a kill switch and
+stop/withdraw paths are tested.
 
 **Ethics and limitations.** Roughly 44% of judged submissions are refused, each with a written
-reason and a public receipt — the system explains a refusal as carefully as it proves a payment.
-Limitations are stated where they apply: sanctions screening is list-based and snapshot-dated;
+reason and a public receipt. Limitations are stated where they apply: sanctions screening is list-based and snapshot-dated;
 walletless custody is provider-held under policy (the same provider holds an email sign-in identity; Sage stores only the derived wallet address); the fiat door is an interface, not a live rail;
 the credit record reports verified inflow and computes no score. The code is open source (MIT) and
 every receipt is public.
