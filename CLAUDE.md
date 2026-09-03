@@ -340,6 +340,7 @@ died of contention is indistinguishable in the grid from a row that died of a de
 | **obs ledger** | the observation judge against its fixtures — the money assertion is confidence vs `AUTOPAY_THRESHOLD` | `OBS_LIVE_EVAL=1 npx vitest run observation-judge.live` |
 | **P-VERIFY** | the deterministic verification contracts | `VERIFY_LIVE=1 npx vitest run verify-contracts.live` |
 | **Starknet dry-run** | whether the Cairo rail would actually PAY — runs the real `request_payout` against the live vault and commits nothing | `STARKNET_DRYRUN=1 npx vitest run payout-dryrun.live` (VM: needs the operator key) |
+| **P-OPERATOR** | the standing mandate's one model decision — WHERE to buy the next work: in-set only, never prices it, does not buy the same silence twice, escalates past a filled read | `OPERATOR_EVAL=1 OPERATOR_RUNS=3 npx vitest run decide-eval.live` (VM: the MISSION lane's key) |
 
 **A battery must import production's own prompt/tools, never a copy** (`systemPrompt`, `TG_TOOLS`,
 `asOpenAI`, `DIRECT_BLOCK`). P-DIRECT once hand-rolled its tool encoding, the schema landed under a
