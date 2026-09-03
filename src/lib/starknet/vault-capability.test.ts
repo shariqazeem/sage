@@ -49,4 +49,19 @@ describe("the declared split class", () => {
     expect(classSupportsSplitPayout(split)).toBe(true);
     expect(classSupportsSplitPayout(legacy)).toBe(false);
   });
+
+  it("the privacy class (declared 2026-09-02) is capable — the first campaign on it paid publicly because it was missing here", () => {
+    expect(classSupportsSplitPayout("0x6d55773e63601dfbd861c78e03c5ac3085b472d7c067d9c5634da03a00b5aa0", null)).toBe(true);
+    expect(classSupportsSplitPayout("0x06D55773E63601DFBD861C78E03C5AC3085B472D7C067D9C5634DA03A00B5AA0", null)).toBe(true);
+  });
+
+  it("whatever class the deployer is configured with is capable by construction — the list cannot drift behind the deployer again", () => {
+    const fresh = "0x0abc0000000000000000000000000000000000000000000000000000000000ff";
+    expect(classSupportsSplitPayout(fresh, null)).toBe(false);
+    expect(classSupportsSplitPayout(fresh, fresh)).toBe(true);
+    expect(classSupportsSplitPayout("0xabc0000000000000000000000000000000000000000000000000000000000ff", fresh)).toBe(true);
+    // a known pre-split class stays incapable even if the env names it
+    const pre = "0x2770f9fde4668abd9bfffbf8aeca2ce5d104ed812054afa22cdc78356500e84";
+    expect(classSupportsSplitPayout(pre, pre)).toBe(false);
+  });
 });
