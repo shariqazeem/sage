@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listCampaigns } from "@/lib/db/campaigns";
 import { reconcileStoppedMany } from "@/lib/campaigns/reconcile-stopped";
@@ -22,6 +23,9 @@ export const metadata = {
  */
 export default async function DashboardPage() {
   const wallet = await getFounderAddress();
+  // One door: a signed-out visitor is onboarded at /start and comes back here, not asked to
+  // connect on a page that then has nothing to show them.
+  if (!wallet) redirect("/start?next=/dashboard");
   if (wallet) {
     // The on-chain vault is the truth: mark any revoked (stopped) campaigns "cancelled" BEFORE the
     // overview reads the DB, so stopped-and-withdrawn campaigns file under "Stopped", not "Running".
