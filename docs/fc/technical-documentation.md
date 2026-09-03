@@ -21,17 +21,19 @@ flowchart TD
   MB --> BC["Budget compiler (deterministic)<br/>Σ reward × completions = budget, exact<br/>fair-rate cap · exact spread · no model states an amount"]
   L --> DC["Direct compiler (deterministic)<br/>gigs · bounties · milestone grants · 14 currencies at a stamped rate"]
   DC --> BC
-  BC --> A["Human moment 1: approve the plan"]
-  A --> FUND["Human moment 2: fund the vault<br/>EVM CampaignVault (GOAT) · Cairo SageVault (Starknet)"]
-  FUND --> BOARD["Public board / marketplace<br/>workers submit evidence + a free signature"]
+  BC --> A["The founder's intent, once<br/>approve the plan — or a standing mandate"]
+  A --> FUND["Funded once: the treasury<br/>Privy agent wallet under a mandate policy · reclaim = the founder's wallet<br/>the agent deploys, funds and activates each vault<br/>EVM CampaignVault (GOAT) · Cairo SageVault (Starknet)"]
+  FUND --> BOARD["Workspace board · members-only or public<br/>workers submit evidence + a free signature (or from Telegram, no wallet app)"]
   BOARD --> PRE["Deterministic pre-gate<br/>artifact fetch + wallet marker · on-chain reads · public-page text<br/>sanctions snapshot · dedup · artifact fingerprint · GitHub provenance · funding graph"]
   PRE -->|refuse / hold| REC
   PRE --> PB["Payout brain (judge)<br/>frozen rubric · injection detector · verbatim quotes · confidence hardener<br/>never states an amount"]
   PB --> OJ["Observation judge<br/>tester account vs Sage's own private corpus"]
   OJ --> GATE{"Autopilot gate<br/>engine = llm · confidence ≥ 0.85<br/>mainnet armed · identity + plan digests match"}
   PB --> GATE
-  GATE -->|hold| H["Human review (founder / operator)<br/>Telegram + admin review"]
-  GATE -->|pay| D["Settlement dispatcher (one place)<br/>rail = evm | starknet"]
+  GATE -->|hold| H["Held with the reason — the worker revises; the founder may release"]
+  GATE -->|pay · members-only| D["Settlement dispatcher (one place)<br/>rail = evm | starknet"]
+  GATE -->|pay · open campaign| FW["Finalization window (30 min)<br/>approved at once · the watch re-runs against everything that arrived since<br/>near-duplicate · copied artifact · wallet cluster → revoke with the reason"]
+  FW --> D
   D --> EV["CampaignVault.requestPayout<br/>vault derives the reward, checks caps + replay"]
   D --> SV["SageVault.request_payout (Cairo)<br/>refusal = a code on chain · escrow by commitment · one-time claim · shielded note"]
   EV --> REC["Ledger + receipts<br/>/explorer · /proof · /record (credit signals) · /lender · /outcomes"]
@@ -54,9 +56,13 @@ against Sage's own private observations so a copied mission card can never pass.
 decision is made by deterministic code: the budget compiler, the pre-gate, the autopilot gate, and
 finally the vault, which derives the amount itself and can refuse.
 
-**Human-in-the-loop.** Two human moments by design (approve, fund); every hold routes to a human
-with the reason; a kill switch, campaign stop and withdraw exist and are tested; real-money
-autonomy must be explicitly armed.
+**Human moments.** Two by design — state the intent, fund it — and both can be done once: a
+treasury under a mandate lets the agent deploy, fund and activate every subsequent plan itself.
+Nothing else needs a person. On an open campaign the agent approves at once and settles after a
+finalization window it uses to watch the wallet graph; a hold carries its reason and the worker's
+revise path; a kill switch, campaign stop and withdraw exist and are tested; real-money autonomy
+must be explicitly armed. Sage earns on what it settles (a per-settlement fee over x402) and on
+financing (the advance facility), never on seats.
 
 **Multi-provider lanes.** Each job (mission design, payout judgment, observation judging, vision,
 concierge) runs on its own provider by configuration, with a fallback provider after a measured

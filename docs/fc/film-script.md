@@ -1,4 +1,4 @@
-# The film — "Say the work. Sage verifies. Sage pays."
+# The film — "Say the work. Fund it once. Sage does the rest."
 
 **Target: 3:30–4:00. Every frame is real product or real receipts — no mockups, no staged data.**
 Voice: calm, first person ("I built…"), the receipts do the selling.
@@ -9,7 +9,7 @@ Voice: calm, first person ("I built…"), the receipts do the selling.
 
 ### 1 · Cold open — the ledger (0:00–0:20)
 **Screen:** slow scroll of [sagepays.xyz/explorer](https://sagepays.xyz/explorer) — settlements in green, refusals in red, the refusal-share stat visible.
-**VO:** "Every payment on this screen was decided by an AI agent. So was every refusal. No human reviewed any of them — and every line links to an on-chain receipt."
+**VO:** "Every payment on this screen was decided by an AI agent. So was every refusal. No human reviewed any of them — and every line links to an on-chain receipt. Sage is not software a team logs into. It is an agent that moves money on verified work."
 
 ### 2 · The problem, in the region's own numbers (0:20–0:45)
 **Screen:** three plain title cards (no stock footage): "7–9% — average transaction fees" · "80–90% of Caribbean businesses are MSMEs" · "Most have no credit file a lender can trust."
