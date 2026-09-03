@@ -72,7 +72,7 @@ export function SettlingLane({ campaignId, title = "Settling" }: { campaignId?: 
                   <div className="mid">{t.state === "approved" ? (remaining > 0 ? mmss(remaining) : "due") : t.state === "settling" ? "…" : t.state === "paid" ? "paid" : "×"}</div>
                 </div>
                 <div className="lv-t-amt">{usd(t.rewardBase)} <span style={{ fontWeight: 500, color: "var(--ink-faint)", fontSize: 11 }}>{t.rail === "starknet" ? "Starknet · private" : "GOAT"}</span></div>
-                <div className="lv-t-who">{short(t.wallet)} · {t.campaignTitle}</div>
+                <div className="lv-t-who">{short(t.wallet)}{campaignId ? "" : ` · ${t.campaignTitle}`}</div>
                 {t.lights ? (
                   <div className="lv-lights">
                     <span className={`lv-light ${t.lights.nearDup}`}><i />dup</span>
