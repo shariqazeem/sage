@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Eye, Wand2, ShieldCheck, Check, X, MousePointer2, Lock } from "lucide-react";
+import { Check, Compass, Eye, Lock, MousePointer2, ShieldCheck, Wand2, X } from "lucide-react";
 import { usd } from "@/lib/format";
 import type { Showcase } from "@/lib/landing/showcase";
 
@@ -34,6 +34,13 @@ const CHAPTERS = [
     Icon: ShieldCheck,
     title: "A tester can claim the work. Sage still checks for itself.",
     body: "When someone submits, Sage opens a fresh, isolated browser and replays the same safe action. Only when the expected outcome appears does a verification permit exist.",
+  },
+  {
+    n: "04",
+    tag: "Decide",
+    Icon: Compass,
+    title: "Then it decides what to buy next.",
+    body: "Work that gets claimed earns a larger budget next time; work nobody comes to is stopped and the money returns. Sage proposes each move with its reason and its price before anything is spent, and waits — you can stop it, or tell it to go now. It can never spend past your ceilings, price its own work, or buy against a product you did not name.",
   },
 ];
 
@@ -88,8 +95,8 @@ export function SceneWorkflow({ showcase }: { showcase: Showcase | null }) {
     <section id="how" className="wf scene" aria-label="How Sage works">
       <div className="wrap">
         <div className="wf-head">
-          <span className="eyebrow">One URL becomes a campaign</span>
-          <h2 className="h2">You watch the agent work — see, design, then verify.</h2>
+          <span className="eyebrow">Fund once, then stop deciding</span>
+          <h2 className="h2">You watch the agent work — see, design, verify, then decide again.</h2>
         </div>
 
         <div className="wf-grid">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Briefcase, Check, ChevronRight, FlaskConical, Loader2, Lock, Users } from "lucide-react";
+import { ArrowRight, Briefcase, Check, ChevronRight, Compass, FlaskConical, Loader2, Lock, Users } from "lucide-react";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { SageMark } from "@/components/brand/sage-mark";
@@ -89,6 +89,12 @@ export function StartFlow({ signedIn, address, hasMemberships, emailEnabled = fa
             <h1 className="st-h1">What are you here to do?</h1>
             <p className="st-p">Signed in as <span className="mono">{address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}</span>.</p>
             <div className="st-choices ws-stagger">
+              <button className="st-choice" onClick={() => router.push("/workspace/autopilot")}>
+                <span className="st-choice-ic"><Compass size={18} /></span>
+                <span className="st-choice-t">Let Sage run it</span>
+                <span className="st-choice-s">Fund once and stop deciding. Sage picks the work, designs it, pays for it and tells you why — inside ceilings you set.</span>
+                <ChevronRight size={16} className="st-choice-arrow" />
+              </button>
               <button className="st-choice" onClick={() => setIntent("pay")}>
                 <span className="st-choice-ic"><Users size={18} /></span>
                 <span className="st-choice-t">Pay my people for work</span>

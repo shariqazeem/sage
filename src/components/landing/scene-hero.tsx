@@ -46,9 +46,10 @@ export function SceneHero({
           </h1>
 
           <p className="lede hero-lede">
-            Give Sage a budget and an outcome. It inspects, designs the work, verifies every
-            deliverable, pays from a vault it cannot exceed — privately on Starknet when you ask —
-            and no one at your organization touches a dashboard.
+            Fund it once and name your product. Sage decides what work to buy, designs it, verifies
+            every deliverable and pays from a vault it cannot exceed — privately on Starknet when you
+            ask. It proposes each move with its reason before the money leaves, and you can stop any
+            of them. There are no forms after the first one.
           </p>
 
           <div className="hero-actions">

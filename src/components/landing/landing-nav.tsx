@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
@@ -15,6 +15,10 @@ import { SageMark } from "@/components/brand/sage-mark";
  *
  * "Marketplace" said what the page IS; "Find work" says what it is FOR, which is the only thing the
  * person on that side of the market cares about.
+ *
+ * The CTA is session-aware. It said "Sign in" to everyone, including the people who already were,
+ * and the mobile sheet said something else entirely ("Launch a campaign"). One door, and it names
+ * what pressing it does: put Sage to work, or open it if you already have.
  */
 // Three links and one door. Everything else lives inside the product, after sign-in.
 const LINKS = [
@@ -30,6 +34,21 @@ const LINKS = [
  */
 export function LandingNav() {
   const [open, setOpen] = useState(false);
+  // The door used to say "Sign in" to everyone, including people who already were — so the one
+  // control on the page was wrong for every returning founder. It now says what pressing it does.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/auth/founder", { cache: "no-store" })
+      .then(async (r) => {
+        if (!alive) return;
+        const j = r.ok ? ((await r.json()) as { address?: string }) : null;
+        setSignedIn(Boolean(j?.address));
+      })
+      .catch(() => alive && setSignedIn(false));
+    return () => { alive = false; };
+  }, []);
+  const door = signedIn ? { href: "/workspace", label: "Open Sage" } : { href: "/start", label: "Put Sage to work" };
   return (
     <header className="nav" data-open={open ? "1" : "0"}>
       <div className="nav-in">
@@ -43,8 +62,8 @@ export function LandingNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/start" className="nav-cta">
-            Sign in
+          <Link href={door.href} className="nav-cta">
+            {door.label}
           </Link>
         </nav>
         <button
@@ -64,8 +83,8 @@ export function LandingNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/launch" className="nav-sheet-cta" onClick={() => setOpen(false)}>
-            Launch a campaign
+          <Link href={door.href} className="nav-sheet-cta" onClick={() => setOpen(false)}>
+            {door.label}
           </Link>
         </div>
       )}

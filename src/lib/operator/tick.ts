@@ -15,6 +15,12 @@ import { mandateStateFor } from "./state";
 /**
  * ONE TICK OF THE STANDING MANDATE — the agent's own turn, run by the sweep.
  *
+ * ONE CLOCK. Every row this writes is stamped with the tick's own `nowSec`, never the wall clock,
+ * because the tick also READS those stamps to decide whether a design has run out of time. Mixing
+ * the two made the timeout compare a simulated instant against a real one, which in a test abandoned
+ * work the moment it was committed. In production the two agree, so it never showed — which is
+ * exactly why it had to be found by running the loop rather than by reading it.
+ *
  * Deliberately a stateless gate rather than a running loop, exactly like the payout autopilot: each
  * tick reads the ledger and the chain, advances whatever is ready, and returns. Nothing is held in
  * memory between ticks, so a restart or a deploy costs nothing.
@@ -88,33 +94,33 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
   // 2 — deploy whatever the agent already committed to and designed
   for (const l of launchesInState(founderAddress, "committed")) {
     if (!l.jobId) {
-      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: no design job was ever started` });
+      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: no design job was ever started` }, nowSec);
       continue;
     }
     const job = getInspectionJob(l.jobId);
     if (!job) {
-      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design job vanished` });
+      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design job vanished` }, nowSec);
       continue;
     }
     if (job.status === "failed") {
-      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design failed, nothing was funded` });
+      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design failed, nothing was funded` }, nowSec);
       continue;
     }
     if (job.status !== "ready") {
       if ((nowSec - l.updatedAt) / 60 > PLAN_TIMEOUT_MIN) {
-        updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design did not finish in an hour` });
+        updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: the design did not finish in an hour` }, nowSec);
       }
       continue;
     }
     const r = await launchFromTreasury(founderAddress, l.jobId);
     if (r.ok) {
-      updateLaunch(l.id, { state: "launched", campaignId: r.campaignId });
+      updateLaunch(l.id, { state: "launched", campaignId: r.campaignId }, nowSec);
       recordEvent({ campaignId: r.campaignId, kind: "operator_launched", detail: `Sage launched this itself — ${l.reason}` });
       out.launched += 1;
     } else if (r.reason === "not_ready") {
       // the plan changed under us; let the next tick re-read rather than force it
     } else {
-      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: ${r.message.slice(0, 120)}` });
+      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: ${r.message.slice(0, 120)}` }, nowSec);
     }
   }
 
@@ -133,10 +139,10 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
       actor: founderAddress,
     });
     if (!started.ok) {
-      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: ${started.error.slice(0, 120)}` });
+      updateLaunch(l.id, { state: "abandoned", reason: `${l.reason} · abandoned: ${started.error.slice(0, 120)}` }, nowSec);
       continue;
     }
-    updateLaunch(l.id, { state: "committed", jobId: started.job.id });
+    updateLaunch(l.id, { state: "committed", jobId: started.job.id }, nowSec);
     out.committed += 1;
     if (started.created) defer(() => runInspectionJob(started.job.id));
   }
