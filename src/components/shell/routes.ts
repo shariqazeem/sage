@@ -23,6 +23,8 @@
 export function isAppRoute(p: string): boolean {
   return (
     /^\/dashboard/.test(p) ||
+    /^\/workspace(\/|$)/.test(p) ||
+    /^\/join\//.test(p) ||
     /^\/campaign\//.test(p) ||
     /^\/launch/.test(p) ||
     /^\/agent(\/|$)/.test(p) ||

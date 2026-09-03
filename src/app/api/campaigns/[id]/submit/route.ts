@@ -1,3 +1,4 @@
+import { campaignWorkspace, isWorkspaceMemberAddress } from "@/lib/db/workspaces";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
@@ -109,6 +110,19 @@ export async function POST(
     if (!campaign.allowlist.some((a) => sameChainAddress(a, wallet))) {
       return NextResponse.json(
         { error: "This campaign pays a named recipient list, and your wallet isn't on it. Contact the operator." },
+        { status: 403 },
+      );
+    }
+  }
+
+  // SAGE FOR TEAMS — an unlisted campaign launched from a workspace is that workspace's own work:
+  // only its members can submit. A stranger with the link is told whose door it is, not refused
+  // in silence. Listed workspace campaigns stay open, as the founder chose.
+  if (campaign.visibility === "unlisted") {
+    const ws = campaignWorkspace(campaign);
+    if (ws && !isWorkspaceMemberAddress(ws.id, wallet)) {
+      return NextResponse.json(
+        { error: `This work is for members of "${ws.name}". Ask the workspace owner for an invite link, join with this wallet, and submit again.` },
         { status: 403 },
       );
     }

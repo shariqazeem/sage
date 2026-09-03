@@ -147,6 +147,9 @@ export const campaigns = sqliteTable("campaigns", {
    * on top of being unlisted in its discovery. An allowlist can still narrow WHO gets paid.
    */
   visibility: text("visibility").notNull().default("listed").$type<CampaignVisibility>(),
+  /** SAGE FOR TEAMS — the workspace this campaign was launched from (null for personal / legacy
+   *  campaigns; a founder who owns a workspace is treated as launching into it). */
+  workspaceId: text("workspace_id"),
   /** which vault contract backs this campaign — legacy rows default to policy_v1. */
   vaultKind: text("vault_kind").$type<VaultKind>().notNull().default("policy_v1"),
   /** V2: the on-chain campaign identity hash (bytes32 hex), else null. */
@@ -288,6 +291,66 @@ export const recipientInvites = sqliteTable(
   (t) => [index("recipient_invites_campaign_idx").on(t.campaignId)],
 );
 export type RecipientInvite = typeof recipientInvites.$inferSelect;
+
+/**
+ * SAGE FOR TEAMS — the closed loop. An organization (a team, a program, a company) owns a workspace,
+ * invites its people, launches work into it, and Sage verifies and pays inside limits. Membership is
+ * chain-agnostic: a member key is a founder storage key (a wallet) or `tg:<chatId>` for someone who
+ * joined from Telegram with a Sage-minted wallet; `address` is where they get paid.
+ */
+export type WorkspacePlan = "free" | "pro";
+export type WorkspaceRole = "owner" | "admin" | "member";
+
+export const workspaces = sqliteTable(
+  "workspaces",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    ownerKey: text("owner_key").notNull(),
+    plan: text("plan").notNull().default("free").$type<WorkspacePlan>(),
+    /** unix seconds the paid plan runs until; null = never paid. */
+    planUntil: integer("plan_until"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("workspaces_slug_unq").on(t.slug), index("workspaces_owner_idx").on(t.ownerKey)],
+);
+export type Workspace = typeof workspaces.$inferSelect;
+
+export const workspaceMembers = sqliteTable(
+  "workspace_members",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    memberKey: text("member_key").notNull(),
+    address: text("address"),
+    role: text("role").notNull().default("member").$type<WorkspaceRole>(),
+    displayName: text("display_name"),
+    invitedBy: text("invited_by"),
+    joinedAt: integer("joined_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.memberKey] }),
+    index("workspace_members_address_idx").on(t.address),
+    index("workspace_members_member_idx").on(t.memberKey),
+  ],
+);
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+
+export const workspaceInvites = sqliteTable(
+  "workspace_invites",
+  {
+    code: text("code").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at").notNull(),
+    maxUses: integer("max_uses").notNull().default(50),
+    uses: integer("uses").notNull().default(0),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [index("workspace_invites_workspace_idx").on(t.workspaceId)],
+);
+export type WorkspaceInvite = typeof workspaceInvites.$inferSelect;
 
 /** The real events that form a Deputy's work journal (§2d) — never fabricated. */
 export type EventKind =

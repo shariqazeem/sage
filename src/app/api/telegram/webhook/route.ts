@@ -3,6 +3,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { parseCommand, webhookAuthorized } from "@/lib/telegram/format";
 import { clearChatMessages } from "@/lib/db/concierge-chats";
 import { handleRecipientStart } from "@/lib/telegram/recipient-onboarding";
+import { handleWorkspaceStart } from "@/lib/telegram/workspace-onboarding";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
 import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
@@ -63,6 +64,16 @@ export async function POST(req: Request): Promise<Response> {
 
   // WALLETLESS RECIPIENT invite (move 2): /start rcp_<code> — mint their wallet, bind the invite,
   // welcome them with the work. Runs after the 200 (a Privy mint takes seconds); deterministic, no LLM.
+  // SAGE FOR TEAMS: /start ws_inv_<code> — join a workspace from the phone, wallet minted, work shown.
+  if (cmd.kind === "start" && cmd.payload?.startsWith("ws_inv_")) {
+    const code = cmd.payload;
+    after(async () => {
+      const text = await handleWorkspaceStart(chatId, code);
+      await sendTelegram(chatId, text, { html: false });
+    });
+    return NextResponse.json({ ok: true });
+  }
+
   if (cmd.kind === "start" && cmd.payload?.startsWith("rcp_")) {
     const code = cmd.payload;
     after(async () => {
