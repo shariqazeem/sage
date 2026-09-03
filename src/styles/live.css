@@ -140,3 +140,17 @@ a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .wa-t svg { color: var(--accent); }
 .wa-s { margin: 0; font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; }
 .wa-e { margin: 6px 0 0; font-size: 12px; color: var(--dan, #dc2626); }
+
+/* the deliverable pile — the work product, not the machinery */
+.dl-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.dl-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.dl-list li:last-child { border-bottom: 0; }
+.dl-what { min-width: 0; display: grid; gap: 2px; }
+.dl-title { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-link { font-size: 11.5px; color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-link:hover { text-decoration: underline; }
+.dl-link.none { color: var(--ink-faint); }
+.dl-amt { font-size: 13px; font-weight: 600; color: var(--pos, #15803d); font-variant-numeric: tabular-nums; }
+.dl-rec a { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); text-decoration: none; }
+.dl-rec a:hover { color: var(--accent); }
+.dl-copy { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; }

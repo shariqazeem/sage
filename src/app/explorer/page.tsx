@@ -1,4 +1,6 @@
 import { decidedOnMainnet, settledLedger } from "@/lib/campaigns/settled-ledger";
+import { settledFeeCount, sumSettledFeesBase } from "@/lib/db/campaigns";
+import { OPERATOR_FEE_USD } from "@/lib/x402/facilitator";
 import "./explorer.css";
 import "@/styles/live.css";
 import type { Metadata } from "next";
@@ -54,6 +56,9 @@ export default function ExplorerPage() {
   const feed = getPublicReceipts(40).filter((r) => isMainnetRail(r.chainId));
   // the campaign behind each receipt, so a row can open its wallet graph
   const campaignByTx = new Map(settledLedger().map((r) => [r.txHash.toLowerCase(), r.campaignId]));
+  // Sage's own revenue: only fees that actually settled on-chain are counted, never what is owed.
+  const feesEarnedBase = sumSettledFeesBase();
+  const feesSettled = settledFeeCount();
   const rails = getAgentChainSplit().filter((c) => isMainnetRail(c.chainId));
   const paid = rails.reduce((sum, c) => sum + (c.settledUsd ?? 0), 0);
   const payouts = rails.reduce((sum, c) => sum + (c.payouts ?? 0), 0);
@@ -148,6 +153,23 @@ export default function ExplorerPage() {
             ))}
           </ul>
         )}
+
+        <section className="exp-earn" aria-label="How Sage earns">
+          <div className="exp-earn-h">
+            <h2>How Sage earns</h2>
+            <span className="exp-earn-rate">${OPERATOR_FEE_USD.toFixed(2)} a settlement</span>
+          </div>
+          <p>
+            No plans and no seats. Sage charges a flat fee on each payout it makes and nothing at all
+            on a refusal, so it earns only when someone is actually paid for verified work. The fee is
+            paid over x402 on GOAT, and every one of them is its own transaction.
+          </p>
+          <p className="exp-earn-n">
+            <b className="mono">{usd(feesEarnedBase / 1e6)}</b> collected on-chain across{" "}
+            <b className="mono">{feesSettled}</b> settlements. A platform taking 7–9% of the same{" "}
+            {usd(paid)} would have taken <b className="mono">{usd(paid * 0.08)}</b>.
+          </p>
+        </section>
 
         <footer className="exp-trust">
           Every settled row links to its <b>proof receipt</b>, and every recipient wallet has a

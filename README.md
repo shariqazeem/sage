@@ -215,6 +215,23 @@ of the ten payments.
 
 ---
 
+## Hire it once
+
+A founder funds a treasury once and names their product. From then on Sage decides what work to buy against it, designs the missions, funds and launches them, judges every submission and pays — inside ceilings it cannot argue with. There are no forms after the first one.
+
+The bound comes before the autonomy, and it is the whole reason this is safe to run:
+
+- **A pure policy owns every ceiling** (`src/lib/operator/policy.ts`): the week, a single campaign, a reserve floor that stays the founder's, how many run at once, and how much money may sit on the board unclaimed. Exposure rather than spend is the real risk, and capping it is what lets several small positions run side by side instead of one large bet.
+- **A surface earns its size.** The first campaign against a product is a probe. One whose work gets claimed scales; one that goes quiet earns nothing more and is stopped, so the money returns to the treasury.
+- **A model chooses where, never how much.** It may pick among surfaces the founder named or Sage has already worked, so an invented URL is refused rather than sanitised, and a proposal that names an amount is thrown away. With no model configured the deterministic rules decide alone.
+- **Every move is proposed before it is taken**, with its reason and its price, and stays arguable for a veto window. The founder can stop it or tell it to go now.
+
+Launching by hand is unchanged. A founder who would rather choose the work themselves simply never arms the mandate.
+
+**Standing, so a worker cannot be split into a crowd.** Work above a small ceiling asks for a record first: payouts across different campaigns, and no wallet the consolidation watch has linked. Low-paid work stays open to anyone, which is how standing is earned. Twelve fresh wallets are therefore worth less than one worker, which is the opposite of the incentive that let the first Starknet gig be farmed.
+
+**And Sage can reach the people it paid.** Anyone who has been paid can ask to be told when new work opens — one tap into Telegram, one word to stop. Opt-in only, never about work they already did, and never more than one campaign per person per cooldown.
+
 ## The ledger, drawn
 
 Sage does not narrate. The console draws the things the agent actually does, and every motion is a recorded event or a chain read:

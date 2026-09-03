@@ -1175,6 +1175,11 @@ export function sumSettledFeesBase(): number {
     .reduce((s, r) => s + r.amountBase, 0);
 }
 
+/** Settled fees, counted — Sage's own revenue, each one a real payment on-chain. */
+export function settledFeeCount(): number {
+  return db.select({ id: fees.id }).from(fees).where(eq(fees.status, "settled")).all().length;
+}
+
 export function getFeeBySettleTx(settleTx: string): Fee | null {
   return db.select().from(fees).where(eq(fees.settleTx, settleTx)).get() ?? null;
 }

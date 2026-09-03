@@ -1,6 +1,7 @@
 "use client";
 
 import { SettlingLane } from "@/components/live/settling-lane";
+import { Deliverables } from "@/components/live/deliverables";
 import { WalletGraph } from "@/components/live/wallet-graph";
 import { VaultHero } from "@/components/live/vault-hero";
 import "@/styles/live.css";
@@ -415,6 +416,7 @@ function Console({ data }: { data: WorkspaceData }) {
         purpose: a founder who only sees the paid ones is reading a filtered version of their
         own campaign.
       */}
+          <Deliverables submissions={data.submissions} title={data.title} />
           <SettlingLane campaignId={data.id} title="Settling — the finalization window" />
           <WalletGraph campaignId={data.id} />
 

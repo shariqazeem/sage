@@ -70,6 +70,12 @@ failure; token budgets are declared as answer sizes and each provider's reasonin
 by a profile. Compute is spent where it changes an outcome: the browser loop makes zero model calls,
 deterministic checks run before any model, and refusals cost nothing.
 
+### The autonomous operator
+
+A founder funds once; the agent runs the programme. `src/lib/operator/policy.ts` is a pure module holding every ceiling — weekly, per campaign, a reserve floor, concurrency, and a cap on capital sitting unclaimed on the board — and it sizes each commitment from those ceilings and from observed results, so a surface whose work gets claimed earns a larger allocation and one that goes quiet earns none and is stopped. `decide.ts` is the only part a model touches and it selects a position, never a price; the surface set is closed to what the founder declared, and a proposal naming money is discarded. `tick.ts` runs inside the existing sweep as a stateless gate. Every commitment is written to `operator_launches` with its reason before any money moves, and is vetoable for a window, so the audit trail precedes the spend rather than describing it afterwards.
+
+For the credit thesis this matters twice: the deposit behaves as a bounded working-capital account, and both sides accumulate verified payment history — the business's outflow record and the worker's inflow record — which is exactly the thin-file data the lender endpoint already serves.
+
 ### The ledger, drawn
 
 The organization's console renders the agent's work as objects rather than messages, each bound to a record: the **vault** (locked capital cut into mission allocations to the base unit, paid slots drained, released coins linked to receipts), the **settling lane** (agent-approved payouts counting their finalization window down, with the sweep's own three checks as lights — `watchReadings()` feeds both the display and the verdict), and the public **wallet graph** at `/graph/<campaign>` (payout, gas-funding and consolidation edges from chain reads and recorded links; a linked cluster is one person's wallets and is held). Nothing is animated that did not happen — the rule that the feed never fabricates progress, applied to the visual layer.
