@@ -610,7 +610,7 @@ function LimitsPanel(props: {
         <p className="lx-approve-note" style={{ marginTop: 8 }}>
           {plan.visibility === "unlisted"
             ? "Members-only work. "
-            : "Open to the public board — Sage filters copies, wallet clusters and pace. "}
+            : "Open to the public board — Sage approves at once and settles after a short window it uses to watch the wallet graph; a copy or a cluster is revoked with the reason. "}
           {autonomy === "autopilot"
             ? "Sage designed these missions — and pays verified work on its own the moment its confidence clears 85%, inside the on-chain limits above. Nothing else can move funds."
             : "Sage verifies and recommends each submission; you release every reward yourself. The vault still enforces every limit on-chain."}

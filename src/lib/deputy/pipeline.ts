@@ -22,6 +22,7 @@ import {
 } from "@/lib/db/campaigns";
 import { findCopiedArtifact, findDuplicate, findNearDuplicate } from "./dedup";
 import { autopayHourlyCap, paceCapHold } from "./pace-cap";
+import { minutesLabel, windowSecondsFor } from "./finalization";
 import { countAutopaySettledSince } from "@/lib/db/events-read";
 import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 
@@ -87,7 +88,7 @@ import { isEvmCampaignVault } from "@/lib/campaigns/vault-kind";
  * cas → settle → journal, so a single run is greppable end-to-end.
  */
 
-export type PipelineAction = "skipped" | "held" | "settled";
+export type PipelineAction = "skipped" | "held" | "settled" | "approved";
 
 export interface PipelineResult {
   action: PipelineAction;
@@ -894,6 +895,23 @@ export async function runDeputyOnSubmission(
 
   // f. CAS pending → settling BEFORE any chain write. If we lose, another runner
   // owns it — exit silently, no double-settle.
+  // THE FINALIZATION WINDOW (2026-09-05). On an open campaign the agent approves at once and the
+  // sweep settles after a window it uses to watch the wallet graph — see finalization.ts. Members-
+  // only campaigns have no window. A founder's explicit release bypasses it (review-actions.ts).
+  const windowSec = windowSecondsFor(campaign.visibility);
+  if (windowSec > 0) {
+    const approved = casSubmissionStatus(submissionId, "pending", "approved");
+    agentLog(cid, "finalization", { approved, windowSec });
+    if (!approved) return { action: "skipped", reason: "another runner owns it", correlationId: cid };
+    recordEvent({
+      campaignId: campaign.id,
+      submissionId,
+      kind: "autopay_approved",
+      detail: encodeDetail(`${short(submission.wallet)} · approved · finalizes in ${minutesLabel(windowSec)} unless the watch objects`, { cid }),
+    });
+    return { action: "approved", reason: "finalization_window", correlationId: cid };
+  }
+
   const won = casSubmissionStatus(submissionId, "pending", "settling");
   agentLog(cid, "cas", { won });
   if (!won) {

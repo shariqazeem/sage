@@ -31,6 +31,7 @@ const META: Record<EventKind, JournalMeta> = {
   autopay_settled: { tone: "settled", label: "Paid by Sage" },
   autopay_held: { tone: "timelocked", label: "Held by Sage" },
   wallet_cluster: { tone: "blocked", label: "Wallet cluster found" },
+  autopay_approved: { tone: "timelocked", label: "Approved by Sage · finalizing" },
   campaign_quiet_nudge: { tone: "neutral", label: "Founder nudged" },
   fee_settled: { tone: "neutral", label: "Operator fee paid" },
   fee_pending: { tone: "timelocked", label: "Operator fee pending" },

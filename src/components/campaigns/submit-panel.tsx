@@ -56,6 +56,12 @@ function workerBeat(m: MySubmission): { icon: ReactNode; text: string; color: st
       text: "The wallet blocked this payout — no funds moved",
       color: "var(--dan)",
     };
+  if (m.status === "approved")
+    return {
+      icon: <ShieldCheck size={15} color="var(--accent)" />,
+      text: "Verified · approved — Sage pays after a short window it uses to check for copies and wallet clusters",
+      color: "var(--accent)",
+    };
   const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
   const held = m.autopay?.state === "held" || (!!m.brief && m.brief.recommendation !== "pay");
   if (held) {

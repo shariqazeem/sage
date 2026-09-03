@@ -26,14 +26,14 @@ export const metadata: Metadata = {
   // Still category-first, brand-last — and the WINNING category words ("tests your product",
   // "pays real testers") stay in the sentence: the broadened frame extends the query surface
   // (gigs, milestone grants, verified work) without abandoning the one category we already rank in.
-  title: "Sage for teams — an AI agent that verifies your people's work and pays it in USDC",
+  title: "Sage — an AI agent that moves money on verified work",
   description:
-    "A workspace where a team, programme or company invites its people, posts gigs, milestone grants and product-testing runs, and an AI agent verifies every deliverable and pays it in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
+    "Autonomous payments infrastructure: an AI agent that inspects, designs paid work, verifies every deliverable, detects fraud and pays in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Sage for teams: invite your people, post the work, it gets verified and paid.",
+    title: "Sage: give it a budget and an outcome. It verifies, then pays.",
     description:
-      "A workspace where a team, programme or company invites its people, posts gigs, milestone grants and product-testing runs, and an AI agent verifies every deliverable and pays it in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
+      "Autonomous payments infrastructure: an AI agent that inspects, designs paid work, verifies every deliverable, detects fraud and pays in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
     type: "website",
   },
 };

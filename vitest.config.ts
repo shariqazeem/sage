@@ -43,6 +43,6 @@ export default defineConfig({
     hookTimeout: 30_000,
     // DB-backed drills run against an isolated in-memory SQLite — real schema +
     // real atomic CAS/locks, never the dev database.
-    env: { SAGE_DB_PATH: ":memory:" },
+    env: { SAGE_DB_PATH: ":memory:", AUTOPAY_FINALIZE_MINUTES: "0" },
   },
 });

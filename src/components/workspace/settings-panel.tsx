@@ -3,27 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, CreditCard, Link2, Loader2, LogOut, Sparkles, Wallet } from "lucide-react";
+import { ArrowLeft, Check, CreditCard, Link2, Loader2, LogOut, Wallet } from "lucide-react";
 import { short } from "@/lib/format";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
-import { ProPay } from "./pro-pay";
-import type { WorkspacePlan } from "@/lib/db/schema";
 
 export interface SettingsView {
-  workspace: { id: string; name: string; plan: WorkspacePlan; planUntil: number | null; memberCap: number; proPriceUsd: number };
+  workspace: { id: string; name: string };
   account: { address: string; chain: "evm" | "starknet"; linked: { address: string; chain: "evm" | "starknet" }[] };
-  payments: { txHash: string; amountUsd: number; paidAt: number; planUntil: number }[];
 }
 
 const chainName = (c: "evm" | "starknet") => (c === "evm" ? "Ethereum · GOAT" : "Starknet");
-const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
 
 /**
  * Settings: the workspace's name, the plan and how it is paid for, the wallets behind the account
  * (one per rail — the other is bound by signing in with it once), and the way out.
  */
-export function SettingsPanel({ workspace: ws, account, payments }: SettingsView) {
+export function SettingsPanel({ workspace: ws, account }: SettingsView) {
   const router = useRouter();
   const session = useFounderSession();
   const [name, setName] = useState(ws.name);
@@ -67,7 +63,6 @@ export function SettingsPanel({ workspace: ws, account, payments }: SettingsView
           <h1 className="ws-title">Settings</h1>
           <p className="ws-sub">The workspace, its plan, and the wallets behind your account.</p>
         </div>
-        <div className="ws-nav"><span className={`ws-plan${ws.plan === "pro" ? " pro" : ""}`}>{ws.plan === "pro" ? <><Sparkles size={12} /> Pro</> : "Free plan"}</span></div>
       </header>
 
       <div className="ws-grid">
@@ -123,29 +118,10 @@ export function SettingsPanel({ workspace: ws, account, payments }: SettingsView
 
         <div>
           <section className="ws-card">
-            <div className="ws-card-h"><h2><CreditCard size={15} /> Plan</h2></div>
-            <div className="ws-tiers">
-              <div className={`ws-tier${ws.plan === "free" ? " on" : ""}`}>
-                <h3>Free</h3><p className="price">$0</p>
-                <ul><li>You + 2 members</li><li>Gigs, grants, testing runs</li><li>Public receipts on GOAT</li></ul>
-              </div>
-              <div className={`ws-tier${ws.plan === "pro" ? " on" : ""}`}>
-                <h3>Pro</h3><p className="price">${ws.proPriceUsd}<span>/month</span></p>
-                <ul><li>Unlimited members</li><li>Private payouts on Starknet</li><li>Working-capital advances for members</li></ul>
-              </div>
-            </div>
-            {ws.plan === "pro" && ws.planUntil ? <p className="ws-note">Pro until {day(ws.planUntil)}. Pay again any time to extend.</p> : null}
-            <ProPay workspaceId={ws.id} priceUsd={ws.proPriceUsd} />
-            {payments.length > 0 && (
-              <ul className="ws-list" style={{ marginTop: 14 }}>
-                {payments.map((p) => (
-                  <li key={p.txHash} className="ws-row">
-                    <div className="ws-row-main"><p className="ws-row-title"><span className="mono t">${p.amountUsd.toFixed(2)} USDC</span></p><p className="ws-row-meta">{day(p.paidAt)} · Pro until {day(p.planUntil)}</p></div>
-                    <a className="ws-chip" href={`https://explorer.goat.network/tx/${p.txHash}`} target="_blank" rel="noopener noreferrer">receipt</a>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="ws-card-h"><h2><CreditCard size={15} /> How Sage earns</h2></div>
+            <p className="ws-note" style={{ margin: 0 }}>
+              No plans, no seats. Sage earns a small fee on each settlement it makes — recorded beside the payout on the receipt — and a financing margin when a member draws an advance against verified inflow. Everything else, including private payouts on Starknet, is included.
+            </p>
           </section>
         </div>
       </div>

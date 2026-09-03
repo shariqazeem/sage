@@ -10,5 +10,10 @@ import type { CampaignVisibility } from "@/lib/db/schema";
  * The founder can flip either in the deploy step; this is the starting position, not a cage.
  */
 export function defaultAutonomyFor(visibility: CampaignVisibility | null | undefined): "manual" | "autopilot" {
-  return visibility === "unlisted" ? "autopilot" : "manual";
+  // The agent decides on every door. What guards an OPEN campaign is not a person but the
+  // finalization window: the payout is approved at once and settles after a short window the
+  // agent uses to watch the wallet graph (see finalization.ts). `visibility` stays a parameter so
+  // the window's length can depend on it.
+  void visibility;
+  return "autopilot";
 }

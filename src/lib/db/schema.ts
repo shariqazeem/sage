@@ -383,6 +383,8 @@ export type EventKind =
   | "autopay_held"
   /** the consolidation watch linked two wallets: a payout was forwarded to another submitter's wallet. */
   | "wallet_cluster"
+  /** the agent approved the payout; it settles after the finalization window unless the watch revokes it. */
+  | "autopay_approved"
   | "fee_settled"
   | "fee_pending"
   /** the never-arrives guard fired: a submission has waited past the silence bound without a

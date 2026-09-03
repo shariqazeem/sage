@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, Link2, Loader2, Lock, MessageCircle, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, Copy, Link2, Loader2, MessageCircle, Users, Wallet, X } from "lucide-react";
 import { short, since } from "@/lib/format";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 
@@ -26,7 +26,6 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const full = memberCount >= ws.memberCap;
 
   const mintInvite = async () => {
     setBusy(true);
@@ -69,12 +68,12 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
           <span className="ws-eyebrow" style={{ marginTop: 10 }}>Members &amp; invites</span>
           <h1 className="ws-title">People</h1>
-          <p className="ws-sub"><b>{memberCount}</b> of {Number.isFinite(ws.memberCap) ? ws.memberCap : "unlimited"} on the {ws.plan === "pro" ? "Pro" : "Free"} plan. Members see the work you post and are paid to the wallet they joined with.</p>
+          <p className="ws-sub"><b>{memberCount}</b> {memberCount === 1 ? "person" : "people"}. Members see the work you post and are paid to the wallet they joined with — by Sage, once it has verified the work.</p>
         </div>
         <div className="ws-nav">
           {!invite && (
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void mintInvite()} disabled={busy}>
-              {busy ? <><Loader2 size={14} className="sage-spin2" /> Creating…</> : full ? <><Lock size={14} /> Invite (needs Pro)</> : <><Link2 size={14} /> Invite people</>}
+              {busy ? <><Loader2 size={14} className="sage-spin2" /> Creating…</> : <><Link2 size={14} /> Invite people</>}
             </button>
           )}
         </div>
@@ -88,7 +87,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           <div className="ws-invite"><code>{invite.telegram}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.telegram, "tg")}>{copied === "tg" ? "Copied" : <><MessageCircle size={13} /> Copy</>}</button></div>
         </section>
       )}
-      {err && <p className="ws-err">{err} {full && <Link href="/workspace/settings">Upgrade in Settings.</Link>}</p>}
+      {err && <p className="ws-err">{err}</p>}
 
       <section className="ws-card">
         <div className="ws-card-h"><h2><Users size={15} /> Members</h2><span className="ws-chip">{memberCount}</span></div>

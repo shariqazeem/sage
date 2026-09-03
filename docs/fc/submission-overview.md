@@ -75,16 +75,13 @@ knows its people, and the agent does the one job it is measurably good at: was t
 
 ## Business model and go-to-market
 
-**Who pays.** The organization that wants work done: it funds the vault and it subscribes to the
-workspace. **Free** is a real workspace — an owner and two members, every verification lane,
-public receipts. **Pro** ($29/month, paid as one USDC transfer on GOAT that Sage verifies from the
-receipt itself — no card, no processor) removes the member cap and opens the parts that move money
-privately or ahead of time: private payouts on Starknet and working-capital advances for members.
-On top of the subscription Sage earns a flat **$0.10 operator fee per settlement**, charged over
-x402 and recorded beside the payout — that revenue exists only when a verified payment exists. The
-third line is financing margin: the advance facility (self-serve for the worker, one click on their
-record page; a published multiple on witnessed inflow, the LP is us today) and the same record
-feeding an institution's own underwriting through the JSON contract.
+**Who pays.** The organization that wants work done funds the vault. Sage earns on what it
+settles, not on seats: a flat operator fee per settlement today (charged over x402 and recorded beside
+the payout — revenue exists only when a verified payment exists), a share of volume as it grows, and a
+financing margin on the advance facility (self-serve for the worker, one click on their record page; a
+published multiple on witnessed inflow, the LP is us today). The same record feeds an institution's
+own underwriting through the JSON contract. There are no plans and no paywalls: private payouts on
+Starknet, the record and the lender view are part of the rail.
 
 **Go-to-market.** Programmes and teams first, workers through them: an incubator paying its cohort's
 milestones, a cooperative paying its members for verified deliveries, a company paying contractors,

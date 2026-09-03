@@ -1,17 +1,19 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import {
   acquireLock,
+  casSubmissionStatus,
   getCampaign,
   getDecisionBySubmission,
   getMissionByHash,
+  getSubmission,
+  hasStaleEvent,
   listApprovedSubmissions,
   listPendingAutopilotSubmissionIds,
+  listUnresolvedSubmissionsOlderThan,
+  recordEvent,
   releaseLock,
   resetStaleSettling,
-  listUnresolvedSubmissionsOlderThan,
-  hasStaleEvent,
-  recordEvent,
-  getSubmission,
+  updateSubmission,
 } from "@/lib/db/campaigns";
 import { nowSeconds } from "@/lib/db/keys";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
@@ -24,6 +26,9 @@ import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
 import { runCampaignHealthNudges } from "@/lib/campaigns/health-nudge";
 import { watchPayoutConsolidation } from "@/lib/deputy/consolidation";
+import { finalizationFor } from "@/lib/deputy/finalization-db";
+import { encodeDetail } from "@/lib/campaigns/journal";
+import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
@@ -69,6 +74,7 @@ async function runSweep() {
     /** one-time quiet-campaign founder nudges sent this tick (48h, zero submissions). */
     nudges: { nudged: 0 },
     consolidation: { scanned: 0, linked: 0 },
+    finalization: { waiting: 0, finalized: 0, revoked: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -150,6 +156,21 @@ async function runSweep() {
   for (const sub of listApprovedSubmissions()) {
     const campaign = getCampaign(sub.campaignId);
     if (!campaign) continue;
+    // THE FINALIZATION WINDOW. An agent-approved payout on an open campaign settles only after the
+    // window, and only if the watch has nothing to say about what arrived in the meantime. A
+    // founder's explicit release carries no window. See src/lib/deputy/finalization.ts.
+    const fin = finalizationFor(sub, campaign.visibility, nowSeconds());
+    if (fin.state === "waiting") { summary.finalization.waiting += 1; continue; }
+    if (fin.state === "revoke") {
+      if (casSubmissionStatus(sub.id, "approved", "rejected")) {
+        updateSubmission(sub.id, { rejectReason: fin.reason });
+        recordEvent({ campaignId: campaign.id, submissionId: sub.id, kind: "submission_rejected", detail: encodeDetail(`${short(sub.wallet)} · ${fin.reason}`) });
+        void notifyTelegram(`⏹️ <b>Revoked by Sage</b>\n${campaign.title}\n${short(sub.wallet)}\n${fin.reason}`);
+        summary.finalization.revoked += 1;
+      }
+      continue;
+    }
+    if (fin.state === "finalize") summary.finalization.finalized += 1;
     if (payoutActionReplayMode() !== "off" && sub.missionIdHash) {
       const mission = getMissionByHash(campaign.id, sub.missionIdHash);
       if (mission) {

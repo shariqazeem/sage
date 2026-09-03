@@ -51,10 +51,9 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div>
           <span className="ws-eyebrow">Workspace</span>
           <h1 className="ws-title">{ws.name}</h1>
-          <p className="ws-sub">Sage verifies the work your people deliver and pays it from the budget you fund — every payout a receipt, every refusal a reason.</p>
+          <p className="ws-sub">Sage inspects, verifies and pays your people&rsquo;s work from the budget you fund — every payout a receipt, every refusal a reason, no one at your organization in the loop.</p>
         </div>
         <div className="ws-nav">
-          <span className={`ws-plan${ws.plan === "pro" ? " pro" : ""}`}>{ws.plan === "pro" ? <><Sparkles size={12} /> Pro</> : "Free plan"}</span>
           <Link className="ws-chip" href="/workspace/people"><Users size={12} /> People</Link>
           <Link className="ws-chip" href="/workspace/settings"><Settings size={12} /> Settings</Link>
           <Link className="sage-btn sage-btn-primary sage-btn-sm" href="/launch?do=pay"><Rocket size={14} /> Post work</Link>
@@ -65,7 +64,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div className="ws-stat"><span className="ws-stat-v">{live.length}</span><span className="ws-stat-k">Open work</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{inReview}</span><span className="ws-stat-k">In review</span></div>
         <div className={`ws-stat${paidUsd > 0 ? " pos" : ""}`}><span className="ws-stat-v">{usd(paidUsd)}</span><span className="ws-stat-k">Paid · {paidCount} payout{paidCount === 1 ? "" : "s"}</span></div>
-        <div className="ws-stat"><span className="ws-stat-v">{view.memberCount}</span><span className="ws-stat-k">People{Number.isFinite(ws.memberCap) ? ` · ${ws.memberCap} on ${ws.plan === "pro" ? "Pro" : "Free"}` : ""}</span></div>
+        <div className="ws-stat"><span className="ws-stat-v">{view.memberCount}</span><span className="ws-stat-k">People</span></div>
       </section>
 
       {fresh && (

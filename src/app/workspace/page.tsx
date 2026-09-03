@@ -5,7 +5,7 @@ import "@/styles/wallet-connect.css";
 import "@/styles/workspace.css";
 import { workspaceContext } from "@/lib/workspaces/context";
 import { countMembers, listMembers, listWorkspaceCampaigns, workspacesForAddress } from "@/lib/db/workspaces";
-import { limitsOf, planOf, proPriceUsd } from "@/lib/workspaces/plan";
+import { limitsOf, planOf } from "@/lib/workspaces/plan";
 import { listSubmissions } from "@/lib/db/campaigns";
 import { loadFounderDesk } from "@/lib/campaigns/founder-activity";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
@@ -52,7 +52,7 @@ export default async function WorkspacePage() {
       };
     });
     const view: OwnerView = {
-      workspace: { id: ws.id, name: ws.name, slug: ws.slug, plan: planOf(ws), planUntil: ws.planUntil, memberCap: limitsOf(ws).members, proPriceUsd: proPriceUsd() },
+      workspace: { id: ws.id, name: ws.name, slug: ws.slug, plan: planOf(ws), planUntil: ws.planUntil, memberCap: limitsOf(ws).members, proPriceUsd: 0 },
       members: listMembers(ws.id).map((m) => ({ key: m.memberKey, address: m.address, role: m.role, displayName: m.displayName, joinedAt: m.joinedAt, viaTelegram: m.memberKey.startsWith("tg:") })),
       memberCount: countMembers(ws.id),
       campaigns: rows,

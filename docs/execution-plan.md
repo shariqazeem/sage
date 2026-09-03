@@ -723,3 +723,14 @@ verifies from the receipt) removes the cap and opens private payouts and advance
     approved plan now (`DeploymentReadyPlan.visibility`) from every caller — web, Starknet, Telegram —
     with a structural test that reads the callers. The door now decides the payout default too:
     members-only autopays, public work starts with the team releasing each payout.
+
+### Finding 32 + the correction (2026-09-05)
+
+32. **The agent decides everywhere; a window, not a person, guards the open door.** The "team
+    releases public payouts" default of the day before put a human back in the loop — the one thing
+    the product exists to remove. Replaced by the finalization window: on an open campaign the
+    agent approves at once, the sweep settles after `AUTOPAY_FINALIZE_MINUTES` (30) and re-runs the
+    near-duplicate, copied-artifact and wallet-cluster watch against everything that arrived in the
+    meantime; a hit revokes with the reason written out. Members-only work pays at once. The Pro
+    plan and its gates were removed the same day: Sage earns on settlement and on financing, not on
+    seats. See `docs/strategy/autonomous-paymaster.md`.

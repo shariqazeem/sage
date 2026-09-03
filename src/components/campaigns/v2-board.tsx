@@ -159,6 +159,12 @@ function beat(m: MySubmission): {
       text: "The vault blocked this payout — no funds moved",
       color: "var(--dan)",
     };
+  if (m.status === "approved")
+    return {
+      icon: <ShieldCheck size={15} color="var(--accent)" />,
+      text: "Verified · approved — Sage pays after a short window it uses to check for copies and wallet clusters",
+      color: "var(--accent)",
+    };
   // OBSERVATION mission — judged against what Sage saw itself, NEVER the url-verifiable brain. P23: a
   // RETRYABLE hold reads as PROGRESS (a coaching state, accent — never "held"/review), a bar PASS reads
   // as verified-success, and only a FINAL hold (attempts exhausted / flagged) is "held for review".

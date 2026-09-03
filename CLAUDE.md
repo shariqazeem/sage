@@ -197,6 +197,12 @@ if you must touch them, that suite must stay green.
 - **`engine === "llm"` is required for autopay** at confidence ≥ 0.85 (`AUTOPAY_THRESHOLD`).
   With no LLM key the brain degrades to a transparent keyword heuristic that **can never
   auto-pay.**
+- **The agent decides on every door; a window, not a person, guards the open one.** On an open
+  campaign the autopilot approves at once and the sweep settles after `AUTOPAY_FINALIZE_MINUTES`
+  (default 30), re-running the near-duplicate, copied-artifact and wallet-cluster watch against
+  everything that arrived since; a hit revokes with the reason. Members-only work pays at once. A
+  founder's explicit release carries no window. `src/lib/deputy/finalization.ts`. No plans, no
+  seat caps: Sage earns on settlement and financing (`docs/strategy/autonomous-paymaster.md`).
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
 

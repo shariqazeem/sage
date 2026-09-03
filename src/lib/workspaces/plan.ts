@@ -7,7 +7,8 @@ import type { Workspace, WorkspacePlan } from "@/lib/db/schema";
  * verification lane. Pro removes the member cap and opens the parts that move money privately or
  * ahead of time — private payouts on Starknet and working-capital advances for members.
  */
-export const FREE_MEMBER_CAP = 3;
+/** No seat cap. Sage earns on settlement, not on seats — the constant stays for the invite door's arithmetic. */
+export const FREE_MEMBER_CAP = Number.POSITIVE_INFINITY;
 export const DEFAULT_PRO_PRICE_USD = 29;
 
 export interface PlanLimits {
@@ -18,7 +19,7 @@ export interface PlanLimits {
 }
 
 export const PLANS: Record<WorkspacePlan, PlanLimits> = {
-  free: { members: FREE_MEMBER_CAP, privateRail: false, advances: false, label: "Free" },
+  free: { members: FREE_MEMBER_CAP, privateRail: true, advances: true, label: "Sage" },
   pro: { members: Number.POSITIVE_INFINITY, privateRail: true, advances: true, label: "Pro" },
 };
 

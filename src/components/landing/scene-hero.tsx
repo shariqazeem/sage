@@ -40,14 +40,15 @@ export function SceneHero({
           </span>
 
           <h1 className="display">
-            Pay your people for work
+            An AI agent that moves money
             <br />
-            <span className="soft">an AI has verified.</span>
+            <span className="soft">on verified work.</span>
           </h1>
 
           <p className="lede hero-lede">
-            Invite your team, contractors or grantees. Post the work, fund it once. An agent checks
-            every deliverable and pays it from a vault it cannot exceed — every payout a receipt.
+            Give Sage a budget and an outcome. It inspects, designs the work, verifies every
+            deliverable, pays from a vault it cannot exceed — privately on Starknet when you ask —
+            and no one at your organization touches a dashboard.
           </p>
 
           <div className="hero-actions">
