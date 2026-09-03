@@ -697,3 +697,20 @@ paste rule), 5 refused with reasons (tweet, three pastes, one wrongly-held-then-
     judge's unmet criteria were all stored and none shown; the board had no form to act from. `/me` now
     carries the reason and the attempts left; both boards open the revise path; the founder console
     reads the journal so a held payout is no longer labelled "settling".
+
+### Finding 30 + the decision (2026-09-04)
+
+30. **The privacy class was missing from the split-capable list, so the first campaign deployed
+    from it paid publicly.** `payoutRouteFor` read `SPLIT_CAPABLE` (only the August class) and
+    answered "direct" for a vault that has `request_payout_to`. Nobody was underpaid; the campaign
+    about private payouts made none. Two lists drifted — the deployer's class and the route's list.
+    The list gains the class, and whatever class the deployer is configured with is capable by
+    construction (unless it is a known pre-split class), read from the same env the deployer reads.
+
+**The decision — Sage for teams.** Open public bounties are farmed by a returning group with free
+identities; the engine (verify, pay inside limits, receipt, record, capital) is what organizations
+pay for. Sage's front door is now a workspace: an organization invites its people (a wallet link or
+a Telegram link that mints them a wallet), posts work, funds it once; unlisted workspace work is
+members-only at submit; Free holds three members, Pro (paid as one USDC transfer on GOAT that Sage
+verifies from the receipt) removes the cap and opens private payouts and advances. See
+`docs/teams.md`. Public campaigns survive invite-gated; product inspection stays the free hook.
