@@ -33,6 +33,8 @@ const META: Record<EventKind, JournalMeta> = {
   wallet_cluster: { tone: "blocked", label: "Wallet cluster found" },
   autopay_approved: { tone: "timelocked", label: "Approved by Sage · finalizing" },
   campaign_quiet_nudge: { tone: "neutral", label: "Founder nudged" },
+  operator_reclaimed: { tone: "blocked", label: "Sage reclaimed the budget" },
+  operator_launched: { tone: "action", label: "Sage launched this" },
   fee_settled: { tone: "neutral", label: "Operator fee paid" },
   fee_pending: { tone: "timelocked", label: "Operator fee pending" },
   // Public, deliberately. This journal is read by testers, and someone who has been waiting is

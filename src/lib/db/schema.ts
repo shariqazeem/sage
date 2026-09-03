@@ -391,7 +391,11 @@ export type EventKind =
    *  resolution, whatever the cause. Not a verdict on the tester, a flag on us. */
   | "submission_stale"
   /** the lifecycle sense fired: live 48h with zero submissions — the founder was nudged ONCE. */
-  | "campaign_quiet_nudge";
+  | "campaign_quiet_nudge"
+  /** the standing mandate reclaimed a board nobody came to; the money went back to the treasury. */
+  | "operator_reclaimed"
+  /** the agent launched this campaign itself, under a founder's standing mandate. */
+  | "operator_launched";
 
 /**
  * An append-only log of things that actually happened. Every row is emitted at
@@ -983,6 +987,77 @@ export const agentWallets = sqliteTable("agent_wallets", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/**
+ * THE STANDING MANDATE — a founder's one-time instruction to the agent, and the ceilings it may not
+ * argue with. Rows exist only for founders who armed it; `enabled` off means the treasury is a
+ * wallet, not an operator. Amounts are USDC base units; the exposure share is basis points so no
+ * float is ever stored. The pure rules that read this live in `src/lib/operator/policy.ts`.
+ */
+export const operatorMandates = sqliteTable("operator_mandates", {
+  /** the founder's chain-agnostic storage key — one mandate per founder, either rail. */
+  founderKey: text("founder_key").primaryKey(),
+  /** the address as the founder signed in with — the storage key cannot be reversed into one. */
+  founderAddress: text("founder_address").notNull(),
+  enabled: integer("enabled").notNull().default(0),
+  /** what the founder pointed the agent at, stated once. */
+  productUrl: text("product_url"),
+  goal: text("goal"),
+  weeklyCapBase: integer("weekly_cap_base").notNull(),
+  perCampaignCapBase: integer("per_campaign_cap_base").notNull(),
+  reserveFloorBase: integer("reserve_floor_base").notNull().default(0),
+  probeBase: integer("probe_base").notNull(),
+  maxScale: integer("max_scale").notNull().default(3),
+  maxConcurrent: integer("max_concurrent").notNull().default(3),
+  maxExposureBps: integer("max_exposure_bps").notNull().default(6000),
+  minSpacingMinutes: integer("min_spacing_minutes").notNull().default(90),
+  stallAfterMinutes: integer("stall_after_minutes").notNull().default(2880),
+  minCampaignBase: integer("min_campaign_base").notNull().default(1_000_000),
+  /** How long a proposed move sits visible, and vetoable, before the agent commits it. */
+  vetoWindowMinutes: integer("veto_window_minutes").notNull().default(20),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type OperatorMandate = typeof operatorMandates.$inferSelect;
+
+/**
+ * Every commitment the agent made on its own, with the reason it gave BEFORE the money moved. This
+ * is the founder's audit trail and the mandate's own memory: the weekly total and the spacing gap
+ * are both read from here, so a launch that was decided but never deployed still counts against the
+ * ceiling until it is resolved.
+ */
+export const operatorLaunches = sqliteTable(
+  "operator_launches",
+  {
+    id: text("id").primaryKey(),
+    founderKey: text("founder_key").notNull(),
+    /** the inspection job the agent started to design this campaign. */
+    jobId: text("job_id"),
+    /** set once the campaign is actually deployed. */
+    campaignId: text("campaign_id"),
+    surface: text("surface"),
+    /** the work the agent chose to buy, and the intent it will hand the mission brain. */
+    kind: text("kind").$type<"testing" | "gig" | "grant">().notNull(),
+    goal: text("goal").notNull(),
+    /** whether a model chose this position or the deterministic rules did. */
+    decidedBy: text("decided_by").$type<"llm" | "rules">().notNull().default("rules"),
+    budgetBase: integer("budget_base").notNull(),
+    /** the agent's stated reason, recorded before it committed anything. */
+    reason: text("reason").notNull(),
+    /** proposed → committed → launched, or vetoed | abandoned. A proposal is visible and arguable
+     *  for its whole veto window: the founder can stop it or tell the agent to go now. */
+    state: text("state").$type<"proposed" | "committed" | "launched" | "vetoed" | "abandoned">().notNull().default("proposed"),
+    /** when the agent will act on this proposal unless the founder intervenes. */
+    commitAt: integer("commit_at").notNull(),
+    vetoReason: text("veto_reason"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("operator_launches_founder_idx").on(t.founderKey, t.createdAt)],
+);
+
+export type OperatorLaunch = typeof operatorLaunches.$inferSelect;
 
 export type AgentWallet = typeof agentWallets.$inferSelect;
 export type NewAgentWallet = typeof agentWallets.$inferInsert;
