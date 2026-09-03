@@ -40,20 +40,21 @@ export function SceneHero({
           </span>
 
           <h1 className="display">
-            Pay people for work
+            Pay your people for work
             <br />
             <span className="soft">an AI has verified.</span>
           </h1>
 
           <p className="lede hero-lede">
-            Gigs, milestone grants, product testing. An agent checks every deliverable itself,
-            a vault it cannot exceed releases the money, and every payout lands as a public
-            receipt — or a private note. Live on two mainnet rails.
+            A workspace for your team, contractors or grantees. You post the work and fund it once;
+            an agent checks every deliverable itself, a vault it cannot exceed releases the money,
+            and every payout lands as a receipt — public, or private on Starknet. Live on two
+            mainnet rails.
           </p>
 
           <div className="hero-actions">
-            <Link href="/launch" className="btn btn-primary">
-              Launch a campaign <ArrowRight size={17} strokeWidth={2.2} />
+            <Link href="/workspace" className="btn btn-primary">
+              Open your workspace <ArrowRight size={17} strokeWidth={2.2} />
             </Link>
             <Link href="/explorer" className="btn btn-ghost">
               See every payout
@@ -123,11 +124,11 @@ export function SceneHero({
 
       {/* ── who it is for — three doors, each to its real surface ── */}
       <div className="dr wrap" aria-label="Who Sage is for">
-        <Link href="/launch" className="dr-card">
-          <span className="dr-k mono">For founders &amp; teams</span>
-          <span className="dr-t">Test a product, pay a gig, fund milestones.</span>
-          <span className="dr-s">Or hand work to your own people, off the public board — verified and paid the same way.</span>
-          <span className="dr-cta">Launch <ArrowRight size={13} strokeWidth={2.2} /></span>
+        <Link href="/workspace" className="dr-card">
+          <span className="dr-k mono">For teams &amp; programmes</span>
+          <span className="dr-t">Invite your people, post the work, fund it once.</span>
+          <span className="dr-s">Gigs, milestone grants, product testing — verified by Sage and paid inside limits you set. Free for three people; Pro for the whole team.</span>
+          <span className="dr-cta">Open a workspace <ArrowRight size={13} strokeWidth={2.2} /></span>
         </Link>
         <Link href="/marketplace" className="dr-card">
           <span className="dr-k mono">For workers</span>

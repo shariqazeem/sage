@@ -47,9 +47,9 @@ const SITE = siteUrl();
  * strong — it just should not be the string we ask to be indexed on.
  */
 const TITLE =
-  "AI agent that pays testers for verified product feedback · Sage";
+  "Sage for teams — an AI agent that verifies your people's work and pays it in USDC";
 const DESCRIPTION =
-  "Sage is an AI agent that pays people for work it has verified: it tests your product with paid missions, runs gigs, bounties and milestone grants, and pays human workers in USDC from an on-chain vault it can never exceed. Public receipts on GOAT Network, private payouts on Starknet, every refusal on record.";
+  "Sage is a workspace where a team, programme or company invites its people, posts gigs, milestone grants and product-testing runs, and an AI agent verifies every deliverable and pays it in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, and a verified work record for every recipient.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

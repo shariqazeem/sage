@@ -7,18 +7,30 @@
 
 ## What it is, in one paragraph
 
-Sage is an autonomous agent that turns a sentence into financial infrastructure. A founder, a diaspora funder, or a small business says the work once — _"test my product with $10"_, _"pay my designer $50 when the logo page is live"_, _"fund my cousin's shop in three milestones"_ — and Sage compiles it into missions with a verification contract, funds an on-chain vault with hard caps, **verifies every claim itself** (in a real browser, against the published artifact, or on-chain), pays only what survives, and publishes a receipt for every settlement and a reason for every refusal. Recipients need no bank and no wallet app — chat is the account. Every earner accumulates a public, receipt-anchored **Verified Work Record** with deterministic credit signals — the cash-flow history collateral-based lending is missing.
+Sage is a workspace where an organization — a programme, a cooperative, an incubator, a company —
+invites its people, states the work once and funds it once, and an autonomous agent does the rest:
+it verifies every deliverable itself, pays it from an on-chain vault it cannot exceed, refuses what
+does not hold up with the reason written out, and publishes a receipt for every payout. The people
+being paid need no application, no bank account and no wallet app: a Telegram link gives them one.
+Every verified payout builds their portable work record, and that record unlocks working capital.
 
-One loop — define → verify → pay-or-refuse → receipt → record → **capital back in** — running live
-on TWO mainnet rails with real USDC: GOAT (the public tape) and Starknet (the private claim — a
-worker collects by one-time link, including into a shielded note). The founder never picks a chain;
-they pick an outcome — _public receipts_ or _private-capable_ — and the router picks the rail.
+One loop — invite → define → verify → pay-or-refuse → receipt → record → **capital back in** —
+running live on TWO mainnet rails with real USDC: GOAT (the public tape) and Starknet (the private
+claim — a worker collects by one-time link, including into a shielded note). The founder never picks
+a chain; they pick an outcome — _public receipts_ or _private-capable_ — and the router picks the rail.
 
 ```
-witness (agent) → obligation (signed, capped) → vault (cannot exceed)
+workspace (org + members) → witness (agent) → obligation (signed, capped) → vault (cannot exceed)
    → router (GOAT public · Starknet private · licensed-fiat door, interface-ready)
       → record (public tape or selective proof) → capital in (the advance facility)
 ```
+
+**Why a workspace and not an open board.** We ran the open version first. Every public campaign was
+farmed by the same returning group with rotating wallets — the last one 10 of 10 rewards to one
+operator, proven on chain (gas funded wallet-to-wallet, payouts forwarded to one hub minutes after
+settlement) and now detected and held automatically. The engine was never the problem: the judge,
+the vault and the receipts all held. Identity was. So the product sells to the party who already
+knows its people, and the agent does the one job it is measurably good at: was the work done.
 
 ## The track's bar, answered with receipts
 
@@ -58,18 +70,22 @@ witness (agent) → obligation (signed, capped) → vault (cannot exceed)
 
 ## Business model and go-to-market
 
-**Who pays.** The party who wants work done funds the vault: a founder testing a product, a diaspora
-funder backing a seller, a business paying its own people. Sage earns a flat **$0.10 operator fee
-per settlement**, charged over x402 and recorded beside the payout — revenue exists only when a
-verified payment exists. Lenders and programmes consume the record API and the lender view; the
-advance facility — self-serve for the worker, one click on their record page — is the second revenue line (a published multiple on witnessed inflow, the LP is us
-today), and the same record feeds an institution's own underwriting through the JSON contract.
+**Who pays.** The organization that wants work done: it funds the vault and it subscribes to the
+workspace. **Free** is a real workspace — an owner and two members, every verification lane,
+public receipts. **Pro** ($29/month, paid as one USDC transfer on GOAT that Sage verifies from the
+receipt itself — no card, no processor) removes the member cap and opens the parts that move money
+privately or ahead of time: private payouts on Starknet and working-capital advances for members.
+On top of the subscription Sage earns a flat **$0.10 operator fee per settlement**, charged over
+x402 and recorded beside the payout — that revenue exists only when a verified payment exists. The
+third line is financing margin: the advance facility (self-serve for the worker, one click on their
+record page; a published multiple on witnessed inflow, the LP is us today) and the same record
+feeding an institution's own underwriting through the JSON contract.
 
-**Go-to-market.** Bottom-up through the people being paid: every verified payout produces a public
-receipt and a record page, and every artifact gig produces a page written by a stranger that names
-Sage. The first channel is the marketplace itself (workers arrive with no application), the second is
-founders and programmes who need verified spend rather than attendance, the third is lenders who
-want cash-flow history at the source. Caribbean first: obligations denominate in the region's own
+**Go-to-market.** Programmes and teams first, workers through them: an incubator paying its cohort's
+milestones, a cooperative paying its members for verified deliveries, a company paying contractors,
+a diaspora funder backing one seller. Each brings its own people, so there is no marketplace to
+bootstrap and no Sybil economy to fight; each payout produces a receipt and a record page the
+recipient carries to the next programme. Caribbean first: obligations denominate in the region's own
 currencies at a stamped rate, the composer's supplier and grant templates are written in the track's
 own shapes (two-tranche seller grants, invoice-bound supplier payments), and the diaspora sender's
 currencies (CAD, GBP, EUR) are on the same list. Regulated fiat disbursement is a licensed-partner
@@ -77,21 +93,22 @@ door with a typed contract; it ships when a partner does, and is labelled as pen
 
 ## Impact and scalability
 
-**Evidence of real-world use.** 29 mainnet payouts across two rails, 21 distinct people paid, 23
+**Evidence of real-world use.** 39 mainnet payouts across two rails, 31 distinct people paid,
 refusals on record with reasons; an autonomous third-party agent earned under the same rules and
-has a credit file; a real four-wallet Sybil rotation was caught on-chain and published; a public
-gig is live on the first privacy-class vault. The judge is promotion-gated on live batteries (zero
-wrong auto-pays across 57 rows; 14 attacks with zero leaks and 12 honest submissions with zero
-false holds). Outcomes are computed live on `/outcomes` against the track's own bar, with the gaps
-stated as not yet measured.
+has a credit file; two real wallet-rotation clusters were caught on chain and published — the second
+one after it had taken a whole gig, which is why the workspace exists. The judge is promotion-gated
+on live batteries (zero wrong auto-pays across 57 rows; 14 attacks with zero leaks and 12 honest
+submissions with zero false holds). Outcomes are computed live on `/outcomes` against the track's own
+bar, with the gaps stated as not yet measured.
 
 **Path to deployment and scale.** The rails are mainnet today and the vault model is chain-agnostic
-by construction (one dispatcher, two settlers); a third rail is a settler, not a redesign. Capacity
-is bounded by the founder's budget, not by our operations: the agent designs, verifies and pays
-without a human, and refusals cost nothing. The MSME credit layer scales with the ledger — every
-payout is a record row — and the lender contract is a JSON endpoint any institution can consume.
-The next steps are the licensed fiat door, an institutional LP behind the advance facility, and
-the two-currency book that makes regional netting real on our own obligations.
+by construction (one dispatcher, two settlers); a third rail is a settler, not a redesign. A
+workspace is a table, an invite link and a plan; a programme with a hundred grantees onboards them
+from a phone. Capacity is bounded by the organization's budget, not by our operations: the agent
+designs, verifies and pays without a human, and refusals cost nothing. The MSME credit layer scales
+with the ledger — every payout is a record row — and the lender contract is a JSON endpoint any
+institution can consume. The next steps are org roles and recurring budgets, Pro paid from a
+Starknet wallet, the licensed fiat door, and an institutional LP behind the advance facility.
 
 ## What we don't claim
 
