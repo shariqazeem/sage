@@ -4,7 +4,7 @@ import { getDecisionBySubmission, listSubmissions } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { briefFromRow } from "@/lib/deputy/decisions";
 import { firstFunderOf } from "@/lib/deputy/funding-graph";
-import { defaultRpc, ETH_TOKEN, latestBlock, STRK_TOKEN, transfersTo } from "@/lib/starknet/transfers";
+import { defaultRpc, ETH_TOKEN, latestBlock, type Rpc, STRK_TOKEN, transfersTo } from "@/lib/starknet/transfers";
 
 /**
  * THE WALLET GRAPH of one campaign — the object the farm forensic was done on, kept live.
@@ -15,37 +15,62 @@ import { defaultRpc, ETH_TOKEN, latestBlock, STRK_TOKEN, transfersTo } from "@/l
  */
 export interface GraphNode { id: string; kind: "vault" | "wallet"; label: string; status: string | null; clustered: boolean; paidBase: number; flags: string[] }
 export interface GraphEdge { from: string; to: string; kind: "payout" | "consolidation" | "gas"; amountBase?: number }
-export interface WalletGraph { campaignId: string; title: string; rail: "evm" | "starknet"; nodes: GraphNode[]; edges: GraphEdge[]; readAt: number; partial: boolean }
+export interface WalletGraph { campaignId: string; title: string; rail: "evm" | "starknet"; nodes: GraphNode[]; edges: GraphEdge[]; readAt: number; partial: boolean; /** chain reads that failed — the picture may be missing gas edges */ readErrors: number }
 
 const bare = (w: string) => w.trim().toLowerCase().replace(/^0x/, "").replace(/^0+/, "");
 const cache = new Map<string, { at: number; graph: WalletGraph }>();
 const TTL = 10 * 60;
 const MAX_WALLETS = 60;
 
-async function gasFunders(rail: "evm" | "starknet", chainId: number, wallets: string[]): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
+/**
+ * The block the campaign's life began at, from the chain's own pace: two block timestamps give
+ * seconds per block, and the campaign's creation time (minus a day of slack) gives the depth. A
+ * fixed "last N blocks" was hours on Starknet — the farm's gas chain, a day old, read as nothing.
+ */
+async function blockAtTime(rpc: Rpc, head: number, atSec: number): Promise<number> {
+  const ts = async (n: number) => Number(((await rpc("starknet_getBlockWithTxHashes", [{ block_number: n }])) as { timestamp: number }).timestamp);
+  const span = Math.min(head, 5_000);
+  const [tHead, tPast] = await Promise.all([ts(head), ts(head - span)]);
+  const secPerBlock = Math.max(0.5, (tHead - tPast) / span);
+  const depth = Math.ceil((tHead - atSec) / secPerBlock);
+  return Math.max(0, head - Math.min(depth, 3_000_000));
+}
+
+async function gasFunders(rail: "evm" | "starknet", chainId: number, wallets: string[], sinceSec: number): Promise<{ funders: Map<string, string[]>; errors: number }> {
+  const funders = new Map<string, string[]>();
+  let errors = 0;
   const set = new Set(wallets.map(bare));
   if (rail === "starknet") {
     const rpc = defaultRpc();
-    if (!rpc) return out;
-    const head = await latestBlock(rpc).catch(() => null);
-    if (head === null) return out;
+    if (!rpc) return { funders, errors: 1 };
+    let from = 0;
+    try {
+      const head = await latestBlock(rpc);
+      from = await blockAtTime(rpc, head, sinceSec - 86_400);
+    } catch {
+      return { funders, errors: 1 };
+    }
     for (const w of wallets) {
       try {
-        const inc = [...(await transfersTo(rpc, STRK_TOKEN, w, head - 20_000)), ...(await transfersTo(rpc, ETH_TOKEN, w, head - 20_000))];
-        const funders = [...new Set(inc.map((t) => t.from).filter((f) => set.has(bare(f))))];
-        if (funders.length) out.set(bare(w), funders);
-      } catch {
-        /* one unreadable wallet never hides the rest */
+        const inc = [...(await transfersTo(rpc, STRK_TOKEN, w, from)), ...(await transfersTo(rpc, ETH_TOKEN, w, from))];
+        const who = [...new Set(inc.map((t) => t.from).filter((f) => set.has(bare(f))))];
+        if (who.length) funders.set(bare(w), who);
+      } catch (e) {
+        errors += 1;
+        console.warn(`[graph] gas read failed for ${w.slice(0, 10)}…: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    return out;
+    return { funders, errors };
   }
   for (const w of wallets) {
-    const f = await firstFunderOf(w, chainId).catch(() => null);
-    if (f && set.has(bare(f))) out.set(bare(w), [f]);
+    try {
+      const f = await firstFunderOf(w, chainId);
+      if (f && set.has(bare(f))) funders.set(bare(w), [f]);
+    } catch {
+      errors += 1;
+    }
   }
-  return out;
+  return { funders, errors };
 }
 
 export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean } = {}): Promise<WalletGraph> {
@@ -86,11 +111,15 @@ export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean 
     }
   }
   // gas funding, from the chain (cached with the graph)
+  let readErrors = 0;
   if (opts.live !== false) {
-    const funders = await gasFunders(campaign.settlementRail, campaign.chainId, wallets);
-    for (const [to, froms] of funders) for (const f of froms) if (bare(f) !== to) edges.push({ from: bare(f), to, kind: "gas" });
+    const g = await gasFunders(campaign.settlementRail, campaign.chainId, wallets, campaign.createdAt);
+    readErrors = g.errors;
+    for (const [to, froms] of g.funders) for (const f of froms) if (bare(f) !== to) edges.push({ from: bare(f), to, kind: "gas" });
   }
-  const graph: WalletGraph = { campaignId: campaign.id, title: campaign.title, rail: campaign.settlementRail, nodes, edges, readAt: now, partial };
+  const graph: WalletGraph = { campaignId: campaign.id, title: campaign.title, rail: campaign.settlementRail, nodes, edges, readAt: now, partial, readErrors };
+  // a graph whose chain reads failed is not worth keeping for ten minutes
+  if (readErrors > 0) return graph;
   cache.set(campaign.id, { at: now, graph });
   return graph;
 }

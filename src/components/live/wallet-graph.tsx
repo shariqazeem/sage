@@ -87,6 +87,7 @@ export function WalletGraph({ campaignId, title = "Wallet graph" }: { campaignId
         <span><i className="consolidation" /> payout forwarded between submitters</span>
         <span><b /> linked cluster: one person&rsquo;s wallets</span>
         {g.partial && <span>showing the first 60 wallets</span>}
+        {g.readErrors > 0 && <span>some chain reads failed — gas links may be missing</span>}
       </div>
     </section>
   );
