@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, Link2, Loader2, Lock, Users, X } from "lucide-react";
+import { ArrowLeft, Copy, Link2, Loader2, Lock, MessageCircle, Users, X } from "lucide-react";
 import { short, since } from "@/lib/format";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 
@@ -16,7 +16,7 @@ export interface PeopleView {
 
 const initials = (m: PeopleView["members"][number]) => (m.displayName?.trim()[0] ?? (m.viaTelegram ? "T" : (m.address ?? m.key).replace(/^0x0*/, "")[0] ?? "?")).toUpperCase();
 
-/** The people of a workspace: who is in, how to bring the next one in, and the plan's cap in plain sight. */
+/** The people of a workspace: who is in, how the next one gets in, and the plan's cap in plain sight. */
 export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleView) {
   const router = useRouter();
   const [invite, setInvite] = useState<{ url: string; telegram: string } | null>(null);
@@ -60,51 +60,51 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
   };
 
   return (
-    <main className="ws-shell">
-      <div className="ws-head">
+    <main className="ws-shell ws-stagger">
+      <header className="ws-head">
         <div>
-          <Link href="/workspace" className="ws-chip"><ArrowLeft size={11} /> {ws.name}</Link>
-          <h1 className="ws-title" style={{ marginTop: 10 }}>People</h1>
-          <p className="ws-sub">{memberCount} of {Number.isFinite(ws.memberCap) ? ws.memberCap : "unlimited"} on the {ws.plan === "pro" ? "Pro" : "Free"} plan. Members see the work you post and get paid to the wallet they joined with.</p>
+          <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
+          <h1 className="ws-title" style={{ marginTop: 8 }}>People</h1>
+          <p className="ws-sub"><b>{memberCount}</b> of {Number.isFinite(ws.memberCap) ? ws.memberCap : "unlimited"} on the {ws.plan === "pro" ? "Pro" : "Free"} plan. Members see the work you post and are paid to the wallet they joined with.</p>
         </div>
-        <div className="ws-row-side">
-          {invite ? null : (
+        <div className="ws-nav">
+          {!invite && (
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void mintInvite()} disabled={busy}>
               {busy ? <><Loader2 size={14} className="sage-spin2" /> Creating…</> : full ? <><Lock size={14} /> Invite (needs Pro)</> : <><Link2 size={14} /> Invite people</>}
             </button>
           )}
         </div>
-      </div>
+      </header>
 
       {invite && (
-        <div className="ws-card">
-          <div className="ws-card-h"><h2>Share an invite</h2><button className="ws-chip" onClick={() => setInvite(null)} aria-label="Close"><X size={11} /></button></div>
-          <p className="ws-empty">Two links, same door. The first joins with a wallet they already have. The second opens Telegram, where Sage gives them a wallet — no app, no seed phrase.</p>
+        <section className="ws-card">
+          <div className="ws-card-h"><h2><Link2 size={15} /> Share an invite</h2><button className="ws-chip" onClick={() => setInvite(null)} aria-label="Close"><X size={11} /></button></div>
+          <p className="ws-note" style={{ margin: "0 0 4px" }}>Two links, one door. The first joins with a wallet they already have or an email. The second opens Telegram, where Sage gives them a wallet — no app, no seed phrase.</p>
           <div className="ws-invite"><code>{invite.url}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.url, "web")}>{copied === "web" ? "Copied" : <><Copy size={13} /> Copy</>}</button></div>
-          <div className="ws-invite"><code>{invite.telegram}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.telegram, "tg")}>{copied === "tg" ? "Copied" : <><Copy size={13} /> Copy</>}</button></div>
-        </div>
+          <div className="ws-invite"><code>{invite.telegram}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.telegram, "tg")}>{copied === "tg" ? "Copied" : <><MessageCircle size={13} /> Copy</>}</button></div>
+        </section>
       )}
       {err && <p className="ws-err">{err} {full && <Link href="/workspace/settings">Upgrade in Settings.</Link>}</p>}
 
-      <div className="ws-card">
-        <div className="ws-card-h"><h2><Users size={14} /> Members</h2></div>
+      <section className="ws-card">
+        <div className="ws-card-h"><h2><Users size={15} /> Members</h2><span className="ws-chip">{memberCount}</span></div>
         <ul className="ws-list">
           {members.map((m) => (
             <li key={m.key} className="ws-row">
               <div className="ws-member">
                 <span className="ws-avatar">{initials(m)}</span>
                 <div className="ws-row-main">
-                  <p className="ws-row-title">{m.displayName ?? (m.address ? short(m.address) : m.key)}</p>
+                  <p className="ws-row-title"><span className="t">{m.displayName ?? (m.address ? short(m.address) : m.key)}</span></p>
                   <p className="ws-row-meta">{m.role}{m.viaTelegram ? " · joined from Telegram" : ""} · {since(m.joinedAt)}</p>
                 </div>
               </div>
-              {m.role !== "owner" && m.key !== me && (
-                <button className="ws-chip" onClick={() => void remove(m.key)} aria-label="Remove member"><X size={11} /></button>
-              )}
+              <div className="ws-row-side">
+                {m.role === "owner" ? <span className="ws-chip accent">owner</span> : m.key !== me ? <button className="ws-chip" onClick={() => void remove(m.key)} aria-label="Remove member"><X size={11} /> remove</button> : null}
+              </div>
             </li>
           ))}
         </ul>
-      </div>
+      </section>
     </main>
   );
 }

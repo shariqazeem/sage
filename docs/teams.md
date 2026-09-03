@@ -12,7 +12,9 @@ every payout builds the recipient's record; the record unlocks capital.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
+| Sign-in | `/start`, `/join/<code>` | "Continue with email" (Privy: an embedded wallet Sage keeps for the person; the server verifies Privy's token and mints the same session) or a wallet you already have (Ethereum or Starknet). |
 | Onboarding | `/start` | Sign in → what you are here for → name a workspace or join one. The only door from the landing. |
+| Capital | `/workspace/capital` | The FC package from inside: paid on verified work, receipts, people paid with clusters collapsed, each earner's record, the lender view, outcomes, the explorer, the advance facility. |
 | Workspace | `/workspace` | Owner view: work, members + invite links, plan, Sage's recent work. Member view: open work, own status, record. First visit: name it, or paste an invite. |
 | Invites | `/join/<code>` · Telegram `/start ws_inv_<code>` | A wallet link, or a Telegram link that mints the member a Sage wallet (no app, no seed phrase). |
 | Scope | `campaignWorkspace()` | A founder's campaigns belong to their workspace from every door (web, Telegram, MCP). Column `campaigns.workspace_id` for the future. |

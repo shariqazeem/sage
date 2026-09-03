@@ -20,5 +20,12 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const ctx = await workspaceContext();
   if (ctx?.owned) redirect(sp.next && sp.next.startsWith("/") ? sp.next : "/workspace");
-  return <StartFlow signedIn={!!ctx} address={ctx?.address ?? null} hasMemberships={(ctx?.memberships.length ?? 0) > 0} />;
+  return (
+    <StartFlow
+      signedIn={!!ctx}
+      address={ctx?.address ?? null}
+      hasMemberships={(ctx?.memberships.length ?? 0) > 0}
+      emailEnabled={!!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim()}
+    />
+  );
 }

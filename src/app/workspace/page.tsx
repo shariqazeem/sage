@@ -48,6 +48,7 @@ export default async function WorkspacePage() {
         paid: subs.filter((s) => s.status === "paid").length,
         pending: subs.filter((s) => s.status === "pending" || s.status === "settling").length,
         slots: e.missions.reduce((n, m) => n + m.maxCompletions, 0),
+        paidBase: subs.filter((s) => s.status === "paid").length * c.rewardAmount,
       };
     });
     const view: OwnerView = {

@@ -106,6 +106,23 @@ export async function verifyAndCreateSession(args: {
   return address;
 }
 
+/**
+ * PRIVY SIGN-IN. The address was not proven by a signature in this request: Privy verified the
+ * person (email, passkey, social) and reports the embedded wallet it holds for them. The server
+ * verifies Privy's token and then mints the SAME session a SIWE sign-in would — one identity
+ * model, two doors. Only the Privy route may call this.
+ */
+export async function createSessionForVerifiedAddress(address: string): Promise<Address | null> {
+  let a: Address;
+  try {
+    a = getAddress(address);
+  } catch {
+    return null;
+  }
+  await mintSession(a);
+  return a;
+}
+
 async function mintSession(address: Address): Promise<void> {
   const issued = Date.now();
   const payload = `${address}.${issued}`;

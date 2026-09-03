@@ -1,3 +1,4 @@
+import { SagePrivyProvider } from "@/components/auth/privy-provider";
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/site";
 import { StructuredData } from "@/components/seo/structured-data";
@@ -100,8 +101,10 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${geist.variable}`}>
       <body>
         <StructuredData />
-        {children}
-        <AppShell />
+        <SagePrivyProvider appId={process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim() || null}>
+          {children}
+          <AppShell />
+        </SagePrivyProvider>
         <FeedbackWidget />
       </body>
     </html>

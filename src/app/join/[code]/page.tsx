@@ -15,5 +15,5 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   const invite = getInvite(code);
   const ws = invite ? getWorkspace(invite.workspaceId) : null;
   const open = !!invite && !!ws && !invite.revokedAt && invite.uses < invite.maxUses;
-  return <JoinCard code={code} workspaceName={ws?.name ?? null} open={open} />;
+  return <JoinCard code={code} workspaceName={ws?.name ?? null} open={open} emailEnabled={!!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim()} />;
 }
