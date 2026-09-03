@@ -70,7 +70,8 @@
 .lv-tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-family: var(--font-mono); font-size: 11px; padding: 6px 8px; border-radius: 6px; white-space: pre; transform: translate(-50%, calc(-100% - 10px)); opacity: 0; transition: opacity var(--dur-1); }
 .lv-tip.on { opacity: 1; }
 
-.exp-graph { display: inline-block; margin: -6px 0 8px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--accent); text-decoration: none; }
+.exp-list li { position: relative; }
+.exp-graph { position: absolute; right: 16px; bottom: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--accent); text-decoration: none; padding: 2px 8px; border: 1px solid var(--accent-border); border-radius: 999px; background: var(--surface); }
 .exp-graph:hover { text-decoration: underline; }
 
 /* ═══ THE VAULT, DRAWN ═══ */

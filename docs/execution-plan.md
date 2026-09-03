@@ -745,3 +745,15 @@ every new route 404'd. The build's exit code was the only truthful signal and no
 **Rule:** a deploy is believed only when the log shows `== sync N files ==` with the expected N *and* a
 curl of a route that did not exist before answers 200. Both are now in the deploy job's probe step.
 
+### Finding 34 (2026-09-04, drawing the wallet graph)
+
+**The recorded farm cluster held no one.** `wallet_links` rows were written by the consolidation watch
+in the chain's padded felt form and read back — by the judge's cluster signal, the finalization watch
+and the graph — with the submission's unpadded form. Every caller type-checked and the sybil suite was
+green; a HIGH signal was dead in production for a day. The graph drawn from the same table showed
+0 links where 9 were known, which is the only reason it was found. Lookups now match every spelling and
+the closure is keyed by the wallet (`wallet-links-forms.test.ts` writes one spelling and reads the
+other). The graph's gas read had the twin defect: a fixed 20k-block window is hours on Starknet, so a
+day-old gas chain read as nothing; the window is now derived from the campaign's age via the chain's own
+block time, and failed chain reads are counted rather than hidden.
+

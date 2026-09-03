@@ -29,7 +29,9 @@ and turns every payout into a credit record that unlocks working capital without
 
 **Data sources.** Copy the "Data sources" section from the technical documentation.
 
-**Evidence of real use.** 41 mainnet payouts on two rails (28 GOAT, 13 Starknet), 34 wallets, 27
-distinct people after linked clusters are collapsed, 26 refusals with reasons — LIVE, refresh.
+**Evidence of real use.** 39 mainnet payouts on two rails (26 GOAT, 13 Starknet) to 32 wallets,
+$63.60 settled, 26 refusals with reasons — and fewer distinct people than wallets once linked clusters
+are collapsed (the first Starknet gig's ten payouts went to one operator; the ledger says so at
+`/graph/gig-1c3e_FjffE`). LIVE — refresh from `/explorer` before submitting.
 
 **Team.** Shariq Shaukat (solo), with Sage's own agent doing the verifying and paying.

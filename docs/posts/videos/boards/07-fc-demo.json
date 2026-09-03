@@ -56,8 +56,9 @@
     {
       "shot": "explorer.png",
       "title": "Every settlement. Every refusal.",
-      "caption": "LIVE: $63.60 settled · 41 payouts · 26 refused — the refusals are the institutional asset",
-      "seconds": 5
+      "caption": "LIVE: $63.60 settled · 39 payouts · 26 refused — the refusals are the institutional asset",
+      "seconds": 5,
+      "sub": ""
     },
     {
       "shot": "graph.png",
