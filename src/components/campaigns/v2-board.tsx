@@ -89,6 +89,8 @@ interface MySubmission {
     coaching: string;
   } | null;
   autopay: { state: "settled" | "held"; reason: string | null } | null;
+  /** the founder's reason when they refused it — shown to the worker, verbatim. */
+  rejectReason: string | null;
 }
 
 const clamp01 = (n: number) =>
@@ -145,7 +147,10 @@ function beat(m: MySubmission): {
   if (m.status === "rejected")
     return {
       icon: <XCircle size={15} color="var(--dan)" />,
-      text: "This submission did not meet the mission criteria",
+      // The reason itself is rendered in full below (the retry block carries it); this line is the beat.
+      text: m.retry?.retryable
+        ? "Not accepted — here's why, and you can resubmit"
+        : "Not accepted this time",
       color: "var(--dan)",
     };
   if (m.status === "blocked")
@@ -186,14 +191,26 @@ function beat(m: MySubmission): {
     !!m.brief &&
     (m.autopay?.state === "held" || m.brief.recommendation !== "pay");
   if (held) {
+    // The judge approved and the autopilot still held it (a copy of another submission, a cap): say
+    // so — "Verified · 95%" here read as "paying" to a worker whose money was not moving.
+    if (m.brief?.recommendation === "pay" && m.autopay?.state === "held")
+      return {
+        icon: <Clock size={15} color="var(--warn)" />,
+        text: "Verified, but held for the founder — see why below",
+        color: "var(--warn)",
+      };
+    const unmet = (m.brief?.criteria ?? []).filter((c) => c.met === false).length;
+    const total = (m.brief?.criteria ?? []).length;
     const why = highFraud
       ? "a fraud signal was flagged"
-      : m.brief?.recommendation === "hold"
-        ? "Sage needs more evidence"
-        : "needs a human look";
+      : unmet > 0
+        ? `Sage couldn't confirm ${unmet} of ${total} ${total === 1 ? "requirement" : "requirements"}`
+        : m.brief?.recommendation === "hold"
+          ? "Sage needs more evidence"
+          : "needs a human look";
     return {
       icon: <Clock size={15} color="var(--warn)" />,
-      text: `Held — ${why}`,
+      text: m.retry?.retryable ? `Held — ${why} · you can revise` : `Held — ${why}`,
       color: "var(--warn)",
     };
   }
@@ -645,6 +662,11 @@ function MissionCard({
                   materialize={materialized}
                 />
               ) : null}
+              {!mine.observation && mine.retry && !mine.retry.retryable && (
+                <p className="v2-retry-coach" style={{ marginTop: 10 }}>
+                  {mine.retry.coaching}
+                </p>
+              )}
               {/* P20 retry-while-held: a thin-but-genuine observation hold self-cures — coach + let the
                   tester revise in place (no new row, no dead end). Founder is NOT pinged until attempts run out. */}
               {canRetry &&
@@ -652,10 +674,16 @@ function MissionCard({
                   formBlock
                 ) : (
                   <div className="v2-retry">
-                    <MatchRing
-                      matched={mine.observation?.distinctSources ?? 0}
-                      total={mine.observation?.keyDistinctSources ?? 0}
-                    />
+                    {mine.observation ? (
+                      <MatchRing
+                        matched={mine.observation.distinctSources}
+                        total={mine.observation.keyDistinctSources}
+                      />
+                    ) : (
+                      <div className="v2-retry-icon" aria-hidden>
+                        <RefreshCw size={18} />
+                      </div>
+                    )}
                     <div className="v2-retry-body">
                       <p className="v2-retry-coach">{mine.retry!.coaching}</p>
                       <button

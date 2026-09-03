@@ -15,4 +15,9 @@ describe("retryVerdict — refused or held gig work can be revised; approved, pa
     expect(retryVerdict(sub("pending"), { recommendation: "pay" }).ok).toBe(false);
     expect(retryVerdict(sub("pending"), { recommendation: "hold", fraudSignals: [{ severity: "high" }] }).ok).toBe(false);
   });
+
+  it("a founder's refusal outranks a stale pay brief — the refused worker may republish and resubmit", () => {
+    expect(retryVerdict({ status: "rejected", attempt: 1 }, { recommendation: "pay" }).ok).toBe(true);
+    expect(retryVerdict({ status: "pending", attempt: 1 }, { recommendation: "pay" }).ok).toBe(false);
+  });
 });

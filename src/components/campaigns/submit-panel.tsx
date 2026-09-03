@@ -26,6 +26,8 @@ interface MySubmission {
   /** the worker's OWN decision brief (own-scope) — null until the Deputy decides. */
   brief: DecisionBrief | null;
   autopay: { state: "settled" | "held"; reason: string | null } | null;
+  rejectReason: string | null;
+  retry: { attempt: number; maxAttempts: number; attemptsLeft: number; retryable: boolean; coaching: string } | null;
 }
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
@@ -45,7 +47,7 @@ function workerBeat(m: MySubmission): { icon: ReactNode; text: string; color: st
   if (m.status === "rejected")
     return {
       icon: <XCircle size={15} color="var(--dan)" />,
-      text: "Not accepted this time",
+      text: m.retry?.retryable ? "Not accepted — here's why, and you can resubmit" : "Not accepted this time",
       color: "var(--dan)",
     };
   if (m.status === "blocked")
@@ -57,14 +59,24 @@ function workerBeat(m: MySubmission): { icon: ReactNode; text: string; color: st
   const highFraud = m.brief?.fraudSignals?.some((f) => f.severity === "high");
   const held = m.autopay?.state === "held" || (!!m.brief && m.brief.recommendation !== "pay");
   if (held) {
+    if (m.brief?.recommendation === "pay" && m.autopay?.state === "held")
+      return {
+        icon: <Clock size={15} color="var(--warn)" />,
+        text: "Verified, but held for the founder — see why below",
+        color: "var(--warn)",
+      };
+    const unmet = (m.brief?.criteria ?? []).filter((c) => c.met === false).length;
+    const total = (m.brief?.criteria ?? []).length;
     const why = highFraud
       ? "a fraud signal was flagged"
-      : m.brief?.recommendation === "hold"
-        ? "criteria not fully met"
-        : "needs a human look";
+      : unmet > 0
+        ? `Sage couldn't confirm ${unmet} of ${total} ${total === 1 ? "requirement" : "requirements"}`
+        : m.brief?.recommendation === "hold"
+          ? "criteria not fully met"
+          : "needs a human look";
     return {
       icon: <Clock size={15} color="var(--warn)" />,
-      text: `Held for human review — ${why}`,
+      text: m.retry?.retryable ? `Held — ${why} · you can revise` : `Held for human review — ${why}`,
       color: "var(--warn)",
     };
   }
@@ -128,6 +140,8 @@ export function SubmitPanel({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mine, setMine] = useState<MySubmission | null>(null);
+  // a held/refused entry re-opens the form in place: the route revises the existing row (attempt+1).
+  const [revising, setRevising] = useState(false);
   // fire the receipt "materialize" once, the moment the brief first lands.
   const [materialized, setMaterialized] = useState(false);
   const hadBrief = useRef(false);
@@ -202,6 +216,7 @@ export function SubmitPanel({
         setError(json.error ?? "Could not submit.");
         return;
       }
+      setRevising(false);
       await loadMine();
     } catch {
       setError("Network error. Try again.");
@@ -309,7 +324,7 @@ export function SubmitPanel({
   }
 
   /* ── already submitted → watch the Deputy work, live ────────────────── */
-  if (mine) {
+  if (mine && !revising) {
     const beat = workerBeat(mine);
     return (
       <div className="sage-subs">
@@ -343,6 +358,28 @@ export function SubmitPanel({
                 threshold={threshold}
                 materialize={materialized}
               />
+            )}
+            {/* Why it was held or refused, in words the worker can act on — and the way back to the form.
+                Before this the panel said "Not accepted this time" and offered nothing else. */}
+            {mine.retry && (
+              <div className="v2-retry" style={{ marginTop: 12 }}>
+                <div className="v2-retry-body">
+                  <p className="v2-retry-coach">{mine.retry.coaching}</p>
+                  {mine.retry.retryable && (
+                    <button
+                      className="sage-btn sage-btn-primary sage-btn-sm"
+                      onClick={() => {
+                        setError(null);
+                        setEvidence(mine.evidenceUrl ?? "");
+                        setRevising(true);
+                      }}
+                    >
+                      Revise &amp; resubmit
+                      <span className="v2-retry-count mono">{mine.retry.attemptsLeft} left</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <div className="sage-sub-side">

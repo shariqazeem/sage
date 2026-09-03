@@ -295,6 +295,16 @@
   align-items: center;
   gap: var(--s-3);
 }
+.v2-retry-icon {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
 .v2-retry-body {
   flex: 1;
   min-width: 0;

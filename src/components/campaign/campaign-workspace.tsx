@@ -31,7 +31,7 @@ export interface WorkspaceSubmission {
   wallet: string;
   missionTitle: string;
   /** reviewing = no decision yet · verified = decided pay, settling/awaiting · held · paid */
-  state: "reviewing" | "verified" | "held" | "paid";
+  state: "reviewing" | "verified" | "held" | "refused" | "paid";
   confidence: number | null;
   reason: string | null;
   proofTx: string | null;
@@ -198,8 +198,9 @@ const STATE_META: Record<
   { label: string; cls: string }
 > = {
   reviewing: { label: "Reviewing", cls: "cw-st-rev" },
-  verified: { label: "Verified · settling", cls: "cw-st-ver" },
+  verified: { label: "Verified · paying", cls: "cw-st-ver" },
   held: { label: "Held", cls: "cw-st-held" },
+  refused: { label: "Refused", cls: "cw-st-held" },
   paid: { label: "Paid", cls: "cw-st-paid" },
 };
 

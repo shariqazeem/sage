@@ -15,40 +15,13 @@ import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { observationCoaching, observationCriteriaCoaching } from "@/lib/deputy/reason-copy";
 import { RETRY_RESERVATION_MINUTES } from "@/lib/campaigns/slot-reservation";
-import { decodeDetail } from "@/lib/campaigns/journal";
+import { autopayForSubmission } from "@/lib/campaigns/own-autopay";
+import { urlLaneRetry } from "@/lib/campaigns/retry-coaching";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** The latest autonomous outcome for one submission (events are newest-first). */
-function ownAutopay(
-  campaignId: string,
-  submissionId: string,
-): { state: "settled" | "held"; reason: string | null } | null {
-  for (const e of listCampaignEvents(campaignId)) {
-    if (e.submissionId !== submissionId) continue;
-    if (e.kind !== "autopay_settled" && e.kind !== "autopay_held") continue;
-    const text = decodeDetail(e.detail).text ?? "";
-    const parts = text.split(" · ");
-    return {
-      state: e.kind === "autopay_settled" ? "settled" : "held",
-      reason:
-        e.kind === "autopay_held"
-          ? parts.length > 1
-            ? parts.slice(1).join(" · ")
-            : text
-          : null,
-    };
-  }
-  return null;
-}
-
-/**
- * The authenticated wallet's OWN submission to this campaign, or null — now with
- * its decision brief + autonomous outcome so the worker watches the Deputy verify
- * and pay their own entry live. Own-scope ONLY: no other submitter's note, wallet,
- * or brief is ever exposed here.
- */
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
@@ -86,7 +59,7 @@ export async function GET(
   // For an OBSERVATION mission Sage judges against its own private eyes — never the url-verifiable brain.
   // The observation verdict (present only for observation missions) tells the board which panel to render.
   const observation = observationFromRow(stored);
-  const autopay = ownAutopay(id, sub.id);
+  const autopay = autopayForSubmission(listCampaignEvents(id), sub.id);
 
   // P20 retry-while-held: a thin-but-genuine observation hold can be revised in place (≤3 attempts). The
   // board reads `retry` to offer a resubmit affordance + leak-safe coaching. Counts only — never corpus text.
@@ -125,7 +98,10 @@ export async function GET(
                 ? "This submission was flagged for review — the founder is taking a look."
                 : `Sage couldn't auto-clear this after ${OBS_MAX_ATTEMPTS} attempts — the founder is reviewing it now.`,
         }
-      : null;
+      : // url-lane (gig / grant / testing): why it was held or refused, and whether a revise is open.
+        observation
+        ? null
+        : urlLaneRetry(sub, stored ? briefFromRow(stored) : null, autopay?.state === "held" ? autopay.reason : null);
 
   return NextResponse.json({
     authed: true,
@@ -134,6 +110,7 @@ export async function GET(
       status: sub.status,
       payoutTx: sub.payoutTx,
       evidenceUrl: sub.evidenceUrl,
+      rejectReason: sub.status === "rejected" ? (sub.rejectReason ?? null) : null,
       // url-verifiable missions carry the brain brief; observation missions carry the observation verdict.
       brief: observation ? null : stored ? briefFromRow(stored) : null,
       observation,

@@ -2,7 +2,8 @@ import "../../app/app.css";
 import "../../app/motion.css";
 import "../../app/demo-moments.css";
 import { notFound, redirect } from "next/navigation";
-import { getCampaign, listSubmissions, getDecisionBySubmission } from "@/lib/db/campaigns";
+import { getCampaign, listSubmissions, getDecisionBySubmission, listCampaignEvents } from "@/lib/db/campaigns";
+import { autopayForSubmission } from "@/lib/campaigns/own-autopay";
 import { reconcileStopped } from "@/lib/campaigns/reconcile-stopped";
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
@@ -72,6 +73,7 @@ export default async function CampaignConsolePage({
    */
   const integrity = { decided: 0, twins: 0, nearDups: 0, freshWallets: 0, clusters: 0, otherFlags: 0 };
 
+  const journal = isOwner ? listCampaignEvents(campaign.id) : [];
   const submissions: WorkspaceSubmission[] = isOwner
     ? listSubmissions(campaign.id)
         .sort((a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt))
@@ -95,16 +97,22 @@ export default async function CampaignConsolePage({
           // (matched N of M), never the url-lane brain's confidence % or evidence_mismatch reason.
           const observation = observationFromRow(decision);
           const brief = observation ? null : decision ? briefFromRow(decision) : null;
+          // What the autopilot DID with the row, from the journal — a brief that says "pay" is a
+          // recommendation, and the copy gate or the cap can still hold it. Before this the console
+          // showed such a row as "Verified · settling" indefinitely; the hold was recorded all along.
+          const autopay = autopayForSubmission(journal, s.id);
           const state: WorkspaceSubmission["state"] =
             s.status === "paid" && s.payoutTx
               ? "paid"
-              : observation
-                ? "held" // observation missions hold for the founder's review while autopay is off
-                : !brief
-                  ? "reviewing"
-                  : brief.recommendation === "pay"
-                    ? "verified"
-                    : "held";
+              : s.status === "rejected"
+                ? "refused"
+                : observation
+                  ? "held" // observation missions hold for the founder's review while autopay is off
+                  : !brief
+                    ? "reviewing"
+                    : brief.recommendation === "pay" && autopay?.state !== "held"
+                      ? "verified"
+                      : "held";
           return {
             id: s.id,
             wallet: s.wallet,
@@ -112,9 +120,14 @@ export default async function CampaignConsolePage({
             state,
             // no url-lane % for observation; the match count is the verdict (leak-safe: counts only).
             confidence: observation ? null : brief?.confidence ?? null,
-            reason: observation
-              ? `matched ${observation.distinctSources} of ${observation.keyDistinctSources} of Sage's own observations${observation.barPass ? " · clears the bar" : ""}`
-              : brief?.reasonCode ?? brief?.summary ?? null,
+            reason:
+              state === "refused"
+                ? (s.rejectReason ?? "refused by the founder")
+                : observation
+                  ? `matched ${observation.distinctSources} of ${observation.keyDistinctSources} of Sage's own observations${observation.barPass ? " · clears the bar" : ""}`
+                  : autopay?.state === "held" && brief?.recommendation === "pay"
+                    ? `verified, then held: ${autopay.reason ?? "held by the autopilot"}`
+                    : brief?.reasonCode ?? brief?.summary ?? null,
             proofTx: s.status === "paid" ? s.payoutTx : null,
             at: s.decidedAt ?? s.createdAt,
             /**

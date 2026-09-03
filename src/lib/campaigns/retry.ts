@@ -13,7 +13,7 @@ export const MAX_ATTEMPTS = 3;
 
 export interface RetryBrief {
   recommendation?: string | null;
-  fraudSignals?: Array<{ severity?: string | null }> | null;
+  fraudSignals?: ReadonlyArray<{ severity?: string | null }> | null;
 }
 
 export type RetryVerdict = { ok: true } | { ok: false; error: string };
@@ -26,7 +26,12 @@ export function retryVerdict(existing: Pick<Submission, "status" | "attempt">, b
   if ((brief?.fraudSignals ?? []).some((f) => f.severity === "high")) {
     return { ok: false, error: "This submission was held for a fraud signal and is with the founder — it can't be revised." };
   }
-  if (brief?.recommendation === "pay") return { ok: false, error: "This submission is already approved and waiting to be paid — it can't be revised." };
+  // A refusal outranks the brief: the founder can refuse work the judge approved (a paste-service
+  // page, a copy the gate caught), and that worker must be able to republish and resubmit — the
+  // stale "pay" is not a payout waiting to happen.
+  if (brief?.recommendation === "pay" && existing.status !== "rejected") {
+    return { ok: false, error: "This submission is already approved and waiting to be paid — it can't be revised." };
+  }
   if ((existing.attempt ?? 1) >= maxAttempts) {
     return { ok: false, error: `You've used all ${maxAttempts} attempts on this mission — it's now with the founder for review.` };
   }
