@@ -29,6 +29,17 @@ every payout builds the recipient's record; the record unlocks capital.
 4. Members see it on their `/workspace` (and on Telegram), do it, submit the link. Sage verifies against the brief, the deterministic gates (durable host, own words, word floor, copy and Sybil checks) and pays inside the vault's limits. Held or refused work shows the reason and the revise path.
 5. Every payout is a receipt; every recipient's record grows at `/record/<wallet>`; on Pro, a member can take a self-serve advance against verified inflow.
 
+## Public campaigns, from inside
+
+The public board is still a door — from inside the workspace, not instead of it. A team that wants
+strangers (a testing run, an open bounty) unticks *invite-only* and the campaign lists on the
+marketplace. What changes is who decides: on a **members-only** campaign Sage pays automatically
+inside the vault's limits; on a **public** campaign Sage still does every check — the brief, the
+deterministic gates, copies, wallet clusters, author-account age, pace — and then **the team
+releases each payout** from the console with Sage's assessment beside it. The agent filters; the
+organization decides. Sybil detection keeps improving under the same batteries, and the judge is
+promotion-gated on them.
+
 ## Why this is the FC story
 
 The track asks for infrastructure that moves money for MSMEs, judged by people from verified-repayment

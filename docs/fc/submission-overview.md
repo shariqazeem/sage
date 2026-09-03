@@ -25,6 +25,11 @@ workspace (org + members) → witness (agent) → obligation (signed, capped) �
       → record (public tape or selective proof) → capital in (the advance facility)
 ```
 
+**Public campaigns, from inside.** The public board is still a door, opened from the workspace: a
+team that wants strangers unticks invite-only and the campaign lists on the marketplace. Members-only
+work autopays inside the vault's limits; public work gets every one of Sage's checks and then the team
+releases each payout with Sage's assessment beside it. The agent filters, the organization decides.
+
 **Why a workspace and not an open board.** We ran the open version first. Every public campaign was
 farmed by the same returning group with rotating wallets — the last one 10 of 10 rewards to one
 operator, proven on chain (gas funded wallet-to-wallet, payouts forwarded to one hub minutes after

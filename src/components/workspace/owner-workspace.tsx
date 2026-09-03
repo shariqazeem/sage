@@ -44,7 +44,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div>
           <div className="sage-eyebrow"><Building2 size={13} /> Workspace</div>
           <h1 className="ws-title">{ws.name}</h1>
-          <p className="ws-sub">{view.memberCount} member{view.memberCount === 1 ? "" : "s"} · {live.length} open · {ws.plan === "pro" ? "Pro" : "Free plan"}</p>
+          <p className="ws-sub">{view.memberCount} member{view.memberCount === 1 ? "" : "s"} · {live.length} open · {ws.plan === "pro" ? "Pro" : "Free plan"} — Sage verifies the work and pays it inside the budget you fund.</p>
         </div>
         <div className="ws-nav">
           <Link className="ws-chip" href="/workspace/people"><Users size={11} /> People</Link>
@@ -66,7 +66,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             <li className={posted ? "done" : ""}>
               <span className="ws-check-n">{posted ? <CheckCircle2 size={12} /> : "2"}</span>
               <span className="ws-check-t">Post the work</span>
-              <span className="ws-check-s">A gig, a milestone grant or a testing run. Invite-only keeps it to members.</span>
+              <span className="ws-check-s">A gig, a milestone grant or a testing run — members-only, or open to the public board with Sage filtering and you deciding who is paid.</span>
               <Link href="/launch?do=pay">Post work →</Link>
             </li>
             <li className={paid ? "done" : ""}>
