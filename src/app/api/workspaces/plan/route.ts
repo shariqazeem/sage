@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAddress } from "viem";
 import { workspaceContext, canManage } from "@/lib/workspaces/context";
 import { getWorkspace, memberRole, recordPlanPayment } from "@/lib/db/workspaces";
-import { extendedUntil, findUsdcPayment } from "@/lib/workspaces/plan-payment";
+import { extendedUntil, findUsdcPayment, operatorAddress } from "@/lib/workspaces/plan-payment";
 import { PRO_PERIOD_SECONDS, proPriceUsd } from "@/lib/workspaces/plan";
 import { publicClient } from "@/lib/deputy/chain";
 import { GOAT_USDC } from "@/lib/deputy/networks";
@@ -11,16 +11,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const GOAT = 2345;
-
-/** Where a Pro payment goes: Sage's operator wallet on GOAT (the same one the vaults name). */
-export function operatorAddress(): string | null {
-  const raw = process.env.GOAT_OPERATOR_ADDRESS?.trim() || process.env.NEXT_PUBLIC_OPERATOR_ADDRESS?.trim();
-  try {
-    return raw ? getAddress(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 /** GET — what to pay, where, in what. */
 export async function GET() {

@@ -55,3 +55,13 @@ export function findUsdcPayment(
 export function extendedUntil(currentUntil: number | null, nowSec: number, periodSec: number): number {
   return Math.max(currentUntil ?? 0, nowSec) + periodSec;
 }
+
+/** Where a Pro payment goes: Sage's operator wallet on GOAT (the same one the vaults name). */
+export function operatorAddress(): string | null {
+  const raw = process.env.GOAT_OPERATOR_ADDRESS?.trim() || process.env.NEXT_PUBLIC_OPERATOR_ADDRESS?.trim();
+  try {
+    return raw ? getAddress(raw) : null;
+  } catch {
+    return null;
+  }
+}
