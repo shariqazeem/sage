@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Rocket, Sparkles, ArrowRight, ArrowUpRight, Check, CheckCircle2, CircleDot, Clock, Compass, HandCoins, Inbox, ShieldCheck, Square, XCircle } from "lucide-react";
+import { Rocket, Sparkles, ArrowRight, ArrowUpRight, CheckCircle2, Clock, HandCoins, Inbox, ShieldCheck, XCircle, Check, CircleDot, Square } from "lucide-react";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import { reward as fmtReward } from "@/lib/format";
 import "@/styles/tester-board.css";
@@ -155,13 +155,13 @@ export function DashboardClient({
     <main className="sb-board sb-dash">
       <div className="sb-welcome">
         <div>
-          <div className="sage-eyebrow dash-eyebrow">Founder dashboard</div>
+          <div className="sage-eyebrow dash-eyebrow">Work</div>
         {/* A greeting, not a hex dump. The address is identity plumbing — real products greet
             the person and keep the key in the small print. */}
         <h1 className="sb-welcome-h1 dash-display">Your money at work.</h1>
         <p className="sb-welcome-sub">
-          Test a product, pay for a deliverable, or fund milestones — Sage verifies every claim
-          itself and settles from a vault it can never exceed.
+          Everything you have posted, and what Sage did with it — verified, paid or held, receipt by
+          receipt, from a vault it can never exceed.
           {address && (
             <span className="sb-welcome-wallet mono"> {short(address)}</span>
           )}
@@ -182,7 +182,7 @@ export function DashboardClient({
           </div>
           <div className="sb-dash-stat">
             <CountUp className="sb-dash-stat-v" value={live ? approvedRecipients : 0} />
-            <span className="sb-dash-stat-k">Testers</span>
+            <span className="sb-dash-stat-k">People paid</span>
           </div>
         </div>
       </div>
@@ -205,39 +205,13 @@ export function DashboardClient({
           <span className="sb-home-card-ico">
             <HandCoins size={20} strokeWidth={1.9} />
           </span>
-          <span className="sb-home-card-title dash-h3">Pay for work</span>
+          <span className="sb-home-card-title dash-h3">Post work</span>
           <span className="sb-home-card-desc">
-            A gig, a bounty, a milestone grant — say it once. Sage verifies the deliverable itself
-            and releases each payment only on proof.
+            A gig, a milestone grant — say it once. Sage verifies the deliverable itself and
+            releases each payment only on proof. Members-only when you choose.
           </span>
           <span className="sb-home-card-cta">
             Start <ArrowRight size={14} strokeWidth={2.2} />
-          </span>
-        </Link>
-        <Link href="/marketplace" className="sage-agent-card sb-agent-tap sb-home-card">
-          <span className="sb-home-card-ico">
-            <Compass size={20} strokeWidth={1.9} />
-          </span>
-          <span className="sb-home-card-title dash-h3">Browse the marketplace</span>
-          <span className="sb-home-card-desc">
-            Every mission open across Sage right now — see what other founders are paying for, or do
-            one yourself and get paid in USDC.
-          </span>
-          <span className="sb-home-card-cta">
-            Browse <ArrowRight size={14} strokeWidth={2.2} />
-          </span>
-        </Link>
-        <Link href="/agent" className="sage-agent-card sb-agent-tap sb-home-card">
-          <span className="sb-home-card-ico">
-            <Sparkles size={20} strokeWidth={1.9} />
-          </span>
-          <span className="sb-home-card-title dash-h3">Talk to Sage</span>
-          <span className="sb-home-card-desc">
-            Ask Sage to inspect a product, plan missions, or check any campaign or payout — in plain
-            language.
-          </span>
-          <span className="sb-home-card-cta">
-            Open chat <ArrowRight size={14} strokeWidth={2.2} />
           </span>
         </Link>
       </div>

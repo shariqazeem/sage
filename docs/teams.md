@@ -12,6 +12,7 @@ every payout builds the recipient's record; the record unlocks capital.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
+| Onboarding | `/start` | Sign in → what you are here for → name a workspace or join one. The only door from the landing. |
 | Workspace | `/workspace` | Owner view: work, members + invite links, plan, Sage's recent work. Member view: open work, own status, record. First visit: name it, or paste an invite. |
 | Invites | `/join/<code>` · Telegram `/start ws_inv_<code>` | A wallet link, or a Telegram link that mints the member a Sage wallet (no app, no seed phrase). |
 | Scope | `campaignWorkspace()` | A founder's campaigns belong to their workspace from every door (web, Telegram, MCP). Column `campaigns.workspace_id` for the future. |
