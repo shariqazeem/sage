@@ -63,7 +63,8 @@ export function SettingsPanel({ workspace: ws, account, payments }: SettingsView
       <header className="ws-head">
         <div>
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
-          <h1 className="ws-title" style={{ marginTop: 8 }}>Settings</h1>
+          <span className="ws-eyebrow" style={{ marginTop: 10 }}>Account</span>
+          <h1 className="ws-title">Settings</h1>
           <p className="ws-sub">The workspace, its plan, and the wallets behind your account.</p>
         </div>
         <div className="ws-nav"><span className={`ws-plan${ws.plan === "pro" ? " pro" : ""}`}>{ws.plan === "pro" ? <><Sparkles size={12} /> Pro</> : "Free plan"}</span></div>

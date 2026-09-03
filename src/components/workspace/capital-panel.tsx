@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Banknote, BarChart3, Blocks, FileText, Globe2, Landmark, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Banknote, BarChart3, Blocks, FileText, Globe2, Landmark, ShieldCheck, Users, Wallet } from "lucide-react";
 import { short, since, usd } from "@/lib/format";
 
 export interface CapitalView {
@@ -21,7 +21,8 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
       <header className="ws-head">
         <div>
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {view.workspace.name}</Link>
-          <h1 className="ws-title" style={{ marginTop: 8 }}>Capital</h1>
+          <span className="ws-eyebrow" style={{ marginTop: 10 }}>Verified payouts as a credit record</span>
+          <h1 className="ws-title">Capital</h1>
           <p className="ws-sub">Every payout Sage makes is a receipt on chain, and every receipt is a row in someone&rsquo;s record. That record is what a programme underwrites and what an advance is drawn against.</p>
         </div>
         <div className="ws-nav">
@@ -49,7 +50,7 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
                 {view.earners.map((e) => (
                   <li key={e.wallet} className="ws-row">
                     <div className="ws-member">
-                      <span className="ws-avatar">{(e.member?.[0] ?? e.wallet.replace(/^0x0*/, "")[0] ?? "?").toUpperCase()}</span>
+                      <span className="ws-avatar">{e.member ? e.member[0].toUpperCase() : <Wallet size={14} />}</span>
                       <div className="ws-row-main">
                         <p className="ws-row-title"><span className="t">{e.member ?? short(e.wallet)}</span></p>
                         <p className="ws-row-meta">{e.payouts} verified payout{e.payouts === 1 ? "" : "s"} · last {since(e.lastAt)}</p>

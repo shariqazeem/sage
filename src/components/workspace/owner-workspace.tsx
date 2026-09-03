@@ -103,12 +103,11 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             {live.map((c) => (
               <li key={c.id} className="ws-row">
                 <div className="ws-row-main">
-                  <p className="ws-row-title"><Link href={`/campaign/${c.id}`}>{c.title}</Link></p>
+                  <p className="ws-row-title"><span className="ws-livedot" aria-hidden /><Link href={`/campaign/${c.id}`}>{c.title}</Link></p>
                   <p className="ws-row-meta">{KIND[c.kind]} · {fmtReward(c.rewardBase, chainFor(c.rail))} each · {c.paid}/{c.slots} paid{c.pending ? ` · ${c.pending} in review` : ""} · {networkLabel(chainFor(c.rail))}</p>
                 </div>
                 <div className="ws-row-side">
                   <span className={`ws-chip${c.visibility === "unlisted" ? "" : " accent"}`}>{c.visibility === "unlisted" ? "members only" : "public"}</span>
-                  <span className="ws-chip live">live</span>
                   <Link className="ws-chip" href={`/c/${c.id}`}>board <ArrowUpRight size={11} /></Link>
                 </div>
               </li>

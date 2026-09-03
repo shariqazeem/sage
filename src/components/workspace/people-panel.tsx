@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, Link2, Loader2, Lock, MessageCircle, Users, X } from "lucide-react";
+import { ArrowLeft, Copy, Link2, Loader2, Lock, MessageCircle, Users, Wallet, X } from "lucide-react";
 import { short, since } from "@/lib/format";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 
@@ -14,7 +14,10 @@ export interface PeopleView {
   me: string;
 }
 
-const initials = (m: PeopleView["members"][number]) => (m.displayName?.trim()[0] ?? (m.viaTelegram ? "T" : (m.address ?? m.key).replace(/^0x0*/, "")[0] ?? "?")).toUpperCase();
+const Avatar = ({ m }: { m: PeopleView["members"][number] }) =>
+  m.displayName?.trim() ? <span className="ws-avatar">{m.displayName.trim()[0].toUpperCase()}</span>
+  : m.viaTelegram ? <span className="ws-avatar"><MessageCircle size={14} /></span>
+  : <span className="ws-avatar"><Wallet size={14} /></span>;
 
 /** The people of a workspace: who is in, how the next one gets in, and the plan's cap in plain sight. */
 export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleView) {
@@ -64,7 +67,8 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
       <header className="ws-head">
         <div>
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
-          <h1 className="ws-title" style={{ marginTop: 8 }}>People</h1>
+          <span className="ws-eyebrow" style={{ marginTop: 10 }}>Members &amp; invites</span>
+          <h1 className="ws-title">People</h1>
           <p className="ws-sub"><b>{memberCount}</b> of {Number.isFinite(ws.memberCap) ? ws.memberCap : "unlimited"} on the {ws.plan === "pro" ? "Pro" : "Free"} plan. Members see the work you post and are paid to the wallet they joined with.</p>
         </div>
         <div className="ws-nav">
@@ -92,7 +96,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           {members.map((m) => (
             <li key={m.key} className="ws-row">
               <div className="ws-member">
-                <span className="ws-avatar">{initials(m)}</span>
+                <Avatar m={m} />
                 <div className="ws-row-main">
                   <p className="ws-row-title"><span className="t">{m.displayName ?? (m.address ? short(m.address) : m.key)}</span></p>
                   <p className="ws-row-meta">{m.role}{m.viaTelegram ? " · joined from Telegram" : ""} · {since(m.joinedAt)}</p>
