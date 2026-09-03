@@ -40,6 +40,6 @@ explicitly armed, and a kill switch and stop/withdraw paths are tested.
 **Ethics and limitations.** Roughly 44% of judged submissions are refused, each with a written
 reason and a public receipt — the system explains a refusal as carefully as it proves a payment.
 Limitations are stated where they apply: sanctions screening is list-based and snapshot-dated;
-walletless custody is provider-held under policy; the fiat door is an interface, not a live rail;
+walletless custody is provider-held under policy (the same provider holds an email sign-in identity; Sage stores only the derived wallet address); the fiat door is an interface, not a live rail;
 the credit record reports verified inflow and computes no score. The code is open source (MIT) and
 every receipt is public.
