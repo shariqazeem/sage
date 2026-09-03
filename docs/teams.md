@@ -13,6 +13,7 @@ every payout builds the recipient's record; the record unlocks capital.
 | Piece | Where | Notes |
 | --- | --- | --- |
 | Sign-in | `/start`, `/join/<code>` | "Continue with email" (Privy: an embedded wallet Sage keeps for the person; the server verifies Privy's token and mints the same session) or a wallet you already have (Ethereum or Starknet). |
+| Local preview | `/api/dev/session?address=0x…&next=/start` | Development only (404 in production): mints a session so every signed-in page can be looked at without a wallet in the browser. |
 | Onboarding | `/start` | Sign in → what you are here for → name a workspace or join one. The only door from the landing. |
 | Capital | `/workspace/capital` | The FC package from inside: paid on verified work, receipts, people paid with clusters collapsed, each earner's record, the lender view, outcomes, the explorer, the advance facility. |
 | Workspace | `/workspace` | Owner view: work, members + invite links, plan, Sage's recent work. Member view: open work, own status, record. First visit: name it, or paste an invite. |
