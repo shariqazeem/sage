@@ -2,7 +2,7 @@
 
 # Sage
 
-**An AI agent that finds real people to test your product — and pays them in USDC.**
+**An AI agent that moves money on verified work — it inspects products, designs paid work, verifies every deliverable, detects fraud, and pays in USDC from a vault it cannot exceed. Publicly on GOAT, privately on Starknet.**
 
 [![Live](https://img.shields.io/badge/live-sagepays.xyz-c2410c?style=flat-square)](https://sagepays.xyz)
 [![Docs](https://img.shields.io/badge/docs-sagepays.xyz%2Fdocs-1a1d21?style=flat-square)](https://sagepays.xyz/docs)
@@ -37,6 +37,15 @@ It already happened, unattended, on Starknet mainnet:
 
 No human approved that payout. Confidence 0.92 against a 0.85 threshold, judged by a model that
 cannot state an amount — the vault derives it — and gated by rules the agent has no way around.
+
+Two more things the agent does alone, added 5 Sep 2026. On an **open** campaign it approves a payout
+at once and settles after a **finalization window** (30 minutes) in which it re-runs the near-
+duplicate, copied-artifact and wallet-cluster watch against everything that arrived since — a hit
+revokes with the reason on the record, silence finalizes; members-only work pays immediately
+(`src/lib/deputy/finalization.ts`). And a founder can fund a **treasury** once — a Privy agent
+wallet under a mandate policy whose only reclaim address is the founder's own wallet — after which
+the agent deploys, funds and activates every approved plan itself (`src/lib/treasury/`). No plans,
+no seats: Sage earns on what it settles.
 
 **Built on Starknet, not merely calling it.**
 
