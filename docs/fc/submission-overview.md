@@ -111,7 +111,7 @@ workspace is a table, an invite link and a plan; a programme with a hundred gran
 from a phone. Capacity is bounded by the organization's budget, not by our operations: the agent
 designs, verifies and pays without a human, and refusals cost nothing. The MSME credit layer scales
 with the ledger — every payout is a record row — and the lender contract is a JSON endpoint any
-institution can consume. The next steps are org roles and recurring budgets, Pro paid from a
+institution can consume. The next steps are standing intents that relaunch work on their own, the treasury funded from a
 Starknet wallet, the licensed fiat door, and an institutional LP behind the advance facility.
 
 ## What we don't claim
