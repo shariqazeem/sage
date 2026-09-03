@@ -247,7 +247,7 @@ describe.runIf(LIVE)("evidence renderer — real browser security (egress bounda
  * identity (2026-09-04). This fixture plays Notion: an empty shell for the Chrome-126 UA, the page
  * for anyone else — the renderer must come back with the page.
  */
-describe("renderer identities — a page that only renders for one of them still renders", () => {
+describe.runIf(LIVE)("renderer identities — a page that only renders for one of them still renders", () => {
   it("falls back to the default headless identity when the realistic UA gets a shell", async () => {
     const picky = await startFixture((req, res) => {
       const ua = String(req.headers["user-agent"] ?? "");
@@ -256,9 +256,8 @@ describe("renderer identities — a page that only renders for one of them still
     });
     try {
       const r = await renderEvidence(`${picky.origin}/page`, {
-        ...hooks,
-        allowOrigins: new Set([...hooks.allowOrigins, picky.origin]),
-        egressAllowedPorts: new Set([...hooks.egressAllowedPorts, picky.port]),
+        allowOrigins: new Set([picky.origin]),
+        egressAllowedPorts: new Set([80, 443, picky.port]),
       });
       expect(r.outcome).toBe("ok");
       expect(r.text).toMatch(/0x1d9029ec/);

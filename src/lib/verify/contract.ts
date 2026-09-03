@@ -66,6 +66,9 @@ export interface ArtifactUrlContract {
   markerKind: "wallet" | "handle" | "nonce";
   /** specific text the artifact must also contain (belt-and-suspenders; optional). */
   mustContain?: string[];
+  /** the least number of words of CONTENT (chrome removed) the artifact must carry — the effort bar
+   *  for "write / explain / document" work, checked before any model reads it. */
+  minWords?: number;
 }
 
 export interface PublicUrlContract {

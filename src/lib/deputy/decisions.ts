@@ -288,6 +288,7 @@ export async function ensureDecision(
       evidenceUrl: submission.evidenceUrl,
       note: submission.note,
       campaignCreatedAt: campaign.createdAt,
+      sourceUrl: mission?.targetSurface ?? null,
     });
     if (wp.outcome === "transient") return null; // pending — retried on the next sweep
     if (wp.outcome === "definitive") {

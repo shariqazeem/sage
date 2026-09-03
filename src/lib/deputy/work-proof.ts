@@ -1,3 +1,5 @@
+import { artifactFingerprint, fingerprintSimilarity } from "./fingerprint";
+import { contentTextFromHtml } from "./content-text";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -93,6 +95,9 @@ export interface WorkProofSubmission {
   note: string | null;
   /** when the campaign was created — lets a github artifact's provenance be compared against the gig's own age. */
   campaignCreatedAt?: number;
+  /** the page the work is ABOUT (the mission's target surface) — a deliverable that is mostly that
+   *  page's own text is a paste, not work, and is refused before any model reads it. */
+  sourceUrl?: string | null;
 }
 
 export interface WorkProofDeps {
@@ -101,6 +106,30 @@ export interface WorkProofDeps {
   fetchImpl?: typeof fetch;
   /** eth_call for onchain_state — injectable for tests. Returns the raw hex word. */
   ethCall?: (chainId: number, to: string, data: Hex) => Promise<string>;
+}
+
+/** A deliverable this alike to the page it is about is a paste of that page. Measured 2026-09-04: honest
+ *  rewrites of sagepays.xyz/#privacy scored 0.03–0.05 against it on content text. */
+export const SOURCE_COPY_THRESHOLD = 0.5;
+/** Below the refusal, above this: the judge is told how much phrasing is shared. */
+export const SOURCE_OVERLAP_NOTE = 0.25;
+
+const hostOf = (u: string) => { try { return new URL(u).host; } catch { return u; } };
+
+/** MinHash overlap between the artifact's content fingerprint and the source page's content. null when
+ *  the source can't be read — an unreadable source must never hold a worker. */
+async function sourceOverlap(sourceUrl: string, artifactFp: string, fetchImpl?: typeof fetch): Promise<number | null> {
+  try {
+    const f = fetchImpl ?? fetch;
+    const res = await f(sourceUrl, { redirect: "follow" });
+    if (res.status >= 400) return null;
+    const html = (await res.text()).slice(0, 400_000);
+    const fp = artifactFingerprint(contentTextFromHtml(html));
+    if (!fp) return null;
+    return fingerprintSimilarity(artifactFp, fp);
+  } catch {
+    return null;
+  }
 }
 
 const definitive = (detail: string, publicDetail: string): WorkProofOutcome => ({
@@ -193,6 +222,21 @@ export async function runWorkProof(
           return definitive("marker kind not issuable", "Internal: this mission's marker kind isn't supported yet — held for the operator.");
         }
         const r = await (deps.verifyArtifact ?? verifyArtifactUrl)(contract, url, marker, { fetchImpl: deps.fetchImpl });
+        // THE SOURCE IS NOT THE WORK. A deliverable "about" a page that is mostly that page's own text is a
+        // paste; refused here, deterministically, with the overlap named. Smaller overlaps are reported to
+        // the judge, which is asked to weigh "in their own words".
+        let sourceNote: string | null = null;
+        if (r.verified && r.artifactFingerprint && submission.sourceUrl) {
+          const overlap = await sourceOverlap(submission.sourceUrl, r.artifactFingerprint, deps.fetchImpl);
+          if (overlap !== null && overlap >= SOURCE_COPY_THRESHOLD) {
+            return definitive(
+              `copied from source: ${Math.round(overlap * 100)}% overlap with ${submission.sourceUrl}`,
+              `Your page is mostly the source page's own text (${Math.round(overlap * 100)}% overlap with ${hostOf(submission.sourceUrl)}). This work pays for an explanation in your own words — rewrite it, keep your wallet address on it, and resubmit.`,
+            );
+          }
+          if (overlap !== null && overlap >= SOURCE_OVERLAP_NOTE)
+            sourceNote = `SOURCE OVERLAP: about ${Math.round(overlap * 100)}% of this page's phrasing is shared with the source page (${submission.sourceUrl}) — weigh "in their own words" accordingly.`;
+        }
         // PROVENANCE (github.com only): a fork, or a repository older than the gig, is held for the
         // founder — the marker proves the page is theirs NOW, not that the work was done FOR this gig.
         // The API degrading (rate limit, outage) yields no signal: an honest tester is never held for it.
@@ -204,6 +248,7 @@ export async function runWorkProof(
           [
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
             `KIND: created artifact · STRENGTH: ${r.strength} · RESULT: PASSED`,
+            ...(sourceNote ? [sourceNote] : []),
             `Sage fetched ${url} itself: it is live on an operator-allowed host and visibly carries the submitter's own marker (their wallet address) — a generic or copied page cannot pass this. The marker was matched BY VALUE: an address written with or without leading zeros (0x01ab… / 0x1ab…) is the same account, so a spelling difference of that kind is NOT a mismatch and must not be reported as one`,
             r.publicDetail,
           ].join("\n"),

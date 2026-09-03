@@ -117,6 +117,7 @@ const artifactUrlSchema = z.object({
   allowedHosts: z.array(z.string().max(120).regex(hostRe, "bare hostname, e.g. app.example.com")).max(5),
   markerKind: z.enum(["wallet", "handle", "nonce"]),
   mustContain: z.array(z.string().min(2).max(200)).max(5).optional(),
+  minWords: z.number().int().min(20).max(5000).optional(),
 });
 
 const publicUrlSchema = z.object({
@@ -355,8 +356,9 @@ function evidenceRequirement(c: VerificationContract): string {
       const where =
         c.allowedHosts.length > 0
           ? ` on ${c.allowedHosts.join(" or ")}`
-          : " — publish it somewhere that stays: a blog post, a dev.to or Medium article, a GitHub gist or repo, a Notion page, or your own site (temporary paste services don't count)";
-      return `A public link to the artifact you created${where}. It must visibly contain ${marker}.`;
+          : " on any public page that stays: a blog post, a dev.to or Medium article, a GitHub gist or repo, a Notion page, or your own site (temporary paste services and sign-in-only posts don't count)";
+      const floor = c.minWords ? ` It needs at least ${c.minWords} words of your own writing.` : "";
+      return `A public link to the artifact you created${where}. It must visibly contain ${marker}.${floor}`;
     }
     case "public_url":
       return "The public URL where the required result is visible.";

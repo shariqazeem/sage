@@ -1,4 +1,5 @@
-import { artifactFingerprint } from "@/lib/deputy/fingerprint";
+import { artifactFingerprint, stripMarkers } from "@/lib/deputy/fingerprint";
+import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
 import "server-only";
 
 import { createPublicClient, http, type Hex } from "viem";
@@ -168,6 +169,13 @@ export function matchOnchainState(returnedWord: string, c: OnchainStateContract,
 
 /** PURE: given a fetched artifact, is it live, on an allowed host, and provably the tester's? */
 /** Anonymous, expiring paste services — a page there is not a published deliverable. */
+/**
+ * Hosts Sage cannot read without signing in. A tweet was the first public gig's first submission:
+ * the page Sage fetched was an empty shell, the judge held it for "no wallet address", and the worker
+ * was told nothing about why a post could never have worked. Named here so the refusal says so.
+ */
+export const UNREADABLE_HOSTS = ["x.com", "twitter.com", "instagram.com", "facebook.com", "tiktok.com", "threads.net", "linkedin.com"];
+
 export const TEMPORARY_HOSTS = [
   "paste.rs", "pastebin.com", "hastebin.com", "ghostbin.co", "ghostbin.com", "rentry.co", "rentry.org", "justpaste.it",
   "dpaste.org", "dpaste.com", "controlc.com", "paste.ee", "privatebin.net", "txt.fyi", "telegra.ph", "pastes.io",
@@ -175,7 +183,7 @@ export const TEMPORARY_HOSTS = [
 ];
 
 export function matchArtifact(
-  input: { status: number; finalUrl: string; bodyText: string },
+  input: { status: number; finalUrl: string; bodyText: string; contentText?: string | null },
   c: ArtifactUrlContract,
   marker: string,
 ): VerificationResult {
@@ -199,6 +207,8 @@ export function matchArtifact(
   // "PUBLISH ANYWHERE" IS NOT "A THROWAWAY PASTE". The first public gig's two submissions were paste.rs
   // pages — anonymous, expiring, three sentences each — because the evidence text itself had suggested
   // "a paste". A deliverable is something that stays where the operator and a lender can find it.
+  if (allowed.length === 0 && UNREADABLE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`)))
+    return fail(`unreadable host ${host}`, `Sage can't read posts on ${host} — they need a sign-in to view. Publish the work as a page it can open (a blog, dev.to, Medium, a GitHub gist or repo, a Notion page, your own site) and submit that link.`);
   if (allowed.length === 0 && TEMPORARY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`)))
     return fail(`temporary host ${host}`, `That link is on ${host}, a temporary paste service — publish the work somewhere that stays (a blog, dev.to, Medium, a GitHub gist or repo, a Notion page, your own site) and submit that link.`);
   const hay = norm(input.bodyText);
@@ -209,24 +219,32 @@ export function matchArtifact(
   for (const t of c.mustContain ?? []) {
     if (!hay.includes(norm(t))) return fail(`missing "${t}"`, "That page is missing something the mission required.");
   }
+  // THE WORK, NOT THE SITE. The fingerprint and the word floor read the page's content elements only
+  // (see content-text.ts): fingerprinting whole pages held an honest dev.to article as a 92% "copy"
+  // of a different dev.to article, because both were mostly dev.to.
+  const content = input.contentText ?? contentTextFromHtml(input.bodyText);
+  if (c.minWords) {
+    const words = wordCount(stripMarkers(content, markerVariants(marker)));
+    if (words < c.minWords)
+      return fail(`too short: ${words} words < ${c.minWords}`, `Your page has about ${words} words; this mission asks for at least ${c.minWords} words of your own writing. Add the substance and resubmit.`);
+  }
   return {
     verified: true,
     strength: "strong",
     detail: "artifact live + tester-marked",
     publicDetail: "Verified: the object you created is live and carries your marker.",
-    artifactFingerprint: artifactFingerprint(input.bodyText, markerVariants(marker)),
+    artifactFingerprint: artifactFingerprint(content, markerVariants(marker)),
   };
 }
 
 /** ASYNC: fetch the artifact (redirects followed) and match. Any fetch failure → HOLD. */
 /** A browser-rendered read of a page — injected in tests; the guarded headless renderer in production. */
-export type ArtifactRenderer = (url: string) => Promise<{ text: string | null; finalUrl: string | null }>;
+export type ArtifactRenderer = (url: string) => Promise<{ text: string | null; finalUrl: string | null; contentText?: string | null }>;
 
-async function defaultRenderer(url: string): Promise<{ text: string | null; finalUrl: string | null }> {
-  // dynamic import: this module pulls no browser deps unless a render actually fires
+async function defaultRenderer(url: string): Promise<{ text: string | null; finalUrl: string | null; contentText?: string | null }> {
   const { renderEvidence } = await import("@/lib/deputy/evidence-render");
   const r = await renderEvidence(url, undefined, "patient");
-  return { text: r.text, finalUrl: r.finalUrl };
+  return { text: r.text, finalUrl: r.finalUrl, contentText: r.contentText };
 }
 
 export async function verifyArtifactUrl(
@@ -258,7 +276,7 @@ export async function verifyArtifactUrl(
       const render = deps.render ?? defaultRenderer;
       const r = await render(u.toString());
       if (r.text && r.text.trim().length > 0) {
-        const rendered = matchArtifact({ status: 200, finalUrl: r.finalUrl || finalUrl, bodyText: r.text }, c, marker);
+        const rendered = matchArtifact({ status: 200, finalUrl: r.finalUrl || finalUrl, bodyText: r.text, contentText: r.contentText ?? null }, c, marker);
         if (rendered.verified) return { ...rendered, detail: `${rendered.detail} (browser-rendered)` };
       }
     } catch {

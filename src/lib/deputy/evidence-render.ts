@@ -1,3 +1,4 @@
+import { CONTENT_TEXT_IN_PAGE } from "./content-text";
 import "server-only";
 
 /**
@@ -87,6 +88,8 @@ export type RenderOutcome =
   | "error";
 
 export interface RenderResult {
+  /** the page's content elements only (chrome removed) — what the copy check and the word floor read. */
+  contentText: string | null;
   /** the recovered visible text, or null on any failure. */
   text: string | null;
   outcome: RenderOutcome;
@@ -109,7 +112,7 @@ type RenderIdentity = "realistic" | "default";
 const IDENTITIES: readonly RenderIdentity[] = ["realistic", "default"];
 
 export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks, budget: RenderBudget = "standard"): Promise<RenderResult> {
-  let last: RenderResult = { text: null, outcome: "error", finalUrl: null };
+  let last: RenderResult = { text: null, contentText: null, outcome: "error", finalUrl: null };
   for (const identity of IDENTITIES) {
     last = await renderOnce(rawUrl, testHooks, budget, identity);
     if (last.outcome === "ok" && last.text) return last;
@@ -131,13 +134,13 @@ async function renderOnce(rawUrl: string, testHooks: RenderTestHooks | undefined
       return false;
     }
   };
-  if (!bypassOrigin(rawUrl) && !requestGuard(rawUrl).allow) return { text: null, outcome: "guard_block", finalUrl: null };
+  if (!bypassOrigin(rawUrl) && !requestGuard(rawUrl).allow) return { text: null, contentText: null, outcome: "guard_block", finalUrl: null };
 
   let chromium: typeof import("playwright").chromium;
   try {
     ({ chromium } = await import("playwright"));
   } catch {
-    return { text: null, outcome: "engine_missing", finalUrl: null };
+    return { text: null, contentText: null, outcome: "engine_missing", finalUrl: null };
   }
 
   const hostOk = new Map<string, boolean>();
@@ -229,7 +232,7 @@ async function renderOnce(rawUrl: string, testHooks: RenderTestHooks | undefined
     });
 
     const resp = await page.goto(rawUrl, { waitUntil: "domcontentloaded", timeout: navMs }).catch(() => null);
-    if (!resp) return { text: null, outcome: timedOut ? "timeout" : "nav_failed", finalUrl: null };
+    if (!resp) return { text: null, contentText: null, outcome: timedOut ? "timeout" : "nav_failed", finalUrl: null };
     // best-effort networkidle (SPAs may never reach it), then a bounded settle for client hydration.
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
     await page.waitForTimeout(SETTLE_MS).catch(() => {});
@@ -275,9 +278,11 @@ async function renderOnce(rawUrl: string, testHooks: RenderTestHooks | undefined
     // Cap IN-PAGE before it crosses the bridge — a hostile page can render megabytes of text.
     const text = await page.evaluate((max) => (document.body?.innerText || "").slice(0, max).trim(), MAX_TEXT_CHARS).catch(() => "");
     const clean = text ? text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT_CHARS) : "";
-    return clean ? { text: clean, outcome: "ok", finalUrl } : { text: null, outcome: "empty", finalUrl };
+    const contentRaw = (await page.evaluate(CONTENT_TEXT_IN_PAGE).catch(() => "")) as unknown;
+    const contentText = typeof contentRaw === "string" && contentRaw.trim() ? contentRaw.slice(0, MAX_TEXT_CHARS) : null;
+    return clean ? { text: clean, contentText, outcome: "ok", finalUrl } : { text: null, contentText: null, outcome: "empty", finalUrl };
   } catch {
-    return { text: null, outcome: timedOut ? "timeout" : "error", finalUrl: null };
+    return { text: null, contentText: null, outcome: timedOut ? "timeout" : "error", finalUrl: null };
   } finally {
     clearTimeout(hardTimer);
     await browser?.close().catch(() => {});

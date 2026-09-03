@@ -17,8 +17,13 @@ describe("any-host artifact contracts run the deterministic lane", () => {
   });
   it("refuses a page without the submitter's wallet before any model is consulted", async () => {
     const fetchImpl = (async () => new Response("<html>Paid privately through Sage — a tweet with no wallet on it</html>", { status: 200, headers: { "content-type": "text/html" } })) as unknown as typeof fetch;
-    const out = await runWorkProof(anyHost as never, { wallet: A, evidenceUrl: "https://x.com/someone/status/1", note: null }, { fetchImpl });
-    expect(out.outcome).toBe("definitive");
-    expect(out.result.detail).toMatch(/marker absent/);
+    const tweet = await runWorkProof(anyHost as never, { wallet: A, evidenceUrl: "https://x.com/someone/status/1", note: null }, { fetchImpl });
+    expect(tweet.outcome).toBe("definitive");
+    // a post on a host Sage cannot read is refused for THAT reason — the worker learns a post could never work
+    expect(tweet.result.detail).toMatch(/unreadable host x\.com/);
+    expect(tweet.result.publicDetail).toMatch(/can't read posts on x\.com/);
+    const page = await runWorkProof(anyHost as never, { wallet: A, evidenceUrl: "https://blog.example/post", note: null }, { fetchImpl });
+    expect(page.outcome).toBe("definitive");
+    expect(page.result.detail).toMatch(/marker absent/);
   });
 });
