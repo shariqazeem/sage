@@ -2,6 +2,7 @@
 
 import { SettlingLane } from "@/components/live/settling-lane";
 import { WalletGraph } from "@/components/live/wallet-graph";
+import { VaultHero } from "@/components/live/vault-hero";
 import "@/styles/live.css";
 import { useState } from "react";
 import Link from "next/link";
@@ -281,10 +282,6 @@ function Console({ data }: { data: WorkspaceData }) {
   const [copied, setCopied] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showTech, setShowTech] = useState(false);
-  const pct =
-    data.fundedBase > 0
-      ? Math.round((data.paidBase / data.fundedBase) * 100)
-      : 0;
   const status = data.status.toLowerCase();
   const isStopped = status === "cancelled" || status === "stopped";
   // Economically complete: every mission slot paid → all rewards released, budget spent.
@@ -376,9 +373,15 @@ function Console({ data }: { data: WorkspaceData }) {
         </dl>
       </header>
 
-      <div className="cw-bar" aria-hidden>
-        <span style={{ width: `${pct}%` }} />
-      </div>
+      <VaultHero
+        missions={data.missions}
+        submissions={data.submissions}
+        fundedBase={data.fundedBase}
+        paidBase={data.paidBase}
+        remainingBase={data.remainingBase}
+        vaultExplorerUrl={data.vaultExplorerUrl}
+        rail={data.chainId === 900001 ? "starknet" : "evm"}
+      />
       <p className="cw-meta">
         <span>{networkLabel(data.chainId)}</span>
         <span>
