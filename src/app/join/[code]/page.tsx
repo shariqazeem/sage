@@ -1,5 +1,6 @@
 import "../../app/app.css";
 import "@/styles/tester-board.css";
+import "@/styles/wallet-connect.css";
 import "@/styles/workspace.css";
 import { getInvite, getWorkspace } from "@/lib/db/workspaces";
 import { JoinCard } from "@/components/workspace/join-card";

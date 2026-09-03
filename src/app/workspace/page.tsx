@@ -1,6 +1,7 @@
 import "../app/app.css";
 import "../app/motion.css";
 import "@/styles/tester-board.css";
+import "@/styles/wallet-connect.css";
 import "@/styles/workspace.css";
 import { workspaceContext } from "@/lib/workspaces/context";
 import { countMembers, listMembers, listWorkspaceCampaigns, workspacesForAddress } from "@/lib/db/workspaces";
