@@ -37,7 +37,7 @@ export function VaultHero({ missions, submissions, fundedBase, paidBase, remaini
           return (
             <div key={i} className="vh-seg" style={{ left: `${left * 100}%`, width: `${w * 100}%`, animationDelay: `${i * 90}ms` }} title={`${m.title} — ${usd(m.rewardBase)} × ${m.maxCompletions}`}>
               {Array.from({ length: m.maxCompletions }).map((_, k) => (
-                <span key={k} className={`vh-cell${k < m.paid ? " drained" : ""}`} style={{ animationDelay: `${i * 90 + k * 40}ms` }} />
+                <span key={k} className={`vh-cell${k < m.paid ? " drained" : ""}`} data-amt={usd(m.rewardBase)} style={{ animationDelay: `${i * 90 + k * 40}ms` }} />
               ))}
             </div>
           );

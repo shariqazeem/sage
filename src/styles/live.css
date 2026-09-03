@@ -76,12 +76,13 @@
 /* ═══ THE VAULT, DRAWN ═══ */
 .vh { margin: 6px 0 18px; }
 .vh-bar { position: relative; height: 40px; border: 1.5px solid var(--ink); border-radius: 10px; background: var(--surface); overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), var(--shadow-card); }
-.vh-seg { position: absolute; top: 0; bottom: 0; display: flex; gap: 3px; padding: 5px 5px; border-right: 1.5px solid var(--ink); box-sizing: border-box; animation: vh-seg-in var(--dur-3) var(--ease-out) both; }
+.vh-seg { position: absolute; top: 0; bottom: 0; display: flex; gap: 3px; padding: 5px 5px; border-right: 1.5px solid var(--ink); box-sizing: border-box; background: linear-gradient(180deg, rgba(194,65,12,.05), rgba(194,65,12,.09)); animation: vh-seg-in var(--dur-3) var(--ease-out) both; }
 .vh-seg:last-of-type { border-right: 0; }
 .vh-seg.free { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--border) 6px 7px); border-right: 0; }
 @keyframes vh-seg-in { from { opacity: 0; transform: scaleX(.6); transform-origin: left; } to { opacity: 1; transform: none; } }
-.vh-cell { flex: 1 1 0; min-width: 3px; border-radius: 4px; background: var(--accent-soft); border: 1.5px solid var(--accent); box-sizing: border-box; animation: vh-cell-in var(--dur-3) var(--ease-spring) both; }
-.vh-cell.drained { background: transparent; border: 1px dashed var(--border-strong); }
+.vh-cell { flex: 1 1 0; min-width: 3px; max-width: 84px; border-radius: 999px; background: var(--surface); border: 1.5px solid var(--accent); box-sizing: border-box; display: grid; place-items: center; overflow: hidden; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--accent); white-space: nowrap; animation: vh-cell-in var(--dur-3) var(--ease-spring) both; }
+.vh-cell::after { content: attr(data-amt); }
+.vh-cell.drained { background: transparent; border: 1px dashed var(--border-strong); color: transparent; }
 @keyframes vh-cell-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 .vh-caps { position: relative; height: 30px; margin-top: 4px; }
 .vh-cap { position: absolute; top: 0; padding: 0 6px; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; border-left: 1.5px solid var(--border-strong); line-height: 14px; }

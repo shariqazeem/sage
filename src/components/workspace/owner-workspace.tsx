@@ -68,6 +68,8 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div className="ws-stat"><span className="ws-stat-v">{view.memberCount}</span><span className="ws-stat-k">People</span></div>
       </section>
 
+      <SettlingLane title="Settling — the finalization window" />
+
       {fresh && (
         <section className="ws-card">
           <div className="ws-card-h"><h2><Sparkles size={15} /> Three moves to your first verified payout</h2></div>
@@ -115,8 +117,6 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
           </ul>
         )}
       </section>
-
-      <SettlingLane title="Settling — the finalization window" />
 
       {view.desk.events.length > 0 && (
         <section className="ws-card">

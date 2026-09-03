@@ -95,7 +95,7 @@ export function SettlingLane({ campaignId, title = "Settling" }: { campaignId?: 
           {data.tape.slice(0, 6).map((r) => (
             <li key={r.id}>
               <span className={`k ${r.kind}`}>{r.kind}</span>
-              <span className="t">{r.text || r.campaignTitle}</span>
+              <span className="t">{(r.text || r.campaignTitle).replace(/\bDeputy\b/g, "Sage")}</span>
               <span className="w">{r.txHash ? <Link href={`/proof/${r.txHash}`}>receipt</Link> : ago(now - r.at)}</span>
             </li>
           ))}
