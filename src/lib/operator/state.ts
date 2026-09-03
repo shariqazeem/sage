@@ -46,6 +46,7 @@ export function observe(campaign: Campaign, nowSec: number, fallbackSurface?: st
   return {
     campaignId: campaign.id,
     surface: surfaceOf(campaign, fallbackSurface),
+    kind: campaign.kind === "gig" || campaign.kind === "grant" ? campaign.kind : "testing",
     budgetBase: slots > 0 ? slots * campaign.rewardAmount : campaign.rewardAmount,
     slots,
     paid,

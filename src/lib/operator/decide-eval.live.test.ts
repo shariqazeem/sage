@@ -32,7 +32,7 @@ const $ = (n: number) => Math.round(n * 1e6);
 const policy = { ...DEFAULT_POLICY, enabled: true, probeBase: $(5) };
 
 const obs = (over: Partial<CampaignObservation>): CampaignObservation => ({
-  campaignId: "c", surface: "acme.io", budgetBase: $(5), slots: 8, paid: 0, submissions: 0,
+  campaignId: "c", surface: "acme.io", kind: "testing", budgetBase: $(5), slots: 8, paid: 0, submissions: 0,
   ageMinutes: 4000, status: "ended", unclaimedBase: 0, ...over,
 });
 
@@ -104,7 +104,7 @@ describe.skipIf(!LIVE)("P-OPERATOR — choosing where to buy work", () => {
   it("escalates past another read once testing has filled — at least as good as its own fallback", async () => {
     const input: DecisionInput = {
       ...base,
-      observations: [obs({ campaignId: "a1", slots: 8, paid: 8, submissions: 10 })],
+      observations: [obs({ campaignId: "a1", kind: "testing", slots: 8, paid: 8, submissions: 10 })],
     };
     expect(chooseWithoutModel(input)?.kind).toBe("gig");
     const failures = await measure("escalate", input, (p) => (p.kind === "testing" ? "asked for another read after the last one filled" : null));

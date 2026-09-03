@@ -62,9 +62,13 @@ export function surfaceReport(surfaces: string[], obs: CampaignObservation[], po
       const claimed = mine.reduce((n, o) => n + o.paid, 0);
       const offered = mine.reduce((n, o) => n + o.slots, 0);
       const quiet = mine.filter((o) => o.submissions === 0).length;
-      const kinds = [...new Set(mine.map((o) => (o.slots > 4 ? "many-slot" : "few-slot")))].join("/");
+      // What was ALREADY BOUGHT here, and whether it worked. Without this line the model cannot
+      // know a testing run already filled, and asks for another one.
+      const history = mine
+        .map((o) => `${o.kind}${o.slots > 0 ? ` ${o.paid}/${o.slots} claimed` : ""}${o.submissions === 0 ? " (nobody came)" : ""}`)
+        .join("; ");
       const { why } = surfaceScale(s, obs, policy);
-      return `- ${s}: ${mine.length} campaign(s), ${claimed}/${offered} slots claimed, ${quiet} went unclaimed, ${kinds}. ${why}.`;
+      return `- ${s}: ${mine.length} campaign(s) — ${history}. ${claimed}/${offered} slots claimed overall, ${quiet} went unclaimed. ${why}.`;
     })
     .join("\n");
 }
@@ -80,7 +84,12 @@ Rules you cannot break:
 - "goal" is one sentence of intent for the mission designer, in the founder's terms, describing what should be learned or produced. No prices, no slot counts.
 - "reason" is one sentence saying why this position now, referring to what the past results show.
 
-Prefer a surface with evidence that work gets claimed. Do not repeat a kind that went unclaimed on that surface. Complement what is already running rather than duplicating it.
+Prefer a surface with evidence that work gets claimed.
+
+Move the work FORWARD rather than repeating it:
+- A kind that already FILLED on a surface has been answered. Buying it again learns the same thing twice. Go to a harder or different kind of work there — a testing run that filled is followed by a deliverable, not another read.
+- A kind that went UNCLAIMED on a surface is not worth repeating there either.
+- Complement what is running right now instead of duplicating it.
 
 Answer with JSON only: {"surface":"...","kind":"...","goal":"...","reason":"..."}`;
 

@@ -5,7 +5,7 @@ import { DEFAULT_POLICY, type CampaignObservation, type OperatorPolicy } from ".
 const $ = (n: number) => Math.round(n * 1e6);
 const policy: OperatorPolicy = { ...DEFAULT_POLICY, enabled: true };
 const obs = (over: Partial<CampaignObservation> = {}): CampaignObservation => ({
-  campaignId: "c", surface: "acme.io", budgetBase: $(5), slots: 10, paid: 0, submissions: 0,
+  campaignId: "c", surface: "acme.io", kind: "testing", budgetBase: $(5), slots: 10, paid: 0, submissions: 0,
   ageMinutes: 60, status: "live", unclaimedBase: $(5), ...over,
 });
 const input = (over: Partial<Parameters<typeof chooseWithoutModel>[0]> = {}) => ({
@@ -60,7 +60,8 @@ describe("choosing what work to buy", () => {
 
   it("reports each surface honestly, and the proposal line carries the price the mandate set", () => {
     const r = surfaceReport(["acme.io", "other.dev"], [obs({ status: "ended", slots: 4, paid: 4, submissions: 5 })], policy);
-    expect(r).toMatch(/acme\.io: 1 campaign\(s\), 4\/4 slots claimed/);
+    // the KIND is the part the model was missing: without it, it asked for the same work twice
+    expect(r).toMatch(/acme\.io: 1 campaign\(s\) — testing 4\/4 claimed/);
     expect(r).toMatch(/other\.dev: never worked/);
     const line = proposalLine({ surface: "acme.io", kind: "testing", goal: "g", reason: "the last one filled", decidedBy: "llm" }, $(5));
     expect(line).toBe("$5.00 testing run on acme.io — the last one filled");

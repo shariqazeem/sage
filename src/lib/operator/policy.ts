@@ -75,6 +75,9 @@ export interface CampaignObservation {
   campaignId: string;
   /** The position this campaign is a bet on — the product host. Sizing is per surface. */
   surface: string;
+  /** What KIND of work it bought. Without this the allocator cannot see that it already ran a
+   *  testing run here, and asks for the same thing again — measured by P-OPERATOR at 0 of 3. */
+  kind: "testing" | "gig" | "grant";
   budgetBase: number;
   /** Total reward slots across its missions. */
   slots: number;

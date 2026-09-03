@@ -22,6 +22,7 @@ const policy = (over: Partial<OperatorPolicy> = {}): OperatorPolicy => ({
 const obs = (over: Partial<CampaignObservation> = {}): CampaignObservation => ({
   campaignId: "c1",
   surface: "acme.io",
+  kind: "testing",
   budgetBase: $(5),
   slots: 10,
   paid: 0,
