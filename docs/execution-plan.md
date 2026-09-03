@@ -664,3 +664,16 @@ typed.
 
 Campaign `gig-1c3e_FjffE` at 01:30 AST: 4 paid (Notion, dev.to ×2, one paste.rs judged before the
 paste rule), 5 refused with reasons (tweet, three pastes, one wrongly-held-then-paid copy), 0 held.
+
+25. **The gig brain is live on the web composer** (`POST /api/campaigns/direct/draft`): one sentence in,
+    a complete brief out — steps, acceptance criteria with an effort bar, the evidence kind, a word
+    floor for written work — for any trade. Measured live on the MISSION lane (MiniMax-M3, 44–90s):
+    a 5-person setup-guide bounty, a two-milestone J$ catalogue-and-reviews grant, and a translation
+    gig verified by the restaurant's name on its own domain, all compiled. Two of three were first
+    refused for SHAPE alone (steps as a list, a phrase as a string); the reader now accepts every
+    equivalent shape. Money never enters: amounts are not in the schema and are dropped on parse.
+26. **One person was paid twice on the gig through two wallets** — dev.to `ehsan_sor_…` (0x4a4e…)
+    and gist `ehsansor` (0x604d…), $1.10 each. Both pages are original and each wallet is within its
+    cap; the per-person rule has no on-chain handle on Starknet. The near-duplicate REPORT check
+    caught the third member of the same template (55%) and held it for the founder. Author identity
+    across hosts (dev.to handle ↔ GitHub handle) is a signal worth reading before paying.
