@@ -225,7 +225,7 @@ export type ArtifactRenderer = (url: string) => Promise<{ text: string | null; f
 async function defaultRenderer(url: string): Promise<{ text: string | null; finalUrl: string | null }> {
   // dynamic import: this module pulls no browser deps unless a render actually fires
   const { renderEvidence } = await import("@/lib/deputy/evidence-render");
-  const r = await renderEvidence(url);
+  const r = await renderEvidence(url, undefined, "patient");
   return { text: r.text, finalUrl: r.finalUrl };
 }
 

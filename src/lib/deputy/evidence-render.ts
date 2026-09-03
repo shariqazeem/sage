@@ -29,12 +29,19 @@ import { requestGuard } from "@/lib/launch/field-test";
 import { resolvesPublic } from "@/lib/launch/inspect";
 import { startEgressProxy } from "@/lib/net/egress-proxy";
 
-const NAV_MS = 15_000; // per-navigation budget
+/**
+ * PATIENT BUDGET — for the deterministic artifact check, one page per submission. MEASURED on a
+ * worker's Notion page (2026-09-04): DOMContentLoaded did not arrive inside the 15s standard budget
+ * through the guarded browser, the navigation was aborted, and a page that plainly carried the
+ * wallet was held for "marker absent". The judge's evidence path keeps the standard numbers (it runs
+ * under other pressure); a verification that decides whether a person is paid can afford to wait.
+ */
+export type RenderBudget = "standard" | "patient";
+const BUDGET = { standard: { navMs: 15_000, totalMs: 28_000 }, patient: { navMs: 45_000, totalMs: 65_000 } } as const;
 const SETTLE_MS = 2_500; // fixed hydration settle AFTER load (networkidle alone is unreliable on SPAs)
 /** After the settle, keep waiting while the page is still changing or still says it is loading. */
 const CONTENT_WAIT_MS = 12_000;
 const CONTENT_POLL_MS = 500;
-const TOTAL_MS = 28_000; // hard cap on the whole render
 /** Hard cap on captured innerText: a malicious page can render megabytes of text; bound what crosses the
  *  CDP bridge into our process and what can ever reach the judge (the same bound static evidence gets). */
 export const MAX_TEXT_CHARS = 100_000;
@@ -91,7 +98,29 @@ export interface RenderResult {
  * Render a single evidence URL in a guarded headless browser. Same-origin is NOT required (evidence can
  * be on any public host), but the entry AND every subresource must pass `requestGuard` + resolve public.
  */
-export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks): Promise<RenderResult> {
+/**
+ * TWO IDENTITIES, IN ORDER. The realistic desktop UA got starkscan.co (Cloudflare-fronted) to render
+ * where the honest UA was walled. MEASURED on a worker's Notion page (2026-09-04): with that same UA
+ * Notion NEVER fired DOMContentLoaded in 30s; with the default headless identity it rendered the
+ * wallet in 3s. Neither identity is right for every page, so a render that comes back empty is
+ * retried once as the other, and the first non-empty capture wins.
+ */
+type RenderIdentity = "realistic" | "default";
+const IDENTITIES: readonly RenderIdentity[] = ["realistic", "default"];
+
+export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks, budget: RenderBudget = "standard"): Promise<RenderResult> {
+  let last: RenderResult = { text: null, outcome: "error", finalUrl: null };
+  for (const identity of IDENTITIES) {
+    last = await renderOnce(rawUrl, testHooks, budget, identity);
+    if (last.outcome === "ok" && last.text) return last;
+    // a guard block or a missing engine will not change with the identity — stop early
+    if (last.outcome === "guard_block" || last.outcome === "engine_missing") return last;
+  }
+  return last;
+}
+
+async function renderOnce(rawUrl: string, testHooks: RenderTestHooks | undefined, budget: RenderBudget, identity: RenderIdentity): Promise<RenderResult> {
+  const { navMs, totalMs } = BUDGET[budget];
   // TEST-ONLY loopback bypass (empty in production → no effect). Only exact listed origins skip the guard.
   const bypassOrigin = (url: string): boolean => {
     const origins = testHooks?.allowOrigins;
@@ -147,10 +176,13 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
   const hardTimer = setTimeout(() => {
     timedOut = true;
     void browser?.close().catch(() => {});
-  }, TOTAL_MS);
+  }, totalMs);
   try {
     browser = await chromium.launch({ headless: true, proxy: { server: proxy.url }, args: proxy.chromiumArgs });
     const context = await browser.newContext({
+      ...(identity === "default"
+        ? {}
+        : {
       /**
        * THE SAME UA POLICY THE STATIC FETCHER ALREADY LEARNED.
        *
@@ -165,8 +197,9 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
        */
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-      extraHTTPHeaders: { "x-sage-agent": "SageDeputy/1.0 (+evidence-verification)" },
       viewport: { width: 1280, height: 800 },
+          }),
+      extraHTTPHeaders: { "x-sage-agent": "SageDeputy/1.0 (+evidence-verification)" },
       acceptDownloads: false,
     });
     // The adversarial-browser guard — the Field Test's interceptor, hardened against redirect SSRF.
@@ -195,7 +228,7 @@ export async function renderEvidence(rawUrl: string, testHooks?: RenderTestHooks
       if (p !== page) void p.close().catch(() => {});
     });
 
-    const resp = await page.goto(rawUrl, { waitUntil: "domcontentloaded", timeout: NAV_MS }).catch(() => null);
+    const resp = await page.goto(rawUrl, { waitUntil: "domcontentloaded", timeout: navMs }).catch(() => null);
     if (!resp) return { text: null, outcome: timedOut ? "timeout" : "nav_failed", finalUrl: null };
     // best-effort networkidle (SPAs may never reach it), then a bounded settle for client hydration.
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});

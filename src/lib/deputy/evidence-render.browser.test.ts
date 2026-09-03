@@ -240,3 +240,31 @@ describe.runIf(LIVE)("evidence renderer — real browser security (egress bounda
     expect(internal.hits()).toBe(0);
   }, 20_000);
 });
+
+/**
+ * TWO IDENTITIES. A worker's Notion page never fired DOMContentLoaded for the realistic desktop UA
+ * the renderer adopted for Cloudflare-fronted explorers, and rendered in 3s for the default headless
+ * identity (2026-09-04). This fixture plays Notion: an empty shell for the Chrome-126 UA, the page
+ * for anyone else — the renderer must come back with the page.
+ */
+describe("renderer identities — a page that only renders for one of them still renders", () => {
+  it("falls back to the default headless identity when the realistic UA gets a shell", async () => {
+    const picky = await startFixture((req, res) => {
+      const ua = String(req.headers["user-agent"] ?? "");
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(/Chrome\/126/.test(ua) ? "<!doctype html><html><body></body></html>" : "<!doctype html><html><body><p>My wallet: 0x1d9029ec — paid privately through Sage.</p></body></html>");
+    });
+    try {
+      const r = await renderEvidence(`${picky.origin}/page`, {
+        ...hooks,
+        allowOrigins: new Set([...hooks.allowOrigins, picky.origin]),
+        egressAllowedPorts: new Set([...hooks.egressAllowedPorts, picky.port]),
+      });
+      expect(r.outcome).toBe("ok");
+      expect(r.text).toMatch(/0x1d9029ec/);
+    } finally {
+      await picky.close();
+    }
+  }, 60_000);
+});
+
