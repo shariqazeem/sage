@@ -80,7 +80,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             <li className={posted ? "done" : ""}>
               <span className="ws-check-n">{posted ? <CheckCircle2 size={13} /> : "2"}</span>
               <span className="ws-check-t">Post the work</span>
-              <span className="ws-check-s">A gig, a milestone grant or a testing run. Members-only, or open to the public board with Sage filtering and you deciding who is paid.</span>
+              <span className="ws-check-s">A gig, a milestone grant or a testing run — members-only, or open to the public board, where Sage approves at once and finalizes after a window it uses to watch for copies and wallet clusters.</span>
               <Link href="/launch?do=pay">Post work →</Link>
             </li>
             <li className={paid ? "done" : ""}>

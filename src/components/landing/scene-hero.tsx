@@ -63,7 +63,7 @@ export function SceneHero({
           <div className="hero-stat">
             <span className="hero-stat-v mono">{usd(paidUsd)}</span>
             <span className="hero-stat-k mono">
-              settled · {payoutCount} verified payout{payoutCount === 1 ? "" : "s"} ·{" "}
+              {" "}settled · {payoutCount} verified payout{payoutCount === 1 ? "" : "s"} ·{" "}
               {refusedCount} refused · {networkName}
             </span>
           </div>
@@ -126,7 +126,7 @@ export function SceneHero({
         <Link href="/start" className="dr-card">
           <span className="dr-k mono">For teams &amp; programmes</span>
           <span className="dr-t">Invite your people, post the work, fund it once.</span>
-          <span className="dr-s">Gigs, milestone grants, product testing — verified by Sage and paid inside limits you set. Free for three people.</span>
+          <span className="dr-s">Gigs, milestone grants, product testing — verified by Sage and paid from a vault it cannot exceed. Fund once; the agent launches.</span>
           <span className="dr-cta">Open a workspace <ArrowRight size={13} strokeWidth={2.2} /></span>
         </Link>
         <Link href="/start" className="dr-card">

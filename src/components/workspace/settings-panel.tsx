@@ -62,7 +62,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
           <span className="ws-eyebrow" style={{ marginTop: 10 }}>Account</span>
           <h1 className="ws-title">Settings</h1>
-          <p className="ws-sub">The workspace, its plan, and the wallets behind your account.</p>
+          <p className="ws-sub">The workspace, the wallets behind your account, and the treasury the agent launches from.</p>
         </div>
       </header>
 

@@ -11,10 +11,20 @@ import { join } from "node:path";
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : d; };
 const base = arg("base", "https://sagepays.xyz");
 const out = arg("out", "docs/posts/videos/shots");
+// --session <address>: development only — mints a session on the base so signed-in pages render
+const session = arg("session", null);
+// --only a,b,c: capture just these shot names
+const only = (arg("only", "") || "").split(",").map((x) => x.trim()).filter(Boolean);
 mkdirSync(out, { recursive: true });
 
 const SHOTS = [
   { name: "landing-hero", path: "/", w: 1440, h: 900, scroll: 0 },
+  { name: "start", path: "/start", w: 1440, h: 900 },
+  // signed-in (needs --session on a development base)
+  { name: "workspace-home", path: "/workspace", w: 1440, h: 900, signedIn: true },
+  { name: "settings-treasury", path: "/workspace/settings", w: 1440, h: 1000, signedIn: true, scrollTo: "text=Treasury" },
+  { name: "capital", path: "/workspace/capital", w: 1440, h: 900, signedIn: true },
+  { name: "work", path: "/dashboard", w: 1440, h: 900, signedIn: true },
   { name: "landing-doors", path: "/", w: 1440, h: 900, scrollTo: ".dr" },
   { name: "landing-facts", path: "/", w: 1440, h: 900, scrollTo: ".tr" },
   { name: "landing-realrun", path: "/", w: 1440, h: 900, scrollTo: "#how" },
@@ -42,7 +52,17 @@ const SHOTS = [
 ];
 
 const browser = await chromium.launch();
+let sessionCookies = null;
+if (session) {
+  const c = await browser.newContext();
+  const p = await c.newPage();
+  await p.goto(`${base}/api/dev/session?address=${session}&next=/start`, { waitUntil: "networkidle", timeout: 60_000 }).catch(() => {});
+  sessionCookies = await c.cookies();
+  await c.close();
+}
 for (const s of SHOTS) {
+  if (only.length && !only.includes(s.name)) continue;
+  if (s.signedIn && !sessionCookies) continue;
   const ctx = await browser.newContext({
     viewport: { width: s.w, height: s.h },
     deviceScaleFactor: 2,
@@ -51,13 +71,14 @@ for (const s of SHOTS) {
     colorScheme: "light",
     reducedMotion: "reduce", // reveal-on-scroll must not leave blanks in a still
   });
+  if (sessionCookies) await ctx.addCookies(sessionCookies);
   const page = await ctx.newPage();
   try {
     // the floating mode pill and the feedback tab are app chrome for a signed-in founder; in a
     // still they photobomb the subject (measured: the pill sat over the composer's header)
     await page.addInitScript(() => {
       const st = document.createElement("style");
-      st.textContent = ".mode-pill,[class*='feedback-fab'],button:has(> svg + span):where([class*='feedback']){display:none!important}";
+      st.textContent = ".mode-pill,[class*='feedback-fab'],button:has(> svg + span):where([class*='feedback']),nextjs-portal,[data-nextjs-toast],[data-next-badge-root],#__next-build-watcher{display:none!important}";
       document.addEventListener("DOMContentLoaded", () => document.head.appendChild(st));
     });
     await page.goto(base + s.path, { waitUntil: "networkidle", timeout: 60_000 });
