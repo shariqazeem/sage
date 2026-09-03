@@ -28,6 +28,8 @@ export interface PlanView {
   publicCampaignId: string;
   /** WORK PROOF — absent ⇒ "testing" (a Sage-designed plan). */
   campaignKind?: "testing" | "grant" | "gig";
+  /** the composer's invite-only toggle: unlisted = members-only from a workspace, off every public board. */
+  visibility?: "listed" | "unlisted";
   campaignIdHash: string;
   missionPlanDigest: string;
   missions: MissionView[];

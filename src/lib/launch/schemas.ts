@@ -642,6 +642,9 @@ export interface MissionPlanV1 {
   campaignKind?: "testing" | "grant" | "gig";
   /** WORK PROOF — optional recipient allowlist (lowercased wallets), enforced at the submit route. */
   allowlist?: string[];
+  /** SAGE FOR TEAMS — "unlisted" keeps the campaign off every public board and, from a workspace, makes
+   *  it members-only at submit. Written by the composer's invite-only toggle; read at attach. */
+  visibility?: "listed" | "unlisted";
   /** the model + prompt schema version that produced the candidates. */
   modelVersion: string;
   promptVersion: string;

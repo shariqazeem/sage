@@ -1,3 +1,4 @@
+import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 import { NextResponse } from "next/server";
 
@@ -345,7 +346,8 @@ export async function POST(
         rewardBase: BigInt(m.rewardBase),
         maxCompletions: BigInt(m.maxCompletions),
       })),
-      autonomy: "autopilot",
+      autonomy: defaultAutonomyFor(plan.plan.visibility),
+      visibility: plan.plan.visibility,
       privateCorpus: privateKey.observations,
       privateCorpusDigest: privateKey.digest,
       privateCorpusSources: privateKey.distinctSources,

@@ -99,6 +99,8 @@ export interface V2SetupInput {
   vaultKind?: "campaign_v2" | "sage_vault_starknet";
   /** WORK PROOF — optional recipient allowlist (lowercased at persist; enforced at submit). */
   allowlist?: string[];
+  /** SAGE FOR TEAMS — the plan's door: listed on the public board, or unlisted (members-only from a workspace). */
+  visibility?: "listed" | "unlisted";
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -452,6 +454,9 @@ export async function attachV2Campaign(
           commitmentVersion: 2,
           // WORK PROOF — kind + allowlist from the approved plan (labels + submit-route gate only).
           kind: input.campaignKind ?? "testing",
+          // The composer's invite-only toggle reached the plan and stopped there for weeks: no caller
+          // handed it to this row, so every "invite-only" campaign deployed listed. Typed through now.
+          visibility: input.visibility ?? "listed",
           allowlist:
             input.allowlist && input.allowlist.length > 0
               /* Canonical per family: lower-casing alone leaves a felt's padding intact, so the

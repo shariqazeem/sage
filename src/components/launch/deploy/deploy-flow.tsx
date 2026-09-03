@@ -5,6 +5,7 @@ import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/networks";
+import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
@@ -101,7 +102,8 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const [perWalletCap, setPerWalletCap] = useState("1");
   // Payout mode. Default autopilot — the agent that designs the missions also pays them,
   // inside the vault's on-chain limits. The founder can switch to manual review.
-  const [autonomy, setAutonomy] = useState<"manual" | "autopilot">("autopilot");
+  // Members-only work autopays; public work starts with the team releasing each payout. Flip it here.
+  const [autonomy, setAutonomy] = useState<"manual" | "autopilot">(defaultAutonomyFor(plan.visibility));
 
   const load = useCallback(
     async (id: string): Promise<DeploymentView | null> => {
@@ -594,7 +596,7 @@ function LimitsPanel(props: {
             className={`lx-btn${autonomy === "autopilot" ? "" : " ghost"}`}
             style={{ flex: 1 }}
           >
-            Autopilot
+            Sage pays
           </button>
           <button
             type="button"
@@ -602,10 +604,13 @@ function LimitsPanel(props: {
             className={`lx-btn${autonomy === "manual" ? "" : " ghost"}`}
             style={{ flex: 1 }}
           >
-            Manual review
+            You release
           </button>
         </div>
         <p className="lx-approve-note" style={{ marginTop: 8 }}>
+          {plan.visibility === "unlisted"
+            ? "Members-only work. "
+            : "Open to the public board — Sage filters copies, wallet clusters and pace. "}
           {autonomy === "autopilot"
             ? "Sage designed these missions — and pays verified work on its own the moment its confidence clears 85%, inside the on-chain limits above. Nothing else can move funds."
             : "Sage verifies and recommends each submission; you release every reward yourself. The vault still enforces every limit on-chain."}

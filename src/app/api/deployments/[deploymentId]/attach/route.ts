@@ -1,3 +1,4 @@
+import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAddress } from "viem";
 
@@ -35,7 +36,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   // The founder's chosen payout mode from the wizard. Default autopilot — the agent that
   // designed the missions also pays them. Validated to the two allowed values.
   const body = (await req.json().catch(() => ({}))) as { autonomy?: unknown; perWalletCap?: unknown };
-  const autonomy: "manual" | "autopilot" = body.autonomy === "manual" ? "manual" : "autopilot";
+  // An explicit choice from the deploy step wins; otherwise the plan's door decides (members-only
+  // autopays, public work is released by the team).
+  const chosen: "manual" | "autopilot" | null = body.autonomy === "manual" ? "manual" : body.autonomy === "autopilot" ? "autopilot" : null;
   // P18/P19 — the founder-set per-campaign per-wallet payout cap. Validated + clamped to [1, 1000];
   // anything invalid falls back to the safe default of 1. Chat-launch never sends it → default 1.
   const perWalletCap = Math.min(1000, Math.max(1, Math.round(Number(body.perWalletCap)) || 1));
@@ -43,6 +46,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   const access = loadDeploymentForSession(deploymentId, session);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
   const { deployment, loaded, settings, tokenDecimals } = access.ctx;
+  const autonomy: "manual" | "autopilot" = chosen ?? defaultAutonomyFor(loaded.plan.visibility);
 
   if (!deployment.deployedVault) {
     return NextResponse.json({ ok: false, error: "The vault is not deployed yet." }, { status: 409 });
@@ -178,6 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       // WORK PROOF — kind + allowlist ride the approved plan (absent on model plans ⇒ unchanged).
       campaignKind: loaded.plan.campaignKind,
       allowlist: loaded.plan.allowlist,
+      visibility: loaded.plan.visibility,
     },
     deploymentAttachDeps(deployment, loaded.plan, settings),
   );

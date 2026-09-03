@@ -40,6 +40,8 @@ export interface DeploymentReadyPlan {
   /** WORK PROOF — campaign kind + optional recipient allowlist from the approved plan. */
   campaignKind?: "testing" | "grant" | "gig";
   allowlist?: string[];
+  /** SAGE FOR TEAMS — the plan's door (unlisted = members-only from a workspace). Carried, never recomputed. */
+  visibility?: "listed" | "unlisted";
 }
 
 function toCandidate(m: CompiledMission): CandidateMission {
@@ -122,6 +124,7 @@ export function verifyPlanForApproval(
     // compiler sets them on the plan after compilation, and they must survive the reload).
     ...(plan.campaignKind ? { campaignKind: plan.campaignKind } : {}),
     ...(plan.allowlist && plan.allowlist.length > 0 ? { allowlist: plan.allowlist } : {}),
+    ...(plan.visibility ? { visibility: plan.visibility } : {}),
   };
   const approvalRecord = {
     schemaVersion: APPROVAL_SCHEMA_VERSION,

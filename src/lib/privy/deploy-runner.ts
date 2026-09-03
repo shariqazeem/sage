@@ -1,3 +1,4 @@
+import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import "server-only";
 
 import { getAddress, type Address, type Hex } from "viem";
@@ -265,11 +266,12 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
       factoryAddress: getAddress(settings.factory),
       vaultAddress: bundle.predictedVault,
       missions,
-      autonomy: "autopilot",
-      // WORK PROOF parity with the web attach — kind + allowlist ride the approved plan. Without
-      // these a Telegram-launched gig recorded kind "testing", and an invite-only campaign would
-      // have deployed OPEN to everyone.
+      autonomy: defaultAutonomyFor(loaded.plan.visibility),
+      // WORK PROOF parity with the web attach — kind + allowlist + visibility ride the approved plan.
+      // Without these a Telegram-launched gig recorded kind "testing", and an invite-only campaign
+      // deployed OPEN to everyone (which, for visibility, it did until 2026-09-04).
       campaignKind: loaded.plan.campaignKind,
+      visibility: loaded.plan.visibility,
       allowlist: loaded.plan.allowlist,
     },
     {},
