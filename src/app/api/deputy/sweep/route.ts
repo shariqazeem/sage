@@ -1,3 +1,4 @@
+import { runOperatorTick } from "@/lib/operator/tick";
 import { NextResponse, after, type NextRequest } from "next/server";
 import {
   acquireLock,
@@ -75,6 +76,8 @@ async function runSweep() {
     nudges: { nudged: 0 },
     consolidation: { scanned: 0, linked: 0 },
     finalization: { waiting: 0, finalized: 0, revoked: 0 },
+    /** the standing mandate's own turn: what the agent proposed, committed, launched and reclaimed. */
+    operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -213,6 +216,15 @@ async function runSweep() {
 
   // Where the paid money went: forwards between submitters link their wallets for every future judgment.
   summary.consolidation = await watchPayoutConsolidation().catch(() => ({ scanned: 0, linked: 0 }));
+
+  // THE STANDING MANDATE. Founders who armed one get the agent's own turn here: reclaim dead boards,
+  // deploy what it committed to, commit what has matured past its veto window, propose the next
+  // move. Last on purpose — the payout paths above must never wait on a launch decision, and a
+  // thrown tick must never cost a settlement.
+  summary.operator = await runOperatorTick(nowSeconds(), (fn) => after(fn)).catch((e) => {
+    console.error("[sweep] operator tick failed:", e instanceof Error ? e.message : e);
+    return { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] };
+  });
 
   return summary;
 }

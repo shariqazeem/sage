@@ -757,3 +757,36 @@ other). The graph's gas read had the twin defect: a fixed 20k-block window is ho
 day-old gas chain read as nothing; the window is now derived from the campaign's age via the chain's own
 block time, and failed chain reads are counted rather than hidden.
 
+
+## The standing mandate (2026-09-04) — Sage as the operator of a founder's budget
+
+**Why.** Measuring the live product answered the founder's question "where is the traction": the
+board had ten claimable slots worth one dollar, four of fifty-four submitters ever came back, and
+seven posters existed, mostly ours. The diagnosis was not positioning. A funder who must recruit his
+own workers is buying a payment tool, and a payment tool is worth nothing for people you already
+know — assigning a task in chat and sending money takes two minutes. Sage becomes worth paying for
+only when the founder does nothing and the agent does the work of deciding, designing, verifying and
+paying.
+
+**The shape.** A founder funds the treasury once and names the product. From then on the agent
+decides what work to buy, sizes it, designs it, launches it, judges it and pays for it — inside
+ceilings it cannot argue with. Launching by hand is unchanged; a founder who prefers to choose the
+work simply never arms the mandate.
+
+**Why it is safe to hand a model the wheel.**
+- `src/lib/operator/policy.ts` is pure and owns every ceiling: weekly, per campaign, a reserve floor
+  that stays the founder's, concurrency, spacing, and a cap on money sitting UNCLAIMED on the board.
+  Exposure, not spend, is the risk, and capping it is what permits a PORTFOLIO — several small
+  positions running together — rather than one large bet.
+- A surface earns its size. The first campaign against a product is a probe; one whose work gets
+  claimed scales; one that goes quiet earns nothing and has its campaign stopped so the money returns.
+- `src/lib/operator/decide.ts` is the only part a model touches and it chooses WHERE, never how much.
+  The surface is a closed set of what the founder named or Sage has already worked, so an invented
+  URL is refused rather than sanitised. A proposal naming money is rejected outright. With no LLM the
+  rules decide alone. It runs on the MISSION lane, sharing MiniMax with mission design.
+- `src/lib/operator/tick.ts` is a stateless gate inside the sweep, like the payout autopilot.
+
+**Why it is not boring.** Every move is PROPOSED before it is taken, with its reason and its price,
+and sits arguable for a veto window on the same ring the settling lane uses. The founder watches a
+real decision against a real clock and can stop it or tell it to go now. A dashboard that only
+reports afterwards would have been the failure mode.

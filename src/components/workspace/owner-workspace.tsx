@@ -5,6 +5,7 @@ import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import type { SettlementRail, WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 import { SageAtWork } from "./sage-at-work";
 import { SettlingLane } from "@/components/live/settling-lane";
+import { NextMove } from "@/components/live/next-move";
 
 export interface OwnerView {
   workspace: { id: string; name: string; slug: string; plan: WorkspacePlan; planUntil: number | null; memberCap: number; proPriceUsd: number };
@@ -67,6 +68,8 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div className={`ws-stat${paidUsd > 0 ? " pos" : ""}`}><span className="ws-stat-v">{usd(paidUsd)}</span><span className="ws-stat-k">Paid · {paidCount} payout{paidCount === 1 ? "" : "s"}</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{view.memberCount}</span><span className="ws-stat-k">People</span></div>
       </section>
+
+      <NextMove />
 
       <SettlingLane title="Settling — the finalization window" />
 

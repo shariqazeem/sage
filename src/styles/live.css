@@ -104,3 +104,31 @@
 .vh-coin { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 6px; border-radius: 999px; background: var(--pos-soft, #f0f8f1); border: 1.5px solid var(--pos, #15803d); color: var(--pos, #15803d); font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
 a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .vh-coin-who { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); }
+
+/* ═══ WHAT SAGE IS DOING NEXT — the decision, before it happens ═══ */
+.nm-move { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--surface); }
+.nm-body { min-width: 0; }
+.nm-head { margin: 0 0 3px; font-size: 14px; color: var(--ink); }
+.nm-head b { font-weight: 650; }
+.nm-head .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); }
+.nm-goal { margin: 0 0 4px; font-size: 12.5px; color: var(--ink-muted); line-height: 1.45; }
+.nm-why { margin: 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.4; }
+.nm-act { display: grid; gap: 6px; }
+.nm-btn { border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 10px; padding: 7px 14px; font-size: 12.5px; font-weight: 550; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.nm-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.nm-btn.ghost { background: var(--surface); color: var(--ink-muted); border-color: var(--border-strong); }
+.nm-btn:disabled { opacity: .55; cursor: default; }
+.nm-state { margin: 0; font-size: 13px; color: var(--ink-muted); line-height: 1.5; padding: 10px 2px; }
+.nm-state .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); }
+@media (max-width: 620px) { .nm-move { grid-template-columns: 56px minmax(0, 1fr); } .nm-act { grid-column: 1 / -1; grid-auto-flow: column; } }
+
+/* the mandate form — the founder's ceilings, in their words */
+.mc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0 4px; }
+.mc-f { display: grid; gap: 5px; min-width: 0; }
+.mc-f > span { font-size: 11.5px; color: var(--ink-muted); font-weight: 500; }
+.mc-wide { grid-column: 1 / -1; }
+.mc-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.mc-err { margin: 10px 0 0; font-size: 12.5px; color: var(--dan, #dc2626); }
+.mc-stance { margin: 12px 0 0; font-size: 12.5px; color: var(--ink-muted); }
+.mc-spin { animation: mc-rot 1s linear infinite; }
+@keyframes mc-rot { to { transform: rotate(360deg); } }

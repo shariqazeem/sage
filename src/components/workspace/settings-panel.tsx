@@ -8,6 +8,7 @@ import { short } from "@/lib/format";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { TreasuryCard } from "./treasury-card";
+import { MandateCard } from "./mandate-card";
 
 export interface SettingsView {
   workspace: { id: string; name: string };
@@ -117,6 +118,8 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
           </section>
 
           <TreasuryCard />
+
+          <MandateCard />
         </div>
 
         <div>
