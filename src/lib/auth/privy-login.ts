@@ -43,11 +43,27 @@ export async function resolvePrivyLogin(token: string): Promise<PrivyLoginResult
     return { ok: false, reason: "invalid_token", detail: e instanceof Error ? e.message : String(e) };
   }
   try {
-    const user = await c.getUserById(userId);
-    const address = ethereumAddressOf(user);
-    if (!address) return { ok: false, reason: "no_wallet_yet" };
+    let user = await c.getUserById(userId);
+    let address = ethereumAddressOf(user);
+    if (!address) {
+      // The browser normally creates the embedded wallet at login; when it has not (measured live
+      // 2026-09-05: the exchange looped on "no wallet" and gave up), the server creates it — the
+      // same embedded wallet, held by Privy for this user, not a server wallet of ours.
+      try {
+        await c.createWallets({ userId, createEthereumWallet: true });
+        user = await c.getUserById(userId);
+        address = ethereumAddressOf(user);
+      } catch (e) {
+        console.warn("[privy-login] createWallets failed:", e instanceof Error ? e.message : String(e));
+      }
+    }
+    if (!address) {
+      console.warn("[privy-login] no ethereum wallet on user", userId, "accounts:", (user.linkedAccounts ?? []).map((a) => (a as { type?: string }).type).join(","));
+      return { ok: false, reason: "no_wallet_yet" };
+    }
     return { ok: true, address, userId };
   } catch (e) {
+    console.warn("[privy-login] lookup failed:", e instanceof Error ? e.message : String(e));
     return { ok: false, reason: "error", detail: e instanceof Error ? e.message : String(e) };
   }
 }
