@@ -93,10 +93,12 @@ door with a typed contract; it ships when a partner does, and is labelled as pen
 
 ## Impact and scalability
 
-**Evidence of real-world use.** 39 mainnet payouts across two rails, 31 distinct people paid,
-refusals on record with reasons; an autonomous third-party agent earned under the same rules and
-has a credit file; two real wallet-rotation clusters were caught on chain and published — the second
-one after it had taken a whole gig, which is why the workspace exists. The judge is promotion-gated
+**Evidence of real-world use.** 41 mainnet payouts across two rails (28 on GOAT, 13 on Starknet)
+to 34 wallets — 27 distinct people once wallets the consolidation watch has linked on chain are
+collapsed, and we publish that collapse rather than the flattering number; 26 refusals on record
+with reasons; an autonomous third-party agent earned under the same rules and has a credit file;
+two real wallet-rotation clusters were caught on chain and published — the second one after it had
+taken a whole gig, which is why the workspace exists. The judge is promotion-gated
 on live batteries (zero wrong auto-pays across 57 rows; 14 attacks with zero leaks and 12 honest
 submissions with zero false holds). Outcomes are computed live on `/outcomes` against the track's own
 bar, with the gaps stated as not yet measured.

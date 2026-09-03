@@ -26,14 +26,14 @@ export const metadata: Metadata = {
   // Still category-first, brand-last — and the WINNING category words ("tests your product",
   // "pays real testers") stay in the sentence: the broadened frame extends the query surface
   // (gigs, milestone grants, verified work) without abandoning the one category we already rank in.
-  title: "AI agent that pays for verified work — product testing, gigs, milestone grants · Sage",
+  title: "Sage for teams — an AI agent that verifies your people's work and pays it in USDC",
   description:
-    "Give Sage work to fund: it tests your product and pays real testers in USDC, or pays a gig, bounty, or milestone grant when the deliverable verifies. It checks every claim itself — in a real browser, against the published artifact, or on-chain — screens every recipient against the OFAC sanctions list, and settles from an on-chain vault it cannot exceed. Every payout publishes a receipt you can verify, and every earner builds a permanent verified work record.",
+    "A workspace where a team, programme or company invites its people, posts gigs, milestone grants and product-testing runs, and an AI agent verifies every deliverable and pays it in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Sage: say the work once. It verifies, then pays.",
+    title: "Sage for teams: invite your people, post the work, it gets verified and paid.",
     description:
-      "An AI agent with a budget it cannot exceed. Product tests, gigs, and milestone grants run the same loop: define, verify, pay or refuse — every payout a public on-chain receipt, every earner a verified work record.",
+      "A workspace where a team, programme or company invites its people, posts gigs, milestone grants and product-testing runs, and an AI agent verifies every deliverable and pays it in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient.",
     type: "website",
   },
 };
