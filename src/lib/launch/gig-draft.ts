@@ -20,17 +20,39 @@ import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
 export const GIG_DRAFT_VERSION = "gig-draft-v1";
 
 const hostRe = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
+
+/**
+ * EVERY EQUIVALENT SHAPE IS READ. Measured live 2026-09-04 (MiniMax-M3 on the MISSION lane): the
+ * steps arrived as an array of strings, the required phrase as one string, and the strict reader
+ * refused both drafts twice — a founder would have been sent to compose by hand for a shape
+ * difference that carries no information. The gateway's shape bias is per prompt, so retries do
+ * not rescue a picky reader; the schema reads a string or a list wherever either is honest, and
+ * strictness stays where it belongs — in the compiler and the judge.
+ */
+const stringList = (max: number, item: z.ZodString) =>
+  z.preprocess(
+    (v) => (typeof v === "string" ? v.split(/\r?\n|(?<=\.)\s+(?=\d+[.)]\s)/).map((t) => t.trim()).filter(Boolean) : v),
+    z.array(item).max(max),
+  );
+const text = (min: number, max: number) =>
+  z.preprocess((v) => (Array.isArray(v) ? v.map((t, i) => (typeof t === "string" && !/^\d+[.)]/.test(t.trim()) ? `${i + 1}. ${t.trim()}` : String(t).trim())).join("\n") : v), z.string().min(min).max(max));
+const count = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
+const hostList = z.preprocess(
+  (v) => (typeof v === "string" ? [v] : v == null ? [] : v),
+  z.array(z.preprocess((h) => (typeof h === "string" ? h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") : h), z.string().max(120).regex(hostRe))).max(5),
+);
+
 const evidenceSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("artifact_url"),
-    allowedHosts: z.array(z.string().max(120).regex(hostRe)).max(5).default([]),
-    minWords: z.number().int().min(20).max(5000).optional(),
-    mustContain: z.array(z.string().min(2).max(200)).max(5).optional(),
+    allowedHosts: hostList.default([]),
+    minWords: count(20, 5000).optional(),
+    mustContain: stringList(5, z.string().min(2).max(200)).optional(),
   }),
-  z.object({ kind: z.literal("public_url"), expectedText: z.array(z.string().min(3).max(300)).min(1).max(5) }),
+  z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)) }),
   z.object({
     kind: z.literal("onchain_tx"),
-    chainId: z.number().int().optional(),
+    chainId: count(1, 10_000_000).optional(),
     to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   }),
 ]);
@@ -39,10 +61,10 @@ export const draftMilestoneSchema = z.object({
   title: z.string().min(4).max(80),
   /** one sentence: what must be TRUE when the work is done — a state, not an instruction. */
   deliverable: z.string().min(8).max(300),
-  instructions: z.string().min(10).max(2000),
-  criteria: z.array(z.string().min(4).max(300)).min(1).max(8),
+  instructions: text(10, 2000),
+  criteria: stringList(8, z.string().min(4).max(300)).pipe(z.array(z.string()).min(1)),
   evidence: evidenceSchema,
-  effortMinutes: z.number().int().min(1).max(240).optional(),
+  effortMinutes: count(1, 240).optional(),
 });
 
 export const gigDraftSchema = z.object({
@@ -50,7 +72,7 @@ export const gigDraftSchema = z.object({
   title: z.string().min(4).max(80),
   /** the audience phrase the composer shows — "my designer", "anyone", "a translator". */
   who: z.string().min(2).max(80),
-  slots: z.number().int().min(1).max(50),
+  slots: count(1, 50),
   whyItMatters: z.string().min(10).max(600).optional(),
   milestones: z.array(draftMilestoneSchema).min(1).max(12),
 });
@@ -132,6 +154,12 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
       model = r.model ?? model;
     } catch (e) {
       const msg = e instanceof LlmCompletionError ? e.message : e instanceof Error ? e.message : String(e);
+      if (/unparseable/i.test(msg)) {
+        // The model answered, just not as one JSON object — a shape miss like any other, worth one more round.
+        feedback = "- (root): the answer was not a single JSON object — answer with ONE JSON object and nothing else";
+        console.warn(`[gig-draft] round ${round + 1} unparseable answer`);
+        continue;
+      }
       return { ok: false, error: `Sage couldn't draft this right now (${msg.slice(0, 120)}). Compose it by hand below, or try again.` };
     }
     const parsed = gigDraftSchema.safeParse(raw);
@@ -140,6 +168,8 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
       return { ok: true, draft: cleaned.draft, notes: cleaned.notes, model };
     }
     feedback = parsed.error.issues.slice(0, 6).map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
+    // Visible in the server log: a shape the model keeps missing is a prompt or schema defect, not weather.
+    console.warn(`[gig-draft] round ${round + 1} schema miss:\n${feedback}`);
   }
-  return { ok: false, error: "Sage's draft didn't fit the brief shape twice — compose the work by hand below." };
+  return { ok: false, error: `Sage's draft didn't fit the brief shape twice — compose the work by hand below. (${(feedback ?? "").replace(/\n/g, " ").slice(0, 200)})` };
 }

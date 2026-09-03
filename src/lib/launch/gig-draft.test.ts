@@ -72,3 +72,47 @@ describe("gig draft — words from the model, money from the founder", () => {
     expect(GIG_DRAFT_SYSTEM).toMatch(/ANY kind of work/);
   });
 });
+
+describe("gig draft — every equivalent shape is read (measured misses, 2026-09-04)", () => {
+  const base = { kind: "grant", title: "Catalogue and reviews grant", who: "a market seller in Kingston", slots: "1" };
+  it("steps as a list, a required phrase as a string, counts as strings", () => {
+    const parsed = gigDraftSchema.safeParse({
+      ...base,
+      milestones: [
+        {
+          title: "Publish the catalogue",
+          deliverable: "Her catalogue of at least 12 priced products is a public page.",
+          instructions: ["Photograph each product", "List each with a price", "Publish the page and submit the link"],
+          criteria: "At least 12 products listed\nEvery product shows a price\nThe seller's business name appears on the page",
+          evidence: { kind: "public_url", expectedText: "Kingston Market Stall — catalogue" },
+          effortMinutes: "120",
+        },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const m = parsed.data.milestones[0]!;
+    expect(m.instructions).toBe("1. Photograph each product\n2. List each with a price\n3. Publish the page and submit the link");
+    expect(m.criteria).toHaveLength(3);
+    expect(m.evidence).toEqual({ kind: "public_url", expectedText: ["Kingston Market Stall — catalogue"] });
+    expect(m.effortMinutes).toBe(120);
+    expect(parsed.data.slots).toBe(1);
+  });
+
+  it("a host written as a URL is read as a host", () => {
+    const parsed = gigDraftSchema.safeParse({
+      ...base,
+      kind: "gig",
+      milestones: [{ title: "Menu in English", deliverable: "The English menu is live on the restaurant's site.", instructions: "Translate the menu and publish it, then submit the link.", criteria: ["Every dish from the original menu appears in English"], evidence: { kind: "artifact_url", allowedHosts: "https://menu.tastyjamaica.com/" } }],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.milestones[0]!.evidence).toEqual({ kind: "artifact_url", allowedHosts: ["menu.tastyjamaica.com"] });
+  });
+
+  it("an unparseable answer costs a round, not the draft", async () => {
+    let n = 0;
+    const r = await draftDirectCampaign({ intent: "pay my translator when the menu is live" }, { complete: async () => { n++; if (n === 1) throw new Error("llm_unparseable"); return { json: good }; } });
+    expect(r.ok).toBe(true);
+    expect(n).toBe(2);
+  });
+});
