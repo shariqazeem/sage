@@ -35,6 +35,9 @@ import {
 import type { VerificationContract } from "@/lib/verify/contract";
 import { walletFreshnessSignal } from "./wallet-signals";
 import { fundingClusterSignal } from "./funding-graph";
+import { starknetClusterSignals, starknetFreshnessSignal } from "./wallet-signals-starknet";
+import { authorAgeSignal } from "@/lib/verify/author-age";
+import { escalateSybil } from "./sybil-escalation";
 import type { ObservationShadow } from "./observation-judge";
 import type { DecisionBrief, StoredBrief } from "./brain-core";
 
@@ -355,7 +358,10 @@ export async function ensureDecision(
   // caution that can never block alone) is still recorded because it is lane-independent. The frozen
   // brain-core is untouched — it simply is not consulted where it cannot judge.
   if (!workProofContract && mission?.verifiabilityClass === "observation-based") {
-    const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
+    const freshness =
+      campaign.settlementRail === "starknet"
+        ? await starknetFreshnessSignal(submission.wallet).catch(() => null)
+        : await walletFreshnessSignal(submission.wallet, campaign.chainId);
     const brief: StoredBrief = {
       criteria: [],
       fraudSignals: freshness ? [freshness] : [],
@@ -540,20 +546,27 @@ export async function ensureDecision(
   // severity, so it can't block a payout alone (the gate holds only on high-severity fraud); it merely
   // combines with the brief's own signals for a reviewer, and a fresh wallet with strong verified
   // evidence still pays. Failure-isolated inside walletFreshnessSignal (an RPC blip yields no signal).
-  const freshness = await walletFreshnessSignal(submission.wallet, campaign.chainId);
+  // WALLET SIGNALS, PER RAIL. The EVM readers throw on a Starknet felt (viem `getAddress`) and that
+  // throw sat inside a catch, so every Starknet wallet was silently "established" and "unclustered":
+  // the first Starknet gig paid ten rotating wallets with zero wallet signals. Each rail reads its
+  // own chain; the signals mean the same thing on both.
+  const peerWallets = listSubmissions(campaign.id).map((s) => s.wallet);
+  const onStarknet = campaign.settlementRail === "starknet";
+  const freshness = onStarknet
+    ? await starknetFreshnessSignal(submission.wallet).catch(() => null)
+    : await walletFreshnessSignal(submission.wallet, campaign.chainId);
+  const clusterSignals = onStarknet
+    ? await starknetClusterSignals({ wallet: submission.wallet, peerWallets }).catch(() => [])
+    : await fundingClusterSignal({ wallet: submission.wallet, peerWallets, chainId: campaign.chainId ?? 2345 })
+        .then((s) => (s ? [s] : []))
+        .catch(() => []);
+  // The account that published the page: created for this campaign, or older than it.
+  const authorAge = await authorAgeSignal(submission.evidenceUrl, campaign.createdAt).catch(() => null);
 
-  // FUNDING-GRAPH SIBLING SIGNAL — the rotation detector freshness and near-dup are both blind to.
-  // Measured on prod 2026-08-28: one person funded a daisy chain of four fresh wallets and took all
-  // four slots of a mission with four genuinely-written accounts. Medium severity by design (it can
-  // never block alone — funding a friend's gas is honest too); it informs the reviewer and the
-  // founder's console. Failure-isolated: an explorer blip yields no signal.
-  const cluster = await fundingClusterSignal({
-    wallet: submission.wallet,
-    peerWallets: listSubmissions(campaign.id).map((s) => s.wallet),
-    chainId: campaign.chainId ?? 2345,
-  }).catch(() => null);
-
-  const fraudSignals = [...brief.fraudSignals, ...(freshness ? [freshness] : []), ...(cluster ? [cluster] : [])];
+  const collected = [...brief.fraudSignals, ...(freshness ? [freshness] : []), ...clusterSignals, ...(authorAge ? [authorAge] : [])];
+  // Several mediums that together are the wallet-rotation shape become one HIGH, which the gate holds.
+  const sybil = escalateSybil(collected);
+  const fraudSignals = sybil ? [...collected, sybil] : collected;
 
   const { row, inserted } = insertDecision({
     submissionId,

@@ -21,6 +21,8 @@ import {
   updateSubmission,
 } from "@/lib/db/campaigns";
 import { findCopiedArtifact, findDuplicate, findNearDuplicate } from "./dedup";
+import { autopayHourlyCap, paceCapHold } from "./pace-cap";
+import { countAutopaySettledSince } from "@/lib/db/events-read";
 import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 
 /** CORPUS READINESS FLOOR — observation autopay requires at least this many distinct private-corpus
@@ -789,6 +791,26 @@ export async function runDeputyOnSubmission(
       return { action: "held", reason, correlationId: cid };
     }
     return { action: "skipped", reason, correlationId: cid };
+  }
+
+  // c3b. PACE (2026-09-04) — a campaign paying faster than people can do the work is being farmed:
+  // ten rewards in two hours, every page fine, every wallet new. Above the hourly cap the payout HOLDS
+  // with the pace as the reason and releases itself as the hour rolls on. Founder-releasable at once.
+  // A journal that cannot be read is logged, never silently treated as "no payouts this hour".
+  let recentAutopays = 0;
+  try {
+    recentAutopays = countAutopaySettledSince(campaign.id, Math.floor(Date.now() / 1000) - 3600);
+  } catch (e) {
+    agentLog(cid, "pace_cap", { error: e instanceof Error ? e.message : String(e) });
+  }
+  const pace = paceCapHold(recentAutopays, autopayHourlyCap());
+  if (pace) {
+    agentLog(cid, "pace_cap", { held: true, recentAutopays });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      if (journalHeld(campaign, submission, pace, cid)) void notifyFounderHeld(campaign, submission);
+      return { action: "held", reason: "pace_cap", correlationId: cid };
+    }
+    return { action: "skipped", reason: "pace_cap", correlationId: cid };
   }
 
   // c4. COPIED DELIVERABLE (2026-09-03) — the artifact body itself, fingerprinted with the marker

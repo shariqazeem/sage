@@ -303,6 +303,8 @@ export type EventKind =
   | "decision_recorded"
   | "autopay_settled"
   | "autopay_held"
+  /** the consolidation watch linked two wallets: a payout was forwarded to another submitter's wallet. */
+  | "wallet_cluster"
   | "fee_settled"
   | "fee_pending"
   /** the never-arrives guard fired: a submission has waited past the silence bound without a

@@ -677,3 +677,23 @@ paste rule), 5 refused with reasons (tweet, three pastes, one wrongly-held-then-
     cap; the per-person rule has no on-chain handle on Starknet. The near-duplicate REPORT check
     caught the third member of the same template (55%) and held it for the founder. Author identity
     across hosts (dev.to handle ↔ GitHub handle) is a signal worth reading before paying.
+
+### Findings 27–29 (2026-09-04, the first Starknet gig, read as a forensic)
+
+27. **The gig was farmed 10/10 by one operator, and nothing in Sage saw it.** Every new wallet was funded
+    with STRK gas by the previous submitter's wallet; 8 of the 10 paid wallets forwarded their $1.10 to one
+    hub within ~90 blocks — a wallet that had itself submitted (the refused tweet); five of the author
+    accounts (GitHub, dev.to) were created minutes before their submission. Every wallet signal was
+    EVM-only (viem throws on a felt, inside a catch), and each honest-looking fact was a MEDIUM by
+    design while the gate holds only on HIGH. Fix: Starknet twins of the freshness and funding signals,
+    an author-account-age signal, a deterministic escalation (fresh wallet/author + funded by a peer or
+    a payout-consolidation link ⇒ one HIGH), a sweep that follows where paid USDC goes and links wallets
+    whose payouts meet, and a per-campaign autopay pace cap (`AUTOPAY_HOURLY_CAP`, default 4).
+28. **The copy gate held an honest article as a "94% copy".** Fingerprints were taken over raw HTML; two
+    different dev.to articles are 92% dev.to. Content elements only now (nav/header/footer/aside removed),
+    for the fingerprint, the word floor and the new source-overlap check; the renderer returns the same
+    content text from the DOM. A refusal issued on the false signal was reversed.
+29. **A worker refused or held was told nothing.** The founder's reason, the copy gate's reason and the
+    judge's unmet criteria were all stored and none shown; the board had no form to act from. `/me` now
+    carries the reason and the attempts left; both boards open the revise path; the founder console
+    reads the journal so a held payout is no longer labelled "settling".

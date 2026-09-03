@@ -1621,3 +1621,28 @@ export function ensureFlagshipCampaign(): void {
     })
     .run();
 }
+
+/** PAID Starknet submissions decided since `sinceUnix` — the wallets the consolidation watch follows. */
+export function listRecentPaidStarknetSubmissions(sinceUnix: number): Submission[] {
+  return db
+    .select({ submission: submissions })
+    .from(submissions)
+    .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+    .where(and(eq(campaigns.settlementRail, "starknet"), eq(submissions.status, "paid"), gte(submissions.decidedAt, sinceUnix)))
+    .all()
+    .map((r) => r.submission);
+}
+
+/** Has this wallet ever submitted to ANY campaign, in any status? Felt-tolerant: `0x01d9…` and `0x1d9…`
+ *  are one account, and prod stores whichever spelling the wallet signed with. */
+export function isKnownSubmitterWallet(wallet: string): boolean {
+  const bare = wallet.trim().toLowerCase().replace(/^0x/, "").replace(/^0+/, "");
+  if (!bare) return false;
+  const row = db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(sql`ltrim(lower(substr(${submissions.wallet}, 3)), '0') = ${bare}`)
+    .limit(1)
+    .get();
+  return !!row;
+}

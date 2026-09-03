@@ -23,6 +23,7 @@ import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payo
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
 import { runCampaignHealthNudges } from "@/lib/campaigns/health-nudge";
+import { watchPayoutConsolidation } from "@/lib/deputy/consolidation";
 import { reapStalledInspections } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
@@ -67,6 +68,7 @@ async function runSweep() {
     inspections: { retried: 0, failed: 0 },
     /** one-time quiet-campaign founder nudges sent this tick (48h, zero submissions). */
     nudges: { nudged: 0 },
+    consolidation: { scanned: 0, linked: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -187,6 +189,9 @@ async function runSweep() {
 
   // LIFECYCLE SENSE (FC Phase 3) — one-time quiet-campaign nudges. Best-effort, never blocks.
   summary.nudges = await runCampaignHealthNudges().catch(() => ({ nudged: 0 }));
+
+  // Where the paid money went: forwards between submitters link their wallets for every future judgment.
+  summary.consolidation = await watchPayoutConsolidation().catch(() => ({ scanned: 0, linked: 0 }));
 
   return summary;
 }
