@@ -4,6 +4,7 @@ import { reward as fmtReward, networkLabel, usd } from "@/lib/format";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import type { SettlementRail, WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 import { SageAtWork } from "./sage-at-work";
+import { SettlingLane } from "@/components/live/settling-lane";
 
 export interface OwnerView {
   workspace: { id: string; name: string; slug: string; plan: WorkspacePlan; planUntil: number | null; memberCap: number; proPriceUsd: number };
@@ -114,6 +115,8 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
           </ul>
         )}
       </section>
+
+      <SettlingLane title="Settling — the finalization window" />
 
       {view.desk.events.length > 0 && (
         <section className="ws-card">

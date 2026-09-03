@@ -37,16 +37,30 @@ export interface RevocationInput {
 
 const bare = (w: string) => w.trim().toLowerCase().replace(/^0x/, "").replace(/^0+/, "");
 
-/** The reason to revoke an approved payout, or null to finalize it. Pure. */
-export function revocationReason(input: RevocationInput): string | null {
+/** What each of the three checks reads RIGHT NOW. Pure; the lane shows these lights, the sweep acts on them. */
+export interface WatchReadings {
+  nearDup: string | null;
+  copied: string | null;
+  cluster: string | null;
+}
+
+export function watchReadings(input: RevocationInput): WatchReadings {
   const near = findNearDuplicate(input.me, input.others);
-  if (near) return `revoked in the finalization window — ${near.reason}`;
   const copied = findCopiedArtifact(input.me, input.others);
-  if (copied) return `revoked in the finalization window — ${copied.reason}`;
   const peers = new Set(input.peerWallets.map(bare));
   const hit = input.linkedWallets.map(bare).filter((w) => peers.has(w));
-  if (hit.length > 0) return `revoked in the finalization window — this wallet is linked on-chain to ${hit.length} other submitter${hit.length === 1 ? "" : "s"} of this campaign (a payout was forwarded between them)`;
-  return null;
+  return {
+    nearDup: near ? near.reason : null,
+    copied: copied ? copied.reason : null,
+    cluster: hit.length > 0 ? `this wallet is linked on-chain to ${hit.length} other submitter${hit.length === 1 ? "" : "s"} of this campaign (a payout was forwarded between them)` : null,
+  };
+}
+
+/** The reason to revoke an approved payout, or null to finalize it. Pure. */
+export function revocationReason(input: RevocationInput): string | null {
+  const r = watchReadings(input);
+  const first = r.nearDup ?? r.copied ?? r.cluster;
+  return first ? `revoked in the finalization window — ${first}` : null;
 }
 
 export const minutesLabel = (sec: number) => (sec % 3600 === 0 ? `${sec / 3600}h` : `${Math.round(sec / 60)}m`);

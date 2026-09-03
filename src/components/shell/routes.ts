@@ -25,6 +25,7 @@ export function isAppRoute(p: string): boolean {
     /^\/dashboard/.test(p) ||
     /^\/workspace(\/|$)/.test(p) ||
     /^\/start(\/|$)/.test(p) ||
+    /^\/graph\//.test(p) ||
     /^\/join\//.test(p) ||
     /^\/campaign\//.test(p) ||
     /^\/launch/.test(p) ||

@@ -1,5 +1,8 @@
 "use client";
 
+import { SettlingLane } from "@/components/live/settling-lane";
+import { WalletGraph } from "@/components/live/wallet-graph";
+import "@/styles/live.css";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -409,6 +412,9 @@ function Console({ data }: { data: WorkspaceData }) {
         purpose: a founder who only sees the paid ones is reading a filtered version of their
         own campaign.
       */}
+          <SettlingLane campaignId={data.id} title="Settling — the finalization window" />
+          <WalletGraph campaignId={data.id} />
+
           <section className="cw-log-wrap">
             <header className="cw-log-head">
               <h2 className="cw-log-h">What your testers told you</h2>

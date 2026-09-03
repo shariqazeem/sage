@@ -3,6 +3,7 @@ import "../app/motion.css";
 import "@/styles/tester-board.css";
 import "@/styles/wallet-connect.css";
 import "@/styles/workspace.css";
+import "@/styles/live.css";
 import { workspaceContext } from "@/lib/workspaces/context";
 import { countMembers, listMembers, listWorkspaceCampaigns, workspacesForAddress } from "@/lib/db/workspaces";
 import { limitsOf, planOf } from "@/lib/workspaces/plan";

@@ -1,5 +1,6 @@
-import { decidedOnMainnet } from "@/lib/campaigns/settled-ledger";
+import { decidedOnMainnet, settledLedger } from "@/lib/campaigns/settled-ledger";
 import "./explorer.css";
+import "@/styles/live.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -51,6 +52,8 @@ export default function ExplorerPage() {
     chainId != null && chainConfig(chainId).isMainnet;
 
   const feed = getPublicReceipts(40).filter((r) => isMainnetRail(r.chainId));
+  // the campaign behind each receipt, so a row can open its wallet graph
+  const campaignByTx = new Map(settledLedger().map((r) => [r.txHash.toLowerCase(), r.campaignId]));
   const rails = getAgentChainSplit().filter((c) => isMainnetRail(c.chainId));
   const paid = rails.reduce((sum, c) => sum + (c.settledUsd ?? 0), 0);
   const payouts = rails.reduce((sum, c) => sum + (c.payouts ?? 0), 0);
@@ -138,6 +141,9 @@ export default function ExplorerPage() {
                   </span>
                   <span className="exp-when">{ago(r.timestamp, now)}</span>
                 </Link>
+                {campaignByTx.has(r.txHash.toLowerCase()) && (
+                  <Link href={`/graph/${campaignByTx.get(r.txHash.toLowerCase())}`} className="exp-graph" aria-label="Wallet graph of this campaign">graph</Link>
+                )}
               </li>
             ))}
           </ul>
