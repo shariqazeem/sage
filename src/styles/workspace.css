@@ -150,10 +150,10 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .st-choice { text-align: left; display: grid; grid-template-columns: 40px minmax(0, 1fr) 16px; grid-template-rows: auto auto; column-gap: 14px; row-gap: 2px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; font: inherit; color: var(--ink); transition: border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .st-choice:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .st-choice:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.st-choice-ic { grid-row: 1 / span 2; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-border); align-self: center; }
-.st-choice-t { font-size: 15px; font-weight: 650; }
-.st-choice-s { font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; }
-.st-choice-arrow { grid-row: 1 / span 2; align-self: center; color: var(--ink-faint); transition: color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.st-choice-ic { grid-column: 1; grid-row: 1 / span 2; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-border); align-self: center; }
+.st-choice-t { grid-column: 2; grid-row: 1; font-size: 15px; font-weight: 650; }
+.st-choice-s { grid-column: 2; grid-row: 2; font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; }
+.st-choice-arrow { grid-column: 3; grid-row: 1 / span 2; align-self: center; color: var(--ink-faint); transition: color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
 .st-choice:hover .st-choice-arrow { color: var(--accent); transform: translateX(2px); }
 .st-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
 .st-back { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--ink-muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
