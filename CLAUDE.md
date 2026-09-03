@@ -278,6 +278,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `TELEGRAM_WEBHOOK_SECRET` | Gates `POST /api/telegram/webhook` | Webhook returns 404 (bot off) |
 | `TELEGRAM_CHAT_ID` | Default notify chat | No dogfood notifications |
 | `PRIVY_APP_ID` † / `PRIVY_APP_SECRET` † | Server-wallet + policy API (Basic auth) | `privyConfigured` false → concierge uses the web-link handoff, no walletless. **The secret is the master credential for every agent wallet.** |
+| `NEXT_PUBLIC_PRIVY_LOGIN_APP_ID` † / `PRIVY_LOGIN_APP_SECRET` † | The Privy app that signs people IN (email / social + an embedded wallet) — a SEPARATE app from the server-wallet one. The id is public and must be present at BUILD time; the server verifies Privy tokens and mints the same session a SIWE sign-in would (`src/lib/auth/privy-login.ts`). | The email door does not appear; wallet sign-in unchanged |
 | `DEPUTY_CRON_SECRET` | Shared secret for the pm2 watcher (`x-deputy-cron-secret`) | Local watcher can't run the sweep |
 | `CRON_SECRET` | Vercel Cron bearer for the sweep | Scheduled sweep unauthorized (with neither set, the endpoint is closed) |
 | `SAGE_SESSION_SECRET` | SIWE cookie session signing | Auth sessions degraded |
