@@ -8,12 +8,19 @@
 
 ## One paragraph
 
-Sage is an AI agent that verifies human work and pays for it autonomously, inside on-chain
-limits it cannot exceed. On Starknet it pays **through a commitment instead of an address**:
-a Cairo vault releases the mission-derived reward, the money is escrowed against
-`poseidon(secret)`, and the worker collects it with a one-time bearer link — wherever they
-choose, including into a shielded note where the amount is attributable to nobody.
-**Auditable in aggregate. Private in the destination.**
+Sage is an autonomous paymaster: an AI agent that takes a budget and an outcome, verifies the work
+people deliver, and pays them — on Starknet, privately. The organization's spend is public and
+auditable (a vault with caps it cannot exceed, a receipt for every payout, a reason for every
+refusal); the recipient's side is private: the vault releases each reward to Sage, Sage escrows it
+behind a Poseidon commitment, and the worker opens it by a one-time link, into a public address or
+straight into a shielded note, with the gas paid. No recipient ever signs to be paid. This is the
+Request-for-Startups "private payroll and treasury disbursement" shape — aggregate public, per-
+recipient private, paymaster-sponsored recipients — run by an agent instead of a payroll team, on
+the open door as well as the closed one: on an open campaign the agent approves at once and settles
+after a finalization window it uses to watch the wallet graph, revoking copies and clusters with the
+reason written out.
+
+**Auditable in aggregate. Private in the destination. Decided by the agent.**
 
 ## Contracts (Starknet mainnet, in `strk20.json`)
 

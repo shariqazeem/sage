@@ -7,8 +7,8 @@
 
 ## What it is, in one paragraph
 
-Sage is a workspace where an organization — a programme, a cooperative, an incubator, a company —
-invites its people, states the work once and funds it once, and an autonomous agent does the rest:
+Sage is an autonomous paymaster. An organization — a programme, a cooperative, an incubator, a
+company — states the work once and funds it once, and an AI agent does the rest:
 it verifies every deliverable itself, pays it from an on-chain vault it cannot exceed, refuses what
 does not hold up with the reason written out, and publishes a receipt for every payout. The people
 being paid need no application, no bank account and no wallet app: a Telegram link gives them one.
