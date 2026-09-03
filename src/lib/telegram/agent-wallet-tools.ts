@@ -58,11 +58,11 @@ const err = (message: string): ToolResult => ({ content: [{ type: "text", text: 
 export const MIN_GAS_WEI = BigInt(3_000_000_000_000); // ~0.000003 BTC, the 4-tx deploy with headroom
 
 /** Native (BTC on GOAT) balance in wei. */
-async function nativeBalanceWei(address: string): Promise<bigint> {
+export async function nativeBalanceWei(address: string): Promise<bigint> {
   return publicClient(2345).getBalance({ address: getAddress(address) });
 }
 
-async function usdcBalanceBase(address: string): Promise<bigint> {
+export async function usdcBalanceBase(address: string): Promise<bigint> {
   return publicClient(2345).readContract({
     address: GOAT_USDC,
     abi: erc20Abi,
@@ -96,7 +96,7 @@ function latestLaunchablePlan(founderWallet: string): string | null {
 }
 
 /** Auto-approve the current plan revision (the standing mandate IS the founder's pre-authorization). */
-function autoApprove(jobId: string, approver: string): boolean {
+export function autoApprove(jobId: string, approver: string): boolean {
   const job = getInspectionJob(jobId);
   if (!job || job.status !== "ready") return false;
   const current = getCurrentRevision(jobId);

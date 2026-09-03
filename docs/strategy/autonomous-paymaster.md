@@ -73,9 +73,10 @@ programme funding once and the agent running everything down to the advance.
    "revoked: forwarded its payout to another submitter". One day.
 3. **A private payout that is real.** Fund a small Starknet campaign on the fixed route, let the agent
    pay one or two known people privately, put the hashes in strk20.json. The user's money, ~$5.
-4. **Standing mandates.** A programme funds a treasury once and states a standing intent; the agent
-   launches campaigns from it as work is needed and returns what it does not use. The Privy mandate
-   built for Telegram is the template; the web gets the same. One day, if 1–3 are done.
+4. **Standing mandates.** A programme funds a treasury once; the agent deploys, funds and activates
+   each approved plan from it inside the mandate's cap, and what it does not spend can only return to
+   the founder. Shipped on the web 2026-09-05 (`src/lib/treasury/`). Standing intents that relaunch
+   work on their own come next.
 5. **Docs and the two videos.** The overview, the compliance statement, strk20.json, one video per
    rubric showing the agent alone from funding to record.
 

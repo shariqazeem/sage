@@ -21,6 +21,7 @@ every payout builds the recipient's record; the record unlocks capital.
 | Scope | `campaignWorkspace()` | A founder's campaigns belong to their workspace from every door (web, Telegram, MCP). Column `campaigns.workspace_id` for the future. |
 | Members-only work | submit route | An **unlisted** workspace campaign accepts submissions from members only; a stranger is told whose door it is. Listed = open. |
 | Pricing | usage | No plans or seat caps. A fee per settlement (x402, on the receipt) and a financing margin on advances. `plan.ts` remains as an unlimited default. |
+| Treasury | `/api/treasury`, `/api/launch/[id]/treasury` | Fund once: a Privy agent wallet per founder under a mandate policy (per-campaign cap, reclaim = the founder's wallet). The deploy step offers "Let Sage launch it from the treasury": the agent deploys, funds and activates the vault itself. Same checks as the Telegram tool (cap, balance, gas). |
 | Finalization window | `src/lib/deputy/finalization.ts` | On an open campaign the agent approves at once and settles after `AUTOPAY_FINALIZE_MINUTES` (30) — the sweep re-runs the near-dup, copy and wallet-cluster watch against everything that arrived since, and revokes with the reason. Members-only work pays at once. |
 | Notifications | `workspace-notify.ts` | The moment a workspace campaign goes live, members reachable on Telegram are told, with the link. |
 

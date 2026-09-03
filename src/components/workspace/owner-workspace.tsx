@@ -86,8 +86,8 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             <li className={paid ? "done" : ""}>
               <span className="ws-check-n">{paid ? <CheckCircle2 size={13} /> : "3"}</span>
               <span className="ws-check-t">Fund it once</span>
-              <span className="ws-check-s">The vault holds the budget. Sage verifies each deliverable and pays inside it — it cannot exceed what you funded.</span>
-              {posted ? <Link href="/dashboard">See the vault →</Link> : <span />}
+              <span className="ws-check-s">Fund a treasury once in Settings and Sage deploys, funds and activates every campaign from it — or fund each vault from your wallet. It cannot exceed what you funded.</span>
+              <Link href="/workspace/settings">Treasury →</Link>
             </li>
           </ol>
         </section>

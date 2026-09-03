@@ -6,6 +6,7 @@ import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
+import { TreasuryLaunch } from "./treasury-launch";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
@@ -419,6 +420,9 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           <span className="lxd-spin" aria-hidden /> {note}
         </div>
       )}
+      {/* FUND ONCE, THE AGENT LAUNCHES: with a treasury, the wallet-driven steps below are optional. */}
+      <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} />
+
       {error && (
         <div className="lx-err" role="alert" style={{ marginTop: 10 }}>
           {error}

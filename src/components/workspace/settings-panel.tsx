@@ -7,6 +7,7 @@ import { ArrowLeft, Check, CreditCard, Link2, Loader2, LogOut, Wallet } from "lu
 import { short } from "@/lib/format";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import { TreasuryCard } from "./treasury-card";
 
 export interface SettingsView {
   workspace: { id: string; name: string };
@@ -114,6 +115,8 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
               <button className="st-back" onClick={() => void session.signOut().then(() => router.push("/"))}><LogOut size={12} /> Sign out</button>
             </div>
           </section>
+
+          <TreasuryCard />
         </div>
 
         <div>
