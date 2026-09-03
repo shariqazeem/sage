@@ -16,8 +16,8 @@ function layout(g: G, w: number, h: number): Map<string, { x: number; y: number 
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   g.nodes.forEach((n, i) => pos.set(n.id, n.kind === "vault" ? { x: w / 2, y: h / 2, vx: 0, vy: 0 } : { x: w / 2 + Math.cos((i / g.nodes.length) * Math.PI * 2) * (h * 0.3) + rnd() * 8, y: h / 2 + Math.sin((i / g.nodes.length) * Math.PI * 2) * (h * 0.3) + rnd() * 8, vx: 0, vy: 0 }));
   const ids = g.nodes.map((n) => n.id);
-  const k = { rep: 2600, spring: 0.015, grav: 0.012, damp: 0.82 };
-  const rest = (kind: string) => (kind === "consolidation" ? 60 : kind === "gas" ? 90 : Math.min(h * 0.32, 150));
+  const k = { rep: 3800, spring: 0.014, grav: 0.009, damp: 0.82 };
+  const rest = (kind: string) => (kind === "consolidation" ? 96 : kind === "gas" ? 110 : Math.min(h * 0.36, 170));
   for (let it = 0; it < 260; it++) {
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
       const a = pos.get(ids[i])!, b = pos.get(ids[j])!;
@@ -34,6 +34,7 @@ function layout(g: G, w: number, h: number): Map<string, { x: number; y: number 
     for (const n of g.nodes) {
       const p = pos.get(n.id)!;
       if (n.kind === "vault") { p.x = w / 2; p.y = h / 2; p.vx = 0; p.vy = 0; continue; }
+      { const dx = p.x - w / 2, dy = p.y - h / 2, d = Math.sqrt(dx * dx + dy * dy) + 0.01; if (d < 70) { p.vx += (dx / d) * (70 - d) * 0.08; p.vy += (dy / d) * (70 - d) * 0.08; } }
       p.vx += (w / 2 - p.x) * k.grav; p.vy += (h / 2 - p.y) * k.grav;
       p.vx *= k.damp; p.vy *= k.damp; p.x += p.vx; p.y += p.vy;
       p.x = Math.max(28, Math.min(w - 28, p.x)); p.y = Math.max(24, Math.min(h - 24, p.y));

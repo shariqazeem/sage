@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** GET — the campaign's wallet graph. Public: every edge is an on-chain fact or a recorded link; cached ten minutes. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const rl = rateLimit("submit", clientIp(req.headers));
+  const rl = rateLimit("publicRead", clientIp(req.headers));
   if (!rl.ok) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
   const { id } = await ctx.params;
   const campaign = getCampaign(id);

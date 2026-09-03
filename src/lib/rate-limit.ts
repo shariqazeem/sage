@@ -67,6 +67,8 @@ export class RateLimiter {
 
 interface LimiterStore {
   submit: RateLimiter;
+  /** public cached READ endpoints (the wallet graph) per IP — generous: a judge clicking through campaigns must never see a 429. */
+  publicRead: RateLimiter;
   create: RateLimiter;
   auth: RateLimiter;
   telegram: RateLimiter;
@@ -97,7 +99,8 @@ const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
 function limiters(): LimiterStore {
   if (!g.__sageLimiters) {
     g.__sageLimiters = {
-      submit: new RateLimiter(8, 60_000), // 8 submissions / min / ip
+      submit: new RateLimiter(8, 60_000),
+      publicRead: new RateLimiter(120, 60_000), // 8 submissions / min / ip
       create: new RateLimiter(5, 60_000), // 5 campaign creates / min / ip
       auth: new RateLimiter(20, 60_000), // 20 nonce+verify / min / ip
       telegram: new RateLimiter(20, 60_000), // 20 bot commands / min / chat
