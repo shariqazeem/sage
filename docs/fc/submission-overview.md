@@ -121,6 +121,27 @@ with the ledger — every payout is a record row — and the lender contract is 
 institution can consume. The next steps are standing intents that relaunch work on their own, the treasury funded from a
 Starknet wallet, the licensed fiat door, and an institutional LP behind the advance facility.
 
+## The safety claim, measured rather than asserted (4 September)
+
+The judge that decides whether a stranger's work gets paid was put through its promotion battery
+against the production path, three runs over the full fixture set:
+
+| | |
+| --- | --- |
+| Wrong auto-pays | **0** across 57 valid rows |
+| Provenance violations | **0** |
+| Provider failures | 0 — the run is evidence, not a sample |
+| Verdict | **promotion-eligible**, conclusive |
+| Cost of the whole battery | $0.03 |
+
+Every adversarial fixture — evidence with no author, an author date that contradicts the work, a
+submission about the wrong product, a route that does not match — was **held, not paid**. None of them
+reached a payout, and none of them needed a human to notice.
+
+The battery is in the repository and re-runnable (`JUDGE_EVAL=1 npx vitest run judge-eval.live`); a
+provider failure is reported as inconclusive rather than as a pass, so a quiet outage can never be
+mistaken for a good result.
+
 ## Two rails, and why an MSME cares
 
 The same agent settles publicly on GOAT and privately on Starknet, and the choice belongs to the

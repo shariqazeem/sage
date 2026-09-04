@@ -138,6 +138,19 @@ decoration.
 - **The board publishes the collapse.** Our own showcase was displaying that farm's wallets as eight
   separate testers; it now shows one row per cluster and counts people, not addresses.
 
+## The judge, measured (4 September)
+
+Payouts on this rail are autonomous, so the judge is the safety boundary. Its promotion battery, run
+against the production path three times over the full fixture set: **zero wrong auto-pays across 57
+valid rows, zero provenance violations, zero provider failures, conclusive, promotion-eligible.**
+Every adversarial fixture was held rather than paid.
+
+Separately, the observation judge was re-measured the same night and the shipped configuration was
+changed on the evidence: the previous model scored a prompt-injection fixture at **0.95** where the
+battery demands 0, against an auto-pay threshold of 0.85. The deterministic injection detector runs
+first and blocks what it catches, but it is a regex layer and that fixture is semantic — so the model
+was the last line, and it failed. The replacement scores the same fixture 0 and passes all five cases.
+
 ## Live doors
 
 Product https://sagepays.xyz · explorer `/explorer` · a real record `/record/<wallet>` ·
