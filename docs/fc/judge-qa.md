@@ -18,7 +18,10 @@ ledger, with reasons (`/explorer`). Two adversarial batteries run the production
 fixtures *and* honest-work fixtures: P-JUDGE zero wrong auto-pays across 57 rows; P-WORK 14 attacks with
 zero leaks and 12 honest submissions with zero false holds. A judge model is promoted only on that evidence.
 
-**"What stops one person farming ten wallets?"** Exact and paraphrase dedup on reports; a fingerprint of the
+**"What stops one person farming ten wallets?"** On public work a slot is claimed behind a one-time World ID
+proof of personhood — no name, document or country reaches Sage, only a nullifier — and the slot and
+payout caps count the person across every wallet the proof, the chain or their own declaration ties
+together. Underneath: exact and paraphrase dedup on reports; a fingerprint of the
 fetched deliverable so a copied page with the marker swapped is held; GitHub provenance (a fork, or a repo
 older than the gig, is held); wallet-freshness and funding-graph signals — a real 4-wallet rotation cluster
 was caught on-chain in August; a per-wallet payout cap; a daily submit limit; the vault's own replay
@@ -58,7 +61,7 @@ inventing counterparties this week would be an app, not infrastructure. One hone
 recipient collects privately — escrow keyed by a commitment, gasless claim, a shielded note if they hold a
 registered wallet — and a signed earnings *floor* a lender can verify without seeing the payments.
 
-**"Who has actually been paid?"** 21 distinct people, 29 payouts, $52.60 across two mainnet rails, every row a
+**"Who has actually been paid?"** 24 distinct people, 39 payouts, $63.60 across two mainnet rails, every row a
 transaction; an autonomous third-party agent earned under the same rules and has a credit file
 (`/record/0xccbf…768d`). The first *advance* is pending a funded campaign and a real earner — built,
 dry-run against live records, not yet disbursed.

@@ -80,6 +80,10 @@ For the credit thesis this matters twice: the deposit behaves as a bounded worki
 
 The organization's console renders the agent's work as objects rather than messages, each bound to a record: the **vault** (locked capital cut into mission allocations to the base unit, paid slots drained, released coins linked to receipts), the **settling lane** (agent-approved payouts counting their finalization window down, with the sweep's own three checks as lights — `watchReadings()` feeds both the display and the verdict), and the public **wallet graph** at `/graph/<campaign>` (payout, gas-funding and consolidation edges from chain reads and recorded links; a linked cluster is one person's wallets and is held). Nothing is animated that did not happen — the rule that the feed never fabricates progress, applied to the visual layer.
 
+### One person, one slot
+
+A wallet is free; a person is not. On public work (listed, no allowlist) claiming a slot requires a one-time World ID proof of personhood (`IDENTITY_DOOR`): the provider returns a nullifier unique to the person and the action, Sage stores that nullifier against the wallet and nothing else, and every cap — mission slots, the per-campaign payout cap — counts `personWallets()`: the wallets sharing the nullifier, the wallets the consolidation watch linked on chain, and the wallets the person declared as theirs. Members-only work is untouched; the organisation chose its people. A second wallet presenting a nullifier already seen is linked and flagged, so verifying twice is not free (`src/lib/identity/`, `src/lib/campaigns/visibility.ts`).
+
 ## Data sources
 
 - **The product itself** — fetched HTML, rendered pages, screenshots, console errors (the Field Test).

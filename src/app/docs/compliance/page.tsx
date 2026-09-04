@@ -82,7 +82,10 @@ export default function Compliance() {
             <tr>
               <td>Sybil resistance</td>
               <td>
-                Near-duplicate detection across submissions, artifact-content fingerprinting,
+                <strong>One person, one slot</strong> on public work: a one-time World ID proof of
+                personhood (Sage keeps only a nullifier — no name, document or biometric), with slot
+                and payout caps counted per person across verified, chain-linked and declared
+                wallets. Underneath: near-duplicate detection across submissions, artifact-content fingerprinting,
                 per-wallet payout caps, daily submission limits, wallet-freshness signals, and{" "}
                 <strong>funding-graph sibling detection</strong> — which reads the public chain to
                 see when several &ldquo;different&rdquo; submitters were funded by one wallet. Built

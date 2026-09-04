@@ -46,7 +46,7 @@ export default function Judging() {
         <li>confidence at or above a fixed threshold</li>
         <li>the reasoning engine being the real model rather than the fallback heuristic</li>
         <li>fraud signals clear</li>
-        <li>a slot still open, and the wallet under its per-wallet cap</li>
+        <li>a slot still open, and the person — every wallet they have verified, linked or declared — under the cap</li>
       </ul>
       <p>
         Any one of those failing means the work is held for review rather than paid. On mainnet,
@@ -68,7 +68,9 @@ export default function Judging() {
 
       <h2>Fair-play controls</h2>
       <p>
-        Near-duplicate detection catches copied accounts. Wallet freshness is a signal but never
+        On public work, claiming a slot asks for a one-time World ID proof that you are one person —
+        no name, document or country, about a minute — and the slot and payout caps count the
+        person, not the wallet. Near-duplicate detection catches copied accounts. Wallet freshness is a signal but never
         enough on its own to reject someone. There is a per-wallet payout cap per campaign and a
         daily submission limit. These have caught real collusion between real strangers, and they
         have also stranded honest people — which is why the caps and the reasons are both published
