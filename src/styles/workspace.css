@@ -180,3 +180,66 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-rowlink { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; margin: 0 -14px; border-radius: 10px; text-decoration: none; color: inherit; transition: background var(--dur-1) var(--ease-out); }
 .ws-rowlink:hover { background: var(--bg); }
 .ws-livedot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--pos, #15803d); box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.14); margin-right: 2px; }
+
+/* THE LOCAL-CURRENCY MECHANIC, as a sequence. See capital-panel.tsx. */
+.cap-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  position: relative;
+}
+.cap-rail::before {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 13px;
+  height: 1px;
+  background: var(--ws-rule, rgba(26, 29, 33, 0.12));
+}
+.cap-rail li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.cap-rail-v {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--ws-surface, #fff);
+  border: 1px solid var(--ws-rule, rgba(26, 29, 33, 0.12));
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink, #1a1d21);
+  font-variant-numeric: tabular-nums;
+}
+.cap-rail-v.ok { color: var(--ok, #15803d); border-color: color-mix(in srgb, var(--ok, #15803d) 40%, transparent); }
+.cap-rail-v svg { color: var(--accent); }
+.cap-rail-k { font-size: 11px; line-height: 1.3; color: var(--ink-faint, #8a8f98); max-width: 15ch; }
+.cap-rail-src {
+  margin: 12px 0 0;
+  font-size: 10.5px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--ink-faint, #8a8f98);
+  font-family: var(--font-mono);
+}
+
+/* The money shapes, each with its own state — the pending one must not read like the live ones. */
+.cap-shapes { list-style: none; margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--ws-rule, rgba(26, 29, 33, 0.08)); display: flex; flex-direction: column; gap: 9px; }
+.cap-shapes li { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink, #1a1d21); }
+.cap-shapes svg { color: var(--accent); flex: none; }
+.cap-shape-l { flex: 1; min-width: 0; }
+@media (max-width: 620px) {
+  .cap-rail { grid-template-columns: repeat(2, 1fr); gap: 16px 0; }
+  .cap-rail::before { display: none; }
+}

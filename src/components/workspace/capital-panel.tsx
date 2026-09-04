@@ -6,6 +6,8 @@ export interface CapitalView {
   workspace: { name: string };
   totals: { paidUsd: number; payouts: number; people: number; refused: number; campaigns: number };
   earners: { wallet: string; paidUsd: number; payouts: number; lastAt: number; member: string | null }[];
+  /** the live quote the composer would stamp a local-currency grant at — null when unavailable. */
+  rate: { code: string; rate: number; asOf: number; source: string } | null;
   advance: { armed: boolean; maxUsd: number; multiple: number; waterfallPct: number };
 }
 
@@ -14,6 +16,18 @@ export interface CapitalView {
  * pay people for work: what has been paid, to whom, on which rail, and what that record unlocks —
  * for the person (an advance), for a programme (a lender view), for anyone (the public explorer).
  */
+/**
+ * The money shapes this workspace can actually post, each with its own state. They were three
+ * clauses of one sentence, so the one that is NOT yet available read exactly like the three that
+ * are — and that difference is the only thing a programme evaluating Sage needs to see at a glance.
+ */
+const SHAPES = [
+  { Icon: FileText, label: "Supplier payment bound to an invoice", live: true },
+  { Icon: Blocks, label: "Two-tranche seller grant", live: true },
+  { Icon: Users, label: "Diaspora-funded milestones", live: true },
+  { Icon: Banknote, label: "Regulated fiat disbursement", live: false },
+];
+
 export function CapitalPanel({ view }: { view: CapitalView }) {
   const t = view.totals;
   return (
@@ -66,11 +80,49 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
             )}
           </section>
 
+          {/*
+            THE REGION, DRAWN.
+            One paragraph carried the whole local-currency argument and four separate money shapes,
+            which is the FC track's centre stated in the form a reader skips. The mechanic is a
+            sequence, so it is a sequence: a founder's own number, the rate stamped once at launch,
+            what the vault actually settles, and a receipt carrying both. The rate is the live quote
+            the composer would use, and when there is none the figure keeps its mechanism and drops
+            the arithmetic — never a stale or invented number on the page that argues Sage invents none.
+          */}
           <section className="ws-card">
-            <div className="ws-card-h"><h2><Globe2 size={15} /> Built for the region, priced in its currencies</h2></div>
-            <p className="ws-note" style={{ margin: 0 }}>
-              Post a grant in J$ or another local currency and Sage stamps one rate at launch; the vault settles in USDC and the receipt shows both. Supplier payments bound to an invoice, two-tranche seller grants and diaspora-funded milestones are first-class shapes in the composer. Regulated fiat disbursement is a licensed-partner door with a typed contract, labelled pending until a partner signs.
-            </p>
+            <div className="ws-card-h"><h2><Globe2 size={15} /> Priced in the founder&rsquo;s currency, settled in USDC</h2></div>
+            <ol className="cap-rail" aria-label="How a local-currency grant is priced and settled">
+              <li>
+                <span className="cap-rail-v mono">J$10,000</span>
+                <span className="cap-rail-k">what the founder types</span>
+              </li>
+              <li>
+                <span className="cap-rail-v mono">{view.rate ? `÷ ${view.rate.rate.toFixed(2)}` : "one rate"}</span>
+                <span className="cap-rail-k">stamped once, at launch</span>
+              </li>
+              <li>
+                <span className="cap-rail-v mono ok">{view.rate ? usd(10_000 / view.rate.rate) : "USDC"}</span>
+                <span className="cap-rail-k">what the vault releases</span>
+              </li>
+              <li>
+                <span className="cap-rail-v"><ShieldCheck size={17} /></span>
+                <span className="cap-rail-k">the receipt shows both</span>
+              </li>
+            </ol>
+            {view.rate && (
+              <p className="cap-rail-src">
+                {view.rate.code} · {view.rate.source} · {since(view.rate.asOf)}
+              </p>
+            )}
+            <ul className="cap-shapes">
+              {SHAPES.map((sh) => (
+                <li key={sh.label}>
+                  <sh.Icon size={13} strokeWidth={1.8} />
+                  <span className="cap-shape-l">{sh.label}</span>
+                  <span className={`ws-chip${sh.live ? " live" : ""}`}>{sh.live ? "live" : "pending a partner"}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
 

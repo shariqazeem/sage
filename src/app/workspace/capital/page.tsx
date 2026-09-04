@@ -7,6 +7,7 @@ import { listMembers, listWorkspaceCampaigns } from "@/lib/db/workspaces";
 import { listSubmissions } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { CapitalPanel, type CapitalView } from "@/components/workspace/capital-panel";
+import { quoteFor } from "@/lib/money/rates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +54,16 @@ export default async function CapitalPage() {
     seen.add(w);
   }
   const members = listMembers(ws.id);
+  /*
+    A REAL RATE, OR NONE.
+    The local-currency mechanic is the FC track's centre and it was described in a sentence. Drawn,
+    it needs one number — the rate a J$ grant would actually be stamped at right now — and that
+    number has to be the live one the composer would use, from the same quote source. When the rate
+    provider is unreachable the figure renders its mechanism without an amount rather than a stale
+    or invented one: a made-up rate on the page that argues Sage never invents amounts is the one
+    mistake this section cannot make.
+  */
+  const jmd = await quoteFor("JMD");
   const view: CapitalView = {
     workspace: { name: ws.name },
     totals: { paidUsd: paidBase / 1e6, payouts, people, refused, campaigns: campaigns.length },
@@ -66,6 +77,7 @@ export default async function CapitalPage() {
         lastAt: v.lastAt,
         member: members.find((m) => (m.address ?? "").toLowerCase() === wallet)?.displayName ?? null,
       })),
+    rate: jmd ? { code: jmd.currency, rate: jmd.rate, asOf: jmd.asOf, source: jmd.source } : null,
     advance: { armed: process.env.ADVANCE_SELF_SERVE === "1", maxUsd: Number(process.env.ADVANCE_MAX_USD ?? 5) || 5, multiple: Number(process.env.ADVANCE_MULTIPLE ?? 1) || 1, waterfallPct: (Number(process.env.ADVANCE_WATERFALL_BPS ?? 5000) || 5000) / 100 },
   };
   return <CapitalPanel view={view} />;
