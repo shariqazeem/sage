@@ -72,12 +72,9 @@ export function MandateCard() {
   return (
     <section className="ws-card">
       <div className="ws-card-h"><h2><Compass size={15} /> Let Sage run it</h2></div>
-      <p className="ws-note">
-        Fund the treasury once and Sage decides what work to buy against your product, designs it,
-        funds it and pays for it — inside the ceilings you set here. Every move is proposed with its
-        reason before the money leaves, and you can stop any of them. Launching by hand keeps working
-        exactly as it does now.
-      </p>
+      {/* The page around this already states the bargain and lists the guarantees; a card that
+          repeats them buries the thing it is actually for, which is the fields. */}
+      <p className="ws-note">Set the ceilings. Sage works inside them.</p>
 
       <div className="mc-grid">
         <label className="mc-f mc-wide"><span>Your product</span><input className="ws-input" value={f.productUrl} onChange={set("productUrl")} placeholder="https://yourproduct.com" /></label>
