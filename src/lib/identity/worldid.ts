@@ -62,6 +62,34 @@ export type VerifyOutcome =
   | { ok: false; reason: string };
 
 /**
+ * DOES THIS PROOF ACTUALLY SPEAK ABOUT THIS WALLET?
+ *
+ * World's own guidance is that the signal is what binds a proof to the thing it was made for: it
+ * "makes sure that the input provided is the one the person who generated the proof intended". A
+ * verifier that checks the proof but not the signal accepts any valid proof for any subject.
+ *
+ * Without this, a proof payload lifted from an honest worker could be replayed against an attacker's
+ * own signed-in wallet. The sybil property would survive — the nullifier is the same person, so the
+ * wallets get linked — but that is the damage: the victim is now linked to a stranger and BOTH drop
+ * to flagged. A denial of service against the honest party, dressed as a cluster.
+ *
+ * The signal is hashed into the proof, so the comparison is against the hash, using the provider's
+ * own hashing so we can never disagree with it about what a signal means.
+ */
+export async function signalMatches(payload: Record<string, unknown>, expected: string): Promise<boolean> {
+  const { hashSignal } = await import("@worldcoin/idkit/hashing");
+  const want = hashSignal(expected).toLowerCase();
+  const responses = Array.isArray(payload.responses) ? (payload.responses as Record<string, unknown>[]) : [];
+  const seen = [
+    typeof payload.signal_hash === "string" ? payload.signal_hash : null,
+    ...responses.map((r) => (typeof r?.signal_hash === "string" ? r.signal_hash : null)),
+  ].filter((h): h is string => typeof h === "string" && h.length > 0);
+  // No signal at all is a refusal, not a pass: an unbound proof is exactly the case this guards.
+  if (seen.length === 0) return false;
+  return seen.every((h) => h.toLowerCase() === want);
+}
+
+/**
  * Forward the widget's result unchanged — the docs are explicit that remapping identifiers or
  * reconstructing a legacy verification_level breaks it. We add only the action and the environment,
  * and we read only the nullifier back out.

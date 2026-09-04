@@ -3,7 +3,7 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { identityFor, recordIdentityProof } from "@/lib/db/identity";
 import { standingOf } from "@/lib/identity/standing";
-import { verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
+import { signalMatches, verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -70,6 +70,15 @@ export async function POST(req: NextRequest) {
   // Deliberately open to any signed-in wallet, including one that has never worked here: verifying
   // BEFORE the first submission is the honest order, and gating it behind a payout would mean a
   // newcomer had to take open work first and only then learn whether the paid tiers were reachable.
+
+  // The proof must be ABOUT this wallet, not merely valid. See signalMatches for why an unbound
+  // proof is a denial-of-service against the honest worker rather than a sybil bypass.
+  if (!(await signalMatches(payload, wallet))) {
+    return NextResponse.json(
+      { error: "That proof was made for a different wallet. Verify from the wallet you are signed in with." },
+      { status: 400 },
+    );
+  }
 
   const outcome = await verifyWorldId(payload, cfg);
   if (!outcome.ok) return NextResponse.json({ error: outcome.reason }, { status: 400 });
