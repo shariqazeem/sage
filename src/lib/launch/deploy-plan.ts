@@ -26,7 +26,6 @@ import {
 import campaignVaultArtifact from "../../../contracts/out/CampaignVault.sol/CampaignVault.json";
 import campaignVaultFactoryArtifact from "../../../contracts/out/CampaignVaultFactory.sol/CampaignVaultFactory.json";
 import type { DeploymentReadyPlan } from "./approve";
-import { campaignFeeBase } from "@/lib/x402/campaign-fee";
 
 const factoryAbi = campaignVaultFactoryArtifact.abi as unknown as Abi;
 const vaultAbi = campaignVaultArtifact.abi as unknown as Abi;
@@ -61,6 +60,7 @@ export interface DeploymentSettings {
    * Optional and FAIL-CLOSED. Unset means no fee call is built and the launch behaves exactly as it
    * always has, which is what keeps an unconfigured deployment — and every existing test — working.
    */
+  /** Retired 2026-09-05 with the launch fee; kept so older settings objects still type-check. Nothing reads it. */
   feeTo?: Address;
 }
 
@@ -159,39 +159,7 @@ export function buildDeployBundle(plan: DeploymentReadyPlan, s: DeploymentSettin
     { step: "activate", to: predictedVault, data: activateData, value: "0", label: "Activate Sage as the operator" },
   ];
 
-  /**
-   * THE LAUNCH FEE — appended LAST, deliberately, and only when a destination is configured.
-   *
-   * Last because the campaign must be live before Sage is paid. If the fee were charged first and a
-   * later step failed, the founder would have paid for a campaign that does not exist; charged last,
-   * the worst case is a live campaign whose fee is outstanding, which is recoverable and is our
-   * problem rather than theirs.
-   *
-   * It rides in THIS bundle rather than being a separate flow so both launch paths get it from one
-   * change: the web signs these calls in a browser, and deployCampaignViaPrivy executes the identical
-   * array through the founder's mandated wallet. Parity is by construction, and the existing
-   * deploy-runner parity test keeps it that way.
-   *
-   * `feeTo` is the payToAddress of an x402 order the caller opened, so the payment registers at the
-   * facilitator and appears in the GOAT Flow merchant dashboard. A plain transfer would move the
-   * money and show up nowhere.
-   */
-  if (s.feeTo) {
-    const feeBase = campaignFeeBase(inputs.totalBudgetBase);
-    if (feeBase > BigInt(0)) {
-      calls.push({
-        step: "fee",
-        to: getAddress(s.token),
-        data: encodeFunctionData({
-          abi: ERC20_TRANSFER_ABI,
-          functionName: "transfer",
-          args: [getAddress(s.feeTo), feeBase],
-        }),
-        value: "0",
-        label: "Pay the Sage launch fee",
-      });
-    }
-  }
+  // No launch fee (retired 2026-09-05): Sage earns on what it settles, not on what is launched.
   const calldataDigest = keccak256(concatHex(calls.map((c) => c.data)));
   return { settings: s, inputs, predictedVault, calls, calldataDigest };
 }

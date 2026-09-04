@@ -19,7 +19,7 @@ flowchart TD
   I --> MB["Mission Brain<br/>Architect → Critic (batched) → deterministic validate gate<br/>anchors must be verbatim · count rule floor/ceiling"]
   V --> MB
   MB --> BC["Budget compiler (deterministic)<br/>Σ reward × completions = budget, exact<br/>fair-rate cap · exact spread · no model states an amount"]
-  L --> DC["Direct compiler (deterministic)<br/>gigs · bounties · milestone grants · 14 currencies at a stamped rate"]
+  L --> DC["Direct compiler (deterministic)<br/>gigs · bounties · milestone grants · priced in 14 currencies, converted at a stamped rate"]
   DC --> BC
   BC --> A["The founder's intent, once<br/>approve the plan — or a standing mandate"]
   A --> FUND["Funded once: the treasury<br/>Privy agent wallet under a mandate policy · reclaim = the founder's wallet<br/>the agent deploys, funds and activates each vault<br/>EVM CampaignVault (GOAT) · Cairo SageVault (Starknet)"]
@@ -85,7 +85,7 @@ The organization's console renders the agent's work as objects rather than messa
 - **The product itself** — fetched HTML, rendered pages, screenshots, console errors (the Field Test).
 - **On-chain state** — GOAT Network and Starknet mainnet via RPC: vault state, settlement events, transaction receipts; the ledger is derived from settlement events, never typed in.
 - **Submitted evidence** — public URLs, created artifacts, transaction hashes; fetched by Sage, confined inside untrusted-data markers.
-- **OFAC SDN list** — vendored, dated snapshot; screened at three doors.
+- **OFAC SDN list** — vendored, dated snapshot; screened at every EVM door (the list carries no Starknet addresses).
 - **World Bank WDI `SI.RMT.COST.IB.ZS`** — inbound remittance cost per receiving country (Jamaica 3.59%, Haiti 4.70%, Dominican Republic 2.52%, Guyana 7.92%, 2023), vendored and dated; the corridor each Caribbean obligation is measured against.
 - **Exchange rates** — a stamped, source-attributed quote per obligation currency at composition time.
 - **GitHub public API** — repository provenance (fork flag, creation date) for artifact gigs, degrading to no signal when rate-limited.
@@ -99,7 +99,7 @@ The organization's console renders the agent's work as objects rather than messa
 
 ## Third-party tools and infrastructure
 
-Next.js 15 (App Router, Turbopack) · TypeScript strict · SQLite via better-sqlite3 + Drizzle · Playwright (Field Test, video pipeline) · viem (EVM) · starknet.js (Starknet) · Solidity `CampaignVault` (GOAT, Metis Sepolia testnet) · Cairo `SageVault` + `SageClaims` (Starknet mainnet, privacy class `0x6d5577…5aa0`) · Privy server wallets under a mandate policy (walletless founders) · x402 (paid verification, operator fee) · ERC-8004 agent identity · Telegram Bot API · pm2 on a 2-vCPU VM · Vitest (4,000+ tests incl. a red-team suite) · MIT license.
+Next.js 15 (App Router, Turbopack) · TypeScript strict · SQLite via better-sqlite3 + Drizzle · Playwright (Field Test, video pipeline) · viem (EVM) · starknet.js (Starknet) · Solidity `CampaignVault` (GOAT, Metis Sepolia testnet) · Cairo `SageVault` + `SageClaims` (Starknet mainnet, privacy class `0x6d5577…5aa0`) · Privy server wallets under a mandate policy (walletless founders) · x402 (paid verification, operator fee) · ERC-8004 agent identity · Telegram Bot API · pm2 on a 2-vCPU VM · Vitest (4,300+ tests incl. a red-team suite) · MIT license.
 
 ## Live evaluation batteries (the quality gate)
 

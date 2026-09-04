@@ -22,7 +22,9 @@ export interface CapitalView {
  * are — and that difference is the only thing a programme evaluating Sage needs to see at a glance.
  */
 const SHAPES = [
-  { Icon: FileText, label: "Supplier payment bound to an invoice", live: true },
+  // A composer preset that verifies a published delivery confirmation — a payment template, not
+  // invoice financing. Saying "live" here read as a financing product the code does not have.
+  { Icon: FileText, label: "Supplier payment, verified by a published delivery confirmation", live: true },
   { Icon: Blocks, label: "Two-tranche seller grant", live: true },
   { Icon: Users, label: "Diaspora-funded milestones", live: true },
   { Icon: Banknote, label: "Regulated fiat disbursement", live: false },

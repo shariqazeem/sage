@@ -19,15 +19,6 @@ import { explorationCounts } from "@/lib/launch/field-test";
 import { classifyVerifiability } from "@/lib/launch/validate-mission";
 import { stateDigest } from "@/lib/launch/observed-facts";
 import { parseDirectTitle } from "@/lib/launch/direct-campaign";
-import { campaignFeeBase, isSelfFunded } from "@/lib/x402/campaign-fee";
-import { campaignFeeEnabled, operatorChatId, operatorWallets } from "@/lib/x402/fee-config";
-import { openCampaignFeeOrder } from "@/lib/x402/payer";
-import {
-  getCampaignFee,
-  markCampaignFeeSettled,
-  recordCampaignFee,
-  recordCampaignFeeFailure,
-} from "@/lib/db/campaign-fees";
 
 /**
  * Deploy a whole campaign ENTIRELY from the agent's chat turn, then record it — the founder never
@@ -95,56 +86,11 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
       return BigInt(0);
     }
   })();
-  const feeBase = campaignFeeBase(budgetBase);
-  const selfFunded =
-    isSelfFunded(owner, operatorWallets()) ||
-    isSelfFunded(wallet.founderAddress, operatorWallets()) ||
-    // a walletless founder's Privy wallet is minted per chat and matches no allowlist, so the
-    // operator launching from their own bot is only recognisable by the chat id
-    (operatorChatId() !== null && String(chatId) === operatorChatId());
-
-  // Armed explicitly, never implicitly: x402 is already live in production, so without this gate
-  // shipping the code and charging the first founder would be the same act.
-  const feeOrder = campaignFeeEnabled() && feeBase > BigInt(0)
-    ? await openCampaignFeeOrder({
-        // unique per campaign: a reused dappOrderId is rejected with "order already exists" once its
-        // first order expires, which stranded nine operator fees for a month
-        dappOrderId: `launch-${loaded.plan.publicCampaignId}`,
-        amountBase: feeBase,
-        fromAddress: owner,
-      })
-    : null;
-
-  if (feeOrder) {
-    recordCampaignFee({
-      campaignId: loaded.plan.publicCampaignId,
-      inspectionId: jobId,
-      budgetBase: Number(budgetBase),
-      amountBase: Number(feeBase),
-      payerAddress: owner,
-      selfFunded,
-    });
-  }
-
-  const bundle = buildDeployBundle(loaded.plan, {
-    ...settings,
-    ...(feeOrder ? { feeTo: feeOrder.payToAddress } : {}),
-  });
-  /**
-   * THE FEE IS EXECUTED SEPARATELY, AND IT CAN NEVER FAIL THE LAUNCH.
-   *
-   * Every wallet onboarded before this existed carries a mandate with no fee rule, and Privy's
-   * enclave refuses any signature outside the policy. Inside one sequence that refusal throws after
-   * create/approve/fund/activate have already succeeded, so the vault would be live and funded while
-   * `attachV2Campaign` never runs — a real on-chain campaign with no database row, invisible to the
-   * founder and to the sweep. That is far worse than an uncollected fee.
-   *
-   * So the four core calls run as before, and the fee runs after, guarded. An old mandate simply
-   * leaves the fee pending with the refusal recorded on the row, which the operator can see and
-   * re-charge once the wallet is re-policied.
-   */
-  const coreCalls = bundle.calls.filter((c) => c.step !== "fee");
-  const feeCall = bundle.calls.find((c) => c.step === "fee");
+  // No launch fee. Sage earns on what it settles (the flat operator fee over x402) and on advances —
+  // a 10% founder-side charge existed here behind an env switch and appeared in no document; it
+  // was deleted 2026-09-05 so the business model reads exactly as the ledger shows.
+  const bundle = buildDeployBundle(loaded.plan, settings);
+  const coreCalls = bundle.calls;
   const results = await executeSequenceViaPrivy(
     wallet.privyWalletId,
     owner,
@@ -152,23 +98,6 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
     wallet.chainId,
   );
 
-  if (feeCall && feeOrder) {
-    const row = getCampaignFee(loaded.plan.publicCampaignId);
-    try {
-      const [feeRes] = await executeSequenceViaPrivy(
-        wallet.privyWalletId,
-        owner,
-        [{ to: feeCall.to, data: feeCall.data, label: feeCall.step }],
-        wallet.chainId,
-      );
-      // The receipt is in hand, so the USDC is at the merchant. Record it here rather than after the
-      // campaign attach, which can throw — that would lose the tx of money already spent and a retry
-      // would charge the founder twice. The same rule the operator-fee repair was built on.
-      if (row && feeRes?.txHash) markCampaignFeeSettled(row.id, feeRes.txHash, feeOrder.orderId);
-    } catch (err) {
-      if (row) recordCampaignFeeFailure(row.id, err instanceof Error ? err.message : String(err));
-    }
-  }
 
   // Record the campaign — the SAME atomic attach the web app uses, which re-reads the on-chain
   // vault and fails closed unless it matches the approved plan. Deps `{}` = the real adapter.

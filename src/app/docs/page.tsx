@@ -76,6 +76,14 @@ export default function DocsOverview() {
         it turns one product and one budget into verified testing, and it is judged on whether the
         payouts hold up.
       </p>
+      <p>
+        <strong>Lenders and programmes.</strong> Every payout Sage makes is verified before it moves
+        and anchored to a transaction, so the byproduct is a work record a lender can underwrite
+        without taking anyone&rsquo;s word for it — published arithmetic over receipts, never a
+        score. Open a real one on the <Link href="/lender">lender view</Link>, read the system&rsquo;s
+        outcomes against the finance track&rsquo;s own bar on <Link href="/outcomes">outcomes</Link>,
+        and the controls on the money path in <Link href="/docs/compliance">compliance</Link>.
+      </p>
 
       <h2>What it costs and who holds the money</h2>
       <p>

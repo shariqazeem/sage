@@ -53,7 +53,8 @@ export function SceneHero({
           */}
           <p className="lede hero-lede">
             Fund it once and name your product. Sage decides what work to buy, designs it, verifies
-            every deliverable, and pays from a vault it cannot exceed.
+            every deliverable, pays from a vault it cannot exceed — and turns every payout into a
+            credit record a lender can underwrite.
           </p>
 
           <div className="hero-actions">

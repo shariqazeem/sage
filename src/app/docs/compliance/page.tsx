@@ -27,7 +27,7 @@ export default function Compliance() {
       <div className="prose-answer">
         <p>
           <strong>Compliance here is structural, like everything else:</strong> the controls are
-          code on the money path, not a policy document. Every payout recipient is screened against
+          code on the money path, not a policy document. Every EVM payout recipient is screened against
           the U.S. Treasury&rsquo;s OFAC SDN digital-currency list, every spend happens inside
           on-chain limits no model can exceed, and every settlement produces a public, permanent
           receipt — an audit trail that exists <em>by construction</em>, not on request.
@@ -47,10 +47,11 @@ export default function Compliance() {
             <tr>
               <td>Sanctions screening</td>
               <td>
-                Every recipient wallet is checked against the OFAC SDN digital-currency list at
-                three independent doors: submission, the autonomous payout preflight, and manual
+                Every EVM recipient wallet is checked against the OFAC SDN digital-currency list at
+                every door: web and chat submission, the autonomous payout preflight, and manual
                 release. A listed address is refused before any judging happens and cannot be paid
-                by the AI or by a human clicking release.
+                by the AI or by a human clicking release. The SDN list carries no Starknet
+                addresses, so the private rail is screened at its EVM funding side only.
               </td>
             </tr>
             <tr>

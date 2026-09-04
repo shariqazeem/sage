@@ -1,4 +1,4 @@
-import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { clusterKeyOf } from "@/lib/campaigns/wallet-links";
 import { verificationKindOf } from "./v2-economics";
 import "server-only";
 
@@ -302,12 +302,6 @@ export function waitSummary(
   };
 }
 
-/** A wallet's cluster: itself, or the lowest address it is linked to. One person, one key. */
-function clusterKeyOf(wallet: string): string {
-  if (!wallet) return "";
-  const linked = linkedWalletsOf(wallet).map((w) => w.toLowerCase());
-  return linked.length > 0 ? linked.slice().sort()[0] : wallet.toLowerCase();
-}
 
 /**
  * Every campaign with at least one mission a tester can still be paid for.

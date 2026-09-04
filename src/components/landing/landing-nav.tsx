@@ -27,6 +27,7 @@ const LINKS = [
   { href: "/verify", label: "Get verified" },
   { href: "#how", label: "How it works" },
   { href: "/explorer", label: "Live proof" },
+  { href: "/lender", label: "For lenders" },
   { href: "/docs", label: "Docs" },
 ];
 

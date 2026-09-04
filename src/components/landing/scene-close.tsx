@@ -34,6 +34,15 @@ export function SceneClose({
             Explore live missions
           </Link>
         </div>
+        {/* The two doors a lender or a programme walks through — reachable from the front page,
+            not only from inside a signed-in workspace. */}
+        <p className="cl-doors mono">
+          <Link href="/lender">For lenders</Link>
+          <span className="cl-dot" aria-hidden />
+          <Link href="/outcomes">Outcomes against the track&rsquo;s bar</Link>
+          <span className="cl-dot" aria-hidden />
+          <Link href="/docs/compliance">Compliance</Link>
+        </p>
         <div className="cl-stats mono">
           <span className="cl-stat">
             <b>{usd(totals.paidUsd)}</b> paid to real testers

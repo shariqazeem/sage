@@ -1768,3 +1768,8 @@ body:has(.slv2) {
   color: var(--ink-3);
 }
 .slv2 .hero-marks svg { color: var(--ink-2); flex: none; }
+
+/* The lender's and the programme's doors, on the front page. */
+.slv2 .cl-doors { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 14px; margin: 18px 0 0; font-size: 0.78rem; color: var(--ink-3); }
+.slv2 .cl-doors a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.slv2 .cl-doors a:hover { color: var(--accent); }

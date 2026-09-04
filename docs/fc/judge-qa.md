@@ -29,14 +29,16 @@ mission, enforces the budget, per-mission caps and replay, and can refuse. On St
 successful transaction that moved nothing and wrote a code. The agent proposes; the vault disposes.
 
 **"7–9% fees to under 1% — really?"** Recipients keep 100% of the vault-derived reward; the gas is Sage's cost
-(≈ $0.00000002 per payout on GOAT). The outcomes page computes what the corridor would have taken from the
-same settled total, live, and says what it has not measured yet (`/outcomes`).
+(≈ $0.00000002 per payout on GOAT). The payer pays a flat $0.10 per settlement over x402 — $1.30 collected on
+13 settlements, against $5.09 a 7–9% corridor would have taken on the same volume. The outcomes page computes
+both live and says what it has not measured yet (`/outcomes`).
 
 **"Settlement speed?"** Median 3 minutes from submission to settled payment, *verification included*; p90
 2 hours; 79% within the hour. Chain confirmation itself is seconds.
 
-**"KYC/AML?"** OFAC SDN screening at three doors from a vendored, dated snapshot — never a runtime API on the
-money path — plus wallet pseudonymity and the Sybil controls above. Named-recipient allowlists where an
+**"KYC/AML?"** OFAC SDN screening at every EVM door (web and chat submission, preflight, manual release) from a
+vendored, dated snapshot — never a runtime API on the money path; the SDN list carries no Starknet addresses, so
+the private rail is screened at its EVM funding side only — plus wallet pseudonymity and the Sybil controls above. Named-recipient allowlists where an
 operator needs them. We do not claim identity KYC.
 
 **"Fiat? Most of the region can't hold USDC."** The settlement door is an interface with a typed contract:
@@ -44,7 +46,7 @@ a fiat disbursement cannot ship without producing the identical verified credit 
 real; the disburse refuses in words today. Licensed-partner implementation is pending compliance
 onboarding — stated as such everywhere it appears.
 
-**"Multi-currency?"** Obligations denominate in 14 currencies, the Caribbean's own first (J$, TT$, EC$,
+**"Multi-currency?"** Obligations can be priced in 14 currencies, the Caribbean's own first (J$, TT$, EC$,
 Bds$, HTG, RD$, G$, B$, BZ$, SRD) plus the diaspora senders (CAD, GBP, EUR), converted once at a stamped,
 source-attributed rate. Settlement is always the USD stablecoin; the founder never does exchange
 arithmetic. Intra-regional corridor flow is **not yet measured** — no J$ obligation has settled yet.

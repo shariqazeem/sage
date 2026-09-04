@@ -162,3 +162,14 @@ export function buildLinkedRecord(wallet: string, nowSec = Math.floor(Date.now()
   const signals = computeCreditSignals(merged, decided, (id) => getCampaign(id)?.posterWallet ?? null, nowSec);
   return { wallets, record: merged, signals, decided };
 }
+
+/**
+ * ONE KEY PER PERSON for counting: the lowest wallet in the recorded cluster, else the wallet itself.
+ * The marketplace publishes people-not-wallets with this; every other surface that says "people"
+ * must count the same way, or two pages disagree about how many humans were paid.
+ */
+export function clusterKeyOf(wallet: string): string {
+  if (!wallet) return "";
+  const linked = linkedWalletsOf(wallet).map((w) => w.toLowerCase());
+  return linked.length > 0 ? linked.slice().sort()[0]! : wallet.toLowerCase();
+}

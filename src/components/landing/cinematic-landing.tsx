@@ -9,6 +9,7 @@ import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
 import { SceneWorkflow } from "./scene-workflow";
 import { SceneProof } from "./scene-proof";
+import { SceneCapital } from "./scene-capital";
 import { SceneClose } from "./scene-close";
 
 interface Props {
@@ -49,6 +50,11 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
         <SceneWorkflow showcase={showcase} />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
+        {/* What the payouts BECOME — the credit file and the advance. Written weeks ago, unmounted
+            until 5 Sep: the front door said nothing in the finance track's language. After Proof
+            on purpose: a file you can lend against is a claim nobody should accept before the
+            receipts it is built from. */}
+        <SceneCapital totals={totals} />
 
         <SceneClose totals={totals} networkName={network.name} />
       </main>

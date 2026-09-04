@@ -19,6 +19,13 @@ import { MIN_USDC } from "./facilitator";
  */
 
 /** 10% of the funded budget. One constant — change it here and nowhere else. */
+/**
+ * RETIRED AS A CHARGE, 2026-09-05. A 10% founder-side launch fee lived behind an env switch and
+ * appeared in no document while every document described revenue as a flat fee per settlement.
+ * Nothing charges it any more. `campaignFeeBase` survives for one reason: the FROZEN mandate
+ * builder (`privy/mandate.ts`) sizes an optional allow-rule with it, and a frozen file is not
+ * edited for a pricing change. The rule is never exercised.
+ */
 export const CAMPAIGN_FEE_PCT = 10;
 
 /**
@@ -41,19 +48,3 @@ export function campaignFeeBase(budgetBase: bigint): bigint {
   return pct < minBase ? minBase : pct;
 }
 
-/**
- * Is this founder paying themselves?
- *
- * The operator funds seed campaigns from their own wallets, and a fee they pay to their own merchant
- * address is not revenue — it is money moving between two pockets they already own. Charged all the
- * same (they asked for no exemptions, and it keeps the accounting uniform), but RECORDED as
- * self-funded so any number reported to GOAT, a grant, or an investor can exclude it.
- *
- * Case-insensitive because addresses arrive checksummed from some paths and lowercased from others,
- * and a comparison that silently fails would misclassify real revenue as self-funded.
- */
-export function isSelfFunded(payer: string | null | undefined, operatorAddresses: readonly string[]): boolean {
-  if (!payer) return false;
-  const p = payer.trim().toLowerCase();
-  return operatorAddresses.some((a) => a.trim().toLowerCase() === p);
-}

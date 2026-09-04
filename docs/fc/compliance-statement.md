@@ -20,8 +20,10 @@ submitting, we collect nothing beyond what verification needs, and a worker can 
 amounts. Under the EU AI Act, Sage is a decision-support and payment-execution system in a
 financial context: every automated decision is logged with its reasons, a human can review and
 override any hold, and no decision denies a person access to essential services. KYC/AML: OFAC SDN
-screening runs at three independent doors from a vendored, dated snapshot — never a runtime API on
-the money path — and named-recipient allowlists exist for operators who require them. We do not
+screening runs at every door on the EVM rail (web and chat submission, the autonomous preflight,
+manual release) from a vendored, dated snapshot — never a runtime API on the money path. The SDN
+list carries no Starknet addresses, so the private rail is screened at its EVM funding side only.
+Named-recipient allowlists exist for operators who require them. We do not
 claim identity KYC.
 
 **Bias mitigation.** The judge evaluates evidence against criteria the operator wrote, never a

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { campaignFeeBase, isSelfFunded, CAMPAIGN_FEE_PCT } from "./campaign-fee";
+import { campaignFeeBase, CAMPAIGN_FEE_PCT } from "./campaign-fee";
 
 const usdc = (n: number) => BigInt(Math.round(n * 1_000_000));
 
@@ -53,35 +53,5 @@ describe("campaignFeeBase", () => {
 
   it("scales exactly with budget — no drift at large amounts", () => {
     expect(campaignFeeBase(usdc(1_000_000))).toBe(usdc(100_000));
-  });
-});
-
-describe("isSelfFunded — keeping the revenue number honest", () => {
-  const OPS = ["0xDF70f6E8e656E5bb714fF0E8CA176d76F26890e3", "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6"];
-
-  it("flags the operator's own wallets", () => {
-    expect(isSelfFunded(OPS[0], OPS)).toBe(true);
-    expect(isSelfFunded(OPS[1], OPS)).toBe(true);
-  });
-
-  it("does NOT flag a third party — this is the revenue that actually counts", () => {
-    expect(isSelfFunded("0x1111111111111111111111111111111111111111", OPS)).toBe(false);
-  });
-
-  it("ignores case and stray whitespace, because a silent mismatch would book self-funding as revenue", () => {
-    expect(isSelfFunded(OPS[0].toLowerCase(), OPS)).toBe(true);
-    expect(isSelfFunded(OPS[0].toUpperCase(), OPS)).toBe(true);
-    expect(isSelfFunded(`  ${OPS[0]}  `, OPS)).toBe(true);
-  });
-
-  it("treats a missing payer as third-party rather than quietly self-funded", () => {
-    // erring the other way would let an unattributed payment vanish from the revenue line
-    expect(isSelfFunded(null, OPS)).toBe(false);
-    expect(isSelfFunded(undefined, OPS)).toBe(false);
-    expect(isSelfFunded("", OPS)).toBe(false);
-  });
-
-  it("is false when no operator wallets are configured", () => {
-    expect(isSelfFunded(OPS[0], [])).toBe(false);
   });
 });

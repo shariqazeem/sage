@@ -53,13 +53,13 @@ export default function OutcomesPage() {
           {o.recipientFeePct}%<span className="out-big-k">taken from recipients, on every payout to date</span>
         </div>
         <CompareBar
-          ours={0}
+          ours={o.corridor.sageCostUsd}
           theirs={o.corridor.benchmarkCostUsd}
-          oursLabel="$0.00"
+          oursLabel={`$${f(o.corridor.sageCostUsd)}`}
           theirsLabel={`$${f(o.corridor.benchmarkCostUsd)}`}
           alternativeName="Corridor"
           lowerIsBetter
-          caption={`On the $${f(o.settledUsd)} settled so far. The vault derives the exact reward and pays it whole; Sage covers the gas — a real cost, and Sage's, not the recipient's.`}
+          caption={`On the $${f(o.settledUsd)} settled so far. Recipients keep 100% — the vault derives the exact reward and pays it whole. The payer pays a flat $0.10 per settlement over x402: $${f(o.payerFeeUsd)} collected on ${o.payerFeeCount} settlement${o.payerFeeCount === 1 ? "" : "s"}. Gas is Sage's own cost.`}
         />
         <p className="out-src">
           Derivation: Σ(vault-derived rewards, mainnet, anchored) × 0.08 · verify any row on the{" "}

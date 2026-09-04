@@ -1,3 +1,5 @@
+import { settledFeeCount, sumSettledFeesBase } from "@/lib/db/campaigns";
+import { clusterKeyOf } from "@/lib/campaigns/wallet-links";
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -27,6 +29,9 @@ export interface OutcomeReadings {
   settledWithinHourPct: number | null;
   /* expanded access to capital */
   peoplePaid: number;
+  /** what the PAYER paid Sage — the flat x402 operator fee, settled on chain — and on how many settlements. */
+  payerFeeUsd: number;
+  payerFeeCount: number;
   refusedCount: number;
   refusalSharePct: number | null; // the judge's integrity — an agent that only says yes proves nothing
   advancesTotal: number;
@@ -74,6 +79,8 @@ export function deriveOutcomes(
   rows: SettledRow[],
   advanceRows: { status: string }[],
   nowSec: number,
+  /** the operator fees that actually settled, as the payer's real cost — never a typed number. */
+  payerFees: { usd: number; count: number } = { usd: 0, count: 0 },
 ): OutcomeReadings {
   const paid = rows.filter((r) => r.status === "paid");
   const refused = rows.filter((r) => r.status !== "paid");
@@ -92,17 +99,21 @@ export function deriveOutcomes(
 
   return {
     // The track names the number to beat: 7–9% average fees. Both sides real: the benchmark is the
-    // brief's own midpoint-low (8%), Sage's recipient-side cost is 0 by construction — the vault
-    // derives the exact reward and the operator pays the gas, which is a REAL cost and is Sage's,
-    // not the recipient's. corridorCost() takes both explicitly rather than burying either.
-    corridor: corridorCost(settledUsd, 0.08, 0),
+    // brief's own midpoint-low (8%); Sage's cost is what the PAYER actually paid — the flat x402
+    // operator fee, settled on chain — not zero. This page said $0.00 while /explorer said $1.30 for
+    // the same question; recipients keep 100% either way, and that is the separate number below.
+    corridor: corridorCost(settledUsd, 0.08, payerFees.usd),
     recipientFeePct: 0,
+    payerFeeUsd: payerFees.usd,
+    payerFeeCount: payerFees.count,
     medianMinutesToSettle: median(minutes),
     p90MinutesToSettle: quantile(minutes, 0.9),
     settledWithinHourPct: withinHour,
     // dogfood is real settled money (the flow bar counts it) but not expanded access — Sage
     // paying its own wallet is not "a person paid with no application".
-    peoplePaid: new Set(paid.filter((r) => !r.operator).map((r) => r.wallet.toLowerCase())).size,
+    // PEOPLE, NOT WALLETS — the same collapse the marketplace publishes. This page said 31 while the
+    // board said 24 for the same ledger; two answers to "how many humans" is worse than either.
+    peoplePaid: new Set(paid.filter((r) => !r.operator).map((r) => clusterKeyOf(r.wallet))).size,
     refusedCount: refused.length,
     refusalSharePct: decided > 0 ? (refused.length / decided) * 100 : null,
     advancesTotal: advanceRows.length,
@@ -182,6 +193,7 @@ export function readOutcomes(): OutcomeReadings {
     })),
     adv,
     Math.floor(Date.now() / 1000),
+    { usd: sumSettledFeesBase() / 1e6, count: settledFeeCount() },
   );
   // the refusal share is derived ONCE for every surface (settled-ledger.ts) — the pure function keeps
   // its own arithmetic for tests, the page shows the same number the explorer and landing show
