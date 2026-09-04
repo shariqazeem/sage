@@ -13,7 +13,7 @@ all. Sage *witnesses* the work — browses the product, fetches the artifact, re
 only releases money for work that passed. The record is the byproduct of payment, so it cannot be
 self-inflated: `/record/<wallet>` and its JSON at `/api/record/<wallet>`.
 
-**"How do I know the agent isn't rubber-stamping?"** 44% of judged submissions are refused, on a public
+**"How do I know the agent isn't rubber-stamping?"** 40% of judged submissions are refused, on a public
 ledger, with reasons (`/explorer`). Two adversarial batteries run the production judge against attack
 fixtures *and* honest-work fixtures: P-JUDGE zero wrong auto-pays across 57 rows; P-WORK 14 attacks with
 zero leaks and 12 honest submissions with zero false holds. A judge model is promoted only on that evidence.
