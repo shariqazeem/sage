@@ -80,6 +80,33 @@ function labelledTotal(text: string): number | null {
   return null;
 }
 
+
+/**
+ * DID THE FOUNDER MENTION A PRICE AT ALL — a PRESENCE test, deliberately generous.
+ *
+ * `statedAmounts` is arithmetic: it reads currency-marked numbers so their sum can be compared to a
+ * plan, and it must stay strict or it would invent totals. The invented-price guard asks a much
+ * weaker question — "did money come up" — and there the two errors are not symmetric. Failing to
+ * notice a price REFUSES a founder's legitimate request and makes Sage ask for something they
+ * already said ("pay my designer fifty dollars", "pay her 50 when the logo is live"); noticing one
+ * that was not there merely leaves the guard silent, which is exactly where the product was before
+ * the guard existed.
+ *
+ * So this accepts any digit, any currency symbol, and a number written in words next to a currency
+ * word. It is never used for arithmetic.
+ */
+const NUMBER_WORDS =
+  "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety|hundred|thousand";
+const MONEY_WORDS = "dollars?|usd|usdc|bucks|euros?|pounds?|rupees?|naira|pesos?";
+const WORD_PRICE = new RegExp(
+  String.raw`\b(?:${NUMBER_WORDS})(?:[\s-](?:${NUMBER_WORDS}))*\s+(?:${MONEY_WORDS})\b|\b(?:${MONEY_WORDS})\s+(?:${NUMBER_WORDS})\b`,
+  "i",
+);
+
+export function mentionsMoney(text: string): boolean {
+  return /\d/.test(text) || /[$€£₹¥]/.test(text) || WORD_PRICE.test(text);
+}
+
 export function readStatedTerms(text: string): StatedTerms {
   const amounts = statedAmounts(text);
 
@@ -170,7 +197,7 @@ export function checkStatedTerms(
     across the whole conversation, so an ambiguous phrasing is never enough to trip it.
   */
   const founderWords = opts.allFounderText ?? text;
-  if (statedAmounts(founderWords).length === 0) {
+  if (!mentionsMoney(founderWords)) {
     const planned = milestones.reduce((sum, m) => sum + (m.rewardLocal ?? m.rewardUsd) * m.slots, 0);
     if (planned > 0) out.push({ field: "invented", stated: 0, planned });
   }

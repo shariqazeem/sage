@@ -231,6 +231,49 @@ export const DIRECT_FIXTURES: DirectFixture[] = [
     statedMilestones: 1,
     about: "A deadline is not a second milestone. Inventing one from 'by Friday' is the defect this catches",
   },
+  // ── SHAPES ADDED 2026-09-04, so "any kind of work" is measured rather than asserted ──────
+  // Each is a structurally different way of stating a price or a schedule, not a reword of one above.
+  {
+    id: "pd-gig-per-unit-quantity",
+    category: "gig-complex",
+    utterance:
+      "I need 10 product photos of my catalogue items, $2 per photo, published on a public page with the photographer's wallet address on it.",
+    expect: "direct",
+    statedMilestones: 1,
+    about:
+      "PER-UNIT price × a quantity = ONE deliverable with 10 slots, not 10 milestones. $20 total, so no single stated total is asserted — the arithmetic is Sage's and must be right, not transcribed",
+  },
+  {
+    id: "pd-grant-monthly-for-three",
+    category: "grant-complex",
+    utterance:
+      "I want to back a seller with $25 a month for three months — each month she posts her numbers publicly and gets paid.",
+    expect: "direct",
+    statedMilestones: 3,
+    about:
+      "A RECURRING ask with an explicit end. Three tranches of $25, never twelve and never one: 'a month' is a cadence, and 'for three months' is the count",
+  },
+  {
+    id: "pd-gig-price-in-words",
+    category: "gig-clear",
+    utterance: "pay my designer fifty dollars when the new logo page is live on our site",
+    expect: "direct",
+    statedAmountUsd: 50,
+    statedMilestones: 1,
+    about:
+      "The price is written in WORDS. Every money regex in the product reads digits, so this is the shape that trips a guard into refusing an ask the founder actually priced",
+  },
+  {
+    id: "pd-gig-deploy-onchain",
+    category: "gig-complex",
+    utterance:
+      "$40 for a developer to deploy our token contract on GOAT and send me the transaction.",
+    expect: "direct",
+    statedAmountUsd: 40,
+    statedMilestones: 1,
+    about:
+      "The thing being paid for DOES NOT EXIST YET, so no address, selector or value can be named — the only expressible on-chain constraint is that the transaction deploys a contract",
+  },
   {
     id: "pd-grant-spanish-tranches",
     category: "gig-language",

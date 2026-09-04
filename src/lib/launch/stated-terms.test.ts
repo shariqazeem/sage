@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkStatedTerms, readStatedTerms, statedAmounts, statedTermsCorrection } from "./stated-terms";
+import { checkStatedTerms, mentionsMoney, readStatedTerms, statedAmounts, statedTermsCorrection } from "./stated-terms";
 
 const m = (rewardUsd: number, slots = 1, rewardLocal?: number) => ({ rewardUsd, slots, rewardLocal });
 
@@ -171,6 +171,33 @@ describe("checkStatedTerms — an amount the founder never named", () => {
   it("is silent the moment they name one, however casually", () => {
     expect(checkStatedTerms("pay someone $25 to design a logo", plan)).toEqual([]);
     expect(checkStatedTerms("25 usd for a logo please", plan)).toEqual([]);
+  });
+
+  /*
+    The two errors here are not symmetric: not noticing a price REFUSES a founder who stated one,
+    while noticing one that was not there only leaves the guard silent — where the product already
+    was. So presence is read generously, and never used for arithmetic.
+  */
+  it("recognises a price the founder wrote in words, or with no currency at all", () => {
+    for (const t of [
+      "pay my designer fifty dollars when the logo page is live",
+      "pay her 50 when the logo is live",
+      "twenty five usd for the translation",
+      "I'll give a market seller J$10,000 in two parts",
+    ]) {
+      expect(mentionsMoney(t)).toBe(true);
+      expect(checkStatedTerms(t, plan)).toEqual([]);
+    }
+  });
+
+  it("still sees no price where a founder genuinely named none", () => {
+    for (const t of [
+      "I want to pay someone to design a logo for me",
+      "can you find me someone to write our docs",
+      "I need a translator for my menu",
+    ]) {
+      expect(mentionsMoney(t)).toBe(false);
+    }
   });
 
   it("reads the WHOLE conversation, so a price stated two turns ago still counts", () => {
