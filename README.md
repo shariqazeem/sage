@@ -228,7 +228,7 @@ The bound comes before the autonomy, and it is the whole reason this is safe to 
 
 Launching by hand is unchanged. A founder who would rather choose the work themselves simply never arms the mandate.
 
-**Standing, so a worker cannot be split into a crowd.** Work above a small ceiling asks for a record first: payouts across different campaigns, and no wallet the consolidation watch has linked. Low-paid work stays open to anyone, which is how standing is earned. Twelve fresh wallets are therefore worth less than one worker, which is the opposite of the incentive that let the first Starknet gig be farmed.
+**One person, one slot, so a worker cannot be split into a crowd.** On public work (listed, no allowlist) claiming a slot asks for a one-time [World ID](https://world.org) proof of personhood: the provider returns a nullifier unique to the person and the action, Sage stores that nullifier against the wallet and nothing else — no name, document, face or country — and every cap (mission slots, the per-campaign payout cap) counts the *person* across the wallets the proof, the chain or their own declaration ties together. Fifty slots need fifty humans. Members-only work is untouched: the organisation chose its people. `IDENTITY_DOOR=1` arms it; `src/lib/identity/`, `src/lib/campaigns/visibility.ts`.
 
 **And Sage can reach the people it paid.** Anyone who has been paid can ask to be told when new work opens — one tap into Telegram, one word to stop. Opt-in only, never about work they already did, and never more than one campaign per person per cooldown.
 
