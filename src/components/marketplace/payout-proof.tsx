@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
-import type { MarketplacePayout } from "@/lib/campaigns/marketplace";
+import { Coins, PenLine, Pointer, ShieldCheck } from "lucide-react";
+import type { MarketplacePayout, MarketplaceView } from "@/lib/campaigns/marketplace";
+import { WaitStrip } from "./wait-strip";
 
 /**
  * WHO ACTUALLY GOT PAID — the sidebar a stranger reads before deciding this is real.
@@ -25,16 +26,29 @@ function ago(unix: number): string {
   return `${Math.floor(s / 86400)}d`;
 }
 
+/**
+ * The three steps as three MARKS on a rail. They were three sentences in a box, which is the shape
+ * every board uses and the shape a reader skips; the work of saying "there are three of them and
+ * they are short" belongs to the layout, not to the words.
+ */
+const FLOW = [
+  { Icon: Pointer, label: "Pick a mission" },
+  { Icon: PenLine, label: "Say what you saw" },
+  { Icon: Coins, label: "Agent pays in USDC" },
+];
+
 export function PayoutProof({
   payouts,
   paidToDate,
   availableUsd,
   openSlots,
+  speed,
 }: {
   payouts: MarketplacePayout[];
   paidToDate: { usd: number; count: number };
   availableUsd: number;
   openSlots: number;
+  speed: MarketplaceView["speed"];
 }) {
   // NEVER LEAD WITH A ZERO. "$0.00 paid to testers so far" is the precise opposite of the thing a
   // stranger came here to find out, and it is not even the most useful truth available: before the
@@ -79,24 +93,23 @@ export function PayoutProof({
         )}
       </section>
 
+      {/* The measured wait, only when it IS measured — never a placeholder axis with no dots on it. */}
+      {speed.medianSeconds !== null && (
+        <WaitStrip medianSeconds={speed.medianSeconds} measured={speed.measured} dots={speed.dots} />
+      )}
+
       <section className="mk-side-card">
         <h2 className="mk-side-h">How it works</h2>
-        <ol className="mk-steps">
-          <li>
-            <span className="mk-step-n">1</span>
-            <span>Pick a mission and open its board.</span>
-          </li>
-          <li>
-            <span className="mk-step-n">2</span>
-            <span>Do the task, then describe what you actually saw. Your own words are fine.</span>
-          </li>
-          <li>
-            <span className="mk-step-n">3</span>
-            <span>
-              Sage checks it against what it saw exploring the product itself, and pays in USDC.
+        <div className="mk-flow">
+          {FLOW.map(({ Icon, label }) => (
+            <span key={label} className="mk-flow-step">
+              <span className="mk-flow-i">
+                <Icon size={15} strokeWidth={1.7} />
+              </span>
+              <span className="mk-flow-l">{label}</span>
             </span>
-          </li>
-        </ol>
+          ))}
+        </div>
       </section>
 
       <section className="mk-side-card">

@@ -476,3 +476,122 @@
 .mk-next li { position: relative; padding-left: 22px; font-size: 13.5px; line-height: 1.6; color: var(--ink-muted, #55554f); }
 .mk-next li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 6px; height: 6px; border-radius: 999px; background: var(--accent, #c2410c); }
 .mk-next b { color: var(--ink, #1a1d21); font-weight: 600; }
+
+/* THE WAIT, DRAWN — a time axis with one dot per settled payout. See wait-strip.tsx. */
+.mk-wait-v {
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+.mk-wait-k {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--sage-ink-3, #6b7280);
+}
+.mk-wait-axis {
+  position: relative;
+  height: 46px;
+  margin: 1.15rem 0 0.15rem;
+}
+/* the rail itself */
+.mk-wait-axis::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 15px;
+  height: 1px;
+  background: var(--sage-rule, rgba(26, 29, 33, 0.14));
+}
+.mk-wait-grid {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mk-wait-grid i {
+  width: 1px;
+  height: 22px;
+  background: var(--sage-rule, rgba(26, 29, 33, 0.12));
+}
+.mk-wait-grid b {
+  margin-top: 4px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--sage-ink-3, #9ca3af);
+  letter-spacing: 0.02em;
+}
+/* where the median falls — a quiet marker, not a second number */
+.mk-wait-med {
+  position: absolute;
+  top: 6px;
+  width: 1px;
+  height: 19px;
+  background: color-mix(in srgb, var(--ok) 55%, transparent);
+}
+.mk-wait-dot {
+  position: absolute;
+  top: 10px;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 999px;
+  background: var(--ok);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent);
+  transition: transform 0.14s ease;
+}
+.mk-wait-dot:hover {
+  transform: scale(1.45);
+  z-index: 2;
+}
+
+/* HOW IT WORKS as three marks on a rail, not three sentences in a box. */
+.mk-flow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  position: relative;
+}
+.mk-flow::before {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  top: 15px;
+  height: 1px;
+  background: var(--sage-rule, rgba(26, 29, 33, 0.14));
+}
+.mk-flow-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.45rem;
+}
+.mk-flow-i {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--sage-rule, rgba(26, 29, 33, 0.14));
+  color: var(--accent);
+}
+.mk-flow-step:last-child .mk-flow-i {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ok);
+}
+.mk-flow-l {
+  font-size: 0.73rem;
+  line-height: 1.32;
+  color: var(--sage-ink-2, #4a4f57);
+  max-width: 11ch;
+}

@@ -108,6 +108,12 @@ export interface MarketplacePayout {
   /** the product the work was done on, for recognisability. */
   productHost: string | null;
   at: number;
+  /**
+   * SECONDS FROM SUBMIT TO SETTLED — the wait this person actually had, not an average of waits.
+   * null when the settlement event names no submission (a chain-only row has no submit time to
+   * subtract), which is a missing measurement and never a zero.
+   */
+  waitSeconds: number | null;
 }
 
 export interface MarketplaceView {
@@ -118,6 +124,21 @@ export interface MarketplaceView {
   recentPayouts: MarketplacePayout[];
   /** what Sage has ACTUALLY paid out, all time — the number a stranger wants before starting. */
   paidToDate: { usd: number; count: number; people: number };
+  /**
+   * HOW LONG PEOPLE WAITED. Median over every mainnet tester payout whose submit time is known —
+   * median, not mean, because one held submission that sat overnight would otherwise describe a
+   * wait nobody had. null when nothing measurable has settled yet.
+   */
+  speed: {
+    medianSeconds: number | null;
+    measured: number;
+    /**
+     * One entry per MEASURED payout — not per person. The showcase collapses linked wallets
+     * because "how many different people" is the claim the links bear on; a wait is a property of
+     * one settlement and collapsing them would drop real measurements from a distribution.
+     */
+    dots: { txHash: string; seconds: number; usd: number }[];
+  };
   totals: { campaigns: number; missions: number; slots: number; usd: number };
 }
 
@@ -169,21 +190,26 @@ function paidCountsByMission(missionIdHashes: string[]): Map<string, number> {
  * host still comes from the mission that was paid; a row that cannot name one simply shows
  * without a host rather than being dropped: the settlement is real either way.
  */
-function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd: number; count: number; people: number } } {
+function settledSoFar(): Pick<MarketplaceView, "recentPayouts" | "paidToDate" | "speed"> {
   const ledger = settledLedger().filter((r) => r.mainnet && !r.operator && r.amountBase > 0);
-  if (ledger.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0, people: 0 } };
+  const nothing = {
+    recentPayouts: [],
+    paidToDate: { usd: 0, count: 0, people: 0 },
+    speed: { medianSeconds: null, measured: 0, dots: [] },
+  };
+  if (ledger.length === 0) return nothing;
 
   const subIds = ledger.map((r) => r.submissionId).filter((x): x is string => !!x);
-  const hashBySub = new Map(
+  const subRows =
     subIds.length === 0
       ? []
       : db
-          .select({ id: submissions.id, missionIdHash: submissions.missionIdHash })
+          .select({ id: submissions.id, missionIdHash: submissions.missionIdHash, createdAt: submissions.createdAt })
           .from(submissions)
           .where(inArray(submissions.id, subIds))
-          .all()
-          .map((s2) => [s2.id, s2.missionIdHash]),
-  );
+          .all();
+  const hashBySub = new Map(subRows.map((s2) => [s2.id, s2.missionIdHash]));
+  const submittedAt = new Map(subRows.map((s2) => [s2.id, s2.createdAt]));
   const hashes = [...new Set([...hashBySub.values()].filter((h): h is string => !!h))];
   const surfaceByHash = new Map(
     hashes.length === 0
@@ -199,12 +225,21 @@ function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd
   const payouts: MarketplacePayout[] = ledger.map((r) => {
     const h = r.submissionId ? hashBySub.get(r.submissionId) : null;
     const surface = h ? surfaceByHash.get(h) : null;
+    const sent = r.submissionId ? submittedAt.get(r.submissionId) : undefined;
+    /*
+      A NEGATIVE WAIT IS A CLOCK PROBLEM, NOT A FAST PAYOUT.
+      The settlement's timestamp comes from the events journal and the submit time from the
+      submissions table; a row where the money appears to have moved BEFORE the work arrived is
+      unmeasurable, not instantaneous, so it is dropped rather than counted as zero.
+    */
+    const waitSeconds = typeof sent === "number" && r.at >= sent ? r.at - sent : null;
     return {
       wallet: r.wallet ?? "",
       usd: r.amountBase / 1_000_000,
       txHash: r.txHash,
       productHost: surface ? hostOf(surface) : null,
       at: r.at,
+      waitSeconds,
     };
   });
   /**
@@ -233,6 +268,36 @@ function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd
   return {
     recentPayouts: showcase,
     paidToDate: { usd: payouts.reduce((sum, p) => sum + p.usd, 0), count: payouts.length, people: people.size },
+    speed: waitSummary(payouts),
+  };
+}
+
+/**
+ * THE WAIT, MEASURED — median seconds from a tester pressing submit to the money being on chain.
+ *
+ * This is the one number in the whole product that no competitor can answer, so it is derived and
+ * never typed: every sample is one settled payout minus its own submission's timestamp. Rows whose
+ * submit time is unknown are excluded from the median AND counted in nothing — `measured` is how
+ * many samples the median actually stands on, so a page can say "over 6" instead of implying it
+ * measured every payout it displays.
+ */
+export function waitSummary(
+  payouts: Pick<MarketplacePayout, "waitSeconds" | "txHash" | "usd">[],
+): MarketplaceView["speed"] {
+  const measurable = payouts
+    .filter((p): p is typeof p & { waitSeconds: number } => typeof p.waitSeconds === "number")
+    .sort((a, b) => a.waitSeconds - b.waitSeconds);
+  if (measurable.length === 0) return { medianSeconds: null, measured: 0, dots: [] };
+  const mid = Math.floor(measurable.length / 2);
+  const medianSeconds =
+    measurable.length % 2 === 1
+      ? measurable[mid]!.waitSeconds
+      : Math.round((measurable[mid - 1]!.waitSeconds + measurable[mid]!.waitSeconds) / 2);
+  return {
+    medianSeconds,
+    measured: measurable.length,
+    // A strip is read, not counted: past a few dozen the marks overlap into a smear and add nothing.
+    dots: measurable.slice(0, 40).map((p) => ({ txHash: p.txHash, seconds: p.waitSeconds, usd: p.usd })),
   };
 }
 

@@ -36,7 +36,7 @@ const usd = (n: number) =>
  * marketplace says so plainly rather than dressing up nothing as something.
  */
 export default async function MarketplacePage() {
-  const { rows, totals, recentPayouts, paidToDate } = marketplace();
+  const { rows, totals, recentPayouts, paidToDate, speed } = marketplace();
 
   /*
     WHICH RAILS CAN THIS VISITOR ACTUALLY BE PAID ON.
@@ -141,6 +141,7 @@ export default async function MarketplacePage() {
           paidToDate={paidToDate}
           availableUsd={totals.usd}
           openSlots={totals.slots}
+          speed={speed}
         />
       </div>
 
