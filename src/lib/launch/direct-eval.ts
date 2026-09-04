@@ -293,6 +293,37 @@ export async function runDirectEval(opts: {
         }
       }
       /**
+       * A TOOL THIS HARNESS DOES NOT OFFER IS NOT A ROUTING DECISION.
+       *
+       * Measured 2026-09-05: a clean gig row came back calling `sage_first_look` — a real Sage tool,
+       * and one this battery does not expose, because it offers exactly two. Production offers a
+       * dozen, runs the read the model asked for, and goes round again; scoring the name as "wrong
+       * lane" reports a failure caused by the harness's smaller surface rather than by the product.
+       *
+       * Nothing is fabricated: the honest answer to a call for a tool that is not on this surface is
+       * that it is not on this surface, which is exactly what an OpenAI-compatible loop returns.
+       */
+      const OFFERED = new Set(["sage_create_direct_campaign", "sage_start_inspection"]);
+      const calledName = call?.function?.name;
+      if (!failed && calledName && !OFFERED.has(calledName)) {
+        const again = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 3, [
+          { role: "assistant", content: null, tool_calls: [call as ToolCall] },
+          {
+            role: "tool",
+            tool_call_id: (call as { id?: string })?.id ?? "call_0",
+            content: JSON.stringify({
+              ok: false,
+              error: `There is no tool called ${calledName} available here. The tools you may call are: ${[...OFFERED].join(", ")}.`,
+            }),
+          } as Msg,
+        ]);
+        if (!again.failed && again.call) {
+          ({ call, reply, finish, outTokens } = again);
+          cut = again.cut;
+        }
+      }
+
+      /**
        * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
        *
        * When a turn claims an action but runs no tool, the concierge feeds its own SYSTEM CHECK
