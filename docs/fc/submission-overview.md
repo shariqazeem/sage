@@ -121,6 +121,24 @@ with the ledger — every payout is a record row — and the lender contract is 
 institution can consume. The next steps are standing intents that relaunch work on their own, the treasury funded from a
 Starknet wallet, the licensed fiat door, and an institutional LP behind the advance facility.
 
+## Does it work on products it has never seen? (4 September)
+
+The standing battery drives the real pipeline — inspect, browse, look, design, gate — against one
+live URL per product category. Thirteen categories, chosen to be awkward on purpose: a bare HTML
+page, docs, a SaaS marketing site, an SPA, a canvas game, a DOM-heavy world, e-commerce, a login
+wall, a portfolio, a non-English site, a heavy news site, a WebGL scene, and a wallet-gated dapp.
+
+| | |
+| --- | --- |
+| Products planned | **13 of 13** |
+| Anchor integrity | **100% on every one** — every criterion traceable to something Sage actually saw |
+| Failures or timeouts | **0** |
+| Cost of the whole battery | ~248k tokens |
+
+Anchor integrity below 100% is a hard stop in this project, not a target. It means no mission asks a
+tester for something Sage cannot point at in its own observations — which is what makes an autonomous
+payout defensible rather than a guess.
+
 ## The safety claim, measured rather than asserted (4 September)
 
 The judge that decides whether a stranger's work gets paid was put through its promotion battery

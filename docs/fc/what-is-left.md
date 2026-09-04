@@ -87,3 +87,17 @@ judging it — the same broken-ruler lesson as the mission-eval matrix and the P
   did. Roughly $2 clears the backlog.
 - **Two routing misses** remain in P-DIRECT, both on a deadline being read as a milestone.
 
+## 4 September, later — the nine timeouts were ours, not the products'
+
+P-GEN went from **4 of 13** planned to **13 of 13, zero timeouts, anchor integrity 100% on every
+row**. Nothing about the products or the model changed. An inspection job reported only on stage
+CHANGES, so a job inside one long stage was indistinguishable from a job whose process had been
+killed; the reaper treats fifteen minutes of silence as death and restarts the work, re-running the
+browser each time. Moving mission design to a reasoning model pushed those stages past the threshold,
+so a guard built to catch jobs killed by deploy restarts began eating healthy ones. A two-minute
+heartbeat says "this process is alive", which is the only question the reaper was ever asking.
+
+The raised view caps show up in the plans directly: the bare HTML page went from 3 missions with none
+url-verifiable to 3 with ALL of them url-verifiable, and plausible.io from 3 missions to 6. A
+url-verifiable mission is one Sage can settle without a human, so this is autonomy, not decoration.
+
