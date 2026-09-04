@@ -151,6 +151,9 @@ const MAX_AUTO_RETRIES = 1;
  *  between stamps measured on prod is ~11 minutes (a slow field test + a full retry ladder), so
  *  15 minutes without movement is a dead runner, not a slow one. */
 const STALL_SECONDS = 15 * 60;
+/** How often a running inspection says it is still alive. Well inside STALL_SECONDS, so a live job
+ *  is never mistaken for a dead one, and far apart enough to cost nothing. */
+const HEARTBEAT_MS = 120_000;
 const NON_TERMINAL: ReadonlySet<InspectionStatus> = new Set([
   "queued", "fetching", "field_test", "analyzing", "mapping", "generating_missions", "reviewing",
 ]);
@@ -264,6 +267,32 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     }
   })();
 
+  /**
+   * A HEARTBEAT, BECAUSE "IDLE" AND "SLOW" ARE NOT THE SAME THING.
+   *
+   * `updatedAt` moved only on a STAGE CHANGE, so a job sitting inside one long stage looked exactly
+   * like a job whose process had been killed. The reaper below treats 15 minutes of silence as death
+   * and RESTARTS the work — re-running the field test, which is the expensive part. On a reasoning
+   * mission lane an architect-plus-critic sequence can hold `generating_missions` past that on its
+   * own, so a genuinely-progressing plan could be restarted forever and never finish, burning a
+   * browser run and model budget each time.
+   *
+   * Measured: P-GEN nonce 55 timed out on NINE of thirteen products, clustered at exactly the two
+   * long stages (`generating_missions`, `field_test`).
+   *
+   * The heartbeat says only "this process is alive", which is precisely the question the reaper is
+   * asking. A process killed by a deploy restart stops beating and is still reaped, so the guard
+   * keeps the failure it exists for and loses the false positive.
+   */
+  const beat = setInterval(() => {
+    try {
+      updateInspectionJob(jobId, null, {});
+    } catch {
+      /* a heartbeat must never be able to fail the job it is reporting on */
+    }
+  }, HEARTBEAT_MS);
+  if (typeof beat.unref === "function") beat.unref();
+
   try {
     const result = await inspectAndPlan(
       input,
@@ -336,6 +365,11 @@ export async function runInspectionJob(jobId: string): Promise<void> {
     }
   } catch (err) {
     updateInspectionJob(jobId, "failed", { failureReason: (err instanceof Error ? err.message : "inspection error").slice(0, 200) });
+  } finally {
+    // stop beating the moment this run is over, success or failure — a heartbeat that outlives its
+    // job would keep a genuinely dead row looking alive, which is the exact failure the reaper exists
+    // to catch.
+    clearInterval(beat);
   }
 }
 
