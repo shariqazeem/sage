@@ -37,3 +37,24 @@ describe("concierge — a turn cut short by the budget is re-asked once with mor
     expect(src).toMatch(/if \(gotCall \|\| !hadCall\) data = roomier;/);
   });
 });
+
+/**
+ * The per-call timeout is the provider's, not a constant — the same rule the token budget follows.
+ */
+describe("concierge — how long one call may take comes from the provider profile", () => {
+  const src2 = readFileSync(resolve(process.cwd(), "src/lib/telegram/concierge.ts"), "utf8");
+  it("asks the profile rather than holding a flat number", () => {
+    expect(src2).toMatch(/profileFor\(model\(\), base\(\)\)\.timeoutMs/);
+    expect(src2).toMatch(/signal: AbortSignal\.timeout\(callTimeoutMs\(budgetMs\)\)/);
+    expect(src2).not.toMatch(/signal: AbortSignal\.timeout\(TIMEOUT_MS\)/);
+  });
+  it("a reasoning provider genuinely gets more than the old flat 45s, and never the whole turn", () => {
+    const p = profileFor("MiniMax-M3", "https://api.minimax.io/v1/chat/completions");
+    expect(p.timeoutMs).toBeGreaterThan(45_000);
+    // bounded below the turn so a corrective round still fits
+    const turn = 240_000;
+    const perCall = Math.max(45_000, Math.min(Math.max(45_000, p.timeoutMs), Math.floor(turn * 0.6)));
+    expect(perCall).toBeGreaterThan(45_000);
+    expect(perCall).toBeLessThan(turn);
+  });
+});

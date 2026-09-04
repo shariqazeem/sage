@@ -71,11 +71,33 @@ const MAX_HISTORY = 12;
  * the answer is headroom rather than a rewrite.
  */
 const TIMEOUT_MS = 45_000;
+
+/**
+ * HOW LONG ONE CALL MAY TAKE — from the provider's own measured profile, not a constant.
+ *
+ * `provider-profile.ts` already records that a reasoning model needs far more wall-clock than a
+ * fast one, and `llmCompleteJson` respects it. The concierge hand-rolls its fetch and did not: it
+ * held a flat 45s while the profile for the model it actually runs on says 300s. That is the same
+ * two-lists drift this codebase keeps producing — one place learned the provider's shape and the
+ * other kept the old number.
+ *
+ * Measured on P-DIRECT: four of fifty-nine rows timed out at SIXTY seconds, every one of them a
+ * multi-tranche or non-English grant, which are exactly the longest answers and exactly the MSME
+ * case. Production was stricter than the battery, so a founder asking for a three-part grant in
+ * Spanish was likelier to time out in real life than in the test.
+ *
+ * Bounded by the turn, and deliberately below it: a call allowed to consume the whole budget leaves
+ * nothing for the corrective round that catches a turn which talked instead of acting.
+ */
+function callTimeoutMs(budgetMs: number): number {
+  const wanted = Math.max(TIMEOUT_MS, profileFor(model(), base()).timeoutMs);
+  return Math.max(TIMEOUT_MS, Math.min(wanted, Math.floor(Math.max(budgetMs, TIMEOUT_MS) * 0.6)));
+}
 const LLM_ATTEMPTS = 3;
 /** The whole turn's LLM budget, across every tool round. The reply is sent from `after()`, so this
  *  costs a founder waiting rather than a failed request — but it must still end. Three 45s attempts
  *  plus backoff fit inside it; past that a founder is better served by an honest failure. */
-const TURN_BUDGET_MS = 150_000;
+const TURN_BUDGET_MS = 240_000;
 
 /** Exported for P-DIRECT — the real system preamble. */
 export const BASE_PROMPT = `You are Sage, an autonomous agent that PAYS PEOPLE FOR VERIFIED WORK, talking to a founder through your Telegram bot. Keep replies short and plain — this is a chat, not a document.
@@ -571,7 +593,7 @@ async function chatCompletion(
           tools,
           tool_choice: forceTool ? "required" : "auto",
         }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(callTimeoutMs(budgetMs)),
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
