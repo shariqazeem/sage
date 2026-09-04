@@ -819,3 +819,29 @@ messages went out, so the cooldown applied only BETWEEN sweeps: a tick that foun
 would have sent one person three messages. The in-memory roster is now kept current as it sends, and
 a test asserts that three campaigns in one run is still one message.
 
+
+## Proof of personhood (2026-09-04) — the farm's one unavoidable cost
+
+**Why a badge is not the point.** The first open gig was taken ten times by one operator with twelve
+wallets, because a wallet is free to create and has never proved anything. Detectors caught it after
+the money moved, and standing tiers made the attack expensive; this makes it structurally impossible
+to profit from.
+
+A proof-of-personhood provider returns a **nullifier**: a number that is the same every time a given
+human proves and different for everyone else. It carries no name, document, country or age. So when a
+second wallet presents a nullifier we have already seen, that is not a coincidence to infer from gas
+patterns — it is the provider stating that this is the same person. Those wallets are linked on the
+spot, through the same `wallet_links` table the on-chain consolidation watch writes to, so every gate
+that already holds a linked cluster holds these too. The ten-of-ten farm would have needed ten
+different humans.
+
+**Shape.** `src/lib/identity/worldid.ts` verifies server-side against World's v4 endpoint and reads
+back only the nullifier; nothing the browser claims is believed. `src/lib/db/identity.ts` records it
+and performs the linking. `standingOf` reports `personhood: "verified"`, which the tier layer already
+understood — the seam was built before the provider was chosen, so wiring it changed one line.
+`/api/identity/context` signs the request context with the portal key, which never reaches the
+browser. The widget renders only when the credentials exist, so the feature is dark rather than
+broken when they do not.
+
+**What it costs a worker:** one verification, once, from their own work record. What it buys them:
+every tier of paid work.

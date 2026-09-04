@@ -699,8 +699,26 @@ async function runAgentTurn(
        * (finish_reason "length"), so the turn is re-asked ONCE with the next budget rung — a measured
        * truncation buys more room; nothing else does. Safe by construction: no tool has run yet.
        */
-      if (data.choices?.[0]?.finish_reason === "length" && data.choices[0]?.message?.tool_calls?.length) {
-        console.warn("[concierge:%s] tool call truncated (finish=length) — re-asking with more room", surface);
+      if (data.choices?.[0]?.finish_reason === "length") {
+        /**
+         * ...AND RUNNING OUT OF ROOM MID-THOUGHT IS THE SAME FAILURE WITHOUT THE EVIDENCE.
+         *
+         * This used to require `tool_calls?.length`, so it only rescued a call cut mid-JSON. A
+         * reasoning model that spends its whole budget thinking emits NO call at all: measured on
+         * P-DIRECT, several turns came back as an unclosed <think> block and nothing else. That
+         * path fell through to the suppressor, and from there only a money-action or an unbacked
+         * claim triggers the corrective round — so a founder asking for something that is neither
+         * ("test my product at …") got the honest fallback instead of the work.
+         *
+         * The provider's own finish_reason is the same reliable signal in both cases, and the
+         * remedy is the same one rung of extra room. Still safe by construction: no tool has run.
+         */
+        const truncatedCall = Boolean(data.choices[0]?.message?.tool_calls?.length);
+        console.warn(
+          "[concierge:%s] %s truncated (finish=length) — re-asking with more room",
+          surface,
+          truncatedCall ? "tool call" : "reasoning, no call made",
+        );
         data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, 1);
       }
       const msg = data.choices?.[0]?.message;

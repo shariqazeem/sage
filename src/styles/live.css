@@ -154,3 +154,13 @@ a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .dl-rec a { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); text-decoration: none; }
 .dl-rec a:hover { color: var(--accent); }
 .dl-copy { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; }
+
+/* one person, one worker */
+.vp { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--accent-border); border-radius: 12px; padding: 14px 16px; background: var(--surface); margin: 0 0 18px; }
+.vp.verified { border-color: var(--pos-border, #cfe6d3); background: var(--pos-soft, #f0f8f1); }
+.vp-main { min-width: 220px; flex: 1 1 320px; }
+.vp-t { display: flex; align-items: center; gap: 7px; margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.vp-t svg { color: var(--accent); }
+.vp.verified .vp-t svg { color: var(--pos, #15803d); }
+.vp-s { margin: 0; font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; }
+.vp-e { margin: 6px 0 0; font-size: 12px; color: var(--dan, #dc2626); }

@@ -14,7 +14,8 @@ import { SageMark } from "@/components/brand/sage-mark";
  * payments layer, a live ledger is worth more than a paragraph about one.
  *
  * "Marketplace" said what the page IS; "Find work" says what it is FOR, which is the only thing the
- * person on that side of the market cares about.
+ * person on that side of the market cares about — and it is back in the bar, first, because the
+ * people who return daily are the ones looking for work, not the ones reading about the product.
  *
  * The CTA is session-aware. It said "Sign in" to everyone, including the people who already were,
  * and the mobile sheet said something else entirely ("Launch a campaign"). One door, and it names
@@ -22,6 +23,7 @@ import { SageMark } from "@/components/brand/sage-mark";
  */
 // Three links and one door. Everything else lives inside the product, after sign-in.
 const LINKS = [
+  { href: "/marketplace", label: "Find work" },
   { href: "#how", label: "How it works" },
   { href: "/explorer", label: "Live proof" },
   { href: "/docs", label: "Docs" },

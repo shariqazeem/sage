@@ -4,6 +4,7 @@ import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
+import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
@@ -112,6 +113,8 @@ async function askModelWithRetry(
   history: Msg[] = [],
   /** Production forces a call on the corrective round; a battery that does not over-reports. */
   forceTool = false,
+  /** the budget rung, exactly as production escalates it after a MEASURED truncation. */
+  escalation = 0,
 ): Promise<Ask> {
   /**
    * PRODUCTION'S OWN LADDER. The hand-rolled 2s/4s version here was far too aggressive for the
@@ -122,7 +125,7 @@ async function askModelWithRetry(
    */
   try {
     return await withTransientRetry(
-      async () => askModel(utterance, timeoutMs, history, forceTool),
+      async () => askModel(utterance, timeoutMs, history, forceTool, escalation),
       { attempts },
     );
   } catch (e) {
@@ -143,6 +146,8 @@ async function askModel(
   history: Msg[] = [],
   /** Production forces a call on the corrective round; a battery that does not over-reports. */
   forceTool = false,
+  /** the budget rung, exactly as production escalates it after a MEASURED truncation. */
+  escalation = 0,
 ): Promise<Ask> {
   const key = conciergeKey();
   const base = conciergeBase();
@@ -154,9 +159,14 @@ async function askModel(
       body: JSON.stringify({
         model: conciergeModel(),
         temperature: 0.3,
-        // MATCHES PRODUCTION (concierge.ts). A battery on a different budget measures a
-        // product that does not exist — 1400 truncated multi-milestone grants mid-JSON.
-        max_tokens: 8000,
+        /**
+         * MATCHES PRODUCTION (concierge.ts) — computed, not a constant. A battery on a different
+         * budget measures a product that does not exist: 1400 truncated multi-milestone grants
+         * mid-JSON came from that. A flat number drifts the moment a lane moves to a provider with
+         * different reasoning overhead, so the ANSWER size and the rung are declared exactly as
+         * production declares them and `outputBudget` adds that provider's own measured overhead.
+         */
+        max_tokens: outputBudget(5_000, profileFor(conciergeModel(), base), escalation),
         messages: [
           { role: "system", content: `${BASE_PROMPT}\n\n${DIRECT_BLOCK}` },
           { role: "user", content: utterance },
@@ -240,6 +250,17 @@ export async function runDirectEval(opts: {
       const first = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
       const { failed, why } = first;
       let { call, reply, finish, outTokens } = first;
+      /**
+       * PRODUCTION RE-ASKS ONCE WHEN THE PROVIDER SAYS IT RAN OUT OF ROOM, and a battery that does
+       * not was measuring a stricter product than the one that ships. Several rows here came back
+       * as an unclosed <think> block with no call; production answers that with one more rung
+       * before anything reaches the founder, so the battery must too or it reports a failure
+       * nobody experiences. Keyed on the provider's own finish_reason — never speculative.
+       */
+      if (finish === "length") {
+        const roomier = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 1, [], false, 1);
+        if (!roomier.failed && (roomier.call || roomier.reply)) ({ call, reply, finish, outTokens } = roomier);
+      }
       /**
        * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
        *

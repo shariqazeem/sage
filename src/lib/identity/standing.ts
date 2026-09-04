@@ -2,6 +2,7 @@ import "server-only";
 import { getCampaign, listPaidSubmissionsByWallet } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { founderStorageKey } from "@/lib/auth/founder";
+import { identityFor } from "@/lib/db/identity";
 import { tierOf, type TierEvidence, type TierVerdict } from "./tier";
 
 /**
@@ -23,7 +24,8 @@ export function standingOf(wallet: string): TierVerdict & { evidence: TierEviden
     distinctCampaigns: campaigns.size,
     distinctPayers: payers.size,
     linkedWallets: linked.length,
-    personhood: null,
+    // a verified person is standing on its own — it is the one signal a fresh wallet cannot borrow
+    personhood: identityFor(wallet) ? "verified" : null,
   };
   return { ...tierOf(evidence), evidence };
 }

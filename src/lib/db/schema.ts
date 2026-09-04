@@ -1078,6 +1078,41 @@ export type NewAgentWallet = typeof agentWallets.$inferInsert;
  * fifty-four submitters ever worked twice. This is the channel, and it is opt-in only — a row exists
  * because someone asked for it, never because they were paid.
  */
+/**
+ * PROOF THAT A WALLET BELONGS TO A DISTINCT PERSON.
+ *
+ * The point is not the badge. A proof-of-personhood provider returns a NULLIFIER that is unique per
+ * person per action, so the same human verifying from twelve wallets produces the SAME nullifier
+ * twelve times. That is the one thing the twelve-wallet farm cannot fake, and it is why the
+ * nullifier is indexed: a second wallet presenting a nullifier we have already seen is not a new
+ * worker, it is the same worker, and the two wallets are linked on the spot.
+ *
+ * One row per (wallet, provider). The provider column exists so a second rail can be added without
+ * a migration — the tier layer only asks whether a wallet has a verified person behind it.
+ */
+export const identityProofs = sqliteTable(
+  "identity_proofs",
+  {
+    id: text("id").primaryKey(),
+    /** the wallet in its minimal form — the same key the roster and the link table use. */
+    walletKey: text("wallet_key").notNull(),
+    wallet: text("wallet").notNull(),
+    /** "worldid" today; the column is what makes a second provider a config change. */
+    provider: text("provider").notNull(),
+    /** unique per person per action. NEVER a name, a document, or anything that identifies them. */
+    nullifier: text("nullifier").notNull(),
+    /** the provider's own strength label, kept verbatim for the record page. */
+    level: text("level"),
+    verifiedAt: integer("verified_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("identity_wallet_provider_unq").on(t.walletKey, t.provider),
+    index("identity_nullifier_idx").on(t.provider, t.nullifier),
+  ],
+);
+
+export type IdentityProof = typeof identityProofs.$inferSelect;
+
 export const workAlerts = sqliteTable("work_alerts", {
   /** the worker's wallet in its minimal form — one row per person, either rail. */
   walletKey: text("wallet_key").primaryKey(),

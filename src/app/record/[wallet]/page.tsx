@@ -1,4 +1,5 @@
 import { WorkAlerts } from "@/components/live/work-alerts";
+import { VerifyPerson } from "@/components/live/verify-person";
 import "@/styles/live.css";
 import "../../sage-proof.css";
 import "../record.css";
@@ -99,6 +100,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           <div className="rec-wallet">{record.wallet}</div>
         </header>
 
+        <VerifyPerson wallet={record.wallet} />
         {record.completions > 0 && <WorkAlerts wallet={record.wallet} />}
 
         <section className="rec-stats spp-reveal" aria-label="Record totals">
