@@ -1,3 +1,4 @@
+import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { verificationKindOf } from "./v2-economics";
 import "server-only";
 
@@ -116,7 +117,7 @@ export interface MarketplaceView {
   /** most recent settled payouts, newest first. Verifiable, never a claim. */
   recentPayouts: MarketplacePayout[];
   /** what Sage has ACTUALLY paid out, all time — the number a stranger wants before starting. */
-  paidToDate: { usd: number; count: number };
+  paidToDate: { usd: number; count: number; people: number };
   totals: { campaigns: number; missions: number; slots: number; usd: number };
 }
 
@@ -168,9 +169,9 @@ function paidCountsByMission(missionIdHashes: string[]): Map<string, number> {
  * host still comes from the mission that was paid; a row that cannot name one simply shows
  * without a host rather than being dropped: the settlement is real either way.
  */
-function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd: number; count: number } } {
+function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd: number; count: number; people: number } } {
   const ledger = settledLedger().filter((r) => r.mainnet && !r.operator && r.amountBase > 0);
-  if (ledger.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0 } };
+  if (ledger.length === 0) return { recentPayouts: [], paidToDate: { usd: 0, count: 0, people: 0 } };
 
   const subIds = ledger.map((r) => r.submissionId).filter((x): x is string => !!x);
   const hashBySub = new Map(
@@ -206,10 +207,40 @@ function settledSoFar(): { recentPayouts: MarketplacePayout[]; paidToDate: { usd
       at: r.at,
     };
   });
+  /**
+   * ONE ROW PER PERSON IN THE SHOWCASE.
+   *
+   * Measured 2026-09-04: all eight rows on this board were wallets from the campaign we had already
+   * proven belonged to ONE operator — and our own public wallet graph flags them as such. Showing a
+   * cluster as eight people is the flattering number, and this page's whole claim is that the
+   * flattering number is the one we do not publish. So the showcase collapses linked wallets to
+   * their first payout, and the people count is clusters, not addresses.
+   *
+   * The money totals are untouched: that USDC really did move, and understating it would be its own
+   * dishonesty. Only the "how many different people" claim is collapsed, because that is the claim
+   * the links actually bear on.
+   */
+  const seenCluster = new Set<string>();
+  const showcase: MarketplacePayout[] = [];
+  for (const p of payouts) {
+    const cluster = clusterKeyOf(p.wallet);
+    if (seenCluster.has(cluster)) continue;
+    seenCluster.add(cluster);
+    showcase.push(p);
+    if (showcase.length >= 8) break;
+  }
+  const people = new Set(payouts.filter((p) => p.wallet).map((p) => clusterKeyOf(p.wallet)));
   return {
-    recentPayouts: payouts.slice(0, 8),
-    paidToDate: { usd: payouts.reduce((sum, p) => sum + p.usd, 0), count: payouts.length },
+    recentPayouts: showcase,
+    paidToDate: { usd: payouts.reduce((sum, p) => sum + p.usd, 0), count: payouts.length, people: people.size },
   };
+}
+
+/** A wallet's cluster: itself, or the lowest address it is linked to. One person, one key. */
+function clusterKeyOf(wallet: string): string {
+  if (!wallet) return "";
+  const linked = linkedWalletsOf(wallet).map((w) => w.toLowerCase());
+  return linked.length > 0 ? linked.slice().sort()[0] : wallet.toLowerCase();
 }
 
 /**

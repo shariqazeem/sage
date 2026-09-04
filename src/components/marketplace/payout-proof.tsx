@@ -48,7 +48,15 @@ export function PayoutProof({
           <>
             <div className="mk-side-stat">
               <span className="mk-side-stat-v mono">{usd(paidToDate.usd)}</span>
-              <span className="mk-side-stat-k">paid to testers so far</span>
+              <span className="mk-side-stat-k">
+                paid to testers so far
+                {/* The explorer's total is LARGER because it counts every mainnet settlement,
+                    including Sage's own proving runs. This figure counts only money that reached
+                    someone else, which is the number a person deciding whether to work here needs.
+                    Two honest measures with the same label would read as one number contradicting
+                    itself, so the difference is stated rather than left to be discovered. */}
+                <em className="mk-side-note">excludes Sage&rsquo;s own test payouts</em>
+              </span>
             </div>
             <div className="mk-side-stat">
               <span className="mk-side-stat-v mono">{usd(availableUsd)}</span>

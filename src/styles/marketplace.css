@@ -467,3 +467,6 @@
 .tb-more a:hover {
   text-decoration: underline;
 }
+
+/* Which measure this is — a second number with the same label reads as a contradiction. */
+.mk-side-note { display: block; margin-top: 3px; font-style: normal; font-size: 10.5px; color: var(--ink-faint, #8a8a86); letter-spacing: 0.01em; }

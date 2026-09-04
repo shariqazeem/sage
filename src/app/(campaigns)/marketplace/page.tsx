@@ -98,7 +98,7 @@ export default async function MarketplacePage() {
               */}
               <h2 className="dash-h3">
                 {paidToDate.count > 0
-                  ? `${paidToDate.count} payouts to real testers so far.`
+                  ? `${paidToDate.count} payouts to ${paidToDate.people} ${paidToDate.people === 1 ? "person" : "people"} so far — counted after linked wallets are collapsed, and every one anchored to a transaction you can open.`
                   : "No missions are open right now."}
               </h2>
               <p className="sage-hint">
