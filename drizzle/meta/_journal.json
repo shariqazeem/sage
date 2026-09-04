@@ -414,6 +414,13 @@
       "when": 1788768000007,
       "tag": "0058_operator_instruction",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1788854400007,
+      "tag": "0059_wallet_link_origin",
+      "breakpoints": true
     }
   ]
 }

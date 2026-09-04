@@ -22,6 +22,12 @@ export async function POST(): Promise<NextResponse> {
       { status: 401 },
     );
   }
-  const { linked } = linkWallets(evm, starknet);
+  /*
+    DECLARED, not discovered. The person is holding two proven sessions and asking for their rails to
+    be one record — that is a disclosure, and standing must not read it as the wallet rotation the
+    consolidation watch looks for. Measured on prod 2026-09-05: the operator's own bound pair came
+    back "linked on-chain to 1 other that took paid work here" and was locked out of the paid tiers.
+  */
+  const { linked } = linkWallets(evm, starknet, Math.floor(Date.now() / 1000), "declared");
   return NextResponse.json({ ok: true, linked, wallets: linkedWalletsOf(evm) });
 }

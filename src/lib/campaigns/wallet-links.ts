@@ -35,14 +35,79 @@ const forms = (w: string): string[] => {
 };
 const canonical = (a: string, b: string): [string, string] => (norm(a) < norm(b) ? [norm(a), norm(b)] : [norm(b), norm(a)]);
 
-export function linkWallets(a: string, b: string, now = Math.floor(Date.now() / 1000)): { linked: boolean } {
+/**
+ * WHY A LINK EXISTS. `discovered` is the consolidation watch's inference from on-chain behaviour —
+ * evidence of wallet rotation. `declared` is a person proving control of both wallets and asking to
+ * join them; `personhood` is the same verified nullifier turning up on a second wallet. Only the
+ * first is an accusation. See the column's note in schema.ts.
+ */
+export type LinkOrigin = "discovered" | "declared" | "personhood";
+
+export function linkWallets(
+  a: string,
+  b: string,
+  now = Math.floor(Date.now() / 1000),
+  origin: LinkOrigin = "discovered",
+): { linked: boolean } {
   const [x, y] = canonical(a, b);
   if (key(x) === key(y)) return { linked: false };
   const exists = db.select().from(walletLinks).where(or(inArray(walletLinks.walletA, forms(x)), inArray(walletLinks.walletB, forms(x)))).all()
     .some((r) => [r.walletA, r.walletB].some((w) => key(w) === key(y)));
+  /*
+    A DECLARATION NEVER OVERWRITES A DISCOVERY.
+    Otherwise the flag is worthless: whoever rotated the wallets controls all of them, so they could
+    sign in with any two and "declare" their way out of what the watch found. The row keeps the
+    origin it was written with, and a second call of any kind is a no-op.
+  */
   if (exists) return { linked: false };
-  db.insert(walletLinks).values({ walletA: x, walletB: y, createdAt: now }).run();
+  db.insert(walletLinks).values({ walletA: x, walletB: y, createdAt: now, origin }).run();
   return { linked: true };
+}
+
+/** EVM or Starknet, from the address alone — a felt is far longer than a 20-byte address. */
+const rail = (w: string): "evm" | "starknet" =>
+  norm(w).replace(/^0x/, "").replace(/^0+/, "").length > 40 ? "starknet" : "evm";
+
+/**
+ * The links that count AGAINST this wallet — which is not the same as the links it has.
+ *
+ * `discovered` always counts: the consolidation watch inferred a cluster from on-chain behaviour,
+ * and that is the wallet rotation the tier gate exists to stop.
+ *
+ * `personhood` always counts too, and deliberately: the same verified nullifier reaching a second
+ * wallet is one human standing up a second worker, which is the exact thing a personhood proof is
+ * for catching. Both wallets drop — otherwise verifying twice would be free.
+ *
+ * `declared` counts UNLESS it is the one pair the bind feature can actually produce: a single
+ * EVM-to-Starknet link. `/api/record/link` reads exactly one EVM session and one Starknet session,
+ * so that is the only shape a person can declare — Sage tells them to bind precisely so a business
+ * paid on two rails is not underwritten as two half-records. Anything beyond that pair is not
+ * something the feature needs and is what a farmer would build, so it still counts.
+ */
+export function flaggingLinksOf(wallet: string): string[] {
+  const rows = db
+    .select()
+    .from(walletLinks)
+    .where(or(inArray(walletLinks.walletA, forms(wallet)), inArray(walletLinks.walletB, forms(wallet))))
+    .all();
+  const me = key(wallet);
+  const declaredPeers = rows.filter((r) => r.origin === "declared");
+  // the exempt shape: exactly one declared link, and it crosses the rails
+  const exemptPeer =
+    declaredPeers.length === 1
+      ? [declaredPeers[0]!.walletA, declaredPeers[0]!.walletB].find((w) => key(w) !== me)
+      : undefined;
+  const exempt = exemptPeer && rail(exemptPeer) !== rail(wallet) ? key(exemptPeer) : null;
+
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    for (const other of [r.walletA, r.walletB]) {
+      if (key(other) === me || out.has(key(other))) continue;
+      if (r.origin === "declared" && key(other) === exempt) continue;
+      out.set(key(other), other);
+    }
+  }
+  return [...out.values()].sort();
 }
 
 /** Every wallet reachable from `wallet` through links, including itself — the business. */

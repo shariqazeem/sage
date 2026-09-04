@@ -45,7 +45,9 @@ export function recordIdentityProof(input: { wallet: string; provider: string; n
 
   // one person, several wallets → link them, exactly as an on-chain forward would
   const alsoTheirs = priors.map((p) => p.wallet).filter((w) => walletKey(w) !== key);
-  for (const other of alsoTheirs) linkWallets(input.wallet, other, now);
+  // PERSONHOOD, not a discovery: the same verified nullifier on a second wallet is proof they are
+  // one person, which is the point of verifying — never evidence against them.
+  for (const other of alsoTheirs) linkWallets(input.wallet, other, now, "personhood");
 
   const proof = db.select().from(identityProofs).where(and(eq(identityProofs.walletKey, key), eq(identityProofs.provider, input.provider))).get() as IdentityProof;
   return { proof, alsoTheirs };

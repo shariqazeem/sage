@@ -1302,6 +1302,16 @@ export const walletLinks = sqliteTable(
     walletA: text("wallet_a").notNull(),
     walletB: text("wallet_b").notNull(),
     createdAt: integer("created_at").notNull(),
+    /**
+     * WHY THIS LINK EXISTS — the difference between an accusation and a disclosure.
+     *
+     * `discovered`: the consolidation watch inferred it from on-chain behaviour. That is evidence
+     * of wallet rotation and it flags.
+     * `declared`: the person proved control of BOTH wallets (two live sessions) and asked to join
+     * them. `personhood`: the same verified nullifier appeared on a second wallet.
+     * Neither of those is an offence, and neither flags — being one person never was.
+     */
+    origin: text("origin", { enum: ["discovered", "declared", "personhood"] }).notNull().default("discovered"),
   },
   (t) => [primaryKey({ columns: [t.walletA, t.walletB] })],
 );
