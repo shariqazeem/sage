@@ -262,7 +262,8 @@ export async function runDirectEval(opts: {
         // same. Measured: adding the re-ask on the original 60s budget turned 3 compile failures into
         // 0 but produced 6 provider timeouts, and the battery correctly refused to call that evidence.
         const roomier = await askModelWithRetry(f.utterance, Math.round((opts.timeoutMs ?? 60_000) * 2), 1, [], false, 1);
-        if (!roomier.failed && (roomier.call || roomier.reply)) ({ call, reply, finish, outTokens } = roomier);
+        // mirror production exactly: a response carrying a call is never traded for one without
+        if (!roomier.failed && (roomier.call || !call)) ({ call, reply, finish, outTokens } = roomier);
       }
       /**
        * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.

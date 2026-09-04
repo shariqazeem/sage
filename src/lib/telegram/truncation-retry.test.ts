@@ -31,4 +31,9 @@ describe("concierge — a turn cut short by the budget is re-asked once with mor
     const p = profileFor("MiniMax-M3", "https://api.minimax.io/v1/chat/completions");
     expect(outputBudget(5_000, p, 1)).toBeGreaterThan(outputBudget(5_000, p, 0));
   });
+  it("never trades a tool call for a roomier reply that only talks", () => {
+    // measured: replacing unconditionally took P-DIRECT's routing misses from 2 to 4
+    expect(src).toMatch(/const hadCall = Boolean\(data\.choices\?\.\[0\]\?\.message\?\.tool_calls\?\.length\)/);
+    expect(src).toMatch(/if \(gotCall \|\| !hadCall\) data = roomier;/);
+  });
 });

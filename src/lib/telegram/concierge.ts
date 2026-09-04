@@ -719,7 +719,19 @@ async function runAgentTurn(
           surface,
           truncatedCall ? "tool call" : "reasoning, no call made",
         );
-        data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, 1);
+        const roomier = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, 1);
+        /**
+         * KEEP THE BETTER ANSWER, NOT MERELY THE NEWER ONE.
+         *
+         * Replacing unconditionally can trade a truncated-but-present tool call for a roomier reply
+         * that decided to talk instead of act — measured on P-DIRECT, where adding the retry took
+         * routing misses from 2 to 4, every one of them "expected a tool and the model called none".
+         * A call is the thing the founder actually needs, so a response carrying one is never
+         * discarded for one that does not.
+         */
+        const hadCall = Boolean(data.choices?.[0]?.message?.tool_calls?.length);
+        const gotCall = Boolean(roomier.choices?.[0]?.message?.tool_calls?.length);
+        if (gotCall || !hadCall) data = roomier;
       }
       const msg = data.choices?.[0]?.message;
       if (!msg) {
