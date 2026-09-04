@@ -23,6 +23,9 @@ import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
 import { V2Board, HowYouGetPaid, TesterFaq } from "@/components/campaigns/v2-board";
+import { identityDoorArmed } from "@/lib/identity/door";
+import { isPublicWork } from "@/lib/campaigns/visibility";
+import { worldIdConfig } from "@/lib/identity/worldid";
 import { ExploredBanner } from "@/components/campaigns/explored-banner";
 import { SageActivity } from "@/components/campaigns/sage-activity";
 import { PublicFeed } from "@/components/campaigns/public-feed";
@@ -176,7 +179,7 @@ export default async function CampaignPublicPage({
           </div>
         </div>
 
-        {!complete && <HowYouGetPaid autopays={autopays} />}
+        {!complete && <HowYouGetPaid autopays={autopays} personhood={identityDoorArmed() && isPublicWork(campaign) && !!worldIdConfig()} />}
 
         <div className="sb-sec-label">Missions</div>
         <V2Board

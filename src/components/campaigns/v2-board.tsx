@@ -997,15 +997,27 @@ function PaidShare({ reward, tx, wallet }: { reward: string; tx: string; wallet?
  *  to the campaign's real autopay state (P23) — it never promises automatic payout when the flag is off. */
 export function HowYouGetPaid({
   autopays = true,
-}: { autopays?: boolean } = {}) {
+  personhood = false,
+}: { autopays?: boolean; personhood?: boolean } = {}) {
   const steps: ReactNode[] = [
     <>Pick a mission below.</>,
-    <>
-      Connect your wallet + <b>one free signature</b>{" "}
-      <span className="muted">
-        — it just proves the wallet is yours. No gas, no transaction.
-      </span>
-    </>,
+    personhood ? (
+      /* The door is said BEFORE sign-in, not met after it: on public work the person, not the wallet,
+         holds the slot, and a visitor should know that on the first screen. */
+      <>
+        Connect your wallet + <b>one free signature</b>, then <b>prove you are one person</b> — once{" "}
+        <span className="muted">
+          — about a minute; no name, document or country. One person, one slot.
+        </span>
+      </>
+    ) : (
+      <>
+        Connect your wallet + <b>one free signature</b>{" "}
+        <span className="muted">
+          — it just proves the wallet is yours. No gas, no transaction.
+        </span>
+      </>
+    ),
     <>
       Do the mission, then submit <b>what you did and saw</b>.
     </>,
