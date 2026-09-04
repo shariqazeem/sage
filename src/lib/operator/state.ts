@@ -42,7 +42,14 @@ export function observe(campaign: Campaign, nowSec: number, fallbackSurface?: st
     paid += Math.min(done, m.maxCompletions);
     unclaimedBase += Math.max(0, m.maxCompletions - done) * m.rewardAmount;
   }
-  const status = campaign.status === "live" ? "live" : "ended";
+  /*
+    A campaign with no slot left is not RUNNING, whatever its status column says. It can absorb no
+    work, so it must not hold a concurrency slot: measured 2026-09-05 on the founder's own account —
+    three fully-paid campaigns still "live" answered every rehearsal and every tick with "3 campaigns
+    are already running". It still counts as evidence for its surface (surfaceScale reads slots).
+  */
+  const filled = slots > 0 && paid >= slots;
+  const status = campaign.status === "live" && !filled ? "live" : "ended";
   return {
     campaignId: campaign.id,
     surface: surfaceOf(campaign, fallbackSurface),
