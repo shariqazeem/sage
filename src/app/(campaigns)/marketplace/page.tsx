@@ -106,6 +106,23 @@ export default async function MarketplacePage() {
                   ? "Every mission here is backed by a funded vault, so the board empties whenever the last slot fills — that is the system working, not failing. New work appears as founders launch, and every payout is anchored on-chain and checkable."
                   : "Every mission here is backed by a funded vault, so the list is empty whenever no campaign has an unfilled slot. It fills up again as founders launch."}
               </p>
+              {/*
+                AND AN EMPTY BOARD STILL HAS TWO THINGS WORTH DOING.
+                A worker who arrives between campaigns previously had one option: leave. Both of
+                these outlast the emptiness — being told when work opens, and arriving at the next
+                one already able to take the better-paid tiers.
+              */}
+              <ol className="mk-next">
+                <li>
+                  <b>Be told when work opens.</b> Open the work record for any wallet you have been
+                  paid at and turn on alerts — at most one message a day, only work you have not
+                  already done.
+                </li>
+                <li>
+                  <b>Prove you are one person.</b> It takes a minute, asks for no name or document,
+                  and it is what opens the better-paid work when it appears.
+                </li>
+              </ol>
               <div className="mk-empty-actions">
                 <Link href="/explorer" className="sage-btn">
                   See every payout and refusal <ArrowRight size={15} />

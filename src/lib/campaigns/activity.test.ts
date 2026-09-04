@@ -71,7 +71,9 @@ describe("projectActivity", () => {
       submissions: [],
       events: [ev({ id: "e1", kind: "autopay_held", submissionId: "s1", detail: "held: evidence mentions competitor X", createdAt: 130 })],
     }).find((a) => a.kind === "held");
-    expect(held?.reasonClass).toBe("Sage couldn't reach a confident decision (unknown)");
+    // PUBLIC feed: the raw code is dropped. It stays in the operator sentence (reason-copy.test.ts)
+    // because a log reader needs to know which branch fired; a tester reads "(unknown)" as a bug.
+    expect(held?.reasonClass).toBe("Sage couldn't reach a confident decision");
 
     const withReason = projectActivity({
       submissions: [],

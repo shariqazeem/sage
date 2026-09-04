@@ -470,3 +470,9 @@
 
 /* Which measure this is — a second number with the same label reads as a contradiction. */
 .mk-side-note { display: block; margin-top: 3px; font-style: normal; font-size: 10.5px; color: var(--ink-faint, #8a8a86); letter-spacing: 0.01em; }
+
+/* What is worth doing between campaigns — an empty board should not be a dead end. */
+.mk-next { list-style: none; margin: 18px 0 22px; padding: 0; display: grid; gap: 10px; max-width: 640px; }
+.mk-next li { position: relative; padding-left: 22px; font-size: 13.5px; line-height: 1.6; color: var(--ink-muted, #55554f); }
+.mk-next li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 6px; height: 6px; border-radius: 999px; background: var(--accent, #c2410c); }
+.mk-next b { color: var(--ink, #1a1d21); font-weight: 600; }
