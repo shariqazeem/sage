@@ -64,3 +64,26 @@ invented milestones 0, unverifiable missions 0.** The money invariants are the s
 A battery that reports zero problems because it produced zero rows is not a pass. P-DIRECT's first
 run "passed" with 7 of 11 calls failing at the provider. It now asserts the evidence exists before
 judging it — the same broken-ruler lesson as the mission-eval matrix and the P-WORK frame defect.
+
+## Closed on 2026-09-04 (overnight)
+
+- **P-DIRECT's compiler refusals: 3 → 0.** The concierge only re-asked for more room when a TOOL CALL
+  was cut mid-JSON; a reasoning model that spends its whole budget thinking emits no call at all, and
+  those turns fell through to a fallback. It now re-asks on the provider's truncation signal whether
+  or not a call was attached.
+- **The public board was showcasing the farm.** All eight "recent payouts" rows were wallets from the
+  campaign we had proven belonged to one operator. The showcase collapses clusters and the headline
+  counts people; money totals stay whole.
+- **The public board leaked internal reason codes** ("(unknown)") to testers.
+- **Proof of personhood** is live behind the founder's own portal credentials: a nullifier is stable
+  per human, so a second wallet presenting one already on file is linked on the spot.
+- **The agent takes instructions** in plain words, which steer where and what — never how much.
+
+## Still open, honestly
+
+- **The operator loop has never run end to end with real money.** It holds correctly with an unfunded
+  treasury and says why. Proving it needs a funded treasury.
+- **Sage's own fee wallet holds no USDC**, so 16 earned fees ($1.60) cannot settle while 13 ($1.30)
+  did. Roughly $2 clears the backlog.
+- **Two routing misses** remain in P-DIRECT, both on a deadline being read as a milestone.
+

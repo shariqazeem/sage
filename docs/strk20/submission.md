@@ -104,6 +104,40 @@ The judged surfaces stopped being forms. Three objects, each backed by an event 
 - **Settling lane** (founder console and Home): every agent-approved payout with its finalization-window countdown and the three watch lights (near-duplicate, copied artifact, wallet cluster) — the same functions the sweep runs at maturity.
 - **The vault, drawn** (console): the locked amount cut into mission allocations exactly, paid slots drained, every released coin linked to its receipt. For a Starknet campaign the tray shows what left the vault; who claimed it is not on the ledger.
 
+## One agent, two rails — and why that is depth, not divided attention
+
+Sage settles on Starknet **and** on an EVM chain, and the choice is made by what the work needs
+rather than by which chain we happened to build on:
+
+- **Starknet is the private rail.** The Cairo vault releases the reward, Sage escrows it behind a
+  one-time claim, and the ledger records that a payout happened without recording who received it.
+  That is the only rail here where a worker's earnings are not a public timeline of their life.
+- **The EVM rail is the auditable one.** Every payout is a public transaction, which is what a lender
+  or a grant programme needs to underwrite against.
+
+The architecture is what makes this real rather than a slide: settlement branches in exactly one
+place (`settleByRail`), the Cairo vault enforces its own caps and answers a refusal with a CODE
+rather than a revert, and a structural test refuses any new caller that reaches around the dispatcher.
+Adding the second rail is what proved the first one was not load-bearing on assumptions — the felt
+address broke three places that had quietly assumed an EVM address, and each is now a named function
+with a test.
+
+**For this submission, Starknet is the subject.** The other rail appears only where honesty requires
+it: in the totals, and as the reason the privacy claim is specific rather than architectural
+decoration.
+
+## What landed on 4 September
+
+- **Proof of personhood.** A provider nullifier is stable per human, so a second wallet presenting one
+  already on file is linked immediately — through the same table the on-chain consolidation watch
+  writes to. The operator who took ten of ten slots on the first Starknet gig would have needed ten
+  different people. Verification asks for no name, document, country or age.
+- **The founder stops deciding.** A standing mandate lets the agent choose what work to buy inside
+  ceilings it cannot exceed, proposing every move with its reason before money moves, vetoable for a
+  window, and steerable in plain words.
+- **The board publishes the collapse.** Our own showcase was displaying that farm's wallets as eight
+  separate testers; it now shows one row per cluster and counts people, not addresses.
+
 ## Live doors
 
 Product https://sagepays.xyz · explorer `/explorer` · a real record `/record/<wallet>` ·

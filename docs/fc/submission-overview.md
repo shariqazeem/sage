@@ -54,8 +54,9 @@ knows its people, and the agent does the one job it is measurably good at: was t
 
 ## The numbers (mainnet, live at submission time)
 
-- **$52.60 USDC** settled across **29 verified payouts** — **21 distinct people paid** (Sage's own dogfood wallets settle on the same rails but are excluded from the people count) — every one a public transaction.
-- **44% of judged submissions refused or held** (23 of 52) — the discipline that makes the payments (and the credit records) mean something. No human reviewed any autonomous decision.
+- **$63.60 USDC** settled across **39 verified payouts** on two rails (26 GOAT, 13 Starknet) — reaching **32 wallets but 24 people**, because nine wallet links are recorded on-chain and we publish the collapsed count, including on our own public board. Sage's own dogfood wallets settle on the same rails and are excluded from the people count.
+- **26 refusals on record**, each with a published reason. No human reviewed any autonomous decision.
+- **2.4 minutes** median from a submission arriving to USDC in the worker's hand; the fastest was 18 seconds.
 - Campaign deploy gas ≈ $0.0000002; payout gas ≈ $0.00000002 (BTC on GOAT).
 
 ## Four receipts that tell the whole story
@@ -113,6 +114,16 @@ designs, verifies and pays without a human, and refusals cost nothing. The MSME 
 with the ledger — every payout is a record row — and the lender contract is a JSON endpoint any
 institution can consume. The next steps are standing intents that relaunch work on their own, the treasury funded from a
 Starknet wallet, the licensed fiat door, and an institutional LP behind the advance facility.
+
+## Two rails, and why an MSME cares
+
+The same agent settles publicly on GOAT and privately on Starknet, and the choice belongs to the
+work. A grant programme or a lender needs the public rail: every payout is a transaction anyone can
+open, which is what makes a payment history underwritable. A business paying wages or a sensitive
+supplier needs the other: the ledger records that a payout happened without recording who received
+it. Most payment infrastructure forces one or the other; the reason we can offer both is structural
+rather than cosmetic — settlement branches in exactly one place, and a test refuses any code that
+reaches around it.
 
 ## What we don't claim
 

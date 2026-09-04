@@ -29,9 +29,16 @@ and turns every payout into a credit record that unlocks working capital without
 
 **Data sources.** Copy the "Data sources" section from the technical documentation.
 
-**Evidence of real use.** 39 mainnet payouts on two rails (26 GOAT, 13 Starknet) to 32 wallets,
-$63.60 settled, 26 refusals with reasons — and fewer distinct people than wallets once linked clusters
-are collapsed (the first Starknet gig's ten payouts went to one operator; the ledger says so at
-`/graph/gig-1c3e_FjffE`). LIVE — refresh from `/explorer` before submitting.
+**Evidence of real use.** 39 mainnet payouts across two rails (26 GOAT, 13 Starknet), $63.60 settled,
+26 refusals with published reasons. Those payouts reached **32 wallets but 24 people** — nine wallet
+links are recorded on-chain, and we publish the collapsed number rather than the wallet count,
+including on our own public board. Median time from a submission to USDC in hand: **2.4 minutes**.
+Every figure is checkable at `/explorer`, and the cluster that forced the collapse is drawn at
+`/graph/gig-1c3e_FjffE`.
+
+**What is new since the last submission.** A founder now funds once and stops deciding: the agent
+chooses what work to buy inside ceilings it cannot exceed, proposes each move with its reason before
+money leaves, and can be vetoed or instructed in plain words. Proof of personhood is wired, and its
+nullifier is what makes one person unable to become two workers.
 
 **Team.** Shariq Shaukat (solo), with Sage's own agent doing the verifying and paying.
