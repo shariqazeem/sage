@@ -883,10 +883,12 @@ describe("viewTruncations — the brain-view caps report what they cost", () => 
   });
 
   it("reports elements the brain never sees on a control-dense screen", () => {
+    // 26 controls on one screen against the cap: the report is derived from BRAIN_VIEW_CAPS, so
+    // raising the cap moves both numbers together and the sum stays the truth about this screen.
     const t = viewTruncations([st("ok", 26)], []);
-    expect(t.find((x) => x.at === "elements per state")).toEqual({
-      at: "elements per state", kept: 10, dropped: 16, unit: "elements",
-    });
+    const el = t.find((x) => x.at === "elements per state");
+    expect(el).toEqual({ at: "elements per state", kept: 16, dropped: 10, unit: "elements" });
+    expect((el?.kept ?? 0) + (el?.dropped ?? 0)).toBe(26);
   });
 
   it("does not double-count text inside states that were themselves cut", () => {

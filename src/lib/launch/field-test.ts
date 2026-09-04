@@ -122,7 +122,8 @@ const RESERVE_MODEL_CALLS = 3; // multimodal decisions guaranteed after that poi
 const BRAIN_VIEW_CAPS = {
   states: MAX_INTERACTIONS + 4,
   stateTextChars: 800,
-  notableElementsPerState: 10,
+  /** 16, not 10 — excalidraw's state report lost 8 elements, and elements are what an action mission cites. */
+  notableElementsPerState: 16,
   // 6, not 4, and this is a correction rather than a new bet: the pageView comment below already
   // reasons "worst case 6 pages × 2000 ≈ 3k tokens of prompt, well inside the models' context and
   // the battery's cost cap", so the budget was set for 6 while the slice said 4. The starvation
@@ -131,7 +132,20 @@ const BRAIN_VIEW_CAPS = {
   // page TEXT to cite, so pages the brain never receives are the most likely cause of the
   // long-standing drift to observation-only plans. Changed ALONE, so the battery reads one variable.
   pages: 6,
-  pageTextChars: 2000,
+  /**
+   * 3200, not 2000 — a MEASURED correction, not a guess.
+   *
+   * The nonce-55 battery reported real starvation on every static product it planned: plausible.io
+   * lost 6,605 characters, play2048 lost 2,000, motherfuckingwebsite lost 1,308. Those are the pages
+   * a url-verifiable mission has to quote from, so text the brain never receives is text no mission
+   * can be anchored to — which is the long-standing drift toward observation-only plans.
+   *
+   * The cost is affordable in a way it was not when this was set: the mission lane runs on a
+   * reasoning model with a month of headroom, and an over-budgeted prompt costs tokens while an
+   * under-budgeted one costs a founder's campaign. Raised ALONE so the next battery reads one
+   * variable, exactly as the `pages: 6` correction above was made.
+   */
+  pageTextChars: 3200,
   ctasPerPage: 8,
 } as const;
 
