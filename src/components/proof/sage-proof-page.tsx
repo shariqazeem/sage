@@ -148,13 +148,44 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               value={proof.v2.missionPlanDigest.onchain ?? proof.v2.missionPlanDigest.stored ?? "—"}
             />
           </div>
+          {/*
+            THE DIVISION OF LABOUR, SHOWN AS A DIVISION.
+
+            This was a 60-word paragraph carrying the product's central claim — the founder
+            pre-approves the ECONOMICS, the vault enforces exactly those and nothing else, and the
+            judgement is a separate thing done by Sage. A reader on a receipt page skims, and the
+            shape of the sentence hid the shape of the architecture. Two columns say it in one look:
+            what was locked before anyone worked, and what was deliberately left out of the lock.
+
+            Nothing is dropped. The last clause — that the vault stores the digest, not the wording —
+            stays as the footnote it always was, because it qualifies the two digests above it.
+          */}
+          <div className="spp-split">
+            <div>
+              <p className="spp-split-h"><Lock size={12} /> Pre-approved by the founder</p>
+              <ul className="spp-split-l">
+                <li>Mission identifier</li>
+                <li>Exact reward</li>
+                <li>Completion count</li>
+                <li>Total budget</li>
+                <li>Sage&rsquo;s operator authority</li>
+              </ul>
+              <p className="spp-split-n">The vault enforces these, and replay protection.</p>
+            </div>
+            <div>
+              <p className="spp-split-h"><Bot size={12} /> Not in the vault&rsquo;s hands</p>
+              <ul className="spp-split-l">
+                <li>Whether the work is any good</li>
+                <li>Who the tester is</li>
+              </ul>
+              <p className="spp-split-n">
+                No tester was pre-approved. Quality was judged by Sage — the receipt is below.
+              </p>
+            </div>
+          </div>
           <p className="spp-note">
-            This tester did not need to be pre-approved. The founder pre-approved the
-            mission identifier, exact reward, completion count, total budget, and Sage&rsquo;s
-            operator authority. The on-chain vault enforces those mission economics and
-            replay protection; it does not judge the quality of the work. The mission
-            specification shown here is the immutable application record Sage evaluated —
-            the vault does not store its wording.
+            The mission specification shown here is the immutable application record Sage evaluated;
+            the vault stores its digest, never its wording.
           </p>
         </div>
       )}

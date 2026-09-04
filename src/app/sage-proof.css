@@ -290,3 +290,49 @@ html[data-app-shell="on"] .spp-col { padding-top: var(--pill-clear); }
 html[data-app-shell="on"] .spp { padding-left: clamp(6rem, 7vw, 7.5rem); padding-right: clamp(1.5rem, 3vw, 3rem); }
 html[data-app-shell="on"] .spp-col { max-width: 1320px; margin: 0; }
 @media (max-width: 720px) { html[data-app-shell="on"] .spp { padding-left: 16px; padding-right: 16px; } }
+
+/* WHAT WAS LOCKED, AND WHAT DELIBERATELY WAS NOT — see sage-proof-page.tsx. */
+.spp-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 26px;
+  margin: 10px 20px 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, rgba(26, 29, 33, 0.08));
+}
+.spp-split-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sec);
+}
+.spp-split-h svg { color: var(--terra, #c2410c); }
+.spp-split-l { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.spp-split-l li {
+  position: relative;
+  padding-left: 13px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink, #1a1d21);
+}
+.spp-split-l li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--terra, #c2410c);
+}
+/* The right column's marks are the ABSENCE of a rule, so they must not read as more rules. */
+.spp-split > div:last-child .spp-split-l li::before { background: none; border: 1px solid var(--sec); }
+.spp-split-n { margin: 9px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--sec); }
+@media (max-width: 620px) {
+  .spp-split { grid-template-columns: 1fr; margin: 10px 16px 12px; gap: 16px; }
+}
