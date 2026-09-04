@@ -42,6 +42,8 @@ export interface DeploymentReadyPlan {
   allowlist?: string[];
   /** SAGE FOR TEAMS — the plan's door (unlisted = members-only from a workspace). Carried, never recomputed. */
   visibility?: "listed" | "unlisted";
+  /** The founder's currency and stamped rate. Carried, never recomputed — a rate is not a hash. */
+  denomination?: { currency: string; rate: number; source: string; asOf: number; localTotal: number | null };
 }
 
 function toCandidate(m: CompiledMission): CandidateMission {
@@ -125,6 +127,7 @@ export function verifyPlanForApproval(
     ...(plan.campaignKind ? { campaignKind: plan.campaignKind } : {}),
     ...(plan.allowlist && plan.allowlist.length > 0 ? { allowlist: plan.allowlist } : {}),
     ...(plan.visibility ? { visibility: plan.visibility } : {}),
+    ...(plan.denomination ? { denomination: plan.denomination } : {}),
   };
   const approvalRecord = {
     schemaVersion: APPROVAL_SCHEMA_VERSION,

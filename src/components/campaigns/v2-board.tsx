@@ -58,6 +58,8 @@ export interface MissionView {
   criteria: string[];
   evidenceList: string[];
   rewardBase: number;
+  /** "J$5,000 → $31.57 @ 158.37" when the founder priced in their currency; absent = USD. */
+  denominated?: string | null;
   maxCompletions: number;
   paid: number;
   remainingSlots: number;
@@ -438,6 +440,7 @@ function MissionCard({
   ]);
 
   const rewardLabel = fmtReward(mission.rewardBase, chainId);
+  const denomLabel = mission.denominated ?? null;
   const soldOut = mission.full && !mine;
   const canRetry = !!mine?.retry?.retryable;
   const isObservation = mission.verifiabilityClass === "observation-based";
@@ -582,6 +585,7 @@ function MissionCard({
           <Target size={15} /> {mission.title}
         </div>
         <div className="v2-mission-reward mono">{rewardLabel}</div>
+        {denomLabel && <div className="v2-mission-denom mono">{denomLabel}</div>}
       </div>
 
       {soldOut ? (

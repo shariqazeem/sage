@@ -147,6 +147,17 @@ export const campaigns = sqliteTable("campaigns", {
    * on top of being unlisted in its discovery. An allowlist can still narrow WHO gets paid.
    */
   visibility: text("visibility").notNull().default("listed").$type<CampaignVisibility>(),
+  /**
+   * THE FOUNDER'S OWN CURRENCY, kept beside the USD base that is the money. `currency` is ISO 4217;
+   * `localTotal` is the number they typed; `rate` is units of currency per USD, stamped once at
+   * composition from `rateSource` published at `rateAt`. NULL = priced in USD. Never used for
+   * arithmetic after compile — it is what the receipt and the record say the obligation WAS.
+   */
+  currency: text("currency"),
+  localTotal: real("local_total"),
+  rate: real("rate"),
+  rateSource: text("rate_source"),
+  rateAt: integer("rate_at"),
   /** SAGE FOR TEAMS — the workspace this campaign was launched from (null for personal / legacy
    *  campaigns; a founder who owns a workspace is treated as launching into it). */
   workspaceId: text("workspace_id"),
@@ -709,6 +720,8 @@ export const missions = sqliteTable(
     evidenceList: text("evidence_list", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     /** exact reward in token base units (6dp) — mirrors the on-chain mission. */
     rewardAmount: integer("reward_amount").notNull(),
+    /** the tranche in the founder's own currency, for display; `rewardAmount` is the money. */
+    rewardLocal: real("reward_local"),
     /** max paid completions — mirrors the on-chain mission cap. */
     maxCompletions: integer("max_completions").notNull(),
     status: text("status").$type<MissionStatus>().notNull().default("active"),

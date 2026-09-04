@@ -354,6 +354,7 @@ export async function POST(
       exploredScreens: explored.screens,
       exploredElements: explored.elements,
       campaignKind: plan.plan.campaignKind,
+      denomination: plan.plan.denomination,
       allowlist: plan.plan.allowlist,
       settlementRail: "starknet",
       vaultKind: "sage_vault_starknet",

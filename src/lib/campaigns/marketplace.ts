@@ -9,6 +9,7 @@ import { isTestnetChain, tokenSymbol } from "@/lib/format";
 import { OBS_BAR } from "@/lib/deputy/observation-verify";
 import { settledLedger } from "./settled-ledger";
 import { isPublicWork } from "./visibility";
+import { denominated } from "@/lib/money/currency";
 
 /**
  * THE PUBLIC MARKETPLACE — every mission anyone can actually get paid for, right now.
@@ -42,6 +43,8 @@ export interface MarketplaceMission {
   remainingSlots: number;
   /** "url-verifiable" missions can auto-pay; "observation-based" ones are founder-approved. */
   verifiabilityClass: "url-verifiable" | "observation-based";
+  /** the tranche in the founder's own currency, when they priced in one. */
+  rewardLocal: number | null;
 }
 
 export interface MarketplaceCampaign {
@@ -61,6 +64,9 @@ export interface MarketplaceCampaign {
   autopays: boolean;
   openMissions: number;
   openSlots: number;
+  /** the founder's currency and stamped rate, when they priced in one — display only. */
+  currency: string | null;
+  rate: number | null;
   /** the largest single reward on offer here, for sorting and for the card headline. */
   topRewardUsd: number;
   totalOpenUsd: number;
@@ -85,6 +91,8 @@ export interface MarketplaceRow {
   criteria: string[];
   evidenceList: string[];
   rewardUsd: number;
+  /** "J$5,000 → $31.57 @ 158.37" when priced in the founder's currency; null = USD. */
+  denominated: string | null;
   remainingSlots: number;
   maxCompletions: number;
   tokenSymbol: string;
@@ -377,6 +385,7 @@ export function marketplace(): MarketplaceView {
       evidenceList: m.evidenceList,
       rewardBase: m.rewardAmount,
       rewardUsd: toUsd(m.rewardAmount),
+      rewardLocal: m.rewardLocal ?? null,
       maxCompletions: m.maxCompletions,
       paid,
       remainingSlots,
@@ -403,6 +412,8 @@ export function marketplace(): MarketplaceView {
       boardPath: `/c/${c.id}`,
       chainId,
       settlementRail: c.settlementRail,
+      currency: c.currency ?? null,
+      rate: c.rate ?? null,
       tokenSymbol: tokenSymbol(chainId),
       isTestnet: isTestnetChain(chainId),
       autopays: c.autonomy === "autopilot",
@@ -430,6 +441,7 @@ export function marketplace(): MarketplaceView {
       criteria: m.criteria,
       evidenceList: m.evidenceList,
       rewardUsd: m.rewardUsd,
+      denominated: denominated(c, m.rewardLocal, m.rewardUsd),
       remainingSlots: m.remainingSlots,
       maxCompletions: m.maxCompletions,
       tokenSymbol: c.tokenSymbol,

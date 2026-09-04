@@ -200,6 +200,7 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
       // Without these a Telegram-launched gig recorded kind "testing", and an invite-only campaign
       // deployed OPEN to everyone (which, for visibility, it did until 2026-09-04).
       campaignKind: loaded.plan.campaignKind,
+      denomination: loaded.plan.denomination,
       visibility: loaded.plan.visibility,
       allowlist: loaded.plan.allowlist,
     },

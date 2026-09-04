@@ -139,3 +139,17 @@ export function corridorCost(amountUsd: number, benchmarkRate: number, sageCostU
     savedPct: amountUsd > 0 ? (saved / amountUsd) * 100 : null,
   };
 }
+
+/**
+ * HOW A DENOMINATED AMOUNT READS: "J$5,000 → $31.57 @ 158.37". The founder's number first, the USD
+ * that actually moved second, the stamped rate last — and nothing when the obligation was priced in
+ * USD, so an EVM receipt does not grow a clause it does not need. Display only; never arithmetic.
+ */
+export function denominated(
+  campaign: { currency?: string | null; rate?: number | null } | null | undefined,
+  localAmount: number | null | undefined,
+  usdAmount: number,
+): string | null {
+  if (!campaign?.currency || campaign.currency === "USD" || !campaign.rate || localAmount === null || localAmount === undefined) return null;
+  return `${formatLocal(localAmount, campaign.currency)} → $${usdAmount.toFixed(2)} @ ${campaign.rate.toFixed(2)}`;
+}

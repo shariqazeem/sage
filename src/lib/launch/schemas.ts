@@ -604,6 +604,8 @@ export interface CompiledMission {
   priority: MissionPriority;
   effortMinutes: number;
   rewardBase: bigint;
+  /** the tranche in the founder's own currency, display only — `rewardBase` is the money. */
+  rewardLocal?: number;
   maxCompletions: bigint;
   verificationMethod: string;
   /** verbatim observed anchors (display only — NOT part of the spec digest). */
@@ -645,6 +647,12 @@ export interface MissionPlanV1 {
   /** SAGE FOR TEAMS — "unlisted" keeps the campaign off every public board and, from a workspace, makes
    *  it members-only at submit. Written by the composer's invite-only toggle; read at attach. */
   visibility?: "listed" | "unlisted";
+  /**
+   * THE FOUNDER'S CURRENCY, when they priced in one. Stamped by the direct compiler from the quote it
+   * converted with; carried to the campaign row at attach so the board, the receipt and the record can
+   * say "J$10,000 → $63.14 @ 158.37" instead of only the USD. Absent = priced in USD.
+   */
+  denomination?: { currency: string; rate: number; source: string; asOf: number; localTotal: number | null };
   /** the model + prompt schema version that produced the candidates. */
   modelVersion: string;
   promptVersion: string;

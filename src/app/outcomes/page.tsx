@@ -142,11 +142,19 @@ export default function OutcomesPage() {
           ), each converted once at a stamped, source-attributed rate. Settlement is always the USD
           stablecoin; the founder prices in their own money and never does exchange arithmetic.
         </p>
-        <p className="out-src">
-          <b>Not yet measured:</b> intra-regional corridor flow — no BBD- or JMD-denominated
-          obligation has settled yet. The denomination rail is live; the reading will exist when the
-          flow does. Stating that is the point.
-        </p>
+        {o.denominated.payouts > 0 ? (
+          <p className="out-src">
+            <b>Measured:</b> {o.denominated.payouts} obligation{o.denominated.payouts === 1 ? "" : "s"} priced in{" "}
+            {o.denominated.currencies.join(", ")} settled — ${f(o.denominated.usd)} — each benchmarked above against its own
+            corridor&rsquo;s published inbound cost, not the regional average.
+          </p>
+        ) : (
+          <p className="out-src">
+            <b>Not yet measured:</b> intra-regional corridor flow — no BBD- or JMD-denominated
+            obligation has settled yet. The denomination rail is live; the reading will exist when the
+            flow does. Stating that is the point.
+          </p>
+        )}
         <p className="oc-note">
           <b>What the region pays today, from the public series:</b>{" "}
           {o.publicCorridors.filter((c) => c.pct !== null).map((c) => `${c.countryName} ${c.pct!.toFixed(2)}%`).join(" · ")}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveOutcomes, type SettledRow } from "./outcomes";
+import { deriveOutcomes, type SettledRow, corridorRateFor } from "./outcomes";
 
 const row = (over: Partial<SettledRow>): SettledRow => ({
   wallet: "0xaa",
@@ -102,5 +102,23 @@ describe("the public data layer rides beside the ledger", () => {
     expect(r.publicCorridors.some((c) => c.pct === null)).toBe(true); // an absent reading is reported, not invented
     expect(r.publicCorridorSource.url).toMatch(/worldbank/);
     expect(r.publicCorridorSource.fetchedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+/**
+ * EACH CORRIDOR'S OWN READING. A J$ obligation is benchmarked at Jamaica's published inbound cost
+ * (WDI 3.59%), not the brief's regional 8%; the headline rate is settled-weighted. The page said
+ * "not yet measured" for weeks because nothing carried the currency this far.
+ */
+describe("corridor benchmark per currency", () => {
+  it("weights a JMD row at Jamaica's WDI reading and a USD row at the regional 8%", () => {
+    const usd = row({});
+    const jmd = { ...row({ wallet: "0xcc" }), currency: "JMD" };
+    expect(corridorRateFor([usd])).toBeCloseTo(0.08, 6);
+    expect(corridorRateFor([jmd])).toBeCloseTo(0.0359, 6);
+    const o = deriveOutcomes([usd, jmd], [], 2_000);
+    expect(o.denominated).toEqual({ payouts: 1, usd: jmd.rewardBase / 1_000_000, currencies: ["JMD"] });
+    expect(o.corridor.benchmarkRate).toBeGreaterThan(0.0359);
+    expect(o.corridor.benchmarkRate).toBeLessThan(0.08);
   });
 });

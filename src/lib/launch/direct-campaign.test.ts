@@ -346,3 +346,31 @@ describe("on-chain milestone chains must be reachable", () => {
     expect(directCampaignSchema.safeParse(grantInput()).success).toBe(true);
   });
 });
+
+/**
+ * A DENOMINATED OBLIGATION IS A FIRST-CLASS OBJECT. The composer converted J$ at a stamped rate and
+ * then threw the quote away, so nothing downstream could say what the obligation WAS. The plan now
+ * carries the founder's currency, the rate and their number; a USD plan carries nothing extra.
+ */
+describe("the compiled plan keeps the founder's currency", () => {
+  it("stamps denomination + per-tranche local amounts on a locally-priced plan", () => {
+    const input = grantInput();
+    input.milestones = input.milestones.slice(0, 2).map((m) => ({ ...m, rewardUsd: undefined }));
+    input.currency = "JMD";
+    input.splitTotalLocal = 10_000;
+    const quote = { base: "USD" as const, currency: "JMD", rate: 158.37, source: "test-rates", asOf: 1_800_000_000 };
+    const r = compileDirectCampaign(input, "pub-jmd", quote);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.denomination).toEqual({ currency: "JMD", rate: 158.37, source: "test-rates", asOf: 1_800_000_000, localTotal: 10_000 });
+    expect(r.plan.missions.map((m) => m.rewardLocal)).toEqual([5000, 5000]);
+  });
+
+  it("a USD plan carries no denomination at all", () => {
+    const r = compileDirectCampaign(grantInput(), "pub-usd", null);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.denomination).toBeUndefined();
+    expect(r.plan.missions.every((m) => m.rewardLocal === undefined)).toBe(true);
+  });
+});

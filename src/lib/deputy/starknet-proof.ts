@@ -1,3 +1,6 @@
+import { denominated } from "@/lib/money/currency";
+import { readClaim } from "@/lib/starknet/claims";
+import { getMissionByHash } from "@/lib/db/campaigns";
 import "server-only";
 import { starknetTxUrl } from "@/lib/starknet/explorer";
 
@@ -45,10 +48,20 @@ export interface StarknetProof {
     summary: string | null;
   } | null;
   paidAt: number | null;
+  /** "J$5,000 → $31.57 @ 158.37" when the obligation was priced in the founder's currency; null = USD. */
+  denominated: string | null;
+  /**
+   * THE PRIVATE LEG — what this rail is judged on, drawn from the row and the chain. The vault
+   * released the reward in `txHash`; Sage escrowed it behind `poseidon(secret)` in `escrowTx`; the
+   * commitment is the only public key to it; `onChain` says whether it has been collected.
+   */
+  claim: { escrowTx: string | null; commitment: string | null; claimed: boolean | null; expiry: number | null; amountUsd: number | null } | null;
 }
 
 const notFound = (txHash: string): StarknetProof => ({
   found: false,
+  denominated: null,
+  claim: null,
   txHash,
   executionStatus: null,
   blockNumber: null,
@@ -91,6 +104,33 @@ export async function composeStarknetProof(txHash: string): Promise<StarknetProo
     }
   }
 
+  const mission = sub.missionIdHash ? getMissionByHash(campaign.id, sub.missionIdHash) : null;
+  /*
+    THE PRIVATE LEG, read from the row and the chain. `claimEscrowTx` and `claimCommitment` were
+    written at settlement and drawn nowhere — a receipt for a private payout that never showed the
+    private part. `readClaim` answers whether the escrow has been collected; a node that cannot be
+    reached leaves that unknown rather than claiming either way.
+  */
+  let claim: StarknetProof["claim"] = null;
+  if (sub.claimEscrowTx || sub.claimCommitment) {
+    let onChain: { claimed: boolean; expiry: number; amountBase: bigint } | null = null;
+    if (cfg && sub.claimCommitment) {
+      try {
+        const c = await readClaim(sub.claimCommitment);
+        onChain = c.exists ? { claimed: c.claimed, expiry: c.expiry, amountBase: c.amountBase } : null;
+      } catch {
+        onChain = null;
+      }
+    }
+    claim = {
+      escrowTx: sub.claimEscrowTx ?? null,
+      commitment: sub.claimCommitment ?? null,
+      claimed: onChain ? onChain.claimed : null,
+      expiry: onChain ? onChain.expiry : null,
+      amountUsd: onChain ? Number(onChain.amountBase) / 1_000_000 : null,
+    };
+  }
+
   return {
     found: true,
     txHash: tx,
@@ -110,6 +150,8 @@ export async function composeStarknetProof(txHash: string): Promise<StarknetProo
         }
       : null,
     paidAt: sub.decidedAt ?? null,
+    denominated: denominated(campaign, mission?.rewardLocal ?? null, campaign.rewardAmount / 1_000_000),
+    claim,
   };
 }
 

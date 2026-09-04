@@ -161,6 +161,7 @@ export function MarketplaceBoard({
 
               <span className="mk-row-pay">
                 <span className="mk-row-amount mono">{usd(r.rewardUsd)}</span>
+                {r.denominated && <span className="mk-row-denom mono">{r.denominated}</span>}
                 <span className="mk-row-token mono">{r.tokenSymbol}</span>
               </span>
             </Link>

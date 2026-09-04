@@ -49,6 +49,7 @@ export function StarknetProofPage({ proof }: { proof: StarknetProof }) {
             )}
           </span>
           <h1 className="skp-amount">{proof.amountUsd !== null ? usd(proof.amountUsd) : "—"}</h1>
+          {proof.denominated && <p className="skp-denom mono">{proof.denominated}</p>}
           <p className="skp-sub">
             {proof.campaignTitle ?? "A Sage payout"}
             {proof.recipient ? <> · to {short(proof.recipient)}</> : null}
@@ -92,6 +93,39 @@ export function StarknetProofPage({ proof }: { proof: StarknetProof }) {
             Open it on Voyager <ArrowRight size={14} aria-hidden />
           </a>
         </section>
+
+        {/* THE PRIVATE LEG — the part this rail is judged on. The vault released the reward in the
+            transaction above; Sage escrowed it behind poseidon(secret); the commitment is the only
+            public key to it; whether it was collected is read from the contract, never assumed. */}
+        {proof.claim && (
+          <section className="skp-card" aria-label="The private leg">
+            <div className="skp-card-h">
+              <span className="skp-card-t">The private leg</span>
+              <span className="skp-card-n">who collected it is not on this ledger</span>
+            </div>
+            <ol className="skp-leg">
+              <li className="done">
+                <b>Vault released</b>
+                <span className="skp-mono">{short(proof.txHash)}</span>
+              </li>
+              <li className={proof.claim.escrowTx ? "done" : ""}>
+                <b>Escrowed behind <code>poseidon(secret)</code></b>
+                <span className="skp-mono">{proof.claim.escrowTx ? short(proof.claim.escrowTx) : "—"}</span>
+              </li>
+              <li className={proof.claim.claimed ? "done" : proof.claim.claimed === false ? "open" : ""}>
+                <b>{proof.claim.claimed ? "Collected by the one-time link" : proof.claim.claimed === false ? "Waiting to be collected" : "Collection state unknown"}</b>
+                <span className="skp-mono">
+                  {proof.claim.commitment ? `commitment ${short(proof.claim.commitment)}` : "—"}
+                  {proof.claim.claimed === false && proof.claim.expiry ? ` · open until ${new Date(proof.claim.expiry * 1000).toISOString().slice(0, 10)}` : ""}
+                </span>
+              </li>
+            </ol>
+            <p className="skp-note">
+              The money never lands in the wallet that earned it. The claim is keyed by a commitment,
+              not a person; where it goes next — a public address or a shielded note — is theirs alone.
+            </p>
+          </section>
+        )}
 
         {/* WHAT SAGE SAYS — labelled, because it rests on Sage's record and not on the chain. */}
         <section className="skp-card" aria-label="What Sage says">

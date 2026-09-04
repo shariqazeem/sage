@@ -15,7 +15,7 @@ const row = (rail: SettlementRail, title: string): MarketplaceRow => ({
   productHost: "example.com",
   criteria: ["a"],
   evidenceList: ["b"],
-  rewardUsd: 1,
+  rewardUsd: 1, denominated: null,
   remainingSlots: 1,
   maxCompletions: 1,
   tokenSymbol: "USDC",

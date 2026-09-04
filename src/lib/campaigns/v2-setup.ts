@@ -101,6 +101,8 @@ export interface V2SetupInput {
   allowlist?: string[];
   /** SAGE FOR TEAMS — the plan's door: listed on the public board, or unlisted (members-only from a workspace). */
   visibility?: "listed" | "unlisted";
+  /** The founder's currency and the stamped rate, from the approved plan. Absent = USD. */
+  denomination?: { currency: string; rate: number; source: string; asOf: number; localTotal: number | null };
 }
 
 /* ─────────────────────────────────────────────────────── preview ───────── */
@@ -457,6 +459,12 @@ export async function attachV2Campaign(
           // The composer's invite-only toggle reached the plan and stopped there for weeks: no caller
           // handed it to this row, so every "invite-only" campaign deployed listed. Typed through now.
           visibility: input.visibility ?? "listed",
+          // What the obligation WAS in the founder's currency — beside the USD base that is the money.
+          currency: input.denomination?.currency ?? null,
+          localTotal: input.denomination?.localTotal ?? null,
+          rate: input.denomination?.rate ?? null,
+          rateSource: input.denomination?.source ?? null,
+          rateAt: input.denomination?.asOf ?? null,
           allowlist:
             input.allowlist && input.allowlist.length > 0
               /* Canonical per family: lower-casing alone leaves a felt's padding intact, so the

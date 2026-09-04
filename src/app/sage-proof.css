@@ -336,3 +336,13 @@ html[data-app-shell="on"] .spp-col { max-width: 1320px; margin: 0; }
 @media (max-width: 620px) {
   .spp-split { grid-template-columns: 1fr; margin: 10px 16px 12px; gap: 16px; }
 }
+
+/* THE PRIVATE LEG on a Starknet receipt — three steps, the done ones filled. */
+.skp-denom { margin: 4px 0 0; font-size: 12.5px; color: var(--sec); }
+.skp-leg { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.skp-leg li { position: relative; padding-left: 22px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.skp-leg li::before { content: ""; position: absolute; left: 4px; top: 6px; width: 9px; height: 9px; border-radius: 999px; border: 1.5px solid var(--sec); background: transparent; }
+.skp-leg li.done::before { background: var(--pos, #15803d); border-color: var(--pos, #15803d); }
+.skp-leg li.open::before { border-color: var(--terra, #c2410c); }
+.skp-leg li span { font-size: 11.5px; color: var(--sec); }
+.skp-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--sec); }

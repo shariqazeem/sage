@@ -1,3 +1,4 @@
+import { denominated } from "@/lib/money/currency";
 import "server-only";
 
 import { chainConfig } from "./networks";
@@ -181,6 +182,8 @@ export interface V2ProofDetail {
     objective: string | null;
     maxCompletions: number | null;
     paidCompletions: number | null;
+    /** "J$5,000 → $31.57 @ 158.37" when the obligation was priced in the founder's currency; null = USD. */
+    denominated: string | null;
   } | null;
   factoryRecognizes: boolean;
   integrity: { verified: boolean; checks: Record<string, boolean>; reasons: string[] };
@@ -630,6 +633,7 @@ export function buildProofV2(i: ProofV2Inputs): ComposedProof {
           objective: i.mission.objective,
           maxCompletions: i.mission.maxCompletions,
           paidCompletions: c.paidCompletions,
+          denominated: denominated(i.campaign, i.mission.rewardLocal ?? null, i.mission.rewardAmount / 1_000_000),
         }
       : null,
     factoryRecognizes: c.factoryRecognizes,

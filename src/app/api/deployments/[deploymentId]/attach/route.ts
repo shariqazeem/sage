@@ -181,6 +181,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
       perWalletCap,
       // WORK PROOF — kind + allowlist ride the approved plan (absent on model plans ⇒ unchanged).
       campaignKind: loaded.plan.campaignKind,
+      denomination: loaded.plan.denomination,
       allowlist: loaded.plan.allowlist,
       visibility: loaded.plan.visibility,
     },

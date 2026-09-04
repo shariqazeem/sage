@@ -1,3 +1,4 @@
+import { denominated } from "@/lib/money/currency";
 import "server-only";
 
 /**
@@ -35,6 +36,8 @@ export interface V2MissionView {
   verificationKind?: VerificationKindView;
   /** true once every completion slot is paid (the mission is full). */
   full: boolean;
+  /** "J$5,000 → $31.57 @ 158.37" when the founder priced in their currency; absent = USD. */
+  denominated?: string | null;
 }
 
 export type VerificationKindView = "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
@@ -85,6 +88,7 @@ export function v2Economics(campaign: Campaign): V2Economics {
       verifiabilityClass: m.verifiabilityClass,
       ...(verificationKindOf(m.verificationContract) ? { verificationKind: verificationKindOf(m.verificationContract) } : {}),
       full: remainingSlots === 0,
+      denominated: denominated(campaign, m.rewardLocal ?? null, m.rewardAmount / 1_000_000),
     };
   });
 

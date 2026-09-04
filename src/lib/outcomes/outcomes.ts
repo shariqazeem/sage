@@ -1,3 +1,4 @@
+import { REGIONAL_BENCHMARK_PCT, benchmarkFor } from "@/lib/money/public-corridors";
 import { settledFeeCount, sumSettledFeesBase } from "@/lib/db/campaigns";
 import { clusterKeyOf } from "@/lib/campaigns/wallet-links";
 import "server-only";
@@ -29,6 +30,8 @@ export interface OutcomeReadings {
   settledWithinHourPct: number | null;
   /* expanded access to capital */
   peoplePaid: number;
+  /** obligations priced in a currency other than USD — the reading the track calls regional flow. */
+  denominated: { payouts: number; usd: number; currencies: string[] };
   /** what the PAYER paid Sage — the flat x402 operator fee, settled on chain — and on how many settlements. */
   payerFeeUsd: number;
   payerFeeCount: number;
@@ -60,6 +63,8 @@ export interface SettledRow {
   posterWallet: string;
   settlementRail: string;
   status: "paid" | "rejected" | "blocked";
+  /** ISO 4217 the obligation was priced in; null = USD. Benchmarks against that corridor's own reading. */
+  currency?: string | null;
 }
 
 const median = (xs: number[]): number | null => {
@@ -74,6 +79,19 @@ const quantile = (xs: number[], q: number): number | null => {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor(q * s.length))];
 };
+
+/**
+ * THE CORRIDOR EACH PAYOUT IS MEASURED AGAINST. A J$ obligation is benchmarked at Jamaica's own
+ * published inbound cost (WDI), not the brief's regional 8%; USD rows keep the brief's figure. The
+ * headline is the settled-weighted rate, so one Caribbean obligation moves it exactly as much as
+ * its money warrants — and the page can say, for the first time, what the corridor would have cost.
+ */
+export function corridorRateFor(paid: readonly SettledRow[]): number {
+  const total = paid.reduce((a, r) => a + r.rewardBase, 0);
+  if (total <= 0) return REGIONAL_BENCHMARK_PCT / 100;
+  const weighted = paid.reduce((a, r) => a + r.rewardBase * (r.currency && r.currency !== "USD" ? benchmarkFor(r.currency).rate : REGIONAL_BENCHMARK_PCT / 100), 0);
+  return weighted / total;
+}
 
 export function deriveOutcomes(
   rows: SettledRow[],
@@ -102,7 +120,12 @@ export function deriveOutcomes(
     // brief's own midpoint-low (8%); Sage's cost is what the PAYER actually paid — the flat x402
     // operator fee, settled on chain — not zero. This page said $0.00 while /explorer said $1.30 for
     // the same question; recipients keep 100% either way, and that is the separate number below.
-    corridor: corridorCost(settledUsd, 0.08, payerFees.usd),
+    corridor: corridorCost(settledUsd, corridorRateFor(paid), payerFees.usd),
+    denominated: {
+      payouts: paid.filter((r) => r.currency && r.currency !== "USD").length,
+      usd: paid.filter((r) => r.currency && r.currency !== "USD").reduce((a, r) => a + r.rewardBase, 0) / 1_000_000,
+      currencies: [...new Set(paid.map((r) => r.currency).filter((c): c is string => !!c && c !== "USD"))],
+    },
     recipientFeePct: 0,
     payerFeeUsd: payerFees.usd,
     payerFeeCount: payerFees.count,
@@ -155,6 +178,7 @@ export function readOutcomes(): OutcomeReadings {
       decidedAt: submissions.decidedAt,
       posterWallet: campaigns.posterWallet,
       settlementRail: campaigns.settlementRail,
+      currency: campaigns.currency,
       status: submissions.status,
       chainId: campaigns.chainId,
       payoutTx: submissions.payoutTx,
@@ -189,6 +213,7 @@ export function readOutcomes(): OutcomeReadings {
       decidedAt: r.decidedAt,
       posterWallet: r.posterWallet ?? "",
       settlementRail: r.settlementRail,
+      currency: r.currency ?? null,
       status: r.status as SettledRow["status"],
     })),
     adv,

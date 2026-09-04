@@ -595,3 +595,5 @@
   color: var(--sage-ink-2, #4a4f57);
   max-width: 11ch;
 }
+
+.mk-row-denom { display: block; margin-top: 2px; font-size: 0.68rem; color: var(--sage-ink-3, #9ca3af); }

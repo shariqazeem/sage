@@ -642,8 +642,21 @@ export function compileDirectCampaign(
   });
   if (!compiled.ok) return { ok: false, error: compiled.error };
 
+  // KEEP WHAT THE FOUNDER TYPED. The quote converted their number into the USD base above; before
+  // this the quote was discarded here and every downstream surface could only say the USD.
+  const local = quote && quote.currency.toUpperCase() !== "USD" ? quote : null;
+  const localTotal = local ? (input.splitTotalLocal ?? null) : null;
+  const missionsWithLocal = local
+    ? compiled.plan.missions.map((cm, i) => {
+        const m = input.milestones[i];
+        const perTranche = localTotal !== null ? Math.round((localTotal / input.milestones.length) * 100) / 100 : m?.rewardLocal;
+        return perTranche !== undefined ? { ...cm, rewardLocal: perTranche } : cm;
+      })
+    : compiled.plan.missions;
   const plan: MissionPlanV1 = {
     ...compiled.plan,
+    missions: missionsWithLocal,
+    ...(local ? { denomination: { currency: local.currency.toUpperCase(), rate: local.rate, source: local.source, asOf: local.asOf, localTotal } } : {}),
     campaignKind: input.kind,
     ...(input.allowlist ? { allowlist: [...new Set(input.allowlist.map((w) => w.toLowerCase()))] } : {}),
     ...(input.visibility ? { visibility: input.visibility } : {}),

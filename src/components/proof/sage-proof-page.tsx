@@ -134,6 +134,7 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
               <Row k="Mission">{proof.v2.mission.title ?? "—"}</Row>
               {proof.v2.mission.objective && <Row k="Objective">{proof.v2.mission.objective}</Row>}
               <Row k="Exact reward">{money(proof.human.amountUsd, proof.chain.chainId)}</Row>
+              {proof.v2.mission.denominated && <Row k="Priced as">{proof.v2.mission.denominated}</Row>}
             </div>
           )}
           {/* the two digests, labelled for exactly what each is — an app-level record vs an
