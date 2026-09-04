@@ -28,10 +28,11 @@ export function standingOf(wallet: string): TierVerdict & { evidence: TierEviden
     prod 2026-09-05, on the operator's own bound pair: both wallets came back "linked on-chain to 1
     other that took paid work here" and were refused the paid tiers.
 
-    Narrowly: only the single cross-rail pair that feature can produce is exempt. A discovered link
-    still flags, and so does a personhood link — one human standing up a second wallet is the thing
-    the nullifier exists to catch. The RECORD still merges over the whole cluster; only the
-    accusation narrows.
+    A discovered link still flags, and so does a personhood link — one human standing up a second
+    wallet is the thing the nullifier exists to catch. A DECLARED one never does, and it cannot be
+    abused to inflate anyone: standing below is computed per wallet, from that wallet's own paid
+    submissions, so declaring a cluster neither merges standing nor multiplies it. The only thing
+    the flag did to an honest binder was deny them every tier.
   */
   const linked = flaggingLinksOf(wallet).filter((w) => w.toLowerCase() !== wallet.trim().toLowerCase());
   const evidence: TierEvidence = {

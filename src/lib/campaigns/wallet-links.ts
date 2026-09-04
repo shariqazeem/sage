@@ -64,49 +64,46 @@ export function linkWallets(
   return { linked: true };
 }
 
-/** EVM or Starknet, from the address alone — a felt is far longer than a 20-byte address. */
-const rail = (w: string): "evm" | "starknet" =>
-  norm(w).replace(/^0x/, "").replace(/^0+/, "").length > 40 ? "starknet" : "evm";
-
 /**
  * The links that count AGAINST this wallet — which is not the same as the links it has.
  *
- * `discovered` always counts: the consolidation watch inferred a cluster from on-chain behaviour,
- * and that is the wallet rotation the tier gate exists to stop.
+ * `discovered` counts: the consolidation watch inferred a cluster from on-chain behaviour, and that
+ * is the wallet rotation the tier gate exists to stop.
  *
- * `personhood` always counts too, and deliberately: the same verified nullifier reaching a second
- * wallet is one human standing up a second worker, which is the exact thing a personhood proof is
- * for catching. Both wallets drop — otherwise verifying twice would be free.
+ * `personhood` counts too, and deliberately: the same verified nullifier reaching a second wallet is
+ * one human standing up a second worker, which is the exact thing a personhood proof is for
+ * catching. Both wallets drop, or verifying twice would be free.
  *
- * `declared` counts UNLESS it is the one pair the bind feature can actually produce: a single
- * EVM-to-Starknet link. `/api/record/link` reads exactly one EVM session and one Starknet session,
- * so that is the only shape a person can declare — Sage tells them to bind precisely so a business
- * paid on two rails is not underwritten as two half-records. Anything beyond that pair is not
- * something the feature needs and is what a farmer would build, so it still counts.
+ * `declared` never counts. A person proving control of both wallets and asking for them to be
+ * joined is disclosing, not hiding — and it gains them nothing to weigh against, because standing is
+ * computed PER WALLET (`standingOf` reads only that wallet's paid submissions). Declaring a cluster
+ * therefore neither merges standing nor multiplies it; the only thing the flag was doing to an
+ * honest binder was denying them every tier, for using a feature Sage tells them to use.
  */
 export function flaggingLinksOf(wallet: string): string[] {
   const rows = db
     .select()
     .from(walletLinks)
     .where(or(inArray(walletLinks.walletA, forms(wallet)), inArray(walletLinks.walletB, forms(wallet))))
-    .all();
+    .all()
+    .filter((r) => r.origin !== "declared");
   const me = key(wallet);
-  const declaredPeers = rows.filter((r) => r.origin === "declared");
-  // the exempt shape: exactly one declared link, and it crosses the rails
-  const exemptPeer =
-    declaredPeers.length === 1
-      ? [declaredPeers[0]!.walletA, declaredPeers[0]!.walletB].find((w) => key(w) !== me)
-      : undefined;
-  const exempt = exemptPeer && rail(exemptPeer) !== rail(wallet) ? key(exemptPeer) : null;
-
   const out = new Map<string, string>();
-  for (const r of rows) {
-    for (const other of [r.walletA, r.walletB]) {
-      if (key(other) === me || out.has(key(other))) continue;
-      if (r.origin === "declared" && key(other) === exempt) continue;
-      out.set(key(other), other);
-    }
-  }
+  for (const r of rows) for (const other of [r.walletA, r.walletB]) if (key(other) !== me && !out.has(key(other))) out.set(key(other), other);
+  return [...out.values()].sort();
+}
+
+/** Wallets this one is joined to BY DECLARATION — the person said so and proved both. */
+export function declaredLinksOf(wallet: string): string[] {
+  const rows = db
+    .select()
+    .from(walletLinks)
+    .where(or(inArray(walletLinks.walletA, forms(wallet)), inArray(walletLinks.walletB, forms(wallet))))
+    .all()
+    .filter((r) => r.origin === "declared");
+  const me = key(wallet);
+  const out = new Map<string, string>();
+  for (const r of rows) for (const other of [r.walletA, r.walletB]) if (key(other) !== me && !out.has(key(other))) out.set(key(other), other);
   return [...out.values()].sort();
 }
 

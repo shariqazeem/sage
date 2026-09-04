@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkWallets, flaggingLinksOf, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { linkWallets, flaggingLinksOf, declaredLinksOf, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { standingOf } from "./standing";
 
 /**
@@ -43,19 +43,29 @@ describe("which links count against a wallet", () => {
     expect(linkedWalletsOf(e).length).toBe(2);
   });
 
-  it("a SECOND declared link is not the bind feature, so the exemption lapses", () => {
+  it("declaring cannot inflate anyone, because standing is per wallet", () => {
+    // a would-be farmer declaring several of their own wallets gains nothing: each still carries
+    // only its own paid submissions, so each is still a newcomer.
     const [e, s1, s2] = [evm("7"), felt("8"), felt("9")];
     linkWallets(e, s1, 1_800_000_000, "declared");
     linkWallets(e, s2, 1_800_000_001, "declared");
-    expect(flaggingLinksOf(e).length).toBe(2);
-    expect(standingOf(e).tier).toBe("flagged");
+    expect(flaggingLinksOf(e)).toEqual([]);
+    expect(standingOf(e).tier).toBe("newcomer");
+    expect(standingOf(e).evidence.paidCompletions).toBe(0);
   });
 
-  it("nor is a same-rail declaration — the bind route cannot produce one", () => {
+  it("a personhood link DOES count — one human standing up a second worker", () => {
     const [a, b] = [evm("a"), evm("b")];
-    linkWallets(a, b, 1_800_000_000, "declared");
+    linkWallets(a, b, 1_800_000_000, "personhood");
     expect(flaggingLinksOf(a).length).toBe(1);
     expect(standingOf(a).tier).toBe("flagged");
+  });
+
+  it("declaredLinksOf names only the wallets the person joined themselves", () => {
+    const [d1, d2, x] = [evm("1a"), felt("2b"), evm("3c")];
+    linkWallets(d1, d2, 1_800_000_000, "declared");
+    linkWallets(d1, x, 1_800_000_001, "discovered");
+    expect(declaredLinksOf(d1).map((w) => w.toLowerCase())).toEqual([d2.toLowerCase()]);
   });
 
   it("a declaration can never overwrite a discovery — whoever rotated the wallets holds both", () => {
