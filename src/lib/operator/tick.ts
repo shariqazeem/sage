@@ -128,6 +128,25 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
   const open = launchesInState(founderAddress, "proposed");
   for (const l of open) {
     if (l.commitAt > nowSec) continue;
+    /**
+     * RE-CHECK THE MONEY AT THE MOMENT OF ACTING, not only at the moment of deciding.
+     *
+     * A proposal is priced when it is made and acted on up to a window later, and a founder can
+     * withdraw in between — they are told they can, and they should be able to. Without this the
+     * agent committed anyway: it started a real inspection job, spending model budget and browsing
+     * time designing work that could never be funded, and only the deploy preflight caught it,
+     * silently, at the end. Nothing here can move money on its own, which is exactly why the check
+     * has to be here rather than downstream.
+     *
+     * Holding rather than abandoning is deliberate: a treasury refilled an hour later should find
+     * its proposal still standing, not quietly discarded.
+     */
+    const spendable = state.balanceBase - policy.reserveFloorBase;
+    const weeklyLeft = policy.weeklyCapBase - state.committedThisWeekBase + l.budgetBase;
+    if (spendable < l.budgetBase || weeklyLeft < l.budgetBase) {
+      out.held.push(`${usd(l.budgetBase)} was ready to commit, but the treasury no longer covers it — holding, not cancelling`);
+      continue;
+    }
     const started = startInspection({
       productUrl: state.productUrl ?? (l.surface ? `https://${l.surface}` : ""),
       goal: l.goal,
