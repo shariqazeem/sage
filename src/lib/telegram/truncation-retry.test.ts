@@ -100,7 +100,11 @@ describe("concierge — when the model will not act, the gig is compiled without
   const battery = readFileSync(resolve(process.cwd(), "src/lib/launch/direct-eval.ts"), "utf8");
 
   it("is gated on the same guard that fired the corrective round, and only after it failed", () => {
-    expect(src).toMatch(/if \(missedMoney && selfCorrected && succeededTools\.size === 0/);
+    expect(src).toMatch(/if \(missedMoney && selfCorrected && !founderAsked && succeededTools\.size === 0/);
+  });
+
+  it("never builds a campaign out of a founder's question", () => {
+    expect(src).toMatch(/const founderAsked = userText\.trim\(\)\.endsWith\("\?"\);/);
   });
 
   it("runs the real tool, so every downstream guard still applies", () => {

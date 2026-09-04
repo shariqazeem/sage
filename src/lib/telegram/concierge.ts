@@ -1164,7 +1164,15 @@ async function runAgentTurn(
        * independent checks already judged an un-acted money request — never on a turn where the
        * model asked the founder a question, which is a legitimate answer to a vague ask.
        */
-      if (missedMoney && selfCorrected && succeededTools.size === 0 && Date.now() < turnDeadline) {
+      /*
+        A FOUNDER ASKING ABOUT THE WORK IS NOT COMMISSIONING IT. "how much would it cost to pay
+        someone $50 for a logo?" carries a price and a payment verb, so both guards above read it as
+        an un-acted money request — which is the right call for a corrective round (the model should
+        answer) and the wrong one for building a campaign nobody asked for. Their own question mark
+        settles it.
+      */
+      const founderAsked = userText.trim().endsWith("?");
+      if (missedMoney && selfCorrected && !founderAsked && succeededTools.size === 0 && Date.now() < turnDeadline) {
         const made = await createGigWithoutTheModel({ founderWords: userText, ctx, surface });
         if (made) {
           reply = made;
