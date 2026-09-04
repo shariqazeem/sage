@@ -1,3 +1,4 @@
+import { effortWeights } from "./effort-weight";
 import "server-only";
 
 /**
@@ -498,10 +499,18 @@ export async function inspectAndPlan(
         unspentBase = input.totalBudgetBase - capacity;
       }
     }
+    /**
+     * The weight handed to the frozen compiler is DERIVED from effort, not taken from the model.
+     * See effort-weight.ts: the model's own number priced a fifteen-minute action below a
+     * five-minute read, and under a standing mandate that mispricing defunds a healthy product.
+     */
+    const fairWeights = effortWeights(
+      missions.map((m) => ({ missionKey: m.missionKey, effortMinutes: m.effortMinutes, priority: m.priority, rewardWeight: m.rewardWeight })),
+    );
     let allocation = allocateBudget(
       missions.map((m) => ({
         missionKey: m.missionKey,
-        weight: m.rewardWeight,
+        weight: fairWeights.get(m.missionKey) ?? m.rewardWeight,
         suggestedMaxCompletions: m.maxCompletions,
         priority: m.priority,
         effortMinutes: m.effortMinutes,
@@ -542,7 +551,9 @@ export async function inspectAndPlan(
       const spread = allocateBudget(
         missions.map((m) => ({
           missionKey: m.missionKey,
-          weight: m.rewardWeight,
+          // the SAME derived weight as the first allocation — a plan must not be priced by one
+          // rule on the ordinary path and another on the capped one
+          weight: fairWeights.get(m.missionKey) ?? m.rewardWeight,
           suggestedMaxCompletions: fairCounts.get(m.missionKey) ?? m.maxCompletions,
           priority: m.priority,
           effortMinutes: m.effortMinutes,
@@ -560,7 +571,9 @@ export async function inspectAndPlan(
       const exact = spreadOverpaidMissionsExactly(
         missions.map((m) => ({
           missionKey: m.missionKey,
-          weight: m.rewardWeight,
+          // the SAME derived weight as the first allocation — a plan must not be priced by one
+          // rule on the ordinary path and another on the capped one
+          weight: fairWeights.get(m.missionKey) ?? m.rewardWeight,
           suggestedMaxCompletions: fairCounts.get(m.missionKey) ?? m.maxCompletions,
           priority: m.priority,
           effortMinutes: m.effortMinutes,
