@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IDKitRequestWidget, orbLegacy, type RpContext } from "@worldcoin/idkit";
+import { deviceLegacy, IDKitRequestWidget, type RpContext } from "@worldcoin/idkit";
 import { BadgeCheck, ShieldCheck } from "lucide-react";
 
 /**
@@ -96,7 +96,22 @@ export function VerifyPerson({ wallet }: { wallet: string }) {
         action={ctx.action}
         rp_context={ctx.rp_context}
         allow_legacy_proofs
-        preset={orbLegacy({ signal: wallet })}
+        /**
+         * DEVICE LEVEL, WHICH IS THE INCLUSIVE BAR — it accepts an Orb-verified person too, since
+         * Orb is the stronger credential rather than a different one.
+         *
+         * I first required Orb. That is the better proof and it would have shut out almost everyone
+         * this work is for: an Orb scan is in person, and our market is people doing two-dollar gigs
+         * from a phone. Trading a farm for no supply is the same product with worse numbers.
+         *
+         * Device level still binds to one World App account on one trusted device, so a farmer needs
+         * N accounts on N devices instead of N free wallets — and the nullifier, which is the entire
+         * property this layer rests on, is stable per person at either level.
+         *
+         * The level actually used comes back in the response and is recorded and shown, so a record
+         * says what was proved rather than implying the stronger thing.
+         */
+        preset={deviceLegacy({ signal: wallet })}
         handleVerify={async (result: unknown) => { await onProof(result); }}
         onSuccess={() => setOpen(false)}
       />

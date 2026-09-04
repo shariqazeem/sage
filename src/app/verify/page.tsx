@@ -65,6 +65,7 @@ export default async function VerifyPage() {
           <ul className="ws-list">
             <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><span className="t">Every tier of paid work opens</span></p><p className="ws-row-meta">Work paying more than {ceiling} asks for standing first. Verifying is the fastest way to have it; the other way is finishing open work on two different campaigns.</p></div></li>
             <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><span className="t">Nothing about you is stored</span></p><p className="ws-row-meta">Not a name, a document, a country or an age. Only the number, and the wallet you bound it to.</p></div></li>
+            <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><span className="t">An Orb scan is not required</span></p><p className="ws-row-meta">A World App account on your own device is enough, and the record shows which of the two you proved. Orb is the stronger claim; requiring it would have shut out almost everyone this work is for.</p></div></li>
             <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><span className="t">A second wallet counts as the same worker</span></p><p className="ws-row-meta">Because it is. Verifying again from another wallet links the two, and they share one standing rather than doubling it. That is the point, and it is stated here rather than discovered later.</p></div></li>
           </ul>
         </section>
