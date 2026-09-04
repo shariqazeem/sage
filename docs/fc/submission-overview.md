@@ -62,7 +62,7 @@ knows its people, and the agent does the one job it is measurably good at: was t
 
 - **$63.60 USDC** settled across **39 verified payouts** on two rails (26 GOAT, 13 Starknet) — reaching **32 wallets but 24 people**, because nine wallet links are recorded on-chain and we publish the collapsed count, including on our own public board. Sage's own dogfood wallets settle on the same rails and are excluded from the people count.
 - **26 refusals on record**, each with a published reason. No human reviewed any autonomous decision.
-- **2.4 minutes** median from a submission arriving to USDC in the worker's hand; the fastest was 18 seconds.
+- **Under three minutes** median from a submission arriving to USDC in the worker's hand (the live figure is computed on `/outcomes`); the fastest was 18 seconds.
 - Campaign deploy gas ≈ $0.0000002; payout gas ≈ $0.00000002 (BTC on GOAT).
 
 ## Four receipts that tell the whole story
@@ -102,8 +102,8 @@ door with a typed contract; it ships when a partner does, and is labelled as pen
 
 ## Impact and scalability
 
-**Evidence of real-world use.** 41 mainnet payouts across two rails (28 on GOAT, 13 on Starknet)
-to 34 wallets — 27 distinct people once wallets the consolidation watch has linked on chain are
+**Evidence of real-world use.** 39 mainnet payouts across two rails (26 on GOAT, 13 on Starknet)
+to 32 wallets — 24 distinct people once wallets the consolidation watch has linked on chain are
 collapsed, and we publish that collapse rather than the flattering number; 26 refusals on record
 with reasons; an autonomous third-party agent earned under the same rules and has a credit file;
 two real wallet-rotation clusters were caught on chain and published — the second one after it had

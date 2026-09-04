@@ -32,7 +32,7 @@ and turns every payout into a credit record that unlocks working capital without
 **Evidence of real use.** 39 mainnet payouts across two rails (26 GOAT, 13 Starknet), $63.60 settled,
 26 refusals with published reasons. Those payouts reached **32 wallets but 24 people** — nine wallet
 links are recorded on-chain, and we publish the collapsed number rather than the wallet count,
-including on our own public board. Median time from a submission to USDC in hand: **2.4 minutes**.
+including on our own public board. Median time from a submission to USDC in hand: **under three minutes** (computed live on `/outcomes`).
 Every figure is checkable at `/explorer`, and the cluster that forced the collapse is drawn at
 `/graph/gig-1c3e_FjffE`.
 

@@ -21,8 +21,8 @@
 2. **USDC on Starknet mainnet** in the wallet you will launch from: **~$25** (the grant) — the
    composer shows the exact J$→USDC figure at the stamped rate before you fund anything.
 3. **~$5 USDC on the operator's Starknet account** (the address in `STARKNET_ACCOUNT_ADDRESS` on the
-   VM). This is the advance pot. Tell me when it is funded and I will set `ADVANCE_SELF_SERVE=1`
-   and restart — the advance button appears on records only once that is on.
+   VM — I will paste it in chat). This is the advance pot. `ADVANCE_SELF_SERVE=1` is already armed on
+   prod (max $5, multiple 1×, waterfall 50%); the button appears on a record once the pot has funds.
 4. **~$2 USDC** to the GOAT fee wallet `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` so the 16
    stuck operator-fee transfers settle (they show on `/explorer` as "How Sage earns").
 
