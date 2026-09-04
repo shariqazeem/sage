@@ -1,3 +1,4 @@
+import { CompareBar } from "@/components/outcomes/compare-bar";
 import "./outcomes.css";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -50,13 +51,15 @@ export default function OutcomesPage() {
         <div className="out-big">
           {o.recipientFeePct}%<span className="out-big-k">taken from recipients, on every payout to date</span>
         </div>
-        <p className="out-how">
-          The vault derives the exact reward and pays it whole; Sage covers the gas — a real cost,
-          and Sage&rsquo;s, not the recipient&rsquo;s. Against the corridor this track names
-          (7&ndash;9% average fees, taken at 8%): moving the {`$${f(o.settledUsd)}`} settled so far
-          through that corridor would have cost <b>${f(o.corridor.benchmarkCostUsd)}</b>. Recipients
-          received it instead.
-        </p>
+        <CompareBar
+          ours={0}
+          theirs={o.corridor.benchmarkCostUsd}
+          oursLabel="$0.00"
+          theirsLabel={`$${f(o.corridor.benchmarkCostUsd)}`}
+          alternativeName="Corridor"
+          lowerIsBetter
+          caption={`On the $${f(o.settledUsd)} settled so far. The vault derives the exact reward and pays it whole; Sage covers the gas — a real cost, and Sage's, not the recipient's.`}
+        />
         <p className="out-src">
           Derivation: Σ(vault-derived rewards, mainnet, anchored) × 0.08 · verify any row on the{" "}
           <Link href="/explorer">ledger</Link>
@@ -69,12 +72,15 @@ export default function OutcomesPage() {
           {mins(o.medianMinutesToSettle)}
           <span className="out-big-k">median, submission → settled payment — verification included</span>
         </div>
-        <p className="out-how">
-          That window includes the part other rails don&rsquo;t even attempt: the agent reading the
-          work and deciding. p90 is {mins(o.p90MinutesToSettle)}
-          {o.settledWithinHourPct !== null && <>; {Math.round(o.settledWithinHourPct)}% of payouts settled within the hour</>}
-          . Settlement itself is a chain confirmation — seconds, not days.
-        </p>
+        <CompareBar
+          ours={o.medianMinutesToSettle ?? 0}
+          theirs={3 * 24 * 60}
+          oursLabel={mins(o.medianMinutesToSettle)}
+          theirsLabel="3 days"
+          alternativeName="Corridor"
+          lowerIsBetter
+          caption={`Includes the part other rails do not attempt: the agent reading the work and deciding. p90 ${mins(o.p90MinutesToSettle)}${o.settledWithinHourPct !== null ? `, ${Math.round(o.settledWithinHourPct)}% inside the hour` : ""}.`}
+        />
         <p className="out-src">
           Derivation: median/p90 of (decided − submitted) over paid mainnet submissions · each has a
           receipt on the <Link href="/explorer">ledger</Link>
