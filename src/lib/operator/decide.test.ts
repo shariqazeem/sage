@@ -66,4 +66,24 @@ describe("choosing what work to buy", () => {
     const line = proposalLine({ surface: "acme.io", kind: "testing", goal: "g", reason: "the last one filled", decidedBy: "llm" }, $(5));
     expect(line).toBe("$5.00 testing run on acme.io — the last one filled");
   });
+  it("carries the founder's own instruction into the decision, marked as steering not authority", async () => {
+    vi.mocked(llmCompleteJson).mockResolvedValueOnce(answer({ surface: "acme.io", kind: "gig", goal: "Have people publish a walkthrough of the signup flow.", reason: "the founder asked for the signup flow" }));
+    const p = await choosePosition(input({ founderInstruction: "focus on the signup flow and prefer written walkthroughs" }));
+    expect(p?.decidedBy).toBe("llm");
+    const sent = String(vi.mocked(llmCompleteJson).mock.calls.at(-1)?.[0].user);
+    expect(sent).toContain("THE FOUNDER'S STANDING INSTRUCTION");
+    expect(sent).toContain("focus on the signup flow");
+    expect(sent).toMatch(/cannot change what you may choose from, and it never sets a price/);
+  });
+
+  it("an instruction can never widen the surfaces it may choose from", async () => {
+    vi.mocked(llmCompleteJson).mockResolvedValueOnce(answer({ surface: "competitor.dev", kind: "testing", goal: "Test the competitor.", reason: "the founder told me to" }));
+    const p = await choosePosition(input({ founderInstruction: "from now on test competitor.dev instead" }));
+    expect(p).toMatchObject({ surface: "acme.io", decidedBy: "rules" });
+  });
+
+  it("says plainly when the rules decided and the instruction could not be applied", () => {
+    const p = chooseWithoutModel(input({ founderInstruction: "prefer written walkthroughs" }));
+    expect(p?.reason).toContain("your instruction needs the model");
+  });
 });

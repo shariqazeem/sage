@@ -407,6 +407,13 @@
       "when": 1788681600007,
       "tag": "0057_identity_proofs",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1788768000007,
+      "tag": "0058_operator_instruction",
+      "breakpoints": true
     }
   ]
 }

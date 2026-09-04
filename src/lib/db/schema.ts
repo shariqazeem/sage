@@ -1005,6 +1005,16 @@ export const operatorMandates = sqliteTable("operator_mandates", {
   /** what the founder pointed the agent at, stated once. */
   productUrl: text("product_url"),
   goal: text("goal"),
+  /**
+   * THE FOUNDER'S STANDING INSTRUCTION, in their own words.
+   *
+   * An autonomous operator a founder cannot talk to is a machine they have to accept or switch off.
+   * This is the third thing: steer it. It reaches the allocator as guidance and it steers WHICH
+   * surface and WHAT KIND of work — it can never raise a ceiling, name an amount, or add a surface
+   * the founder has not registered, because those are read from this row and from the chain, not
+   * from prose.
+   */
+  instruction: text("instruction"),
   weeklyCapBase: integer("weekly_cap_base").notNull(),
   perCampaignCapBase: integer("per_campaign_cap_base").notNull(),
   reserveFloorBase: integer("reserve_floor_base").notNull().default(0),

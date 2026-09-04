@@ -37,6 +37,8 @@ export interface Position {
 export interface DecisionInput {
   productUrl: string | null;
   founderGoal: string | null;
+  /** the founder's standing instruction, in their own words. Steers; never authorises. */
+  founderInstruction?: string | null;
   /** surfaces the agent may choose among — the founder's own, plus anywhere it has already worked. */
   allowedSurfaces: string[];
   observations: CampaignObservation[];
@@ -112,6 +114,11 @@ const SCHEMA = {
  * The choice with no model in it: the founder's own surface first, then whatever has proven it gets
  * claimed, and a kind that has not already gone quiet there.
  */
+/**
+ * The rules cannot read an instruction, so when one exists and no model answered, the position is
+ * still the rules' — but the founder is told plainly that their words were not applied, rather than
+ * being left to assume a silent agent obeyed them.
+ */
 export function chooseWithoutModel(input: DecisionInput): Position | null {
   const ranked = [...input.allowedSurfaces].sort((a, b) => surfaceScale(b, input.observations, input.policy).scale - surfaceScale(a, input.observations, input.policy).scale);
   const surface = ranked.find((s) => surfaceScale(s, input.observations, input.policy).scale > 0);
@@ -128,16 +135,26 @@ export function chooseWithoutModel(input: DecisionInput): Position | null {
     : testedWell
       ? `work on ${surface} has been getting claimed, so the next step is a deliverable rather than another read`
       : `${surface} is the founder's own product and the only surface with any history`;
-  return { surface, kind, goal: goal.slice(0, 300), reason, decidedBy: "rules" };
+  const note = (input.founderInstruction ?? "").trim() ? " · your instruction needs the model, which did not answer this round" : "";
+  return { surface, kind, goal: goal.slice(0, 300), reason: `${reason}${note}`, decidedBy: "rules" };
 }
 
 /** Choose the next position. Falls back to the deterministic choice on any model failure. */
 export async function choosePosition(input: DecisionInput): Promise<Position | null> {
   const fallback = chooseWithoutModel(input);
   if (input.allowedSurfaces.length === 0) return null;
+  const instruction = (input.founderInstruction ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
   const user = [
     `Founder product: ${input.productUrl ?? "not stated"}`,
     `Founder goal: ${input.founderGoal ?? "not stated"}`,
+    ...(instruction
+      ? [
+          ``,
+          `THE FOUNDER'S STANDING INSTRUCTION — follow it wherever it applies:`,
+          instruction,
+          `(It steers which surface and what kind of work. It cannot change what you may choose from, and it never sets a price.)`,
+        ]
+      : []),
     ``,
     `Surfaces you may choose among (copy one exactly):`,
     ...input.allowedSurfaces.map((s) => `- ${s}`),

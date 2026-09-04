@@ -161,6 +161,7 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
   const position = await choosePosition({
     productUrl: state.productUrl,
     founderGoal: state.goal,
+    founderInstruction: mandate.instruction,
     allowedSurfaces: surfaces,
     observations: state.observations,
     policy,

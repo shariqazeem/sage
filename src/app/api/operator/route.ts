@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
 
   const productUrl = typeof body.productUrl === "string" ? body.productUrl.trim().slice(0, 500) : current?.productUrl ?? null;
   const goal = typeof body.goal === "string" ? body.goal.trim().slice(0, 500) : current?.goal ?? null;
+  const instruction = typeof body.instruction === "string" ? body.instruction.trim().slice(0, 500) || null : current?.instruction ?? null;
   const weeklyCapBase = usdToBase(body.weeklyCapUsd, p?.weeklyCapBase ?? 50_000_000);
   const perCampaignCapBase = usdToBase(body.perCampaignCapUsd, p?.perCampaignCapBase ?? 15_000_000);
   const probeBase = usdToBase(body.probeUsd, p?.probeBase ?? 5_000_000);
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
     enabled,
     productUrl,
     goal,
+    instruction,
     weeklyCapBase,
     perCampaignCapBase,
     probeBase,

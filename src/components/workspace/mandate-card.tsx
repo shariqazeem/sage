@@ -7,6 +7,7 @@ interface Mandate {
   enabled: number;
   productUrl: string | null;
   goal: string | null;
+  instruction: string | null;
   policy: { weeklyCapBase: number; perCampaignCapBase: number; probeBase: number; reserveFloorBase: number; maxConcurrent: number };
   vetoWindowMinutes: number;
 }
@@ -23,7 +24,7 @@ export function MandateCard() {
   const [v, setV] = useState<View | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [f, setF] = useState({ productUrl: "", goal: "", weeklyCapUsd: "50", perCampaignCapUsd: "15", probeUsd: "5", reserveFloorUsd: "0", vetoWindowMinutes: "20" });
+  const [f, setF] = useState({ productUrl: "", goal: "", instruction: "", weeklyCapUsd: "50", perCampaignCapUsd: "15", probeUsd: "5", reserveFloorUsd: "0", vetoWindowMinutes: "20" });
 
   const load = async () => {
     try {
@@ -35,6 +36,7 @@ export function MandateCard() {
         setF({
           productUrl: j.mandate.productUrl ?? "",
           goal: j.mandate.goal ?? "",
+          instruction: j.mandate.instruction ?? "",
           weeklyCapUsd: usd(j.mandate.policy.weeklyCapBase),
           perCampaignCapUsd: usd(j.mandate.policy.perCampaignCapBase),
           probeUsd: usd(j.mandate.policy.probeBase),
@@ -80,6 +82,16 @@ export function MandateCard() {
       <div className="mc-grid">
         <label className="mc-f mc-wide"><span>Your product</span><input className="ws-input" value={f.productUrl} onChange={set("productUrl")} placeholder="https://yourproduct.com" /></label>
         <label className="mc-f mc-wide"><span>What you want from it</span><input className="ws-input" value={f.goal} onChange={set("goal")} placeholder="get developers through the quickstart" /></label>
+        <label className="mc-f mc-wide">
+          <span>Tell it what to do — it follows this on every move</span>
+          <textarea
+            className="ws-input mc-instruction"
+            rows={2}
+            value={f.instruction}
+            onChange={set("instruction")}
+            placeholder="focus on the signup flow this week, and prefer written walkthroughs over quick reads"
+          />
+        </label>
         <label className="mc-f"><span>A week, at most</span><input className="ws-input" inputMode="decimal" value={f.weeklyCapUsd} onChange={set("weeklyCapUsd")} /></label>
         <label className="mc-f"><span>One campaign, at most</span><input className="ws-input" inputMode="decimal" value={f.perCampaignCapUsd} onChange={set("perCampaignCapUsd")} /></label>
         <label className="mc-f"><span>First probe</span><input className="ws-input" inputMode="decimal" value={f.probeUsd} onChange={set("probeUsd")} /></label>

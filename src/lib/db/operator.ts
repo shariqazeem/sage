@@ -16,7 +16,7 @@ export function getMandate(founderAddress: string): OperatorMandate | null {
 export type MandateFields = Partial<
   Pick<
     OperatorMandate,
-    | "enabled" | "productUrl" | "goal" | "weeklyCapBase" | "perCampaignCapBase" | "reserveFloorBase"
+    | "enabled" | "productUrl" | "goal" | "instruction" | "weeklyCapBase" | "perCampaignCapBase" | "reserveFloorBase"
     | "probeBase" | "maxScale" | "maxConcurrent" | "maxExposureBps" | "minSpacingMinutes"
     | "stallAfterMinutes" | "minCampaignBase" | "vetoWindowMinutes"
   >
@@ -36,6 +36,7 @@ export function upsertMandate(founderAddress: string, fields: MandateFields, now
       enabled: fields.enabled ?? 0,
       productUrl: fields.productUrl ?? null,
       goal: fields.goal ?? null,
+      instruction: fields.instruction ?? null,
       weeklyCapBase: fields.weeklyCapBase ?? DEFAULT_POLICY.weeklyCapBase,
       perCampaignCapBase: fields.perCampaignCapBase ?? DEFAULT_POLICY.perCampaignCapBase,
       reserveFloorBase: fields.reserveFloorBase ?? DEFAULT_POLICY.reserveFloorBase,

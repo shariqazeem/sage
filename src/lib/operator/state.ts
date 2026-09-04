@@ -71,7 +71,7 @@ export function founderCampaigns(founderAddress: string): Campaign[] {
  * what is already committed this week, and how every live campaign is actually doing. Returns null
  * when the founder has no mandate row at all — there is nothing to decide.
  */
-export async function mandateStateFor(founderAddress: string, nowSec = Math.floor(Date.now() / 1000)): Promise<(MandateState & { treasuryAddress: string | null; productUrl: string | null; goal: string | null }) | null> {
+export async function mandateStateFor(founderAddress: string, nowSec = Math.floor(Date.now() / 1000)): Promise<(MandateState & { treasuryAddress: string | null; productUrl: string | null; goal: string | null; instruction: string | null }) | null> {
   const mandate = getMandate(founderAddress);
   if (!mandate) return null;
   const treasury = getWebTreasury(founderAddress);
@@ -93,5 +93,6 @@ export async function mandateStateFor(founderAddress: string, nowSec = Math.floo
     treasuryAddress: treasury?.privyWalletAddress ?? null,
     productUrl: mandate.productUrl,
     goal: mandate.goal,
+    instruction: mandate.instruction,
   };
 }

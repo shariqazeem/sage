@@ -29,7 +29,7 @@ interface Proposal {
 interface Data {
   armed: boolean;
   now: number;
-  mandate: { productUrl: string | null } | null;
+  mandate: { productUrl: string | null; instruction: string | null } | null;
   treasury: { balanceBase: number } | null;
   committedThisWeekBase: number;
   exposureBase: number;
@@ -96,6 +96,10 @@ export function NextMove() {
           <span><b>{data.liveCount}</b> running</span>
         </span>
       </div>
+
+      {data.mandate?.instruction ? (
+        <p className="nm-instruction"><b>Your instruction:</b> {data.mandate.instruction}</p>
+      ) : null}
 
       {open ? (
         <div className="nm-move">
