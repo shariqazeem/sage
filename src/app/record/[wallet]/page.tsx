@@ -6,6 +6,7 @@ import "../record.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BookOpen, Braces, Eye, FileCheck2, Link2 } from "lucide-react";
 
 import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
@@ -352,16 +353,49 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           </ul>
         )}
 
+        {/*
+          WHERE EACH ROW CAME FROM, AND WHERE IT GOES NEXT.
+          This was two paragraphs at the bottom of a credit file — the place a lender skims hardest.
+          The first said what "verified" means here, which is three concrete things and reads better
+          as three; the second offered the machine-readable door, which is an action and reads better
+          as one. Nothing is dropped, and the JSON link stops hiding inside a sentence.
+        */}
         <footer className="rec-trust spp-reveal">
-          Every entry above was <b>verified before it was paid</b> — checked against Sage&apos;s own
-          observations, an on-chain fact, or the created artifact itself — and links to its public,
-          on-chain settlement receipt. Sage refuses work it cannot verify, so a record here is
-          earned, not granted.
-          <br />
-          <b>For lenders &amp; programs:</b> this page and its signals are consumable as JSON —{" "}
-          <a href={`/api/record/${record.wallet}`}>api/record/{short(record.wallet)}</a> — the
-          cash-flow history collateral-based underwriting is missing, verified at the source. How it
-          works: <Link href="/docs">sagepays.xyz/docs</Link>
+          <p className="rec-trust-h">Every entry was verified before it was paid — against one of:</p>
+          <ul className="rec-basis">
+            <li>
+              <Eye size={14} strokeWidth={1.7} />
+              Sage&apos;s own observations of the product
+            </li>
+            <li>
+              <Link2 size={14} strokeWidth={1.7} />
+              An on-chain fact
+            </li>
+            <li>
+              <FileCheck2 size={14} strokeWidth={1.7} />
+              The created artifact itself
+            </li>
+          </ul>
+          <p className="rec-trust-n">
+            Work Sage cannot verify is refused, so this record is earned, not granted. Every row
+            links to its on-chain settlement receipt.
+          </p>
+          <div className="rec-consume">
+            <a href={`/api/record/${record.wallet}`} className="rec-json">
+              <Braces size={14} strokeWidth={1.7} />
+              <span>
+                <b>Underwrite from the source</b>
+                <em>api/record/{short(record.wallet)} — the same signals as JSON</em>
+              </span>
+            </a>
+            <Link href="/docs" className="rec-json">
+              <BookOpen size={14} strokeWidth={1.7} />
+              <span>
+                <b>How the verification works</b>
+                <em>sagepays.xyz/docs</em>
+              </span>
+            </Link>
+          </div>
         </footer>
       </div>
     </div>
