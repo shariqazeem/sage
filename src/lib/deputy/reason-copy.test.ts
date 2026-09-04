@@ -5,6 +5,7 @@ import {
   decisionLabel,
   observationCoaching,
   observationRetryLine,
+  reasonSentencePublic,
 } from "./reason-copy";
 
 /**
@@ -127,5 +128,15 @@ describe("a covenant fault never reads as a verdict on the tester", () => {
   it("does not disturb the existing brain codes", () => {
     expect(reasonSentence("no_evidence")).toMatch(/no usable evidence/);
     expect(reasonSentence("observation_review")).toMatch(/needs your judgment/);
+  });
+});
+
+describe("the public sentence carries no raw code", () => {
+  it("drops the parenthetical a stranger would read as a bug, and keeps the meaning", () => {
+    expect(reasonSentencePublic(null)).toBe("Sage couldn't reach a confident decision");
+    expect(reasonSentencePublic("something_new")).toBe("Sage couldn't reach a confident decision");
+    // a real class keeps its meaning and loses only the token — the operator sentence still has it
+    expect(reasonSentencePublic("no_evidence")).toBe("the submitted link had no usable evidence");
+    expect(reasonSentence("no_evidence")).toContain("(no_evidence)");
   });
 });

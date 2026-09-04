@@ -111,6 +111,17 @@ export function reasonSentence(code: string | null | undefined): string {
   return SENTENCE[key] ?? `Sage couldn't reach a confident decision (${code})`;
 }
 
+/**
+ * The same sentence for a PUBLIC surface, without the raw code.
+ *
+ * The parenthetical exists so an operator reading a log knows exactly which branch fired, and it
+ * stays. On the tester board it renders as "Sage couldn't reach a confident decision (unknown)",
+ * which a stranger reads as a bug rather than as a decision — measured on the live board 2026-09-04.
+ */
+export function reasonSentencePublic(code: string | null | undefined): string {
+  return reasonSentence(code).replace(/\s*\([a-z0-9_]+\)\s*$/i, "");
+}
+
 /** A held headline line for the feed / chat / DM: "Held: <sentence>". */
 export function heldLine(code: string | null | undefined): string {
   return `Held: ${reasonSentence(code)}`;

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";
 import { getAddress } from "viem";
 import { Check, ShieldCheck } from "lucide-react";
-import { usd, reward as fmtReward, networkLabel } from "@/lib/format";
+import { usd, reward as fmtReward, networkLabel, rewardAligned as fmtRewardAligned } from "@/lib/format";
 import {
   ensureFlagshipCampaign,
   getCampaign,
@@ -151,9 +151,9 @@ export default async function CampaignPublicPage({
 
           <div className="v2-econ">
             <div className="v2-econ-row">
-              <div className="v2-econ-fig"><span className="k">Funded</span><span className="v mono">{fmtReward(e.totalFundedBase, e.chainId)}</span></div>
-              <div className="v2-econ-fig"><span className="k">Paid</span><span className="v mono">{fmtReward(e.paidBase, e.chainId)}</span></div>
-              <div className="v2-econ-fig"><span className="k">Remaining</span><span className="v mono">{fmtReward(e.remainingBase, e.chainId)}</span></div>
+              <div className="v2-econ-fig"><span className="k">Funded</span><span className="v mono">{fmtRewardAligned(e.totalFundedBase, e.chainId)}</span></div>
+              <div className="v2-econ-fig"><span className="k">Paid</span><span className="v mono">{fmtRewardAligned(e.paidBase, e.chainId)}</span></div>
+              <div className="v2-econ-fig"><span className="k">Remaining</span><span className="v mono">{fmtRewardAligned(e.remainingBase, e.chainId)}</span></div>
             </div>
             <div className="v2-econ-bar"><span style={{ width: `${pct}%` }} /></div>
             <div className="v2-econ-meta">

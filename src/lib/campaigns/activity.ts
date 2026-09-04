@@ -1,6 +1,6 @@
 import type { CampaignEvent } from "@/lib/db/schema";
 import { CHECK_NAMES } from "@/lib/deputy/reasons";
-import { reasonSentence } from "@/lib/deputy/reason-copy";
+import { reasonSentencePublic } from "@/lib/deputy/reason-copy";
 
 /**
  * The public "Sage activity" feed — a projection of REAL campaign rows into safe,
@@ -121,7 +121,7 @@ export function projectActivity(src: ActivitySource, limit = 12): ActivityEvent[
           txHash: null,
           confidencePct: null,
           // fixed reason CLASS sentence (never the model's free-text reason).
-          reasonClass: (sid != null && heldReasons[sid]) || reasonSentence(null),
+          reasonClass: (sid != null && heldReasons[sid]) || reasonSentencePublic(null),
         });
         break;
       }
