@@ -34,7 +34,7 @@ interface Data {
   committedThisWeekBase: number;
   exposureBase: number;
   liveCount: number;
-  stance: { moving: boolean; reason: string } | null;
+  stance: { moving: boolean; reason: string; fix: { label: string; href: string } | null } | null;
   proposals: Proposal[];
 }
 
@@ -131,7 +131,12 @@ export function NextMove() {
           Designing the missions for a {usd(working.budgetBase)} {KIND[working.kind]} on <span className="mono">{working.surface}</span>. It funds and goes live on its own when the plan passes the gate.
         </p>
       ) : (
-        <p className="nm-state">{data.stance?.reason ? capital(data.stance.reason) : "Reading the board."}</p>
+        <div className="nm-blocked">
+          <p className="nm-state">{data.stance?.reason ? capital(data.stance.reason) : "Reading the board."}</p>
+          {data.stance?.fix && (
+            <Link href={data.stance.fix.href} className="nm-btn nm-fix">{data.stance.fix.label}</Link>
+          )}
+        </div>
       )}
 
       {recent.length > 0 && (

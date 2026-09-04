@@ -28,9 +28,29 @@ export async function GET() {
     liveCount: state ? state.observations.filter((o) => o.status === "live").length : 0,
     surfaces,
     /** what the mandate would say right now — the honest reason the agent is or is not moving. */
-    stance: verdict ? (verdict.action === "hold" ? { moving: false, reason: verdict.reason } : { moving: true, reason: `ready to commit ${usd(verdict.budgetBase)}` }) : null,
+    stance: verdict
+      ? verdict.action === "hold"
+        ? { moving: false, reason: verdict.reason, fix: fixFor(verdict.reason) }
+        : { moving: true, reason: `ready to commit ${usd(verdict.budgetBase)}`, fix: null }
+      : null,
     proposals: launches,
   });
+}
+
+/**
+ * A BLOCKED AGENT SHOULD HAND BACK THE NEXT ACTION, not just the diagnosis.
+ *
+ * "The treasury is at its reserve floor" is true and useless on its own: the founder has to work out
+ * what to do about it. Every constraint the mandate can hit has exactly one thing that clears it, and
+ * some have none — a board still being worked just needs time, and saying so is better than inventing
+ * a button.
+ */
+function fixFor(reason: string): { label: string; href: string } | null {
+  if (/reserve floor|treasury/i.test(reason)) return { label: "Fund the treasury", href: "/workspace/autopilot" };
+  if (/mandate is off/i.test(reason)) return { label: "Let Sage run it", href: "/workspace/autopilot" };
+  if (/week's ceiling/i.test(reason)) return { label: "Raise the weekly ceiling", href: "/workspace/autopilot" };
+  if (/already running|unclaimed on the board/i.test(reason)) return { label: "See what is running", href: "/dashboard" };
+  return null;
 }
 
 const int = (v: unknown, fallback: number): number => {

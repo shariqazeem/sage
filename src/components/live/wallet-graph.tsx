@@ -54,6 +54,23 @@ export function WalletGraph({ campaignId, title = "Wallet graph" }: { campaignId
   }, [campaignId]);
   const pos = useMemo(() => (g ? layout(g, W, H) : null), [g]);
   if (!g || !pos) return null;
+  // ONE WALLET IS NOT A GRAPH. Reserving a 16:9 canvas to draw two dots reads as a broken chart;
+  // the honest render of "nothing to relate yet" is a sentence.
+  if (g.nodes.length < 3) {
+    return (
+      <section className="lv-card">
+        <div className="lv-h">
+          <h2><Share2 size={15} /> {title}</h2>
+          <span className="lv-tele"><span><b>{g.nodes.length - 1}</b> {g.nodes.length === 2 ? "wallet" : "wallets"}</span></span>
+        </div>
+        <p className="lv-empty">
+          Nothing to relate yet. Once a second person submits, this draws who the vault paid, who funded
+          whose gas, and whose payouts met — the picture that exposed a twelve-wallet operator on the
+          first open gig.
+        </p>
+      </section>
+    );
+  }
   const clustered = g.nodes.filter((n) => n.clustered).length;
   const paid = g.nodes.filter((n) => n.status === "paid").length;
   return (

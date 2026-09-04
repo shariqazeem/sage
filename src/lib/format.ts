@@ -46,6 +46,19 @@ export const reward = (base: number, chainId: number): string => {
 };
 
 /**
+ * The same amount, but with the decimals always shown.
+ *
+ * `reward` drops them on a whole number, which reads better in a sentence ("$50 funded") and worse
+ * in a COLUMN, where "$0" sitting beside "$0.50" in tabular figures looks like a rendering fault
+ * rather than a round number. Use this wherever amounts are stacked or aligned.
+ */
+export const rewardAligned = (base: number, chainId: number): string => {
+  const v = Math.round((base / 1e6) * 100) / 100;
+  const n = v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return isTestnetChain(chainId) ? `${n} test mUSDC` : `$${n}`;
+};
+
+/**
  * Network-truthful money from a display-scale number (token base ÷ 1e6). Mainnet USDC
  * renders as dollars ("$3.75"); a testnet payout renders as the valueless test token
  * ("3.75 test mUSDC") — never as dollars. The already-scaled sibling of {@link reward},

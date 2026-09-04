@@ -17,7 +17,7 @@ import { Sparkles,
   Zap,
   Hand,
 } from "lucide-react";
-import { reward, networkLabel, short, since } from "@/lib/format";
+import { reward, networkLabel, short, since, rewardAligned } from "@/lib/format";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import {
   SageActivity,
@@ -358,17 +358,17 @@ function Console({ data }: { data: WorkspaceData }) {
 
         <dl className="cw-hero-stats">
           <div>
-            <dd className="mono">{reward(data.fundedBase, data.chainId)}</dd>
+            <dd className="mono">{rewardAligned(data.fundedBase, data.chainId)}</dd>
             <dt>Funded</dt>
           </div>
           <div>
             <dd className="mono cw-hstat-paid">
-              {reward(data.paidBase, data.chainId)}
+              {rewardAligned(data.paidBase, data.chainId)}
             </dd>
             <dt>Released</dt>
           </div>
           <div>
-            <dd className="mono">{reward(data.remainingBase, data.chainId)}</dd>
+            <dd className="mono">{rewardAligned(data.remainingBase, data.chainId)}</dd>
             <dt>Remaining</dt>
           </div>
         </dl>
