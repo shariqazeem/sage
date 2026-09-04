@@ -26,6 +26,38 @@ describe("rehearse — the move Sage would make", () => {
     expect(listLaunches(founder)).toEqual([]);
   });
 
+  it("a full board says WHEN and still shows the move that follows — the founder's own case", async () => {
+    // Three live campaigns against the default ceiling of three; small missions so exposure does not bind.
+    // The fixture files a campaign under `founder` (the poster), not `wallet` (the tester).
+    const owner = `0x${"5".repeat(40)}`;
+    const small = [{ missionKey: "load", rewardBase: BigInt(500_000), maxCompletions: BigInt(1) }];
+    let founder = owner;
+    for (let i = 0; i < 3; i++) {
+      const f = seedV2Campaign({ founder: owner, missions: small, vaultAddress: `0x${String(6 + i).repeat(40)}` });
+      founder = f.campaign.posterWallet;
+    }
+    upsertMandate(founder, { productUrl: "https://example-shop.dev", goal: "find where checkout breaks" });
+    const r = await rehearse(founder, { choose: async (i) => chooseWithoutModel(i), nowSec: 1_800_000_000 });
+    expect(r?.because).toBeNull();
+    expect(r?.timing).toMatch(/3 campaigns are already running — the mandate allows 3 at once/);
+    expect(r?.budgetBase).toBeGreaterThan(0);
+    expect(r?.line).toMatch(/\$\d/);
+    expect(listLaunches(founder)).toEqual([]);
+  });
+
+  it("a hold that is not about concurrency stays the answer — no move is invented", async () => {
+    // One campaign with $15 unclaimed against an imagined $15 treasury: the exposure rule binds, and
+    // lifting concurrency cannot help. Buying the same silence twice is what the mandate refuses.
+    const big = [{ missionKey: "load", rewardBase: BigInt(5_000_000), maxCompletions: BigInt(3) }];
+    const f = seedV2Campaign({ founder: `0x${"7".repeat(40)}`, missions: big, vaultAddress: `0x${"9".repeat(40)}` });
+    const founder = f.campaign.posterWallet;
+    upsertMandate(founder, { productUrl: "https://example-shop.dev", goal: "find where checkout breaks" });
+    const r = await rehearse(founder, { choose: async (i) => chooseWithoutModel(i), nowSec: 1_800_000_000 });
+    expect(r?.timing ?? null).toBeNull();
+    expect(r?.because).toMatch(/already on the board unclaimed/);
+    expect(r?.line).toBe("");
+  });
+
   it("with nothing to decide against it says what is missing instead of inventing a surface", async () => {
     const founder = `0x${"4".repeat(40)}`;
     const r = await rehearse(founder, { choose: async (i) => chooseWithoutModel(i), nowSec: 1_800_000_000 });

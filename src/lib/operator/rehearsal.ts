@@ -32,6 +32,14 @@ export interface Rehearsal {
   assumesFundingBase: number;
   /** why there is no move even in rehearsal, when there is none. */
   because: string | null;
+  /**
+   * The rule that decides WHEN, when there is still a move to show — "3 campaigns are already
+   * running — the mandate allows 3 at once". Measured 2026-09-05 on the founder's own account: three
+   * live campaigns against the default ceiling of three, so the flagship page answered "no move".
+   * Concurrency is the ONLY rule the rehearsal lifts; a money or exposure hold is the answer itself,
+   * because buying the same silence twice is the thing the mandate exists to refuse.
+   */
+  timing: string | null;
 }
 
 export interface RehearsalDeps {
@@ -56,7 +64,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
   const surfaces = allowedSurfaces(productUrl, observations);
   const none = (because: string): Rehearsal => ({
     recorded: false, surface: "", kind: "testing", goal: "", reason: "", budgetBase: 0, decidedBy: "rules", line: "",
-    assumesFundingBase: policy.reserveFloorBase + policy.perCampaignCapBase, because,
+    assumesFundingBase: policy.reserveFloorBase + policy.perCampaignCapBase, because, timing: null,
   });
   if (surfaces.length === 0) {
     const r = none("name your product and Sage will show its first move");
@@ -74,11 +82,22 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
     minutesSinceLastLaunch: null,
     observations,
   };
-  const first = allocate(imagined, surfaces[0] ?? null);
+  let sizing = imagined;
+  let timing: string | null = null;
+  let first = allocate(sizing, surfaces[0] ?? null);
   if (first.action === "hold") {
-    const r = none(first.reason);
-    cache.set(key, { at: nowSec, value: r });
-    return r;
+    // A full board is a WHEN, not a no. Lift concurrency alone and ask again: if the move still holds,
+    // the binding rule was money or exposure, and that reason is the answer.
+    const lifted: MandateState = { ...imagined, policy: { ...policy, maxConcurrent: Number.MAX_SAFE_INTEGER } };
+    const again = allocate(lifted, surfaces[0] ?? null);
+    if (again.action === "hold") {
+      const r = none(again.reason);
+      cache.set(key, { at: nowSec, value: r });
+      return r;
+    }
+    timing = first.reason;
+    sizing = lifted;
+    first = again;
   }
   const choose = deps.choose ?? choosePosition;
   const position = await choose({
@@ -95,7 +114,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
     cache.set(key, { at: nowSec, value: r });
     return r;
   }
-  const priced = allocate(imagined, position.surface);
+  const priced = allocate(sizing, position.surface);
   if (priced.action === "hold") {
     const r = none(priced.reason);
     cache.set(key, { at: nowSec, value: r });
@@ -112,6 +131,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
     line: proposalLine(position, priced.budgetBase),
     assumesFundingBase: imagined.balanceBase,
     because: null,
+    timing,
   };
   cache.set(key, { at: nowSec, value: r });
   return r;

@@ -46,6 +46,8 @@ interface Data {
     line: string;
     assumesFundingBase: number;
     because: string | null;
+    /** the rule that decides WHEN (a full board), when the move is still shown */
+    timing: string | null;
   } | null;
 }
 
@@ -101,6 +103,7 @@ export function NextMove() {
               <div className="mid">—</div>
             </div>
             <div className="nm-body">
+              {r.timing && <p className="nm-assume">{capital(r.timing)}. The move that follows:</p>}
               <p className="nm-head">
                 <b>{usd(r.budgetBase)} {KIND[r.kind]}</b> on <span className="mono">{r.surface}</span>
               </p>
@@ -109,7 +112,11 @@ export function NextMove() {
               <p className="nm-assume">Sized as if the treasury held {usd(r.assumesFundingBase)}. Nothing is recorded until it does.</p>
             </div>
             <div className="nm-act">
-              <Link href="/workspace/autopilot#treasury" className="nm-btn">Fund it and Sage moves</Link>
+              {data.armed && r.timing ? (
+                <span className="nm-assume">Sage moves when a slot frees.</span>
+              ) : (
+                <Link href="/workspace/autopilot#treasury" className="nm-btn">Fund it and Sage moves</Link>
+              )}
             </div>
           </div>
         ) : (
