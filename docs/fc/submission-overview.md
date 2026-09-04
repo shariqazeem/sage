@@ -7,20 +7,26 @@
 
 ## What it is, in one paragraph
 
-Sage is an autonomous paymaster. An organization — a programme, a cooperative, an incubator, a
-company — states the work once and funds it once, and an AI agent does the rest:
-it verifies every deliverable itself, pays it from an on-chain vault it cannot exceed, refuses what
-does not hold up with the reason written out, and publishes a receipt for every payout. The people
-being paid need no application, no bank account and no wallet app: a Telegram link gives them one.
-Every verified payout builds their portable work record, and that record unlocks working capital.
+**Sage is an AI agent with its own budget.** A business funds it once and names its product. From
+then on the agent decides what work to buy, designs it, publishes it, checks every deliverable
+itself, and pays real people in USDC — refusing what does not hold up, with the reason written out.
+It proposes each move with its reasoning before any money leaves, and the founder can veto it or tell
+it what to do in plain words. What the founder cannot do is stop mattering: the ceilings are theirs,
+and the vault — not the prompt — enforces them. **The agent picks where to spend. It can never pick
+how much.**
 
-One loop — invite → define → verify → pay-or-refuse → receipt → record → **capital back in** —
+The people being paid need no application, no bank account and no wallet app: a Telegram link gives
+them one. Every verified payout builds a portable work record, and that record unlocks working
+capital. Proving you are one person takes a minute and asks for no name, document or country — which
+is what stops one operator becoming twelve workers.
+
+One loop — decide → define → verify → pay-or-refuse → receipt → record → **capital back in** —
 running live on TWO mainnet rails with real USDC: GOAT (the public tape) and Starknet (the private
 claim — a worker collects by one-time link, including into a shielded note). The founder never picks
 a chain; they pick an outcome — _public receipts_ or _private-capable_ — and the router picks the rail.
 
 ```
-workspace (org + members) → witness (agent) → obligation (signed, capped) → vault (cannot exceed)
+mandate (ceilings) → agent decides WHERE → policy sizes HOW MUCH → vault (cannot exceed)
    → router (GOAT public · Starknet private · licensed-fiat door, interface-ready)
       → record (public tape or selective proof) → capital in (the advance facility)
 ```
