@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkStatedTerms, readStatedTerms, statedAmounts } from "./stated-terms";
+import { checkStatedTerms, readStatedTerms, statedAmounts, statedTermsCorrection } from "./stated-terms";
 
 const m = (rewardUsd: number, slots = 1, rewardLocal?: number) => ({ rewardUsd, slots, rewardLocal });
 
@@ -149,5 +149,61 @@ describe("checkStatedTerms — contradictions between the words and the plan", (
 
   it("never fires on an empty plan (the schema rejects that first)", () => {
     expect(checkStatedTerms(utterance, [])).toEqual([]);
+  });
+});
+
+/**
+ * THE PRICE NOBODY NAMED.
+ *
+ * "I want to pay someone to design a logo for me" compiled into a campaign at a number the model
+ * chose (P-DIRECT, pd-vague-no-amount). Every gate downstream passed it, because an invented $25 is
+ * exactly as internally consistent as a stated one — the only thing that contradicts it is that the
+ * founder never said it. This is the money invariant at its earliest point: transcribe, never author.
+ */
+describe("checkStatedTerms — an amount the founder never named", () => {
+  const plan = [{ rewardUsd: 25, slots: 1 }];
+
+  it("fires when the founder's words carry no price at all", () => {
+    const m = checkStatedTerms("I want to pay someone to design a logo for me", plan);
+    expect(m).toEqual([{ field: "invented", stated: 0, planned: 25 }]);
+  });
+
+  it("is silent the moment they name one, however casually", () => {
+    expect(checkStatedTerms("pay someone $25 to design a logo", plan)).toEqual([]);
+    expect(checkStatedTerms("25 usd for a logo please", plan)).toEqual([]);
+  });
+
+  it("reads the WHOLE conversation, so a price stated two turns ago still counts", () => {
+    const m = checkStatedTerms("yes, go ahead", plan, {
+      allFounderText: "pay my designer $25 when the logo page is live\nyes, go ahead",
+    });
+    expect(m).toEqual([]);
+  });
+
+  it("still fires when nothing anywhere in the conversation named a price", () => {
+    const m = checkStatedTerms("yes, go ahead", plan, {
+      allFounderText: "I want to pay someone to design a logo\nyes, go ahead",
+    });
+    expect(m.map((x) => x.field)).toEqual(["invented"]);
+  });
+
+  it("counts a local-currency plan by what the founder would have said", () => {
+    const m = checkStatedTerms("I need a catalogue built", [{ rewardUsd: 30, rewardLocal: 5000, slots: 2 }]);
+    expect(m).toEqual([{ field: "invented", stated: 0, planned: 10_000 }]);
+  });
+
+  it("says nothing about an empty plan", () => {
+    expect(checkStatedTerms("design me a logo", [])).toEqual([]);
+  });
+});
+
+describe("statedTermsCorrection — an invented price asks, it does not rebuild", () => {
+  it("tells the model to ask rather than to try again", () => {
+    const s = statedTermsCorrection([{ field: "invented", stated: 0, planned: 25 }]);
+    expect(s).toMatch(/not said what this pays/i);
+    expect(s).toMatch(/Do not create the campaign/i);
+    expect(s).toMatch(/Ask them/i);
+    // Rebuilding is the WRONG instruction here — there is nothing to rebuild from.
+    expect(s).not.toMatch(/Rebuild it/i);
   });
 });

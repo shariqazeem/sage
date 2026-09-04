@@ -298,6 +298,31 @@ const HIRE_CUE =
   /\b(?:need|want|looking\s+for|hire|hiring|get)\s+(?:someone|somebody|anyone)\b|\b(?:someone|somebody|anyone)\s+to\s+\w+|\banyone\s+who\b|\bwhoever\b/i;
 /** A currency amount in the shapes people actually type. */
 const AMOUNT = /(?:[$€£₹]\s?\d|(?:\b\d[\d,.]*\s?(?:usd|usdc|dollars?|dólares|dolares|euros?|rupees?|rs)\b))/i;
+/**
+ * A PRICE ATTACHED TO A DELIVERABLE, with no verb at all.
+ *
+ * "$30 for a public write-up of our API, and I need it by Friday" is a job and a price, and it says
+ * neither "pay" nor "someone" — MEASURED on P-DIRECT (pd-gig-deadline-not-a-milestone), where the
+ * model reasoned to the right lane, wrote prose, and no corrective round fired because both cues
+ * were looking for words this founder had no reason to use. "$X for <thing>" and "$X to <verb>" are
+ * how a price is quoted for work in every one of these fixtures.
+ *
+ * The pronouns are excluded because they are the shapes that are NOT an offer of work: "$50 for me"
+ * is a request, "$50 for it" and "$50 for that" price something already under discussion, and
+ * "thanks for the $30" is not a job at all. A false positive costs one extra round in which the
+ * model may still decline — it can never move money — so the cue is allowed to be generous here
+ * and is kept honest by the pronoun exclusions rather than by a list of deliverable nouns.
+ */
+const PRICE_FOR_WORK =
+  /(?:[$€£₹]\s?\d[\d,.]*|\b\d[\d,.]*\s?(?:usd|usdc|dollars?))\s+(?:for|to)\s+(?!me\b|us\b|you\b|it\b|that\b|this\b|them\b|him\b|her\b)\w/i;
+/**
+ * MONEY BEING REPORTED, not offered. "someone charged me $50 for hosting last month" has the exact
+ * shape of a quoted price and is a complaint about a bill — the only reliable difference is the
+ * framing verb, so a turn carrying one cannot be read as an offer of work on the price cue alone.
+ * The other two cues are unaffected: "pay someone $50" says outright what it is.
+ */
+const PAST_MONEY =
+  /\b(charged?|charges|charging|billed|bills|cost|costs|costing|spent|spend|refunds?|refunded|invoiced?|invoices|subscription)\b/i;
 
 export function missedMoneyAction(input: {
   /** what the FOUNDER wrote this turn. */
@@ -310,7 +335,8 @@ export function missedMoneyAction(input: {
   // Anything ran? Then this is not the shape of failure being caught.
   if (input.succeededTools.size > 0) return false;
   const asked = input.userText ?? "";
-  if (!(PAY_INTENT.test(asked) || HIRE_CUE.test(asked)) || !AMOUNT.test(asked)) return false;
+  const quotedPrice = PRICE_FOR_WORK.test(asked) && !PAST_MONEY.test(asked);
+  if (!(PAY_INTENT.test(asked) || HIRE_CUE.test(asked) || quotedPrice) || !AMOUNT.test(asked)) return false;
   /**
    * A reply that ASKS is doing the right thing with a genuinely incomplete request — but only a
    * reply that ENDS by asking is actually asking. Testing for a question mark anywhere let a

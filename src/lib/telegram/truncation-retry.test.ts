@@ -16,25 +16,54 @@ import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
  * product at …") got the honest fallback instead of the work. The principle is unchanged: the
  * provider's own finish_reason is a MEASURED cut, and it means the same thing with or without a
  * call attached. Still one rung, still once, still before any tool has run.
+ *
+ * EXTENDED AGAIN 2026-09-04: the provider does not always admit it. pd-gig-translator returned a
+ * tool call whose arguments end mid-object under a CLEAN finish_reason, so nothing triggered and
+ * the tool was handed `{}` — which answers "kind, title and milestones are required" to a model
+ * whose arguments contained all three. Arguments that do not parse are therefore a cut in their
+ * own right, and the reading lives in one shared module (`llm/truncation.ts`) so P-DIRECT cannot
+ * drift from the product on what "truncated" means. The keep-the-better-answer rule is stated over
+ * USABLE calls for the same reason: a call cut mid-JSON is present and unactionable, and preferring
+ * it over a roomier answer is exactly how that row kept failing.
  */
 describe("concierge — a turn cut short by the budget is re-asked once with more room", () => {
   const src = readFileSync(resolve(process.cwd(), "src/lib/telegram/concierge.ts"), "utf8");
-  it("the response type carries finish_reason and the retry keys on it, call or no call", () => {
+  it("the response type carries finish_reason and the retry keys on the shared reading", () => {
     expect(src).toMatch(/finish_reason\?: string \| null/);
     // keyed on the MEASURED cut alone — a turn that ran out of room while thinking is the same failure
-    expect(src).toMatch(/data\.choices\?\.\[0\]\?\.finish_reason === "length"\) \{/);
+    expect(src).toMatch(/const cut = truncationSignal\(data\.choices\?\.\[0\]\);/);
+    expect(src).toMatch(/if \(cut\) \{/);
     expect(src).not.toMatch(/finish_reason === "length" && data\.choices\[0\]\?\.message\?\.tool_calls\?\.length/);
-    expect(src).toMatch(/chatCompletion\(messages, roundTools, turnDeadline - Date\.now\(\), selfCorrected, 1\)/);
+    // one rung above wherever the round started, so a corrective round is not re-asked at the
+    // budget it has already exhausted
+    expect(src).toMatch(/turnDeadline - Date\.now\(\), selfCorrected, selfCorrected \? 2 : 1\)/);
     expect(src).toMatch(/max_tokens: outputBudget\(5_000, profileFor\(model\(\), base\(\)\), escalation\)/);
+  });
+
+  it("P-DIRECT reads truncation with production's own function, never a copy", () => {
+    const battery = readFileSync(resolve(process.cwd(), "src/lib/launch/direct-eval.ts"), "utf8");
+    for (const f of [src, battery]) {
+      expect(f).toMatch(/from "@\/lib\/llm\/truncation"/);
+    }
+    expect(battery).toMatch(/cut: truncationSignal\(ch\)/);
   });
   it("the next rung is genuinely more room on a reasoning provider", () => {
     const p = profileFor("MiniMax-M3", "https://api.minimax.io/v1/chat/completions");
     expect(outputBudget(5_000, p, 1)).toBeGreaterThan(outputBudget(5_000, p, 0));
   });
-  it("never trades a tool call for a roomier reply that only talks", () => {
-    // measured: replacing unconditionally took P-DIRECT's routing misses from 2 to 4
-    expect(src).toMatch(/const hadCall = Boolean\(data\.choices\?\.\[0\]\?\.message\?\.tool_calls\?\.length\)/);
+  it("never trades a USABLE tool call for a roomier reply that only talks", () => {
+    // measured: replacing unconditionally took P-DIRECT's routing misses from 2 to 4 — but the
+    // call being kept has to be one the caller can act on, or a half-written JSON object outranks
+    // a good answer, which is how pd-gig-translator kept dying.
+    expect(src).toMatch(/const hadCall = hasUsableCall\(data\.choices\?\.\[0\]\)/);
+    expect(src).toMatch(/const gotCall = hasUsableCall\(roomier\.choices\?\.\[0\]\)/);
     expect(src).toMatch(/if \(gotCall \|\| !hadCall\) data = roomier;/);
+  });
+
+  it("a still-unparseable call is answered with the real reason, not an empty object", () => {
+    expect(src).toMatch(/cut off mid-JSON/);
+    // handing the tool `{}` makes every required field "missing" — a correction about nothing
+    expect(src).not.toMatch(/malformed args → let the tool report the miss/);
   });
 });
 

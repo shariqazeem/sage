@@ -66,6 +66,8 @@ export interface TxView {
 export interface ReceiptView {
   status: "success" | "reverted";
   logs: { address: string; topics: string[] }[];
+  /** present exactly when the transaction created a contract — the deployment proof. */
+  contractAddress?: string | null;
 }
 
 /** PURE: does this tx+receipt satisfy the contract for this tester? Every present field must hold. */
@@ -88,6 +90,16 @@ export function matchTxShape(
     return fail("tx reverted", "That transaction failed on-chain (it reverted).");
   if (c.to && !hexEq(tx.to, c.to))
     return fail(`to ${tx.to} ≠ ${c.to}`, "That transaction didn't interact with the expected contract.");
+  if (c.deploysContract) {
+    // A deployment is the one transaction shape defined by an ABSENCE — no `to` — so both halves
+    // are checked: a call to an existing contract has a `to`, and a plain value transfer has a
+    // `to` and creates nothing. Requiring the receipt's contractAddress as well means a chain
+    // whose RPC omits `to` cannot be mistaken for a deployment.
+    if (tx.to !== null && tx.to !== undefined)
+      return fail(`to ${tx.to} present — not a deployment`, "That transaction called an existing contract; it didn't deploy one.");
+    if (!receipt.contractAddress)
+      return fail("receipt names no created contract", "That transaction didn't create a contract on-chain.");
+  }
   if (c.methodSelector) {
     const sel = (tx.input || "0x").slice(0, 10);
     if (!hexEq(sel, c.methodSelector)) return fail(`selector ${sel} ≠ ${c.methodSelector}`, "That transaction didn't call the required action.");
@@ -132,10 +144,10 @@ export async function verifyOnchainTx(
       client.getTransactionReceipt({ hash: txHash.trim() as Hex }),
     ]);
     const tx = txRaw as { from: string; to: string | null; value: bigint; input: string };
-    const rc = rcRaw as { status: "success" | "reverted"; logs: { address: string; topics: string[] }[] };
+    const rc = rcRaw as { status: "success" | "reverted"; logs: { address: string; topics: string[] }[]; contractAddress?: string | null };
     return matchTxShape(
       { from: tx.from, to: tx.to, value: BigInt(tx.value ?? 0), input: tx.input ?? "0x" },
-      { status: rc.status, logs: (rc.logs ?? []).map((l) => ({ address: l.address, topics: l.topics })) },
+      { status: rc.status, logs: (rc.logs ?? []).map((l) => ({ address: l.address, topics: l.topics })), contractAddress: rc.contractAddress ?? null },
       c,
       testerWallet,
     );

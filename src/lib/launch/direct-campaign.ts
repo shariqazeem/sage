@@ -86,10 +86,17 @@ const onchainTxSchema = z
     methodSelector: z.string().regex(selectorRe).optional(),
     logTopic0: z.string().regex(hex32Re).optional(),
     logEmitter: z.string().regex(walletRe).optional(),
+    /**
+     * The one constraint a founder paying for a DEPLOYMENT can actually state: the other four all
+     * name something that already exists, and the contract being paid for does not exist yet. See
+     * the field's note in verify/contract.ts — measured on pd-grant-mixed-evidence-kinds, where a
+     * two-tranche grant failed to compile at all because its on-chain half was inexpressible.
+     */
+    deploysContract: z.boolean().optional(),
   })
   .refine(
-    (c) => !!(c.to || c.methodSelector || c.logTopic0 || c.minValueWei),
-    "an on-chain tx contract needs at least one of: to, methodSelector, logTopic0, minValueWei",
+    (c) => !!(c.to || c.methodSelector || c.logTopic0 || c.minValueWei || c.deploysContract),
+    "an on-chain tx contract needs at least one of: to, methodSelector, logTopic0, minValueWei, deploysContract",
   );
 
 const onchainStateSchema = z

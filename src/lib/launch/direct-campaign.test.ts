@@ -78,6 +78,24 @@ describe("directCampaignSchema — operator input is validated, never trusted", 
     expect(directCampaignSchema.safeParse(input).success).toBe(false);
   });
 
+  /**
+   * The deployment case. "$35 when they deploy the contract on-chain" has no address to name — the
+   * contract does not exist until the work is done — so before this constraint existed the ONLY
+   * expressible form was the unconstrained one above, and the whole grant failed to compile.
+   * Measured by P-DIRECT, pd-grant-mixed-evidence-kinds.
+   */
+  it("deploysContract is a shape constraint in its own right, so a deployment milestone compiles", () => {
+    const input = grantInput();
+    input.milestones[0].evidence = { kind: "onchain_tx", chainId: GOAT, deploysContract: true };
+    expect(directCampaignSchema.safeParse(input).success).toBe(true);
+  });
+
+  it("deploysContract:false is not a constraint — it asserts nothing", () => {
+    const input = grantInput();
+    input.milestones[0].evidence = { kind: "onchain_tx", chainId: GOAT, deploysContract: false };
+    expect(directCampaignSchema.safeParse(input).success).toBe(false);
+  });
+
   it("an onchain_state contract needs minUint or expectTesterAddress", () => {
     const input = grantInput();
     input.milestones[0].evidence = {

@@ -122,7 +122,10 @@ export function readStatedTerms(text: string): StatedTerms {
 }
 
 export type PlannedMilestone = { rewardUsd: number; rewardLocal?: number; slots: number };
-export type TermsMismatch = { field: "total" | "count"; stated: number; planned: number };
+export type TermsMismatch =
+  | { field: "total" | "count"; stated: number; planned: number }
+  /** The founder never named a price anywhere and the plan carries one. `stated` is 0 by definition. */
+  | { field: "invented"; stated: 0; planned: number };
 
 /**
  * Compare the founder's stated terms against the plan the model built. Returns the contradictions,
@@ -132,10 +135,45 @@ export type TermsMismatch = { field: "total" | "count"; stated: number; planned:
  * `rewardLocal` — the amount they actually said. When only some milestones carry a local amount
  * the comparison is ambiguous, so it is skipped rather than guessed.
  */
-export function checkStatedTerms(text: string, milestones: PlannedMilestone[]): TermsMismatch[] {
+export function checkStatedTerms(
+  text: string,
+  milestones: PlannedMilestone[],
+  opts: {
+    /**
+     * EVERY word the founder has said in this conversation, for the invented-amount check only.
+     *
+     * That check asks "did they ever name a price", and the honest scope for it is the whole
+     * conversation: a founder who said "$50" two turns ago and now says "yes, go ahead" has stated
+     * a price, and reading only this turn would accuse the model of inventing their own number.
+     * The total and count checks deliberately keep reading THIS turn — they compare arithmetic
+     * inside one request, and summing amounts across unrelated turns would invent a total nobody
+     * stated. Omitted → the invented check reads `text`, which is the conservative direction only
+     * when this turn is all there is.
+     */
+    allFounderText?: string;
+  } = {},
+): TermsMismatch[] {
   const stated = readStatedTerms(text);
   const out: TermsMismatch[] = [];
   if (milestones.length === 0) return out;
+
+  /*
+    NOBODY NAMED A PRICE, AND THE PLAN HAS ONE.
+
+    Measured by P-DIRECT (pd-vague-no-amount): "I want to pay someone to design a logo for me"
+    compiled into a funded-looking campaign at a number the model chose. Every downstream gate
+    passed it — an invented $25 is as internally consistent as a stated one — and the founder would
+    have discovered the price they never set at the funding screen.
+
+    This is the money invariant at its earliest point: the model may transcribe an amount, never
+    author one. It fires only when the founder's words contain NO currency-marked number at all
+    across the whole conversation, so an ambiguous phrasing is never enough to trip it.
+  */
+  const founderWords = opts.allFounderText ?? text;
+  if (statedAmounts(founderWords).length === 0) {
+    const planned = milestones.reduce((sum, m) => sum + (m.rewardLocal ?? m.rewardUsd) * m.slots, 0);
+    if (planned > 0) out.push({ field: "invented", stated: 0, planned });
+  }
 
   if (stated.milestoneCount !== null && stated.milestoneCount !== milestones.length) {
     out.push({ field: "count", stated: stated.milestoneCount, planned: milestones.length });
@@ -160,6 +198,15 @@ export function checkStatedTerms(text: string, milestones: PlannedMilestone[]): 
 
 /** The correction handed back to the model — states the founder's numbers, never new ones. */
 export function statedTermsCorrection(mismatches: TermsMismatch[]): string {
+  // An invented price is not a mismatch to rebuild from — there is nothing to rebuild from. It is
+  // the one case where the only correct next move is a question, so it answers on its own.
+  if (mismatches.some((m) => m.field === "invented")) {
+    return (
+      `The founder has not said what this pays, and you priced it yourself — no amount in this plan came from them. ` +
+      `Do not create the campaign. Ask them what it should pay (and, if the work has stages, how much each stage pays), ` +
+      `then build it from their answer. Never choose a number on their behalf.`
+    );
+  }
   const parts = mismatches.map((m) =>
     m.field === "count"
       ? `they asked for ${m.stated} milestones and this plan has ${m.planned}`

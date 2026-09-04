@@ -63,6 +63,45 @@ describe("matchTxShape — the tester's own on-chain action", () => {
   });
 });
 
+/**
+ * THE DEPLOYMENT SHAPE — the constraint a founder paying for a contract to be deployed can state.
+ * Every other constraint names something that already exists; the point of this one is that the
+ * thing being paid for does not. So it has to be a real check, not a way past the refine.
+ */
+describe("matchTxShape — deploysContract", () => {
+  const c: OnchainTxContract = { kind: "onchain_tx", chainId: 2345, deploysContract: true };
+  const created = "0x9999999999999999999999999999999999999999";
+  const deployTx: TxView = { from: TESTER, to: null, value: BigInt(0), input: "0x60806040" };
+  const deployReceipt: ReceiptView = { status: "success", logs: [], contractAddress: created };
+
+  it("verifies a real deployment by the tester", () => {
+    const r = matchTxShape(deployTx, deployReceipt, c, TESTER);
+    expect(r.verified).toBe(true);
+    expect(r.strength).toBe("deterministic");
+  });
+
+  it("refuses a call to an existing contract, however successful", () => {
+    const r = matchTxShape({ ...deployTx, to: "0x1111111111111111111111111111111111111111" }, deployReceipt, c, TESTER);
+    expect(r.verified).toBe(false);
+    expect(r.publicDetail).toMatch(/didn't deploy one/i);
+  });
+
+  it("refuses when the receipt names no created contract, even with no `to`", () => {
+    const r = matchTxShape(deployTx, { status: "success", logs: [] }, c, TESTER);
+    expect(r.verified).toBe(false);
+    expect(r.publicDetail).toMatch(/didn't create a contract/i);
+  });
+
+  it("is still bound to the tester's own wallet", () => {
+    expect(matchTxShape({ ...deployTx, from: OTHER }, deployReceipt, c, TESTER).verified).toBe(false);
+  });
+
+  it("does not loosen anything for a contract that did not ask for it", () => {
+    const plain: OnchainTxContract = { kind: "onchain_tx", chainId: 2345, to: "0x1111111111111111111111111111111111111111" };
+    expect(matchTxShape(deployTx, deployReceipt, plain, TESTER).verified).toBe(false);
+  });
+});
+
 describe("matchOnchainState — ownership / balance the action produced", () => {
   it("verifies ownerOf === tester", () => {
     const word = `0x${"0".repeat(24)}${TESTER.slice(2).toLowerCase()}`;

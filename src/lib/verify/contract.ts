@@ -36,6 +36,20 @@ export interface OnchainTxContract {
   logTopic0?: string;
   /** if set, one of the emitted logs must come from this contract address. */
   logEmitter?: string;
+  /**
+   * The transaction must be a CONTRACT DEPLOYMENT by the recipient.
+   *
+   * The other constraints all name something that already exists — an address to call, a selector,
+   * an event signature. A founder paying for a deployment has none of them by definition: the
+   * contract does not exist until the work is done. Without this, "$35 when they deploy the
+   * contract on-chain" could only compile as an on-chain contract with NO shape constraint, which
+   * the schema correctly refuses (it would verify any transaction the recipient ever sent), so the
+   * whole grant failed to compile. Measured by P-DIRECT, pd-grant-mixed-evidence-kinds.
+   *
+   * It is a real constraint, not a loophole: a deployment is a transaction with no `to` whose
+   * receipt carries the created contract's address, and `from` is already bound to the recipient.
+   */
+  deploysContract?: boolean;
 }
 
 /** On-chain state the tester's action produced — ownership / balance / a created object. */

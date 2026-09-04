@@ -340,6 +340,46 @@ export function directCampaignCorrection(issues: string): string {
   );
 }
 
+/**
+ * THE DEPLOYMENT CASE — the one on-chain constraint a founder can state about something that does
+ * not exist yet, recovered from the founder's own words when the model does not set it.
+ *
+ * An `onchain_tx` contract must carry at least one shape constraint or it would verify any
+ * transaction the recipient ever sent. Every constraint but this one names an existing thing — an
+ * address to call, a selector, a minimum value — so "$35 when they deploy the contract on-chain"
+ * had NO expressible form, and the milestone's failure took the entire two-tranche grant with it
+ * (P-DIRECT, pd-grant-mixed-evidence-kinds, failed all three runs).
+ *
+ * The model is now told about `deploysContract`, and it is honoured here — as a boolean, or as the
+ * string a model reaches for when a schema says boolean. When the model sets NOTHING at all, the
+ * milestone's own compiled words are read for a deployment verb, which is the founder's stated
+ * condition rather than an invented one: a milestone that says "deploy the contract" is asking for
+ * exactly the check this constraint performs. Words that say nothing about deploying add nothing,
+ * and the schema then refuses the milestone as it did before — a defaulted constraint would be
+ * Sage deciding what the founder meant.
+ */
+const DEPLOY_VERB =
+  /\b(deploy(s|ed|ing|ment)?|publish(es|ed|ing)? the contract|put .{0,20}on[- ]chain|contract creation|create[sd]? the contract)\b/i;
+
+export function deploymentIntent(
+  milestone: Record<string, unknown>,
+  ev: Record<string, unknown>,
+): { deploysContract: true } | Record<string, never> {
+  if (ev.deploysContract === true || ev.deploysContract === "true") return { deploysContract: true };
+  const stated =
+    typeof ev.to === "string" && ev.to
+      ? true
+      : typeof ev.methodSelector === "string" && ev.methodSelector
+        ? true
+        : typeof ev.minValueWei === "string" && !!ev.minValueWei;
+  if (stated) return {};
+  const words = ["title", "instructions", "deliverable", "description"]
+    .map((k) => (typeof milestone[k] === "string" ? (milestone[k] as string) : ""))
+    .concat(Array.isArray(milestone.criteria) ? milestone.criteria.map((c) => String(c)) : [])
+    .join(" ");
+  return DEPLOY_VERB.test(words) ? { deploysContract: true } : {};
+}
+
 export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
   const asArr = (v: unknown): string[] =>
     Array.isArray(v)
@@ -368,6 +408,7 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
               : ev.kind === "onchain_tx"
                 ? {
                     kind: "onchain_tx",
+                    ...deploymentIntent(m, ev),
                     /**
                      * A FOUNDER WHO NAMED NO CHAIN meant the one Sage settles on. The model,
                      * asked to fill the field anyway, reaches for famous chain ids (1, 8453…)

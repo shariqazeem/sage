@@ -27,6 +27,7 @@ import {
 import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
 import { hasPageBasedEvidence, testimonyCondition, testimonyCorrection } from "@/lib/launch/testimony-condition";
 import { missedMoneyAction, checkNarration, honestFallback } from "./narration-guard";
@@ -278,7 +279,7 @@ export const DIRECT_CAMPAIGN_TOOL = {
             evidence: {
               type: "object",
               description:
-                "How Sage verifies it, exactly one kind. PREFER artifact_url whenever the recipient CREATES the thing (a page, a listing, a post, a catalogue) — {kind:'artifact_url', allowedHosts:[bare hostnames, may be empty for 'anywhere']}: their wallet address on the page is the proof it is theirs, so it needs no expected text. Use {kind:'public_url', expectedText:[verbatim strings]} ONLY for a page the recipient does NOT control that must show specific words — expectedText is then REQUIRED and must contain at least one string; a public_url with no expectedText is rejected. {kind:'onchain_tx', chainId:2345, to?, methodSelector?, minValueWei?} — a transaction from the recipient's own wallet (needs at least one constraint).",
+                "How Sage verifies it, exactly one kind. PREFER artifact_url whenever the recipient CREATES the thing (a page, a listing, a post, a catalogue) — {kind:'artifact_url', allowedHosts:[bare hostnames, may be empty for 'anywhere']}: their wallet address on the page is the proof it is theirs, so it needs no expected text. Use {kind:'public_url', expectedText:[verbatim strings]} ONLY for a page the recipient does NOT control that must show specific words — expectedText is then REQUIRED and must contain at least one string; a public_url with no expectedText is rejected. {kind:'onchain_tx', chainId:2345, to?, methodSelector?, minValueWei?, deploysContract?} — a transaction from the recipient's own wallet, and it needs at least one of those constraints or it is rejected. When the founder is paying for a DEPLOYMENT (\"deploy the contract\", \"put it on-chain\"), the address does not exist yet and the only constraint you can state is deploysContract:true — use it rather than guessing a `to`.",
               properties: {
                 kind: { type: "string", enum: ["artifact_url", "public_url", "onchain_tx"] },
                 allowedHosts: { type: "array", items: { type: "string" } },
@@ -290,6 +291,7 @@ export const DIRECT_CAMPAIGN_TOOL = {
                 to: { type: "string" },
                 methodSelector: { type: "string" },
                 minValueWei: { type: "string" },
+                deploysContract: { type: "boolean", description: "true when the required transaction must DEPLOY a contract. The only on-chain constraint available when the thing being paid for does not exist yet." },
               },
               required: ["kind"],
             },
@@ -559,8 +561,9 @@ async function chatCompletion(
    * still judge whether it chose correctly, so this compels action without compelling an answer.
    */
   forceTool = false,
-  /** retry rung for the answer budget — raised ONLY after a MEASURED truncation (finish_reason
-   *  "length"), never speculatively; see the mission architect's ladder for the same rule. */
+  /** retry rung for the answer budget — raised after a MEASURED truncation (the provider's
+   *  finish_reason, or arguments cut mid-JSON) and on the corrective round, which is itself
+   *  evidence that the turn ran out of room to act. Never raised speculatively. */
   escalation = 0,
 ): Promise<ChatResponse> {
   return withTransientRetry(
@@ -713,15 +716,29 @@ async function runAgentTurn(
       const roundTools = selfCorrected && correctiveTool
         ? tools.filter((t) => t.function?.name === correctiveTool)
         : tools;
-      let data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected);
+      /*
+        THE CORRECTIVE ROUND STARTS ONE RUNG UP.
+
+        Rung 0 is sized for the typical turn, and the corrective round is by definition not that: it
+        exists because the model spent its budget reasoning and never acted. Re-asking on the same
+        budget asks the same model to do MORE thinking (it must now also justify the call) in the
+        same room, which is how a dense deliverable spec — "$25 for a comparison page against two
+        named competitors, with a table, at least 400 words, prices quoted exactly, wallet in the
+        footer" — reasoned its way to the right lane twice and emitted no call either time
+        (P-DIRECT, pd-gig-long-deliverable-spec). Not speculative: by here two guards have already
+        established that this turn ran out of room to act.
+      */
+      let data = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, selfCorrected ? 1 : 0);
       /**
        * A TOOL CALL CUT MID-JSON IS NOT AN ANSWER. On MiniMax a long, stochastic <think> block precedes
        * the call, and a non-Latin deliverable spec is token-expensive: P-DIRECT's Urdu gig arrived as
        * `Unexpected end of JSON input` and the founder got nothing. The provider says so itself
-       * (finish_reason "length"), so the turn is re-asked ONCE with the next budget rung — a measured
-       * truncation buys more room; nothing else does. Safe by construction: no tool has run yet.
+       * (finish_reason "length") — and when it does not, arguments that end mid-object say it for
+       * it (`truncationSignal`). Either way the turn is re-asked ONCE with the next budget rung: a
+       * measured truncation buys more room, nothing else does. Safe by construction: no tool has run.
        */
-      if (data.choices?.[0]?.finish_reason === "length") {
+      const cut = truncationSignal(data.choices?.[0]);
+      if (cut) {
         /**
          * ...AND RUNNING OUT OF ROOM MID-THOUGHT IS THE SAME FAILURE WITHOUT THE EVIDENCE.
          *
@@ -735,13 +752,10 @@ async function runAgentTurn(
          * The provider's own finish_reason is the same reliable signal in both cases, and the
          * remedy is the same one rung of extra room. Still safe by construction: no tool has run.
          */
-        const truncatedCall = Boolean(data.choices[0]?.message?.tool_calls?.length);
-        console.warn(
-          "[concierge:%s] %s truncated (finish=length) — re-asking with more room",
-          surface,
-          truncatedCall ? "tool call" : "reasoning, no call made",
-        );
-        const roomier = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, 1);
+        console.warn("[concierge:%s] %s — re-asking with more room", surface, cut);
+        // One rung ABOVE wherever this round started, so a corrective round that also truncates is
+        // not re-asked at the budget it already exhausted.
+        const roomier = await chatCompletion(messages, roundTools, turnDeadline - Date.now(), selfCorrected, selfCorrected ? 2 : 1);
         /**
          * KEEP THE BETTER ANSWER, NOT MERELY THE NEWER ONE.
          *
@@ -751,8 +765,8 @@ async function runAgentTurn(
          * A call is the thing the founder actually needs, so a response carrying one is never
          * discarded for one that does not.
          */
-        const hadCall = Boolean(data.choices?.[0]?.message?.tool_calls?.length);
-        const gotCall = Boolean(roomier.choices?.[0]?.message?.tool_calls?.length);
+        const hadCall = hasUsableCall(data.choices?.[0]);
+        const gotCall = hasUsableCall(roomier.choices?.[0]);
         if (gotCall || !hadCall) data = roomier;
       }
       const msg = data.choices?.[0]?.message;
@@ -768,7 +782,22 @@ async function runAgentTurn(
           try {
             args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
           } catch {
-            /* malformed args → let the tool report the miss */
+            /*
+              Still unparseable after the roomier re-ask above. Say so, rather than handing the tool
+              an empty object: `{}` makes every required field "missing", and the model — whose
+              arguments DID contain them — spends its remaining rounds re-sending the same too-long
+              call. Naming the real problem is the only correction it can act on.
+            */
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({
+                ok: false,
+                error:
+                  "Your arguments for that call were cut off mid-JSON, so nothing could be read. Send the same call again with shorter text — trim the instructions and criteria to their essentials — and keep every field.",
+              }),
+            });
+            continue;
           }
           // FORCE-BIND the inspection to THIS session server-side — never trust the model to pass its
           // own clientRef (a null/forged one would collapse idempotency + break session linkage).
@@ -897,7 +926,22 @@ async function runAgentTurn(
                   }]
                 : [];
             });
-            const mismatches = planned.length ? checkStatedTerms(userText, planned) : [];
+            /*
+              THE INVENTED-PRICE CHECK NEEDS THE WHOLE CONVERSATION, not this turn.
+              A founder who said "$50" two turns ago and now says "yes, go ahead" HAS named a price,
+              and reading only "yes, go ahead" would accuse the model of authoring their number.
+              Same founder-words assembly the goal guard uses a few lines above; the total and count
+              checks still read this turn, because they compare arithmetic inside one request.
+            */
+            const allFounderText = [
+              ...history
+                .filter((m): m is { role: "user"; content: string } => m.role === "user" && typeof m.content === "string")
+                .map((m) => m.content),
+              userText,
+            ]
+              .join("\n")
+              .slice(-4000);
+            const mismatches = planned.length ? checkStatedTerms(userText, planned, { allFounderText }) : [];
             if (mismatches.length) {
               console.warn(
                 "[concierge:%s] stated-terms mismatch: %s",

@@ -180,7 +180,7 @@ export async function runWorkProof(
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
             `KIND: on-chain transaction · STRENGTH: ${r.strength} · RESULT: PASSED`,
             `Transaction ${hash} on ${chainName(contract.chainId)} was read directly from the chain by Sage.`,
-            `It was sent from the submitter's own wallet (${submission.wallet}) and matched every constraint the operator required${contract.to ? ` (interacted with ${contract.to})` : ""}${contract.methodSelector ? ` (called ${contract.methodSelector})` : ""}.`,
+            `It was sent from the submitter's own wallet (${submission.wallet}) and matched every constraint the operator required${contract.to ? ` (interacted with ${contract.to})` : ""}${contract.methodSelector ? ` (called ${contract.methodSelector})` : ""}${contract.deploysContract ? " (it deployed a contract, which is what the milestone required)" : ""}.`,
             r.publicDetail,
           ].join("\n"),
         );

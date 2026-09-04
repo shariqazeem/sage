@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkNarration, honestFallback } from "./narration-guard";
+import { checkNarration, honestFallback, missedMoneyAction } from "./narration-guard";
 
 /**
  * THE EXACT MESSAGE THAT MADE THIS NECESSARY, verbatim from the live bot:
@@ -362,5 +362,47 @@ describe("a campaign claimed in the bare progressive", () => {
   it("is satisfied once the tool actually ran", () => {
     const backed = new Set(["sage_create_direct_campaign"]);
     expect(checkNarration("Setting that up now: $50 to the designer.", backed).ok).toBe(true);
+  });
+});
+
+/**
+ * A PRICE QUOTED FOR WORK, with no payment verb and nobody named.
+ *
+ * "$30 for a public write-up of our API, and I need it by Friday" is a job and a price. It says
+ * neither "pay" nor "someone", so both existing cues stayed silent, no corrective round fired, and
+ * the model's correct reasoning stopped at prose — measured on P-DIRECT, pd-gig-deadline-not-a-milestone.
+ */
+describe("missedMoneyAction — a price attached to a deliverable", () => {
+  const none = new Set<string>();
+  const draft = "This is a direct gig. The write-up would need to be public and cite the API.";
+
+  it("fires on \"$30 for a public write-up\" — no verb, no person named", () => {
+    expect(missedMoneyAction({ userText: "$30 for a public write-up of our API, and I need it by Friday.", reply: draft, succeededTools: none })).toBe(true);
+  });
+
+  it("fires on the \"to <verb>\" form as well", () => {
+    expect(missedMoneyAction({ userText: "$40 to translate our menu into English", reply: draft, succeededTools: none })).toBe(true);
+  });
+
+  it("stays silent where the amount is not attached to work", () => {
+    // Each of these carries an amount and NO other cue, so only the new one could fire.
+    for (const t of [
+      "I want a $50 refund",
+      "is $30 for it a fair price?",
+      "thanks for the $30",
+      "$25 for that",
+      "our plan costs $19 a month",
+      // The same shape as a quoted price, reporting a bill rather than offering work.
+      "someone charged me $50 for hosting last month",
+      "we spent $200 for the design last quarter",
+    ]) {
+      expect(missedMoneyAction({ userText: t, reply: draft, succeededTools: none })).toBe(false);
+    }
+  });
+
+  it("still requires that nothing ran and that the reply did not end by asking", () => {
+    const userText = "$30 for a public write-up of our API";
+    expect(missedMoneyAction({ userText, reply: draft, succeededTools: new Set(["sage_create_direct_campaign"]) })).toBe(false);
+    expect(missedMoneyAction({ userText, reply: "What should it say about pricing?", succeededTools: none })).toBe(false);
   });
 });

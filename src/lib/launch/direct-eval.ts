@@ -5,6 +5,7 @@ import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/conc
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
@@ -101,7 +102,18 @@ interface ToolCall {
 /** When the model calls NO tool, its prose is the only evidence of WHY. A clarifying question is a
  *  legitimate outcome ("who is your designer?"); flailing is a defect. Without capturing the reply
  *  the two are indistinguishable and every no-tool row reads the same. */
-type Ask = { call: ToolCall | null; reply: string; failed: boolean; why?: string; finish?: string; outTokens?: number };
+type Ask = {
+  call: ToolCall | null;
+  reply: string;
+  failed: boolean;
+  why?: string;
+  finish?: string;
+  outTokens?: number;
+  /** production's own truncation reading of this response — null when the answer stands. */
+  cut?: string | null;
+  /** a call whose arguments actually parse; a truncated one is present but unusable. */
+  usable?: boolean;
+};
 
 /** The gateway stalls on roughly a third of calls (documented in concierge.ts). Without the same
  *  bounded retry the battery has, a flaky minute reads as a model-quality result — and a run of
@@ -219,9 +231,12 @@ async function askModel(
       call: msg?.tool_calls?.[0] ?? null,
       reply: (msg?.content ?? "").trim(),
       failed: false,
-      // finish_reason is the ONLY reliable truncation signal. Without it I twice diagnosed
-      // truncation from a reply my own logger had shortened to 240 chars.
+      // finish_reason is the FIRST truncation signal — without it I twice diagnosed truncation from
+      // a reply my own logger had shortened to 240 chars. It is not the only one: production also
+      // treats tool arguments that end mid-object as a cut, and imports the same function to do it.
       finish: ch?.finish_reason,
+      cut: truncationSignal(ch),
+      usable: hasUsableCall(ch),
       outTokens: data.usage?.completion_tokens,
     };
   } catch (e) {
@@ -250,6 +265,7 @@ export async function runDirectEval(opts: {
       const first = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000);
       const { failed, why } = first;
       let { call, reply, finish, outTokens } = first;
+      let cut = first.cut;
       /**
        * PRODUCTION RE-ASKS ONCE WHEN THE PROVIDER SAYS IT RAN OUT OF ROOM, and a battery that does
        * not was measuring a stricter product than the one that ships. Several rows here came back
@@ -257,13 +273,20 @@ export async function runDirectEval(opts: {
        * before anything reaches the founder, so the battery must too or it reports a failure
        * nobody experiences. Keyed on the provider's own finish_reason — never speculative.
        */
-      if (finish === "length") {
+      if (cut) {
         // The roomier rung GENERATES MORE, so it needs more wall-clock than the first call, not the
         // same. Measured: adding the re-ask on the original 60s budget turned 3 compile failures into
         // 0 but produced 6 provider timeouts, and the battery correctly refused to call that evidence.
         const roomier = await askModelWithRetry(f.utterance, Math.round((opts.timeoutMs ?? 60_000) * 2), 1, [], false, 1);
-        // mirror production exactly: a response carrying a call is never traded for one without
-        if (!roomier.failed && (roomier.call || !call)) ({ call, reply, finish, outTokens } = roomier);
+        /*
+          Mirror production exactly: keep the answer that is actually USABLE. A call whose arguments
+          were cut mid-JSON is present but unactionable, so it must not outrank a roomier response —
+          preferring it is how pd-gig-translator kept reporting `Unexpected end of JSON input`.
+        */
+        if (!roomier.failed && (roomier.usable || !first.usable)) {
+          ({ call, reply, finish, outTokens } = roomier);
+          cut = roomier.cut;
+        }
       }
       /**
        * PRODUCTION SELF-CORRECTS; A ONE-SHOT BATTERY DOES NOT.
@@ -308,9 +331,18 @@ export async function runDirectEval(opts: {
              */
             { role: "assistant", content: stripped },
             { role: "user", content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.` },
-          ], true);
+            /*
+              Rung 1, exactly as production now starts its corrective round: the round exists
+              BECAUSE the turn ran out of room to act, so re-asking on the budget it exhausted asks
+              for more thinking in the same space. A battery on rung 0 measures a product that no
+              longer ships.
+            */
+          ], true, 1);
           correctedThisRow = true;
-          if (corrected.call) ({ call, reply, finish, outTokens } = corrected);
+          if (corrected.call) {
+            ({ call, reply, finish, outTokens } = corrected);
+            cut = corrected.cut;
+          }
         }
       }
       if (failed) {
@@ -532,7 +564,18 @@ export async function runDirectEval(opts: {
           }
         } catch (e) {
           row.error = e instanceof Error ? e.message : String(e);
-          violations.push(`${f.id}: unparseable tool arguments — ${row.error}`);
+          /*
+            After the roomier re-ask above, arguments that still do not parse are a TRUNCATION that
+            one extra rung could not fix — a different defect from a model emitting malformed JSON,
+            and one a founder now sees answered ("your arguments were cut off; send it shorter")
+            rather than as a correction loop about missing fields. Named separately so the two
+            cannot be read as one number.
+          */
+          violations.push(
+            cut
+              ? `${f.id}: tool arguments still truncated after the roomier rung — ${row.error}`
+              : `${f.id}: unparseable tool arguments — ${row.error}`,
+          );
         }
       }
 
@@ -551,6 +594,7 @@ export async function runDirectEval(opts: {
           `${violations.length ? `  ⚠ ${violations.length}` : "  ok"}` +
           `${row.lintNotes.length ? ` · lint:${row.lintNotes.length}` : ""}` +
           `${!calledTool ? ` · finish=${finish ?? "?"} outTokens=${outTokens ?? "?"}` : ""}` +
+          `${cut ? ` · cut: ${cut}` : ""}` +
           // 160 chars was not enough to tell WHY a no-tool row happened: the reply opens with the model's
         // <think> monologue, so the decisive part — whether it CLAIMED it would set the campaign up
         // (which the narration guard should catch and self-correct) or honestly asked a question —

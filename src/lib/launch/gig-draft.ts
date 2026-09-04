@@ -54,6 +54,9 @@ const evidenceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("onchain_tx"),
     chainId: count(1, 10_000_000).optional(),
     to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+    /** The deployment case: the address does not exist yet, so `to` cannot be named. See
+     *  verify/contract.ts. Without it the compiler refuses the milestone as unconstrained. */
+    deploysContract: z.boolean().optional(),
   }),
 ]);
 
@@ -93,7 +96,7 @@ RULES
   - evidence: exactly one kind.
       artifact_url — the worker CREATES something (a page, an article, a listing, a document, a repository, a design export). allowedHosts: [] unless the founder named where it must live. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
-      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract.
+      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to".
     NEVER make a post on x.com, twitter.com, instagram.com, facebook.com, linkedin.com or tiktok.com the evidence — Sage cannot open them. Ask for a page it can read.
   - effortMinutes: your honest estimate.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.
