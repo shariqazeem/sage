@@ -181,3 +181,28 @@ a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .mv-t { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .mv-s { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-muted); line-height: 1.55; }
 .mv .vp { margin: 0; border: 0; padding: 0; background: none; }
+
+/* ═══ the idea, drawn ═══ */
+.opf { margin: 0; }
+.opf svg { width: 100%; max-width: 380px; height: auto; display: block; }
+.opf-line { stroke: var(--border-strong); stroke-width: 1; opacity: .5; }
+.opf-wallet { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.5; }
+.opf-hub { fill: var(--accent); }
+.opf-hub-glow { fill: var(--accent); opacity: .14; }
+.opf-cap { font-family: var(--font-mono); font-size: 9.5px; fill: var(--ink-faint); letter-spacing: .04em; }
+.opf-cap-hub { fill: var(--accent); }
+.opf figcaption { margin-top: 10px; font-size: 12px; color: var(--ink-faint); line-height: 1.5; max-width: 380px; }
+
+/* three facts, as tiles rather than paragraphs */
+.vf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 4px 0 0; }
+.vf { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface); }
+.vf-ic { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); margin-bottom: 9px; }
+.vf-t { margin: 0 0 3px; font-size: 13.5px; font-weight: 620; color: var(--ink); letter-spacing: -0.01em; }
+.vf-s { margin: 0; font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.vf-num { font-family: var(--font-mono); font-size: 26px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; }
+.vf-num-k { display: block; margin-top: 5px; font-size: 11.5px; color: var(--ink-faint); }
+.vf-head { align-items: center; gap: 32px; }
+.vf-head > div { flex: 1 1 340px; min-width: 0; }
+.vf-foot { max-width: 620px; }
+@media (max-width: 760px) { .vf-head { flex-direction: column; align-items: flex-start; gap: 20px; } }
+.vp-w { font-size: 12.5px; color: var(--accent); font-weight: 500; }

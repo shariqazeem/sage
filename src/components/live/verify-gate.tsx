@@ -15,15 +15,14 @@ import { VerifyPerson } from "./verify-person";
  * So there is no address field. Signing in is how a person shows the wallet is theirs, the proof is
  * how they show they are one person, and the server reads the wallet from the session either way.
  */
-export function VerifyGate({ wallet }: { wallet: string | null }) {
+export function VerifyGate({ wallet, lede = true }: { wallet: string | null; lede?: boolean }) {
   if (!wallet) {
     return (
       <section className="ws-card">
         <div className="ws-card-h"><h2><LogIn size={15} /> Sign in with the wallet you get paid at</h2></div>
         <p className="ws-note" style={{ margin: "0 0 14px" }}>
-          A proof is bound to a wallet, and it is only worth recording against one you control — so the
-          wallet is read from your sign-in rather than typed. An email is enough: Sage keeps the wallet
-          for you, and the same address is what receives your payouts.
+          A proof binds to a wallet, so it is read from your sign-in rather than typed. An email is
+          enough — Sage keeps the wallet, and it is the same address that receives your payouts.
         </p>
         <div className="mc-actions">
           <Link href="/start" className="nm-btn">Sign in</Link>
@@ -35,10 +34,9 @@ export function VerifyGate({ wallet }: { wallet: string | null }) {
 
   return (
     <>
-      <VerifyPerson wallet={wallet} />
+      <VerifyPerson wallet={wallet} lede={lede} />
       <p className="ws-note" style={{ marginTop: 0 }}>
-        Verifying <span className="mono">{wallet.slice(0, 10)}…{wallet.slice(-6)}</span> — the wallet
-        you are signed in with. <Link href={`/record/${wallet}`}>See its work record</Link>.
+        The wallet you are signed in with. <Link href={`/record/${wallet}`}>See its work record</Link>.
       </p>
     </>
   );

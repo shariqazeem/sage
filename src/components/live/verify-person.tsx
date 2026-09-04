@@ -23,7 +23,7 @@ interface State {
   reason: string;
 }
 
-export function VerifyPerson({ wallet }: { wallet: string }) {
+export function VerifyPerson({ wallet, lede = true }: { wallet: string; lede?: boolean }) {
   const [st, setSt] = useState<State | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -82,10 +82,19 @@ export function VerifyPerson({ wallet }: { wallet: string }) {
   return (
     <div className="vp">
       <div className="vp-main">
-        <p className="vp-t"><ShieldCheck size={15} /> Prove you are one person</p>
-        <p className="vp-s">
-          {msg ?? "A wallet is free to make, so it has never proved anything. Verify once and the better-paid work opens — no name, no document, no country. If the same person verifies from a second wallet, the two count as one worker."}
+        {/* Under a page that already says this in its title, repeating it is furniture. There the
+            useful line is WHICH wallet is about to be bound. */}
+        <p className="vp-t">
+          <ShieldCheck size={15} />
+          {lede ? "Prove you are one person" : <>Verifying <span className="mono vp-w">{wallet.slice(0, 10)}…{wallet.slice(-6)}</span></>}
         </p>
+        {/* Where the surrounding page already carries the argument, repeating it here is noise —
+            the card's job there is the action alone. */}
+        {(msg || lede) && (
+          <p className="vp-s">
+            {msg ?? "A wallet is free to make, so it has never proved anything. Verify once and the better-paid work opens — no name, no document, no country."}
+          </p>
+        )}
         {err && <p className="vp-e">{err}</p>}
       </div>
       <button type="button" className="nm-btn" onClick={() => setOpen(true)}>Verify once</button>
