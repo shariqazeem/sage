@@ -1114,6 +1114,23 @@ export function countRecentSubmissionsByWallet(
 /** How many times this wallet has ALREADY been paid (or is mid-settlement) across this whole campaign —
  *  the P18 founder-set per-campaign per-wallet payout cap is enforced against this in preflight. Counts
  *  `settling` too so a concurrent settle can't slip a wallet past its cap. */
+/**
+ * Paid-or-settling completions across a SET of wallets — the per-person reading of the campaign cap.
+ * `countPaidByWalletInCampaign` keys on one string, which is exactly what a wallet farm exploits;
+ * the pipeline hands this one the whole person (`personWallets`). Every stored spelling is matched
+ * because a felt has several and rows keep the one they were written in.
+ */
+export function countPaidByWalletsInCampaign(campaignId: string, wallets: readonly string[]): number {
+  if (wallets.length === 0) return 0;
+  const keys = new Set(wallets.map((w) => w.trim().toLowerCase().replace(/^0x0*/, "0x")));
+  return db
+    .select({ wallet: submissions.wallet })
+    .from(submissions)
+    .where(and(eq(submissions.campaignId, campaignId), inArray(submissions.status, ["paid", "settling"])))
+    .all()
+    .filter((r) => keys.has(r.wallet.trim().toLowerCase().replace(/^0x0*/, "0x"))).length;
+}
+
 export function countPaidByWalletInCampaign(campaignId: string, wallet: string): number {
   return db
     .select({ id: submissions.id })
@@ -1327,6 +1344,24 @@ export function recordEventOnce(
  * the raw material for `missionSlotStatus`. Only submissions that could still take a slot are
  * returned (paid / settling / pending); rejected and blocked work has already let go of its place.
  */
+/**
+ * Who holds a slot on this mission, WITH their wallet — for the per-person cap on public work.
+ * `listSlotClaimants` deliberately drops the wallet (the slot math never needed it); the door does,
+ * because a person's second wallet must not read as a second person.
+ */
+export function listSlotClaimantWallets(missionIdHash: string): { wallet: string; status: string }[] {
+  return db
+    .select({ wallet: submissions.wallet, status: submissions.status })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.missionIdHash, missionIdHash),
+        inArray(submissions.status, ["paid", "settling", "pending"]),
+      ),
+    )
+    .all();
+}
+
 export function listSlotClaimants(
   missionIdHash: string,
 ): { status: string; lastHoldReason: string | null; lastHeldAt: number | null }[] {

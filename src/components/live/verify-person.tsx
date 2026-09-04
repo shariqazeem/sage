@@ -23,7 +23,7 @@ interface State {
   reason: string;
 }
 
-export function VerifyPerson({ wallet, lede = true }: { wallet: string; lede?: boolean }) {
+export function VerifyPerson({ wallet, lede = true, onVerified }: { wallet: string; lede?: boolean; onVerified?: () => void }) {
   const [st, setSt] = useState<State | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -60,6 +60,8 @@ export function VerifyPerson({ wallet, lede = true }: { wallet: string; lede?: b
       if (!r.ok) setErr(j.error ?? "That didn't verify.");
       else setMsg(j.message ?? "Verified.");
       await load();
+      // Tell the board, so the door closes and the submit form appears without a reload.
+      if (r.ok) onVerified?.();
     } catch {
       setErr("Couldn't reach the verifier.");
     }

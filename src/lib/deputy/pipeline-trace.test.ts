@@ -20,6 +20,8 @@ vi.mock("@/lib/db/campaigns", () => ({
   listPaidSubmissionsForDedup: vi.fn(() => []),
   listSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
+  // the pipeline now reads the PERSON's count (every wallet that is them); the single-wallet reader stays for other callers
+  countPaidByWalletsInCampaign: vi.fn(() => 0),
   countPaidForMission: vi.fn(() => 0),
   setObservationShadow: vi.fn(),
 }));

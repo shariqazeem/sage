@@ -7,6 +7,7 @@ import type { Campaign, Submission } from "@/lib/db/schema";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
+  countPaidByWalletsInCampaign,
   countPaidForMission,
   getCampaign,
   getDecisionBySubmission,
@@ -54,6 +55,7 @@ import {
 } from "@/lib/campaigns/vault-strategy";
 import { realCampaignVaultAdapter } from "@/lib/deputy/campaign-vault";
 import { getMissionByHash, listMissions } from "@/lib/db/campaigns";
+import { personWallets } from "@/lib/identity/person";
 import {
   identityMismatchSummary,
   missionToIdentity,
@@ -836,7 +838,10 @@ export async function runDeputyOnSubmission(
   // per-mission recipientCompleted already blocks same-mission replay; this bounds one wallet across
   // DIFFERENT missions. Counts paid+settling for this wallet; at/over cap → HELD (never a silent skip —
   // the founder can still release manually). Deterministic DB check, before any chain read or signing.
-  const walletPaid = countPaidByWalletInCampaign(campaign.id, submission.wallet);
+  // Counted across every wallet that is this PERSON (nullifier, chain links, declared links) —
+  // one string was exactly what a wallet farm exploited. `countPaidByWalletInCampaign` stays for
+  // the single-wallet readers; the money decision reads the person.
+  const walletPaid = countPaidByWalletsInCampaign(campaign.id, personWallets(submission.wallet));
   if (walletPaid >= campaign.perWalletPayoutCap) {
     const reason = TERMINAL_REASON.walletCap(campaign.perWalletPayoutCap);
     agentLog(cid, "wallet_cap", { walletPaid, cap: campaign.perWalletPayoutCap });

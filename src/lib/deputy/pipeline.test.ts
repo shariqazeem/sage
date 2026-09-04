@@ -22,6 +22,8 @@ vi.mock("@/lib/db/campaigns", () => ({
   listSubmissionsForDedup: vi.fn(() => []),
   listEarlierSubmissionsForDedup: vi.fn(() => []),
   countPaidByWalletInCampaign: vi.fn(() => 0),
+  // the pipeline now reads the PERSON's count (every wallet that is them); the single-wallet reader stays for other callers
+  countPaidByWalletsInCampaign: vi.fn(() => 0),
   countPaidForMission: vi.fn(() => 0),
   setObservationShadow: vi.fn(),
   getMissionByHash: vi.fn(),
@@ -74,6 +76,7 @@ import { OFAC_SDN_ETH } from "./sanctions-data";
 import {
   casSubmissionStatus,
   countPaidByWalletInCampaign,
+  countPaidByWalletsInCampaign,
   getCampaign,
   getDecisionBySubmission,
   getLatestSubmissionEvent,
@@ -155,7 +158,8 @@ beforeEach(() => {
   // P18 Sybil pre-checks default to "clean" so each test starts from a payable state; a test that
   // exercises a hold overrides just its own signal (and clearAllMocks doesn't reset implementations).
   vi.mocked(listSubmissionsForDedup).mockReturnValue([]);
-  vi.mocked(countPaidByWalletInCampaign).mockReturnValue(0);
+  vi.mocked(countPaidByWalletsInCampaign).mockReturnValue(0);
+  vi.mocked(countPaidByWalletsInCampaign).mockReturnValue(0);
   // P16 Step 0: default no mission row → the observation-review valve is a no-op unless a test opts in.
   vi.mocked(getMissionByHash).mockReturnValue(undefined as never);
   // P16 Step 1: default observation decision holds, flag off — a test opts into a pass/armed explicitly.
@@ -202,7 +206,7 @@ describe("runDeputyOnSubmission — happy path", () => {
  */
 describe("a submission that can never be paid is resolved, not held forever", () => {
   it("closes a wallet already at its per-campaign cap instead of re-holding it", async () => {
-    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1); // cap is 1 on the fixture
+    vi.mocked(countPaidByWalletsInCampaign).mockReturnValue(1); // cap is 1 on the fixture — counted across the person
     const r = await runDeputyOnSubmission("s1");
     expect(r.reason).toMatch(/pays each wallet once/);
     // rejected, with the reason recorded — the sweep's pending query will never see it again
@@ -212,7 +216,7 @@ describe("a submission that can never be paid is resolved, not held forever", ()
   });
 
   it("says it is not a verdict on the work — the tester lost a race, not a judgement", async () => {
-    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1);
+    vi.mocked(countPaidByWalletsInCampaign).mockReturnValue(1);
     const r = await runDeputyOnSubmission("s1");
     expect(r.reason).toContain("not a judgement on your work");
   });
@@ -528,7 +532,7 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     // 2026-08-14: the outcome is now CLOSED rather than held forever (the cap never resets, so the
     // hold could never be released) — but the money property this pin guards is unchanged: the
     // submission is never claimed for settlement and never settles.
-    vi.mocked(countPaidByWalletInCampaign).mockReturnValue(1); // cap is 1
+    vi.mocked(countPaidByWalletsInCampaign).mockReturnValue(1); // cap is 1
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
     expect(r.reason).toMatch(/pays each wallet once/i);

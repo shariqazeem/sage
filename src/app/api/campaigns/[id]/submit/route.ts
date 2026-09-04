@@ -1,5 +1,11 @@
 import { meetsTier, openTierCeilingBase, requiredTier, tierRefusal } from "@/lib/identity/tier";
 import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
+import { PERSONHOOD_DOOR_COPY, alreadyClaimedCopy, identityDoorArmed } from "@/lib/identity/door";
+import { personWallets } from "@/lib/identity/person";
+import { identityFor } from "@/lib/db/identity";
+import { worldIdConfig } from "@/lib/identity/worldid";
+import { isPublicWork } from "@/lib/campaigns/visibility";
+import { bareHexKey } from "@/lib/campaigns/chain-address";
 import { campaignWorkspace, isWorkspaceMemberAddress } from "@/lib/db/workspaces";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
@@ -19,6 +25,8 @@ import {
   getWalletMissionSubmission,
   reviseSubmission,
   listSlotClaimants,
+  listSlotClaimantWallets,
+  countPaidByWalletsInCampaign,
   countRecentSubmissionsByWallet,
   listSubmissions,
   recordEvent,
@@ -120,10 +128,33 @@ export async function POST(
   // SAGE FOR TEAMS — an unlisted campaign launched from a workspace is that workspace's own work:
   // only its members can submit. A stranger with the link is told whose door it is, not refused
   // in silence. Listed workspace campaigns stay open, as the founder chose.
-  // STANDING. Better-paid work asks for a record first, so splitting one worker into a dozen fresh
-  // wallets divides their standing instead of multiplying their slots — the farm's one unavoidable
-  // cost. Work at or below the open ceiling is claimable by anyone, which is how standing is earned.
-  if (identityTiersArmed()) {
+  /*
+    THE DOOR — one person, one slot, on public work.
+
+    The first gate keyed on what the mission PAYS, so every slot at or under a ceiling was open to
+    any fresh wallet and "$50 with 50 slots" was as farmable as before. This one keys on the person:
+    public work asks for a one-time personhood proof (no name, no document, no country), and the
+    caps below count people rather than wallets. Members-only work is untouched — the organisation
+    chose its people. See src/lib/identity/door.ts.
+
+    Refused with `needsVerification`, so the board opens the widget instead of printing a wall.
+  */
+  const publicWork = isPublicWork(campaign);
+  if (identityDoorArmed() && publicWork && worldIdConfig() && !identityFor(wallet)) {
+    return NextResponse.json(
+      { error: PERSONHOOD_DOOR_COPY, needsVerification: true, action: worldIdConfig()?.action ?? null },
+      { status: 403 },
+    );
+  }
+  // ONE PERSON, PAID AT MOST `perWalletPayoutCap` TIMES ON THIS CAMPAIGN — across every wallet that is
+  // them. Checked at the door so nobody does work the pipeline will only hold; the pipeline re-checks.
+  const person = personWallets(wallet);
+  if (publicWork && countPaidByWalletsInCampaign(campaign.id, person) >= campaign.perWalletPayoutCap) {
+    return NextResponse.json({ error: alreadyClaimedCopy("campaign") }, { status: 409 });
+  }
+  // The older reward-tier rule stays only while the door is unarmed; two gates with different
+  // theories of who may pass must never both speak.
+  if (!identityDoorArmed() && identityTiersArmed()) {
     const need = requiredTier(campaign.rewardAmount);
     const standing = standingOf(wallet);
     if (!meetsTier(standing.tier, need)) {
@@ -232,6 +263,13 @@ export async function POST(
     // filled while they fixed it — work done twice, paid nothing. The cost of the fix falls on
     // someone who has not started yet and is told to come back, which is the right person to pay it.
     if (!reviseTargetId) {
+      // ONE SLOT PER PERSON on public work. The same-wallet case was caught above (a retry or a
+      // 409); this is the person's OTHER wallets — the shape the farm used.
+      if (publicWork) {
+        const mine = new Set(person.map(bareHexKey));
+        const taken = listSlotClaimantWallets(mission.missionIdHash).some((c) => mine.has(bareHexKey(c.wallet)));
+        if (taken) return NextResponse.json({ error: alreadyClaimedCopy("mission") }, { status: 409 });
+      }
       const slots = missionSlotStatus(
         listSlotClaimants(mission.missionIdHash),
         mission.maxCompletions,

@@ -2,6 +2,7 @@ import "server-only";
 import type { Submission } from "@/lib/db/schema";
 import { getDecisionBySubmission, getLatestSubmissionEvent, listSubmissions, listSubmissionsForDedup } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { sameNullifierWallets } from "@/lib/identity/person";
 import { matured, revocationReason, windowSecondsFor } from "./finalization";
 
 export type Finalization =
@@ -26,6 +27,7 @@ export function finalizationFor(sub: Submission, visibility: "listed" | "unliste
     me: { note: sub.note, contentSha256: decision?.contentSha256 ?? null, artifactFingerprint: decision?.artifactFingerprint ?? null },
     others: listSubmissionsForDedup(sub.campaignId, sub.id),
     linkedWallets: linkedWalletsOf(sub.wallet),
+    personWallets: sameNullifierWallets(sub.wallet),
     peerWallets: listSubmissions(sub.campaignId).filter((s) => s.id !== sub.id).map((s) => s.wallet),
   });
   return reason ? { state: "revoke", reason } : { state: "finalize" };

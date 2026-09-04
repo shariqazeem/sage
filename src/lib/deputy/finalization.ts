@@ -33,6 +33,12 @@ export interface RevocationInput {
   linkedWallets: string[];
   /** the other submitters' wallets on this campaign */
   peerWallets: string[];
+  /**
+   * wallets that are THIS PERSON by a personhood proof (same nullifier) — a subset of
+   * `linkedWallets` in practice. Optional: a caller that does not know says nothing, and the
+   * reason falls back to the on-chain wording.
+   */
+  personWallets?: string[];
 }
 
 const bare = (w: string) => w.trim().toLowerCase().replace(/^0x/, "").replace(/^0+/, "");
@@ -49,10 +55,21 @@ export function watchReadings(input: RevocationInput): WatchReadings {
   const copied = findCopiedArtifact(input.me, input.others);
   const peers = new Set(input.peerWallets.map(bare));
   const hit = input.linkedWallets.map(bare).filter((w) => peers.has(w));
+  // Say what the link IS. A personhood link means the provider stated these wallets are one human;
+  // reading that as "a payout was forwarded on-chain" would accuse someone of a thing that did not
+  // happen, on the one line they are shown.
+  const person = new Set((input.personWallets ?? []).map(bare));
+  const samePerson = hit.filter((w) => person.has(w)).length;
+  const cluster =
+    hit.length === 0
+      ? null
+      : samePerson > 0
+        ? `the same verified person already submitted to this campaign from ${samePerson} other wallet${samePerson === 1 ? "" : "s"} — one slot per person on public work`
+        : `this wallet is linked on-chain to ${hit.length} other submitter${hit.length === 1 ? "" : "s"} of this campaign (a payout was forwarded between them)`;
   return {
     nearDup: near ? near.reason : null,
     copied: copied ? copied.reason : null,
-    cluster: hit.length > 0 ? `this wallet is linked on-chain to ${hit.length} other submitter${hit.length === 1 ? "" : "s"} of this campaign (a payout was forwarded between them)` : null,
+    cluster,
   };
 }
 

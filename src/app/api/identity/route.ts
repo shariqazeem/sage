@@ -4,6 +4,9 @@ import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { identityFor, recordIdentityProof } from "@/lib/db/identity";
 import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
 import { meetsTier, requiredTier } from "@/lib/identity/tier";
+import { identityDoorArmed } from "@/lib/identity/door";
+import { isPublicWork } from "@/lib/campaigns/visibility";
+import { getCampaign } from "@/lib/db/campaigns";
 import { signalMatches, verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -27,6 +30,15 @@ export async function GET(req: NextRequest) {
   const rewardRaw = Number(req.nextUrl.searchParams.get("reward"));
   const rewardBase = Number.isFinite(rewardRaw) && rewardRaw > 0 ? Math.round(rewardRaw) : null;
   const need = rewardBase === null ? null : requiredTier(rewardBase);
+  /*
+    THE DOOR IS ABOUT THE CAMPAIGN, NOT THE REWARD. `?campaign=` answers the question the board
+    actually asks — "does this person need to verify before claiming here" — from the same predicate
+    the submit route enforces with, so the prompt and the gate cannot disagree.
+  */
+  const campaignId = req.nextUrl.searchParams.get("campaign");
+  const campaign = campaignId ? getCampaign(campaignId) : null;
+  const doorArmed = identityDoorArmed() && cfg !== null;
+  const requiresPersonhood = doorArmed && campaign !== null && isPublicWork(campaign) && proof === null;
   return NextResponse.json({
     available: cfg !== null,
     action: cfg?.action ?? null,
@@ -36,7 +48,9 @@ export async function GET(req: NextRequest) {
     tier: standing.tier,
     reason: standing.reason,
     armed: identityTiersArmed(),
-    requiresStanding: need !== null && need !== "newcomer" && identityTiersArmed(),
+    doorArmed,
+    requiresPersonhood,
+    requiresStanding: !doorArmed && need !== null && need !== "newcomer" && identityTiersArmed(),
     meets: need === null ? true : meetsTier(standing.tier, need),
   });
 }

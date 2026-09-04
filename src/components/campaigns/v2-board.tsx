@@ -284,6 +284,7 @@ function MissionCard({
     prompts.length === 0 ? note.trim().length > 0 : hasAnyAnswer(answers);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [doorDemanded, setDoorDemanded] = useState(false);
   const [mine, setMine] = useState<MySubmission | null>(null);
   const [materialized, setMaterialized] = useState(false);
   const hadBrief = useRef(false);
@@ -411,8 +412,10 @@ function MissionCard({
           signature,
         }),
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as { error?: string; needsVerification?: boolean };
       if (!res.ok) {
+        // The door answered: open the widget instead of printing a wall. The route stays the gate.
+        if (json.needsVerification) setDoorDemanded(true);
         setError(json.error ?? "Could not submit.");
         return;
       }
@@ -757,7 +760,7 @@ function MissionCard({
           ) : !open ? (
             <>
               {/* Asked at the mission, before an account is written that could not be submitted. */}
-              {signedInWallet ? <MissionVerify wallet={signedInWallet} rewardBase={mission.rewardBase} /> : null}
+              {signedInWallet ? <MissionVerify wallet={signedInWallet} campaignId={campaignId} rewardBase={mission.rewardBase} demanded={doorDemanded} onVerified={() => setDoorDemanded(false)} /> : null}
               <button
                 className="sage-btn sage-btn-primary"
                 onClick={() => setOpen(true)}
@@ -767,7 +770,7 @@ function MissionCard({
             </>
           ) : (
             <>
-              {signedInWallet ? <MissionVerify wallet={signedInWallet} rewardBase={mission.rewardBase} /> : null}
+              {signedInWallet ? <MissionVerify wallet={signedInWallet} campaignId={campaignId} rewardBase={mission.rewardBase} demanded={doorDemanded} onVerified={() => setDoorDemanded(false)} /> : null}
               {formBlock}
             </>
           )}

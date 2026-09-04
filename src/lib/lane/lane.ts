@@ -2,6 +2,7 @@ import "server-only";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { getDecisionBySubmission, getLatestSubmissionEvent, listCampaignEvents, listSubmissions, listSubmissionsForDedup } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { sameNullifierWallets } from "@/lib/identity/person";
 import { decodeDetail } from "@/lib/campaigns/journal";
 import { watchReadings, windowSecondsFor } from "@/lib/deputy/finalization";
 
@@ -40,6 +41,7 @@ function ticketFor(c: Campaign, s: Submission, nowSec: number): LaneTicket | nul
       me: { note: s.note, contentSha256: decision?.contentSha256 ?? null, artifactFingerprint: decision?.artifactFingerprint ?? null },
       others: listSubmissionsForDedup(c.id, s.id),
       linkedWallets: linkedWalletsOf(s.wallet),
+      personWallets: sameNullifierWallets(s.wallet),
       peerWallets: listSubmissions(c.id).filter((x) => x.id !== s.id).map((x) => x.wallet),
     });
     return {

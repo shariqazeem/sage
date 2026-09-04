@@ -10,6 +10,7 @@ import {
   getCampaign,
   listMissions,
   listSlotClaimants,
+  listSlotClaimantWallets,
   recordEvent,
 } from "@/lib/db/campaigns";
 import { getRecipientWallet, listInvitedCampaignIds } from "@/lib/db/recipient-wallets";
@@ -22,6 +23,10 @@ import {
   type EvidenceClaim,
 } from "@/lib/campaigns/evidence-claim";
 import { missionSlotStatus } from "@/lib/campaigns/slot-reservation";
+import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
+import { personWallets } from "@/lib/identity/person";
+import { alreadyClaimedCopy } from "@/lib/identity/door";
+import { bareHexKey } from "./chain-address";
 import { signTypedDataViaPrivy, type PrivyTypedData } from "@/lib/privy/client";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
@@ -112,6 +117,14 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   const campaign = getCampaign(campaignId);
   if (!campaign) return { ok: false, error: "That campaign doesn't exist." };
   if (campaign.status !== "live") return { ok: false, error: "That campaign isn't accepting submissions right now." };
+  /*
+    THE SAME SANCTIONS SCREEN AS THE WEB DOOR. This door had none — measured 2026-09-05 while the
+    compliance statement said "three doors". A recipient's Privy wallet is an EVM address, so the
+    vendored SDN snapshot applies here exactly as it does on the web.
+  */
+  if (isSanctionedWallet(wallet)) {
+    return { ok: false, error: `This wallet appears on the ${SANCTIONS_LIST_LABEL} and cannot participate.` };
+  }
   // An invited recipient submits against a mission plan; which chain pays is settled later.
   if (!hasMissionPlan(campaign.vaultKind) || !campaign.campaignIdHash) {
     return { ok: false, error: "That campaign can't take chat submissions." };
@@ -146,6 +159,12 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   {
     const slots = missionSlotStatus(listSlotClaimants(mission.missionIdHash), mission.maxCompletions, nowSeconds());
     if (slots.open <= 0) return { ok: false, error: "That milestone has no open slots left." };
+    // ONE SLOT PER PERSON, counted across every wallet that is them. No personhood proof is asked
+    // here — an invited recipient is members-only work, and the founder chose them — but a person's
+    // second wallet is still not a second person.
+    const mine = new Set(personWallets(wallet).map(bareHexKey));
+    const taken = listSlotClaimantWallets(mission.missionIdHash).some((c) => c.wallet !== wallet && mine.has(bareHexKey(c.wallet)));
+    if (taken) return { ok: false, error: alreadyClaimedCopy("mission") };
   }
   // FAIL CLOSED on an incomplete mission record: the spec digest is part of what the claim signs;
   // a bare "0x" is not a bytes32 and a missing digest means the row never locked properly.

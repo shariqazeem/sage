@@ -57,3 +57,15 @@ export function sameChainAddress(a: string | null | undefined, b: string | null 
   const na = norm(a);
   return na !== null && na === norm(b);
 }
+
+/**
+ * ONE KEY PER ACCOUNT, WHATEVER THE SPELLING. Lower-cased, `0x`, leading zeros gone — so the padded
+ * felt a wallet returns, the stripped one a session stores, and a checksummed EVM address all land
+ * on the same string. For Set/Map membership only; it is not an address and must never be written
+ * back as one (`founderStorageKey` is the storage form).
+ */
+export function bareHexKey(raw: string): string {
+  const t = raw.trim().toLowerCase();
+  const hex = t.startsWith("0x") ? t.slice(2) : t;
+  return `0x${hex.replace(/^0+/, "") || "0"}`;
+}

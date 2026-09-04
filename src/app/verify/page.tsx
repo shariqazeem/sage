@@ -36,7 +36,7 @@ export default async function VerifyPage() {
         <div>
           <span className="ws-eyebrow">One person, one worker</span>
           <h1 className="ws-title">Prove you are one person</h1>
-          <p className="ws-sub">Once. A minute. Then every tier of paid work is open to you.</p>
+          <p className="ws-sub">Once. A minute. Then every public mission is open to you — one slot each, for everyone.</p>
         </div>
         <OnePersonFigure />
       </header>
@@ -53,8 +53,8 @@ export default async function VerifyPage() {
       <div className="vf-grid">
         <div className="vf">
           <span className="vf-ic"><KeyRound size={15} /></span>
-          <p className="vf-t">Opens every tier</p>
-          <p className="vf-s">Work above {ceiling} asks for standing. This is the fast way; the other is finishing open work on two campaigns.</p>
+          <p className="vf-t">One person, one slot</p>
+          <p className="vf-s">Public work asks everyone to prove they are one person before claiming, so fifty slots need fifty people. Work above {ceiling} also unlocks here.</p>
         </div>
         <div className="vf">
           <span className="vf-ic"><EyeOff size={15} /></span>

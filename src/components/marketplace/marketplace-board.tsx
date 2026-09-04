@@ -143,6 +143,8 @@ export function MarketplaceBoard({
                   <span className="mk-row-chip">
                     {r.autopays ? <Zap size={11} /> : <UserCheck size={11} />}
                     {r.autopays ? "auto-pays" : "founder approves"}
+                    {/* Public work: one person, one slot — said on the row, proven at the mission. */}
+                    <span className="mk-dot">·</span> one person, one slot
                   </span>
                   <span className="mk-row-chip">
                     {r.settlementRail === "starknet" ? <EyeOff size={11} /> : <Wallet size={11} />}

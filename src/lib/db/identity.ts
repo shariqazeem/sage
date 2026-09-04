@@ -57,6 +57,28 @@ export function identityFor(wallet: string): IdentityProof | null {
   return db.select().from(identityProofs).where(eq(identityProofs.walletKey, walletKey(wallet))).get() ?? null;
 }
 
+/**
+ * THE PERSON BEHIND A WALLET, AND EVERY WALLET THAT PERSON HAS PROVED.
+ *
+ * A nullifier is stable per human per action, so the set of wallets carrying one nullifier IS one
+ * person, stated by the provider rather than inferred from gas. The slot cap on public work counts
+ * this set, which is what makes fifty slots need fifty humans. `identity_nullifier_idx` already
+ * covers the reverse lookup, so this is one indexed read and no migration.
+ */
+export function nullifierFor(wallet: string): { provider: string; nullifier: string } | null {
+  const row = identityFor(wallet);
+  return row ? { provider: row.provider, nullifier: row.nullifier } : null;
+}
+
+export function walletsForNullifier(provider: string, nullifier: string): string[] {
+  return db
+    .select({ wallet: identityProofs.wallet })
+    .from(identityProofs)
+    .where(and(eq(identityProofs.provider, provider), eq(identityProofs.nullifier, nullifier)))
+    .all()
+    .map((r) => r.wallet);
+}
+
 export function identityCount(): { people: number; wallets: number } {
   const all = db.select().from(identityProofs).all();
   return { people: new Set(all.map((r) => `${r.provider}:${r.nullifier}`)).size, wallets: all.length };
