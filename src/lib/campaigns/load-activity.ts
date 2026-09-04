@@ -6,7 +6,7 @@ import {
 } from "@/lib/db/campaigns";
 import { projectActivity, type ActivityEvent } from "./activity";
 import { decodeDetail } from "./journal";
-import { reasonSentence } from "@/lib/deputy/reason-copy";
+import { reasonSentence, withProductName } from "@/lib/deputy/reason-copy";
 
 export interface CampaignActivity {
   activity: ActivityEvent[];
@@ -81,9 +81,12 @@ export function loadCampaignActivity(campaignId: string, limit = 12): CampaignAc
     const d = getDecisionBySubmission(s.id);
     const recommendation = d?.brief?.recommendation;
     if (recommendation === "pay") continue; // verified — never render a hold line
+    // The gate line is our own written sentence, but it is written by the FROZEN gate and stored
+    // verbatim on every historical hold — so the product's own name is applied here, where it is
+    // read, rather than at a source that cannot be edited and rows that cannot be rewritten.
     const gate = gateReasonOf(s.id);
-    if (gate) heldReasons[s.id] = gate;
-    else if (recommendation) heldReasons[s.id] = reasonSentence(d!.brief.reasonCode);
+    if (gate) heldReasons[s.id] = withProductName(gate);
+    else if (recommendation) heldReasons[s.id] = withProductName(reasonSentence(d!.brief.reasonCode));
   }
 
   const activity = projectActivity(

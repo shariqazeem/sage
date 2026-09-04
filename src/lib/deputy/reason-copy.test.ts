@@ -6,6 +6,7 @@ import {
   observationCoaching,
   observationRetryLine,
   reasonSentencePublic,
+  withProductName,
 } from "./reason-copy";
 
 /**
@@ -138,5 +139,34 @@ describe("the public sentence carries no raw code", () => {
     // a real class keeps its meaning and loses only the token — the operator sentence still has it
     expect(reasonSentencePublic("no_evidence")).toBe("the submitted link had no usable evidence");
     expect(reasonSentence("no_evidence")).toContain("(no_evidence)");
+  });
+});
+
+/**
+ * The engineering name never reaches a person. "Held for review · Deputy recommends hold" was on
+ * the founder's own activity feed — a name that appears nowhere else they could look it up. Applied
+ * at the display layer because the source is frozen and the string is already stored on every
+ * historical hold.
+ */
+describe("withProductName", () => {
+  it("renames the payout brain to the product, wherever the sentence puts it", () => {
+    expect(withProductName("Deputy recommends hold")).toBe("Sage recommends hold");
+    expect(withProductName("held because the Deputy could not verify it")).toBe("held because Sage could not verify it");
+    expect(withProductName("The Deputy recommends review")).toBe("Sage recommends review");
+  });
+
+  it("leaves everything else exactly as written", () => {
+    for (const s of [
+      "confidence 42% below the 85% autopilot threshold",
+      "mainnet autopilot is off — approve this real-money payout manually",
+    ]) {
+      expect(withProductName(s)).toBe(s);
+    }
+  });
+
+  it("is word-bounded, so it cannot eat an address, a hash or a path", () => {
+    expect(withProductName("/api/deputy/sweep")).toBe("/api/deputy/sweep");
+    expect(withProductName("DeputyAssessmentCard")).toBe("DeputyAssessmentCard");
+    expect(withProductName("0xdeputyfeed")).toBe("0xdeputyfeed");
   });
 });

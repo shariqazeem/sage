@@ -143,3 +143,25 @@ export function decisionLabel(kind: "verified" | "paid" | "held" | "blocked" | "
       return `Blocked: ${reasonSentence(code)}`;
   }
 }
+
+/**
+ * THE PRODUCT'S NAME, AT THE LAST MOMENT.
+ *
+ * "Deputy" is an engineering name — the payout brain's module, its API path, its tables — and the
+ * naming rule (CLAUDE.md §1) is that a person never sees it. One gate reason carried it into the
+ * founder's own activity feed as "Held for review · Deputy recommends hold", which is the product
+ * introducing itself by a name that appears nowhere else it can be looked up.
+ *
+ * Fixed HERE rather than at the source, for two reasons: `autopilotGate` is a frozen safety layer
+ * and a copy edit is not a reason to open it, and the string is already written into the events
+ * journal on every campaign that has ever held — so a rename at the source would leave every
+ * historical row still saying it. A display-layer rename covers both.
+ *
+ * Word-bounded and case-preserving on the first letter, so it can never eat a hash, an address or
+ * a URL that happens to contain the letters.
+ */
+export function withProductName(text: string): string {
+  // "the Deputy" first: renaming the bare word would turn it into "the Sage" and leave the article
+  // stranded, and the second pass would never see it.
+  return text.replace(/\bthe\s+deputy\b/gi, "Sage").replace(/\bDeputy\b/g, "Sage");
+}
