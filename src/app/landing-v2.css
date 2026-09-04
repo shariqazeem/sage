@@ -1749,3 +1749,22 @@ body:has(.slv2) {
 /* two doors now (teams · the people doing the work) — the lender door moved inside the product */
 .slv2 .dr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 860px) { .slv2 .dr { grid-template-columns: 1fr; } }
+
+/* The hero's guarantees, as marks rather than as the tail of a paragraph. */
+.slv2 .hero-marks {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+}
+.slv2 .hero-marks li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+.slv2 .hero-marks svg { color: var(--ink-2); flex: none; }

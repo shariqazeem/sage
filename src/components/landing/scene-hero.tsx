@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, Lock, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, EyeOff, Hand, Lock, X } from "lucide-react";
 import { usd, short, since } from "@/lib/format";
 import { chainConfig } from "@/lib/deputy/networks";
 import type { PayoutReceipt } from "@/lib/deputy/chain";
@@ -45,11 +45,15 @@ export function SceneHero({
             <span className="soft">on verified work.</span>
           </h1>
 
+          {/*
+            THE FIRST THING ANYONE READS was four sentences carrying four separate promises. Two of
+            them describe what Sage DOES, which belongs in the lede; the other two are guarantees
+            about how it behaves with money, and a guarantee reads better as a mark than as the
+            third clause of a paragraph. Nothing is dropped — it is sorted.
+          */}
           <p className="lede hero-lede">
             Fund it once and name your product. Sage decides what work to buy, designs it, verifies
-            every deliverable and pays from a vault it cannot exceed — privately on Starknet when you
-            ask. It proposes each move with its reason before the money leaves, and you can stop any
-            of them. There are no forms after the first one.
+            every deliverable, and pays from a vault it cannot exceed.
           </p>
 
           <div className="hero-actions">
@@ -69,10 +73,20 @@ export function SceneHero({
             </span>
           </div>
 
-          <span className="hero-note">
-            <Lock size={13} strokeWidth={2} />
-            Founder-funded. Sage never touches your keys.
-          </span>
+          <ul className="hero-marks">
+            <li>
+              <Lock size={13} strokeWidth={2} />
+              Founder-funded — never your keys
+            </li>
+            <li>
+              <Hand size={13} strokeWidth={2} />
+              Every move proposed first, and stoppable
+            </li>
+            <li>
+              <EyeOff size={13} strokeWidth={2} />
+              Private on Starknet when you ask
+            </li>
+          </ul>
         </div>
 
         {/* ── the live settlement rail: the product, not a picture of it ── */}
