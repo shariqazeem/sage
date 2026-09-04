@@ -77,6 +77,30 @@ export function founderChain(raw: string | null | undefined): "evm" | "starknet"
 }
 
 /**
+ * The signed-in founder's address in the form everything downstream STORES and LOOKS UP by.
+ *
+ * `normalizeFounder` is the COMPARISON form and strips leading zeros, which is right when both
+ * sides are stripped together and wrong the moment the result is used as a key: about one EVM
+ * address in sixteen begins with `0x0`, and stripping turns it into a 39-digit string that is not
+ * an address. `founderStorageKey` knows this and deliberately keeps EVM padding — but it never saw
+ * the padded form, because this function had already removed it.
+ *
+ * Measured on prod 2026-09-05: a workspace owned by `0x4ca1a9d6…` (39 digits) whose owner is really
+ * `0x04ca1a9d6…`, and the SAME operator wallet filed under both `0x0def3d…` and `0xdef3d…` in
+ * inspection_jobs — one person, two identities, decided by which code path wrote the row.
+ *
+ * So: validate through `normalizeFounder`, then hand back the EVM address with its padding intact.
+ * A felt genuinely has no canonical width and stays canonicalised.
+ */
+export function founderAddressForm(raw: string | null | undefined): string | null {
+  const n = normalizeFounder(raw);
+  if (n === null) return null;
+  const t = (raw ?? "").trim().toLowerCase();
+  // 42 characters is `0x` plus a 20-byte EVM address — the same boundary founderStorageKey uses.
+  return t.length <= 42 ? t : n;
+}
+
+/**
  * The signed-in founder, from EITHER session.
  *
  * The EVM session is preferred when both exist, so a founder who has used Sage before keeps the
@@ -85,8 +109,8 @@ export function founderChain(raw: string | null | undefined): "evm" | "starknet"
  */
 export async function getFounderAddress(): Promise<string | null> {
   const evm = await getSessionAddress();
-  if (evm) return normalizeFounder(evm);
-  return normalizeFounder(await getStarknetSessionAddress());
+  if (evm) return founderAddressForm(evm);
+  return founderAddressForm(await getStarknetSessionAddress());
 }
 
 /** The founder plus which chain they signed in from, for surfaces that must show or branch on it. */
