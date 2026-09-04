@@ -76,6 +76,12 @@ const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%
 const usd = (v: number | undefined) =>
   v === undefined ? "—" : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Real wallets with verified inflow on mainnet — a lender should not have to supply one to look. */
+const EXAMPLE_WALLETS = [
+  { address: "0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", note: "Starknet · private rail" },
+  { address: "0xccbfb9bba88f282282a29aa1338175cc835e768d", note: "GOAT · public rail" },
+];
+
 export function LenderClient() {
   const [wallet, setWallet] = useState("");
   const [multiple, setMultiple] = useState("2");
@@ -164,9 +170,8 @@ export function LenderClient() {
         <p className="lend-kicker">For lenders</p>
         <h1 className="lend-title">Underwrite verified cash flow.</h1>
         <p className="lend-lede">
-          Paste a wallet. You get the payment history behind it — every job verified before the
-          money moved, every row anchored to a transaction you can check yourself. Sage states the
-          facts and computes no credit score; the multiple below is yours.
+          Every job verified before the money moved, every row anchored to a transaction you can
+          check. Sage states the facts and computes no score — the multiple is yours.
         </p>
       </header>
 
@@ -192,6 +197,22 @@ export function LenderClient() {
           )}
         </button>
       </div>
+
+      {/* A LENDER ARRIVING HAS NO WALLET TO HAND.
+          The page was a headline and an empty box: nothing to read, nothing to test, and no way to
+          see what the answer even looks like without already being inside the system. These are real
+          wallets with real verified inflow, so the first thing a lender can do is open one. */}
+      {!data && !loading && (
+        <div className="lend-eg">
+          <span className="lend-eg-k">No wallet to hand? Open a real one:</span>
+          {EXAMPLE_WALLETS.map((w) => (
+            <button key={w.address} type="button" className="lend-eg-chip" onClick={() => { setWallet(w.address); void look(w.address); }}>
+              <span className="mono">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
+              <span className="lend-eg-note">{w.note}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {error ? (
         <p className="lend-error" role="alert">
