@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { identityFor, recordIdentityProof } from "@/lib/db/identity";
-import { standingOf } from "@/lib/identity/standing";
+import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
+import { meetsTier, requiredTier } from "@/lib/identity/tier";
 import { signalMatches, verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -18,6 +19,14 @@ export async function GET(req: NextRequest) {
   }
   const proof = identityFor(wallet);
   const standing = standingOf(wallet);
+  /**
+   * A mission may ask what IT needs, so the board can raise the question at the mission rather than
+   * making every tester read a rule. Answered from the same functions the submit door enforces with,
+   * so the prompt and the gate can never disagree about who needs to verify.
+   */
+  const rewardRaw = Number(req.nextUrl.searchParams.get("reward"));
+  const rewardBase = Number.isFinite(rewardRaw) && rewardRaw > 0 ? Math.round(rewardRaw) : null;
+  const need = rewardBase === null ? null : requiredTier(rewardBase);
   return NextResponse.json({
     available: cfg !== null,
     action: cfg?.action ?? null,
@@ -26,6 +35,9 @@ export async function GET(req: NextRequest) {
     verifiedAt: proof?.verifiedAt ?? null,
     tier: standing.tier,
     reason: standing.reason,
+    armed: identityTiersArmed(),
+    requiresStanding: need !== null && need !== "newcomer" && identityTiersArmed(),
+    meets: need === null ? true : meetsTier(standing.tier, need),
   });
 }
 

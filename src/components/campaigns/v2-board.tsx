@@ -18,6 +18,8 @@ import {
   Target,
 } from "lucide-react";
 import { getAddress } from "viem";
+import { MissionVerify } from "@/components/live/mission-verify";
+import "@/styles/live.css";
 import { reward as fmtReward } from "@/lib/format";
 import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
@@ -292,6 +294,8 @@ function MissionCard({
    * and by everything gated behind them, so they can never disagree about which wallet counts.
    */
   const signedIn = rail === "starknet" ? starknet.authed : siwe.authed;
+  // the wallet that signed in is the wallet that gets paid — and the only one a proof may bind to
+  const signedInWallet = (rail === "starknet" ? starknet.address : siwe.address) ?? "";
 
   const loadMine = useCallback(async () => {
     // Was `!siwe.authed`, so on the private rail a tester's OWN submission was never fetched: the
@@ -752,14 +756,21 @@ function MissionCard({
               </>
             )
           ) : !open ? (
-            <button
-              className="sage-btn sage-btn-primary"
-              onClick={() => setOpen(true)}
-            >
-              Submit evidence
-            </button>
+            <>
+              {/* Asked at the mission, before an account is written that could not be submitted. */}
+              {signedInWallet ? <MissionVerify wallet={signedInWallet} rewardBase={mission.rewardBase} /> : null}
+              <button
+                className="sage-btn sage-btn-primary"
+                onClick={() => setOpen(true)}
+              >
+                Submit evidence
+              </button>
+            </>
           ) : (
-            formBlock
+            <>
+              {signedInWallet ? <MissionVerify wallet={signedInWallet} rewardBase={mission.rewardBase} /> : null}
+              {formBlock}
+            </>
           )}
         </>
       )}
