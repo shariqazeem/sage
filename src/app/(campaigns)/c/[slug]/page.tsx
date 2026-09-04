@@ -1,3 +1,6 @@
+// the mission-verify prompt lives inside the board; its styles belong to the PAGE, because a
+// component that imports CSS drags PostCSS into every component test that renders it
+import "@/styles/live.css";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";

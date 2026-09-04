@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { getAddress } from "viem";
 import { MissionVerify } from "@/components/live/mission-verify";
-import "@/styles/live.css";
 import { reward as fmtReward } from "@/lib/format";
 import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
