@@ -258,7 +258,10 @@ export async function runDirectEval(opts: {
        * nobody experiences. Keyed on the provider's own finish_reason — never speculative.
        */
       if (finish === "length") {
-        const roomier = await askModelWithRetry(f.utterance, opts.timeoutMs ?? 60_000, 1, [], false, 1);
+        // The roomier rung GENERATES MORE, so it needs more wall-clock than the first call, not the
+        // same. Measured: adding the re-ask on the original 60s budget turned 3 compile failures into
+        // 0 but produced 6 provider timeouts, and the battery correctly refused to call that evidence.
+        const roomier = await askModelWithRetry(f.utterance, Math.round((opts.timeoutMs ?? 60_000) * 2), 1, [], false, 1);
         if (!roomier.failed && (roomier.call || roomier.reply)) ({ call, reply, finish, outTokens } = roomier);
       }
       /**
