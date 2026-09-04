@@ -3,6 +3,7 @@ import { getFounderAddress } from "@/lib/auth/founder";
 import { getMandate, listLaunches, policyFrom, upsertMandate } from "@/lib/db/operator";
 import { allocate, exposureBase, usd } from "@/lib/operator/policy";
 import { mandateStateFor } from "@/lib/operator/state";
+import { rehearse } from "@/lib/operator/rehearsal";
 import { allowedSurfaces } from "@/lib/operator/tick";
 
 export const runtime = "nodejs";
@@ -13,7 +14,18 @@ export async function GET() {
   const founder = await getFounderAddress();
   if (!founder) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const mandate = getMandate(founder);
-  if (!mandate) return NextResponse.json({ armed: false, mandate: null, proposals: [], now: Math.floor(Date.now() / 1000) });
+  /*
+    NEVER AN EMPTY PAGE. With no mandate, or one that cannot move (unarmed, or a treasury at its
+    floor), the founder still sees the move the agent WOULD make — same decision, same ceilings,
+    nothing recorded (src/lib/operator/rehearsal.ts). That is the difference between a feature and
+    a form.
+  */
+  if (!mandate) {
+    return NextResponse.json({
+      armed: false, mandate: null, proposals: [], now: Math.floor(Date.now() / 1000),
+      rehearsal: await rehearse(founder).catch(() => null),
+    });
+  }
   const state = await mandateStateFor(founder);
   const launches = listLaunches(founder, 12);
   const surfaces = state ? allowedSurfaces(state.productUrl, state.observations) : [];
@@ -34,6 +46,10 @@ export async function GET() {
         : { moving: true, reason: `ready to commit ${usd(verdict.budgetBase)}`, fix: null }
       : null,
     proposals: launches,
+    rehearsal:
+      mandate.enabled !== 1 || (verdict && verdict.action === "hold" && /reserve floor|treasury/i.test(verdict.reason))
+        ? await rehearse(founder).catch(() => null)
+        : null,
   });
 }
 

@@ -44,9 +44,12 @@ function injectedEvmName(): string | null {
 export function FounderSignIn({
   explainer,
   onSignedIn,
+  intent = "signin",
 }: {
   explainer?: React.ReactNode;
   onSignedIn?: () => void;
+  /** `bind`: the proven wallet joins the account already signed in; the session is not replaced. */
+  intent?: "signin" | "bind";
 }) {
   const evm = useSiwe();
   const starknet = useStarknetSiwe();
@@ -86,7 +89,7 @@ export function FounderSignIn({
         ? `${base} (Ethereum)`
         : base,
       onSelect: async () => {
-        const ok = evm.address ? await evm.signIn() : (await evm.connect(), false);
+        const ok = evm.address ? await evm.signIn({ mode: intent }) : (await evm.connect(), false);
         if (ok) onSignedIn?.();
       },
     });

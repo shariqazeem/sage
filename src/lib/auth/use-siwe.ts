@@ -22,8 +22,9 @@ export interface SiweApi {
   connect: () => Promise<void>;
   switchToMetis: () => Promise<void>;
   switchToChain: (chainId: number) => Promise<void>;
-  /** Run the SIWE-lite flow (connect → nonce → sign → verify). */
-  signIn: () => Promise<boolean>;
+  /** Run the SIWE-lite flow (connect → nonce → sign → verify). `bind` joins the wallet to the
+   *  account already signed in instead of replacing it. */
+  signIn: (opts?: { mode?: "signin" | "bind" }) => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -56,7 +57,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     void refresh();
   }, [refresh]);
 
-  const signIn = useCallback(async (): Promise<boolean> => {
+  const signIn = useCallback(async (opts: { mode?: "signin" | "bind" } = {}): Promise<boolean> => {
     if (!w.address) await w.connect();
     // SIWE (personal_sign) is chain-independent — don't force a network switch here.
     // The launch wizard switches to the founder's chosen chain only for the on-chain steps.
@@ -78,7 +79,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
       const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address: account, signature, issuedAt }),
+        body: JSON.stringify({ address: account, signature, issuedAt, mode: opts.mode ?? "signin" }),
       });
       if (!verifyRes.ok) return false;
       const json = (await verifyRes.json()) as { address?: string };

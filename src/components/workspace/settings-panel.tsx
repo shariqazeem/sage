@@ -29,6 +29,8 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
   const [saved, setSaved] = useState(false);
   const [binding, setBinding] = useState(false);
   const [bindMsg, setBindMsg] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addMsg, setAddMsg] = useState<string | null>(null);
   const other = account.chain === "evm" ? "starknet" : "evm";
   const hasOther = account.linked.some((l) => l.chain === other);
 
@@ -92,7 +94,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
                 <li key={l.address} className="ws-row">
                   <div className="ws-row-main">
                     <p className="ws-row-title"><span className="mono t">{short(l.address)}</span></p>
-                    <p className="ws-row-meta">{chainName(l.chain)} · linked</p>
+                    <p className="ws-row-meta">{chainName(l.chain)} · linked · pays and receives as you</p>
                   </div>
                   <span className="ws-chip">linked</span>
                 </li>
@@ -110,6 +112,25 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
                   </>
                 )}
                 {bindMsg && <p className={bindMsg.startsWith("Wallets linked") ? "ws-ok" : "ws-err"}>{bindMsg}</p>}
+              </div>
+            )}
+            {/*
+              ADD A WALLET TO THIS ACCOUNT. An email account holds an embedded wallet; the founder
+              also owns a browser wallet. Signing in with it used to REPLACE the account. This
+              signs with it and joins it — the session stays, the workspace stays, the record grows.
+            */}
+            {account.chain === "evm" && (
+              <div style={{ marginTop: 14 }}>
+                {!adding ? (
+                  <button className="sage-btn sage-btn-sm" onClick={() => setAdding(true)}><Wallet size={13} /> Add an Ethereum wallet to this account</button>
+                ) : (
+                  <>
+                    <p className="ws-note" style={{ margin: "0 0 10px" }}>Sign once with the wallet you want to add. You stay signed in as this account; the wallet becomes yours here too.</p>
+                    <FounderSignIn intent="bind" explainer={<>Pick the wallet to <b>add</b>.</>} onSignedIn={() => { setAdding(false); setAddMsg("Wallet added — it pays and receives as you now."); router.refresh(); }} />
+                    <div className="st-actions"><button className="st-back" onClick={() => setAdding(false)}>Cancel</button></div>
+                  </>
+                )}
+                {addMsg && <p className="ws-ok">{addMsg}</p>}
               </div>
             )}
             <div style={{ marginTop: 16 }}>

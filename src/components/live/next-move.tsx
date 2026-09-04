@@ -36,6 +36,17 @@ interface Data {
   liveCount: number;
   stance: { moving: boolean; reason: string; fix: { label: string; href: string } | null } | null;
   proposals: Proposal[];
+  rehearsal?: {
+    recorded: false;
+    surface: string;
+    kind: "testing" | "gig" | "grant";
+    goal: string;
+    reason: string;
+    budgetBase: number;
+    line: string;
+    assumesFundingBase: number;
+    because: string | null;
+  } | null;
 }
 
 const usd = (b: number) => `$${(b / 1e6).toFixed(2)}`;
@@ -66,12 +77,56 @@ export function NextMove() {
     return () => { clearInterval(p); clearInterval(t); };
   }, []);
 
-  if (!data || !data.armed) return null;
+  if (!data) return null;
+  const R = 24, C = 2 * Math.PI * R;
+  /*
+    ALIVE AT $0. Unarmed, or a treasury at its floor, used to render nothing — the flagship "agent
+    decides" feature was invisible to every new founder. The rehearsal is the same decision with the
+    ring greyed and one door: fund it, and it will.
+  */
+  if (!data.armed || (data.rehearsal && !data.proposals.some((p) => p.state === "proposed" || p.state === "committed"))) {
+    const r = data.rehearsal;
+    return (
+      <section className="lv-card">
+        <div className="lv-h">
+          <h2><Compass size={15} /> What Sage would do next</h2>
+          <span className="lv-tele"><span><b>{usd(data.treasury?.balanceBase ?? 0)}</b> in the treasury</span></span>
+        </div>
+        {r && !r.because ? (
+          <div className="nm-move nm-rehearsal">
+            <div className="lv-ring">
+              <svg viewBox="0 0 56 56" aria-hidden>
+                <circle className="track" cx="28" cy="28" r={R} />
+              </svg>
+              <div className="mid">—</div>
+            </div>
+            <div className="nm-body">
+              <p className="nm-head">
+                <b>{usd(r.budgetBase)} {KIND[r.kind]}</b> on <span className="mono">{r.surface}</span>
+              </p>
+              <p className="nm-goal">{r.goal}</p>
+              <p className="nm-why">{r.reason}</p>
+              <p className="nm-assume">Sized as if the treasury held {usd(r.assumesFundingBase)}. Nothing is recorded until it does.</p>
+            </div>
+            <div className="nm-act">
+              <Link href="/workspace/autopilot#treasury" className="nm-btn">Fund it and Sage moves</Link>
+            </div>
+          </div>
+        ) : (
+          <div className="nm-blocked">
+            <p className="nm-state">{r?.because ? capital(r.because) : "Reading the board."}</p>
+            {r?.because && /name your product/i.test(r.because) && (
+              <Link href="/workspace/autopilot#mandate" className="nm-btn nm-fix">Name your product</Link>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
   const now = Math.floor(Date.now() / 1000) + skew;
   const open = data.proposals.find((p) => p.state === "proposed");
   const working = data.proposals.find((p) => p.state === "committed");
   const recent = data.proposals.filter((p) => p.state === "launched" || p.state === "vetoed").slice(0, 3);
-  const R = 24, C = 2 * Math.PI * R;
 
   const act = async (id: string, action: "veto" | "now") => {
     setBusy(id + action);

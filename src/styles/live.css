@@ -213,3 +213,11 @@ a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .nvr-x { grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: color-mix(in srgb, var(--dan, #dc2626) 10%, transparent); color: var(--dan, #dc2626); }
 .nvr b { font-size: 13px; font-weight: 620; color: var(--ink); }
 .nvr span:not(.nvr-x) { font-size: 12px; color: var(--ink-muted); line-height: 1.45; }
+
+/* THE DOOR at the mission — one card, one button; and the quiet "verified" line after. */
+.mv-door { border-color: color-mix(in srgb, var(--accent, #c2410c) 45%, transparent); background: color-mix(in srgb, var(--accent, #c2410c) 4%, transparent); }
+.mv-ok { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 12px; font-size: 12.5px; color: var(--ok, #15803d); }
+
+/* THE REHEARSAL — the same move object with the ring at rest, and what was assumed said plainly. */
+.nm-rehearsal .lv-ring .track { stroke: color-mix(in srgb, var(--ink, #1a1d21) 14%, transparent); }
+.nm-assume { margin: 8px 0 0; font-size: 11.5px; color: var(--ink-faint, #8a8f98); }

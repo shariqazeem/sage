@@ -66,7 +66,13 @@ async function readNonce(): Promise<string | null> {
  * never from the body, so a signature can't be replayed with an attacker-chosen
  * nonce. Returns the checksummed address or null.
  */
-export async function verifyAndCreateSession(args: {
+/**
+ * THE PROOF, SEPARATED FROM WHAT IS DONE WITH IT. A valid SIWE signature against the live nonce
+ * proves control of `address` — and that proof has two honest uses: become the session (sign in),
+ * or be JOINED to the session that already exists (bind). Verifying is the same either way, so it
+ * is one function; only the consequence differs.
+ */
+export async function verifySiweSignature(args: {
   address: string;
   signature: string;
   issuedAt: string;
@@ -98,12 +104,57 @@ export async function verifyAndCreateSession(args: {
   } catch {
     return null;
   }
-  if (!valid) return null;
+  return valid ? address : null;
+}
 
+export async function verifyAndCreateSession(args: {
+  address: string;
+  signature: string;
+  issuedAt: string;
+}): Promise<Address | null> {
+  const address = await verifySiweSignature(args);
+  if (!address) return null;
   await mintSession(address);
   // One nonce, one login: clear it so the signature can't be replayed.
   (await cookies()).delete(NONCE_COOKIE);
   return address;
+}
+
+/** What a proven wallet becomes, given who is already signed in. Pure. */
+export function bindDecision(session: string | null, proven: string): "no_session" | "same" | "bind" {
+  if (!session) return "no_session";
+  return session.toLowerCase() === proven.toLowerCase() ? "same" : "bind";
+}
+
+/**
+ * ADD A WALLET TO THE ACCOUNT THAT IS ALREADY SIGNED IN — bind, never replace.
+ *
+ * Email sign-in and wallet sign-in wrote the same cookie, so connecting an Ethereum wallet after
+ * signing in by email silently REPLACED the account: the workspace, the campaigns and the record
+ * were suddenly under the other address, and the founder was asked to set up from scratch
+ * (reported 2026-09-05: "it should be binded in same email right?"). The two proofs present here —
+ * a live session and a fresh signature — are the same evidence standard the existing rail-link
+ * route requires, so the wallet is joined to the account as a DECLARED link and the session is
+ * left exactly as it was.
+ *
+ * Nothing to bind to → refuse, which is also what makes a shared computer safe: with no session
+ * there is no account to attach a stranger's wallet to.
+ */
+export async function verifyAndBindToSession(args: {
+  address: string;
+  signature: string;
+  issuedAt: string;
+}): Promise<{ ok: true; account: Address; bound: Address | null } | { ok: false; reason: "invalid" | "no_session" }> {
+  const proven = await verifySiweSignature(args);
+  if (!proven) return { ok: false, reason: "invalid" };
+  const session = await getSessionAddress();
+  const decision = bindDecision(session, proven);
+  if (decision === "no_session" || !session) return { ok: false, reason: "no_session" };
+  (await cookies()).delete(NONCE_COOKIE);
+  if (decision === "same") return { ok: true, account: session, bound: null };
+  const { linkWallets } = await import("@/lib/campaigns/wallet-links");
+  linkWallets(session, proven, Math.floor(Date.now() / 1000), "declared");
+  return { ok: true, account: session, bound: proven };
 }
 
 /**
