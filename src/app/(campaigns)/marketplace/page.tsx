@@ -119,8 +119,8 @@ export default async function MarketplacePage() {
                   already done.
                 </li>
                 <li>
-                  <b>Prove you are one person.</b> It takes a minute, asks for no name or document,
-                  and it is what opens the better-paid work when it appears.
+                  <b><Link href="/verify">Prove you are one person</Link>.</b> It takes a minute, asks
+                  for no name or document, and it is what opens the better-paid work when it appears.
                 </li>
               </ol>
               <div className="mk-empty-actions">

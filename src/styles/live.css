@@ -170,3 +170,8 @@ a.vh-coin:hover { background: var(--pos, #15803d); color: #fff; }
 .nm-blocked { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .nm-blocked .nm-state { padding: 4px 2px; flex: 1 1 320px; }
 .nm-fix { text-decoration: none; display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* the verify door */
+.vg-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.vg-row .ws-input { flex: 1 1 320px; min-width: 0; }
+.vg-link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }

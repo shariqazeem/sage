@@ -24,6 +24,7 @@ import { SageMark } from "@/components/brand/sage-mark";
 // Three links and one door. Everything else lives inside the product, after sign-in.
 const LINKS = [
   { href: "/marketplace", label: "Find work" },
+  { href: "/verify", label: "Get verified" },
   { href: "#how", label: "How it works" },
   { href: "/explorer", label: "Live proof" },
   { href: "/docs", label: "Docs" },
