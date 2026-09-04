@@ -20,7 +20,7 @@
 
 /** A number carrying a currency marker: "$60", "60 USD", "J$5,000", "60 dollars", "€1.500,00" no. */
 const AMOUNT_RE =
-  /(?:([$€£₹¥])\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:usd|usdc|dollars?|euros?|pounds?|rupees?|naira|pesos?|jmd|kyd|ttd|bbd|xcd)\b)/gi;
+  /(?:([$€£₹¥])\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:usd|usdc|dollars?|d[óo]lares|d[óo]lar|euros?|pounds?|rupees?|naira|pesos?|jmd|kyd|ttd|bbd|xcd)\b)/gi;
 
 /** "three milestones", "2 tranches", "in 4 stages" — a count the founder said out loud. */
 const WORD_NUMBERS: Record<string, number> = {

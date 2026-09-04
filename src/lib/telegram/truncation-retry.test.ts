@@ -87,3 +87,30 @@ describe("concierge — how long one call may take comes from the provider profi
     expect(perCall).toBeLessThan(turn);
   });
 });
+
+/**
+ * THE LAST RESORT, and the fact that P-DIRECT exercises it.
+ *
+ * Every failure in the 2026-09-05 run (75 rows) was one shape: the founder names a job and a price,
+ * the model reasons to the right lane, and writes prose. A battery that stops at the corrective
+ * round reports five failures a founder does not experience, so it runs the same last step.
+ */
+describe("concierge — when the model will not act, the gig is compiled without it", () => {
+  const src = readFileSync(resolve(process.cwd(), "src/lib/telegram/concierge.ts"), "utf8");
+  const battery = readFileSync(resolve(process.cwd(), "src/lib/launch/direct-eval.ts"), "utf8");
+
+  it("is gated on the same guard that fired the corrective round, and only after it failed", () => {
+    expect(src).toMatch(/if \(missedMoney && selfCorrected && succeededTools\.size === 0/);
+  });
+
+  it("runs the real tool, so every downstream guard still applies", () => {
+    expect(src).toMatch(/callSageTool\("sage_create_direct_campaign"/);
+  });
+
+  it("both the product and the battery use the same refusing builder", () => {
+    for (const f of [src, battery]) {
+      expect(f).toMatch(/from "@\/lib\/launch\/direct-fallback"/);
+      expect(f).toMatch(/unambiguousGigArgs\(/);
+    }
+  });
+});

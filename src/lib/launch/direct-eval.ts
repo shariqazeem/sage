@@ -9,6 +9,8 @@ import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
+import { draftDirectCampaign } from "@/lib/launch/gig-draft";
+import { unambiguousGigArgs } from "@/lib/launch/direct-fallback";
 import { quoteFor } from "@/lib/money/rates";
 import {
   compileDirectCampaign,
@@ -39,6 +41,8 @@ export interface DirectRow {
   category: string;
   /** did the model call the direct-campaign tool at all? */
   calledTool: boolean;
+  /** the model never called it and production compiled the gig deterministically instead. */
+  deterministic: boolean;
   /** routed as the fixture expects (the single most consequential check). */
   routedOk: boolean;
   compiled: boolean;
@@ -301,6 +305,7 @@ export async function runDirectEval(opts: {
        * trips nothing and still counts as no-tool, which for a vague fixture is the CORRECT answer.
        */
       let correctedThisRow = false;
+      let deterministic = false;
       if (!failed && !call && reply) {
         const stripped = stripReasoningPrefix(reply);
         const verdict = checkNarration(stripped, new Set<string>());
@@ -343,6 +348,28 @@ export async function runDirectEval(opts: {
             ({ call, reply, finish, outTokens } = corrected);
             cut = corrected.cut;
           }
+          /**
+           * AND PRODUCTION'S LAST RESORT, which a one-shot battery would not see at all.
+           *
+           * When the corrective round still will not act, the concierge stops asking the
+           * conversational model and hands the founder's words to the gig drafter, then reads the
+           * amount from their own sentence (direct-fallback.ts). Every remaining failure in the
+           * 2026-09-05 run was that exact shape, so a battery that skips this step reports five
+           * failures a founder does not experience. The synthesised call carries the SAME arguments
+           * production would send, so the row is then scored by every check below, unchanged.
+           */
+          if (!call) {
+            const drafted = await draftDirectCampaign({ intent: f.utterance });
+            const args = drafted.ok ? unambiguousGigArgs(f.utterance, drafted.draft) : null;
+            if (args) {
+              deterministic = true;
+              call = {
+                id: "call_fallback",
+                type: "function",
+                function: { name: "sage_create_direct_campaign", arguments: JSON.stringify(args) },
+              } as ToolCall;
+            }
+          }
         }
       }
       if (failed) {
@@ -364,6 +391,7 @@ export async function runDirectEval(opts: {
         fixtureId: f.id,
         category: f.category,
         calledTool,
+        deterministic,
         routedOk,
         compiled: false,
         budgetExact: null,
@@ -584,7 +612,7 @@ export async function runDirectEval(opts: {
       // battery that runs flat out degrades the product it is measuring. Breathe between fixtures.
       await new Promise((r) => setTimeout(r, opts.paceMs ?? 1_500));
       log(
-        `  ${f.id} run${r + 1}/${runs}: ${calledTool ? "direct" : name ?? "no-tool"}` +
+        `  ${f.id} run${r + 1}/${runs}: ${calledTool ? (deterministic ? "direct(det)" : "direct") : name ?? "no-tool"}` +
           `${row.compiled ? ` · $${row.totalUsd} · ${row.milestones}m` : ""}` +
           // WHETHER THE CORRECTIVE ROUND RAN, on every row. Without it a failure cannot be
           // attributed: a wrong plan that came from a retry and one that came from the first pass

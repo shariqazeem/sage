@@ -35,7 +35,7 @@ describe.runIf(LIVE)("P-DIRECT — money-lane battery (production path)", () => 
     console.log("\nfixture,category,tool,routedOk,compiled,budgetExact,totalUsd,milestones,firstShotMs,termsFired,lint,error");
     for (const r of rows) {
       console.log(
-        [r.fixtureId, r.category, r.calledTool ? "direct" : "-", r.routedOk, r.compiled, r.budgetExact ?? "", r.totalUsd ?? "", r.milestones ?? "", r.firstShotMilestones ?? "", r.statedTermsFired, r.lintNotes.length, r.error ?? ""].join(","),
+        [r.fixtureId, r.category, r.calledTool ? (r.deterministic ? "direct(det)" : "direct") : "-", r.routedOk, r.compiled, r.budgetExact ?? "", r.totalUsd ?? "", r.milestones ?? "", r.firstShotMilestones ?? "", r.statedTermsFired, r.lintNotes.length, r.error ?? ""].join(","),
       );
     }
     const firstShot = rows.filter((r) => r.compiled && r.correctionRounds === 0).length;

@@ -18,6 +18,8 @@ import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { friendlyFailure } from "@/lib/launch/failure-copy";
 import { siteUrl } from "@/lib/site";
 import { guardGoalAgainstFounder } from "@/lib/launch/intent-guard";
+import { draftDirectCampaign } from "@/lib/launch/gig-draft";
+import { unambiguousGigArgs } from "@/lib/launch/direct-fallback";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   conciergeBase as base,
@@ -619,6 +621,48 @@ export function conciergeEnabled(): boolean {
  * work (an inspection run) is deferred through `scheduleAfter` so the webhook can answer fast. Never
  * throws — any failure becomes an honest reply.
  */
+/**
+ * THE LAST RESORT — build the gig without the conversational model.
+ *
+ * Only ever reached when two independent guards have already judged this turn an un-acted money
+ * request and a corrective round has failed. Returns the founder-facing reply on success, or null
+ * when their words do not settle the work unambiguously — in which case the honest fallback ships
+ * as before. It runs the SAME tool the model would have called, so every guard downstream (wallet
+ * binding, rate limit, stated terms, the budget invariant, the verifiability lint) applies
+ * unchanged, and the plan it creates still moves no money until the founder funds it.
+ */
+async function createGigWithoutTheModel(input: {
+  founderWords: string;
+  ctx: McpContext;
+  surface: string;
+}): Promise<string | null> {
+  try {
+    const drafted = await draftDirectCampaign({ intent: input.founderWords });
+    if (!drafted.ok) return null;
+    const args = unambiguousGigArgs(input.founderWords, drafted.draft);
+    if (!args) return null;
+    console.warn(
+      "[concierge:%s] the model would not call the tool — compiling the gig deterministically instead",
+      input.surface,
+    );
+    const out = await callSageTool("sage_create_direct_campaign", args as unknown as Record<string, unknown>, input.ctx);
+    // `callSageTool` answers null for a tool it does not own — impossible here (the name is a
+    // literal), but the type says it can, and a silent crash inside a last-resort path would turn
+    // "the model would not act" into "the turn failed".
+    const text = out?.content?.[0]?.type === "text" ? out.content[0].text : "";
+    const parsed = JSON.parse(text || "{}") as { ok?: boolean; planUrl?: string; totalUsd?: number; title?: string };
+    if (!parsed.ok || !parsed.planUrl) return null;
+    const total = typeof parsed.totalUsd === "number" ? `$${parsed.totalUsd.toFixed(2)}` : "the amount you named";
+    return (
+      `I've written it up as a gig — ${parsed.title ?? args.title} — for ${total}.\n\n` +
+      `${parsed.planUrl}\n\nNothing has moved yet: open it, change anything you want, and fund it when it looks right.`
+    );
+  } catch (e) {
+    console.warn("[concierge:%s] deterministic gig fallback failed: %s", input.surface, e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
 async function runAgentTurn(
   ref: string,
   userText: string,
@@ -1103,6 +1147,29 @@ async function runAgentTurn(
           content: `SYSTEM CHECK: ${why}. Do not apologise and do not repeat the claim from memory. Call the right tool NOW and answer only from its result.`,
         });
         continue;
+      }
+
+      /**
+       * AND WHEN THE CORRECTIVE ROUND ALSO WOULD NOT ACT — do the work anyway, deterministically.
+       *
+       * P-DIRECT 2026-09-05, 75 rows: every remaining failure was this one shape. The founder names
+       * a job and a price, the model reasons to the right lane, and emits prose. The narrowed
+       * corrective round recovers most of them and `tool_choice: "required"` cannot help, because
+       * MiniMax-M3 ignores it. So the last resort is to stop asking the conversational model and
+       * hand the words to the drafter, which has one job and cannot write money at all; the amount
+       * is read from the founder's own sentence and the whole thing refuses unless their words
+       * settle it unambiguously (see direct-fallback.ts).
+       *
+       * Gated on the SAME guard that fired the corrective round, so it can only run on a turn two
+       * independent checks already judged an un-acted money request — never on a turn where the
+       * model asked the founder a question, which is a legitimate answer to a vague ask.
+       */
+      if (missedMoney && selfCorrected && succeededTools.size === 0 && Date.now() < turnDeadline) {
+        const made = await createGigWithoutTheModel({ founderWords: userText, ctx, surface });
+        if (made) {
+          reply = made;
+          break;
+        }
       }
       break;
     }
