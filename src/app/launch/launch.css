@@ -773,3 +773,15 @@
 .cmp-pv-criteria { margin: 6px 0 2px; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: var(--sec); }
 .cmp-pv-criteria li + li { margin-top: 2px; }
 .cmp-err { color: var(--dan); font-size: 12.5px; margin: 8px 0 0; }
+
+/* The deployment constraint — a checkbox with its own reason, not a bare label. */
+.lx-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: -4px 0 0;
+  cursor: pointer;
+}
+.lx-check input { margin-top: 3px; accent-color: var(--lx-accent, #c2410c); flex: none; }
+.lx-check span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--lx-ink, #1a1d21); }
+.lx-check em { font-style: normal; font-size: 11.5px; line-height: 1.45; color: var(--lx-muted, #8a8f98); }

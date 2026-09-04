@@ -31,6 +31,8 @@ interface MilestoneDraft {
   txTo: string;
   txSelector: string;
   txMinValueWei: string;
+  /** the deployment case — the only constraint statable about a contract that does not exist yet. */
+  txDeploys: boolean;
   artifactHosts: string; // comma/space separated bare hostnames
   publicExpected: string; // one per line
   rewardUsd: string;
@@ -50,6 +52,7 @@ function blankMilestone(): MilestoneDraft {
     txTo: "",
     txSelector: "",
     txMinValueWei: "",
+    txDeploys: false,
     artifactHosts: "",
     publicExpected: "",
     rewardUsd: "2",
@@ -84,6 +87,7 @@ function buildEvidence(m: MilestoneDraft): Record<string, unknown> {
       if (m.txTo.trim()) c.to = m.txTo.trim();
       if (m.txSelector.trim()) c.methodSelector = m.txSelector.trim();
       if (m.txMinValueWei.trim()) c.minValueWei = m.txMinValueWei.trim();
+      if (m.txDeploys) c.deploysContract = true;
       return c;
     }
     case "artifact_url":
@@ -279,7 +283,21 @@ export function DirectCampaignForm() {
                   <input className="lx-input" value={m.txMinValueWei} onChange={(e) => setMs(i, { txMinValueWei: e.target.value })} placeholder="0" inputMode="numeric" spellCheck={false} />
                 </div>
               </div>
-              <p className="lx-hint" style={{ marginTop: -8, marginBottom: 14 }}>Set at least one constraint — a contract with none would accept any transaction they ever sent.</p>
+              {/* PAYING FOR A DEPLOYMENT. Every field above names something that already exists, so a
+                  founder buying a contract that does not exist yet could satisfy none of them and the
+                  milestone was rejected as unconstrained. This is the constraint that case can state. */}
+              <label className="lx-check">
+                <input
+                  type="checkbox"
+                  checked={m.txDeploys}
+                  onChange={(e) => setMs(i, { txDeploys: e.target.checked })}
+                />
+                <span>
+                  The transaction must <b>deploy a contract</b>
+                  <em>Use this when you are paying for the deployment itself — its address cannot be known in advance.</em>
+                </span>
+              </label>
+              <p className="lx-hint" style={{ marginTop: 6, marginBottom: 14 }}>Set at least one constraint — a contract with none would accept any transaction they ever sent.</p>
             </>
           )}
 

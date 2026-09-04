@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { deploymentIntent, mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { directCampaignSchema } from "./direct-campaign";
@@ -84,5 +86,28 @@ describe("the mixed-evidence grant compiles end to end", () => {
     const first = parsed.data.milestones[0].evidence;
     expect(first.kind === "onchain_tx" && first.deploysContract).toBe(true);
     expect(parsed.data.milestones.map((m) => m.rewardUsd)).toEqual([35, 25]);
+  });
+});
+
+/**
+ * THE WEB COMPOSER TOO. The founder-facing form built an onchain_tx from three fields that each
+ * name something already on chain, so a founder paying for a deployment could satisfy none of them
+ * and the milestone was refused as unconstrained — the same defect as the chat path, on the door a
+ * founder is more likely to use. Read from the source, because there is no other way to hold a
+ * form's field wiring without rendering the whole launch flow.
+ */
+describe("the web composer can express a deployment", () => {
+  const src = readFileSync(resolve(process.cwd(), "src/components/launch/direct-form.tsx"), "utf8");
+
+  it("carries the field, sends it, and only when it is set", () => {
+    expect(src).toMatch(/txDeploys: boolean/);
+    expect(src).toMatch(/txDeploys: false/); // the default is no claim
+    expect(src).toMatch(/if \(m\.txDeploys\) c\.deploysContract = true;/);
+  });
+
+  it("offers it in the on-chain branch, where the other constraints live", () => {
+    const branch = src.slice(src.indexOf('m.kind === "onchain_tx"'), src.indexOf('m.kind === "artifact_url"'));
+    expect(branch).toMatch(/deploy a contract/i);
+    expect(branch).toMatch(/checked=\{m\.txDeploys\}/);
   });
 });
