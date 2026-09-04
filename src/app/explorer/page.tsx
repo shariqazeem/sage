@@ -3,11 +3,14 @@ import { settledFeeCount, sumSettledFeesBase } from "@/lib/db/campaigns";
 import { OPERATOR_FEE_USD } from "@/lib/x402/facilitator";
 import "./explorer.css";
 import "@/styles/live.css";
+import "@/styles/compare.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Anchor, FileCheck2, Landmark, ShieldCheck } from "lucide-react";
 
 import { SageMark } from "@/components/brand/sage-mark";
 import { ExplorerSearch } from "@/components/explorer/explorer-search";
+import { CompareBar } from "@/components/outcomes/compare-bar";
 import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
 import { chainConfig } from "@/lib/deputy/networks";
 import { short, usd } from "@/lib/format";
@@ -79,6 +82,12 @@ export default function ExplorerPage() {
   const blocks = decided.refused;
   const refusalShare = decided.sharePct;
   const now = Date.now();
+  /* Sage's actual take against the same volume at the corridor rate the remittance track names. */
+  const feesCollected = feesEarnedBase / 1e6;
+  const corridorFee = paid * 0.08;
+  /* Both bars to the same precision — `usd` drops the cents on a whole number, and "$0" beside
+     "$0.01" reads as two different measurements rather than two ends of one comparison. */
+  const cents = (n: number) => `$${n.toFixed(2)}`;
 
   return (
     <div className="exp">
@@ -159,29 +168,62 @@ export default function ExplorerPage() {
             <h2>How Sage earns</h2>
             <span className="exp-earn-rate">${OPERATOR_FEE_USD.toFixed(2)} a settlement</span>
           </div>
-          <p>
-            No plans and no seats. Sage charges a flat fee on each payout it makes and nothing at all
-            on a refusal, so it earns only when someone is actually paid for verified work. The fee is
-            paid over x402 on GOAT, and every one of them is its own transaction.
-          </p>
-          <p className="exp-earn-n">
-            <b className="mono">{usd(feesEarnedBase / 1e6)}</b> collected on-chain across{" "}
-            <b className="mono">{feesSettled}</b> settlements. A platform taking 7–9% of the same{" "}
-            {usd(paid)} would have taken <b className="mono">{usd(paid * 0.08)}</b>.
-          </p>
+          {/*
+            THE CLAIM IS THE GAP, SO DRAW THE GAP.
+            This was two paragraphs performing a subtraction in words. Both bars are real: ours is
+            fees that actually SETTLED on chain (never what is owed), theirs is the same volume at
+            the 7-9% corridor the remittance track names. The caption is written from the reading
+            rather than around it — a flat fee is genuinely a larger share of a very small payout,
+            and saying so is the only version of this figure worth publishing.
+          */}
+          <CompareBar
+            ours={feesCollected}
+            theirs={corridorFee}
+            oursLabel={cents(feesCollected)}
+            theirsLabel={cents(corridorFee)}
+            alternativeName="7–9% platform"
+            lowerIsBetter
+            caption={
+              feesSettled === 0
+                ? "Nothing has been charged yet — the fee exists only where a payout does, and never on a refusal."
+                : feesCollected > corridorFee
+                  ? `Charged on ${feesSettled} ${feesSettled === 1 ? "settlement" : "settlements"}. A flat fee is the larger share of a payout this small — and unlike a percentage it stops growing as the payouts do.`
+                  : `Charged on ${feesSettled} ${feesSettled === 1 ? "settlement" : "settlements"}, each its own x402 transaction on GOAT. Nothing at all is charged on a refusal.`
+            }
+          />
         </section>
 
+        {/*
+          FOUR CLAIMS, NOT ONE PARAGRAPH.
+          These were a single block of prose carrying four separate guarantees, which is the shape a
+          reader skips entirely — and each one is checkable, so each gets its own mark and its own
+          door. The two that lead somewhere are links; the two that are conditions of the numbers
+          above are not.
+        */}
         <footer className="exp-trust">
-          Every settled row links to its <b>proof receipt</b>, and every recipient wallet has a
-          public <b>verified work record</b> at <span className="mono">/record/&lt;wallet&gt;</span>{" "}
-          with lender-consumable credit signals. These totals count settlements on mainnet rails
-          only — a testnet payout moves no real money, so it is not a settlement. Vault-settled
-          payouts run inside on-chain caps,
-          recipients are screened against the OFAC SDN list, and no human reviewed any autonomous
-          decision — read{" "}
-          <Link href="/docs/compliance">how the controls work</Link>. What these rows add up to —
-          cost, speed, access, flow — is measured on{" "}
-          <Link href="/outcomes">system outcomes</Link>.
+          <ul className="exp-guards">
+            <li>
+              <Anchor size={14} strokeWidth={1.7} />
+              <span>Every row anchored to a transaction</span>
+            </li>
+            <li>
+              <ShieldCheck size={14} strokeWidth={1.7} />
+              <Link href="/docs/compliance">On-chain caps · OFAC screened · no human in the loop</Link>
+            </li>
+            <li>
+              <FileCheck2 size={14} strokeWidth={1.7} />
+              <span>
+                Each wallet has a public record at <span className="mono">/record/&lt;wallet&gt;</span>
+              </span>
+            </li>
+            <li>
+              <Landmark size={14} strokeWidth={1.7} />
+              <Link href="/outcomes">Cost, speed, access and flow, measured</Link>
+            </li>
+          </ul>
+          <p className="exp-trust-n">
+            Mainnet rails only — a testnet payout moves no real money, so it is not a settlement.
+          </p>
         </footer>
       </div>
     </div>

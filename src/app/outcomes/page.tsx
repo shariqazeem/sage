@@ -1,5 +1,6 @@
 import { CompareBar } from "@/components/outcomes/compare-bar";
 import "./outcomes.css";
+import "@/styles/compare.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { readOutcomes } from "@/lib/outcomes/outcomes";
