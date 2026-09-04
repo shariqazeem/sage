@@ -111,6 +111,16 @@ describe("concierge — when the model will not act, the gig is compiled without
     expect(src).toMatch(/callSageTool\("sage_create_direct_campaign"/);
   });
 
+  it("recites the tool's own total, never the founder's per-unit figure", () => {
+    // "$4 each to the first 5" totals $20; saying $4 would be wrong about what they are funding
+    expect(src).toMatch(/parsed\.totalBudgetUsd/);
+    expect(src).not.toMatch(/parsed\.totalUsd/);
+  });
+
+  it("relays the verifiability lint before the founder funds", () => {
+    expect(src).toMatch(/parsed\.strengthNotes/);
+  });
+
   it("both the product and the battery use the same refusing builder", () => {
     for (const f of [src, battery]) {
       expect(f).toMatch(/from "@\/lib\/launch\/direct-fallback"/);

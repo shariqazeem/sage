@@ -650,12 +650,26 @@ async function createGigWithoutTheModel(input: {
     // literal), but the type says it can, and a silent crash inside a last-resort path would turn
     // "the model would not act" into "the turn failed".
     const text = out?.content?.[0]?.type === "text" ? out.content[0].text : "";
-    const parsed = JSON.parse(text || "{}") as { ok?: boolean; planUrl?: string; totalUsd?: number; title?: string };
+    const parsed = JSON.parse(text || "{}") as {
+      ok?: boolean;
+      planUrl?: string;
+      totalBudgetUsd?: number;
+      invitedRecipients?: number;
+      strengthNotes?: string[];
+    };
     if (!parsed.ok || !parsed.planUrl) return null;
-    const total = typeof parsed.totalUsd === "number" ? `$${parsed.totalUsd.toFixed(2)}` : "the amount you named";
+    /*
+      The tool's own numbers, recited — never recomputed. `totalBudgetUsd` is the compiled total
+      (reward × slots), which is not always the single figure the founder typed: "$4 each to the
+      first 5" totals $20, and stating their $4 here would be wrong about what they are funding.
+    */
+    const total = typeof parsed.totalBudgetUsd === "number" ? `$${parsed.totalBudgetUsd.toFixed(2)}` : null;
+    const named = parsed.invitedRecipients ? " Only the wallet you named can claim it." : "";
+    // The lint's proof-strength notes exist to be relayed BEFORE funding — the founder decides.
+    const notes = (parsed.strengthNotes ?? []).slice(0, 2).map((n) => `\n· ${n}`).join("");
     return (
-      `I've written it up as a gig — ${parsed.title ?? args.title} — for ${total}.\n\n` +
-      `${parsed.planUrl}\n\nNothing has moved yet: open it, change anything you want, and fund it when it looks right.`
+      `I've written it up as a gig — ${args.title}${total ? `, ${total} in total` : ""}.${named}\n\n` +
+      `${parsed.planUrl}\n\nNothing has moved yet: open it, change anything you want, and fund it when it looks right.${notes}`
     );
   } catch (e) {
     console.warn("[concierge:%s] deterministic gig fallback failed: %s", input.surface, e instanceof Error ? e.message : String(e));
