@@ -616,12 +616,6 @@ export function conciergeEnabled(): boolean {
 }
 
 /**
- * Run one concierge turn for a chat: feed the message + short history to CommonStack with Sage's
- * tools bound, execute any tool calls IN-PROCESS, and return the final plain-text reply. Background
- * work (an inspection run) is deferred through `scheduleAfter` so the webhook can answer fast. Never
- * throws — any failure becomes an honest reply.
- */
-/**
  * THE LAST RESORT — build the gig without the conversational model.
  *
  * Only ever reached when two independent guards have already judged this turn an un-acted money
@@ -677,6 +671,12 @@ async function createGigWithoutTheModel(input: {
   }
 }
 
+/**
+ * Run one concierge turn for a chat: feed the message + short history to CommonStack with Sage's
+ * tools bound, execute any tool calls IN-PROCESS, and return the final plain-text reply. Background
+ * work (an inspection run) is deferred through `scheduleAfter` so the webhook can answer fast. Never
+ * throws — any failure becomes an honest reply.
+ */
 async function runAgentTurn(
   ref: string,
   userText: string,
