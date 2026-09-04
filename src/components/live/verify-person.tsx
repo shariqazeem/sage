@@ -54,7 +54,7 @@ export function VerifyPerson({ wallet }: { wallet: string }) {
       const r = await fetch("/api/identity", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet, proof }),
+        body: JSON.stringify({ proof }),
       });
       const j = (await r.json()) as { message?: string; error?: string };
       if (!r.ok) setErr(j.error ?? "That didn't verify.");

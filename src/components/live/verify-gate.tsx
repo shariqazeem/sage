@@ -1,67 +1,45 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Wallet } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { VerifyPerson } from "./verify-person";
 
 /**
- * WHICH WALLET IS THIS FOR.
+ * A PROOF IS ONLY WORTH RECORDING AGAINST A WALLET YOU CONTROL.
  *
- * The proof binds to one wallet — the one that gets paid — so the page has to know which before it
- * can offer anything. A worker here may have arrived from a Telegram link with no browser wallet at
- * all, so this asks for the address rather than demanding a wallet connection: they can paste the
- * one from their work record, and nothing is signed on this page.
+ * This asked people to paste an address, which let anyone bind a proof to a wallet that was not
+ * theirs — a proof of personhood without a proof of control states nothing useful, since the PAIR is
+ * the claim. The submit door beside it already derived the wallet from the session and required a
+ * signature; identity was the one place held to a weaker standard than the money path.
+ *
+ * So there is no address field. Signing in is how a person shows the wallet is theirs, the proof is
+ * how they show they are one person, and the server reads the wallet from the session either way.
  */
-export function VerifyGate() {
-  const [input, setInput] = useState("");
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const go = () => {
-    const w = input.trim();
-    if (!/^0x[0-9a-fA-F]{20,64}$/.test(w)) {
-      setErr("That doesn't look like a wallet address. It starts 0x and is the one you get paid at.");
-      return;
-    }
-    setErr(null);
-    setWallet(w);
-  };
-
-  if (wallet) {
+export function VerifyGate({ wallet }: { wallet: string | null }) {
+  if (!wallet) {
     return (
-      <>
-        <VerifyPerson wallet={wallet} />
-        <p className="ws-note" style={{ marginTop: 0 }}>
-          Verifying <span className="mono">{wallet.slice(0, 10)}…{wallet.slice(-6)}</span> ·{" "}
-          <button type="button" className="vg-link" onClick={() => setWallet(null)}>use a different wallet</button>
-          {" · "}
-          <Link href={`/record/${wallet}`}>see its work record</Link>
+      <section className="ws-card">
+        <div className="ws-card-h"><h2><LogIn size={15} /> Sign in with the wallet you get paid at</h2></div>
+        <p className="ws-note" style={{ margin: "0 0 14px" }}>
+          A proof is bound to a wallet, and it is only worth recording against one you control — so the
+          wallet is read from your sign-in rather than typed. An email is enough: Sage keeps the wallet
+          for you, and the same address is what receives your payouts.
         </p>
-      </>
+        <div className="mc-actions">
+          <Link href="/start" className="nm-btn">Sign in</Link>
+          <Link href="/marketplace" className="nm-btn ghost">See the open work first</Link>
+        </div>
+      </section>
     );
   }
 
   return (
-    <section className="ws-card">
-      <div className="ws-card-h"><h2><Wallet size={15} /> Which wallet gets paid?</h2></div>
-      <p className="ws-note" style={{ margin: "0 0 12px" }}>
-        Paste the address you are paid at. Nothing is signed here, and the proof binds to this wallet
-        alone.
+    <>
+      <VerifyPerson wallet={wallet} />
+      <p className="ws-note" style={{ marginTop: 0 }}>
+        Verifying <span className="mono">{wallet.slice(0, 10)}…{wallet.slice(-6)}</span> — the wallet
+        you are signed in with. <Link href={`/record/${wallet}`}>See its work record</Link>.
       </p>
-      <div className="vg-row">
-        <input
-          className="ws-input mono"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") go(); }}
-          placeholder="0x…"
-          aria-label="Your wallet address"
-          spellCheck={false}
-        />
-        <button type="button" className="nm-btn" onClick={go}>Continue</button>
-      </div>
-      {err && <p className="mc-err">{err}</p>}
-    </section>
+    </>
   );
 }

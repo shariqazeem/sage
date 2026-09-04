@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getSessionAddress } from "@/lib/auth/session";
+import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { identityFor, recordIdentityProof } from "@/lib/db/identity";
 import { standingOf } from "@/lib/identity/standing";
 import { verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
@@ -42,14 +44,32 @@ export async function POST(req: NextRequest) {
   if (!cfg) return NextResponse.json({ error: "Identity verification isn't switched on here yet." }, { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const wallet = typeof body.wallet === "string" ? body.wallet.trim() : "";
   const payload = body.proof && typeof body.proof === "object" ? (body.proof as Record<string, unknown>) : null;
-  if (!/^0x[0-9a-fA-F]{20,64}$/.test(wallet)) return NextResponse.json({ error: "That doesn't look like a wallet address." }, { status: 400 });
   if (!payload) return NextResponse.json({ error: "No proof was sent." }, { status: 400 });
 
-  // Deliberately open to any wallet, including one that has never worked here: verifying BEFORE the
-  // first submission is the honest order, and gating it behind a payout would mean a newcomer had to
-  // take open work first and only then find out whether the paid tiers were reachable at all.
+  /**
+   * THE WALLET COMES FROM THE SESSION, NEVER FROM THE REQUEST.
+   *
+   * This route first read `body.wallet`, which meant anyone could bind a personhood proof to an
+   * address they do not control — including someone else's. A proof of personhood that is not also
+   * a proof of wallet control states nothing useful: the pair is the claim.
+   *
+   * The submit door already had this right (`getSessionAddress`, plus an EIP-712 claim bound to the
+   * mission), so identity was the one place held to a weaker standard than the money path beside it.
+   * Signing in is how a person shows the wallet is theirs; the proof is how they show they are one
+   * person. Neither alone is worth recording.
+   */
+  const wallet = (await getSessionAddress()) ?? (await getStarknetSessionAddress());
+  if (!wallet) {
+    return NextResponse.json(
+      { error: "Sign in with the wallet you get paid at first — a proof is only worth recording against a wallet you control." },
+      { status: 401 },
+    );
+  }
+
+  // Deliberately open to any signed-in wallet, including one that has never worked here: verifying
+  // BEFORE the first submission is the honest order, and gating it behind a payout would mean a
+  // newcomer had to take open work first and only then learn whether the paid tiers were reachable.
 
   const outcome = await verifyWorldId(payload, cfg);
   if (!outcome.ok) return NextResponse.json({ error: outcome.reason }, { status: 400 });

@@ -5,6 +5,7 @@ import "@/styles/live.css";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { VerifyGate } from "@/components/live/verify-gate";
+import { getFounderAddress } from "@/lib/auth/founder";
 import { worldIdConfig } from "@/lib/identity/worldid";
 import { identityCount } from "@/lib/db/identity";
 import { openTierCeilingBase } from "@/lib/identity/tier";
@@ -28,6 +29,7 @@ export const metadata: Metadata = {
  */
 export default async function VerifyPage() {
   const armed = worldIdConfig() !== null;
+  const wallet = await getFounderAddress();
   const { people, wallets } = identityCount();
   const ceiling = `$${(openTierCeilingBase() / 1e6).toFixed(2)}`;
   return (
@@ -46,7 +48,7 @@ export default async function VerifyPage() {
       </header>
 
       {armed ? (
-        <VerifyGate />
+        <VerifyGate wallet={wallet} />
       ) : (
         <section className="ws-card">
           <div className="ws-card-h"><h2>Not switched on here yet</h2></div>
