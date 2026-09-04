@@ -20,11 +20,13 @@
 1. **Second Telegram account** on your phone (or a friend). It will be the recipient.
 2. **USDC on Starknet mainnet** in the wallet you will launch from: **~$25** (the grant) — the
    composer shows the exact J$→USDC figure at the stamped rate before you fund anything.
-3. **~$5 USDC on the operator's Starknet account** (the address in `STARKNET_ACCOUNT_ADDRESS` on the
-   VM — I will paste it in chat). This is the advance pot. `ADVANCE_SELF_SERVE=1` is already armed on
+3. **~$5 USDC on the operator's Starknet account** — the advance pot:
+   `0x46a1747d854e74e5082c3215841b26dcff182a6a6fd7a1f83c3e1d045996101` (read 5 Sep 03:20 PKT: USDC
+   **0**, STRK 27.3 — gas is covered, the pot is empty). `ADVANCE_SELF_SERVE=1` is already armed on
    prod (max $5, multiple 1×, waterfall 50%); the button appears on a record once the pot has funds.
-4. **~$2 USDC** to the GOAT fee wallet `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` so the 16
-   stuck operator-fee transfers settle (they show on `/explorer` as "How Sage earns").
+4. **~$2 USDC** to the GOAT fee wallet `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` (read 5 Sep: USDC
+   **0**, BTC gas 0.000016 — enough). Sixteen $0.10 operator-fee transfers are pending on it ($1.60);
+   they settle on the next sweep once it holds USDC and show on `/explorer` as "How Sage earns".
 
 ## The run (about 90 minutes, mostly waiting for the recipient)
 
