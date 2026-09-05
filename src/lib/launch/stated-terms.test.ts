@@ -206,8 +206,12 @@ describe("checkStatedTerms — an amount the founder never named", () => {
       "I'll give a market seller J$10,000 in two parts",
     ]) {
       expect(mentionsMoney(t)).toBe(true);
-      expect(checkStatedTerms(t, plan)).toEqual([]);
+      // a named price is never read as invented; "in two parts" may still contradict a one-part plan
+      expect(checkStatedTerms(t, plan).filter((m) => m.field === "invented")).toEqual([]);
     }
+    expect(checkStatedTerms("I'll give a market seller J$10,000 in two parts", plan)).toEqual([
+      { field: "count", stated: 2, planned: plan.length },
+    ]);
   });
 
   it("still sees no price where a founder genuinely named none", () => {
