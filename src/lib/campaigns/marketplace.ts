@@ -320,6 +320,11 @@ export function waitSummary(
  *  - mission status closed — the founder retired it;
  *  - remainingSlots === 0  — every completion is already paid, so a submission would be wasted work.
  */
+/** The published wait — submit → money on chain — for any surface that quotes it, so no page carries its own median. */
+export function payoutWait(): MarketplaceView["speed"] {
+  return settledSoFar().speed;
+}
+
 export function marketplace(): MarketplaceView {
   const live: Campaign[] = db
     .select()

@@ -4,6 +4,7 @@ import "@/styles/workspace.css";
 import "@/styles/live.css";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { identityDoorArmed } from "@/lib/identity/door";
 import { EyeOff, KeyRound, Smartphone } from "lucide-react";
 import { VerifyGate } from "@/components/live/verify-gate";
 import { OnePersonFigure } from "@/components/live/one-person-figure";
@@ -30,6 +31,8 @@ export default async function VerifyPage() {
   const wallet = await getFounderAddress();
   const { people, wallets } = identityCount();
   const ceiling = `$${(openTierCeilingBase() / 1e6).toFixed(2)}`;
+  // With the door armed the reward-size tier rule is bypassed, so "work above $2 unlocks here" would be a claim about a rule that no longer runs.
+  const tierRule = !identityDoorArmed();
   return (
     <main className="ws-shell">
       <header className="ws-head vf-head">
@@ -54,7 +57,7 @@ export default async function VerifyPage() {
         <div className="vf">
           <span className="vf-ic"><KeyRound size={15} /></span>
           <p className="vf-t">One person, one slot</p>
-          <p className="vf-s">Public work asks everyone to prove they are one person before claiming, so fifty slots need fifty people. Work above {ceiling} also unlocks here.</p>
+          <p className="vf-s">Public work asks everyone to prove they are one person before claiming, so fifty slots need fifty people.{tierRule ? ` Work above ${ceiling} also unlocks here.` : ""}</p>
         </div>
         <div className="vf">
           <span className="vf-ic"><EyeOff size={15} /></span>

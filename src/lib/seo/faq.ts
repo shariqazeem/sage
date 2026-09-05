@@ -27,7 +27,7 @@ export interface FaqEntry {
 export const FAQ: readonly FaqEntry[] = [
   {
     q: "What is Sage at sagepays.xyz?",
-    a: "An AI agent that turns one product URL and one budget into paid user-testing missions, then pays human testers in USDC for verified evidence. It runs on GOAT Network and is registered on-chain as ERC-8004 agent #79.",
+    a: "An AI agent that turns one product URL and one budget into paid user-testing missions, then pays human testers in USDC for verified evidence. It settles on two mainnet rails — GOAT Network for public receipts and Starknet for private payouts — and is registered on-chain as ERC-8004 agent #79.",
   },
   {
     q: "How do I get paid to test products on Sage?",
@@ -35,7 +35,7 @@ export const FAQ: readonly FaqEntry[] = [
   },
   {
     q: "Does Sage actually pay, or is it a claim?",
-    a: "Every payout is an on-chain transaction on GOAT Network and publishes a receipt page anyone can open and verify. The marketplace lists recent payouts with links to those transactions, so the total paid is read from settled transfers rather than typed in.",
+    a: "Every payout is an on-chain transaction on GOAT Network or Starknet and publishes a receipt page anyone can open and verify. The marketplace lists recent payouts with links to those transactions, so the total paid is read from settled transfers rather than typed in.",
   },
   {
     q: "Who pays the testers?",

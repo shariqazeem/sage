@@ -2,7 +2,9 @@ import "server-only";
 import { chainConfig } from "@/lib/deputy/networks";
 
 import { listCampaigns, listSubmissions } from "@/lib/db/campaigns";
-import { mainnetSettledToTesters, OPERATOR_WALLETS, decidedOnMainnet } from "./settled-ledger";
+import { mainnetSettledToTesters, OPERATOR_WALLETS, decidedOnMainnet, settledLedger } from "./settled-ledger";
+import { clusterKeyOf } from "./wallet-links";
+import { payoutWait } from "./marketplace";
 
 /**
  * PROOF THAT TESTERS EXIST — the one thing a founder needs before funding anything.
@@ -67,22 +69,33 @@ export function getTesterSupply(): TesterSupply {
    * submissions, which are the right source for THOSE.
    */
   const settled = mainnetSettledToTesters();
+  /*
+    PEOPLE, NOT WALLETS — the same collapse the marketplace and the outcomes page publish. This said
+    31 while they said 24: the consolidation watch had linked the farmed gig's twelve wallets into one
+    person, and this count had never heard of it. One derivation (`clusterKeyOf`), or two pages disagree
+    about how many humans were paid on the founder's first screen.
+  */
+  const people = new Set(
+    settledLedger()
+      .filter((r) => r.mainnet && !r.operator && r.wallet)
+      .map((r) => clusterKeyOf(r.wallet as string)),
+  ).size;
 
-  const durations = paid
-    .filter((s) => s.decidedAt != null && s.createdAt != null)
-    .map((s) => (s.decidedAt as number) - s.createdAt)
-    .filter((d) => d >= 0)
-    .sort((a, b) => a - b);
+  /*
+    ONE WAIT, PUBLISHED ONCE. This page said "3 min 24 s" (submit → judged, every mainnet payout)
+    while the marketplace said "2 min 55 s" (submit → money on chain, testers only) — the third pair
+    of medians a judge could put side by side this week. The marketplace's derivation is the one the
+    outcomes page and the package quote; quoting it here removes the arithmetic, not the honesty.
+  */
+  const wait = payoutWait();
 
   const weekAgo = Math.floor(Date.now() / 1000) - 7 * 86400;
 
   return {
-    testersPaid: settled.people,
+    testersPaid: people,
     usdcSettled: settled.usdcSettled,
     missionsPaid: settled.payouts,
-    medianSecondsToPayout: durations.length
-      ? durations[Math.floor(durations.length / 2)]
-      : null,
+    medianSecondsToPayout: wait.medianSeconds,
     paidLast7Days: paid.filter((s) => (s.decidedAt ?? 0) >= weekAgo).length,
     refusalSharePct: decidedOnMainnet().sharePct,
   };
