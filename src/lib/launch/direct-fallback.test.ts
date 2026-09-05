@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { unambiguousGigArgs } from "./direct-fallback";
+import { releasesOnThirdPartyDecision, unambiguousGigArgs } from "./direct-fallback";
 import type { GigDraft } from "./gig-draft";
 
 /**
@@ -64,6 +64,30 @@ describe("unambiguousGigArgs — builds only what the founder's own words settle
     );
     expect(a?.milestones[0].rewardUsd).toBe(25);
     expect(a?.milestones[0].slots).toBe(1);
+  });
+
+  it("money that releases on a third party's private decision is refused, as the model is told to (P-DIRECT 5)", () => {
+    for (const words of [
+      "Send my cousin $200 when the bank finally approves her loan application.",
+      "pay my nephew $50 when he gets the job at the port",
+      "give her $100 once her visa is approved",
+      "$30 when the client accepts the design",
+      "Dale $200 a mi prima cuando el banco apruebe el préstamo",
+    ]) {
+      expect(releasesOnThirdPartyDecision(words), words).toBe(true);
+      expect(unambiguousGigArgs(words, draft({ slots: 1 })), words).toBeNull();
+    }
+  });
+
+  it("a deliverable Sage can check itself is not a third party's decision", () => {
+    for (const words of [
+      "pay my designer $50 when the new logo page is live on my site",
+      "release $60 when the delivery confirmation for invoice INV-1042 is public",
+      "half when she publishes her catalogue online and half when she posts her first customer review. $40 total",
+      "$25 when she posts her numbers publicly",
+    ]) {
+      expect(releasesOnThirdPartyDecision(words), words).toBe(false);
+    }
   });
 
   it("a per-person price with no stated count is refused — how many people is a money decision", () => {

@@ -19,6 +19,12 @@ import type { GigDraft } from "./gig-draft";
  *   · exactly ONE amount stated, or there is no unambiguous price to transcribe;
  *   · exactly ONE deliverable in the draft, because mapping one amount onto several tranches is a
  *     decision about how to split money, and nothing here is allowed to make it;
+ *   · money that releases on a THIRD PARTY'S PRIVATE DECISION is refused here, as the model is told
+ *     to refuse-or-ask it: "send my cousin $200 when the bank approves her loan" has one amount and
+ *     one deliverable and still must not compile, because a page the recipient writes about someone
+ *     else's decision proves nothing. P-DIRECT 5 (2026-09-05): the model refused it twice and, on
+ *     the run where the corrective guard fired, this rung compiled a $200 gig. The model can still
+ *     ask what verifiable form the outcome will take; this path cannot, so it declines;
  *   · the slot count is the founder's, never the draft's. P-DIRECT 3 (2026-09-05): "Pay $25 for
  *     this: a comparison page…" became a $75 plan, because the drafter — told to guess 3 for "anyone"
  *     — chose the slots and reward × slots is money. One price with no per-person marker is the
@@ -33,6 +39,29 @@ import type { GigDraft } from "./gig-draft";
 
 /** A wallet the founder wrote down. EVM or a Starknet felt — the compiler's own recipient shape. */
 const WALLET_RE = /\b0x[0-9a-fA-F]{1,64}\b/g;
+
+/**
+ * Money that releases on someone else's private decision — a bank, a court, an employer, a client.
+ * Mirrors rule (1) of the concierge's DIRECT_BLOCK in code, for the rung that has no model to ask.
+ */
+const DECIDER =
+  "(?:bank|lender|landlord|court|judge|embassy|consulate|university|college|school|admissions?|employer|boss|hr|client|customer|investor|insurer|insurance|government|ministry|council|committee|board|jury|reviewer|manager|recruiter|banco|prestamista|tribunal|juez|embajada|universidad|cliente|empleador|jefe|gobierno|ministerio|comit[eé]|banque|employeur|ambassade)s?";
+const DECIDES =
+  "(?:approv\\w*|accept\\w*|grant(?:s|ed)?|award\\w*|hir(?:e|es|ed)|admit\\w*|decid\\w*|rul(?:es|ed)|sign(?:s|ed)?\\s+off|says?\\s+yes|agree\\w*|confirm\\w*|clear(?:s|ed)|issu\\w*|green-?light\\w*|apru\\w*|acept\\w*|otorg\\w*|contrat\\w*|conced\\w*|approuv\\w*|accord\\w*|embauch\\w*)";
+const THIRD_PARTY_DECISION_RE = new RegExp(
+  `\\b${DECIDER}\\b[^.!?]{0,60}\\b${DECIDES}` +
+    `|\\b(?:loan|visa|application|mortgage|claim|permit|licen[cs]e|scholarship|appeal|offer|tender|bid|funding|pr[eé]stamo|visado|solicitud)\\b[^.!?]{0,40}\\b(?:is|gets?|has\\s+been|was|are|sea|est[eé]|quede)\\s+(?:finally\\s+)?(?:approved|accepted|granted|awarded|cleared|confirmed|issued|aprobad[oa]|aceptad[oa]|concedid[oa])` +
+    `|\\b(?:gets?|got|lands?|landed|wins?|won)\\s+(?:the|a|an|her|his|their)\\s+(?:job|loan|visa|permit|mortgage|scholarship|approval|contract|offer|promotion|grant)\\b` +
+    `|\\b(?:is|gets?|was)\\s+(?:hired|promoted|admitted|accepted|approved)\\b` +
+    `|\\b(?:le\\s+)?(?:aprueben|apruebe|acepten|acepte|contraten|contrate|concedan|conceda)\\b` +
+    `|\\bconsig(?:a|ue|an|uen)\\s+(?:el|un|la|una)\\s+(?:trabajo|pr[eé]stamo|visado|visa|beca)\\b`,
+  "i",
+);
+
+/** True when the founder's own words release the money on a third party's private decision. */
+export function releasesOnThirdPartyDecision(text: string): boolean {
+  return THIRD_PARTY_DECISION_RE.test(text);
+}
 
 /** "$4 each", "per person", "a cada uno", "chacun" — the price is per head, not for the job. */
 const PER_UNIT_RE =
@@ -84,6 +113,7 @@ export interface FallbackArgs {
  * not settle it. Pure: no I/O, no model, no arithmetic beyond reading their own number.
  */
 export function unambiguousGigArgs(founderWords: string, draft: GigDraft): FallbackArgs | null {
+  if (releasesOnThirdPartyDecision(founderWords)) return null;
   const amounts = statedAmounts(founderWords);
   if (amounts.length !== 1) return null;
   const rewardUsd = amounts[0]!;
