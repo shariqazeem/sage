@@ -435,6 +435,13 @@
       "when": 1789027200007,
       "tag": "0061_denomination",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1789027200008,
+      "tag": "0062_gas_stipends",
+      "breakpoints": true
     }
   ]
 }

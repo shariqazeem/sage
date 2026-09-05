@@ -308,6 +308,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `IDENTITY_TIERS` † | `"1"` arms standing on the submit door: work paying above the open ceiling needs a record (2+ payouts across 2+ campaigns, no linked wallets). OFF by default — a tier gate over an empty board is a closed door with nowhere to earn the key, so arm it once there is open low-paid work | Every campaign stays claimable by anyone |
 | `IDENTITY_OPEN_CEILING_USD` † | The reward at or below which work is open to anyone | $2.00 |
 | `AUTOPAY_HOURLY_CAP` † | Payouts per campaign per hour before the autopilot holds on pace | 4 |
+| `OPERATOR_GAS_FLOOR_WEI` † | The BTC (wei) the operator keeps for settlements before it covers a walletless founder's launch gas — the **gas stipend** (`src/lib/treasury/gas-stipend.ts`): sent once per wallet, only against USDC the wallet already holds for the plan, never more than `MIN_GAS_WEI`; both launch doors try it before asking the founder for BTC | 0.000005 BTC |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 
 ---

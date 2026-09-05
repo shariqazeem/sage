@@ -5,6 +5,7 @@ import { erc20Abi, formatEther, getAddress, type Address } from "viem";
 import type { McpToolDef, ToolResult } from "@/lib/mcp/server";
 import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
+import { gasRefusalMessage, grantGasStipend } from "@/lib/treasury/gas-stipend";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
 import { getInspectionJob } from "@/lib/db/inspection";
@@ -435,14 +436,19 @@ export async function callAgentWalletTool(
         // GOAT gas is native (BTC). The wallet signs + broadcasts 4 txs itself, so it needs enough
         // native balance for the whole sequence — catch a zero/too-low balance here so we never do a
         // partial deploy (vault created, then out of gas before it's funded).
+        // A founder who deposited the USDC should not have to find BTC dust: the operator covers the
+        // launch floor once per wallet, against the USDC already held (`treasury/gas-stipend.ts`).
         const gas = await nativeBalanceWei(b.privyWalletAddress);
         if (gas < MIN_GAS_WEI) {
-          return ok({
-            ok: false,
-            needsGas: true,
-            walletAddress: b.privyWalletAddress,
-            message: `The agent wallet needs a little native BTC for gas (BTC is GOAT's gas token). Ask the founder to send about 0.00001 BTC to ${b.privyWalletAddress}, then try again.`,
-          });
+          const stipend = await grantGasStipend({ wallet: b.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: MIN_GAS_WEI });
+          if (!stipend.granted) {
+            return ok({
+              ok: false,
+              needsGas: true,
+              walletAddress: b.privyWalletAddress,
+              message: gasRefusalMessage(stipend.reason, b.privyWalletAddress),
+            });
+          }
         }
         const result = await deployCampaignViaPrivy(chatId, inspectionId);
         return ok({

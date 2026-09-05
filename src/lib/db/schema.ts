@@ -1200,6 +1200,23 @@ export const pendingWithdrawals = sqliteTable("pending_withdrawals", {
 export type PendingWithdrawalRow = typeof pendingWithdrawals.$inferSelect;
 
 /**
+ * GAS STIPENDS — the operator covered a wallet's launch gas, once. A walletless founder who deposited
+ * USDC for a plan should not have to find BTC dust; the stipend is sent only against USDC already
+ * held, capped at the launch's own floor, and recorded here so no wallet is ever covered twice.
+ */
+export const gasStipends = sqliteTable("gas_stipends", {
+  wallet: text("wallet").primaryKey(),
+  chainId: integer("chain_id").notNull(),
+  /** wei, bigint as string */
+  amountWei: text("amount_wei").notNull(),
+  txHash: text("tx_hash").notNull(),
+  /** the USDC (base units) the wallet held for the plan when covered — the reason it qualified */
+  budgetBase: text("budget_base").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+export type GasStipendRow = typeof gasStipends.$inferSelect;
+
+/**
  * Phase 5 — payout ACTION-REPLAY journal. One row per (submissionId, policyDigest, probeDigest): the
  * idempotency key. A COMPLETED row (completedAt set) is reused on a payout retry with the SAME digests; a
  * changed policy/probe is a different key → a fresh replay; an in-flight row (completedAt null) is an

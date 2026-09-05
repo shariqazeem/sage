@@ -6,6 +6,7 @@ import { autoApprove, MIN_GAS_WEI, nativeBalanceWei, usdcBalanceBase } from "@/l
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
+import { gasRefusalMessage, grantGasStipend } from "./gas-stipend";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { sameFounder } from "@/lib/auth/founder";
 
@@ -52,7 +53,14 @@ export async function launchFromTreasury(founderAddress: string, jobId: string):
   if (!loaded) return { ok: false, reason: "not_ready", message: "Couldn't load the approved plan." };
   const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
   const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress), nativeBalanceWei(t.privyWalletAddress)]);
-  const pf = treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei: gas, minGasWei: MIN_GAS_WEI, address: t.privyWalletAddress });
+  const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: MIN_GAS_WEI, address: t.privyWalletAddress });
+  let pf = preflight(gas);
+  if (!pf.ok && pf.reason === "needsGas") {
+    // The USDC is there and only gas is missing: the operator covers the launch floor, once.
+    const stipend = await grantGasStipend({ wallet: t.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: MIN_GAS_WEI });
+    if (stipend.granted) pf = preflight(await nativeBalanceWei(t.privyWalletAddress));
+    else pf = { ok: false, reason: "needsGas", message: gasRefusalMessage(stipend.reason, t.privyWalletAddress) };
+  }
   if (!pf.ok) return { ok: false, reason: pf.reason, message: pf.message };
   try {
     const r = await deployCampaignViaPrivy(webTreasuryKey(founderAddress), jobId);

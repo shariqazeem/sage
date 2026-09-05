@@ -98,3 +98,32 @@ A cooperative in Kingston funds Sage once. Sage inspects the members' storefront
 pays each verified delivery privately on Starknet, refuses the copy and the wallet cluster with the
 reason on chain, and by the end of the month every honest member has a record a lender can read and
 one of them has drawn an advance against it — without anyone at the cooperative touching a dashboard.
+
+## Who pays gas, and how it stays paid (measured 5 Sep 2026)
+
+GOAT gas is small but not free: at today's price (130,007 wei) a vault payout burns ~2.9e-8 BTC
+(about $0.003) and a USDC relay ~8.5e-9 BTC (about $0.001). The operator wallet holds ~1.6e-5 BTC,
+roughly 560 payouts or 1,900 relays. Three places the operator pays gas for someone else:
+
+1. **Settlement** — every autonomous payout (the vault call). Covered by the $0.10 operator fee the
+   payer already pays per settlement, in USDC, into the same operator wallet: ~30 payouts of gas per
+   fee. What is missing is the conversion — USDC → BTC on GOAT — which today is a manual top-up.
+2. **Gasless withdrawals** — a worker's EIP-3009 authorization relayed by the operator (the Telegram
+   cash-out, and now the in-Sage wallet). ~$0.001 each. The worker could pay it themselves with a
+   second authorization to the operator (a fixed $0.01 in USDC); that is the long-run shape and a
+   second signature prompt, so it ships after the deadlines.
+3. **A walletless founder's first launch** — the Privy agent wallet must hold BTC to deploy and fund a
+   vault, so a founder who just deposited USDC from chat is told to find BTC dust. The fix is a
+   bounded **gas stipend**: when the wallet holds the USDC the plan needs and lacks only gas, the
+   operator sends it enough BTC for the launch — once per wallet, capped at a few cents, recovered
+   thirty times over by the first settlement's fee. **Built 5 Sep** (`src/lib/treasury/gas-stipend.ts`,
+   table `gas_stipends`): both launch doors (the Telegram tool and the web treasury) try it before
+   asking the founder for BTC; the decision is pure and tested — the wallet's USDC must cover the plan,
+   the amount is the shortfall to `MIN_GAS_WEI` (0.000003 BTC, ~$0.33) and never more, the operator
+   keeps `OPERATOR_GAS_FLOOR_WEI` (default 0.000005 BTC) for settlements, and a wallet is covered once.
+   The send lives in `deputy/native-send.ts`, outside the frozen vault signer.
+
+Rule going forward: **the operator never pays for a flow that produces no fee.** Settlement fees fund
+settlement gas; a stipend is only ever sent against USDC already deposited; relays get their own fee
+once the worker can sign it in one prompt. The reserve rule (swap fee USDC to BTC when the operator's
+BTC falls under a threshold) is a small script against a GOAT DEX — listed, not yet written.
