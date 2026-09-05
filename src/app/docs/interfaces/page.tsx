@@ -17,8 +17,9 @@ export default function Interfaces() {
 
       <div className="prose-answer">
         <p>
-          <strong>Two front doors, one engine.</strong> Connect a browser wallet on sagepays.xyz, or
-          run the entire loop from a Telegram chat without installing a wallet at all. Both drive the
+          <strong>Two front doors, one engine.</strong> Sign in on sagepays.xyz with a browser wallet
+          or an email — Sage keeps a wallet for an email account, for founders and for workers alike —
+          or run the entire loop from a Telegram chat without installing a wallet at all. Both drive the
           same agent, the same vaults and the same settlement path. Sage is also callable by other
           agents over MCP.
         </p>
