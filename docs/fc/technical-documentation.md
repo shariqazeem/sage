@@ -112,7 +112,7 @@ Next.js 15 (App Router, Turbopack) · TypeScript strict · SQLite via better-sql
 
 ## Live evaluation batteries (the quality gate)
 
-P-GEN (13 product categories, anchor integrity must be 100%), P-DIRECT (founder briefs → compiled
+P-GEN (13 product categories, anchor integrity must be 100% — nonce 65 on 5 Sep: 13/13 ready, 100% on every row, on the build that ships), P-DIRECT (founder briefs → compiled
 gigs and grants; 75 rows a run, with the money invariants — exact budget, the founder's own amount,
 no invented tranches, nothing unverifiable — at zero on the final build, and each defect it has found
 fixed on the deterministic rung rather than the prompt), P-WORK (gig judging: attacks and honest work), P-JUDGE (payout judge promotion),
