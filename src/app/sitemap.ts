@@ -34,7 +34,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       "/docs/judging",
       "/docs/settlement",
       "/docs/safety",
+      "/docs/operator",
+      "/docs/privacy",
+      "/docs/compliance",
       "/docs/interfaces",
+      "/docs/build-on-sage",
     ].map((path) => ({
       url: `${base}${path}`,
       lastModified: now,

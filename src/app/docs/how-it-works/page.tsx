@@ -74,6 +74,15 @@ export default function HowItWorks() {
         ended or filled.
       </p>
 
+      <h2>6 · Then it decides again</h2>
+      <p>
+        Under a standing mandate the loop closes on itself. Sage reads what the board produced —
+        what was claimed, what was ignored, what it cost — and proposes the next piece of work to
+        buy: which surface, what kind, with its reason and its price, before anything is spent. The
+        price is never the model&rsquo;s; it comes from the ceilings the founder set. See{" "}
+        <Link href="/docs/operator">Fund once, then stop deciding</Link>.
+      </p>
+
       <h2>The same loop pays for anything you can define</h2>
       <p>
         Testing is one instance of a more general machine: <em>verify a claim against evidence the
@@ -96,8 +105,9 @@ export default function HowItWorks() {
       <h2>Where the human actually is</h2>
       <p>
         Exactly twice in the whole lifecycle: <strong>approve the plan</strong>, and{" "}
-        <strong>fund it</strong>. Everything after that the agent does on its own and narrates
-        afterwards with an artifact backing each claim.
+        <strong>fund it</strong>. Under a standing mandate, once: fund the treasury, and stop any
+        move you do not like inside its window. Everything after that the agent does on its own and
+        narrates afterwards with an artifact backing each claim.
       </p>
 
       <Next

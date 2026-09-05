@@ -20,6 +20,7 @@ export const SECTIONS: { label: string; items: { href: string; title: string }[]
     label: "The agent",
     items: [
       { href: "/docs/architecture", title: "Architecture" },
+      { href: "/docs/operator", title: "Fund once, it decides" },
       { href: "/docs/missions", title: "Missions & budget" },
       { href: "/docs/judging", title: "Judging evidence" },
       { href: "/docs/settlement", title: "Settlement & proof" },

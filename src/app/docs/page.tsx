@@ -48,6 +48,16 @@ export default function DocsOverview() {
             title: "Settlement & proof",
             body: "How a payout is computed, capped, signed, and published as a receipt anyone can check.",
           },
+          {
+            href: "/docs/operator",
+            title: "Fund once, then stop deciding",
+            body: "The standing mandate: the agent picks where to spend, never how much, proposes every move first, and waits out your window.",
+          },
+          {
+            href: "/docs/privacy",
+            title: "Private payouts",
+            body: "Decided in public, collected in private: the Starknet rail, the claim link, and what the ledger does not say.",
+          },
         ]}
       />
 
