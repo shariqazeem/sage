@@ -380,6 +380,9 @@ export async function callAgentWalletTool(
           gasBalanceBtc: gasWei === null ? null : formatEther(gasWei),
           enoughGasToLaunch: gasWei === null ? null : gasWei >= MIN_GAS_WEI,
           minGasToLaunchBtc: formatEther(MIN_GAS_WEI),
+          // The founder is never sent to buy BTC: when the USDC covers the plan and only gas is short,
+          // sage_fund_and_launch has Sage cover the launch gas itself (once per wallet).
+          gasNote: "INFORMATIONAL. If gas is short, do NOT ask the founder for BTC — once the USDC covers the plan, Sage covers the launch gas itself when sage_fund_and_launch runs. Only relay a gas request if that tool returns needsGas.",
           perCampaignCapUsdc: usd(BigInt(b.perCampaignCapBase)),
           reclaimAddress: b.founderAddress,
           // NEVER LET THE MODEL DO THE SUBTRACTION. Measured on prod 2026-08-27: with a balance of
@@ -430,7 +433,7 @@ export async function callAgentWalletTool(
             budgetUsdc: usd(budget),
             balanceUsdc: usd(balance),
             walletAddress: b.privyWalletAddress,
-            message: `The agent wallet needs ${usd(budget)} USDC but holds ${usd(balance)}. Ask the founder to send USDC (plus a little native BTC for gas) to ${b.privyWalletAddress}.`,
+            message: `The agent wallet needs ${usd(budget)} USDC but holds ${usd(balance)}. Ask the founder to send USDC to ${b.privyWalletAddress} — no BTC needed, Sage covers the launch gas.`,
           });
         }
         // GOAT gas is native (BTC). The wallet signs + broadcasts 4 txs itself, so it needs enough
