@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { releasesOnThirdPartyDecision, unambiguousGigArgs } from "./direct-fallback";
+import { releasesOnThirdPartyDecision, statedCurrency, unambiguousGigArgs } from "./direct-fallback";
 import type { GigDraft } from "./gig-draft";
 
 /**
@@ -112,6 +112,47 @@ describe("unambiguousGigArgs — builds only what the founder's own words settle
     const d = draft();
     const multi = draft({ milestones: [d.milestones[0], { ...d.milestones[0], title: "Second step" }] });
     expect(unambiguousGigArgs("$50 for the work", multi)).toBeNull();
+    // "in two parts" without "equal" is still a split someone would have to decide
+    expect(unambiguousGigArgs("$50 for the work, in two parts", multi)).toBeNull();
+    // the founder's count must be the draft's count
+    expect(unambiguousGigArgs("$50 in three equal parts", multi)).toBeNull();
+  });
+
+  it("an EQUAL split the founder stated is transcribed as the total, never divided here (P-DIRECT 5)", () => {
+    const d = draft();
+    const two = draft({
+      kind: "grant",
+      milestones: [
+        { ...d.milestones[0], title: "Catalogue page online" },
+        { ...d.milestones[0], title: "First customer review posted" },
+      ],
+    });
+    const j = unambiguousGigArgs(
+      "Give a market seller J$10,000 in two equal parts — half when her catalogue page is online with her wallet address on it, half when she posts her first customer review.",
+      two,
+    );
+    expect(j).not.toBeNull();
+    expect(j!.kind).toBe("grant");
+    expect(j!.currency).toBe("JMD");
+    expect(j!.splitTotalLocal).toBe(10000);
+    expect(j!.splitTotalUsd).toBeUndefined();
+    expect(j!.milestones).toHaveLength(2);
+    expect(j!.milestones.every((m) => m.rewardUsd === undefined && m.slots === 1)).toBe(true);
+
+    const es = unambiguousGigArgs(
+      "Quiero dar $50 a una vendedora en dos partes iguales: la mitad cuando publique su catálogo y la mitad cuando muestre su primera venta.",
+      two,
+    );
+    expect(es?.splitTotalUsd).toBe(50);
+    expect(es?.currency).toBeUndefined();
+    expect(es?.milestones).toHaveLength(2);
+  });
+
+  it("reads the currency the founder wrote, and a bare $ as USD", () => {
+    expect(statedCurrency("J$10,000 in two equal parts")).toBe("JMD");
+    expect(statedCurrency("TT$500 when the page is live")).toBe("TTD");
+    expect(statedCurrency("10,000 JMD across two milestones")).toBe("JMD");
+    expect(statedCurrency("$50 when the page is live")).toBeNull();
   });
 
   it("carries the draft's own brief through unchanged — it writes no wording of its own", () => {

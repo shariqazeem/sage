@@ -1,4 +1,5 @@
-import { statedAmounts } from "./stated-terms";
+import { readStatedTerms, statedAmounts } from "./stated-terms";
+import { CURRENCIES } from "@/lib/money/currency";
 import type { GigDraft } from "./gig-draft";
 
 /**
@@ -25,6 +26,12 @@ import type { GigDraft } from "./gig-draft";
  *     else's decision proves nothing. P-DIRECT 5 (2026-09-05): the model refused it twice and, on
  *     the run where the corrective guard fired, this rung compiled a $200 gig. The model can still
  *     ask what verifiable form the outcome will take; this path cannot, so it declines;
+ *   · an EQUAL split the founder stated is transcribed, never computed: "J$10,000 in two equal
+ *     parts" / "la mitad … y la mitad" passes the one total as `splitTotalUsd` (or `splitTotalLocal`
+ *     with the currency they wrote) over the draft's milestones — only when their count matches the
+ *     draft's — and the compiler divides it in exact base units. P-DIRECT 5 (2026-09-05): the
+ *     two-tranche Spanish grant was the fixture this rung could not rescue; an unequal split is still
+ *     a decision and still refused;
  *   · the slot count is the founder's, never the draft's. P-DIRECT 3 (2026-09-05): "Pay $25 for
  *     this: a comparison page…" became a $75 plan, because the drafter — told to guess 3 for "anyone"
  *     — chose the slots and reward × slots is money. One price with no per-person marker is the
@@ -93,7 +100,7 @@ export function statedHeadcount(text: string): number | null {
 }
 
 export interface FallbackArgs {
-  kind: "gig";
+  kind: "gig" | "grant";
   title: string;
   whyItMatters?: string;
   milestones: {
@@ -101,11 +108,38 @@ export interface FallbackArgs {
     instructions: string;
     criteria: string[];
     evidence: Record<string, unknown>;
-    rewardUsd: number;
+    /** absent only under an equal split, where the compiler divides the stated total */
+    rewardUsd?: number;
     slots: number;
     effortMinutes?: number;
   }[];
   recipients?: string[];
+  /** the founder's one stated total for an equal split, in USD … */
+  splitTotalUsd?: number;
+  /** … or in the currency they wrote it in, which the compiler converts at a stamped rate, then divides */
+  splitTotalLocal?: number;
+  currency?: string;
+}
+
+/** "in two equal parts", "dos partes iguales", "deux parties égales", "half … and half". */
+const EQUAL_RE = /\b(?:equal|equally|iguales|égales|egales|even|evenly)\b/i;
+const HALVES_RE = /\b(?:half|mitad|moiti[eé])\b/gi;
+
+/**
+ * The non-USD currency the founder wrote the amount in, from their own symbol or code — "J$10,000",
+ * "TT$500", "10,000 JMD". A bare "$" is USD and returns null. Longest symbol first, so "TT$" is not
+ * read as "T" + "$".
+ */
+const SYMBOLS = CURRENCIES.filter((c) => c.code !== "USD" && c.symbol && c.symbol !== "$")
+  .map((c) => ({ code: c.code, symbol: c.symbol as string }))
+  .sort((x, y) => y.symbol.length - x.symbol.length);
+const SYMBOL_RE = new RegExp(`(?:^|[^A-Za-z])(${SYMBOLS.map((c) => c.symbol.replace(/[$]/g, "\\$")).join("|")})\\s?\\d`);
+const CODE_RE = new RegExp(`\\b(${CURRENCIES.filter((c) => c.code !== "USD").map((c) => c.code).join("|")})\\b`, "i");
+export function statedCurrency(text: string): string | null {
+  const bySymbol = SYMBOL_RE.exec(text);
+  if (bySymbol) return SYMBOLS.find((c) => c.symbol === bySymbol[1])?.code ?? null;
+  const byCode = CODE_RE.exec(text);
+  return byCode ? byCode[1].toUpperCase() : null;
 }
 
 /**
@@ -118,7 +152,39 @@ export function unambiguousGigArgs(founderWords: string, draft: GigDraft): Fallb
   if (amounts.length !== 1) return null;
   const rewardUsd = amounts[0]!;
   if (!(rewardUsd > 0)) return null;
-  if (draft.milestones.length !== 1) return null;
+  // The compiler's own allowlist cap is 100; a founder who wrote more addresses than that into one
+  // message is not the case this path is for.
+  const recipients = [...new Set((founderWords.match(WALLET_RE) ?? []).map((w) => w.toLowerCase()))];
+  if (recipients.length > 100) return null;
+
+  if (draft.milestones.length !== 1) {
+    /*
+      SEVERAL TRANCHES, ONE STATED TOTAL. Transcribed only when the founder said the split is EQUAL
+      and named as many parts as the draft has — then the total is passed as the founder said it and
+      the compiler divides in exact base units. Anything else ("$60 in two parts" with no "equal",
+      "three stages" over a two-milestone draft) is a split someone would have to decide, and
+      nothing here may decide it.
+    */
+    const equal = EQUAL_RE.test(founderWords) || (founderWords.match(HALVES_RE) ?? []).length >= 2;
+    const count = readStatedTerms(founderWords).milestoneCount;
+    if (!equal || count !== draft.milestones.length || PER_UNIT_RE.test(founderWords)) return null;
+    const currency = statedCurrency(founderWords);
+    return {
+      kind: draft.kind,
+      title: draft.title,
+      ...(draft.whyItMatters ? { whyItMatters: draft.whyItMatters } : {}),
+      milestones: draft.milestones.map((t) => ({
+        title: t.title,
+        instructions: t.instructions,
+        criteria: t.criteria,
+        evidence: t.evidence as unknown as Record<string, unknown>,
+        slots: 1,
+        ...(typeof t.effortMinutes === "number" ? { effortMinutes: t.effortMinutes } : {}),
+      })),
+      ...(currency ? { currency, splitTotalLocal: rewardUsd } : { splitTotalUsd: rewardUsd }),
+      ...(recipients.length > 0 ? { recipients } : {}),
+    };
+  }
 
   const m = draft.milestones[0]!;
   // Reward × slots is the money. One price with no per-person marker is the whole job; a per-person
@@ -127,11 +193,6 @@ export function unambiguousGigArgs(founderWords: string, draft: GigDraft): Fallb
   const headcount = perUnit ? statedHeadcount(founderWords) : null;
   if (perUnit && headcount === null) return null;
   const slots = perUnit ? (headcount as number) : 1;
-  // The compiler's own allowlist cap is 100; a founder who wrote more addresses than that into one
-  // message is not the case this path is for.
-  const recipients = [...new Set((founderWords.match(WALLET_RE) ?? []).map((w) => w.toLowerCase()))];
-  if (recipients.length > 100) return null;
-
   return {
     kind: "gig",
     title: draft.title,
