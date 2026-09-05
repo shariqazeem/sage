@@ -414,9 +414,11 @@ Where the writing brief for this file disagreed with the code, the code is recor
      simulation (`payout-dryrun.live`), which commits nothing. The control row in that battery
      answers `code 3` for a mission the vault does not have; without it a simulation that said
      "would pay" to anything would prove nothing.
-   - **Not proven:** no Starknet submission has ever reached settlement in production. The
-     recipient half of the loop — submit, judge, autopay — has never run end to end with real
-     money on this rail.
+   - **Proven in production since 2026-08-31:** the recipient half of the loop — submit, judge,
+     autopay, escrow, claim link — has settled real USDC on this rail with no human in the loop
+     (13 Starknet payouts on the ledger by 2026-09-05; one gig, `gig-1c3e_FjffE`, was farmed by a
+     single operator across twelve wallets and is the case the consolidation watch and the
+     personhood door were built on). A receipt names the Cairo vault that paid it.
    - **Not wired:** `chargeOperatorFee` is EVM-only, so a Starknet payout accrues no operator
      fee. That is Sage's own revenue, not founder money, and the x402 fee rail is GOAT-based —
      a decision to make, not a bug to fix silently.
