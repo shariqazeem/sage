@@ -8,8 +8,15 @@
  */
 const DECIDER =
   "(?:bank|lender|landlord|court|judge|embassy|consulate|university|college|school|admissions?|employer|boss|hr|client|customer|investor|insurer|insurance|government|ministry|council|committee|board|jury|reviewer|manager|recruiter|banco|prestamista|tribunal|juez|embajada|universidad|cliente|empleador|jefe|gobierno|ministerio|comit[eé]|banque|employeur|ambassade)s?";
+/*
+  The verbs are DECISIONS about the recipient — approve, accept, hire, admit, award, rule, sign off.
+  "Confirm", "issue", "agree" and "clear" were here too, and P-DIRECT 7 (2026-09-05) refused a
+  catering grant's "first confirmed booking": a customer confirming a booking is business activity
+  the recipient can show, not a gate on someone's judgment of them. The passive pattern below still
+  catches "the loan is confirmed".
+*/
 const DECIDES =
-  "(?:approv\\w*|accept\\w*|grant(?:s|ed)?|award\\w*|hir(?:e|es|ed)|admit\\w*|decid\\w*|rul(?:es|ed)|sign(?:s|ed)?\\s+off|says?\\s+yes|agree\\w*|confirm\\w*|clear(?:s|ed)|issu\\w*|green-?light\\w*|apru\\w*|acept\\w*|otorg\\w*|contrat\\w*|conced\\w*|approuv\\w*|accord\\w*|embauch\\w*)";
+  "(?:approv\\w*|accept\\w*|grant(?:s|ed)?|award\\w*|hir(?:e|es|ed)|admit\\w*|decid\\w*|rul(?:es|ed)|sign(?:s|ed)?\\s+off|says?\\s+yes|green-?light\\w*|apru\\w*|acept\\w*|otorg\\w*|contrat\\w*|conced\\w*|approuv\\w*|accord\\w*|embauch\\w*)";
 export const THIRD_PARTY_DECISION_RE = new RegExp(
   `\\b${DECIDER}\\b[^.!?]{0,60}\\b${DECIDES}` +
     `|\\b(?:loan|visa|application|mortgage|claim|permit|licen[cs]e|scholarship|appeal|offer|tender|bid|funding|pr[eé]stamo|visado|solicitud)\\b[^.!?]{0,40}\\b(?:is|gets?|has\\s+been|was|are|sea|est[eé]|quede)\\s+(?:finally\\s+)?(?:approved|accepted|granted|awarded|cleared|confirmed|issued|aprobad[oa]|aceptad[oa]|concedid[oa])` +
