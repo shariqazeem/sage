@@ -411,13 +411,13 @@ export function LenderClient() {
                   </ul>
                 ) : (
                   <p className="lend-adv-none">
-                    No advance has run against this record yet. The facility is live — today&rsquo;s
+                    No advance has run against this record yet. The facility is armed and dry-run against live records — today&rsquo;s
                     LP is Sage&rsquo;s own pot, and repayment routes from each subsequent verified
                     payout (the waterfall), with recourse on the Sage-routed remainder only.
                   </p>
                 )}
                 <div className="lend-adv-pipe">
-                  <span>The pipe is open — this is the exact call an institution&rsquo;s system would make:</span>
+                  <span>The pipe is open — the same call an institution&rsquo;s system makes, operator-authorized today:</span>
                   <code>
                     POST /api/admin/advance {"{"}&quot;action&quot;:&quot;disburse&quot;,&quot;wallet&quot;:&quot;{data.wallet.slice(0, 10)}…&quot;,&quot;usd&quot;:{capacity === null ? "0" : Math.max(0.5, Math.floor(capacity * 100) / 100).toFixed(2)},&quot;multiple&quot;:{Number.isFinite(m) ? m : 1}{"}"}
                   </code>
