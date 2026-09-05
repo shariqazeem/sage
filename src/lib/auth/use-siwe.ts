@@ -26,6 +26,8 @@ export interface SiweApi {
    *  account already signed in instead of replacing it. */
   signIn: (opts?: { mode?: "signin" | "bind" }) => Promise<boolean>;
   signOut: () => Promise<void>;
+  /** Re-read the session cookie — after a sign-in that happened outside this hook (the email door). */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -119,6 +121,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     connect: w.connect,
     switchToMetis: w.switchToMetis,
     switchToChain: w.switchToChain,
+    refresh,
     signIn,
     signOut,
   };

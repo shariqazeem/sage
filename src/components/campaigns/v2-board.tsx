@@ -26,6 +26,11 @@ import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { buildStarknetEvidenceTypedData } from "@/lib/campaigns/starknet-evidence-typed-data";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { useWallet } from "@/lib/wallet/use-wallet";
+import { EmailSignIn } from "@/components/auth/email-sign-in";
+import { EmbeddedWalletBridge, type EmbeddedWallet } from "./embedded-wallet-bridge";
+
+/** The email door exists only when the login app is configured — Next inlines the value at build time; read at render so a test can set it. */
+const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import {
   composeAccount,
@@ -268,6 +273,16 @@ function MissionCard({
   // internal useWallet while the evidence signature checks this one, which stays empty
   // ("Reconnect your wallet to sign" on an actually-connected wallet).
   const siwe = useSiwe(wallet);
+  /*
+    EARN WITH AN EMAIL. A worker who signed in by email holds a Privy embedded wallet and a session
+    bound to it; the board only knew the injected provider, so that session read as signed out and
+    the submit control never appeared. The injected wallet keeps precedence when it is connected;
+    the embedded one counts only when there is no injected wallet and the session is its own.
+  */
+  const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
+  const evmAddress = wallet.address ?? embedded?.address ?? null;
+  const emailSignedIn =
+    !wallet.address && !!embedded && !!siwe.authedAddress && siwe.authedAddress.toLowerCase() === embedded.address.toLowerCase();
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");
@@ -295,9 +310,9 @@ function MissionCard({
    * Signed in ON THE RAIL THAT PAYS — one expression, used by the sign-in gate, by this loader,
    * and by everything gated behind them, so they can never disagree about which wallet counts.
    */
-  const signedIn = rail === "starknet" ? starknet.authed : siwe.authed;
+  const signedIn = rail === "starknet" ? starknet.authed : siwe.authed || emailSignedIn;
   // the wallet that signed in is the wallet that gets paid — and the only one a proof may bind to
-  const signedInWallet = (rail === "starknet" ? starknet.address : siwe.address) ?? "";
+  const signedInWallet = (rail === "starknet" ? starknet.address : evmAddress) ?? "";
 
   const loadMine = useCallback(async () => {
     // Was `!siwe.authed`, so on the private rail a tester's OWN submission was never fetched: the
@@ -347,8 +362,14 @@ function MissionCard({
       const onStarknet = rail === "starknet";
       // WHICHEVER RAIL, THE WALLET THAT SIGNS IS THE WALLET THAT GETS PAID. On Starknet that is the
       // signed-in Starknet account, never the EVM one a tester may also have connected.
-      const account = onStarknet ? starknet.address : wallet.address;
-      const walletClient = onStarknet ? null : wallet.getWalletClient();
+      const account = onStarknet ? starknet.address : evmAddress;
+      const walletClient = onStarknet
+        ? null
+        : wallet.address
+          ? wallet.getWalletClient()
+          : embedded
+            ? await embedded.getWalletClient()
+            : null;
       if (!account || (!onStarknet && !walletClient)) {
         setError("Reconnect your wallet to sign.");
         return;
@@ -428,6 +449,8 @@ function MissionCard({
     }
   }, [
     wallet,
+    embedded,
+    evmAddress,
     starknet,
     rail,
     evidence,
@@ -580,6 +603,7 @@ function MissionCard({
       id={mission.missionKey}
       className={`v2-mission${soldOut ? "is-sold" : ""}${isTarget ? "is-target" : ""}`}
     >
+      {emailDoor() && <EmbeddedWalletBridge onChange={setEmbedded} />}
       <div className="v2-mission-head">
         <div className="v2-mission-title">
           <Target size={15} /> {mission.title}
@@ -759,6 +783,15 @@ function MissionCard({
                   A free signature — it just proves the wallet is yours. No gas,
                   no transaction.
                 </p>
+                {emailDoor() && !wallet.address && (
+                  <>
+                    <p className="sage-hint">or</p>
+                    <EmailSignIn onSignedIn={() => void siwe.refresh()} />
+                    <p className="tb-sig">
+                      Continue with email — Sage keeps a wallet for you, and the payout lands in it.
+                    </p>
+                  </>
+                )}
               </>
             )
           ) : !open ? (

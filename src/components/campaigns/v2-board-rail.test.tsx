@@ -32,13 +32,27 @@ const snState = {
 const siweState = {
   authed: false,
   address: null as string | null,
+  authedAddress: null as string | null,
   signingIn: false,
   signIn: vi.fn(),
   signOut: vi.fn(),
+  refresh: vi.fn(async () => undefined),
 };
+/** the embedded wallet an email sign-in holds — null until a test sets one */
+const embeddedState = { wallet: null as { address: `0x${string}`; getWalletClient: () => Promise<null> } | null };
 
 vi.mock("@/lib/auth/use-starknet-siwe", () => ({ useStarknetSiwe: () => snState }));
 vi.mock("@/lib/auth/use-siwe", () => ({ useSiwe: () => siweState }));
+vi.mock("@/components/auth/email-sign-in", () => ({ EmailSignIn: () => <button type="button">Continue with email</button> }));
+vi.mock("./embedded-wallet-bridge", async () => {
+  const React = await import("react");
+  return {
+    EmbeddedWalletBridge: ({ onChange }: { onChange: (w: unknown) => void }) => {
+      React.useEffect(() => { onChange(embeddedState.wallet); }, [onChange]);
+      return null;
+    },
+  };
+});
 vi.mock("@/lib/wallet/use-wallet", () => ({
   useWallet: () => ({ address: null, getWalletClient: () => null }),
 }));
@@ -76,7 +90,9 @@ const board = (rail: "evm" | "starknet") =>
 
 beforeEach(() => {
   Object.assign(snState, { address: null, authed: false, signingIn: false, loading: false, error: null });
-  Object.assign(siweState, { authed: false, address: null, signingIn: false });
+  Object.assign(siweState, { authed: false, address: null, authedAddress: null, signingIn: false });
+  embeddedState.wallet = null;
+  process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID = "app_test";
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ submission: null }), { status: 200 })));
 });
 
@@ -115,6 +131,42 @@ describe("the submit control a Starknet tester is offered", () => {
   it("still shows the EVM sign-in on the EVM rail when signed out", async () => {
     board("evm");
     expect(await screen.findByText(/connect wallet to submit|sign in to submit/i)).toBeTruthy();
+  });
+});
+
+/**
+ * EARN WITH AN EMAIL. A worker who signed in by email holds a Privy embedded wallet and a Sage
+ * session bound to it. The board read that as signed OUT — it only knew the injected provider — so
+ * the one control that pays never appeared. The injected wallet keeps precedence; the email door is
+ * offered only where there is no wallet at all, and only on the public rail (an embedded wallet is
+ * an EVM wallet, which the private rail can never pay).
+ */
+describe("a worker who signed in by email", () => {
+  it("is signed in on the public rail when the session is the embedded wallet's own", async () => {
+    embeddedState.wallet = { address: "0x3a60af43c67dd9d552f180d30d9a042948078341", getWalletClient: async () => null };
+    siweState.authedAddress = "0x3A60AF43C67DD9D552F180D30D9A042948078341";
+    board("evm");
+    expect(await screen.findByRole("button", { name: /submit evidence/i })).toBeTruthy();
+    expect(screen.queryByText(/connect wallet to submit/i)).toBeNull();
+  });
+
+  it("is offered the email door beside the wallet one when signed out on the public rail", async () => {
+    board("evm");
+    expect(await screen.findByText(/connect wallet to submit/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /continue with email/i })).toBeTruthy();
+  });
+
+  it("is not offered the email door on the private rail — an embedded wallet cannot be paid there", async () => {
+    board("starknet");
+    await waitFor(() => expect(screen.queryByRole("button", { name: /continue with email/i })).toBeNull());
+  });
+
+  it("an embedded wallet that is not the session's own is not signed in", async () => {
+    embeddedState.wallet = { address: "0x3a60af43c67dd9d552f180d30d9a042948078341", getWalletClient: async () => null };
+    siweState.authedAddress = "0x0000000000000000000000000000000000000001";
+    board("evm");
+    expect(await screen.findByText(/connect wallet to submit/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /submit evidence/i })).toBeNull();
   });
 });
 
