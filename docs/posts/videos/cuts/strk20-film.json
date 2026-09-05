@@ -1,0 +1,147 @@
+{
+ "name": "strk20-film",
+ "size": [
+  1920,
+  1080
+ ],
+ "fps": 30,
+ "recDir": "docs/posts/videos/rec/film",
+ "shots": [
+  {
+   "card": "Getting paid on-chain\nmeans publishing\nyour salary.",
+   "seconds": 2.6,
+   "tone": "ink",
+   "big": true
+  },
+  {
+   "rec": "explorer",
+   "from": "m:start+0.2",
+   "to": "m:rows+1.4",
+   "speed": 1.2,
+   "punch": {
+    "x": 0.5,
+    "y": 0.35,
+    "z": 1.3,
+    "in": 2.2
+   },
+   "caption": "Sage is an AI agent that checks someone's work and pays them for it. Every payout here is real USDC on mainnet."
+  },
+  {
+   "card": "Private on Starknet\nwhen you ask.",
+   "sub": "STRK20 Private Sprint · sagepays.xyz",
+   "seconds": 2.4,
+   "tone": "paper"
+  },
+  {
+   "rec": "composer-grant",
+   "from": "m:field-0.2",
+   "to": "m:typed+0.2",
+   "speed": 2.6,
+   "punch": {
+    "x": 0.3,
+    "y": 0.45,
+    "z": 1.5,
+    "in": 1.5
+   },
+   "caption": "A founder says the work once. Sage compiles it into milestones and a verification contract."
+  },
+  {
+   "rec": "composer-grant",
+   "from": "m:drafted+0.2",
+   "to": "m:plan+2.0",
+   "speed": 1.3,
+   "punch": {
+    "x": 0.72,
+    "y": 0.4,
+    "z": 1.5,
+    "in": 2.0
+   },
+   "caption": "The rail is Starknet. A Cairo vault holds the money; the amount is not even an argument the agent can pass."
+  },
+  {
+   "rec": "receipts",
+   "from": "m:b+0.2",
+   "to": "m:b-verdict+1.8",
+   "speed": 1.1,
+   "punch": {
+    "x": 0.5,
+    "y": 0.3,
+    "z": 1.35,
+    "in": 2.4
+   },
+   "caption": "A worker submits. Sage judges the evidence itself and the vault releases the reward — no human in the loop."
+  },
+  {
+   "rec": "receipts",
+   "from": "m:b-verdict+1.8",
+   "to": "m:b-leg+2.2",
+   "speed": 1.0,
+   "punch": {
+    "x": 0.5,
+    "y": 0.5,
+    "z": 1.5,
+    "in": 2.6
+   },
+   "caption": "The money never touches the worker's wallet. It is escrowed behind a Poseidon commitment; only the worker's secret opens it."
+  },
+  {
+   "rec": "receipts",
+   "from": "m:b-leg+2.2",
+   "to": "m:b-chain+1.6",
+   "speed": 1.1,
+   "caption": "They collect through the STRK20 pool into a shielded note. The receipt is public. Their balance is not."
+  },
+  {
+   "card": "Auditable in aggregate.\nPrivate in the destination.",
+   "seconds": 2.6,
+   "tone": "terra"
+  },
+  {
+   "rec": "graph",
+   "from": "m:scrolled-0.5",
+   "to": "m:legend+1.2",
+   "speed": 1.2,
+   "punch": {
+    "x": 0.5,
+    "y": 0.55,
+    "z": 1.4,
+    "in": 2.4
+   },
+   "caption": "Privacy without accountability is a farm. This one took ten of ten slots with twelve wallets — drawn from the chain."
+  },
+  {
+   "rec": "marketplace",
+   "from": "m:start+0.2",
+   "to": "m:rows+1.4",
+   "speed": 1.2,
+   "caption": "So public work asks for one proof of personhood, once. The cap counts the person, not the address."
+  },
+  {
+   "rec": "operator",
+   "from": "m:move+0.2",
+   "to": "m:hold+1.2",
+   "speed": 1.1,
+   "punch": {
+    "x": 0.45,
+    "y": 0.22,
+    "z": 1.7,
+    "in": 2.4
+   },
+   "caption": "Fund it once and the agent decides what work to buy next — where, never how much — and proposes it before a dollar leaves."
+  },
+  {
+   "card": "13 private payouts settled.\n3 collected through the pool.\nEvery hash in strk20.json.",
+   "seconds": 3.0,
+   "tone": "ink"
+  },
+  {
+   "card": "sagepays.xyz",
+   "sub": "SageVault · SageClaims · Starknet mainnet",
+   "seconds": 3.0,
+   "tone": "paper",
+   "big": true
+  }
+ ],
+ "narrated": true,
+ "wordsPerSecond": 2.3
+}

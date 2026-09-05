@@ -11,6 +11,7 @@
  */
 import { chromium } from "playwright";
 import { mkdirSync, renameSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { SCENES } from "./scenes.mjs";
 
@@ -122,5 +123,14 @@ await browser.close();
 const files = readdirSync(tmp).filter((f) => f.endsWith(".webm")).map((f) => join(tmp, f)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
 if (!files.length) { console.error("no video written"); process.exit(1); }
 renameSync(files[0], join(outDir, `${name}.webm`));
-writeFileSync(join(outDir, `${name}.marks.json`), JSON.stringify({ scene: name, size: [W, H], scale: SCALE, marks }, null, 2));
-console.log(`${name}.webm  ${Object.entries(marks).map(([k, v]) => `${k}=${v.toFixed(2)}`).join("  ")}`);
+// DRIFT. Marks are wall-clock; the video's clock stops while no frame arrives (a page load stalling
+// under CPU pressure). When the recording is shorter than the last mark, the stall is assumed to
+// have happened before the first mark — the load — and every mark is shifted back by the gap.
+let duration = null;
+try { duration = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", join(outDir, `${name}.webm`)]).toString().trim()); } catch {}
+const last = Math.max(...Object.values(marks));
+const drift = duration != null && Number.isFinite(duration) && last - duration > 0.5 ? last - duration : 0;
+const adjusted = Object.fromEntries(Object.entries(marks).map(([k, v]) => [k, Math.max(0, v - drift)]));
+if (drift) console.warn(`[record] ${name}: video ${duration.toFixed(1)}s shorter than marks by ${drift.toFixed(1)}s — marks shifted back (a stalled load)`);
+writeFileSync(join(outDir, `${name}.marks.json`), JSON.stringify({ scene: name, size: [W, H], scale: SCALE, duration, drift, marks: adjusted, wallMarks: marks }, null, 2));
+console.log(`${name}.webm  ${Object.entries(adjusted).map(([k, v]) => `${k}=${v.toFixed(2)}`).join("  ")}`);

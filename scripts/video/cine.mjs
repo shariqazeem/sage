@@ -104,14 +104,25 @@ for (const shot of cut.shots) {
     if (!existsSync(src)) throw new Error(`missing recording ${src}`);
     const from = at(shot.rec, shot.from ?? 0), to = at(shot.rec, shot.to ?? "m:end");
     const speed = shot.speed ?? 1;
-    const dur = (to - from) / speed;
+    // NARRATION PACE. A narrated cut holds each captioned shot long enough to read (or speak) its
+    // caption — about 2.3 words a second plus a beat — by freezing the last frame (tpad), so a
+    // three-second scroll can carry a nine-second line without slow motion.
+    let dur = (to - from) / speed;
+    let pad = shot.hold ?? 0;
+    if (shot.caption && (cut.narrated || shot.narrated)) {
+      const words = String(shot.caption).trim().split(/\s+/).length;
+      const need = words / (cut.wordsPerSecond ?? 2.3) + 0.7;
+      if (need > dur + pad) pad = need - dur;
+    }
     const vf = [
       `trim=start=${from.toFixed(3)}:end=${to.toFixed(3)}`,
       `setpts=(PTS-STARTPTS)/${speed}`,
       shot.punch ? punchFilter(shot.punch, speed) : `fps=${FPS},scale=${W}:${H}:flags=lanczos`,
-      ...(shot.caption ? [captionFilter(shot.caption, i, dur)] : []),
+      ...(pad > 0 ? [`tpad=stop_mode=clone:stop_duration=${pad.toFixed(2)}`] : []),
+      ...(shot.caption ? [captionFilter(shot.caption, i, dur + pad)] : []),
       "format=yuv420p",
     ].join(",");
+    dur += pad;
     ff(["-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", file]);
   }
   parts.push(file);
@@ -121,6 +132,12 @@ const list = join(work, "list.txt");
 writeFileSync(list, parts.map((p) => `file '${resolve(p)}'`).join("\n"));
 mkdirSync(out, { recursive: true });
 const final = join(out, `${cut.name}.mp4`);
-ff(["-f", "concat", "-safe", "0", "-i", list, "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", String(FPS), final]);
+// --audio <file>: a voiceover track muxed under the cut (trimmed to the picture; picture never stretched).
+const audio = arg("audio", cut.audio ?? "");
+if (audio && existsSync(audio)) {
+  ff(["-f", "concat", "-safe", "0", "-i", list, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-shortest", "-movflags", "+faststart", "-r", String(FPS), final]);
+} else {
+  ff(["-f", "concat", "-safe", "0", "-i", list, "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", String(FPS), final]);
+}
 const dur = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", final]).toString().trim();
 console.log(`${final}  ${Number(dur).toFixed(1)}s  ${parts.length} shots`);

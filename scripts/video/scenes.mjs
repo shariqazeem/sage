@@ -266,12 +266,19 @@ export const SCENES = {
     c.mark("drafted");
     const cur = p.locator('select[aria-label="The currency you are pricing in"]').first();
     if (await cur.count()) { await cur.scrollIntoViewIfNeeded(); await cur.selectOption("JMD").catch(() => {}); await c.wait(700); }
+    // the money is the founder's: one total, split exactly by Sage into the two milestones
+    const total = p.locator("label", { hasText: /split exactly by Sage/i }).locator('input[type="number"]').first();
+    if (await total.count()) {
+      await total.scrollIntoViewIfNeeded();
+      await total.click({ clickCount: 3 });
+      await p.keyboard.type("10000", { delay: 90 });
+    }
     c.mark("priced");
-    await c.wait(2000);
+    await c.wait(2200);
     const panel = p.getByText(/what sage will do/i).first();
     if (await panel.count()) await panel.scrollIntoViewIfNeeded();
     c.mark("plan");
-    await c.wait(2600);
+    await c.wait(2800);
     await c.scrollTo(1100, 1200);
     c.mark("bottom");
     await c.wait(1600);
