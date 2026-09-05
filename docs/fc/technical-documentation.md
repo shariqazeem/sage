@@ -113,8 +113,8 @@ Next.js 15 (App Router, Turbopack) · TypeScript strict · SQLite via better-sql
 ## Live evaluation batteries (the quality gate)
 
 P-GEN (13 product categories, anchor integrity must be 100% — nonce 65 on 5 Sep: 13/13 ready, 100% on every row, on the build that ships), P-DIRECT (founder briefs → compiled
-gigs and grants; 75 rows a run, with the money invariants — exact budget, the founder's own amount,
-no invented tranches, nothing unverifiable — at zero on the final build, and each defect it has found
+gigs and grants; 75 rows a run — eight runs this week, the last four on the build that ships — with the money invariants — exact budget, the founder's own amount,
+no invented tranches, nothing unverifiable — at zero on every one, and each defect it has found
 fixed on the deterministic rung rather than the prompt), P-WORK (gig judging: attacks and honest work), P-JUDGE (payout judge promotion),
 P-OPERATOR (the standing mandate's one model decision — 4/4 on 5 Sep: stays in the founder's own surfaces, never prices the work, never buys the same silence twice, escalates past a filled read), P-ROUTE (tool routing across both surfaces — 29/32 on 5 Sep, zero premature money confirmations, the recipient journey included), P-VERIFY (verification contracts — 5/5 on 5 Sep against live pages and a real mainnet transaction), and a Starknet
 dry-run that must refuse a control row. Every battery imports production's own prompts and tools.
