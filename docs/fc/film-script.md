@@ -31,8 +31,9 @@ without me — but it can never spend outside the vault's limits. The agent prop
 disposes."
 
 ### 4 · The door: one person, one slot (1:25–1:45) · *human-in-the-loop, by design*
-**Screen:** the marketplace row "one person, one slot" → a mission board → the verify card → the
-World ID widget → "Verified — one slot on this work is yours."
+**Screen:** the marketplace row "one person, one slot" → a mission board → "Continue with email"
+(no wallet app: Sage keeps the wallet, the payout lands in it) → the verify card → the World ID
+widget → "Verified — one slot on this work is yours."
 **VO:** "Public work asks everyone to prove they are one person, once. No name, no document, no
 country — about a minute. Fifty slots need fifty people. The operator who took ten of ten slots
 with twelve wallets would have needed ten humans."
