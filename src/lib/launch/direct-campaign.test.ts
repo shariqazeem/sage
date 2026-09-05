@@ -352,6 +352,22 @@ describe("on-chain milestone chains must be reachable", () => {
  * then threw the quote away, so nothing downstream could say what the obligation WAS. The plan now
  * carries the founder's currency, the rate and their number; a USD plan carries nothing extra.
  */
+describe("the compiler refuses money that releases on a third party's private decision", () => {
+  it("refuses the bank-approval milestone whichever door wrote it, with the one sentence", () => {
+    const input = grantInput();
+    input.milestones = [{ ...input.milestones[0], title: "Bank approves her loan", instructions: "Publish a page confirming the bank approved the loan application.", criteria: ["The bank has approved the loan"] }];
+    const r = compileDirectCampaign(input, "pub-third-party", null);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/third party's private decision/);
+  });
+
+  it("leaves a deliverable Sage can check itself untouched", () => {
+    const r = compileDirectCampaign(grantInput(), "pub-fine", null);
+    expect(r.ok).toBe(true);
+  });
+});
+
 describe("the compiled plan keeps the founder's currency", () => {
   it("stamps denomination + per-tranche local amounts on a locally-priced plan", () => {
     const input = grantInput();

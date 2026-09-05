@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { CHAINS } from "@/lib/deputy/networks";
 import { formatLocal, toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
+import { releasesOnThirdPartyDecision, THIRD_PARTY_DECISION_REFUSAL } from "./third-party-decision";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
@@ -547,6 +548,15 @@ export function compileDirectCampaign(
 ): CompileDirectResult {
   const taken = new Set<string>();
   const noun = input.kind === "grant" ? "milestone" : "deliverable";
+
+  // A rule the prompt gives the model is not a rule until the compiler holds it: a milestone whose
+  // wording releases money on a third party's private decision is refused here, whichever door
+  // wrote it — measured on Haiku 4.5 calling the tool for "when the bank approves her loan".
+  for (const m of input.milestones) {
+    if (releasesOnThirdPartyDecision([m.title, m.instructions, ...m.criteria].join(". "))) {
+      return { ok: false, error: `${noun} "${m.title}": ${THIRD_PARTY_DECISION_REFUSAL}` };
+    }
+  }
 
   const candidates: CandidateMission[] = input.milestones.map((m, i) => ({
     missionKey: slugify(m.title, i, taken),
