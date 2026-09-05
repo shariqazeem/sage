@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { releasesOnThirdPartyDecision, statedCurrency, unambiguousGigArgs } from "./direct-fallback";
 import type { GigDraft } from "./gig-draft";
+import { compileDirectCampaign, directCampaignSchema } from "./direct-campaign";
+import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 
 /**
  * The last resort, and its refusals.
@@ -146,6 +148,34 @@ describe("unambiguousGigArgs — builds only what the founder's own words settle
     expect(es?.splitTotalUsd).toBe(50);
     expect(es?.currency).toBeUndefined();
     expect(es?.milestones).toHaveLength(2);
+  });
+
+  it("the rung's equal-split args are what the REAL compiler accepts and divides — two lists that must not drift", () => {
+    const d = draft();
+    const two = draft({
+      kind: "grant",
+      milestones: [
+        { ...d.milestones[0], title: "Catalogue page online" },
+        { ...d.milestones[0], title: "First customer review posted" },
+      ],
+    });
+    const args = unambiguousGigArgs("Give a market seller J$10,000 in two equal parts — half when her catalogue page is online, half when she posts her first customer review.", two);
+    // Production's exact path: the rung's args cross the tool boundary (mapDirectCampaignArgs
+    // normalises transport shapes and stamps the wallet marker) before the compiler's schema.
+    const parsed = directCampaignSchema.safeParse(mapDirectCampaignArgs(args as unknown as Record<string, unknown>));
+    expect(parsed.success, JSON.stringify(parsed.success ? null : parsed.error.issues)).toBe(true);
+    if (!parsed.success) return;
+    const quote = { base: "USD" as const, currency: "JMD", rate: 158.37, source: "test-rates", asOf: 1_800_000_000 };
+    const r = compileDirectCampaign(parsed.data, "pub-rung-jmd", quote);
+    expect(r.ok, r.ok ? "" : JSON.stringify(r, (_k, v) => (typeof v === "bigint" ? v.toString() : v))).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.missions).toHaveLength(2);
+    expect(r.plan.missions.map((m) => m.rewardLocal)).toEqual([5000, 5000]);
+    expect(r.plan.denomination?.currency).toBe("JMD");
+    expect(r.plan.denomination?.localTotal).toBe(10_000);
+    // the exact-sum invariant, in base units, over what the compiler divided
+    const total = r.plan.missions.reduce((acc, m) => acc + BigInt(m.rewardBase) * BigInt(m.maxCompletions), BigInt(0));
+    expect(total).toBe(BigInt(r.plan.totalBudgetBase));
   });
 
   it("reads the currency the founder wrote, and a bare $ as USD", () => {
