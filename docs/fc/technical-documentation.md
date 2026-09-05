@@ -46,7 +46,12 @@ flowchart TD
 ```
 
 **Agents and their boundaries.** The Concierge (Telegram and web) turns a founder's sentence into
-tool calls and never does money math. The Inspection agent browses the product in a real browser,
+tool calls and never does money math. When the model concludes without acting, the turn escalates
+through three rungs — more room, a corrective round with the lane its guard named, then a
+deterministic compile that reads the founder's own words (one amount, one deliverable; a stated
+equal split passed as their total for the compiler to divide; the founder's headcount, never the
+draft's guess) and refuses what the model is told to refuse (money that releases on a third party's
+private decision). The rules the prompt gives the model exist in code on the rung that has no model. The Inspection agent browses the product in a real browser,
 fills safe forms, replays safe transitions, and records only what it saw. The Mission Brain
 (architect and critic, two calls with a deterministic validate gate between them and after them)
 designs paid missions from that record. The Payout brain judges evidence and proposes pay, review or
@@ -108,6 +113,8 @@ Next.js 15 (App Router, Turbopack) · TypeScript strict · SQLite via better-sql
 ## Live evaluation batteries (the quality gate)
 
 P-GEN (13 product categories, anchor integrity must be 100%), P-DIRECT (founder briefs → compiled
-gigs and grants), P-WORK (gig judging: attacks and honest work), P-JUDGE (payout judge promotion),
+gigs and grants; 75 rows a run, with the money invariants — exact budget, the founder's own amount,
+no invented tranches, nothing unverifiable — at zero on the final build, and each defect it has found
+fixed on the deterministic rung rather than the prompt), P-WORK (gig judging: attacks and honest work), P-JUDGE (payout judge promotion),
 P-ROUTE (tool routing across both surfaces), P-VERIFY (verification contracts), and a Starknet
 dry-run that must refuse a control row. Every battery imports production's own prompts and tools.
