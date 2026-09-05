@@ -1,0 +1,10 @@
+{ "name": "operator", "size": [1080,1080], "fps": 30, "shots": [
+  { "card": "Fund it once.\nSage decides where.", "seconds": 1.5, "tone": "ink" },
+  { "rec": "operator", "from": "m:autopilot+0.2", "to": "m:named+0.6", "speed": 2.2, "punch": { "x": 0.3, "y": 0.5, "z": 1.6, "in": 1.5 } },
+  { "card": "Name the product.\nSet the ceilings.", "seconds": 1.1, "tone": "paper" },
+  { "rec": "operator", "from": "m:move+0.3", "to": "m:move+3.2", "speed": 1.0, "punch": { "x": 0.5, "y": 0.2, "z": 1.9, "in": 1.6 } },
+  { "card": "A move, with its reason,\nat $0.", "seconds": 1.3, "tone": "terra" },
+  { "rec": "operator", "from": "m:move+3.2", "to": "m:hold+1.2", "speed": 1.3, "punch": { "x": 0.78, "y": 0.22, "z": 1.7, "in": 1.2 } },
+  { "card": "Nothing is recorded\nuntil it moves.\nNothing moves\nbefore you can veto.", "seconds": 2.0, "tone": "ink" },
+  { "card": "Sage · sagepays.xyz", "sub": "the agent picks where — never how much", "seconds": 1.6, "tone": "paper" }
+]}

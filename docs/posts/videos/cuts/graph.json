@@ -1,0 +1,15 @@
+{
+  "name": "graph",
+  "size": [1080, 1080],
+  "fps": 30,
+  "shots": [
+    { "card": "A wallet is free.\nA person is not.", "seconds": 1.4, "tone": "ink" },
+    { "rec": "graph", "from": "m:graph-0.2", "to": "m:graph+1.6", "speed": 1.0, "punch": { "x": 0.5, "y": 0.42, "z": 1.5, "in": 1.2 } },
+    { "card": "One operator.\nTwelve wallets.", "seconds": 1.1, "tone": "paper" },
+    { "rec": "graph", "from": "m:graph+2.0", "to": "m:scrolled+1.2", "speed": 1.6 },
+    { "card": "Every slot.", "seconds": 0.9, "tone": "terra", "big": true },
+    { "rec": "graph", "from": "m:scrolled+1.2", "to": "m:legend+1.4", "speed": 1.4, "punch": { "x": 0.5, "y": 0.6, "z": 1.35, "in": 1.4 } },
+    { "card": "Drawn from the chain.\nNot from a story.", "seconds": 1.5, "tone": "ink" },
+    { "card": "Sage · sagepays.xyz", "sub": "one person, one slot — proven at the mission", "seconds": 1.6, "tone": "paper" }
+  ]
+}

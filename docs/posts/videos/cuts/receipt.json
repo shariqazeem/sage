@@ -1,0 +1,10 @@
+{ "name": "receipt", "size": [1080,1080], "fps": 30, "shots": [
+  { "card": "Paid privately.\nProven publicly.", "seconds": 1.4, "tone": "ink" },
+  { "rec": "receipt", "from": "m:start+0.2", "to": "m:verdict+0.8", "speed": 1.5, "punch": { "x": 0.5, "y": 0.3, "z": 1.4, "in": 1.4 } },
+  { "card": "The vault released it.", "seconds": 0.9, "tone": "paper" },
+  { "rec": "receipt", "from": "m:verdict+0.8", "to": "m:leg+1.4", "speed": 1.4, "punch": { "x": 0.5, "y": 0.5, "z": 1.5, "in": 1.2, "dy": 0.06, "drift": 2.5 } },
+  { "card": "Escrowed behind\na commitment.", "seconds": 1.1, "tone": "terra" },
+  { "rec": "receipt", "from": "m:leg+1.4", "to": "m:chain+1.2", "speed": 1.3, "punch": { "x": 0.5, "y": 0.55, "z": 1.5, "in": 1.0 } },
+  { "card": "Collected into\na shielded note.", "seconds": 1.2, "tone": "ink" },
+  { "card": "Sage · sagepays.xyz", "sub": "Starknet mainnet · STRK20 pool · every hash public", "seconds": 1.6, "tone": "paper" }
+]}

@@ -1,5 +1,6 @@
 "use client";
 
+import { statedHeadcount } from "@/lib/launch/direct-fallback";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -96,7 +97,14 @@ type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number;
 
 /** The composer's slot select offers fixed counts; a drafted count snaps to the nearest one it offers. */
 const SLOT_OPTIONS = ["1", "2", "3", "5", "10"];
-const snapSlots = (n: number): string => SLOT_OPTIONS.reduce((best, o) => (Math.abs(Number(o) - n) < Math.abs(Number(best) - n) ? o : best), "1");
+/**
+ * THE FOUNDER'S HEADCOUNT IS NEVER ROUNDED. "8 people" once snapped to the nearest preset (10) and the
+ * bounty silently grew by a quarter — the same invented-number defect the direct door's stated-terms
+ * check refuses. The number in the sentence wins; the model's guess is clamped, never snapped; and the
+ * chooser always offers the number that is set, whether or not it is a preset.
+ */
+const clampSlots = (n: number): string => String(Math.min(50, Math.max(1, Math.round(Number.isFinite(n) ? n : 1))));
+const slotChoices = (current: string): string[] => (SLOT_OPTIONS.includes(current) ? SLOT_OPTIONS : [...SLOT_OPTIONS, current].sort((a, b) => Number(a) - Number(b)));
 const MARKER_CRITERION = "The page carries the submitting wallet address";
 
 /** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
@@ -342,7 +350,7 @@ export function LaunchForm() {
       if (!res.ok || !data.ok || !data.draft) throw new Error(data.error ?? "Sage couldn't draft this.");
       const d = data.draft;
       setP("who", d.who);
-      setP("slots", d.milestones.length > 1 ? "1" : snapSlots(d.slots));
+      setP("slots", d.milestones.length > 1 ? "1" : (statedHeadcount(draftText) != null ? String(statedHeadcount(draftText)) : clampSlots(d.slots)));
       setDraftWhy(d.whyItMatters ?? "");
       setDraftNotes(data.notes ?? []);
       // Amounts the founder already typed survive the draft: money is theirs, words are Sage's.
@@ -747,7 +755,7 @@ export function LaunchForm() {
                       <label className="cmp-field">
                         <span className="cmp-label">How many can earn it</span>
                         <select className="lx-input cmp-input cmp-sel" value={pay.slots} onChange={(e) => setP("slots", e.target.value)}>
-                          {["1", "2", "3", "5", "10"].map((c) => (
+                          {slotChoices(pay.slots).map((c) => (
                             <option key={c} value={c}>{c === "1" ? "1 person" : `${c} people`}</option>
                           ))}
                         </select>

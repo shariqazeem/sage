@@ -1,0 +1,11 @@
+{ "name": "ledger", "size": [1080,1080], "fps": 30, "shots": [
+  { "card": "An agent that\nnever says no\nis a faucet.", "seconds": 1.6, "tone": "ink" },
+  { "rec": "explorer", "from": "m:start+0.3", "to": "m:rows+0.9", "speed": 1.6, "punch": { "x": 0.5, "y": 0.28, "z": 1.45, "in": 1.3 } },
+  { "card": "Every payout.\nEvery refusal.", "seconds": 1.0, "tone": "paper" },
+  { "rec": "explorer", "from": "m:rows+0.9", "to": "m:refusals+1.0", "speed": 1.8, "punch": { "x": 0.5, "y": 0.5, "z": 1.3, "in": 1.2, "dy": 0.05, "drift": 3 } },
+  { "rec": "outcomes", "from": "m:start+0.3", "to": "m:fees+1.0", "speed": 1.6, "punch": { "x": 0.5, "y": 0.35, "z": 1.5, "in": 1.2 } },
+  { "card": "$0.10 per settlement.\nRecipients keep 100%.", "seconds": 1.3, "tone": "terra" },
+  { "rec": "outcomes", "from": "m:fees+1.0", "to": "m:people+1.2", "speed": 1.6, "punch": { "x": 0.5, "y": 0.5, "z": 1.35, "in": 1.4 } },
+  { "card": "One ledger.\nEvery number on the site.", "seconds": 1.3, "tone": "ink" },
+  { "card": "Sage · sagepays.xyz", "sub": "sagepays.xyz/explorer — open any row", "seconds": 1.6, "tone": "paper" }
+]}

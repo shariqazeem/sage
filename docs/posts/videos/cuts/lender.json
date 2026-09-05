@@ -1,0 +1,10 @@
+{ "name": "lender", "size": [1080,1080], "fps": 30, "shots": [
+  { "card": "Lending without\ncollateral needs\na record.", "seconds": 1.7, "tone": "ink" },
+  { "rec": "lender", "from": "m:start+0.3", "to": "m:record+1.0", "speed": 1.5, "punch": { "x": 0.5, "y": 0.3, "z": 1.4, "in": 1.3 } },
+  { "card": "Every verified payout\nlands on one.", "seconds": 1.1, "tone": "paper" },
+  { "rec": "lender", "from": "m:record+1.0", "to": "m:call+1.6", "speed": 1.4, "punch": { "x": 0.5, "y": 0.5, "z": 1.5, "in": 1.2 } },
+  { "card": "One call.\nJSON, not a PDF.", "seconds": 1.1, "tone": "terra" },
+  { "rec": "lender", "from": "m:call+1.6", "to": "m:advance+1.4", "speed": 1.4, "punch": { "x": 0.5, "y": 0.55, "z": 1.45, "in": 1.2, "dy": 0.04, "drift": 3 } },
+  { "card": "An advance from\nverified inflow.\nRepaid by the\nnext payout.", "seconds": 1.8, "tone": "ink" },
+  { "card": "Sage · sagepays.xyz/lender", "sub": "cash-flow credit for MSMEs, on both rails", "seconds": 1.6, "tone": "paper" }
+]}
