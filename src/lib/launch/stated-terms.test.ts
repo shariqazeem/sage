@@ -26,6 +26,26 @@ describe("readStatedTerms — the founder's own arithmetic", () => {
   });
 });
 
+describe("readStatedTerms — a cadence with an end is a count (P-DIRECT 4)", () => {
+  it("'$25 a month for three months' states three payments", () => {
+    const t = readStatedTerms("I want to back a seller with $25 a month for three months — each month she posts her numbers publicly and gets paid.");
+    expect(t.milestoneCount).toBe(3);
+  });
+  it("'$10 a week for four weeks' states four", () => {
+    expect(readStatedTerms("$10 a week for four weeks to whoever keeps the changelog current").milestoneCount).toBe(4);
+  });
+  it("a period with no cadence is a deadline, not a count", () => {
+    expect(readStatedTerms("pay her $500 when it's done, in about three months").milestoneCount).toBeNull();
+  });
+  it("'in two equal parts' and 'en dos partes iguales' both state two", () => {
+    expect(readStatedTerms("Give a market seller J$10,000 in two equal parts").milestoneCount).toBe(2);
+    expect(readStatedTerms("Quiero dar $50 a una vendedora en dos partes iguales").milestoneCount).toBe(2);
+  });
+  it("'la mitad … y la mitad' is two, like 'half … and half'", () => {
+    expect(readStatedTerms("la mitad cuando publique su catálogo y la mitad cuando muestre su primera venta").milestoneCount).toBe(2);
+  });
+});
+
 describe("readStatedTerms — stays silent when the founder did not spell it out", () => {
   it("infers no total from a budget mentioned alongside a price", () => {
     // "I have $500, spend $50" satisfies no sum identity — inferring 500 would block an honest plan.

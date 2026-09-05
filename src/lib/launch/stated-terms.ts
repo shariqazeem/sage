@@ -26,11 +26,27 @@ const AMOUNT_RE =
 const WORD_NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  // the founder's own language is still their number — Spanish and French, as the fixtures speak
+  dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6,
+  deux: 2, trois: 3, quatre: 4, cinq: 5,
 };
 const COUNT_RE = new RegExp(
   String.raw`\b(\d{1,2}|${Object.keys(WORD_NUMBERS).join("|")})\s+` +
     String.raw`(?:equal\s+|separate\s+|monthly\s+|weekly\s+)?` +
-    String.raw`(milestones?|tranches?|stages?|instal?lments?|payments?|phases?|deliverables?)\b`,
+    String.raw`(milestones?|tranches?|stages?|instal?lments?|payments?|phases?|deliverables?|parts?|partes|pagos|cuotas|etapas|fases|entregas|parties|versements|étapes)\b`,
+  "i",
+);
+/*
+  A CADENCE WITH AN END IS A COUNT. "$25 a month for three months" states three payments as
+  plainly as "three tranches" does, but in time-words — P-DIRECT 4 (2026-09-05) compiled it to one
+  milestone and this guard, reading only tranche-words, let it through. Both halves are required:
+  the cadence ("a month", "monthly", "cada mes") AND the bounded period ("for three months").
+  "Pay $500 when it's done, in about three months" has the period and no cadence, and states one
+  payment — so it infers nothing, which is the correct silence.
+*/
+const CADENCE_RE = /\b(?:a|per|each|every)\s+(?:month|week|day|fortnight)\b|\b(?:monthly|weekly|daily|fortnightly|al\s+mes|por\s+mes|cada\s+mes|cada\s+semana|mensual(?:es|mente)?|semanal(?:es|mente)?|par\s+mois|chaque\s+mois)\b/i;
+const PERIOD_COUNT_RE = new RegExp(
+  String.raw`\b(?:for|over|across|during|durante|por|pendant|sur)\s+(\d{1,2}|${Object.keys(WORD_NUMBERS).join("|")})\s+(?:months?|weeks?|days?|fortnights?|meses|semanas|d[ií]as|mois|semaines|jours)\b`,
   "i",
 );
 
@@ -138,11 +154,18 @@ export function readStatedTerms(text: string): StatedTerms {
     const token = countMatch[1].toLowerCase();
     const n = WORD_NUMBERS[token] ?? Number(token);
     if (Number.isFinite(n) && n >= 1 && n <= 20) milestoneCount = n;
-  } else if ((text.match(/\bhalf\b/gi) ?? []).length >= 2) {
+  } else if ((text.match(/\b(?:half|mitad|moiti[eé])\b/gi) ?? []).length >= 2) {
     // "half when she publishes the catalogue and half when she posts a review" — two tranches,
     // named as fractions instead of a count. Requires the word TWICE, so "half up front" alone
     // (where the remainder is never described) infers nothing.
     milestoneCount = 2;
+  } else if (CADENCE_RE.test(text)) {
+    const period = PERIOD_COUNT_RE.exec(text);
+    if (period) {
+      const token = period[1].toLowerCase();
+      const n = WORD_NUMBERS[token] ?? Number(token);
+      if (Number.isFinite(n) && n >= 1 && n <= 20) milestoneCount = n;
+    }
   }
 
   return { totalAmount, milestoneCount };
