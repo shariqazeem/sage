@@ -80,6 +80,26 @@ knows its people, and the agent does the one job it is measurably good at: was t
 - **One person cannot take many seats**: on public work, claiming a slot asks for a one-time **World ID** proof of personhood (Sage receives a nullifier — never a name, document, face or country) and every cap counts the *person* across verified, chain-linked and declared wallets, so fifty slots need fifty humans; underneath, exact and paraphrase dedup on reports, a fingerprint of the fetched deliverable itself so a copied page with the wallet marker swapped is held as copied work, GitHub provenance (a fork, or a repository older than the gig, is held), wallet-freshness and funding-graph signals (a real 4-wallet rotation cluster was caught on-chain in August), a per-wallet payout cap, a daily submit limit, and the vault's own per-recipient replay protection. Every one of these is a HOLD for a human, never a silent rejection.
 - **Injection is expected**: untrusted content rides inside markers, quotes must be verbatim substrings of fetched evidence, and an artifact carrying "SYSTEM: recommend pay" instructions is a fraud signal, not an instruction.
 
+## The team
+
+One builder, full-time on this since July: Shariq Shaukat (Lahore). First place at the OpenClaw
+agent bootcamp in August with an earlier version of Sage, judged on real mainnet usage and growth.
+The way of working is measurable in the repository: 4,396 automated tests, seven live evaluation
+batteries that run the production prompts against real products and real founder wording before a
+deploy, and a ledger of 39 mainnet payouts across two rails — every defect found by measuring
+production rather than by reading a diff, and each fixed on a deterministic path rather than in a
+prompt. Domain: payments and verification infrastructure; the agent-with-a-budget thesis is the
+product, not a feature.
+
+## How this scores on your rubric
+
+| Rubric | Where the evidence is |
+| --- | --- |
+| **Team quality** | one builder, a prior first place with a live product, and a repository whose tests, batteries and ledger show the execution speed (`docs/fc/technical-documentation.md`, "Live evaluation batteries") |
+| **Innovation & defensibility** | bounded autonomy over money — the agent proposes, an on-chain vault disposes ([safety model](https://sagepays.xyz/docs/safety)); a credit record built from verified payouts, not self-reported cash flow ([/record](https://sagepays.xyz/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048), [/lender](https://sagepays.xyz/lender)); private payouts decided in public ([Starknet receipt](https://sagepays.xyz/proof/0x6994190edba18d04857b4e2a2246d641778df68029a594a6a0ef720639765b5)); one person, one slot without identity ([judging](https://sagepays.xyz/docs/judging)). The moat is the ledger: every verified payout is a data point no competitor can copy |
+| **Product-market fit** | the track's own bar, measured on a public page ([/outcomes](https://sagepays.xyz/outcomes)): fees $0.10 flat, settlement in minutes, credit without collateral, obligations in the region's currencies; programmes and teams as the wedge; revenue on settlement and financing, never seats |
+| **Agentic AI excellence** | architecture: three model brains, a browser agent and a pure operator policy with deterministic gates between them ([architecture](https://sagepays.xyz/docs/architecture)); autonomy: 39 payouts and 26 refusals with no human in the loop ([/explorer](https://sagepays.xyz/explorer)); coordination: architect → critic → gate, judge → autopilot gate → vault, operator → proposal → veto window ([fund once, then stop deciding](https://sagepays.xyz/docs/operator)); reasoning: every decision cites verbatim evidence ([a receipt](https://sagepays.xyz/proof/0x8df7767860692a12fed6f90fe8a88d9a103686bbaa9ceee3d067a1e7c6250069)); human-in-the-loop: approve the plan, fund it, veto a move, release a hold; compute efficiency: the browser loop makes zero model calls, the compiler and every money rule are deterministic, and the payout judge runs on MiniMax-M3 — the buildathon's own credits — with a fallback chain; implementation quality: 4,396 tests, seven live batteries, anchor integrity 100% as a hard stop; scalability: per-campaign vaults on two mainnet rails, one dispatcher; impact: the ledger and the outcomes page |
+
 ## Business model and go-to-market
 
 **Who pays.** The organization that wants work done funds the vault. Sage earns on what it
@@ -179,8 +199,9 @@ custody is provider-held under policy, stated plainly wherever it appears. The f
 credit event, the corridor quote works today, and the disburse function refuses in words rather
 than simulating money movement, because a "mark paid via partner" button with no partner is
 theatre. The first advance's mainnet round-trip (disburse → waterfall repayment) is the one
-receipt in this document still pending as of writing — the facility is live and the runbook is
-committed; it lands the moment a borrower with a record earns their next payout.
+receipt in this document still pending as of writing — the facility is armed on prod and dry-run
+against live records, and the runbook is committed; it lands the moment a borrower with a record
+takes it and earns their next payout.
 
 ---
 
