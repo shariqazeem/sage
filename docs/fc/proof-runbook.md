@@ -28,6 +28,21 @@
    **0**, BTC gas 0.000016 — enough). Sixteen $0.10 operator-fee transfers are pending on it ($1.60);
    they settle on the next sweep once it holds USDC and show on `/explorer` as "How Sage earns".
 
+## Step 0 — the treasury move (10 minutes, ~$15 USDC on GOAT) — do this first
+
+Tonight the board has **zero open mainnet slots**: every live campaign is fully paid out. The film's
+marketplace row, the verify card and "What Sage would do next" all need open PUBLIC work, and the
+product's own answer is the treasury: open `/workspace/autopilot`, read the move the rehearsal shows
+(priced, with its reason — it is the real decision, sized as if the treasury held $15), then fund the
+treasury with that amount from your Ethereum wallet on GOAT. Sage proposes the move with its veto ring,
+launches it after the window, and the missions it buys are public — so the door ("prove you are one
+person") appears on real mainnet work, on the marketplace and on the board. That is scenes 4 and 7.
+
+*Dry walk at $0 first, if you want:* `/c/launch-yara-garden-343gb2` is a listed Metis-Sepolia testnet
+campaign with 10 open $0.10 slots — connect any wallet, the door card asks for the World ID proof,
+verify once ("one slot on this work is yours"), submit an observation, and a testnet payout settles.
+Same code path, no real money.
+
 ## The run (about 90 minutes, mostly waiting for the recipient)
 
 **1 · Compose the grant (5 min).** Signed in at https://sagepays.xyz/launch/direct, or say it to
