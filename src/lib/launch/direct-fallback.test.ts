@@ -46,10 +46,28 @@ describe("unambiguousGigArgs — builds only what the founder's own words settle
     expect(a?.milestones[0].rewardUsd).toBe(25);
   });
 
-  it("carries the per-unit price onto the draft's own slot count", () => {
-    const a = unambiguousGigArgs("$4 each to the first 5 people who publish a walkthrough", draft({ slots: 5 }));
+  it("carries a per-person price onto the count the founder stated — never the draft's guess", () => {
+    const words = "$4 each to the first 5 people who publish a walkthrough";
+    const a = unambiguousGigArgs(words, draft({ slots: 5 }));
     expect(a?.milestones[0].rewardUsd).toBe(4);
     expect(a?.milestones[0].slots).toBe(5);
+    // the drafter guessed wrong; the founder's words still decide
+    expect(unambiguousGigArgs(words, draft({ slots: 3 }))?.milestones[0].slots).toBe(5);
+    expect(unambiguousGigArgs("$5 apiece for three testers who record the signup flow", draft({ slots: 3 }))?.milestones[0].slots).toBe(3);
+  });
+
+  it("one price with no per-person marker is the whole job — one slot, whatever the draft guessed (P-DIRECT 3)", () => {
+    // The row that failed: the drafter is told to guess 3 for "anyone", and reward × slots made $75 of $25.
+    const a = unambiguousGigArgs(
+      "Pay $25 for this: a public comparison page of our pricing against two named competitors, with a table, at least 400 words, our current prices quoted exactly, and the writer's wallet address in the footer.",
+      draft({ slots: 3 }),
+    );
+    expect(a?.milestones[0].rewardUsd).toBe(25);
+    expect(a?.milestones[0].slots).toBe(1);
+  });
+
+  it("a per-person price with no stated count is refused — how many people is a money decision", () => {
+    expect(unambiguousGigArgs("$4 each to anyone who publishes a walkthrough of my onboarding", draft({ slots: 3 }))).toBeNull();
   });
 
   it("keeps a named person a named person, never an open bounty", () => {
