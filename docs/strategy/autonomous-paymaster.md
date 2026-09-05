@@ -23,7 +23,7 @@ paywalls, no member caps. That is how a payments company earns, and it is measur
 
 ## What the evidence says (three weeks of real money)
 
-- The engine holds. 41 mainnet payouts on two rails, 26 refusals with reasons, zero wrong auto-pays
+- The engine holds. 39 mainnet payouts on two rails, 26 refusals with reasons, zero wrong auto-pays
   across the promotion batteries, a vault that never exceeded a cap, a receipt for every payout.
 - Open, anonymous bounties are farmed. Every public campaign drew the same rotating-wallet group; the
   last one lost 10 of 10 rewards to one operator. Human review did not prevent it and would not scale.

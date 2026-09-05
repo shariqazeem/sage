@@ -47,9 +47,9 @@
 Numbers below move as campaigns run — the LIVE derivations are the pages, all computed from
 one settlement ledger (`src/lib/campaigns/settled-ledger.ts`) with **named scopes**:
 
-- **Every settlement** (explorer, outcomes-flow): **$52.60 across 29 mainnet payouts** — GOAT 26, Starknet 3.
-- **Paid to testers** (marketplace, launch — Sage's own dogfood wallets excluded): **$50.60 across 26 payouts to 21 people**.
-- **Refusals on record: 23 (43%)** — access without integrity is a faucet; the refusal ledger is
+- **Every settlement** (explorer, outcomes-flow): **$63.60 across 39 mainnet payouts** — GOAT 26, Starknet 13.
+- **Paid to testers** (marketplace, launch — Sage's own dogfood wallets excluded): **$61.60 across 36 payouts to 24 people**.
+- **Refusals on record: 26 (40%)** — access without integrity is a faucet; the refusal ledger is
   what makes the record under it underwritable.
 - **0% taken from recipients** on every payout to date; the 8% corridor benchmark comparison is
   computed on /outcomes.

@@ -201,11 +201,11 @@ and each can be re-derived from the source named beside it.
 
 | | | |
 |---|---|---|
-| **$52.60** | settled autonomously in USDC | [payout ledger](docs/stage2/payout-ledger.md) |
-| **22** | different people paid | on-chain transfer log |
-| **29** | autonomous payouts, across TWO mainnet rails | one receipt page per transaction |
-| **52** | submissions decided | 29 paid, **23 refused**, none unresolved |
-| **67** | distinct products inspected | 828 inspection jobs |
+| **$63.60** | settled autonomously in USDC | [the live ledger](https://sagepays.xyz/explorer) |
+| **24** | different people paid — counted after linked wallets are collapsed | on-chain transfer log |
+| **39** | autonomous payouts, across TWO mainnet rails (26 GOAT, 13 Starknet) | one receipt page per transaction |
+| **65** | submissions decided on mainnet | 39 paid, **26 refused** (40%), none unresolved |
+| **78** | distinct products inspected | 985 inspection jobs |
 | **175s** | median submission → USDC in wallet | fastest: 15 seconds |
 
 One campaign filled and paid **ten strangers in forty-five minutes**, with no human approving any
