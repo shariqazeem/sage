@@ -70,7 +70,11 @@ export default function Judging() {
       <p>
         On public work, claiming a slot asks for a one-time World ID proof that you are one person —
         no name, document or country, about a minute — and the slot and payout caps count the
-        person, not the wallet. Near-duplicate detection catches copied accounts. Wallet freshness is a signal but never
+        person, not the wallet. The proof is at the device level, so it works on any phone without
+        an Orb visit, and what Sage keeps is a nullifier: a number unique to the person and the
+        action, never an identity. That is the choice over the alternatives — identity KYC would
+        exclude exactly the people the work is for, and a phone number or an email is free to make
+        twice. Near-duplicate detection catches copied accounts. Wallet freshness is a signal but never
         enough on its own to reject someone. There is a per-wallet payout cap per campaign and a
         daily submission limit. These have caught real collusion between real strangers, and they
         have also stranded honest people — which is why the caps and the reasons are both published
