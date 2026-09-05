@@ -18,12 +18,16 @@ import { starknetAddresses } from "@/lib/starknet/config";
  * Separate from the EVM proof composer, and not a variant of it, because the evidence is genuinely
  * different. An EVM payout is proved by a CampaignVault event: the vault derived the amount,
  * checked its own caps and emitted the settlement, so the receipt is a reading of that contract's
- * state. A Starknet payout has no vault. What it has is a token transfer that either happened or
- * did not, and Sage's own judgment record behind it.
+ * state. On Starknet the evidence has two vintages, and the receipt names which one it is reading:
+ * a campaign on the Cairo `SageVault` (`vaultKind: sage_vault_starknet`) was paid by a contract that
+ * derived the reward from the mission and answered a refusal with a code; the first payouts on this
+ * rail were plain token transfers from the operator with no vault at all. Either way the chain half
+ * is a transaction that either happened or did not, and Sage's own judgment record sits behind it.
  *
- * Pretending otherwise — filling the vault fields with plausible values so the existing page would
- * render — would make the receipt claim a guarantee that was never enforced. So this states what is
- * actually true, and says which parts rest on Sage rather than on a contract.
+ * Pretending otherwise — filling EVM vault fields with plausible values so the existing page would
+ * render, or claiming a vault where a payout had none — would make the receipt assert a guarantee
+ * that was never enforced. So this states what is actually true, and says which parts rest on Sage
+ * rather than on a contract.
  *
  * The chain half is independently checkable by anyone: the transaction hash, its status, and the
  * amount that moved. The judgment half is Sage's record of why it paid.
@@ -50,6 +54,8 @@ export interface StarknetProof {
   paidAt: number | null;
   /** "J$5,000 → $31.57 @ 158.37" when the obligation was priced in the founder's currency; null = USD. */
   denominated: string | null;
+  /** the Cairo vault that paid this, when the campaign has one; null for the rail's first, vault-less payouts. */
+  vault: string | null;
   /**
    * THE PRIVATE LEG — what this rail is judged on, drawn from the row and the chain. The vault
    * released the reward in `txHash`; Sage escrowed it behind `poseidon(secret)` in `escrowTx`; the
@@ -61,6 +67,7 @@ export interface StarknetProof {
 const notFound = (txHash: string): StarknetProof => ({
   found: false,
   denominated: null,
+  vault: null,
   claim: null,
   txHash,
   executionStatus: null,
@@ -151,6 +158,7 @@ export async function composeStarknetProof(txHash: string): Promise<StarknetProo
       : null,
     paidAt: sub.decidedAt ?? null,
     denominated: denominated(campaign, mission?.rewardLocal ?? null, campaign.rewardAmount / 1_000_000),
+    vault: campaign.vaultKind === "sage_vault_starknet" && campaign.vaultAddress ? campaign.vaultAddress : null,
     claim,
   };
 }

@@ -110,7 +110,7 @@ export default async function MarketplacePage() {
                 AND AN EMPTY BOARD STILL HAS TWO THINGS WORTH DOING.
                 A worker who arrives between campaigns previously had one option: leave. Both of
                 these outlast the emptiness — being told when work opens, and arriving at the next
-                one already able to take the better-paid tiers.
+                one already able to claim a slot: one person, one slot.
               */}
               <ol className="mk-next">
                 <li>
@@ -120,7 +120,8 @@ export default async function MarketplacePage() {
                 </li>
                 <li>
                   <b><Link href="/verify">Prove you are one person</Link>.</b> It takes a minute, asks
-                  for no name or document, and it is what opens the better-paid work when it appears.
+                  for no name or document, and it is what claims a slot on public work when it appears — one
+                  person, one slot.
                 </li>
               </ol>
               <div className="mk-empty-actions">

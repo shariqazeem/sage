@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { starknetAddressUrl } from "@/lib/starknet/explorer";
 import { ArrowLeft, ArrowRight, CircleAlert, ShieldCheck } from "lucide-react";
 
 import type { StarknetProof } from "@/lib/deputy/starknet-proof";
@@ -164,8 +165,23 @@ export function StarknetProofPage({ proof }: { proof: StarknetProof }) {
         </section>
 
         <p className="skp-foot">
-          Settled on Starknet, where there is no per-campaign vault. The amount, recipient and
-          status above come from the chain; the reasoning comes from Sage.
+          {proof.vault ? (
+            <>
+              Settled by the campaign&rsquo;s Cairo vault on Starknet
+              {starknetAddressUrl(proof.vault) ? (
+                <>
+                  {" "}(<a href={starknetAddressUrl(proof.vault) ?? "#"} target="_blank" rel="noopener noreferrer" className="skp-mono">{short(proof.vault)}</a>)
+                </>
+              ) : null}
+              : the vault derived the reward from the mission and could have refused with a code. The
+              amount, recipient and status above come from the chain; the reasoning comes from Sage.
+            </>
+          ) : (
+            <>
+              Settled on Starknet before this rail had a per-campaign vault: a direct transfer. The
+              amount, recipient and status above come from the chain; the reasoning comes from Sage.
+            </>
+          )}
           {proof.campaignId ? (
             <>
               {" "}

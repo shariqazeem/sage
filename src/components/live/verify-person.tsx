@@ -94,7 +94,7 @@ export function VerifyPerson({ wallet, lede = true, onVerified }: { wallet: stri
             the card's job there is the action alone. */}
         {(msg || lede) && (
           <p className="vp-s">
-            {msg ?? "A wallet is free to make, so it has never proved anything. Verify once and the better-paid work opens — no name, no document, no country."}
+            {msg ?? "A wallet is free to make, so it has never proved anything. Verify once and public work opens — one person, one slot; no name, no document, no country."}
           </p>
         )}
         {err && <p className="vp-e">{err}</p>}

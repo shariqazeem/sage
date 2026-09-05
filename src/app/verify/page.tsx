@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Prove you are one person",
-  description: "Verify once and the better-paid work opens. No name, no document, no country.",
+  description: "Verify once and public work opens — one person, one slot. No name, no document, no country.",
 };
 
 /**
