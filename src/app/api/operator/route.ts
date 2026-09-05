@@ -3,7 +3,7 @@ import { getFounderAddress } from "@/lib/auth/founder";
 import { getMandate, listLaunches, policyFrom, upsertMandate } from "@/lib/db/operator";
 import { allocate, exposureBase, usd } from "@/lib/operator/policy";
 import { mandateStateFor } from "@/lib/operator/state";
-import { rehearse } from "@/lib/operator/rehearsal";
+import { forgetRehearsal, rehearse } from "@/lib/operator/rehearsal";
 import { allowedSurfaces } from "@/lib/operator/tick";
 
 export const runtime = "nodejs";
@@ -121,5 +121,7 @@ export async function POST(req: NextRequest) {
     stallAfterMinutes: Math.max(60, int(body.stallAfterMinutes, p?.stallAfterMinutes ?? 2880)),
     vetoWindowMinutes: Math.min(1440, Math.max(0, int(body.vetoWindowMinutes, current?.vetoWindowMinutes ?? 20))),
   });
+  // The move Sage would make is a function of what was just saved; the cached one is not.
+  forgetRehearsal(founder);
   return NextResponse.json({ ok: true, mandate: { ...saved, policy: policyFrom(saved) } });
 }

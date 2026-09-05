@@ -137,6 +137,15 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
   return r;
 }
 
+/**
+ * Forget one founder's cached move. Called when their mandate is saved: a founder who has just
+ * named their product must not read "name your product and Sage will show its first move" for the
+ * rest of the cache window — measured as the first thing a judge would do on the page.
+ */
+export function forgetRehearsal(founderAddress: string): void {
+  cache.delete(founderAddress.toLowerCase());
+}
+
 /** Test seam. */
 export function __clearRehearsalCache(): void {
   cache.clear();

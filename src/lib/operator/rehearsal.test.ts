@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { seedV2Campaign } from "@/lib/campaigns/campaign-v2.fixture";
 import { upsertMandate, listLaunches } from "@/lib/db/operator";
 import { chooseWithoutModel } from "./decide";
-import { __clearRehearsalCache, rehearse } from "./rehearsal";
+import { __clearRehearsalCache, forgetRehearsal, rehearse } from "./rehearsal";
 
 /**
  * ALIVE AT $0. The operator page rendered nothing for an unfunded founder. A rehearsal is the same
@@ -56,6 +56,19 @@ describe("rehearse — the move Sage would make", () => {
     expect(r?.timing ?? null).toBeNull();
     expect(r?.because).toMatch(/already on the board unclaimed/);
     expect(r?.line).toBe("");
+  });
+
+  it("naming the product forgets the cached 'name your product' — the page answers the save at once", async () => {
+    const founder = `0x${"8".repeat(40)}`;
+    const nowSec = 1_800_000_000;
+    const before = await rehearse(founder, { nowSec });
+    expect(before?.because).toMatch(/name your product/);
+    upsertMandate(founder, { productUrl: "https://example-shop.dev", goal: "find where checkout breaks" });
+    // Without forgetting, the ten-minute cache would keep answering the old way.
+    forgetRehearsal(founder);
+    const after = await rehearse(founder, { choose: async (i) => chooseWithoutModel(i), nowSec });
+    expect(after?.because).toBeNull();
+    expect(after?.line).toMatch(/\$\d/);
   });
 
   it("with nothing to decide against it says what is missing instead of inventing a surface", async () => {
