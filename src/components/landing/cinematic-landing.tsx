@@ -62,25 +62,41 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
 
       <footer className="foot">
         <div className="wrap foot-in">
-          <Link href="/" className="nav-brand" aria-label="Sage home">
-            <SageMark size={18} />
-            <span>Sage</span>
-          </Link>
-          <span className="mono foot-tag">
-            An agent with eyes, judgment, and a wallet · {network.name}
-          </span>
-          <nav className="foot-nav" aria-label="Footer">
+          <div className="foot-brand">
+            <Link href="/" className="nav-brand" aria-label="Sage home">
+              <SageMark size={18} />
+              <span>Sage</span>
+            </Link>
+            <p className="foot-tag">An agent with eyes, judgment, and a wallet. It verifies the work itself and pays inside limits it cannot exceed.</p>
+            <span className="foot-net mono"><i aria-hidden /> Live on {network.name}</span>
+          </div>
+          <nav className="foot-col" aria-label="Product">
+            <h4>Product</h4>
             <a href="#how">How Sage works</a>
-            <Link href="/explorer">Explorer</Link>
-            <Link href="/docs">Docs</Link>
-            <Link href="/docs/compliance">Compliance</Link>
-            <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
+            <Link href="/marketplace">Find work</Link>
+            <Link href="/verify">Get verified</Link>
+            <Link href="/start">Put Sage to work</Link>
             <Link href="/dashboard">Dashboard</Link>
+          </nav>
+          <nav className="foot-col" aria-label="Proof">
+            <h4>Proof</h4>
+            <Link href="/explorer">Explorer</Link>
+            <Link href="/outcomes">Outcomes</Link>
+            <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
             <Link href="/agents/sage">Agent record</Link>
+          </nav>
+          <nav className="foot-col" aria-label="Read">
+            <h4>Read</h4>
+            <Link href="/docs">Docs</Link>
+            <Link href="/docs/operator">The operator</Link>
+            <Link href="/docs/privacy">Private on Starknet</Link>
+            <Link href="/lender">For lenders</Link>
+            <Link href="/docs/compliance">Compliance</Link>
           </nav>
         </div>
         <div className="wrap foot-eco">
           <EcosystemStrip status={ecosystem} />
+          <span className="foot-fine mono">sagepays.xyz · every number on this page is read from the ledger</span>
         </div>
       </footer>
     </div>

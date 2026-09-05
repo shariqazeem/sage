@@ -10,6 +10,7 @@
 .slv2 {
   /* ── palette ─────────────────────────────────────────────────────────── */
   --canvas: #fbfaf6; /* warm paper */
+  --paper: #fbfaf6; /* the card surface (was undefined: every var(--paper) surface fell back to transparent) */
   --canvas-2: #f4f2ea; /* recessed warm surface */
   --card: var(--surface);
   --ink: var(--ink-warm);
@@ -431,9 +432,10 @@ body:has(.slv2) {
   border-top: 1px solid var(--line);
 }
 .slv2 .wf-head {
-  max-width: 28ch;
+  max-width: 52ch;
   margin-bottom: clamp(40px, 6vh, 72px);
 }
+.slv2 .wf-lede { margin: 18px 0 0; max-width: 46ch; }
 .slv2 .wf-head .eyebrow {
   display: block;
   margin-bottom: 16px;
@@ -1773,3 +1775,241 @@ body:has(.slv2) {
 .slv2 .cl-doors { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 14px; margin: 18px 0 0; font-size: 0.78rem; color: var(--ink-3); }
 .slv2 .cl-doors a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 .slv2 .cl-doors a:hover { color: var(--accent); }
+
+/* ============================================================================
+   HERO · THE LEDGER LINE — the four facts under the buttons, given room to breathe
+   ============================================================================ */
+.slv2 .hero-stat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 36px 0 0;
+  padding: 18px 0 16px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.slv2 .hero-stat-v {
+  font-size: 1.18rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.slv2 .hero-stat-k {
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.slv2 .hero-marks { margin-top: 20px; }
+
+/* ============================================================================
+   HOW IT WORKS · THE FILM — one dark frame, four takes, scrubbed by scroll
+   ============================================================================ */
+.slv2 .wf-stage { background: none; border: 0; box-shadow: none; padding: 0; }
+.slv2 .film {
+  position: relative;
+  background: var(--dark);
+  color: #f3f1ea;
+  border-radius: var(--r-3);
+  padding: 14px 14px 10px;
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.slv2 .film::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 50% -10%, rgba(255, 255, 255, 0.07), transparent 60%);
+}
+.slv2 .film-bar {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 6px 12px;
+}
+.slv2 .film-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.slv2 .film-seg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(243, 241, 234, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+.slv2 .film-seg i {
+  display: block;
+  position: relative;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  overflow: hidden;
+}
+.slv2 .film-seg i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: calc(var(--f, 0) * 100%);
+  background: var(--terra);
+}
+.slv2 .film-seg[data-on="1"] { color: #f3f1ea; }
+.slv2 .film-real {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 1px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(243, 241, 234, 0.72);
+}
+.slv2 .film-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.2);
+}
+.slv2 .film-screen {
+  position: relative;
+  min-height: 424px;
+  border-radius: var(--r-2);
+  background: #0f1113;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 40px 80px -40px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+.slv2 .film-take {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 22px;
+  will-change: transform, opacity;
+}
+.slv2 .film-take .art,
+.slv2 .film-take .wfv {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 34px 60px -30px rgba(0, 0, 0, 0.75);
+}
+/* the artifact is paper on the dark screen — set explicitly, since the page's own card colour
+   is inherited from the light stage it used to sit on */
+.slv2 .film-take .art {
+  background: var(--canvas);
+  color: var(--ink);
+  border-color: rgba(23, 23, 21, 0.12);
+}
+.slv2 .film-take .wfv-browser { background: var(--canvas); }
+.slv2 .film-take [data-r] { will-change: opacity, transform; }
+.slv2 .film-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--terra) 30%, var(--terra) 70%, transparent);
+  box-shadow: 0 0 22px 3px rgba(194, 65, 12, 0.35);
+  pointer-events: none;
+  z-index: 2;
+}
+.slv2 .film-cap {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 6px 4px;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  color: rgba(243, 241, 234, 0.55);
+  white-space: nowrap;
+}
+.slv2 .film-cap span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.slv2 .art-pct { color: var(--ink); font-variant-numeric: tabular-nums; }
+.slv2 .art-stamp { display: inline-flex; margin-top: 2px; }
+.slv2 .art-move-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.slv2 .art-move-row .art-t { margin: 0; }
+.slv2 .film-ring { flex: none; width: 44px; height: 44px; transform: rotate(-90deg); }
+.slv2 .film-ring .track { stroke: var(--line-2); }
+.slv2 .film-ring .arc { stroke: var(--terra); stroke-linecap: round; }
+.slv2 .film[data-mode="static"] .film-take { position: static; }
+.slv2 .film[data-mode="static"] .film-screen { min-height: 0; }
+.slv2 .film[data-mode="static"] .film-beam { display: none; }
+@media (max-width: 1100px) { .slv2 .film-screen { min-height: 460px; } }
+
+/* ============================================================================
+   FOOTER — the map of the product, on paper
+   ============================================================================ */
+.slv2 .foot {
+  border-top: 1px solid var(--line);
+  background: var(--canvas-2);
+  padding: clamp(52px, 7vh, 84px) var(--pad-x) 30px;
+}
+.slv2 .foot-in {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+  gap: 36px 40px;
+  align-items: start;
+}
+.slv2 .foot-brand { display: flex; flex-direction: column; align-items: flex-start; }
+.slv2 .foot-tag {
+  margin: 14px 0 0;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 26ch;
+  font-family: var(--font-body);
+}
+.slv2 .foot-net {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+.slv2 .foot-net i { width: 7px; height: 7px; border-radius: 999px; background: var(--green); box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.14); }
+.slv2 .foot-col { display: flex; flex-direction: column; gap: 10px; }
+.slv2 .foot-col h4 {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.slv2 .foot-col a { color: var(--ink-2); text-decoration: none; font-size: 0.92rem; line-height: 1.35; width: fit-content; }
+.slv2 .foot-col a:hover { color: var(--terra); }
+.slv2 .foot-eco {
+  margin-top: 44px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.slv2 .foot-fine { font-size: 0.7rem; color: var(--ink-3); }
+@media (max-width: 860px) { .slv2 .foot-in { grid-template-columns: 1fr 1fr; } .slv2 .foot-brand { grid-column: 1 / -1; } }
+@media (max-width: 520px) { .slv2 .foot-in { grid-template-columns: 1fr; } }
