@@ -23,7 +23,7 @@ flowchart TD
   DC --> BC
   BC --> A["The founder's intent, once<br/>approve the plan — or a standing mandate"]
   A --> FUND["Funded once: the treasury<br/>Privy agent wallet under a mandate policy · reclaim = the founder's wallet<br/>the agent deploys, funds and activates each vault<br/>EVM CampaignVault (GOAT) · Cairo SageVault (Starknet)"]
-  FUND --> BOARD["Workspace board · members-only or public<br/>workers sign in with a wallet or an email and submit evidence + a free signature (or from Telegram, no wallet app)"]
+  FUND --> BOARD["Workspace board · members-only or public<br/>workers sign in with a wallet or an email and submit evidence + a free signature (or from Telegram, no wallet app); paid into their own wallet, withdrawn gaslessly from inside Sage"]
   BOARD --> PRE["Deterministic pre-gate<br/>artifact fetch + wallet marker · on-chain reads · public-page text<br/>sanctions snapshot · dedup · artifact fingerprint · GitHub provenance · funding graph"]
   PRE -->|refuse / hold| REC
   PRE --> PB["Payout brain (judge)<br/>frozen rubric · injection detector · verbatim quotes · confidence hardener<br/>never states an amount"]

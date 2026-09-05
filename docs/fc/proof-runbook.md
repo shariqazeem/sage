@@ -41,7 +41,8 @@ person") appears on real mainnet work, on the marketplace and on the board. That
 *Dry walk at $0 first, if you want:* `/c/launch-yara-garden-343gb2` is a listed Metis-Sepolia testnet
 campaign with 10 open $0.10 slots — connect any wallet or **continue with email** (Sage keeps the
 wallet), the door card asks for the World ID proof, verify once ("one slot on this work is yours"),
-submit an observation, and a testnet payout settles. Same code path, no real money.
+submit an observation, and a testnet payout settles. Same code path, no real money. Then open your
+record page: **Your wallet** shows the balance and a gasless **Withdraw** (you sign, Sage pays the gas).
 
 ## The run (about 90 minutes, mostly waiting for the recipient)
 

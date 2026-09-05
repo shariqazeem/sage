@@ -66,6 +66,14 @@ registry is the only file that names a chain, so a fiat-reachable rail (Base or 
 onramp exists) is a factory deployment and a registry entry after the deadlines — written up in
 `docs/strategy/fiat-door-and-rails.md`.
 
+**"A worker who signed in with an email — how do they ever get the money out?"** From inside Sage.
+Their record page and Settings show the wallet Sage keeps for them (deposit is the address), the live
+USDC balance on GOAT, and a withdrawal to any address they name: the wallet signs an EIP-3009
+authorization — the Privy embedded wallet for an email account, a browser wallet through its own prompt
+— and Sage's operator submits it and pays the gas, because a wallet paid only in USDC holds no BTC. The
+same primitive the Telegram cash-out has used since August; the signature pins from, to, value and a
+single-use nonce, so the operator can only submit what the worker signed.
+
 **"Privacy for banking-shy earners?"** A Starknet rail where the agent decides the payout in public and the
 recipient collects privately — escrow keyed by a commitment, gasless claim, a shielded note if they hold a
 registered wallet — and a signed earnings *floor* a lender can verify without seeing the payments.
