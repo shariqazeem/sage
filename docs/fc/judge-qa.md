@@ -57,6 +57,15 @@ arithmetic. Intra-regional corridor flow is **not yet measured** — no J$ oblig
 **"CARICOM FX matching?"** Netting becomes real on our own book the day obligations exist in two currencies;
 inventing counterparties this week would be an app, not infrastructure. One honest slide, no build.
 
+**"Two chains — which one is Sage?"** One account, two rails, chosen by purpose rather than by chain.
+Starknet is the rail Sage leads with: the Cairo vault derives the reward and a recipient collects
+privately behind a commitment. GOAT Network carries public receipts and the treasury, because that is
+where the email-embedded wallet and the mandate policy live today. A founder is asked "public receipts
+or private-capable", never "which chain"; the settlement dispatcher branches in exactly one place. The
+registry is the only file that names a chain, so a fiat-reachable rail (Base or Polygon, where a card
+onramp exists) is a factory deployment and a registry entry after the deadlines — written up in
+`docs/strategy/fiat-door-and-rails.md`.
+
 **"Privacy for banking-shy earners?"** A Starknet rail where the agent decides the payout in public and the
 recipient collects privately — escrow keyed by a commitment, gasless claim, a shielded note if they hold a
 registered wallet — and a signed earnings *floor* a lender can verify without seeing the payments.

@@ -16,11 +16,12 @@ and turns every payout into a credit record that unlocks working capital without
 - Source (MIT): https://github.com/shariqazeem/sage
 - Overview: https://github.com/shariqazeem/sage/blob/main/docs/fc/submission-overview.md
 - Architecture + data sources: https://github.com/shariqazeem/sage/blob/main/docs/fc/technical-documentation.md
-- Compliance statement (450 words): https://github.com/shariqazeem/sage/blob/main/docs/fc/compliance-statement.md
-- Video (64 s): https://sagepays.xyz/videos/07-fc-demo.mp4
+- Compliance statement (492 words): https://github.com/shariqazeem/sage/blob/main/docs/fc/compliance-statement.md
+- Video (≤ 4:30, to the film script in `docs/fc/film-script.md`): https://sagepays.xyz/videos/07-fc-demo.mp4
 - Live ledger: https://sagepays.xyz/explorer · Outcomes against the track's bar: https://sagepays.xyz/outcomes
 - Lender view: https://sagepays.xyz/lender · A record: https://sagepays.xyz/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048
-- Strategy: https://github.com/shariqazeem/sage/blob/main/docs/strategy/autonomous-paymaster.md
+- The agent, in prose: https://sagepays.xyz/docs/operator (fund once, it decides) · https://sagepays.xyz/docs/judging (evidence + one person, one slot) · https://sagepays.xyz/docs/privacy (the private rail, exactly what it uses)
+- Strategy: https://github.com/shariqazeem/sage/blob/main/docs/strategy/autonomous-paymaster.md · the rails and the fiat door: https://github.com/shariqazeem/sage/blob/main/docs/strategy/fiat-door-and-rails.md
 
 **What it does (the paragraph).** Copy "What it is, in one paragraph" from the overview.
 
