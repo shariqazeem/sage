@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Compass, Eye, Lock, MousePointer2, ShieldCheck, Wand2, X } from "lucide-react";
 import { usd } from "@/lib/format";
-import type { Showcase } from "@/lib/landing/showcase";
+import type { Showcase, ShowcaseMove } from "@/lib/landing/showcase";
 
 /**
  * WORKFLOW — "One URL becomes a campaign." A sticky visual stage pinned beside three
@@ -44,7 +44,7 @@ const CHAPTERS = [
   },
 ];
 
-export function SceneWorkflow({ showcase }: { showcase: Showcase | null }) {
+export function SceneWorkflow({ showcase, move = null }: { showcase: Showcase | null; move?: ShowcaseMove | null }) {
   const [active, setActive] = useState(0);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -102,7 +102,7 @@ export function SceneWorkflow({ showcase }: { showcase: Showcase | null }) {
         <div className="wf-grid">
           <div className="wf-stage-col">
             <div className="wf-stage" data-active={active}>
-              {showcase ? <RealVisual active={active} sc={showcase} /> : <WfVisual active={active} />}
+              {showcase ? <RealVisual active={active} sc={showcase} move={move} /> : <WfVisual active={active} />}
             </div>
           </div>
 
@@ -126,7 +126,7 @@ export function SceneWorkflow({ showcase }: { showcase: Showcase | null }) {
                 <p className="wf-body">{c.body}</p>
                 {/* mobile-only inline visual */}
                 <div className="wf-stage wf-stage-inline" data-active={i}>
-                  {showcase ? <RealVisual active={i} sc={showcase} /> : <WfVisual active={i} />}
+                  {showcase ? <RealVisual active={i} sc={showcase} move={move} /> : <WfVisual active={i} />}
                 </div>
               </div>
             ))}
@@ -183,6 +183,23 @@ function WfVisual({ active }: { active: number }) {
               </div>
             </div>
           )}
+          {active === 3 && (
+            <div className="wfv-mission">
+              <div className="wfv-mission-h mono">
+                <Compass size={13} strokeWidth={2} /> Next move · proposed
+              </div>
+              <div className="wfv-mission-t">$5.00 testing run on app.yourproduct.com</div>
+              <div className="wfv-crit">
+                <span className="mono">why</span>
+                <span className="wfv-link" />
+                <span className="mono">the last run filled · scale ×2</span>
+              </div>
+              <div className="wfv-mission-f">
+                <span className="wfv-reward mono">veto window 20m</span>
+                <span className="wfv-ghost mono">never above your ceilings</span>
+              </div>
+            </div>
+          )}
           {active === 2 && (
             <>
               <div className="wfv-line w-45" />
@@ -216,7 +233,38 @@ function WfVisual({ active }: { active: number }) {
  * the board, chapter 3 the decision: each criterion met or not, with the verbatim quote the
  * judge cited. The sketch above remains only as the fallback for an empty ledger.
  */
-function RealVisual({ active, sc }: { active: number; sc: Showcase }) {
+const KIND_LABEL: Record<ShowcaseMove["kind"], string> = { testing: "testing run", gig: "gig", grant: "grant" };
+
+/** Chapter four's artifact: the move — recorded, or rehearsed by the same rules and said so. */
+function MoveVisual({ move }: { move: ShowcaseMove }) {
+  const real = move.source === "real";
+  return (
+    <div className="art">
+      <div className="art-h">
+        <span>Next move · {move.surface}</span>
+        <span className="real">{real ? "real run" : "rehearsal"}</span>
+      </div>
+      <p className="art-t">
+        <b className="mono">{usd(move.budgetUsd)}</b> {KIND_LABEL[move.kind]} on <span className="mono">{move.surface}</span>
+      </p>
+      <ul className="art-list">
+        <li><span className="k">goal</span><span>{move.goal.length > 140 ? `${move.goal.slice(0, 138)}…` : move.goal}</span></li>
+        <li><span className="k">why</span><span>{move.reason.length > 160 ? `${move.reason.slice(0, 158)}…` : move.reason}</span></li>
+      </ul>
+      <div className="art-f">
+        {real ? (
+          <span>{move.state === "vetoed" ? "Stopped by the founder inside the window" : move.state === "launched" ? "Launched after the veto window passed" : "Proposed — waiting out the veto window"} · chosen by {move.decidedBy === "llm" ? "the model" : "the rules"}</span>
+        ) : (
+          <span>Sized as if the treasury held <b className="mono">{usd(move.assumesFundingUsd ?? 0)}</b> · chosen by the rules, nothing recorded</span>
+        )}
+        <Link href="/workspace/autopilot">let it run →</Link>
+      </div>
+    </div>
+  );
+}
+
+function RealVisual({ active, sc, move }: { active: number; sc: Showcase; move: ShowcaseMove | null }) {
+  if (active === 3) return move ? <MoveVisual move={move} /> : <WfVisual active={3} />;
   if (active === 0) {
     return (
       <div className="art">

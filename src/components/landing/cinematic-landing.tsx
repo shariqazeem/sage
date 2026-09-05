@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { PayoutReceipt } from "@/lib/deputy/chain";
 import type { EcosystemStatus } from "@/lib/ecosystem/status";
-import type { Showcase } from "@/lib/landing/showcase";
+import type { Showcase, ShowcaseMove } from "@/lib/landing/showcase";
 import { EcosystemStrip } from "@/components/ecosystem/ecosystem-strip";
 import { SageMark } from "@/components/brand/sage-mark";
 import { geist } from "./fonts";
@@ -19,6 +19,7 @@ interface Props {
   now: number;
   ecosystem: EcosystemStatus;
   showcase: Showcase | null;
+  move?: ShowcaseMove | null;
 }
 
 /**
@@ -29,7 +30,7 @@ interface Props {
  * panel, and /docs/compliance. Showing everything is what an app does; infrastructure shows the
  * primitive and the receipts. Server Component; numbers all derive from ONE source (`feed`).
  */
-export function CinematicLanding({ network, totals, feed, now, ecosystem, showcase }: Props) {
+export function CinematicLanding({ network, totals, feed, now, ecosystem, showcase, move = null }: Props) {
   return (
     <div className={`slv2 ${geist.variable}`}>
       <LandingNav />
@@ -47,7 +48,7 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
         {/* SAGE FOR TEAMS (2026-09-04): the landing says one thing four times — what it is, how it
             runs, that it is real, and where to start. Trust, loop, teams, privacy and capital are
             documented, not paraded: a new team read nine scenes and opened none of the doors. */}
-        <SceneWorkflow showcase={showcase} />
+        <SceneWorkflow showcase={showcase} move={move} />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />
         {/* What the payouts BECOME — the credit file and the advance. Written weeks ago, unmounted

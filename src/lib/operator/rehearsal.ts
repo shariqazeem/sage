@@ -55,6 +55,9 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
   const key = founderAddress.toLowerCase();
   const hit = cache.get(key);
   if (hit && nowSec - hit.at < TTL_SEC && !deps.choose) return hit.value;
+  // A caller supplying its own chooser (tests, the landing's rules-only preview) is not asking for
+  // the founder's move, so its answer must never be remembered as the founder's.
+  const remember = (value: Rehearsal | null) => { if (!deps.choose) cache.set(key, { at: nowSec, value }); };
 
   const mandate = getMandate(founderAddress);
   const real = await mandateStateFor(founderAddress, nowSec);
@@ -68,7 +71,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
   });
   if (surfaces.length === 0) {
     const r = none("name your product and Sage will show its first move");
-    cache.set(key, { at: nowSec, value: r });
+    remember(r);
     return r;
   }
 
@@ -92,7 +95,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
     const again = allocate(lifted, surfaces[0] ?? null);
     if (again.action === "hold") {
       const r = none(again.reason);
-      cache.set(key, { at: nowSec, value: r });
+      remember(r);
       return r;
     }
     timing = first.reason;
@@ -111,13 +114,13 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
   });
   if (!position) {
     const r = none("no surface has earned another campaign yet");
-    cache.set(key, { at: nowSec, value: r });
+    remember(r);
     return r;
   }
   const priced = allocate(sizing, position.surface);
   if (priced.action === "hold") {
     const r = none(priced.reason);
-    cache.set(key, { at: nowSec, value: r });
+    remember(r);
     return r;
   }
   const r: Rehearsal = {
@@ -133,7 +136,7 @@ export async function rehearse(founderAddress: string, deps: RehearsalDeps = {})
     because: null,
     timing,
   };
-  cache.set(key, { at: nowSec, value: r });
+  remember(r);
   return r;
 }
 

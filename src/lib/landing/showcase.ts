@@ -3,6 +3,9 @@ import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campaigns, decisions, missions, submissions } from "@/lib/db/schema";
 import { chainConfig } from "@/lib/deputy/networks";
+import { latestLaunch } from "@/lib/db/operator";
+import { chooseWithoutModel } from "@/lib/operator/decide";
+import { rehearse } from "@/lib/operator/rehearsal";
 
 /**
  * THE SHOWCASE — a real mission and the real verdict that paid it, for the landing's
@@ -49,9 +52,66 @@ const hostOf = (u: string): string => {
   }
 };
 
+/**
+ * THE MOVE — chapter four, "then it decides what to buy next". A real recorded move when the
+ * operator has made one (any founder; the row carries its reason, price and state), else the
+ * rehearsal for the showcase campaign's founder, sized by the policy and chosen by rules — no
+ * model, nothing recorded, and labelled as such. Before this, chapter four re-showed chapter
+ * three's verdict, so the flagship claim had no artifact behind it. Never a wallet.
+ */
+export interface ShowcaseMove {
+  source: "real" | "rehearsal";
+  surface: string;
+  kind: "testing" | "gig" | "grant";
+  budgetUsd: number;
+  goal: string;
+  reason: string;
+  decidedBy: "llm" | "rules";
+  state: string | null;
+  /** the treasury the rehearsal imagined; null for a real move */
+  assumesFundingUsd: number | null;
+}
+
+export async function loadShowcaseMove(): Promise<ShowcaseMove | null> {
+  const real = latestLaunch();
+  if (real && real.surface) {
+    return {
+      source: "real",
+      surface: real.surface,
+      kind: real.kind,
+      budgetUsd: real.budgetBase / 1_000_000,
+      goal: real.goal,
+      reason: real.reason,
+      decidedBy: real.decidedBy,
+      state: real.state,
+      assumesFundingUsd: null,
+    };
+  }
+  const founder = pickShowcase()?.founder ?? null;
+  if (!founder) return null;
+  const r = await rehearse(founder, { choose: async (i) => chooseWithoutModel(i) });
+  if (!r || r.because || !r.surface) return null;
+  return {
+    source: "rehearsal",
+    surface: r.surface,
+    kind: r.kind,
+    budgetUsd: r.budgetBase / 1_000_000,
+    goal: r.goal,
+    reason: r.reason,
+    decidedBy: "rules",
+    state: null,
+    assumesFundingUsd: r.assumesFundingBase / 1_000_000,
+  };
+}
+
 export function loadShowcase(): Showcase | null {
+  return pickShowcase()?.showcase ?? null;
+}
+
+/** The showcase and, kept server-side, the wallet that funded it. */
+function pickShowcase(): { showcase: Showcase; founder: string } | null {
   const mainnet = db
-    .select({ id: campaigns.id, title: campaigns.title, chainId: campaigns.chainId })
+    .select({ id: campaigns.id, title: campaigns.title, chainId: campaigns.chainId, posterWallet: campaigns.posterWallet })
     .from(campaigns)
     .where(eq(campaigns.sandbox, false))
     .all()
@@ -91,7 +151,7 @@ export function loadShowcase(): Showcase | null {
       .get();
     if (!m) continue;
     const c = byId.get(s.campaignId)!;
-    return {
+    return { founder: c.posterWallet, showcase: {
       campaignTitle: c.title,
       targetHost: hostOf(m.targetSurface),
       railLabel: chainConfig(c.chainId).chipLabel,
@@ -112,7 +172,7 @@ export function loadShowcase(): Showcase | null {
         })),
       },
       txHash: s.payoutTx as string,
-    };
+    } };
   }
   return null;
 }

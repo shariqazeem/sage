@@ -99,6 +99,11 @@ export function listLaunches(founderAddress: string, limit = 20): OperatorLaunch
     .orderBy(desc(operatorLaunches.createdAt)).limit(limit).all();
 }
 
+/** The newest recorded move across every founder — the landing shows the agent deciding, when it has. */
+export function latestLaunch(): OperatorLaunch | null {
+  return db.select().from(operatorLaunches).orderBy(desc(operatorLaunches.createdAt)).limit(1).get() ?? null;
+}
+
 export function getLaunch(id: string): OperatorLaunch | null {
   return db.select().from(operatorLaunches).where(eq(operatorLaunches.id, id)).get() ?? null;
 }

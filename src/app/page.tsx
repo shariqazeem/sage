@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { chainConfig } from "@/lib/deputy/networks";
 import { getPublicReceipts } from "@/lib/erc8004/reputation";
 import { mainnetSettled, settledLedger, decidedOnMainnet } from "@/lib/campaigns/settled-ledger";
-import { loadShowcase } from "@/lib/landing/showcase";
+import { loadShowcase, loadShowcaseMove } from "@/lib/landing/showcase";
 import { ecosystemStatus } from "@/lib/ecosystem/status";
 import { CinematicLanding } from "@/components/landing/cinematic-landing";
 
@@ -67,6 +67,8 @@ export default async function HomePage() {
 
   const ecosystem = await ecosystemStatus();
   const showcase = loadShowcase();
+  // The move is DB reads and pure policy; a failure there must not cost the front door.
+  const move = await loadShowcaseMove().catch(() => null);
 
   return (
     <CinematicLanding
@@ -76,6 +78,7 @@ export default async function HomePage() {
       now={Date.now()}
       ecosystem={ecosystem}
       showcase={showcase}
+      move={move}
     />
   );
 }

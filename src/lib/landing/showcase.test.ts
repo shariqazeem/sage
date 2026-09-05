@@ -62,6 +62,20 @@ beforeEach(() => {
   db.delete(campaigns).run();
 });
 
+describe("the landing's fourth chapter shows a move, never chapter three again", () => {
+  it("a recorded move is shown as real, with its reason and price", async () => {
+    const { recordIntent } = await import("@/lib/db/operator");
+    const { loadShowcaseMove } = await import("./showcase");
+    recordIntent({ founderAddress: `0x${"a".repeat(40)}`, surface: "acme.io", kind: "testing", goal: "find where checkout breaks", decidedBy: "llm", budgetBase: 5_000_000, reason: "the last run filled", commitAt: 1_800_000_000 });
+    const m = await loadShowcaseMove();
+    expect(m?.source).toBe("real");
+    expect(m?.surface).toBe("acme.io");
+    expect(m?.budgetUsd).toBe(5);
+    expect(m?.reason).toBe("the last run filled");
+    expect(JSON.stringify(m)).not.toMatch(/0xaaaa/);
+  });
+});
+
 describe("the landing's showcase is a real run or nothing", () => {
   it("returns the latest paid mainnet run with a quoted verdict — public material only", () => {
     seedRun(2345);
