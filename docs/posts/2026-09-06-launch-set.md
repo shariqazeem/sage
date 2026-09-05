@@ -11,14 +11,14 @@ Repost your own best post once, 12 hours later. Ask three people to reply in the
 
 ## No funding needed — post tonight
 
-### A · One person, one slot · graph.mp4
-One operator. Twelve wallets. Ten of ten slots on a $1 gig — on our own ledger, drawn from the chain.
+### A · One person, one slot · identity.mp4
+A wallet is free. A person is not.
 
-That is how every open bounty on-chain gets farmed, and a wallet costs nothing.
+One gig on Sage (sagepays.xyz) paid ten published write-ups in a day, every one verified by the agent and settled on Starknet in minutes. Then Sage drew the wallet graph from the chain: who funded whose gas, whose payouts met.
 
-So public work on Sage (sagepays.xyz) now asks for one thing: prove you are one person, once. World ID on your phone, no name, no document, about a minute. The slot cap counts the person, not the address.
+So public work now asks for one thing: prove you are one person, once. World ID on your phone, no name, no document, about a minute. The slot cap counts the person, not the address.
 
-For anyone who has ever posted a bounty and paid one person twelve times.
+For anyone who has ever posted a bounty and wanted ten people to earn it.
 [self-reply] https://sagepays.xyz/graph/gig-1c3e_FjffE · https://sagepays.xyz/verify
 
 ### B · Introducing the operator · operator.mp4

@@ -39,14 +39,14 @@ export async function build() {
   // 4 · the door (86–106)
   S.push(K.layer(dev({ src: rec("marketplace"), at: 86.2, out: 97.6, seek: Math.max(0, (mm.rows ?? 5) - 0.4), cap: "the marketplace · public work carries the one-person-one-slot mark", right: "sagepays.xyz/marketplace", focus: { x: 50, y: 36, scale: 1.3 } }), { at: 86.0, out: 97.8 }));
   S.push(K.caption("Public work asks everyone to prove they are one person, once. No name, no document, no country — about a minute.", 86.8, 97.4));
-  S.push(K.layer(K.words("Fifty slots need fifty t:people.", 98.2, { size: 0.075 }) + K.tiles([{ v: "12", k: "wallets" }, { v: "10 / 10", k: "slots taken" }, { v: "1", k: "person", cls: "no" }], 99.4, 0.14, 3), { at: 98.0, out: 105.8, style: "padding:0 12%" }));
-  S.push(K.caption("The operator who took ten of ten slots with twelve wallets would have needed ten humans.", 99.0, 105.6));
+  S.push(K.layer(K.words("Fifty slots need fifty t:people.", 98.2, { size: 0.075 }) + K.tiles([{ v: "10", k: "write-ups paid by one gig, in a day", cls: "ok" }, { v: "12", k: "wallets on its graph" }, { v: "1", k: "person per slot, from now on" }], 99.4, 0.14, 3), { at: 98.0, out: 105.8, style: "padding:0 12%" }));
+  S.push(K.caption("The wallet graph links wallets that belong together, so the cap counts the person, not the address.", 99.0, 105.6));
   // 5 · paid privately, and the refusal (106–156)
   S.push(K.layer(dev({ src: rec("receipts"), at: 106.2, out: 124.0, seek: Math.max(0, (mr["b-leg"] ?? 34) - 0.6), cap: "a receipt · the private leg: vault released → escrowed behind a commitment → collected", right: "Starknet mainnet", focus: { x: 50, y: 40, scale: 1.4 } }), { at: 106.0, out: 124.2 }));
   S.push(K.caption("Recipients don't need a bank or a wallet app — chat is the account.", 106.8, 113.6));
   S.push(K.caption("Sage verifies the page, pays on Starknet into an escrow only the recipient can open, and publishes a receipt that proves the money moved without saying to whom.", 113.9, 124.0));
-  S.push(K.layer(dev({ src: rec("graph"), at: 124.5, out: 138.0, seek: Math.max(0, (mg.scrolled ?? 8) - 0.2), cap: "the wallet graph · one operator, twelve wallets, drawn from the chain", right: "sagepays.xyz/graph", focus: { x: 50, y: 48, scale: 1.3 } }), { at: 124.4, out: 138.2 }));
-  S.push(K.caption("And it refuses. This is a farm: one operator, twelve wallets, caught by the consolidation watch after the money moved.", 125.1, 138.0));
+  S.push(K.layer(dev({ src: rec("graph"), at: 124.5, out: 138.0, seek: Math.max(0, (mg.scrolled ?? 8) - 0.2), cap: "the wallet graph · wallets that belong together, drawn from the chain", right: "sagepays.xyz/graph", focus: { x: 50, y: 48, scale: 1.3 } }), { at: 124.4, out: 138.2 }));
+  S.push(K.caption("And it keeps watch. The wallet graph is drawn from the chain — who funded whose gas, whose payouts met — and a linked cluster is one person's wallets.", 125.1, 138.0));
   S.push(K.layer(`<div class="big" style="font-size:calc(var(--W)*.14)"><span class="t">${K.count(0, L.refused, 138.6, 1.4)}</span></div>` + K.words(`of ${decided} judged decisions were refusals, each with the reason on the record.`, 140.0, { size: 0.036, step: 0.04 }), { at: 138.4, out: 155.6, style: "align-items:flex-start" }));
   S.push(K.caption("That discipline is the product: a rail that pays everything is a leak.", 141.2, 155.4));
   // 6 · the credit file and the capital back in (156–206)
