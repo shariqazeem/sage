@@ -47,8 +47,8 @@
   },
   {
    "rec": "composer-grant",
-   "from": "m:drafted+0.2",
-   "to": "m:plan+2.0",
+   "from": "m:priced-0.4",
+   "to": "m:plan+2.2",
    "speed": 1.3,
    "punch": {
     "x": 0.72,
@@ -130,7 +130,7 @@
    "caption": "Fund it once and the agent decides what work to buy next — where, never how much — and proposes it before a dollar leaves."
   },
   {
-   "card": "13 private payouts settled.\n3 collected through the pool.\nEvery hash in strk20.json.",
+   "card": "13 private payouts settled.\n3 collected through the pool.\nHashes in strk20.json.",
    "seconds": 3.0,
    "tone": "ink"
   },

@@ -267,11 +267,14 @@ export const SCENES = {
     const cur = p.locator('select[aria-label="The currency you are pricing in"]').first();
     if (await cur.count()) { await cur.scrollIntoViewIfNeeded(); await cur.selectOption("JMD").catch(() => {}); await c.wait(700); }
     // the money is the founder's: one total, split exactly by Sage into the two milestones
-    const total = p.locator("label", { hasText: /split exactly by Sage/i }).locator('input[type="number"]').first();
+    const total = p.locator('input[aria-label="One total, split equally by Sage"]').first();
+    await total.waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
     if (await total.count()) {
       await total.scrollIntoViewIfNeeded();
-      await total.click({ clickCount: 3 });
+      await total.click();
+      await total.fill("");
       await p.keyboard.type("10000", { delay: 90 });
+      await c.wait(400);
     }
     c.mark("priced");
     await c.wait(2200);
