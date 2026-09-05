@@ -114,11 +114,13 @@ for (const shot of cut.shots) {
       const need = words / (cut.wordsPerSecond ?? 2.3) + 0.7;
       if (need > dur + pad) pad = need - dur;
     }
+    // The hold (tpad) goes BEFORE the punch: zoompan rewrites timestamps, and a pad placed after it
+    // was read in frames, not seconds — a 5-second hold became 140 seconds of frozen frame.
     const vf = [
       `trim=start=${from.toFixed(3)}:end=${to.toFixed(3)}`,
       `setpts=(PTS-STARTPTS)/${speed}`,
-      shot.punch ? punchFilter(shot.punch, speed) : `fps=${FPS},scale=${W}:${H}:flags=lanczos`,
       ...(pad > 0 ? [`tpad=stop_mode=clone:stop_duration=${pad.toFixed(2)}`] : []),
+      shot.punch ? punchFilter(shot.punch, speed) : `fps=${FPS},scale=${W}:${H}:flags=lanczos`,
       ...(shot.caption ? [captionFilter(shot.caption, i, dur + pad)] : []),
       "format=yuv420p",
     ].join(",");
