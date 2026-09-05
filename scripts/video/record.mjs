@@ -101,7 +101,9 @@ const ctx = {
   },
   // Human typing: variable cadence, so the composer's live preview is seen forming.
   type: async (selector, text, cps = 26) => {
+    // Fields persist between recordings of the same wallet; clear first so nothing is appended.
     await page.click(selector);
+    await page.fill(selector, "").catch(() => {});
     for (const ch of text) { await page.keyboard.type(ch); await page.waitForTimeout(1000 / cps + Math.random() * 40); }
   },
   hide: async (selector) => { await page.addStyleTag({ content: `${selector}{visibility:hidden!important}` }); },

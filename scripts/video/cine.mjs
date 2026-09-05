@@ -78,6 +78,20 @@ html,body{margin:0;width:${W}px;height:${H}px;background:${bg};overflow:hidden}
 }
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
+// LOWER-THIRD CAPTIONS on recorded shots: the narration on screen, in the product's type, so the
+// film reads muted. Text is pre-wrapped into a file per shot (drawtext wraps nothing itself).
+const FONT = process.env.CINE_FONT ?? "/private/tmp/claude-501/-Users-macbookair-projects-SAGE/2916cf8f-4f37-4010-95d9-25206656196f/scratchpad/fonts/Inter-600.ttf";
+const fontFile = existsSync(FONT) ? FONT : "/System/Library/Fonts/HelveticaNeue.ttc";
+function wrap(text, max) { const words = String(text).split(/\s+/); const lines = []; let cur = ""; for (const w of words) { if ((cur + " " + w).trim().length > max && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); } if (cur) lines.push(cur); return lines.join("\n"); }
+function captionFilter(text, idx, dur) {
+  const f = join(work, `cap-${idx}.txt`);
+  // drawtext expands %{…} sequences inside a text file, so a literal percent must be doubled
+  writeFileSync(f, wrap(text, W >= 1600 ? 58 : 34));
+  const size = Math.round(W * (W >= 1600 ? 0.024 : 0.037));
+  const esc = (v) => String(v).replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
+  return `drawtext=expansion=none:fontfile='${esc(fontFile)}':textfile='${esc(f)}':fontsize=${size}:fontcolor=0xfbfbf9:line_spacing=${Math.round(size * 0.22)}:box=1:boxcolor=0x1a1d21@0.9:boxborderw=${Math.round(size * 0.55)}:x=(w-text_w)/2:y=h-text_h-${Math.round(H * 0.085)}:enable='between(t,0.12,${(dur - 0.08).toFixed(2)})'`;
+}
+
 const parts = [];
 let i = 0;
 for (const shot of cut.shots) {
@@ -90,10 +104,12 @@ for (const shot of cut.shots) {
     if (!existsSync(src)) throw new Error(`missing recording ${src}`);
     const from = at(shot.rec, shot.from ?? 0), to = at(shot.rec, shot.to ?? "m:end");
     const speed = shot.speed ?? 1;
+    const dur = (to - from) / speed;
     const vf = [
       `trim=start=${from.toFixed(3)}:end=${to.toFixed(3)}`,
       `setpts=(PTS-STARTPTS)/${speed}`,
       shot.punch ? punchFilter(shot.punch, speed) : `fps=${FPS},scale=${W}:${H}:flags=lanczos`,
+      ...(shot.caption ? [captionFilter(shot.caption, i, dur)] : []),
       "format=yuv420p",
     ].join(",");
     ff(["-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", file]);

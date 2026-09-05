@@ -3,7 +3,8 @@
  * signed-in ones (composer, operator) run under a throwaway SIWE wallet (`--key`).
  * Timing rule: move, pause just long enough to read, move. The cut speeds the rest up.
  */
-const STARKNET_RECEIPT = "0x6994190edba18d04857b4e2a2246d641778df68029a594a6a0ef720639765b5";
+// A Starknet payout that carries the private leg (escrow 0x68ebf1…8af4) — the receipt draws it.
+const STARKNET_RECEIPT = "0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb";
 const FARMED_GIG = "gig-1c3e_FjffE";
 
 export const SCENES = {
@@ -76,6 +77,25 @@ export const SCENES = {
 
   // The lender's view of a record.
   async lender(c) {
+    const w = process.env.RECORD_WALLET;
+    if (w) {
+      await c.go(`/record/${w}`);
+      c.mark("start");
+      await c.wait(1500);
+      await c.scrollTo(450, 1000);
+      c.mark("record");
+      await c.wait(1600);
+      await c.go(`/lender?wallet=${w}`);
+      await c.wait(1500);
+      await c.scrollTo(420, 1000);
+      c.mark("call");
+      await c.caption("One call. A verified cash-flow record.", 1700);
+      await c.wait(2000);
+      await c.scrollTo(1000, 1000);
+      c.mark("advance");
+      await c.wait(1800);
+      return;
+    }
     await c.go("/lender");
     c.mark("start");
     await c.wait(1500);
@@ -223,5 +243,88 @@ export const SCENES = {
     await c.caption("Proposed at $0. Recorded before it moves.", 1800);
     await c.wait(2600);
     c.mark("hold");
+  },
+  // FILM SCENES (16:9). The J$ two-milestone grant composed as a milestone grant.
+  async "composer-grant"(c) {
+    if (!c.signedIn) throw new Error("composer-grant needs --key");
+    const p = c.page;
+    await c.go("/launch?do=pay");
+    c.mark("start");
+    await c.wait(1200);
+    const grantChip = p.getByRole("button", { name: /^milestone grant$/i }).first();
+    if (await grantChip.count()) { await grantChip.click(); await c.wait(600); }
+    const sel = 'textarea[placeholder^="e.g. Pay 5 people"]';
+    await p.locator(sel).first().scrollIntoViewIfNeeded();
+    c.mark("field");
+    await c.type(sel, "Give a market seller J$10,000 in two equal parts — half when her catalogue page is online with her wallet address on it, half when she posts her first customer review.", 30);
+    c.mark("typed");
+    await c.wait(500);
+    await p.getByRole("button", { name: /draft with sage/i }).click();
+    c.mark("drafting");
+    await p.getByRole("button", { name: /^draft with sage$/i }).waitFor({ state: "visible", timeout: 90000 }).catch(() => {});
+    await c.wait(1200);
+    c.mark("drafted");
+    const cur = p.locator('select[aria-label="The currency you are pricing in"]').first();
+    if (await cur.count()) { await cur.scrollIntoViewIfNeeded(); await cur.selectOption("JMD").catch(() => {}); await c.wait(700); }
+    c.mark("priced");
+    await c.wait(2000);
+    const panel = p.getByText(/what sage will do/i).first();
+    if (await panel.count()) await panel.scrollIntoViewIfNeeded();
+    c.mark("plan");
+    await c.wait(2600);
+    await c.scrollTo(1100, 1200);
+    c.mark("bottom");
+    await c.wait(1600);
+  },
+
+  // A recipient's record and the lender's view of it (RECORD_WALLET env).
+  async record(c) {
+    const w = process.env.RECORD_WALLET;
+    if (!w) throw new Error("RECORD_WALLET=0x… needed");
+    await c.go(`/record/${w}`);
+    c.mark("start");
+    await c.wait(1600);
+    await c.scrollTo(450, 1000);
+    c.mark("signals");
+    await c.wait(1800);
+    await c.scrollTo(1000, 1000);
+    c.mark("payouts");
+    await c.wait(1600);
+    await c.go(`/lender?wallet=${w}`);
+    c.mark("lender");
+    await c.wait(1800);
+    await c.scrollTo(500, 1000);
+    c.mark("capacity");
+    await c.wait(1800);
+    await c.scrollTo(1100, 1000);
+    c.mark("call");
+    await c.wait(1800);
+  },
+
+  // Two receipts back to back (the honest cut): an AI-earner receipt and a Starknet autonomous payout.
+  async receipts(c) {
+    const a = process.env.RECEIPT_A || "0xb0120330aba99dcf25d5aba913d1c8ecf341782653f1b20b4eaafa575155d827";
+    const b = process.env.RECEIPT_B || "0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb";
+    await c.go(`/proof/${a}`);
+    c.mark("a");
+    await c.wait(1500);
+    await c.scrollTo(500, 1000);
+    c.mark("a-verdict");
+    await c.wait(1600);
+    await c.scrollTo(1000, 1000);
+    c.mark("a-evidence");
+    await c.wait(1500);
+    await c.go(`/proof/${b}`);
+    c.mark("b");
+    await c.wait(1500);
+    await c.scrollTo(600, 1000);
+    c.mark("b-verdict");
+    await c.wait(1600);
+    await c.scrollTo(1200, 1000);
+    c.mark("b-leg");
+    await c.wait(1800);
+    await c.scrollTo(1800, 1000);
+    c.mark("b-chain");
+    await c.wait(1600);
   },
 };
