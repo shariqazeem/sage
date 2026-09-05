@@ -126,6 +126,21 @@ export default function Privacy() {
         work with — <strong>auditable in aggregate, private per person</strong>.
       </p>
 
+      <h2>What Sage uses from the STRK20 stack — and what it does not</h2>
+      <p>
+        Stated exactly, because integration depth is what a privacy rail is judged on. Sage
+        integrates the <strong>STRK20 pool</strong> directly from its own Cairo escrow: a worker whose
+        wallet is registered with the pool collects with a <code>privacy_invoke</code> into a{" "}
+        <strong>shielded note</strong>, so the reward arrives as a private balance rather than a
+        public transfer — three such collections are on mainnet and listed in <code>strk20.json</code>.
+        The escrow itself, <code>SageClaims</code>, is an anonymizer-shaped contract of our own: the
+        commitment <code>poseidon(secret)</code> is the only public key to a payout, the preimage is
+        the authority, and the contract has no owner, no admin and no upgrade path. What Sage does{" "}
+        <em>not</em> use yet: stealth accounts, the privacy SDK&rsquo;s own prover, or viewing keys —
+        the worker&rsquo;s wallet performs the private action, Sage never holds a viewing key, and
+        anyone can verify the aggregate on chain without one.
+      </p>
+
       <h2>It runs unattended</h2>
       <p>
         The decision to pay is the autonomous part. An agent judged a real submission, released the
