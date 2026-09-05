@@ -78,3 +78,4 @@ docs/posts/videos/*.mp4
 
 # video renderer scratch frames (hundreds of MB per render)
 docs/posts/videos/.frames-*/
+docs/fc/data-room/videos/
