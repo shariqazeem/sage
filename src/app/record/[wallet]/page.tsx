@@ -1,4 +1,6 @@
 import { WorkAlerts } from "@/components/live/work-alerts";
+import { YourWallet } from "@/components/wallet/your-wallet";
+import { founderChain } from "@/lib/auth/founder";
 import { VerifyPerson } from "@/components/live/verify-person";
 import "@/styles/live.css";
 import "../../sage-proof.css";
@@ -103,6 +105,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
 
         <VerifyPerson wallet={record.wallet} />
         {record.completions > 0 && <WorkAlerts wallet={record.wallet} />}
+        {viewerOwnsThis && founderChain(record.wallet) === "evm" && <YourWallet address={record.wallet} />}
 
         <section className="rec-stats spp-reveal" aria-label="Record totals">
           <div className="rec-stat">

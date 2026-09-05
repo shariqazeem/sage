@@ -71,7 +71,7 @@ const TOKEN_ABI = [
   },
 ] as const satisfies Abi;
 
-const TRANSFER_WITH_AUTHORIZATION_TYPE = [
+export const TRANSFER_WITH_AUTHORIZATION_TYPE = [
   { name: "from", type: "address" },
   { name: "to", type: "address" },
   { name: "value", type: "uint256" },
@@ -81,7 +81,7 @@ const TRANSFER_WITH_AUTHORIZATION_TYPE = [
 ];
 
 /** How long a signed authorization stays valid. Short: it is submitted immediately. */
-const VALID_FOR_SECONDS = 900;
+export const VALID_FOR_SECONDS = 900;
 
 export interface RecipientWithdrawDeps {
   signTypedData?: typeof signTypedDataViaPrivy;
@@ -91,7 +91,7 @@ export interface RecipientWithdrawDeps {
   now?: () => number;
 }
 
-async function readTokenState(
+export async function readTokenState(
   chainId: number,
   token: Address,
   holder: Address,
@@ -199,4 +199,53 @@ export async function withdrawRecipientEarnings(
   });
 
   return { txHash, amountBase, to: target };
+}
+
+/**
+ * THE SAME AUTHORIZATION, SIGNED IN A BROWSER. A worker who signed in by email holds a Privy
+ * embedded wallet whose key lives client-side, and a worker with a browser wallet holds their own —
+ * neither can be asked to sign through Privy's server API. They sign this exact typed data
+ * themselves; the operator verifies the signature against `from` and submits it, paying the gas.
+ * Nothing about the money changes: the signature still pins from, to, value and a single-use nonce.
+ */
+export function transferAuthorizationTypedData(input: {
+  chainId: number;
+  token: Address;
+  tokenName: string;
+  tokenVersion: string;
+  from: Address;
+  to: Address;
+  amountBase: bigint;
+  validBefore: number;
+  nonce: Hex;
+}) {
+  return {
+    domain: { name: input.tokenName, version: input.tokenVersion, chainId: input.chainId, verifyingContract: input.token },
+    types: { TransferWithAuthorization: TRANSFER_WITH_AUTHORIZATION_TYPE },
+    primaryType: "TransferWithAuthorization" as const,
+    message: {
+      from: input.from,
+      to: input.to,
+      value: input.amountBase,
+      validAfter: BigInt(0),
+      validBefore: BigInt(input.validBefore),
+      nonce: input.nonce,
+    },
+  };
+}
+
+/** Submit a signed authorization: the operator pays the gas, the signature is the money. */
+export async function submitTransferAuthorization(
+  chainId: number,
+  token: Address,
+  a: { from: Address; to: Address; amountBase: bigint; validBefore: number; nonce: Hex; signature: Hex },
+  submit: typeof sendVaultWrite = sendVaultWrite,
+): Promise<Hash> {
+  const { v, r, s } = splitSignature(a.signature);
+  return submit(chainId, {
+    address: token,
+    abi: TOKEN_ABI as unknown as Abi,
+    functionName: "transferWithAuthorization",
+    args: [a.from, a.to, a.amountBase, BigInt(0), BigInt(a.validBefore), a.nonce, v, r, s],
+  });
 }

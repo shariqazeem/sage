@@ -232,3 +232,22 @@
   font-style: normal; font-size: 11.5px; color: var(--ink-faint, #8a8f98);
   font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ── Your wallet: deposit is the address, withdraw is gasless ─────────────── */
+.yw { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; background: var(--paper, #fbfbf9); }
+.yw-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.yw-h h2 { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin: 0; }
+.yw-net { font-size: 11px; color: var(--muted, #6b6f76); letter-spacing: 0.02em; }
+.yw-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 14px; }
+.yw-k { font-size: 12px; color: var(--muted, #6b6f76); margin: 0 0 4px; }
+.yw-addr { margin: 0; font-size: 12.5px; word-break: break-all; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yw-copy { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.yw-bal { font-size: 22px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
+.yw-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent); text-decoration: none; }
+.yw-form { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.yw-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.yw-row .sage-input { flex: 1 1 280px; }
+.yw-row .yw-amt { flex: 0 1 120px; }
+.yw-err { color: #dc2626; font-size: 13px; margin: 8px 0 0; }
+.yw-ok { color: #15803d; font-size: 13px; margin: 8px 0 0; }
+@media (max-width: 640px) { .yw-grid { grid-template-columns: 1fr; } }

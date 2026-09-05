@@ -7,6 +7,8 @@ import { ArrowLeft, Check, CreditCard, Link2, Loader2, LogOut, Wallet } from "lu
 import { short } from "@/lib/format";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import { YourWallet } from "@/components/wallet/your-wallet";
+import "@/app/record/record.css";
 import { TreasuryCard } from "./treasury-card";
 import { MandateCard } from "./mandate-card";
 
@@ -119,6 +121,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
               also owns a browser wallet. Signing in with it used to REPLACE the account. This
               signs with it and joins it — the session stays, the workspace stays, the record grows.
             */}
+            {account.chain === "evm" && <YourWallet address={account.address} />}
             {account.chain === "evm" && (
               <div style={{ marginTop: 14 }}>
                 {!adding ? (
