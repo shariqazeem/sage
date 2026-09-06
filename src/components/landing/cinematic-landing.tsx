@@ -11,6 +11,7 @@ import { SceneWorkflow } from "./scene-workflow";
 import { SceneProof } from "./scene-proof";
 import { SceneCapital } from "./scene-capital";
 import { SceneClose } from "./scene-close";
+import { SceneRoadmap } from "./scene-roadmap";
 
 interface Props {
   network: { name: string; chainId: number };
@@ -56,6 +57,10 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
             on purpose: a file you can lend against is a claim nobody should accept before the
             receipts it is built from. */}
         <SceneCapital totals={totals} />
+        {/* THE ROADMAP (6 Sep): the vision in the finance track's language — live, this week, and
+            the partner-gated horizon with the how on every item. After Capital, because a plan is
+            only credible after the record it builds on. */}
+        <SceneRoadmap />
 
         <SceneClose totals={totals} networkName={network.name} />
       </main>

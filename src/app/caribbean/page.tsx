@@ -112,6 +112,7 @@ export default function CaribbeanPage() {
 
       <section>
         <h2>Proven, and scheduled</h2>
+        <p>The full roadmap — live, this week, and the partner-gated horizon with the how on every step — is on the <Link href="/#roadmap">front page</Link>.</p>
         <div className="tbl"><table>
           <thead><tr><th>Claim</th><th>Status</th><th>Evidence</th></tr></thead>
           <tbody>
