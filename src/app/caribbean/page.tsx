@@ -60,11 +60,12 @@ export default function CaribbeanPage() {
 
       <section>
         <h2>How a payment becomes a credit record</h2>
-        <p>Four live artifacts, one for each step. Open any of them; they are the product, not a description of it.</p>
+        <p>Five live artifacts, one for each step. Open any of them; they are the product, not a description of it.</p>
         <ol className="steps">
           <li><h3>Say the work, in your own currency</h3><p>A buyer, a programme or a cooperative describes the work once — &ldquo;J$10,000 in two parts&rdquo; — and funds it once. Sage compiles milestones, each with a verification rule, and stamps the rate.</p><Link href="/launch">the composer →</Link></li>
           <li><h3>The agent verifies and pays</h3><p>It reads the deliverable itself and pays within minutes from a vault whose limits it cannot change. Every payment leaves a public receipt; every refusal leaves its reason.</p><Link href={`/proof/${FIRST}`}>the first receipt →</Link></li>
           <li><h3>The record writes itself</h3><p>Verified inflow over 30 and 90 days, distinct payers, tenure, pass rate — published formulas over receipts, never a score. Exportable as JSON, CSV and a printable statement.</p><Link href={`/record/${RECORD}`}>a worker&rsquo;s record →</Link></li>
+          <li><h3>Money out, today</h3><p>On the private rail a worker collects a payout to any Starknet address — including an exchange&rsquo;s deposit address. Binance takes native USDC on Starknet with no bridge, and P2P turns it into J$ or TT$. No partner in the loop yet; that is the horizon.</p><Link href="/docs/privacy">how the private rail pays →</Link></li>
           <li><h3>A lender reads it in one call</h3><p>The facility as published arithmetic: capacity from verified inflow, an advance disbursed against it, repaid from the next verified payouts through a waterfall.</p><Link href={`/lender?wallet=${RECORD}`}>the lender&rsquo;s view →</Link></li>
         </ol>
       </section>

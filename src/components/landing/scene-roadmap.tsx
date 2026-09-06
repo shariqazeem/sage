@@ -15,6 +15,7 @@ const LIVE: Item[] = [
   { title: "Obligations in 14 currencies, Caribbean first", body: "J$, TT$, EC$, Bds$ and ten more, converted once at a stamped, source-attributed rate.", how: "priced in your money · settled in digital dollars", href: "/launch", cta: "the composer" },
   { title: "One person, one slot · sanctions screening on every payout", body: "A bounty for fifty people is earned by fifty people; every recipient is screened.", how: "World ID at the mission · OFAC SDN on every path", href: "/docs/compliance", cta: "controls" },
   { title: "WhatsApp-ready onboarding", body: "Paste your people, forward each a single-use door; share receipts and statements from the phone.", how: "the person's own WhatsApp · no API, no approval", href: "/workspace/people", cta: "invite a list" },
+  { title: "Cash-out today, on the private rail", body: "A worker collects a payout straight to their exchange's Starknet deposit address — Binance takes native USDC on Starknet with no bridge — and turns it into J$ or TT$ by P2P.", how: "native USDC · a claim collected to any Starknet address · no partner needed", href: "/docs/privacy", cta: "how the private rail pays" },
 ];
 const WEEK: Item[] = [
   { title: "The first grant priced in J$, settled privately", body: "A market seller paid in two milestones on the private rail; the receipt public, her income not.", how: "the runbook, funded" },
