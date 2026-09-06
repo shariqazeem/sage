@@ -146,3 +146,7 @@ For a grant programme, a cooperative or an incubator, that is a fund that runs i
 **Attachments:** whatever the run produced — the first J$ receipt, the advance repaid, the outcomes page.
 
 [Written from the ledger on the day: what was paid, to how many people, in which currencies, what was refused; the first advance disbursed and repaid if the run happened; thanks to Future Caribbean, the judges, and the people who did the work. The ask stays the same: institutions.]
+
+## Post 3 · the run (6 Sep) — the first J$ grant and the first advance, with the ledger timeline
+
+Text, first comment and image picks: `docs/posts/2026-09-06-the-run.md`. Lead with the number, say once that our own wallet stood in for the seller, links in the first comment.

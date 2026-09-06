@@ -101,3 +101,17 @@ The raised view caps show up in the plans directly: the bare HTML page went from
 url-verifiable to 3 with ALL of them url-verifiable, and plausible.io from 3 missions to 6. A
 url-verifiable mission is one Sage can settle without a human, so this is autonomy, not decoration.
 
+
+## Measured again — 2026-09-06, after the run
+
+| Lane | Ever run in production | What changed |
+|---|---|---|
+| **Milestone grants** | **1 campaign, 2 milestones, both paid** (`grant-DPJrhHEmdB`, J$1,600 → 2 × $5.05 @ 158.27) | the first J$ obligation settled; a grant's milestones now release in order (`milestone-order.ts`) |
+| **Walletless recipients / invites** | 1 recipient joined by a members-only invite from the web and submitted from the web | the members-only door and the recipient journey ran outside Telegram |
+| **The advance** | **1 drawn ($1.85), 1 repaid in full**, pot collected (`adv-1997e6ea-454`) | the whole waterfall loop ran: pot → borrower escrow → payout → repayment escrow → pot |
+| Copy watch on a person's own work | held the seller's milestone two against her milestone one (72%) | fixed: the cross-wallet watches read other people's work only |
+| The record beside the count | "3 completions · of 0 judged" on a Starknet record | fixed: every reader reads every spelling of a wallet |
+
+Still unproven, stated plainly: the recipient was our own second wallet standing in for the seller,
+not a stranger; nobody has yet cashed a claim out to J$ or TT$ through an exchange (the door is
+described, not demonstrated); the pot's repayment legs are collected by hand, not by the sweep.
