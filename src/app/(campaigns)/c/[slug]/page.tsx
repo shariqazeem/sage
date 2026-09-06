@@ -190,6 +190,7 @@ export default async function CampaignPublicPage({
           missions={e.missions}
           autopays={autopays}
           rail={campaign.settlementRail === "starknet" ? "starknet" : "evm"}
+          campaignKind={campaign.kind}
         />
 
         <SageActivity campaignId={campaign.id} chainId={e.chainId} initial={activity} pending={activity.pending} complete={complete} />

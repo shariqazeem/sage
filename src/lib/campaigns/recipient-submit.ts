@@ -9,6 +9,7 @@ import {
   createSubmission,
   getCampaign,
   listMissions,
+  getWalletMissionSubmission,
   listSlotClaimants,
   listSlotClaimantWallets,
   recordEvent,
@@ -30,6 +31,7 @@ import { bareHexKey } from "./chain-address";
 import { signTypedDataViaPrivy, type PrivyTypedData } from "@/lib/privy/client";
 import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
+import { milestoneLockedCopy, priorMilestoneUnpaid } from "./milestone-order";
 import type { Mission } from "@/lib/db/schema";
 import { hasMissionPlan } from "./vault-kind";
 import { normalizeForChain, sameChainAddress } from "./chain-address";
@@ -147,7 +149,15 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   // ── which mission ─────────────────────────────────────────────────────────
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const active = listMissions(campaignId).filter((m: Mission) => m.status === "active");
-  const openOnes = active.filter((m) => {
+  // A grant's milestones release one by one: "done" lands on the next unpaid milestone, never past it.
+  const paidTo = (pm: Mission) => getWalletMissionSubmission(pm.missionIdHash, wallet)?.status === "paid";
+  const lockedBy = (m: Mission) => priorMilestoneUnpaid(campaign.kind, active, m, paidTo);
+  if (input.missionKey) {
+    const named = active.find((m) => m.missionKey === input.missionKey);
+    const prior = named ? lockedBy(named) : null;
+    if (prior) return { ok: false, error: milestoneLockedCopy(prior) };
+  }
+  const openOnes = active.filter((m) => !lockedBy(m)).filter((m) => {
     const slots = missionSlotStatus(listSlotClaimants(m.missionIdHash), m.maxCompletions, nowSeconds());
     return slots.open > 0;
   });

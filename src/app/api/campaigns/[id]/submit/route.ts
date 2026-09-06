@@ -23,6 +23,7 @@ import {
   getDecisionBySubmission,
   getMissionByKey,
   getWalletMissionSubmission,
+  listMissions,
   reviseSubmission,
   listSlotClaimants,
   listSlotClaimantWallets,
@@ -42,6 +43,7 @@ import { short } from "@/lib/format";
 import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reservation";
 import { nowSeconds } from "@/lib/db/keys";
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
+import { milestoneLockedCopy, priorMilestoneUnpaid } from "@/lib/campaigns/milestone-order";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
 
 export const runtime = "nodejs";
@@ -221,6 +223,11 @@ export async function POST(
     missionTargetSurface = mission?.targetSurface ?? null;
     if (!mission || mission.status !== "active") {
       return NextResponse.json({ error: "That mission isn't open for submissions." }, { status: 409 });
+    }
+    // A grant's milestones release one by one — the same rule the chat door enforces.
+    {
+      const prior = priorMilestoneUnpaid(campaign.kind, listMissions(id), mission, (pm) => getWalletMissionSubmission(pm.missionIdHash, wallet)?.status === "paid");
+      if (prior) return NextResponse.json({ error: milestoneLockedCopy(prior) }, { status: 409 });
     }
     // P20 retry detection: an observation mission the wallet ALREADY has a non-final submission to is a
     // REVISION (re-judge the held account), not a new entry — up to OBS_MAX_ATTEMPTS. Evidence is also

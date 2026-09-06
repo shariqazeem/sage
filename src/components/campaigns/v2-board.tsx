@@ -15,8 +15,7 @@ import {
   RefreshCw,
   ShieldCheck,
   XCircle,
-  Target,
-} from "lucide-react";
+  Target, Lock } from "lucide-react";
 import { getAddress } from "viem";
 import { MissionVerify } from "@/components/live/mission-verify";
 import { reward as fmtReward } from "@/lib/format";
@@ -257,6 +256,9 @@ function MissionCard({
   isTarget,
   autopays,
   rail,
+  campaignKind = "testing",
+  lockedBy = null,
+  onMine,
 }: {
   campaignId: string;
   campaignIdHash: string;
@@ -267,6 +269,10 @@ function MissionCard({
   /** whether THIS campaign auto-pays — server-decided, never inferred from the mission's class alone. */
   autopays: boolean;
   rail: "evm" | "starknet";
+  campaignKind?: "testing" | "gig" | "grant";
+  /** the earlier milestone's title when this one is locked until it pays (grants only) */
+  lockedBy?: string | null;
+  onMine?: (missionKey: string, status: string | null) => void;
 }) {
   const wallet = useWallet();
   const starknet = useStarknetSiwe();
@@ -304,6 +310,7 @@ function MissionCard({
   const [error, setError] = useState<string | null>(null);
   const [doorDemanded, setDoorDemanded] = useState(false);
   const [mine, setMine] = useState<MySubmission | null>(null);
+  useEffect(() => { onMine?.(mission.missionKey, mine?.status ?? null); }, [onMine, mission.missionKey, mine?.status]);
   const [materialized, setMaterialized] = useState(false);
   const hadBrief = useRef(false);
 
@@ -485,7 +492,7 @@ function MissionCard({
             <textarea
               className="sage-textarea"
               rows={2}
-              placeholder="In your own words — what did you actually see?"
+              placeholder={campaignKind === "testing" ? "In your own words — what did you actually see?" : "In your own words — what you made, and where it is."}
               value={answers[i] ?? ""}
               onChange={(e) => {
                 const next = [...answers];
@@ -795,6 +802,10 @@ function MissionCard({
                 )}
               </>
             )
+          ) : lockedBy && !mine ? (
+            <p className="tb-sig tb-locked">
+              <Lock size={13} /> Opens once &ldquo;{lockedBy}&rdquo; has paid — a grant releases one milestone at a time.
+            </p>
           ) : !open ? (
             <>
               {/* Asked at the mission, before an account is written that could not be submitted. */}
@@ -1140,11 +1151,13 @@ export function V2Board({
   missions,
   autopays = false,
   rail = "evm",
+  campaignKind = "testing",
 }: {
   campaignId: string;
   campaignIdHash: string;
   chainId: number;
   live: boolean;
+  campaignKind?: "testing" | "gig" | "grant";
   missions: MissionView[];
   /** whether THIS campaign actually auto-pays — decided server-side by `campaignAutopays`. */
   autopays?: boolean;
@@ -1176,9 +1189,15 @@ export function V2Board({
     const t = window.setTimeout(() => setTarget(null), 2600);
     return () => window.clearTimeout(t);
   }, [missions]);
+  // MILESTONES RELEASE ONE BY ONE on a grant: a card reports its own paid state up, and the next
+  // card stays locked until the one before it has paid — the same rule the server enforces.
+  const [paidKeys, setPaidKeys] = useState<Set<string>>(() => new Set());
+  const onMine = useCallback((key: string, status: string | null) => {
+    setPaidKeys((prev) => { const has = prev.has(key); const paid = status === "paid"; if (has === paid) return prev; const next = new Set(prev); if (paid) next.add(key); else next.delete(key); return next; });
+  }, []);
   return (
     <div className="v2-board sage-stagger">
-      {missions.map((m) => (
+      {missions.map((m, idx) => (
         <MissionCard
           key={m.missionKey}
           campaignId={campaignId}
@@ -1188,6 +1207,9 @@ export function V2Board({
           live={live}
           isTarget={target === m.missionKey}
           autopays={autopays}
+          campaignKind={campaignKind}
+          lockedBy={campaignKind === "grant" && idx > 0 && !paidKeys.has(missions[idx - 1]!.missionKey) ? missions[idx - 1]!.title : null}
+          onMine={onMine}
           rail={rail}
         />
       ))}
