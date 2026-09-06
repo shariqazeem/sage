@@ -103,7 +103,12 @@ Let the three kind chips sit on screen for a second: **Gig · Bounty · Mileston
 
 **DO** — Paste the sentence. Click **Draft with Sage**.
 
-> ⏸ **CUT.** Stop recording while it drafts. Resume when the plan is on screen.
+> ⏸ **CUT.** The draft takes about **45 seconds**. Stop recording, wait, resume when the plan is up.
+
+You will get **two milestone cards** and the kind will read **Milestone grant**:
+**1. Catalogue page online with wallet address** · **2. First customer review posted online** —
+verified against the live model on 7 Sep. If you ever see only one card, the sentence lost its
+"in two milestones" wording; put it back and draft again.
 
 **SAY**
 > Sage wrote the plan. Two milestones, what counts as done, and the evidence it checks.
