@@ -14,12 +14,12 @@ const LIVE: Item[] = [
   { title: "A cash-flow record per worker, and a lender's view", body: "JSON, CSV and a printable statement a loan officer can check line by line.", how: "published formulas over receipts · never a score", href: "/lender", cta: "for lenders" },
   { title: "Obligations in 14 currencies, Caribbean first", body: "J$, TT$, EC$, Bds$ and ten more, converted once at a stamped, source-attributed rate.", how: "priced in your money · settled in digital dollars", href: "/launch", cta: "the composer" },
   { title: "One person, one slot · sanctions screening on every payout", body: "A bounty for fifty people is earned by fifty people; every recipient is screened.", how: "World ID at the mission · OFAC SDN on every path", href: "/docs/compliance", cta: "controls" },
+  { title: "A grant priced in J$, paid in two milestones on the private rail", body: "J$1,600 to a market seller, released one milestone at a time, each escrowed behind a commitment; settled 6 September.", how: "the vault looks the reward up · the claim is the money", href: "/proof/0x2337afda7ef311c4bd515d66feb78f0903f16b3cc23e49ef7fb7702fe1bb54", cta: "the receipt" },
+  { title: "A working-capital advance, disbursed and repaid", body: "$1.85 drawn against her verified inflow, repaid in full by the waterfall on her next payout, the same day.", how: "capacity = 1× monthly verified inflow · 50% of each next payout", href: "/record/0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434", cta: "her record" },
   { title: "WhatsApp-ready onboarding", body: "Paste your people, forward each a single-use door; share receipts and statements from the phone.", how: "the person's own WhatsApp · no API, no approval", href: "/workspace/people", cta: "invite a list" },
   { title: "Cash-out today, on the private rail", body: "A worker collects a payout straight to their exchange's Starknet deposit address — Binance takes native USDC on Starknet with no bridge — and turns it into J$ or TT$ by P2P.", how: "native USDC · a claim collected to any Starknet address · no partner needed", href: "/docs/privacy", cta: "how the private rail pays" },
 ];
 const WEEK: Item[] = [
-  { title: "The first grant priced in J$, settled privately", body: "A market seller paid in two milestones on the private rail; the receipt public, her income not.", how: "the runbook, funded" },
-  { title: "The first working-capital advance, disbursed and repaid", body: "Sized from verified inflow, repaid automatically from the next verified payouts.", how: "the waterfall on the next payout" },
   { title: "Treasuries that run themselves", body: "An organisation funds once; the agent proposes each move with its reason and launches inside the ceilings.", how: "the operator, on real treasuries" },
 ];
 const NEXT: Item[] = [
@@ -66,7 +66,7 @@ export function SceneRoadmap() {
         <div className="rm-rail" aria-hidden><span className="rm-rail-line" /></div>
         <div className="rm-grid">
           <Stage tone="live" label="Live now" count="01 · proven" items={LIVE} />
-          <Stage tone="week" label="This week" count="02 · settling" items={WEEK} />
+          <Stage tone="week" label="This week" count="02 · next" items={WEEK} />
           <Stage tone="next" label="Next, with licensed partners" count="03 · horizon" items={NEXT} />
         </div>
       </Reveal>

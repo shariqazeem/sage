@@ -23,7 +23,7 @@ This room is the validation layer for the TRL self-assessment. Every number belo
 | 11 | **Engineering rigour** — 4,420 automated tests; live batteries on the shipping build: P-GEN 13/13 (anchor integrity 100%), P-DIRECT money invariants zero, P-OPERATOR 4/4, P-ROUTE 29/32 with zero premature money confirmations, P-VERIFY 5/5; 1,146 commits | `02-technical-documentation.pdf` §batteries | https://github.com/shariqazeem/sage |
 | 12 | **Compliance** — OFAC SDN screening on every payout path; KYC honestly disclaimed; the compliance statement under 500 words | `04-compliance-statement.pdf` | https://sagepays.xyz/docs/compliance |
 
-## TRL self-assessment: level 8 — full feature set, small user base
+## TRL self-assessment: level 8, with level 9's first evidence in hand
 
 | Level | What it means for Sage | Evidence |
 |---|---|---|
@@ -31,7 +31,7 @@ This room is the validation layer for the TRL self-assessment. Every number belo
 | 6 | Field pilot: founders launch campaigns; strangers do the work and are paid | 24 people paid across 36 tester payouts (`06-ledger-payouts.csv`) |
 | 7 | Reliable in the real environment: autonomous payouts across two mainnet rails, refusals on record | rows 1, 3, 5 |
 | **8** | **Full feature set, small user base: gigs, grants, testing, private payouts, credit records, live** | rows 6–9; `01-submission-overview.pdf`; `02-technical-documentation.pdf` |
-| 9 | Paying institutions: a programme or lender funds campaigns and draws on the records | not yet — the first J$ grant and the first advance are scheduled (`05-proof-runbook.pdf`) |
+| 9 | Paying institutions: a programme or lender funds campaigns and draws on the records | the first J$ grant settled in two milestones on the private rail (6 Sep: `0x72838f…83f8`, `0x2337af…bb54`) and the first working-capital advance was drawn and repaid the same day (her record: `/record/0x04f1…f434`); an institution pilot is next |
 | 10 | Scaling with proven traction | not claimed |
 
 ## Folder map

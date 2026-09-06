@@ -68,7 +68,7 @@ Sage was built so that the act of paying her creates the file.
 - Each verified payment lands on her record: inflow over 30 and 90 days, distinct payers, tenure, verification pass rate — published formulas over receipts, never a score.
 - A lender reads that record with one call and gets the numbers, not a PDF. The record carries a working-capital door: an advance sized from verified inflow, repaid automatically from the next payments.
 
-Where it stands today: live with real money since July, 39 verified payments and 26 refusals on the public ledger, obligations in 14 currencies with the Caribbean first, sanctions screening on every payment path, and the lender's view and the advance built and dry-run against live records. The first advance is scheduled this week.
+Where it stands today: live with real money since July, 39 verified payments and 26 refusals on the public ledger, obligations in 14 currencies with the Caribbean first, sanctions screening on every payment path, and, since this morning, the first working-capital advance drawn against a seller's verified inflow and repaid in full by her next payout, the same day. Every receipt is public.
 
 Every claim links to a page or a transaction a judge can open. Thank you to Future Caribbean for a track that asks for exactly that.
 
