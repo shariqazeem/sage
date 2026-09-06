@@ -74,7 +74,7 @@ Every claim links to a page or a transaction a judge can open. Thank you to Futu
 
 #FutureCaribbean #MSME #credit #Caribbean #fintech
 
-*First comment:* the lender's view: sagepays.xyz/lender · the readings against the track's own bar: sagepays.xyz/outcomes
+*First comment:* the finance-track page: sagepays.xyz/caribbean · the lender's view: sagepays.xyz/lender
 
 ---
 

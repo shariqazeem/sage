@@ -12,14 +12,14 @@ and turns every payout into a credit record that unlocks working capital without
 **Track.** Finance, Payments & MSME Capital Systems (core: the MSME credit layer).
 
 **Links.**
-- Live product: https://sagepays.xyz (one door: https://sagepays.xyz/start)
+- Live product: https://sagepays.xyz (one door: https://sagepays.xyz/start) · **the finance-track page, for judges: https://sagepays.xyz/caribbean**
 - Source (MIT): https://github.com/shariqazeem/sage
 - Overview: https://github.com/shariqazeem/sage/blob/main/docs/fc/submission-overview.md
 - Architecture + data sources: https://github.com/shariqazeem/sage/blob/main/docs/fc/technical-documentation.md
 - Compliance statement (492 words): https://github.com/shariqazeem/sage/blob/main/docs/fc/compliance-statement.md
-- Video (≤ 4:30, to the film script in `docs/fc/film-script.md`): https://sagepays.xyz/videos/07-fc-demo.mp4
+- Video (3:01, captions carry it muted; narrated version replaces the file at the same URL): https://sagepays.xyz/videos/sage-demo.mp4
 - Live ledger: https://sagepays.xyz/explorer · Outcomes against the track's bar: https://sagepays.xyz/outcomes
-- Lender view: https://sagepays.xyz/lender · A record: https://sagepays.xyz/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048
+- Lender view: https://sagepays.xyz/lender · A printable verified income statement: https://sagepays.xyz/record/0xDF70f6E8e656E5bb714fF0E8CA176d76F26890e3/statement · A record: https://sagepays.xyz/record/0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048
 - The agent, in prose: https://sagepays.xyz/docs/operator (fund once, it decides) · https://sagepays.xyz/docs/judging (evidence + one person, one slot) · https://sagepays.xyz/docs/privacy (the private rail, exactly what it uses)
 - Strategy: https://github.com/shariqazeem/sage/blob/main/docs/strategy/autonomous-paymaster.md · the rails and the fiat door: https://github.com/shariqazeem/sage/blob/main/docs/strategy/fiat-door-and-rails.md
 
