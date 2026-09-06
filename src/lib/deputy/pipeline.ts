@@ -21,7 +21,7 @@ import {
   setObservationShadow,
   updateSubmission,
 } from "@/lib/db/campaigns";
-import { findCopiedArtifact, findDuplicate, findNearDuplicate } from "./dedup";
+import { findCopiedArtifact, findDuplicate, findNearDuplicate, otherPeoplesWork } from "./dedup";
 import { autopayHourlyCap, paceCapHold } from "./pace-cap";
 import { minutesLabel, windowSecondsFor } from "./finalization";
 import { countAutopaySettledSince } from "@/lib/db/events-read";
@@ -780,11 +780,17 @@ export async function runDeputyOnSubmission(
   // fixed: a LATER copycat (or the same tester's own later refinement) retroactively flagged an
   // EARLIER genuine account as a near-dup at settle time, holding work the bar had passed. The
   // copycat itself still gets caught — from ITS side, the genuine account is an earlier submission.
+  // Both watches read OTHER PEOPLE'S work: a person's own earlier submission — a grantee's milestone
+  // one under her milestone two — is not a duplicate account and not a copied page (dedup.ts).
+  const self = personWallets(submission.wallet);
   const near = findNearDuplicate(
     { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
-    isObservation
-      ? listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt)
-      : listSubmissionsForDedup(campaign.id, submissionId),
+    otherPeoplesWork(
+      isObservation
+        ? listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt)
+        : listSubmissionsForDedup(campaign.id, submissionId),
+      self,
+    ),
   );
   if (near) {
     const reason = `possible duplicate account — ${near.reason}`;
@@ -821,7 +827,7 @@ export async function runDeputyOnSubmission(
   // fingerprint, so a shared product page can never collide. HELD, never auto-rejected.
   const copied = findCopiedArtifact(
     { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
-    listSubmissionsForDedup(campaign.id, submissionId),
+    otherPeoplesWork(listSubmissionsForDedup(campaign.id, submissionId), self),
   );
   if (copied) {
     const reason = `possible copied work — ${copied.reason}`;
@@ -841,7 +847,7 @@ export async function runDeputyOnSubmission(
   // Counted across every wallet that is this PERSON (nullifier, chain links, declared links) —
   // one string was exactly what a wallet farm exploited. `countPaidByWalletInCampaign` stays for
   // the single-wallet readers; the money decision reads the person.
-  const walletPaid = countPaidByWalletsInCampaign(campaign.id, personWallets(submission.wallet));
+  const walletPaid = countPaidByWalletsInCampaign(campaign.id, self);
   if (walletPaid >= campaign.perWalletPayoutCap) {
     const reason = TERMINAL_REASON.walletCap(campaign.perWalletPayoutCap);
     agentLog(cid, "wallet_cap", { walletPaid, cap: campaign.perWalletPayoutCap });

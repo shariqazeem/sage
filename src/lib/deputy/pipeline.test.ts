@@ -501,7 +501,7 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
   it("HOLDS a near-duplicate (paraphrased) report before any settle", async () => {
     vi.mocked(getSubmission).mockReturnValue({ ...submission, note: FARM_NOTE } as never);
     vi.mocked(listSubmissionsForDedup).mockReturnValue([
-      { note: FARM_NOTE.replace("signup", "sign up").replace("get started", "Get Started"), contentSha256: null, artifactFingerprint: null },
+      { note: FARM_NOTE.replace("signup", "sign up").replace("get started", "Get Started"), contentSha256: null, artifactFingerprint: null, wallet: `0x${"b".repeat(40)}` },
     ]);
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
@@ -520,7 +520,7 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     const copy = artifactFingerprint(body(B).replace("examples for curl", "worked examples for curl"), [B]);
     vi.mocked(getSubmission).mockReturnValue({ ...submission, wallet: B, note: "my own write-up, see the link" } as never);
     vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec1", contentSha256: null, artifactFingerprint: copy } as never);
-    vi.mocked(listSubmissionsForDedup).mockReturnValue([{ note: "done — see repo", contentSha256: "ff", artifactFingerprint: honest }]);
+    vi.mocked(listSubmissionsForDedup).mockReturnValue([{ note: "done — see repo", contentSha256: "ff", artifactFingerprint: honest, wallet: A }]);
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
     expect(r.reason).toMatch(/copied work/i);

@@ -28,6 +28,24 @@ export interface DedupCandidate {
    *  stripped (deputy/fingerprint.ts), or null. The copied-deliverable vector: a fork of an honest
    *  page with the marker swapped has different bytes and a different report — only this sees it. */
   artifactFingerprint?: string | null;
+  /** the submitting wallet, as stored — so a person's own earlier work can be left out of the cross-wallet watches */
+  wallet?: string | null;
+}
+
+const bareKey = (w: string) => w.trim().toLowerCase().replace(/^0x/, "").replace(/^0+/, "");
+
+/**
+ * OTHER PEOPLE'S WORK ONLY. The near-duplicate and copied-artifact watches are cross-WALLET signals by
+ * construction ("the same report from another wallet", "a fork of an honest page from a fresh wallet").
+ * Compared against the submitter's own earlier submissions they say nothing — and on a milestone grant
+ * they said the wrong thing: one seller's page, submitted again for milestone two with a new section,
+ * matched her own milestone one at 72% and was HELD as "possible copied work" (6 Sep 2026). A person's
+ * own work — every wallet that is this person — is not a copy of itself. The exact-match dedup against
+ * PAID work is deliberately not filtered: the same evidence paid twice is a duplicate whoever sends it.
+ */
+export function otherPeoplesWork<T extends DedupCandidate>(candidates: T[], selfWallets: string[]): T[] {
+  const self = new Set(selfWallets.map(bareKey));
+  return candidates.filter((c) => !c.wallet || !self.has(bareKey(c.wallet)));
 }
 
 export type DuplicateHit = { reason: string };

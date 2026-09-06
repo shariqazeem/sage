@@ -847,12 +847,13 @@ export function getStarReceipt(): StarReceipt | null {
 export function listPaidSubmissionsForDedup(
   campaignId: string,
   excludeSubmissionId: string,
-): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null }[] {
+): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null; wallet: string }[] {
   return db
     .select({
       note: submissions.note,
       contentSha256: decisions.contentSha256,
       artifactFingerprint: decisions.artifactFingerprint,
+      wallet: submissions.wallet,
     })
     .from(submissions)
     .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
@@ -875,12 +876,13 @@ export function listPaidSubmissionsForDedup(
 export function listSubmissionsForDedup(
   campaignId: string,
   excludeSubmissionId: string,
-): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null }[] {
+): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null; wallet: string }[] {
   return db
     .select({
       note: submissions.note,
       contentSha256: decisions.contentSha256,
       artifactFingerprint: decisions.artifactFingerprint,
+      wallet: submissions.wallet,
     })
     .from(submissions)
     .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
@@ -904,12 +906,13 @@ export function listEarlierSubmissionsForDedup(
   campaignId: string,
   excludeSubmissionId: string,
   beforeUnix: number,
-): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null }[] {
+): { note: string | null; contentSha256: string | null; artifactFingerprint: string | null; wallet: string }[] {
   return db
     .select({
       note: submissions.note,
       contentSha256: decisions.contentSha256,
       artifactFingerprint: decisions.artifactFingerprint,
+      wallet: submissions.wallet,
     })
     .from(submissions)
     .leftJoin(decisions, eq(decisions.submissionId, submissions.id))
