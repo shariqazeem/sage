@@ -305,3 +305,11 @@ html[data-app-shell="on"] .spp {
   height: 20px;
   object-fit: cover;
 }
+
+/* PRINT: the shell is chrome, never content. A printed income statement carried the Home/Agent pill over
+   its title and the network chip in its corner (7 Sep 2026) — the statement's own print rule hid the rail
+   but not these. Nothing the shell renders belongs on paper. */
+@media print {
+  .mode-pill, .ctx-pills, .app-rail, .fbw { display: none !important; }
+  html[data-app-shell="on"] .spp, html[data-app-shell="on"] .st { padding-top: 0 !important; }
+}
