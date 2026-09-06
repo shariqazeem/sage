@@ -8,7 +8,7 @@ import { siteUrl } from "@/lib/site";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const RECORD = "0xDF70f6E8e656E5bb714fF0E8CA176d76F26890e3";
+const RECORD = "0x41c4F9c6D5Bd1D970975436a875E94049D0e7699";
 const FIRST = "0x8df7767860692a12fed6f90fe8a88d9a103686bbaa9ceee3d067a1e7c6250069";
 const PRIVATE = "0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb";
 
