@@ -107,7 +107,7 @@ That is the control environment a lender needs before the word "credit" means an
 Half of the people Sage has paid had never held a crypto wallet. They never needed one.
 
 For Future Caribbean's finance track we made the worker's side as plain as a bank app, without the bank:
-- Sign in with an email. Sage keeps a wallet for you.
+- Your organisation pastes its list and forwards each person a door on WhatsApp. You sign in with an email; Sage keeps a wallet for you.
 - Do the work, submit the link. The agent verifies it and pays in minutes.
 - Withdraw from inside Sage in one tap; you never buy gas or install anything.
 - Your income stays yours: on the private rail, the receipt proves the payment happened without publishing who received it or what they hold.
