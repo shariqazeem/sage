@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readStatedTerms } from "./stated-terms";
 import { llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { missionModel } from "@/lib/llm/mission-model";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
@@ -86,6 +87,7 @@ export const GIG_DRAFT_SYSTEM = `You draft the brief for paid work on Sage, a pl
 RULES
 - NEVER write an amount, price, budget, currency or per-person pay anywhere. The founder sets money separately; any number you write for money is discarded.
 - kind: "gig" for one deliverable (one or many people); "grant" ONLY when the founder describes stages or milestones for one recipient.
+- MILESTONE COUNT IS THE FOUNDER'S, NOT YOURS. When the founder names a number of milestones, tranches or stages, or describes them one by one ("first X, then Y"), your draft must contain exactly that many milestones, in that order, each with its own deliverable. Never merge two stated stages into one deliverable, and never invent a stage they did not describe.
 - who: the audience in at most six words, in the founder's terms ("my designer", "anyone", "a translator in Kingston").
 - slots: how many people can be paid, from the founder's words. A named person → 1. "anyone" with no number → 3.
 - Each milestone:
@@ -124,6 +126,12 @@ function userMessage(input: DraftInput, feedback: string | null): string {
     `<<<UNTRUSTED_FOUNDER_TEXT>>>\n${input.intent.trim()}\n<<<END_UNTRUSTED_FOUNDER_TEXT>>>`,
   ];
   if (input.productUrl) lines.push(`The page the work is for or about: ${input.productUrl}`);
+  // The count the founder said out loud, read deterministically (stated-terms.ts) — the same fact the
+  // money prefill reads from the same sentence. Handed to the model as a requirement, then verified.
+  const stated = readStatedTerms(input.intent).milestoneCount;
+  if (stated != null && stated > 1) {
+    lines.push(`THE FOUNDER NAMED ${stated} MILESTONES. Answer with exactly ${stated} milestones, in the order they described, each with its own deliverable and its own evidence. kind must be "grant".`);
+  }
   if (feedback) lines.push(`YOUR PREVIOUS DRAFT WAS REFUSED BY THE SCHEMA. Fix exactly these and answer again with the whole JSON:\n${feedback}`);
   return lines.join("\n\n");
 }
@@ -167,8 +175,29 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
     }
     const parsed = gigDraftSchema.safeParse(raw);
     if (parsed.success) {
+      /**
+       * THE COUNT THE FOUNDER SAID IS A FACT, NOT A SUGGESTION.
+       *
+       * A draft that collapses "J$1,600 in two milestones: first the catalogue, then the review" into
+       * ONE deliverable worth the whole total is schema-valid, so the corrective round below — which
+       * only ever fired on a schema miss — never saw it. Every gate downstream then passed a plan that
+       * paid the whole grant for half the work (found on the composer, 7 Sep 2026). This is the same
+       * class as the money the founder states: read it deterministically, hand it to the model, then
+       * CHECK the answer against it. One corrective round; if the model still will not comply, the
+       * founder is TOLD rather than quietly given the wrong plan — they add the missing stage by hand.
+       */
+      const want = readStatedTerms(intent).milestoneCount;
+      const got = parsed.data.milestones.length;
+      if (want != null && want > 1 && got !== want && round === 0) {
+        feedback = `- milestones: the founder named ${want} milestones and your draft has ${got}. Answer again with exactly ${want}, in the order they described, each with its own deliverable and evidence, and kind "grant".`;
+        console.warn(`[gig-draft] round 1 milestone-count miss: wanted ${want}, got ${got}`);
+        continue;
+      }
       const cleaned = cleanDraft(parsed.data);
-      return { ok: true, draft: cleaned.draft, notes: cleaned.notes, model };
+      const notes = want != null && want > 1 && got !== want
+        ? [...cleaned.notes, `You asked for ${want} milestones and Sage drafted ${got}. Add the missing one below before you fund — money is split across the milestones you keep.`]
+        : cleaned.notes;
+      return { ok: true, draft: cleaned.draft, notes, model };
     }
     feedback = parsed.error.issues.slice(0, 6).map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
     // Visible in the server log: a shape the model keeps missing is a prompt or schema defect, not weather.
