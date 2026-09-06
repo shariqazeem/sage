@@ -47,6 +47,7 @@ This room is the validation layer for the TRL self-assessment. Every number belo
 - `07-ledger-refusals.csv` — every refusal with its reason
 - `08-logbook.pdf` — the build log, 27 August to 5 September, every entry mapped to commits
 - `screens/` — full-page captures of every live surface, 6 September 2026
+- `12-business-snapshot.docx` — the Future Caribbean business snapshot, filled in (sections 1-8 in full; 9-12 answered only where they honestly apply)
 - `videos/` — the product film and the six feature clips (real screens, real data)
 - `11-certificate/` — OpenClaw bootcamp, first place
 - Code: https://github.com/shariqazeem/sage (public) · Product: https://sagepays.xyz
