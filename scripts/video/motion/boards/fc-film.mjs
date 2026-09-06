@@ -54,7 +54,7 @@ export async function build() {
   S.push(K.caption("Every verified payout accrues to a work record with deterministic credit signals — published formulas over receipts, never a score.", 156.8, 171.8));
   S.push(K.layer(dev({ src: rec("record"), at: 172.5, out: 190.0, seek: Math.max(0, (mrec.capacity ?? 15) - 0.4), cap: "the lender's view · the facility as published arithmetic · the exact call an institution makes", right: "sagepays.xyz/lender", focus: { x: 50, y: 40, scale: 1.35 } }), { at: 172.4, out: 190.2 }));
   S.push(K.caption("And Sage lends against it: an advance sized by the lender's multiple on verified inflow, repaid by the next verified payouts through a waterfall.", 173.1, 183.0));
-  S.push(K.caption("Capital out, capital back in, from the ledger the agent wrote. Built and dry-run against live records; the first disbursement is scheduled.", 183.3, 190.0));
+  S.push(K.caption("Capital out, capital back in, from the ledger the agent wrote. The first advance was drawn against verified inflow and repaid in full from the next payout, the same afternoon.", 183.3, 190.0));
   S.push(K.layer(K.words("Capital out.", 190.6, { size: 0.095 }) + K.words("Capital back in — from the ledger the agent t:wrote.", 191.5, { size: 0.06, step: 0.05 }), { at: 190.4, out: 205.6 }));
   // 7 · the operator (206–236)
   const goal = mv?.goal ?? "Watch real visitors land on sagepays.xyz and identify exactly where they hesitate or drop off.";
