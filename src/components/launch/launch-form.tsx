@@ -1,6 +1,7 @@
 "use client";
 
 import { statedHeadcount } from "@/lib/launch/direct-fallback";
+import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -356,6 +357,12 @@ export function LaunchForm() {
       const d = data.draft;
       setP("who", d.who);
       setP("slots", d.milestones.length > 1 ? "1" : (statedHeadcount(draftText) != null ? String(statedHeadcount(draftText)) : clampSlots(d.slots)));
+      // THE FOUNDER'S WORDS ARE THE MONEY: the currency, the total to split, or the price per person,
+      // read from the sentence deterministically — never from the model — and left editable.
+      const money = prefillMoneyFromWords(draftText, d.milestones.length);
+      if (money.currency) setCurrency(money.currency);
+      if (money.splitTotal != null) setSplitTotal(String(money.splitTotal));
+      else if (money.perUnit != null) setT(0, "amount", String(money.perUnit));
       setDraftWhy(d.whyItMatters ?? "");
       setDraftNotes(data.notes ?? []);
       // Amounts the founder already typed survive the draft: money is theirs, words are Sage's.
