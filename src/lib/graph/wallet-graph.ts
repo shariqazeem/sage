@@ -1,4 +1,6 @@
 import "server-only";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Campaign } from "@/lib/db/schema";
 import { getDecisionBySubmission, listSubmissions } from "@/lib/db/campaigns";
 import { directLinksOf, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
@@ -73,10 +75,8 @@ async function gasFunders(rail: "evm" | "starknet", chainId: number, wallets: st
   return { funders, errors };
 }
 
-export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean } = {}): Promise<WalletGraph> {
-  const hit = cache.get(campaign.id);
+async function buildWalletGraph(campaign: Campaign, opts: { live?: boolean } = {}): Promise<WalletGraph> {
   const now = Math.floor(Date.now() / 1000);
-  if (hit && now - hit.at < TTL) return hit.graph;
   const subs = listSubmissions(campaign.id);
   const wallets = [...new Map(subs.map((s) => [bare(s.wallet), s.wallet])).values()].slice(0, MAX_WALLETS);
   const partial = subs.length > MAX_WALLETS;
@@ -121,9 +121,59 @@ export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean 
     readErrors = g.errors;
     for (const [to, froms] of g.funders) for (const f of froms) if (bare(f) !== to) edges.push({ from: bare(f), to, kind: "gas" });
   }
-  const graph: WalletGraph = { campaignId: campaign.id, title: campaign.title, rail: campaign.settlementRail, nodes, edges, readAt: now, partial, readErrors };
-  // a graph whose chain reads failed is not worth keeping for ten minutes
-  if (readErrors > 0) return graph;
-  cache.set(campaign.id, { at: now, graph });
-  return graph;
+  return { campaignId: campaign.id, title: campaign.title, rail: campaign.settlementRail, nodes, edges, readAt: now, partial, readErrors };
+}
+
+/**
+ * SERVE THE LAST PICTURE AT ONCE, REDRAW BEHIND IT. The chain reads behind the gas edges take
+ * over a minute on the private rail, and the old rule ("a graph whose reads failed is not worth
+ * keeping") meant that on production — where one Starknet read usually fails — nothing was ever
+ * cached and every visitor waited the full build. Now the newest graph is always kept, in memory
+ * and on disk (so a restart does not start cold), and a request past the TTL (or past a minute
+ * when the last build had read errors) answers from the cache while one refresh runs behind it.
+ * Only a campaign nobody has ever drawn waits for its first build.
+ */
+const DISK = join(process.cwd(), "var", "graph-cache");
+const inflight = new Map<string, Promise<WalletGraph>>();
+function readDisk(id: string): { at: number; graph: WalletGraph } | null {
+  try {
+    const f = join(DISK, `${id}.json`);
+    if (!existsSync(f)) return null;
+    return JSON.parse(readFileSync(f, "utf8")) as { at: number; graph: WalletGraph };
+  } catch {
+    return null;
+  }
+}
+function writeDisk(id: string, entry: { at: number; graph: WalletGraph }): void {
+  try {
+    mkdirSync(DISK, { recursive: true });
+    writeFileSync(join(DISK, `${id}.json`), JSON.stringify(entry));
+  } catch (e) {
+    console.warn(`[graph] cache write failed for ${id}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+function refresh(campaign: Campaign, opts: { live?: boolean }): Promise<WalletGraph> {
+  const running = inflight.get(campaign.id);
+  if (running) return running;
+  const p = buildWalletGraph(campaign, opts)
+    .then((graph) => {
+      const entry = { at: Math.floor(Date.now() / 1000), graph };
+      cache.set(campaign.id, entry);
+      writeDisk(campaign.id, entry);
+      return graph;
+    })
+    .finally(() => inflight.delete(campaign.id));
+  inflight.set(campaign.id, p);
+  return p;
+}
+export async function walletGraphFor(campaign: Campaign, opts: { live?: boolean } = {}): Promise<WalletGraph> {
+  const now = Math.floor(Date.now() / 1000);
+  const hit = cache.get(campaign.id) ?? readDisk(campaign.id);
+  if (hit) {
+    cache.set(campaign.id, hit);
+    const maxAge = hit.graph.readErrors > 0 ? 60 : TTL;
+    if (now - hit.at >= maxAge) void refresh(campaign, opts).catch((e) => console.warn(`[graph] refresh failed for ${campaign.id}: ${e instanceof Error ? e.message : String(e)}`));
+    return hit.graph;
+  }
+  return refresh(campaign, opts);
 }
