@@ -1,0 +1,40 @@
+/* Sage for the Caribbean — the finance-track door. Paper, ink, one accent; prose density low, marks high. */
+.cb{max-width:1080px;margin:0 auto;padding:64px 24px 96px;color:var(--ink);font-family:var(--font-sans),Inter,system-ui,sans-serif}
+.cb .eyebrow{font-family:var(--font-mono),ui-monospace,monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+.cb h1{font-size:clamp(34px,5vw,58px);line-height:1.02;letter-spacing:-.035em;font-weight:600;margin:0 0 20px;max-width:18ch;text-wrap:balance}
+.cb .lede{font-size:20px;line-height:1.5;color:var(--ink-2,#4b4d52);max-width:60ch;margin:0}
+.cb h2{font-size:28px;letter-spacing:-.025em;font-weight:600;margin:0 0 8px;text-wrap:balance}
+.cb h3{font-size:17px;font-weight:600;margin:0 0 6px}
+.cb p{max-width:66ch;line-height:1.55;color:var(--ink-2,#4b4d52);margin:8px 0}
+.cb section{padding:44px 0;border-top:1px solid var(--border,#e6e4de)}
+.cb .lead{padding-top:0;border-top:0}
+.cb .ledger{display:flex;flex-wrap:wrap;gap:14px 28px;margin:26px 0 0;padding:16px 0;border-top:1px solid var(--border,#e6e4de);border-bottom:1px solid var(--border,#e6e4de);font-family:var(--font-mono),ui-monospace,monospace;font-size:14px;color:var(--ink-2,#4b4d52)}
+.cb .ledger b{color:var(--ink);font-weight:600;font-size:20px;margin-right:8px;font-variant-numeric:tabular-nums}
+.cb .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:18px}
+.cb .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:18px}
+.cb .read{border:1px solid var(--border,#e6e4de);border-radius:12px;padding:20px 22px;background:var(--paper,#fbfbf9)}
+.cb .read .v{font-family:var(--font-mono),ui-monospace,monospace;font-size:34px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:0 0 4px}
+.cb .read .v.ok{color:var(--green,#15803d)}
+.cb .read .k{font-size:13px;color:var(--ink-3,#7a7c80);letter-spacing:.06em;text-transform:uppercase;font-family:var(--font-mono),ui-monospace,monospace}
+.cb .read .vs{margin-top:10px;font-size:14px;color:var(--ink-2,#4b4d52)}
+.cb .steps{counter-reset:s;list-style:none;padding:0;margin:18px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.cb .steps li{border:1px solid var(--border,#e6e4de);border-radius:12px;padding:18px 20px;position:relative}
+.cb .steps li::before{counter-increment:s;content:counter(s,decimal-leading-zero);font-family:var(--font-mono),ui-monospace,monospace;font-size:12px;color:var(--accent);letter-spacing:.08em;display:block;margin-bottom:8px}
+.cb .steps li a{font-size:13px;font-family:var(--font-mono),ui-monospace,monospace;color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(194,65,12,.35)}
+.cb .steps li p{font-size:15px;margin:6px 0 10px}
+.cb .cur{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.cb .cur span{font-family:var(--font-mono),ui-monospace,monospace;font-size:13px;border:1px solid var(--border,#e6e4de);border-radius:999px;padding:4px 10px;color:var(--ink-2,#4b4d52)}
+.cb .cur span.on{border-color:var(--accent);color:var(--accent)}
+.cb table{border-collapse:collapse;width:100%;font-size:14px;margin-top:14px}
+.cb th{text-align:left;font-family:var(--font-mono),ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3,#7a7c80);padding:8px 10px;border-bottom:1px solid var(--border,#e6e4de);font-weight:600}
+.cb td{padding:10px 10px;border-bottom:1px solid var(--border,#e6e4de);vertical-align:top;color:var(--ink-2,#4b4d52)}
+.cb td b{color:var(--ink);font-weight:600}
+.cb code{font-family:var(--font-mono),ui-monospace,monospace;font-size:12.5px;background:var(--wash,#f3f2ed);border-radius:6px;padding:2px 6px;color:var(--ink)}
+.cb .status{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;font-family:var(--font-mono),ui-monospace,monospace}
+.cb .status.done{background:#e9f5ec;color:var(--green,#15803d)}
+.cb .status.sched{background:#fdf3e3;color:#b45309}
+.cb .ask{border:1px solid var(--border,#e6e4de);border-left:3px solid var(--accent);border-radius:0 12px 12px 0;padding:20px 24px;background:var(--wash,#f3f2ed)}
+.cb .ask p{max-width:none}
+.cb a.door{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;border-radius:10px;padding:10px 16px;font-weight:600;text-decoration:none}
+.cb .tbl{overflow-x:auto}
+@media (max-width:700px){.cb .read .v{font-size:28px}}

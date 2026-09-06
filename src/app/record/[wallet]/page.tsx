@@ -219,6 +219,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               <a href={`/api/record/${record.wallet}/export?multiple=2`}>
                 Download this record for a lender (CSV)
               </a>
+              {" · "}
+              <a href={`/record/${record.wallet}/statement`}>Print a verified income statement</a>
               <span>
                 Every row carries the transaction that settled it, so any line can be checked
                 on-chain without taking Sage&rsquo;s word for it.

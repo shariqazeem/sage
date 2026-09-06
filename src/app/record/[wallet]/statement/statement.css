@@ -1,0 +1,27 @@
+/* A verified income statement — the document a worker hands to a bank. Print-first. */
+.st{max-width:820px;margin:0 auto;padding:48px 28px 80px;color:var(--ink);font-family:var(--font-sans),Inter,system-ui,sans-serif;font-size:14px;line-height:1.5}
+.st-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:2px solid var(--ink)}
+.st-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.st-brand i{display:inline-flex;width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-style:normal;font-weight:800;font-size:13px;align-items:center;justify-content:center}
+.st-title{text-align:right}
+.st-title h1{font-size:22px;letter-spacing:-.02em;margin:0;font-weight:600}
+.st-title p{margin:4px 0 0;color:var(--ink-3,#7a7c80);font-family:var(--font-mono),ui-monospace,monospace;font-size:12px}
+.st-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px 24px;padding:18px 0;border-bottom:1px solid var(--border,#e6e4de)}
+.st-meta dt{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3,#7a7c80);font-family:var(--font-mono),ui-monospace,monospace}
+.st-meta dd{margin:2px 0 0;font-family:var(--font-mono),ui-monospace,monospace;font-size:13px;word-break:break-all}
+.st-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;padding:18px 0;border-bottom:1px solid var(--border,#e6e4de)}
+.st-sum .v{font-family:var(--font-mono),ui-monospace,monospace;font-size:22px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;margin:0}
+.st-sum .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3,#7a7c80);font-family:var(--font-mono),ui-monospace,monospace;margin:2px 0 0}
+.st h2{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3,#7a7c80);font-family:var(--font-mono),ui-monospace,monospace;margin:22px 0 8px;font-weight:600}
+.st table{width:100%;border-collapse:collapse;font-size:13px}
+.st th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3,#7a7c80);font-family:var(--font-mono),ui-monospace,monospace;padding:6px 8px;border-bottom:1px solid var(--border,#e6e4de);font-weight:600}
+.st td{padding:7px 8px;border-bottom:1px solid var(--border,#e6e4de);vertical-align:top;font-variant-numeric:tabular-nums}
+.st td.n{text-align:right;font-family:var(--font-mono),ui-monospace,monospace;white-space:nowrap}
+.st td.m{font-family:var(--font-mono),ui-monospace,monospace;font-size:12px}
+.st td a{color:var(--accent);text-decoration:none}
+.st-verify{margin-top:22px;padding:14px 16px;border:1px solid var(--border,#e6e4de);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--wash,#f3f2ed);font-size:13px}
+.st-verify code{font-family:var(--font-mono),ui-monospace,monospace;font-size:12px;word-break:break-all}
+.st-note{margin-top:14px;color:var(--ink-3,#7a7c80);font-size:12px;max-width:70ch}
+.st-print{margin:18px 0 0;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.st-withheld{color:var(--ink-3,#7a7c80);font-style:italic}
+@media print{.st{padding:0;max-width:none;font-size:12px}.st-print,.app-rail,nav,footer{display:none!important}.st td a{color:inherit}@page{margin:16mm}}

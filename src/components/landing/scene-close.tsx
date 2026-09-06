@@ -37,6 +37,7 @@ export function SceneClose({
         {/* The two doors a lender or a programme walks through — reachable from the front page,
             not only from inside a signed-in workspace. */}
         <p className="cl-doors mono">
+          <Link href="/caribbean">Sage for the Caribbean</Link>
           <Link href="/lender">For lenders</Link>
           <span className="cl-dot" aria-hidden />
           <Link href="/outcomes">Outcomes against the track&rsquo;s bar</Link>
