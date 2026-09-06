@@ -53,7 +53,7 @@ no seats: Sage earns on what it settles.
 | --- | --- |
 | `SageClaims` — our Cairo escrow, integrates the STRK20 pool directly | [`0x6fe4d0…1cf57`](https://voyager.online/contract/0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57) |
 | `SageVault` — Cairo settlement, the reward is not an argument it can pass | class `0x715ab98f…0ffa87` |
-| qualifying pool claims | 3 `privacy_invoke` collections into shielded notes, in [`strk20.json`](strk20.json) |
+| qualifying pool claims | 5 `privacy_invoke` collections into shielded notes, in [`strk20.json`](strk20.json) — the last two are both milestones of the first grant priced in a Caribbean currency (J$1,600), released on the private rail and collected by the recipient into shielded notes on 7 Sep |
 
 No owner, no admin, no pause, no upgrade path. No dependency on another project's contracts.
 35 tests on `SageClaims`, and every one of its eleven money guards verified by mutation — each

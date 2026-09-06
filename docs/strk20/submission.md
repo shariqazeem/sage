@@ -40,12 +40,15 @@ Class hashes and declare/deploy transactions: [README, "Live on Starknet mainnet
 | `0x74e73f29…164cb`  | A payout escrowed against a commitment — the worker's address appears nowhere in the leg                      |
 | `0x6ec8165b…ca67a3` | A bearer claim collected — the link, not the identity, is the key                                             |
 | `0x27653876…dbfe4` | The autonomous payout collected into a **shielded note** (`ClaimedPrivately`) — the only agent-decided one on the list |
+| `0x72838f50…83f8` · `0x2337afda…bb54` | The first grant priced in a Caribbean currency (J$1,600, two milestones of J$800 → $5.05 @ 158.27): each milestone judged by the agent, released by the vault, escrowed behind a commitment (`0x3f5560da…99cd`, `0x51a779fc…8e7b`) — the second escrow split by the waterfall into the worker's leg and the lender's repayment leg, two commitments in one deposit |
+| `0x5cb6e437…1593` · `0x359574f1…71f3` | **Both milestones collected into shielded notes** through the pool's `privacy_invoke` relayer (7 Sep): the secret is consumed inside the call, the recipient's address appears nowhere, and the amounts ($5.05, $3.20) leave the public ledger for good |
+| `0x3e701491…3454` · `0x604cf9c3…fef0` | A working-capital advance disbursed from the pot as a bearer claim, and the lender's repayment leg collected back — credit on the private rail, both directions |
 
 And the loop with **no human anywhere in it**, both on mainnet, both checkable now:
 autonomous payout `0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb`
 (judged from the submitter's own words → vault released → escrowed → claim link minted).
-Three Starknet payouts have settled to date — listed with the same prominence as every
-other settlement on https://sagepays.xyz/explorer.
+Fifteen Starknet payouts have settled to date, the last two in a Caribbean currency — listed with the
+same prominence as every other settlement on https://sagepays.xyz/explorer.
 
 ## The exact privacy claim
 
