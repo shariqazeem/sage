@@ -52,7 +52,8 @@ onboarding — stated as such everywhere it appears.
 **"Multi-currency?"** Obligations can be priced in 14 currencies, the Caribbean's own first (J$, TT$, EC$,
 Bds$, HTG, RD$, G$, B$, BZ$, SRD) plus the diaspora senders (CAD, GBP, EUR), converted once at a stamped,
 source-attributed rate. Settlement is always the USD stablecoin; the founder never does exchange
-arithmetic. Intra-regional corridor flow is **not yet measured** — no J$ obligation has settled yet.
+arithmetic. The first J$ obligation settled on 6 Sep — J$1,600 in two milestones of J$800 (→ $5.05 @ 158.27), receipts
+`0x72838f…83f8` and `0x2337af…bb54`. Intra-regional corridor flow is still one book, **not yet a corridor**.
 
 **"CARICOM FX matching?"** Netting becomes real on our own book the day obligations exist in two currencies;
 inventing counterparties this week would be an app, not infrastructure. One honest slide, no build.
@@ -80,8 +81,10 @@ registered wallet — and a signed earnings *floor* a lender can verify without 
 
 **"Who has actually been paid?"** 24 distinct people, 39 payouts, $63.60 across two mainnet rails, every row a
 transaction; an autonomous third-party agent earned under the same rules and has a credit file
-(`/record/0xccbf…768d`). The first *advance* is pending a funded campaign and a real earner — built,
-dry-run against live records, not yet disbursed.
+(`/record/0xccbf…768d`). The first *advance* was drawn and repaid on 6 Sep: $1.85 against $5.05 of verified inflow,
+taken from the record page in one click twelve minutes after the first J$ milestone paid, repaid in full from the
+next payout eight minutes later by the waterfall (`adv-1997e6ea-454`, `/record/0x04f1…f434`). A rehearsal with our
+own wallet standing in for the seller; the money, the escrows and the waterfall were real.
 
 **"What breaks if you disappear?"** Vaults are founder-owned on-chain; the operator can only settle inside
 their limits; refusals cost nothing; the code is open source. The record API is a plain JSON contract a

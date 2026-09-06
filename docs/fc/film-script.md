@@ -52,16 +52,17 @@ proves the money moved without saying to whom. And it refuses. Forty percent of 
 refused, with the reason on the record. That discipline is the product: a rail that pays
 everything is a leak."
 **HONEST cut:** replace Screen A with the AI-earner receipt (`/proof/0xb0120330…d827`) and the
-Starknet autonomous payout (`0x2b03ed65…49fb`), and say "this loop has run on both rails; the J$
-grant is scheduled."
+Starknet autonomous payout (`0x2b03ed65…49fb`). **No longer needed (6 Sep): the J$ grant settled** —
+receipts `0x72838f…83f8`, `0x2337af…bb54` — so the FUNDED cut is the true one.
 
 ### 6 · The credit file and the capital back in (2:35–3:25) · *real-world impact*
 **Screen:** `/record/<recipient>` — Sage Signals: pass rate, verified inflow, tenure, distinct
 funders. Then `/lender?wallet=…` — the facility: capacity as published arithmetic, the exact call an
 institution makes. **FUNDED cut:** the advance taken from the record page → the claim link → tranche
 two settling as two legs → "repaid".
-**HONEST cut:** the lender view's dry-run capacity on a real record, and "the first disbursement is
-pending — built, dry-run, not yet drawn."
+**HONEST cut:** no longer needed (6 Sep) — the advance was drawn ($1.85) and repaid in full from the next
+payout the same afternoon (`adv-1997e6ea-454`); the FUNDED cut is the true one. Say once that our own
+wallet stood in for the seller.
 **VO:** "Every verified payout accrues to a work record with deterministic credit signals —
 published formulas over receipts, never a score. And Sage lends against it: an advance sized by the
 lender's multiple on verified inflow, repaid by the next verified payouts through a waterfall.
@@ -90,5 +91,5 @@ real USDC. sagepays.xyz."
       `/record` + `/lender` · advance taken/repaid (FUNDED) · `/workspace/autopilot` rehearsal or live
       proposal · landing hero · `/outcomes`.
 - [ ] Refresh every on-screen number from the live pages on the day (`scripts/live-numbers.sh`).
-- [ ] No fabricated figures; the HONEST cut says "scheduled" where a run has not happened.
+- [x] No fabricated figures; every run in the film has happened (6 Sep) — the J$ grant and the advance are receipts, not plans. Say once that our own wallet stood in for the seller.
 - [ ] End card: "Thanks to GOAT Network, Metis, Starknet and the Future Caribbean partners."
