@@ -54,6 +54,20 @@ function normalizeRecordWallet(raw: string): string | null {
   return null;
 }
 
+/**
+ * EVERY WAY THIS WALLET IS WRITTEN. A Starknet address has no canonical padding: the wallet app
+ * reports `0x4f1f…`, a URL carries `0x04f1…`, a contract event the 64-wide form. Every reader of a
+ * wallet's rows must read under all of them — the record did, and the decided count beside it did
+ * not, so one record read "3 completions · of 0 judged" (6 Sep 2026). Lowercased, de-duplicated,
+ * the given form first. An EVM address has one spelling and comes back alone.
+ */
+export function walletSpellings(wallet: string): string[] {
+  const w = wallet.trim().toLowerCase();
+  const bare = w.slice(2).replace(/^0+/, "");
+  if (!bare) return [w];
+  return Array.from(new Set([w, `0x${bare}`, `0x${bare.padStart(64, "0")}`]));
+}
+
 export function buildWalletRecord(walletRaw: string): WalletRecord | null {
   // lowercase FIRST so a pasted "0X…"-prefixed or checksummed address still resolves
   const wallet = normalizeRecordWallet(walletRaw);
@@ -62,10 +76,7 @@ export function buildWalletRecord(walletRaw: string): WalletRecord | null {
   // Starknet addresses have no canonical padding, so the same wallet is written several ways. Try
   // the form given, then the zero-stripped and 64-wide forms, so a record is not empty merely
   // because the URL padded differently from the submission.
-  const bare = wallet.slice(2).replace(/^0+/, "");
-  const variants = Array.from(
-    new Set([wallet, `0x${bare}`, `0x${bare.padStart(64, "0")}`]),
-  );
+  const variants = walletSpellings(wallet);
   let paid = listPaidSubmissionsByWallet(wallet);
   for (const v of variants) {
     if (paid.length) break;

@@ -258,11 +258,14 @@ export function findArtifactTwin(campaignId: string, sha: string, excludeId: str
 /** Decided-outcome counts for one wallet (case-insensitive, like the paid listing). "Decided"
  *  means a terminal judgment was recorded — paid or rejected; pending/settling are in flight and
  *  a HOLD is a decision action that leaves the row pending, so neither belongs in a pass rate. */
-export function countDecidedSubmissionsByWallet(wallet: string): { paid: number; rejected: number } {
+export function countDecidedSubmissionsByWallet(wallet: string | string[]): { paid: number; rejected: number } {
+  // Every spelling the caller knows (walletSpellings) — a Starknet wallet is written several ways,
+  // and a count under one of them beside a record built under another read "of 0 judged".
+  const spellings = (Array.isArray(wallet) ? wallet : [wallet]).map((w) => w.toLowerCase());
   const rows = db
     .select({ status: submissions.status, c: sql<number>`count(*)` })
     .from(submissions)
-    .where(and(sql`lower(${submissions.wallet}) = ${wallet.toLowerCase()}`, inArray(submissions.status, ["paid", "rejected"])))
+    .where(and(inArray(sql`lower(${submissions.wallet})`, spellings), inArray(submissions.status, ["paid", "rejected"])))
     .groupBy(submissions.status)
     .all();
   const out = { paid: 0, rejected: 0 };

@@ -2,7 +2,7 @@ import "server-only";
 
 import { getCampaign } from "@/lib/db/campaigns";
 import { countDecidedSubmissionsByWallet } from "@/lib/db/campaigns";
-import { buildWalletRecord, type WalletRecord } from "./record";
+import { buildWalletRecord, type WalletRecord, walletSpellings } from "./record";
 
 /**
  * SAGE SIGNALS — the credit layer over the Verified Work Record (FC plan #1, the track's CORE ask:
@@ -148,7 +148,7 @@ export function computeCreditSignals(
 export function walletCreditSignals(walletRaw: string, nowSec = Math.floor(Date.now() / 1000)): { record: WalletRecord; signals: CreditSignals } | null {
   const record = buildWalletRecord(walletRaw);
   if (!record) return null;
-  const decided = countDecidedSubmissionsByWallet(record.wallet);
+  const decided = countDecidedSubmissionsByWallet(walletSpellings(record.wallet));
   return {
     record,
     signals: computeCreditSignals(record, decided, (id) => getCampaign(id)?.posterWallet ?? null, nowSec),

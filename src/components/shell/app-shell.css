@@ -10,8 +10,9 @@
    top mode-pill + (on narrow screens) the rail. Targets the known page containers. */
 html[data-app-shell="on"] .sb-shell,
 html[data-app-shell="on"] .lx-wrap,
-html[data-app-shell="on"] .agent-page {
-  padding-top: 78px;
+html[data-app-shell="on"] .agent-page,
+html[data-app-shell="on"] .spp {
+  padding-top: 78px; /* .spp: the record and statement pages share the receipt layout; its own 28px sat under the pill */
 }
 @media (max-width: 1180px) {
   html[data-app-shell="on"] .sb-shell,
