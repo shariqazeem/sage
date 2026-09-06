@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ClaimClient } from "./claim-client";
+import { claimCommitment } from "@/lib/starknet/claim-link";
 
 /**
  * The states a worker can land in, pinned.
@@ -82,6 +83,25 @@ describe("the collection screen", () => {
   });
 
   /** A network wobble must never read as "your money is gone". */
+  it("re-reads the link when the fragment changes in the same tab — a used first link never masks a waiting second one", async () => {
+    const SECOND = "0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";
+    const f = vi.fn(async (url: string) =>
+      url.includes(encodeURIComponent(claimCommitment(SECRET))) ? okStatus({ claimed: true }) : okStatus({ amountUsd: 3.2 }),
+    );
+    vi.stubGlobal("fetch", f);
+    landOn(`#${SECRET}`);
+    render(<ClaimClient claims={null} token={null} />);
+    expect(await screen.findByText(/already collected/i)).toBeTruthy();
+    // the worker pastes the next link into the same tab: a fragment-only navigation, no reload
+    landOn(`#${SECOND}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(await screen.findByText("$3.20")).toBeTruthy();
+    expect(screen.queryByText(/already collected/i)).toBeNull();
+    const asked = f.mock.calls.map((c) => String(c[0]));
+    expect(asked.some((u) => u.includes(encodeURIComponent(claimCommitment(SECOND))))).toBe(true);
+    expect(asked.some((u) => u.includes(SECOND))).toBe(false);
+  });
+
   it("reassures rather than alarms when the chain cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     landOn(`#${SECRET}`);

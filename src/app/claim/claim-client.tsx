@@ -44,35 +44,59 @@ export function ClaimClient({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const found = secretFromUrl(window.location.href);
-    if (!found) {
-      setStatus({ kind: "no-link" });
-      return;
-    }
-    setSecret(found);
-
-    // Only the commitment leaves the browser.
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/claim/status?commitment=${encodeURIComponent(claimCommitment(found))}`,
-        );
-        if (!res.ok) {
-          setStatus({ kind: "unreachable" });
-          return;
-        }
-        const data = (await res.json()) as {
-          exists: boolean;
-          claimed: boolean;
-          amountUsd: number;
-        };
-        if (!data.exists) setStatus({ kind: "missing" });
-        else if (data.claimed) setStatus({ kind: "collected" });
-        else setStatus({ kind: "ready", amountUsd: data.amountUsd });
-      } catch {
-        setStatus({ kind: "unreachable" });
+    let current = 0;
+    /**
+     * READ THE LINK IN THE ADDRESS BAR, EVERY TIME IT CHANGES. The secret lives in the URL fragment,
+     * and a browser treats a fragment-only change as a same-document navigation: no reload, no
+     * remount. A worker who collected one payout and then pasted their next link into the same tab
+     * saw the FIRST link's "Already collected" over the second payout (6 Sep 2026 — milestone two of
+     * a grant, $3.20, sat unclaimed while its owner believed it was gone). So the read runs on mount
+     * and again on `hashchange`, and a stale answer from an earlier read can never land on a later link.
+     */
+    const read = () => {
+      const seq = ++current;
+      setError(null);
+      setRecipient("");
+      const found = secretFromUrl(window.location.href);
+      if (!found) {
+        setSecret(null);
+        setStatus({ kind: "no-link" });
+        return;
       }
-    })();
+      setSecret(found);
+      setStatus({ kind: "reading" });
+
+      // Only the commitment leaves the browser.
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/claim/status?commitment=${encodeURIComponent(claimCommitment(found))}`,
+          );
+          if (seq !== current) return;
+          if (!res.ok) {
+            setStatus({ kind: "unreachable" });
+            return;
+          }
+          const data = (await res.json()) as {
+            exists: boolean;
+            claimed: boolean;
+            amountUsd: number;
+          };
+          if (seq !== current) return;
+          if (!data.exists) setStatus({ kind: "missing" });
+          else if (data.claimed) setStatus({ kind: "collected" });
+          else setStatus({ kind: "ready", amountUsd: data.amountUsd });
+        } catch {
+          if (seq === current) setStatus({ kind: "unreachable" });
+        }
+      })();
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => {
+      current++;
+      window.removeEventListener("hashchange", read);
+    };
   }, []);
 
   const collect = useCallback(async () => {
