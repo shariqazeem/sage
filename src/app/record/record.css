@@ -251,3 +251,11 @@
 .yw-err { color: #dc2626; font-size: 13px; margin: 8px 0 0; }
 .yw-ok { color: #15803d; font-size: 13px; margin: 8px 0 0; }
 @media (max-width: 640px) { .yw-grid { grid-template-columns: 1fr; } }
+
+/* PHONE WIDTH: the mission title and the amount shared one line and overlapped — the title wraps,
+   the amount keeps the right edge. */
+@media (max-width: 640px) {
+  .rec-row { flex-wrap: wrap; align-items: flex-start; }
+  .rec-mission { white-space: normal; flex: 1 1 60%; min-width: 0; }
+  .rec-amt { margin-left: auto; }
+}
