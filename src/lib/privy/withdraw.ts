@@ -1,3 +1,4 @@
+import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { encodeFunctionData, erc20Abi, getAddress, type Address } from "viem";
@@ -42,7 +43,7 @@ export async function withdrawViaPrivy(
   const to = getAddress(target);
 
   const baseSpec: MandateSpec = {
-    name: `mandate:${wallet.chatId}`,
+    name: mandateName(wallet.chatId),
     factory: getAddress(cfg.factory),
     usdc,
     perCampaignCapBase: BigInt(wallet.perCampaignCapBase),

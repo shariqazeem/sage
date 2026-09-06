@@ -1,3 +1,4 @@
+import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { encodeFunctionData, erc20Abi, getAddress, type Address } from "viem";
@@ -43,7 +44,7 @@ export async function stopCampaignViaPrivy(wallet: AgentWallet, vaultAddress: Ad
   const owner = getAddress(wallet.privyWalletAddress);
 
   const baseSpec: MandateSpec = {
-    name: `mandate:${wallet.chatId}`,
+    name: mandateName(wallet.chatId),
     factory: getAddress(cfg.factory),
     usdc: getAddress(cfg.token ?? GOAT_USDC),
     perCampaignCapBase: BigInt(wallet.perCampaignCapBase),

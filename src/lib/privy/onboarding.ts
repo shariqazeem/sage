@@ -1,3 +1,4 @@
+import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { getAddress, type Address } from "viem";
@@ -37,7 +38,7 @@ export async function onboardFounder(input: OnboardInput): Promise<OnboardResult
 
   // 1) the mandate — a Privy policy: create via Sage's factory, approve/fund ≤ cap, sweep only home.
   const policyId = await createMandatePolicy({
-    name: `mandate:${input.chatId}`,
+    name: mandateName(input.chatId),
     factory: cfg.factory,
     usdc: cfg.token ?? GOAT_USDC,
     reclaim,
@@ -80,7 +81,7 @@ export async function onboardWalletless(input: WalletlessInput): Promise<Onboard
 
   // 1) the mandate — create/approve/fund/activate within cap, NO sweep rule (leftover stays).
   const policyId = await createMandatePolicy({
-    name: `mandate:${input.chatId}`,
+    name: mandateName(input.chatId),
     factory: cfg.factory,
     usdc: cfg.token ?? GOAT_USDC,
     perCampaignCapBase: BigInt(input.perCampaignCapBase),
