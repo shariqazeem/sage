@@ -150,6 +150,10 @@ export function denominated(
   localAmount: number | null | undefined,
   usdAmount: number,
 ): string | null {
-  if (!campaign?.currency || campaign.currency === "USD" || !campaign.rate || localAmount === null || localAmount === undefined) return null;
-  return `${formatLocal(localAmount, campaign.currency)} → $${usdAmount.toFixed(2)} @ ${campaign.rate.toFixed(2)}`;
+  if (!campaign?.currency || campaign.currency === "USD" || !campaign.rate) return null;
+  // A split grant stamps the rate and the total on the campaign but not a local amount per
+  // milestone; the milestone's share in the founder's currency is its USD share at that same
+  // stamped rate — the obligation as it WAS, never a fresh conversion.
+  const local = localAmount ?? usdAmount * campaign.rate;
+  return `${formatLocal(local, campaign.currency)} → $${usdAmount.toFixed(2)} @ ${campaign.rate.toFixed(2)}`;
 }

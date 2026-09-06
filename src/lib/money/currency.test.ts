@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  CURRENCIES, currencyOf, isSupportedCurrency, toUsdBase, fromUsdBase,
-  formatLocal, corridorCost, isQuoteFresh, RATE_MAX_AGE_SEC, type RateQuote,
-} from "./currency";
+import { CURRENCIES, currencyOf, isSupportedCurrency, toUsdBase, fromUsdBase, formatLocal, corridorCost, isQuoteFresh, RATE_MAX_AGE_SEC, type RateQuote, denominated } from "./currency";
 import { quoteFor, __clearRateCache } from "./rates";
 
 const q = (currency: string, rate: number, asOf = 1_787_961_751): RateQuote =>
@@ -124,5 +121,17 @@ describe("formatting reads like the currency it is", () => {
 
   it("degrades to a plain code for anything unsupported", () => {
     expect(formatLocal(10, "ZZZ")).toBe("10.00 ZZZ");
+  });
+});
+
+describe("denominated — a split grant's milestone shows its share in the founder's currency", () => {
+  it("derives the local share at the stamped rate when no per-milestone amount was stamped", () => {
+    expect(denominated({ currency: "JMD", rate: 158.266074 }, null, 5.054779)).toBe("J$800.00 → $5.05 @ 158.27");
+  });
+  it("keeps a stamped per-milestone amount when there is one", () => {
+    expect(denominated({ currency: "JMD", rate: 158.37 }, 5000, 31.57)).toBe("J$5,000.00 → $31.57 @ 158.37");
+  });
+  it("is silent for USD", () => {
+    expect(denominated({ currency: "USD", rate: 1 }, null, 5)).toBeNull();
   });
 });
