@@ -11,15 +11,16 @@ export const SCENES = {
   // The farm, drawn from the chain: one operator, twelve wallets, every slot.
   async graph(c) {
     await c.go(`/graph/${FARMED_GIG}`);
+    // the graph draws only once its chain reads return — wait for the first node, up to a minute
+    await c.page.waitForSelector('svg[aria-label^="Wallet graph"] circle', { timeout: 60000 }).catch(() => {});
+    await c.wait(600);
     c.mark("start");
     await c.wait(1200);
     c.mark("graph");
-    await c.caption("One operator. Twelve wallets. Every slot.", 1800);
     await c.wait(2200);
     await c.scrollTo(420, 1100);
     c.mark("scrolled");
     await c.wait(1400);
-    await c.caption("Drawn from the chain, not from a story.", 1600);
     await c.wait(2000);
     await c.scrollTo(900, 1100);
     c.mark("legend");
@@ -36,7 +37,6 @@ export const SCENES = {
     await c.wait(1600);
     await c.scrollTo(1100, 1000);
     c.mark("leg");
-    await c.caption("Released. Escrowed. Collected.", 1800);
     await c.wait(2400);
     await c.scrollTo(1700, 1000);
     c.mark("chain");
@@ -51,7 +51,6 @@ export const SCENES = {
     await c.scrollTo(380, 900);
     c.mark("rows");
     await c.wait(1400);
-    await c.caption("Every payout. Every refusal. One ledger.", 1700);
     await c.scrollTo(900, 1400);
     c.mark("refusals");
     await c.wait(1800);
@@ -89,7 +88,6 @@ export const SCENES = {
       await c.wait(1500);
       await c.scrollTo(420, 1000);
       c.mark("call");
-      await c.caption("One call. A verified cash-flow record.", 1700);
       await c.wait(2000);
       await c.scrollTo(1000, 1000);
       c.mark("advance");
@@ -104,7 +102,6 @@ export const SCENES = {
     await c.wait(1500);
     await c.scrollTo(1100, 1000);
     c.mark("call");
-    await c.caption("One call. A verified cash-flow record.", 1700);
     await c.wait(2000);
     await c.scrollTo(1700, 1000);
     c.mark("advance");
@@ -188,7 +185,6 @@ export const SCENES = {
     await p.keyboard.type("800", { delay: 90 });
     c.mark("priced");
     await c.wait(2200);
-    await c.caption("Priced in J$. Paid in USDC at the stamped rate.", 1800);
     await c.wait(2400);
     // the plan panel: what Sage will do, the total, the evidence rule
     const panel = p.getByText(/what sage will do/i).first();
@@ -240,7 +236,6 @@ export const SCENES = {
     c.mark("move");
     await c.scrollTo(".nm-body", 900).catch(() => {});
     await c.wait(1800);
-    await c.caption("Proposed at $0. Recorded before it moves.", 1800);
     await c.wait(2600);
     c.mark("hold");
   },
