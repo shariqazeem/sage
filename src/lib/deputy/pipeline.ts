@@ -847,7 +847,7 @@ export async function runDeputyOnSubmission(
   // Counted across every wallet that is this PERSON (nullifier, chain links, declared links) —
   // one string was exactly what a wallet farm exploited. `countPaidByWalletInCampaign` stays for
   // the single-wallet readers; the money decision reads the person.
-  const walletPaid = countPaidByWalletsInCampaign(campaign.id, self);
+  const walletPaid = countPaidByWalletsInCampaign(campaign.id, personWallets(submission.wallet));
   if (walletPaid >= campaign.perWalletPayoutCap) {
     const reason = TERMINAL_REASON.walletCap(campaign.perWalletPayoutCap);
     agentLog(cid, "wallet_cap", { walletPaid, cap: campaign.perWalletPayoutCap });
