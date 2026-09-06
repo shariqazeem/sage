@@ -113,10 +113,26 @@ export interface DraftInput {
 
 export type DraftResult = { ok: true; draft: GigDraft; notes: string[]; model: string | null } | { ok: false; error: string };
 
-type Complete = (opts: { system: string; user: string }) => Promise<{ json: unknown; model?: string | null }>;
+type Complete = (opts: { system: string; user: string; maxTokens: number }) => Promise<{ json: unknown; model?: string | null }>;
 
-const defaultComplete: Complete = async ({ system, user }) => {
-  const r = await llmCompleteJson({ system, user, maxTokens: 2200, temperature: 0.3, model: missionModel(), lane: "MISSION", parsePolicy: "repair" });
+/**
+ * THE ANSWER HAS TO FIT, OR THE FOUNDER LOSES THE CAMPAIGN.
+ *
+ * maxTokens is the size of the ANSWER (provider overhead is added centrally, provider-profile.ts). A
+ * milestone is not small — a title, a deliverable, numbered instructions, three to six criteria and an
+ * evidence contract run 700 to 1,100 tokens of JSON each. The flat 2,200 fitted one milestone; asking
+ * the same budget for a two-milestone grant cut the object mid-string, the parse failed, both rounds
+ * burned, and the founder was told their sentence "didn't fit the brief shape" (7 Sep 2026, measured
+ * live on the two-milestone demo sentence). Over-budgeting costs nothing — billing is per token
+ * produced — while under-budgeting silently loses a real campaign, so scale with what was asked for.
+ */
+export function draftTokenBudget(milestones: number | null): number {
+  const n = Math.min(Math.max(milestones ?? 1, 1), 12);
+  return Math.min(1400 + 1200 * n, 8000);
+}
+
+const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
+  const r = await llmCompleteJson({ system, user, maxTokens, temperature: 0.3, model: missionModel(), lane: "MISSION", parsePolicy: "repair" });
   return { json: r.json, model: r.model ?? null };
 };
 
@@ -160,7 +176,7 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
   for (let round = 0; round < 2; round++) {
     let raw: unknown;
     try {
-      const r = await complete({ system: GIG_DRAFT_SYSTEM, user: userMessage(input, feedback) });
+      const r = await complete({ system: GIG_DRAFT_SYSTEM, user: userMessage(input, feedback), maxTokens: draftTokenBudget(readStatedTerms(intent).milestoneCount) });
       raw = r.json;
       model = r.model ?? model;
     } catch (e) {
