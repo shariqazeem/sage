@@ -35,7 +35,18 @@ export default async function StatementPage({ params }: { params: Promise<{ wall
   const withheld = isRecordPrivate(record.wallet);
   const entries = [...record.entries].sort((a, b) => b.at - a.at);
   const payers = new Map<string, string>();
-  for (const e of entries) if (!payers.has(e.campaignId)) payers.set(e.campaignId, getCampaign(e.campaignId)?.posterWallet ?? "—");
+  // THE OBLIGATION'S OWN CURRENCY: when the buyer priced the work in J$ or TT$, the statement says
+  // so beside the settled dollars, at the rate stamped when it was composed — what a local bank reads.
+  const local = new Map<string, { currency: string; rate: number }>();
+  for (const e of entries) {
+    if (!payers.has(e.campaignId)) {
+      const c = getCampaign(e.campaignId);
+      payers.set(e.campaignId, c?.posterWallet ?? "—");
+      if (c?.currency && c.currency !== "USD" && c.rate) local.set(e.campaignId, { currency: c.currency, rate: c.rate });
+    }
+  }
+  const anyLocal = local.size > 0;
+  const fmtLocal = (usdAmt: number, l: { currency: string; rate: number }) => `${l.currency} ${(usdAmt * l.rate).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   const digest = createHash("sha256").update(JSON.stringify(entries.map((e) => [e.at, e.campaignId, e.amountUsd, e.txHash, e.chainId]))).digest("hex");
   const generated = new Date();
   const base = siteUrl();
@@ -63,7 +74,7 @@ export default async function StatementPage({ params }: { params: Promise<{ wall
       {withheld && <p className="st-note st-withheld">The account holder has chosen to withhold amounts from public view. Counts, dates and transactions are shown; the holder can print the full statement while signed in.</p>}
       <h2>Verified payments</h2>
       <table>
-        <thead><tr><th>Date</th><th>Payer</th><th>Engagement</th><th>Kind</th><th>Rail</th><th>Transaction</th><th style={{ textAlign: "right" }}>Amount</th></tr></thead>
+        <thead><tr><th>Date</th><th>Payer</th><th>Engagement</th><th>Kind</th><th>Rail</th><th>Transaction</th><th style={{ textAlign: "right" }}>Amount</th>{anyLocal && <th style={{ textAlign: "right" }}>Priced in</th>}</tr></thead>
         <tbody>
           {entries.map((e) => (
             <tr key={e.txHash}>
@@ -74,6 +85,7 @@ export default async function StatementPage({ params }: { params: Promise<{ wall
               <td>{railOf(e.chainId)}</td>
               <td className="m"><Link href={e.proofPath}>{short(e.txHash)}</Link></td>
               <td className="n">{withheld ? "withheld" : usd(e.amountUsd)}</td>
+              {anyLocal && <td className="n">{!withheld && local.get(e.campaignId) ? fmtLocal(e.amountUsd, local.get(e.campaignId)!) : "—"}</td>}
             </tr>
           ))}
         </tbody>

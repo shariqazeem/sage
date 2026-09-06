@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Copy, Link2, Loader2, MessageCircle, Users, Wallet, X } from "lucide-react";
 import { short, since } from "@/lib/format";
+import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
 
 export interface PeopleView {
@@ -23,6 +24,22 @@ const Avatar = ({ m }: { m: PeopleView["members"][number] }) =>
 export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleView) {
   const router = useRouter();
   const [invite, setInvite] = useState<{ url: string; telegram: string } | null>(null);
+  // INVITE MANY — paste a list, get one single-use door per person, forward each on WhatsApp.
+  const [manyOpen, setManyOpen] = useState(false);
+  const [names, setNames] = useState("");
+  const [many, setMany] = useState<{ name: string; url: string; telegram: string }[] | null>(null);
+  const inviteMany = async () => {
+    const list = names.split(/\r?\n|,|;/).map((n) => n.trim()).filter(Boolean).slice(0, 50);
+    if (list.length === 0) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/workspaces/invites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceId: ws.id, count: list.length, single: true }) });
+      const json = (await res.json()) as { error?: string; invites?: { url: string; telegram: string }[] };
+      if (!res.ok || !json.invites) { setErr(json.error ?? "Could not create the invites."); return; }
+      setMany(list.map((name, i) => ({ name, url: json.invites![i]!.url, telegram: json.invites![i]!.telegram })));
+    } catch { setErr("Could not create the invites."); } finally { setBusy(false); }
+  };
+  const inviteText = (name: string) => `${name ? `Hi ${name}, ` : ""}${ws.name} invited you to do paid work through Sage. Open this link to join — no wallet needed, an email is enough:`;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -83,10 +100,41 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
         <section className="ws-card">
           <div className="ws-card-h"><h2><Link2 size={15} /> Share an invite</h2><button className="ws-chip" onClick={() => setInvite(null)} aria-label="Close"><X size={11} /></button></div>
           <p className="ws-note" style={{ margin: "0 0 4px" }}>Two links, one door. The first joins with a wallet they already have or an email. The second opens Telegram, where Sage gives them a wallet — no app, no seed phrase.</p>
-          <div className="ws-invite"><code>{invite.url}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.url, "web")}>{copied === "web" ? "Copied" : <><Copy size={13} /> Copy</>}</button></div>
+          <div className="ws-invite"><code>{invite.url}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.url, "web")}>{copied === "web" ? "Copied" : <><Copy size={13} /> Copy</>}</button><WhatsAppShare text={inviteText("")} url={invite.url} className="sage-btn sage-btn-sm" label="WhatsApp" /></div>
           <div className="ws-invite"><code>{invite.telegram}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.telegram, "tg")}>{copied === "tg" ? "Copied" : <><MessageCircle size={13} /> Copy</>}</button></div>
         </section>
       )}
+      <section className="ws-card">
+        <div className="ws-card-h"><h2><Users size={15} /> Invite many</h2>{many && <button className="ws-chip" onClick={() => { setMany(null); setNames(""); }} aria-label="Start over"><X size={11} /></button>}</div>
+        {!many ? (
+          <>
+            <p className="ws-note" style={{ margin: "0 0 8px" }}>Paste your people, one per line — a cooperative&rsquo;s members, a programme&rsquo;s cohort, a team of contractors. Each gets a single-use door you can forward on WhatsApp; they join with an email or a wallet, and every payment lands on their own record.</p>
+            {!manyOpen ? (
+              <button className="sage-btn sage-btn-sm" onClick={() => setManyOpen(true)}><Users size={14} /> Invite a list</button>
+            ) : (
+              <>
+                <textarea className="lx-textarea" rows={5} value={names} onChange={(e) => setNames(e.target.value)} placeholder={"Marcia Brown\nDevon Campbell\nAisha Thomas"} style={{ width: "100%", marginBottom: 8 }} />
+                <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void inviteMany()} disabled={busy || !names.trim()}>{busy ? <><Loader2 size={14} className="sage-spin2" /> Creating…</> : <><Link2 size={14} /> Create {names.split(/\r?\n|,|;/).filter((n) => n.trim()).length || ""} invites</>}</button>
+              </>
+            )}
+          </>
+        ) : (
+          <ul className="ws-list">
+            {many.map((r) => (
+              <li key={r.url} className="ws-row">
+                <div className="ws-row-main">
+                  <p className="ws-row-title"><span className="t">{r.name}</span></p>
+                  <p className="ws-row-sub"><code style={{ fontSize: 12 }}>{r.url}</code></p>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button className="sage-btn sage-btn-sm" onClick={() => void copy(r.url, r.url)}>{copied === r.url ? "Copied" : <><Copy size={13} /> Copy</>}</button>
+                  <WhatsAppShare text={inviteText(r.name)} url={r.url} className="sage-btn sage-btn-sm" label="WhatsApp" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       {err && <p className="ws-err">{err}</p>}
 
       <section className="ws-card">

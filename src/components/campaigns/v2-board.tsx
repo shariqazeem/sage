@@ -25,6 +25,7 @@ import { useSiwe } from "@/lib/auth/use-siwe";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { buildStarknetEvidenceTypedData } from "@/lib/campaigns/starknet-evidence-typed-data";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
+import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "./embedded-wallet-bridge";
@@ -1003,6 +1004,7 @@ function PaidShare({ reward, tx, wallet }: { reward: string; tx: string; wallet?
         <a className="sage-sub-link" href={`/proof/${tx}`}>
           <ExternalLink size={13} /> View your proof receipt
         </a>
+        <WhatsAppShare text={shareText} />
         {/* THE ASSET THE PAYOUT LEFT BEHIND. Being paid is the moment; the record is what it
             builds — the verified history a lender can underwrite. Handing it here, at the delight
             moment, is what turns one payout into a reason to come back. */}

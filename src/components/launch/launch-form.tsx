@@ -200,7 +200,12 @@ export function LaunchForm() {
   // value during hydration and the param silently loses (measured — the toggle stayed on
   // "test" with ?do=pay in the address bar). Same pattern as the agent page's ?ask=.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("do") === "pay") setMode("pay");
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("do") === "pay") setMode("pay");
+    // PAY ONE PERSON, VERIFIED: /launch?do=pay&invite=1&one=1 opens the composer preset for a
+    // single named recipient behind an invite-only door — a supplier, a contractor, a grantee.
+    if (q.get("invite") === "1") setInviteOnly(true);
+    if (q.get("one") === "1") setP("slots", "1");
   }, []);
   const [pay, setPay] = useState<PayDraft>({ who: "", slots: "1" });
   const [tranches, setTranches] = useState<Tranche[]>([blankTranche()]);

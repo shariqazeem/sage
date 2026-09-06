@@ -18,6 +18,7 @@ import { AttestCard } from "./attest-card";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { publicAdvances } from "@/lib/advance/public";
 import { money, short } from "@/lib/format";
+import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import { siteUrl } from "@/lib/site";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
@@ -221,6 +222,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               </a>
               {" · "}
               <a href={`/record/${record.wallet}/statement`}>Print a verified income statement</a>
+              {" · "}
+              <WhatsAppShare text="My verified income statement, every line a settlement on a public ledger:" url={`${siteUrl()}/record/${record.wallet}/statement`} label="Send on WhatsApp" className="rec-share" />
               <span>
                 Every row carries the transaction that settled it, so any line can be checked
                 on-chain without taking Sage&rsquo;s word for it.

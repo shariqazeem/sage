@@ -94,7 +94,8 @@ export default function CaribbeanPage() {
             <tr><td><b>The same record for a spreadsheet</b></td><td><code>GET /api/record/&lt;wallet&gt;/export</code></td><td>One row per payout: date, payer, campaign, amount, transaction, receipt.</td></tr>
             <tr><td><b>A statement the worker can hand to a bank</b></td><td><Link href={`/record/${RECORD}/statement`}>/record/&lt;wallet&gt;/statement</Link></td><td>A printable verified income statement with a verification link and a digest of the underlying record.</td></tr>
             <tr><td><b>Underwriting on verified inflow</b></td><td><Link href={`/lender?wallet=${RECORD}`}>/lender</Link></td><td>Capacity as published arithmetic; the lender sets the multiple. The advance call an institution&rsquo;s system makes is printed on the page, operator-authorized today.</td></tr>
-            <tr><td><b>Paying your own people</b></td><td><Link href="/launch">/launch</Link></td><td>Invite-only work for contractors, apprentices and micro-suppliers; verified before it pays; every payment on their record.</td></tr>
+            <tr><td><b>Paying your own people</b></td><td><Link href="/workspace/people">workspace → people</Link></td><td>Paste a list — a cooperative&rsquo;s members, a cohort, a team — and get one single-use door per person to forward on WhatsApp. They join with an email; every payment lands on their record.</td></tr>
+            <tr><td><b>Paying one person for one thing</b></td><td><Link href="/launch?do=pay&invite=1&one=1">/launch, pay one person</Link></td><td>A supplier, a contractor, a grantee: say what must be true, price it in your currency, share the door on WhatsApp. Verified before it pays.</td></tr>
           </tbody>
         </table></div>
       </section>
