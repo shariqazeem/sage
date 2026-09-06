@@ -82,6 +82,6 @@ Building for @futurecaribb? Open @sagedeputybot on Telegram and send your URL. S
 No wallet app, no gas, nothing to install. Five teams tonight.
 [self-reply] https://sagepays.xyz/docs/telegram
 
-## After the gig is funded
-### I · The Caribbean receipt (Post 2 in the runsheet, unchanged) · composer J$ clip
+## The receipt thread — no longer waits for the gig
+### I · The Caribbean receipt — THE RUN HAPPENED (6 Sep): post the thread in `docs/posts/2026-09-06-the-run.md` · attach `post-images/receipt-jmd.png`, then the composer J$ clip
 ### J · Results (Post 8, unchanged, every bracket from the explorer)
