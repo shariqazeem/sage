@@ -35,6 +35,31 @@ It already happened, unattended, on Starknet mainnet:
 | agent judged the work and released the reward | [`0x2b03ed65…49fb`](https://voyager.online/tx/0x2b03ed6532b29771723c996a667b468e367935d0c2ff839840d5f00656449fb) |
 | Sage escrowed it behind `poseidon(secret)` | [`0x68ebf197…8af4`](https://voyager.online/tx/0x68ebf197f6e236fdb5ba62076d9a62446bcb4e8ee44155c1dcfe3f78b8d8af4) |
 
+**And on 6–7 September the whole loop ran on this rail in one afternoon** — an obligation priced in a
+Caribbean currency, paid milestone by milestone, borrowed against, repaid, and collected into shielded
+notes. Every step below is a mainnet transaction you can open. Nothing here is a testnet or a diagram.
+
+| # | step | transaction |
+| --- | --- | --- |
+| 1 | milestone one judged 7/7 and released by the vault — J$800 → $5.05 at a stamped rate, **58 s from submit to settled** | [`0x72838f50…83f8`](https://voyager.online/tx/0x72838f509d6dae3e570e6536167c166f06d4a92f68fce849c10fe1b29983f8) |
+| 2 | escrowed behind `poseidon(secret)` — the recipient's address appears nowhere in the leg | [`0x3f5560da…99cd`](https://voyager.online/tx/0x3f5560da3ab523ac61482273d55fac1828af323bf7bdfca38a0af6b147d99cd) |
+| 3 | **collected into a shielded note** through the pool's `privacy_invoke` — the secret is consumed inside the call | [`0x5cb6e437…1593`](https://voyager.online/tx/0x5cb6e4377d4a618d578983fc296b6e34418de14badfb1ea00d59f4a87b71593) |
+| 4 | a working-capital **advance disbursed** from the pot as a bearer claim, sized from verified inflow on the record the payouts wrote | [`0x3e701491…3454`](https://voyager.online/tx/0x3e701491bac266374f7f78c91ddec30ae0bbaae4cf40f02c499474c3963454) |
+| 5 | milestone two judged and released | [`0x2337afda…bb54`](https://voyager.online/tx/0x2337afda7ef311c4bd515d66feb78f0903f16b3cc23e49ef7fb7702fe1bb54) |
+| 6 | that payout escrowed as **two commitments in one deposit** — the worker's remainder and the lender's repayment leg, split by the waterfall | [`0x51a779fc…e8e7b`](https://voyager.online/tx/0x51a779fc1dc5ac7ae3574b57b7535e908ddc9683cc3c89bb7181adb495e8e7b) |
+| 7 | the worker's remainder **collected into a shielded note** | [`0x359574f1…71f3`](https://voyager.online/tx/0x359574f123c1dec30e8e20b55ef2321783fe1311a7f42e9c5bb264aaa7a71f3) |
+| 8 | the lender's leg collected back to the pot — **advance repaid in full, 8 minutes after it was drawn** | [`0x604cf9c3…fef0`](https://voyager.online/tx/0x604cf9c39ee0460ceaabbd415701408117eecdc4aa7e9281c9f614dae0ffef0) |
+
+Credit, on the private rail, in both directions: the money went out against a record the agent itself
+wrote, and came back out of the next payout without a collections step. The public receipts prove each
+payment moved. Neither the amounts the recipient now holds, nor where they went, are on any ledger —
+steps 3 and 7 ended in shielded notes. Receipts:
+[one](https://sagepays.xyz/proof/0x72838f509d6dae3e570e6536167c166f06d4a92f68fce849c10fe1b29983f8) ·
+[two](https://sagepays.xyz/proof/0x2337afda7ef311c4bd515d66feb78f0903f16b3cc23e49ef7fb7702fe1bb54) ·
+[the record](https://sagepays.xyz/record/0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434).
+A rehearsal in which our own second wallet stood in for the recipient; the money, the vault, the
+escrows and the advance are real and on the public ledger.
+
 No human approved that payout. Confidence 0.92 against a 0.85 threshold, judged by a model that
 cannot state an amount — the vault derives it — and gated by rules the agent has no way around.
 
