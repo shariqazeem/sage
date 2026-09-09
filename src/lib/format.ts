@@ -73,7 +73,7 @@ export const money = (v: number, chainId: number): string => {
     minimumFractionDigits: Number.isInteger(r) ? 0 : 2,
     maximumFractionDigits: 2,
   });
-  return `${n} test mUSDC`;
+  return `${n} ${tokenLabel(chainId)}`;
 };
 
 /** Capitalize the first letter. */

@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { composeProof, isFoundProof } from "@/lib/deputy/proof";
 import { getCampaignByPayoutTx } from "@/lib/db/campaigns";
 import { siteUrl } from "@/lib/site";
+import { tokenSymbol } from "@/lib/format";
 
 // Reads the real tx (DB + chain) via the canonical composer, so it runs on Node.
 export const runtime = "nodejs";
@@ -40,7 +41,7 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
   const isTestnet = proof ? proof.safety.isMainnet === false : false;
   const amount = proof
     ? isTestnet
-      ? `${proof.human.amountUsd.toFixed(2)} mUSDC`
+      ? `${proof.human.amountUsd.toFixed(2)} ${tokenSymbol(proof.chain.chainId)}`
       : `$${proof.human.amountUsd.toFixed(2)}`
     : "Give an agent an allowance";
   const sub = proof

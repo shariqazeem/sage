@@ -17,7 +17,7 @@ import { Sparkles,
   Zap,
   Hand,
 } from "lucide-react";
-import { reward, networkLabel, short, since, rewardAligned } from "@/lib/format";
+import { reward, networkLabel, short, since, rewardAligned, tokenLabel } from "@/lib/format";
 import { ConnectWallet } from "@/components/app/connect-wallet";
 import {
   SageActivity,
@@ -400,8 +400,7 @@ function Console({ data }: { data: WorkspaceData }) {
       </p>
       {data.isTestnet && (
         <p className="cw-testnote">
-          Payouts here are real on-chain testnet transactions. Test mUSDC has no
-          monetary value.
+          Payouts here are real on-chain testnet transactions. {tokenLabel(data.chainId).replace(/^test /, "Test ")} has no monetary value.
         </p>
       )}
 

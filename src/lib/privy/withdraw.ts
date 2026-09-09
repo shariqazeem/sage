@@ -38,7 +38,7 @@ export async function withdrawViaPrivy(
   amountBase: bigint,
 ): Promise<PrivyExecResult> {
   const cfg = launchChainConfig(wallet.chainId);
-  if (!cfg.factory) throw new Error("GOAT campaign factory not configured");
+  if (!cfg.factory) throw new Error(`campaign factory not configured for chain ${wallet.chainId}`);
   const usdc = getAddress(cfg.token ?? GOAT_USDC);
   const to = getAddress(target);
 

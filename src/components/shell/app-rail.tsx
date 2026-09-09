@@ -37,6 +37,7 @@ const NAV = [
     group: "Workspace",
     items: [
       { href: "/workspace", label: "Home", Icon: House },
+      { href: "/workspace/account", label: "Account", Icon: Wallet },
       { href: "/dashboard", label: "Work", Icon: Blocks },
       { href: "/launch", label: "Post work", Icon: Rocket },
       { href: "/workspace/autopilot", label: "Let Sage run it", Icon: Compass },
