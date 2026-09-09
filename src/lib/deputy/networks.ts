@@ -62,6 +62,28 @@ export const GOAT_MAINNET_CHAIN_ID = 2345;
 export const GOAT_USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8" as Address;
 
 /**
+ * Arc — Circle's chain. USDC is the NATIVE gas token there (18 decimals at the gas layer) and also
+ * answers as an ERC-20 at this fixed address with 6 decimals: one balance, two faces. Every amount
+ * Sage stores is 6-decimal base units and every token call goes through the ERC-20 face, so the two
+ * precisions never meet in code. The founder-facing consequence: funding a wallet with USDC IS
+ * funding its gas — no second token to find, which is the reason Arc is the default rail.
+ */
+export const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
+export const ARC_TESTNET_CHAIN_ID = 5042002;
+
+/**
+ * The EVM chain new launches default to. Arc first (2026-09-10, the founder's call: "arc default,
+ * goat behind an explicit choice but the history stays"). GOAT remains fully supported for the
+ * campaigns already on it and for anyone who picks it; nothing about them changes.
+ */
+export const DEFAULT_EVM_LAUNCH_CHAIN = ARC_TESTNET_CHAIN_ID;
+
+/** The env-name prefix for a chain's deploy-time addresses and operator key (`<PREFIX>_CAMPAIGN_FACTORY_ADDRESS`, …). */
+export function railEnvPrefix(chainId: number): "ARC" | "GOAT" | "METIS" {
+  return chainId === ARC_TESTNET_CHAIN_ID ? "ARC" : chainId === 2345 ? "GOAT" : "METIS";
+}
+
+/**
  * Registry key for Starknet mainnet. NOT an EVM chain id — Starknet has none, and its own
  * identifier (SN_MAIN, 0x534e5f4d41494e) exceeds JavaScript's safe integer range, so it cannot be
  * stored in the integer column this keys. It exists so a campaign settled on Starknet renders its
@@ -113,6 +135,20 @@ export const CHAINS: Record<number, ChainConfig> = {
     isMainnet: true,
     evm: true,
     gas: "legacy",
+  },
+  5042002: {
+    chainId: 5042002,
+    key: "arc-testnet",
+    name: "Arc Testnet",
+    chipLabel: "Arc Testnet",
+    rpcUrl: process.env.ARC_RPC_URL ?? "https://rpc.testnet.arc.io",
+    explorerUrl: "https://testnet.arcscan.app",
+    usdcAddress: ARC_USDC,
+    nativeSymbol: "USDC",
+    nativeName: "USDC",
+    isMainnet: false,
+    evm: true,
+    gas: "eip1559-fallback",
   },
   2345: {
     chainId: 2345,

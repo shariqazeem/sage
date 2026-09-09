@@ -1,3 +1,4 @@
+import { chainConfig } from "@/lib/deputy/networks";
 import "server-only";
 import { getAddress, type Hash } from "viem";
 import { publicClient } from "@/lib/deputy/chain";
@@ -73,15 +74,17 @@ export async function grantGasStipend(
 }
 
 /** The sentence a founder reads when the operator did not cover the gas — each reason is something they can act on. */
-export function gasRefusalMessage(reason: StipendRefusal, wallet: string): string {
+export function gasRefusalMessage(reason: StipendRefusal, wallet: string, chainId = 2345): string {
+  const c = chainConfig(chainId);
+  const ask = c.nativeSymbol === "USDC" ? `Send a little more USDC to ${wallet} (on ${c.name}, USDC is the gas)` : `Send about 0.00001 ${c.nativeSymbol} (${c.name}'s gas token) to ${wallet}`;
   switch (reason) {
     case "already_covered":
-      return `Sage covered this wallet's launch gas once already. Send about 0.00001 BTC (GOAT's gas token) to ${wallet}, then try again.`;
+      return `Sage covered this wallet's launch gas once already. ${ask}, then try again.`;
     case "operator_reserve":
-      return `Sage's gas reserve is low right now, so it could not cover the launch gas. Send about 0.00001 BTC to ${wallet}, or try again later.`;
+      return `Sage's gas reserve is low right now, so it could not cover the launch gas. ${ask}, or try again later.`;
     case "send_failed":
-      return `Sage tried to cover the launch gas and the transfer did not land. Try again in a minute, or send about 0.00001 BTC to ${wallet}.`;
+      return `Sage tried to cover the launch gas and the transfer did not land. Try again in a minute, or ${ask.charAt(0).toLowerCase()}${ask.slice(1)}.`;
     default:
-      return `The agent wallet needs a little native BTC for gas (BTC is GOAT's gas token). Ask the founder to send about 0.00001 BTC to ${wallet}, then try again.`;
+      return `The agent wallet needs a little native ${c.nativeSymbol} for gas. ${ask}, then try again.`;
   }
 }

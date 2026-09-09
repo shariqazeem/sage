@@ -2,8 +2,8 @@ import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { getAddress, type Address } from "viem";
-import { GOAT_USDC } from "@/lib/deputy/networks";
-import { launchChainConfig } from "@/lib/launch/deployment-service";
+import { chainConfig } from "@/lib/deputy/networks";
+import { defaultLaunchChain, launchChainConfig } from "@/lib/launch/deployment-service";
 import { createServerWallet } from "./client";
 import { createMandatePolicy } from "./mandate";
 import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
@@ -15,7 +15,12 @@ import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
  * binding (a fresh wallet + mandate). Returns the address the founder funds with their allowance.
  */
 
-const GOAT = 2345;
+/** The chain a new treasury lives on: TREASURY_CHAIN_ID when it is set and configured, else the first configured launch chain (Arc first). */
+export function treasuryChainId(): number {
+  const raw = Number(process.env.TREASURY_CHAIN_ID);
+  if (Number.isFinite(raw) && raw > 0 && launchChainConfig(raw).configured) return raw;
+  return defaultLaunchChain();
+}
 
 export interface OnboardInput {
   chatId: string;
@@ -23,6 +28,8 @@ export interface OnboardInput {
   founderAddress: Address;
   /** the per-campaign spend cap in USDC base units (6dp). */
   perCampaignCapBase: number;
+  /** the chain the treasury lives on; defaults to the configured launch default (Arc first). */
+  chainId?: number;
 }
 
 export interface OnboardResult {
@@ -32,15 +39,16 @@ export interface OnboardResult {
 }
 
 export async function onboardFounder(input: OnboardInput): Promise<OnboardResult> {
-  const cfg = launchChainConfig(GOAT);
-  if (!cfg.factory) throw new Error("GOAT campaign factory not configured");
+  const chainId = input.chainId ?? treasuryChainId();
+  const cfg = launchChainConfig(chainId);
+  if (!cfg.factory || !cfg.token) throw new Error(`${chainConfig(chainId).name} campaign factory not configured`);
   const reclaim = getAddress(input.founderAddress);
 
   // 1) the mandate — a Privy policy: create via Sage's factory, approve/fund ≤ cap, sweep only home.
   const policyId = await createMandatePolicy({
     name: mandateName(input.chatId),
     factory: cfg.factory,
-    usdc: cfg.token ?? GOAT_USDC,
+    usdc: cfg.token,
     reclaim,
     perCampaignCapBase: BigInt(input.perCampaignCapBase),
   });
@@ -56,7 +64,7 @@ export async function onboardFounder(input: OnboardInput): Promise<OnboardResult
     privyWalletAddress: wallet.address,
     policyId,
     perCampaignCapBase: input.perCampaignCapBase,
-    chainId: GOAT,
+    chainId,
   });
 
   return { privyWalletAddress: wallet.address, perCampaignCapBase: input.perCampaignCapBase, reclaimAddress: reclaim };
@@ -66,6 +74,8 @@ export interface WalletlessInput {
   chatId: string;
   /** the per-campaign spend cap in USDC base units (6dp). */
   perCampaignCapBase: number;
+  /** the chain the treasury lives on; defaults to the configured launch default (Arc first). */
+  chainId?: number;
 }
 
 /**
@@ -76,14 +86,15 @@ export interface WalletlessInput {
  * The account is its own on-chain guardian for the campaigns it funds.
  */
 export async function onboardWalletless(input: WalletlessInput): Promise<OnboardResult> {
-  const cfg = launchChainConfig(GOAT);
-  if (!cfg.factory) throw new Error("GOAT campaign factory not configured");
+  const chainId = input.chainId ?? treasuryChainId();
+  const cfg = launchChainConfig(chainId);
+  if (!cfg.factory || !cfg.token) throw new Error(`${chainConfig(chainId).name} campaign factory not configured`);
 
   // 1) the mandate — create/approve/fund/activate within cap, NO sweep rule (leftover stays).
   const policyId = await createMandatePolicy({
     name: mandateName(input.chatId),
     factory: cfg.factory,
-    usdc: cfg.token ?? GOAT_USDC,
+    usdc: cfg.token,
     perCampaignCapBase: BigInt(input.perCampaignCapBase),
   });
 
@@ -100,7 +111,7 @@ export async function onboardWalletless(input: WalletlessInput): Promise<Onboard
     privyWalletAddress: wallet.address,
     policyId,
     perCampaignCapBase: input.perCampaignCapBase,
-    chainId: GOAT,
+    chainId,
   });
 
   return { privyWalletAddress: wallet.address, perCampaignCapBase: input.perCampaignCapBase, reclaimAddress: self };

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/networks";
+import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
@@ -21,7 +21,7 @@ import { reward, launchToken, type PlanView } from "../types";
  * The server allowlist and the chain registry are unchanged, so campaigns already on the testnet keep
  * working — this only stops offering it to anyone new.
  */
-const LAUNCH_CHAINS = [2345];
+const LAUNCH_CHAINS = [DEFAULT_EVM_LAUNCH_CHAIN, 2345];
 function onLaunchChain(chainId: number | null): boolean {
   return chainId != null && LAUNCH_CHAINS.includes(chainId);
 }
@@ -526,11 +526,14 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign pays real USDC.</p>
+          <p className="lxd-own">This campaign pays USDC{chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).isMainnet ? "" : ` on ${chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}`}.</p>
           {/* The wallet's own dialog will name the chain, so the button names it too — matching
               what the founder is about to see is clarity, not chain-speak. */}
-          <button className="lx-btn" onClick={() => void siwe.switchToChain(2345)}>
-            Switch network to continue <span className="lxd-net-fine">GOAT Mainnet</span>
+          <button className="lx-btn" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
+            Switch network to continue <span className="lxd-net-fine">{chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel}</span>
+          </button>
+          <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
+            Use GOAT Mainnet instead <span className="lxd-net-fine">real USDC, BTC gas</span>
           </button>
         </div>
       ) : (
@@ -540,7 +543,12 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
           </button>
           {siwe.chainId !== 2345 && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
-              Switch to real USDC <span className="lxd-net-fine">GOAT Mainnet</span>
+              Use GOAT Mainnet instead <span className="lxd-net-fine">real USDC, BTC gas</span>
+            </button>
+          )}
+          {siwe.chainId !== DEFAULT_EVM_LAUNCH_CHAIN && (
+            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
+              Use {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel} <span className="lxd-net-fine">USDC is the gas</span>
             </button>
           )}
         </div>

@@ -58,6 +58,13 @@ function normalizeKey(raw: string): `0x${string}` {
 }
 
 function loadOperatorKey(chainId: number): `0x${string}` {
+  if (chainConfig(chainId).chainId === 5042002) {
+    const raw = readKey(["ARC_OPERATOR_PRIVATE_KEY", "GOAT_AGENT_PRIVATE_KEY"]);
+    if (!raw) {
+      throw new Error("Arc operator key not configured (set ARC_OPERATOR_PRIVATE_KEY).");
+    }
+    return normalizeKey(raw);
+  }
   if (chainConfig(chainId).chainId === 2345) {
     const raw = readKey(["GOAT_AGENT_PRIVATE_KEY"]);
     if (!raw) {

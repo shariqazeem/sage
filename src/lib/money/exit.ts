@@ -51,6 +51,7 @@ export interface ExitPicture {
  * before they are paid, not after.
  */
 const LIQUIDITY: Record<number, Liquidity> = {
+  5042002: "testnet", // Arc Testnet — mainnet is where it becomes broad
   2345: "limited", // GOAT Network
   1088: "limited", // Metis Andromeda
   59902: "testnet", // Metis Sepolia

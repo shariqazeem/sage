@@ -27,7 +27,9 @@ export const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`;
 import { chainConfig } from "@/lib/deputy/networks";
 
 export const isTestnetChain = (chainId: number): boolean => !chainConfig(chainId).isMainnet;
-export const tokenSymbol = (chainId: number): string => (isTestnetChain(chainId) ? "mUSDC" : "USDC");
+export const tokenSymbol = (chainId: number): string => (isTestnetChain(chainId) && chainId !== 5042002 ? "mUSDC" : "USDC");
+/** "test mUSDC" on Metis Sepolia, "test USDC" on Arc testnet, "USDC" on a mainnet. */
+export const tokenLabel = (chainId: number): string => (isTestnetChain(chainId) ? `test ${tokenSymbol(chainId)}` : "USDC");
 export const networkLabel = (chainId: number): string =>
   `${chainConfig(chainId).chipLabel}${isTestnetChain(chainId) ? " · Testnet" : ""}`;
 
@@ -42,7 +44,7 @@ export const reward = (base: number, chainId: number): string => {
     minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
     maximumFractionDigits: 2,
   });
-  return isTestnetChain(chainId) ? `${n} test mUSDC` : `$${n}`;
+  return isTestnetChain(chainId) ? `${n} ${tokenLabel(chainId)}` : `$${n}`;
 };
 
 /**
@@ -55,7 +57,7 @@ export const reward = (base: number, chainId: number): string => {
 export const rewardAligned = (base: number, chainId: number): string => {
   const v = Math.round((base / 1e6) * 100) / 100;
   const n = v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return isTestnetChain(chainId) ? `${n} test mUSDC` : `$${n}`;
+  return isTestnetChain(chainId) ? `${n} ${tokenLabel(chainId)}` : `$${n}`;
 };
 
 /**

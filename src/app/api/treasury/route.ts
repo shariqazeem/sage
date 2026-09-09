@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const founder = await getFounderAddress();
   if (!founder) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  if (founderChain(founder) !== "evm") return NextResponse.json({ error: "The treasury launches on GOAT, so it binds to an Ethereum account — sign in with one (an email account works)." }, { status: 400 });
+  if (founderChain(founder) !== "evm") return NextResponse.json({ error: "The treasury launches on an EVM chain, so it binds to an Ethereum account — sign in with one (an email account works)." }, { status: 400 });
   if (!privyConfigured()) return NextResponse.json({ error: "Treasuries aren't configured on this deployment." }, { status: 503 });
   let body: { perCampaignCapUsd?: unknown };
   try {

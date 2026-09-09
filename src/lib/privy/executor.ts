@@ -3,7 +3,7 @@ import "server-only";
 import type { Address, Hex } from "viem";
 import { writePublicClient } from "@/lib/deputy/chain";
 import { explorerTxUrl } from "@/lib/deputy/networks";
-import { signGoatTransaction, type EvmTxRequest } from "./client";
+import { signEvmTransaction, type EvmTxRequest } from "./client";
 
 /**
  * Execute on-chain calls with a founder's Privy wallet on GOAT (2345). This is the parallel of the
@@ -55,7 +55,8 @@ export async function executeViaPrivy(
   ]);
   // GOAT rejects a tip below 130000 wei; floor it well above that (still a negligible cost), and let
   // maxFee cover a bumped base fee plus the tip so a base-fee wiggle between blocks can't underprice.
-  const maxPriorityFeePerGas = BigInt(500_000); // wei — ~4× GOAT's 130000 minimum
+  // GOAT wants ~4× its 130000-wei minimum tip; every other chain says what it wants.
+  const maxPriorityFeePerGas = chainId === 2345 ? BigInt(500_000) : await client.estimateMaxPriorityFeePerGas().catch(() => BigInt(1_000_000_000));
   const baseFee = block.baseFeePerGas ?? (await client.getGasPrice());
   const maxFeePerGas = bump(baseFee) + maxPriorityFeePerGas;
 
@@ -69,7 +70,7 @@ export async function executeViaPrivy(
     max_priority_fee_per_gas: toHex(maxPriorityFeePerGas),
   };
 
-  const signed = await signGoatTransaction(walletId, tx);
+  const signed = await signEvmTransaction(walletId, tx, chainId);
   const txHash = await client.sendRawTransaction({ serializedTransaction: signed });
   const receipt = await client.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {

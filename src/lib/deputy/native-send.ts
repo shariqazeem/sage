@@ -10,7 +10,12 @@ import { chainConfig, viemChainFor } from "./networks";
  * USDC for its launch. Same key, same chain registry, same 1559-then-legacy strategy.
  */
 function operatorKey(chainId: number): `0x${string}` {
-  const raw = (chainConfig(chainId).chainId === 2345 ? process.env.GOAT_AGENT_PRIVATE_KEY : (process.env.OPERATOR_PRIVATE_KEY ?? process.env.PRIVATE_KEY))?.trim();
+  const c = chainConfig(chainId).chainId;
+  const raw = (c === 2345
+    ? process.env.GOAT_AGENT_PRIVATE_KEY
+    : c === 5042002
+      ? (process.env.ARC_OPERATOR_PRIVATE_KEY ?? process.env.GOAT_AGENT_PRIVATE_KEY)
+      : (process.env.OPERATOR_PRIVATE_KEY ?? process.env.PRIVATE_KEY))?.trim();
   if (!raw) throw new Error("operator key not configured");
   return (raw.startsWith("0x") ? raw : `0x${raw}`) as `0x${string}`;
 }

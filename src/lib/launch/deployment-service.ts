@@ -21,7 +21,7 @@ import { deserializePlan } from "./serde";
 import { verifyPlanForApproval, type DeploymentReadyPlan } from "./approve";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import { buildDeployBundle, deriveDeploymentInputs, type DeployPlanBundle, type DeploymentSettings } from "./deploy-plan";
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, railEnvPrefix } from "@/lib/deputy/networks";
 import type { Deployment } from "@/lib/db/schema";
 
 /** The default launch chain when a founder's wallet doesn't pin a supported one. */
@@ -30,7 +30,13 @@ export const LAUNCH_CHAIN_ID = 59902;
 /** Chains the self-serve launch wizard may deploy to. A chain is only truly enabled
  *  when its V2 factory + operator + token are configured (see `isLaunchChain`), so
  *  GOAT (2345) turns on exactly when its GOAT_* addresses are set — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [59902, 2345];
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [5042002, 2345, 59902];
+
+/** The chain a launch defaults to when nothing chose one: the first ENABLED chain that is actually configured. */
+export function defaultLaunchChain(): number {
+  for (const id of LAUNCH_ENABLED_CHAINS) if (launchChainConfig(id).configured) return id;
+  return LAUNCH_CHAIN_ID;
+}
 
 export interface LaunchChainConfig {
   chainId: number;
@@ -43,9 +49,7 @@ export interface LaunchChainConfig {
 
 /** The V2 factory address for a chain (server env), or null when unconfigured. */
 function factoryAddress(chainId: number): Address | null {
-  const raw =
-    (chainId === 2345 ? process.env.GOAT_CAMPAIGN_FACTORY_ADDRESS : process.env.METIS_CAMPAIGN_FACTORY_ADDRESS) ??
-    process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS;
+  const raw = process.env[`${railEnvPrefix(chainId)}_CAMPAIGN_FACTORY_ADDRESS`] ?? process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS;
   return raw ? safeAddr(raw) : null;
 }
 
@@ -54,7 +58,8 @@ function operatorConfiguredAddress(chainId: number): Address | null {
   // Prefer the public operator address (no key required to preview/configure). The attach-
   // time agreement check independently confirms the on-chain operator equals Sage's real
   // signer, so a wrong value here fails closed at attachment.
-  const raw = chainId === 2345 ? process.env.GOAT_OPERATOR_ADDRESS : process.env.NEXT_PUBLIC_OPERATOR_ADDRESS;
+  const prefix = railEnvPrefix(chainId);
+  const raw = prefix === "METIS" ? process.env.NEXT_PUBLIC_OPERATOR_ADDRESS : process.env[`${prefix}_OPERATOR_ADDRESS`];
   return raw ? safeAddr(raw) : null;
 }
 

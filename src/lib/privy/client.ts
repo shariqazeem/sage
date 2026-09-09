@@ -117,9 +117,14 @@ export interface EvmTxRequest {
  * address throws here instead of returning a signature.
  */
 export async function signGoatTransaction(walletId: string, tx: EvmTxRequest): Promise<`0x${string}`> {
+  return signEvmTransaction(walletId, tx, GOAT_CHAIN_ID);
+}
+
+/** Sign a transaction for any EVM chain Sage runs on (Arc, GOAT, Metis); the chain id goes into the signature. */
+export async function signEvmTransaction(walletId: string, tx: EvmTxRequest, chainId: number): Promise<`0x${string}`> {
   const r = await privyPost<{ data?: { signed_transaction?: string } }>(`/wallets/${walletId}/rpc`, {
     method: "eth_signTransaction",
-    params: { transaction: { ...tx, chain_id: GOAT_CHAIN_ID } },
+    params: { transaction: { ...tx, chain_id: chainId } },
   });
   const signed = r.data?.signed_transaction;
   if (!signed) throw new Error("privy: eth_signTransaction returned no signed_transaction");

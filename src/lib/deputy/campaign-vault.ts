@@ -252,7 +252,9 @@ function realFactoryAddress(chainId: number): Address | null {
   const raw =
     (chainId === 2345
       ? process.env.GOAT_CAMPAIGN_FACTORY_ADDRESS
-      : process.env.METIS_CAMPAIGN_FACTORY_ADDRESS) ??
+      : chainId === 5042002
+        ? process.env.ARC_CAMPAIGN_FACTORY_ADDRESS
+        : process.env.METIS_CAMPAIGN_FACTORY_ADDRESS) ??
     process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS;
   if (!raw) return null;
   try {

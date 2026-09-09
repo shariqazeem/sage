@@ -7,7 +7,7 @@ import { House, Sparkles } from "lucide-react";
 import { AppRail } from "./app-rail";
 import { NetworkChip } from "@/components/app/network-chip";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
-import { GOAT_MAINNET_CHAIN_ID, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { DEFAULT_EVM_LAUNCH_CHAIN, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import "./app-shell.css";
 import { isAppRoute } from "./routes";
 
@@ -47,7 +47,7 @@ function ContextPills() {
   return (
     <div className="ctx-pills">
       <NetworkChip
-        chainId={founder.chain === "starknet" ? STARKNET_MAINNET_KEY : GOAT_MAINNET_CHAIN_ID}
+        chainId={founder.chain === "starknet" ? STARKNET_MAINNET_KEY : DEFAULT_EVM_LAUNCH_CHAIN}
       />
     </div>
   );

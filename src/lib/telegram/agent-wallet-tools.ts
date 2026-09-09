@@ -18,7 +18,7 @@ import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
-import { GOAT_USDC } from "@/lib/deputy/networks";
+import { GOAT_USDC, chainConfig } from "@/lib/deputy/networks";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listLaunchablePlans } from "@/lib/campaigns/launchable";
@@ -58,14 +58,14 @@ const err = (message: string): ToolResult => ({ content: [{ type: "text", text: 
  */
 export const MIN_GAS_WEI = BigInt(3_000_000_000_000); // ~0.000003 BTC, the 4-tx deploy with headroom
 
-/** Native (BTC on GOAT) balance in wei. */
-export async function nativeBalanceWei(address: string): Promise<bigint> {
-  return publicClient(2345).getBalance({ address: getAddress(address) });
+/** Native gas-token balance in wei (BTC on GOAT, USDC itself on Arc). */
+export async function nativeBalanceWei(address: string, chainId = 2345): Promise<bigint> {
+  return publicClient(chainId).getBalance({ address: getAddress(address) });
 }
 
-export async function usdcBalanceBase(address: string): Promise<bigint> {
-  return publicClient(2345).readContract({
-    address: GOAT_USDC,
+export async function usdcBalanceBase(address: string, chainId = 2345): Promise<bigint> {
+  return publicClient(chainId).readContract({
+    address: chainConfig(chainId).usdcAddress ?? GOAT_USDC,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [getAddress(address)],
@@ -349,7 +349,7 @@ export async function callAgentWalletTool(
         if (!(capUsd > 0) || capUsd > 100_000) {
           return err("Ask the founder for a per-campaign cap between 1 and 100000 USDC, then call again with perCampaignCapUsd.");
         }
-        const result = await onboardWalletless({ chatId, perCampaignCapBase: Math.round(capUsd * 1_000_000) });
+        const result = await onboardWalletless({ chatId, perCampaignCapBase: Math.round(capUsd * 1_000_000), chainId: 2345 }); // Telegram stays on GOAT until its tools read the wallet's own chain
         return ok({
           ok: true,
           walletAddress: result.privyWalletAddress,

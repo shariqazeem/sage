@@ -63,7 +63,7 @@ export interface JobView {
   updatedAt: number;
 }
 
-import { reward as networkReward, isTestnetChain } from "@/lib/format";
+import { reward as networkReward, isTestnetChain, tokenLabel } from "@/lib/format";
 import { GOAT_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /**
@@ -77,7 +77,6 @@ export const reward = (base: string | number, chainId: number = GOAT_MAINNET_CHA
   networkReward(Number(base), chainId);
 
 /** The token unit label for an already-humanized amount (mainnet → "USDC"; testnet → "test mUSDC"). */
-export const launchToken = (chainId: number = GOAT_MAINNET_CHAIN_ID) =>
-  isTestnetChain(chainId) ? "test mUSDC" : "USDC";
+export const launchToken = (chainId: number = GOAT_MAINNET_CHAIN_ID) => tokenLabel(chainId);
 
 export const shortHash = (h: string) => (h && h.length > 18 ? `${h.slice(0, 10)}…${h.slice(-6)}` : h);

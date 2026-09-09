@@ -9,6 +9,7 @@ import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { gasRefusalMessage, grantGasStipend } from "./gas-stipend";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { sameFounder } from "@/lib/auth/founder";
+import { chainConfig } from "@/lib/deputy/networks";
 
 export type TreasuryLaunch =
   | { ok: true; campaignId: string; vault: string; steps: { step: string; txHash: string; explorerUrl: string }[] }
@@ -20,20 +21,28 @@ export interface TreasuryStatus {
   reclaimAddress: string;
   perCampaignCapUsd: number;
   balanceUsd: number;
-  gasBtc: string | null;
+  chainId: number;
+  network: string;
+  /** the gas token's symbol; "USDC" means funding the wallet funds its gas too */
+  nativeSymbol: string;
+  gasNative: string | null;
   enoughGas: boolean | null;
 }
 
 export async function webTreasuryStatus(founderAddress: string): Promise<TreasuryStatus | null> {
   const t = getWebTreasury(founderAddress);
   if (!t) return null;
-  const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress).catch(() => null), nativeBalanceWei(t.privyWalletAddress).catch(() => null)]);
+  const c = chainConfig(t.chainId);
+  const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress, t.chainId).catch(() => null), nativeBalanceWei(t.privyWalletAddress, t.chainId).catch(() => null)]);
   return {
     address: t.privyWalletAddress,
     reclaimAddress: t.founderAddress,
     perCampaignCapUsd: t.perCampaignCapBase / 1e6,
     balanceUsd: balance === null ? 0 : Number(balance) / 1e6,
-    gasBtc: gas === null ? null : (Number(gas) / 1e18).toFixed(8),
+    chainId: t.chainId,
+    network: c.name,
+    nativeSymbol: c.nativeSymbol,
+    gasNative: gas === null ? null : (Number(gas) / 1e18).toFixed(8),
     enoughGas: gas === null ? null : gas >= MIN_GAS_WEI,
   };
 }
@@ -52,14 +61,14 @@ export async function launchFromTreasury(founderAddress: string, jobId: string):
   const loaded = loadApprovedPlan(jobId);
   if (!loaded) return { ok: false, reason: "not_ready", message: "Couldn't load the approved plan." };
   const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
-  const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress), nativeBalanceWei(t.privyWalletAddress)]);
-  const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: MIN_GAS_WEI, address: t.privyWalletAddress });
+  const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress, t.chainId), nativeBalanceWei(t.privyWalletAddress, t.chainId)]);
+  const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: MIN_GAS_WEI, address: t.privyWalletAddress, chainId: t.chainId });
   let pf = preflight(gas);
   if (!pf.ok && pf.reason === "needsGas") {
     // The USDC is there and only gas is missing: the operator covers the launch floor, once.
-    const stipend = await grantGasStipend({ wallet: t.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: MIN_GAS_WEI });
-    if (stipend.granted) pf = preflight(await nativeBalanceWei(t.privyWalletAddress));
-    else pf = { ok: false, reason: "needsGas", message: gasRefusalMessage(stipend.reason, t.privyWalletAddress) };
+    const stipend = await grantGasStipend({ chainId: t.chainId, wallet: t.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: MIN_GAS_WEI });
+    if (stipend.granted) pf = preflight(await nativeBalanceWei(t.privyWalletAddress, t.chainId));
+    else pf = { ok: false, reason: "needsGas", message: gasRefusalMessage(stipend.reason, t.privyWalletAddress, t.chainId) };
   }
   if (!pf.ok) return { ok: false, reason: pf.reason, message: pf.message };
   try {

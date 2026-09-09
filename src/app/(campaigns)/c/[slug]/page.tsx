@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { SageMark } from "@/components/brand/sage-mark";
 import { getAddress } from "viem";
 import { Check, ShieldCheck } from "lucide-react";
-import { usd, reward as fmtReward, networkLabel, rewardAligned as fmtRewardAligned } from "@/lib/format";
+import { usd, reward as fmtReward, networkLabel, rewardAligned as fmtRewardAligned, tokenLabel } from "@/lib/format";
 import {
   ensureFlagshipCampaign,
   getCampaign,
@@ -174,7 +174,7 @@ export default async function CampaignPublicPage({
               </span>
             </div>
             {e.isTestnet && (
-              <p className="v2-testnote">Payouts here are real on-chain testnet transactions. Test mUSDC has no monetary value.</p>
+              <p className="v2-testnote">Payouts here are real on-chain testnet transactions. {tokenLabel(campaign.chainId).replace(/^test /, "Test ")} has no monetary value.</p>
             )}
           </div>
         </div>

@@ -7,7 +7,7 @@ import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import "@/styles/wallet-connect.css";
-import { evmChains } from "@/lib/deputy/networks";
+import { evmChains, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 
 /**
@@ -40,7 +40,7 @@ interface MilestoneDraft {
   effortMinutes: string;
 }
 
-const GOAT_CHAIN_ID = 2345;
+const GOAT_CHAIN_ID = DEFAULT_EVM_LAUNCH_CHAIN; // the EVM launch default (Arc first); the name is historical
 
 function blankMilestone(): MilestoneDraft {
   return {

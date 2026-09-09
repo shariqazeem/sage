@@ -1,4 +1,5 @@
 "use client";
+import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 
 import { statedHeadcount } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
@@ -403,7 +404,7 @@ export function LaunchForm() {
           t.verify === "page"
             ? { kind: "public_url", expectedText: [t.expectedText.trim()] }
             : t.verify === "onchain"
-              ? { kind: "onchain_tx", chainId: 2345, to: t.toAddr.trim() }
+              ? { kind: "onchain_tx", chainId: DEFAULT_EVM_LAUNCH_CHAIN, to: t.toAddr.trim() }
               : { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" };
         const proofLine =
           t.verify === "page"

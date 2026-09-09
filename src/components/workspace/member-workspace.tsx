@@ -1,3 +1,4 @@
+import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import Link from "next/link";
 import { ArrowUpRight, Briefcase, CheckCircle2, Clock, FileText, Inbox } from "lucide-react";
 import { reward as fmtReward, networkLabel, short } from "@/lib/format";
@@ -18,7 +19,7 @@ export interface MemberView {
   }[];
 }
 
-const chainFor = (rail: SettlementRail) => (rail === "starknet" ? 900001 : 2345);
+const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
 const KIND = { testing: "Testing run", grant: "Milestone grant", gig: "Gig" } as const;
 
 /** A member's home: the work their teams have open, and where each of their own submissions stands. */

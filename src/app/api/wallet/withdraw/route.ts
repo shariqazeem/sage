@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Hex } from "viem";
 import { getSessionAddress } from "@/lib/auth/session";
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import { prepareSelfWithdrawal, submitSelfWithdrawal } from "@/lib/wallet/self-withdraw";
 
 export const runtime = "nodejs";
@@ -22,13 +22,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "bad request" }, { status: 400 });
   }
   const to = typeof body.to === "string" ? body.to.trim() : "";
+  const askedChain = Number(body.chainId);
+  const chainId = Number.isFinite(askedChain) && chainConfig(askedChain).chainId === askedChain && chainConfig(askedChain).evm ? askedChain : DEFAULT_EVM_LAUNCH_CHAIN;
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return NextResponse.json({ ok: false, error: "Give an Ethereum address to send to (0x…, 40 hex characters)." }, { status: 400 });
   try {
     if (body.action === "prepare") {
       const usd = Number(body.amountUsd);
       if (!Number.isFinite(usd) || usd <= 0) return NextResponse.json({ ok: false, error: "Give an amount in USDC." }, { status: 400 });
       const amountBase = BigInt(Math.round(usd * 1_000_000));
-      const p = await prepareSelfWithdrawal({ from: wallet, to, amountBase });
+      const p = await prepareSelfWithdrawal({ from: wallet, to, amountBase, chainId });
       // bigint → strings for the wire; the client rebuilds them for the signature
       const m = p.typedData.message;
       return NextResponse.json({
@@ -43,8 +45,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       const nonce = String(body.nonce ?? "") as Hex;
       const signature = String(body.signature ?? "") as Hex;
       if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return NextResponse.json({ ok: false, error: "malformed signature" }, { status: 400 });
-      const r = await submitSelfWithdrawal({ from: wallet, to, amountBase, validBefore, nonce, signature });
-      return NextResponse.json({ ok: true, txHash: r.txHash, explorerTx: `${chainConfig(2345).explorerUrl}/tx/${r.txHash}`, amountUsd: Number(r.amountBase) / 1_000_000, to: r.to });
+      const r = await submitSelfWithdrawal({ from: wallet, to, amountBase, validBefore, nonce, signature, chainId });
+      return NextResponse.json({ ok: true, txHash: r.txHash, explorerTx: `${chainConfig(chainId).explorerUrl}/tx/${r.txHash}`, amountUsd: Number(r.amountBase) / 1_000_000, to: r.to });
     }
     return NextResponse.json({ ok: false, error: "action must be prepare or submit" }, { status: 400 });
   } catch (e) {

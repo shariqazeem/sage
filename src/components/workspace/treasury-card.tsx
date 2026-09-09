@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Landmark, Loader2 } from "lucide-react";
 
-interface Status { linked: boolean; available?: boolean; address?: string; reclaimAddress?: string; perCampaignCapUsd?: number; balanceUsd?: number; gasBtc?: string | null; enoughGas?: boolean | null }
+interface Status { linked: boolean; available?: boolean; address?: string; reclaimAddress?: string; perCampaignCapUsd?: number; balanceUsd?: number; chainId?: number; network?: string; nativeSymbol?: string; gasNative?: string | null; enoughGas?: boolean | null }
 
 /**
  * THE TREASURY. Fund it once; the agent deploys, funds and activates every campaign from it inside
@@ -66,11 +66,11 @@ export function TreasuryCard() {
         <>
           <ul className="ws-list">
             <li className="ws-row">
-              <div className="ws-row-main"><p className="ws-row-title"><span className="mono t">{st.address}</span></p><p className="ws-row-meta">Send USDC on GOAT here, plus about 0.00001 BTC for gas. Sage launches every campaign from it.</p></div>
+              <div className="ws-row-main"><p className="ws-row-title"><span className="mono t">{st.address}</span></p><p className="ws-row-meta">Send USDC on {st.network ?? "Arc"} here{st.nativeSymbol && st.nativeSymbol !== "USDC" ? `, plus about 0.00001 ${st.nativeSymbol} for gas` : " — on Arc, USDC is the gas too, so that is all it needs"}. Sage launches every campaign from it.</p></div>
               <button className="ws-chip" onClick={() => void copy(st.address ?? "")}>{copied ? <><Check size={11} /> copied</> : <><Copy size={11} /> copy</>}</button>
             </li>
             <li className="ws-row">
-              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Balance</span></p><p className="ws-row-meta">Gas {st.gasBtc ?? "—"} BTC{st.enoughGas === false ? " · needs gas to launch" : ""}</p></div>
+              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Balance</span></p><p className="ws-row-meta">{st.nativeSymbol && st.nativeSymbol !== "USDC" ? `Gas ${st.gasNative ?? "—"} ${st.nativeSymbol}${st.enoughGas === false ? " · needs gas to launch" : ""}` : `USDC on ${st.network ?? "Arc"} · gas included`}</p></div>
               <span className="mono" style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>${(st.balanceUsd ?? 0).toFixed(2)}</span>
             </li>
             <li className="ws-row">
@@ -82,7 +82,7 @@ export function TreasuryCard() {
         <>
           <p className="ws-note" style={{ margin: "0 0 12px" }}>Fund once, and Sage deploys, funds and activates each campaign itself, inside a per-campaign cap the mandate enforces. Your wallet stays the only place unspent money can go back to.</p>
           {st.available === false ? (
-            <p className="ws-note" style={{ margin: 0 }}>Treasuries bind to an Ethereum account on GOAT — sign in with one (an email account works) to create yours.</p>
+            <p className="ws-note" style={{ margin: 0 }}>Treasuries bind to an Ethereum account — sign in with one (an email account works) to create yours.</p>
           ) : (
             <div className="ws-invite" style={{ marginTop: 0 }}>
               <input className="ws-input" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} aria-label="Per-campaign cap in USDC" />

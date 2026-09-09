@@ -1,3 +1,4 @@
+import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Inbox, Rocket, Settings, Sparkles, Users } from "lucide-react";
 import { reward as fmtReward, networkLabel, usd } from "@/lib/format";
@@ -28,7 +29,7 @@ export interface OwnerView {
   me: string;
 }
 
-const chainFor = (rail: SettlementRail) => (rail === "starknet" ? 900001 : 2345);
+const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
 const KIND = { testing: "Testing run", grant: "Milestone grant", gig: "Gig" } as const;
 
 /**
