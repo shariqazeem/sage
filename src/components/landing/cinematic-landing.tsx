@@ -73,7 +73,7 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
               <span>Sage</span>
             </Link>
             <p className="foot-tag">An agent with eyes, judgment, and a wallet. It verifies the work itself and pays inside limits it cannot exceed.</p>
-            <span className="foot-net mono"><i aria-hidden /> Live on {network.name}</span>
+            <span className="foot-net mono"><i aria-hidden /> Live on {network.name} · new accounts on Arc</span>
           </div>
           <nav className="foot-col" aria-label="Product">
             <h4>Product</h4>

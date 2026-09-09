@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, EyeOff, Hand, Lock, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, EyeOff, Hand, Lock, X, Wallet } from "lucide-react";
 import { usd, short, since } from "@/lib/format";
 import { chainConfig } from "@/lib/deputy/networks";
 import type { PayoutReceipt } from "@/lib/deputy/chain";
@@ -86,6 +86,10 @@ export function SceneHero({
             <li>
               <EyeOff size={13} strokeWidth={2} />
               Private on Starknet when you ask
+            </li>
+            <li>
+              <Wallet size={13} strokeWidth={2} />
+              One account on Arc — fund it with USDC, nothing else to find
             </li>
           </ul>
         </div>

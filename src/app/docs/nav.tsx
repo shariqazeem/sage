@@ -24,6 +24,7 @@ export const SECTIONS: { label: string; items: { href: string; title: string }[]
       { href: "/docs/missions", title: "Missions & budget" },
       { href: "/docs/judging", title: "Judging evidence" },
       { href: "/docs/settlement", title: "Settlement & proof" },
+  { href: "/docs/arc", title: "Sage on Arc" },
     ],
   },
   {
