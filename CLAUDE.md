@@ -26,10 +26,20 @@ The value is **bounded autonomy over money**: the agent spends without a human i
 loop, but the *vault* — not a prompt — enforces the limits. The AI proposes; the vault
 disposes.
 
-**Chains.** GOAT Network (chainId **2345**, real USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`,
-native gas **BTC**) is the production mainnet the product ships on; the walletless path
-always uses it and the web deploy flow lists it first. Metis Sepolia (**59902**) is the
-testnet. (Note: the code constant `DEFAULT_CHAIN_ID` is 59902 — see Known drift.)
+**Chains.** **Arc** (chainId **5042002**, testnet until Arc mainnet opens; USDC is the NATIVE gas
+token and also an ERC-20 at `0x3600000000000000000000000000000000000000`, 6 dp) is the DEFAULT rail
+for everything new since 2026-09-10 (`DEFAULT_EVM_LAUNCH_CHAIN`, `LAUNCH_ENABLED_CHAINS` Arc first,
+a treasury is born on `treasuryChainId()` = `TREASURY_CHAIN_ID` or the first configured launch chain).
+The founder's rule: "arc default, goat behind an explicit choice but the history stays." GOAT Network
+(chainId **2345**, real USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`, native gas **BTC**) holds
+the first 41 real payouts and stays fully supported behind an explicit "Use GOAT Mainnet instead"
+choice; Telegram walletless accounts are pinned to GOAT (`chainId: 2345` in the tool) until the
+Telegram tools read the wallet's own chain. Metis Sepolia (**59902**) is the legacy testnet. Per-chain
+deploy-time config is env-prefixed (`railEnvPrefix`): `ARC_CAMPAIGN_FACTORY_ADDRESS`,
+`ARC_OPERATOR_ADDRESS`, `ARC_OPERATOR_PRIVATE_KEY` (falls back to `GOAT_AGENT_PRIVATE_KEY`),
+`ARC_RPC_URL`. Arc's V2 factory: `0xfAc019eF6d8B36FE33233244ff0b97f0D9e99B8c`. On Arc there is no gas
+stipend to think about: funding the account with USDC funds its gas. (Note: the code constant
+`DEFAULT_CHAIN_ID` is 59902 — see Known drift.)
 
 **Two settlement rails.** `campaign.settlementRail` is `"evm"` or `"starknet"`, and it — not
 the chain id — decides which settler pays. EVM covers GOAT and Metis through the V2
@@ -57,7 +67,11 @@ Three rules that keep them from leaking into each other:
   genuinely different work after the settler returns.
 
 **Two front doors, one engine:**
-- **Web** (`sagepays.xyz`): connect a browser wallet, SIWE, guided launch → deploy → live.
+- **Web** (`sagepays.xyz`): connect a browser wallet or sign in with an email, SIWE, guided launch →
+  deploy → live. **The account** (`/workspace/account`): one Privy-held wallet on Arc under the
+  mandate — fund it from anywhere (address + QR, balance and activity read from the chain), the agent
+  launches from it (`launchFromTreasury`), withdraw to any address through a scoped one-time permit
+  (`POST /api/treasury/withdraw` → `withdrawViaPrivy`, re-locks after).
 - **Walletless Telegram** (`@sagedeputybot`): the founder does everything from chat with
   no wallet app — Sage mints a **Privy server wallet** bound to a **mandate policy** and
   funds/launches campaigns from it. The full fund→launch loop is proven on GOAT mainnet.
