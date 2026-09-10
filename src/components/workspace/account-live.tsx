@@ -64,7 +64,7 @@ export function OpenAccount({ chainId, network, isMainnet }: { chainId: number; 
   return (
     <div className="ac-open">
       <label className="ac-open-cap">
-        <span>Most Sage may put into one campaign</span>
+        <span>Most Sage may ever put into one campaign from this account · written into the mandate, cannot be raised later</span>
         <span className="ac-withdraw-row"><input className="ws-input mono" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} disabled={busy} aria-label="Per-campaign cap in USDC" /><span className="ac-open-unit">USDC</span></span>
       </label>
       <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void open()} disabled={busy}>
