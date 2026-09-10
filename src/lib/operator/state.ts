@@ -69,7 +69,12 @@ export function founderCampaigns(founderAddress: string): Campaign[] {
   const byId = new Map<string, Campaign>();
   const ws = workspaceOwnedBy(founderStorageKey(founderAddress));
   for (const c of ws ? listWorkspaceCampaigns(ws) : []) byId.set(c.id, c);
-  for (const c of listCampaigns()) if (sameFounder(c.posterWallet, founderAddress)) byId.set(c.id, c);
+  // The account (web treasury) launches with its own wallet as the vault owner and poster; that work
+  // is the founder's. Without this the mandate could not see the exposure of its own launches.
+  const treasury = getWebTreasury(founderAddress)?.privyWalletAddress ?? null;
+  for (const c of listCampaigns()) {
+    if (sameFounder(c.posterWallet, founderAddress) || (treasury && sameFounder(c.posterWallet, treasury))) byId.set(c.id, c);
+  }
   return [...byId.values()].filter((c) => !c.sandbox);
 }
 
