@@ -110,7 +110,7 @@ export function BridgeIn({ account, destinationChain, testnet }: { account: stri
           {busy ? <><Loader2 size={13} className="sage-spin2" /> Bridging…</> : wallet.address ? "Bridge to my account" : "Connect wallet"}
         </button>
       </div>
-      {wallet.address ? <p className="bi-fine">From <span className="mono">{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span> on {sources.find((s) => s.id === source)?.label}. Circle's transfer fee is taken from the amount; nothing else to pay on Arc.</p> : !wallet.available ? <p className="bi-fine">No browser wallet here. Send USDC on Arc to the address above instead.</p> : null}
+      {wallet.address ? <p className="bi-fine">From <span className="mono">{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span> on {sources.find((s) => s.id === source)?.label}. Circle&apos;s transfer fee is taken from the amount; nothing else to pay on Arc.</p> : !wallet.available ? <p className="bi-fine">No browser wallet here. Send USDC on Arc to the address above instead.</p> : null}
       {steps.length > 0 && (
         <ol className="bi-steps">
           {steps.map((s) => (
