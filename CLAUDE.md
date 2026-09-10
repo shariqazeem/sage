@@ -76,7 +76,10 @@ Three rules that keep them from leaking into each other:
   under `web:<founder>@<chainId>`; the mandate runs from the default-chain one) — fund it from anywhere
   (address + QR, balance and activity read from the chain), the agent launches from it
   (`launchFromTreasury(founder, jobId, chainId)`), withdraw to any address through a scoped one-time permit
-  (`POST /api/treasury/withdraw` → `withdrawViaPrivy`, re-locks after). The UI name is "your account";
+  (`POST /api/treasury/withdraw` → `withdrawViaPrivy`, re-locks after). A NEW WORKSPACE OPENS ITS
+  ACCOUNT on the default network for any Ethereum-style sign-in (`POST /api/workspaces`, best effort,
+  default cap $50); the cap is changed by moving the wallet onto a NEW mandate policy with the same
+  reclaim address (`src/lib/privy/cap.ts`, `PATCH /api/treasury`). The UI name is "your account";
   "treasury" survives only in code identifiers. A Starknet sign-in cannot hold one (no Ethereum reclaim
   address) and every surface says so instead of offering a door that fails (`src/lib/treasury/summary.ts`).
 - **Walletless Telegram** (`@sagedeputybot`): the founder does everything from chat with

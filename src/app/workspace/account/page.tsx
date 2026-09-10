@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { workspaceContext } from "@/lib/workspaces/context";
 import { founderChain } from "@/lib/auth/founder";
-import { getWebTreasuryOn, listWebTreasuries } from "@/lib/treasury/web";
+import { getWebTreasuryOn, listWebTreasuries, webTreasuryOpening } from "@/lib/treasury/web";
 import { webTreasuryStatus } from "@/lib/treasury/launch";
 import { treasuryActivity } from "@/lib/treasury/activity";
 import { accountUnavailableBecause } from "@/lib/treasury/summary";
@@ -17,7 +17,7 @@ import { ARC_LAUNCH_CHAIN, chainConfig, explorerAddressUrl, explorerTxUrl, STARK
 import { rewardAligned } from "@/lib/format";
 import { starknetUsdcBalance } from "@/lib/starknet/balance";
 import { starknetAddressUrl } from "@/lib/starknet/explorer";
-import { AccountBalance, CopyAddress, OpenAccount, WithdrawForm } from "@/components/workspace/account-live";
+import { AccountBalance, CapEditor, CopyAddress, OpenAccount, WithdrawForm } from "@/components/workspace/account-live";
 import { BridgeIn } from "@/components/workspace/bridge-in";
 
 export const runtime = "nodejs";
@@ -72,6 +72,21 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     </nav>
   ) : null;
 
+  if (!treasury && webTreasuryOpening(founder, chainId)) {
+    // A new workspace opens its account after the response; the founder got here first.
+    return (
+      <main className="ws-shell">
+        <meta httpEquiv="refresh" content="4" />
+        <header className="ws-head">
+          <div>
+            <span className="ws-eyebrow">Your account · {chain.name}</span>
+            <h1 className="ws-title">Opening your account…</h1>
+            <p className="ws-sub">Privy is creating the wallet under its mandate. This takes a few seconds; the page refreshes itself.</p>
+          </div>
+        </header>
+      </main>
+    );
+  }
   if (!treasury) {
     return (
       <main className="ws-shell">
@@ -158,7 +173,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <section className="ws-card">
             <div className="ws-card-h"><h2>Balance</h2></div>
             <AccountBalance initialUsd={balanceUsd} network={chain.name} chainId={chainId} />
-            <p className="ws-note" style={{ margin: "8px 0 0" }}>The mandate lets Sage put up to ${status?.perCampaignCapUsd?.toFixed(2)} into one campaign. Unspent money can only ever come back here or go where you send it below.{!usdcIsGas && status?.gasNative ? ` Gas: ${status.gasNative} ${chain.nativeSymbol}${status.enoughGas === false ? " — not enough to launch yet" : ""}.` : ""}</p>
+            <CapEditor capUsd={status?.perCampaignCapUsd ?? treasury.perCampaignCapBase / 1e6} chainId={chainId} />
+            {!usdcIsGas && status?.gasNative ? <p className="ws-note" style={{ margin: "6px 0 0" }}>Gas: {status.gasNative} {chain.nativeSymbol}{status.enoughGas === false ? " — not enough to launch yet; Sage covers the first launch" : ""}.</p> : null}
           </section>
 
           <section className="ws-card">

@@ -71,11 +71,31 @@ export function webTreasuryWallets(founderAddress: string): string[] {
 export async function createWebTreasury(founderAddress: string, perCampaignCapUsd: number, chainId: number = treasuryChainId()): Promise<AgentWallet> {
   const existing = getWebTreasuryOn(founderAddress, chainId);
   if (existing) return existing;
-  const capBase = Math.round(Math.max(1, Math.min(10_000, perCampaignCapUsd)) * 1_000_000);
-  const bareFree = getAgentWallet(webTreasuryKey(founderAddress)) === null;
-  const chatId = chainId === treasuryChainId() && bareFree ? webTreasuryKey(founderAddress) : webTreasuryKey(founderAddress, chainId);
-  await onboardFounder({ chatId, founderAddress: getAddress(founderAddress), perCampaignCapBase: capBase, chainId });
-  const created = getWebTreasuryOn(founderAddress, chainId);
-  if (!created) throw new Error("the account was not saved");
-  return created;
+  /*
+    ONE OPENING AT A TIME PER FOUNDER AND CHAIN. A new workspace opens its account in the background
+    (Privy takes several seconds), and the founder may press "Open your account" meanwhile. Without
+    this, two openings would each mint a wallet and the second row would overwrite the first —
+    money sent to the orphaned address would be lost. A second caller joins the opening in flight.
+  */
+  const key = `${founderStorageKey(founderAddress)}@${chainId}`;
+  const pending = opening.get(key);
+  if (pending) return pending;
+  const run = (async () => {
+    const capBase = Math.round(Math.max(1, Math.min(10_000, perCampaignCapUsd)) * 1_000_000);
+    const bareFree = getAgentWallet(webTreasuryKey(founderAddress)) === null;
+    const chatId = chainId === treasuryChainId() && bareFree ? webTreasuryKey(founderAddress) : webTreasuryKey(founderAddress, chainId);
+    await onboardFounder({ chatId, founderAddress: getAddress(founderAddress), perCampaignCapBase: capBase, chainId });
+    const created = getWebTreasuryOn(founderAddress, chainId);
+    if (!created) throw new Error("the account was not saved");
+    return created;
+  })().finally(() => opening.delete(key));
+  opening.set(key, run);
+  return run;
+}
+
+const opening = new Map<string, Promise<AgentWallet>>();
+
+/** Whether an account is being opened for this founder on this chain right now — the page says so instead of "not opened". */
+export function webTreasuryOpening(founderAddress: string, chainId: number = treasuryChainId()): boolean {
+  return opening.has(`${founderStorageKey(founderAddress)}@${chainId}`);
 }

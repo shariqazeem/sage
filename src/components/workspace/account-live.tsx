@@ -64,7 +64,7 @@ export function OpenAccount({ chainId, network, isMainnet }: { chainId: number; 
   return (
     <div className="ac-open">
       <label className="ac-open-cap">
-        <span>Most Sage may ever put into one campaign from this account · written into the mandate, cannot be raised later</span>
+        <span>Most Sage may put into one campaign · you can change it any time</span>
         <span className="ac-withdraw-row"><input className="ws-input mono" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} disabled={busy} aria-label="Per-campaign cap in USDC" /><span className="ac-open-unit">USDC</span></span>
       </label>
       <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void open()} disabled={busy}>
@@ -129,6 +129,55 @@ export function WithdrawForm({ balanceUsd, network, chainId }: { balanceUsd: num
         </div>
       )}
       {stage === "sending" && <p className="ws-note" style={{ margin: 0 }}><Loader2 size={13} className="sage-spin2" /> Privy is signing inside the permit, then the chain confirms…</p>}
+      {err && <p className="ws-err">{err}</p>}
+    </div>
+  );
+}
+
+/**
+ * THE CAP, EDITABLE IN PLACE. The account's mandate says the most Sage may put into one campaign;
+ * changing it moves the account onto a new mandate with the new number and the same reclaim
+ * address. Shown as a sentence with one control, because it is one number.
+ */
+export function CapEditor({ capUsd, chainId }: { capUsd: number; chainId: number }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(Math.round(capUsd)));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<number | null>(null);
+  const router = useRouter();
+  const shown = saved ?? capUsd;
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/treasury", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ perCampaignCapUsd: Number(value), chainId }) });
+      const j = (await r.json()) as { error?: string; perCampaignCapUsd?: number };
+      if (!r.ok) { setErr(j.error ?? "Could not change the cap."); return; }
+      setSaved(j.perCampaignCapUsd ?? Number(value));
+      setEditing(false);
+      router.refresh();
+    } catch {
+      setErr("Could not reach Sage.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ac-cap">
+      <p className="ws-note" style={{ margin: "8px 0 0" }}>
+        The mandate lets Sage put up to <b>${shown.toFixed(2)}</b> into one campaign.{" "}
+        {!editing && <button type="button" className="ac-cap-link" onClick={() => { setValue(String(Math.round(shown))); setEditing(true); }}>change</button>}
+        {" "}Unspent money can only ever come back here or go where you send it below.
+      </p>
+      {editing && (
+        <div className="ac-withdraw-row" style={{ marginTop: 8 }}>
+          <input className="ws-input mono" type="number" min="1" max="10000" step="1" value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} aria-label="New per-campaign cap in USDC" style={{ maxWidth: 140 }} />
+          <span className="ac-open-unit">USDC per campaign</span>
+          <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void save()} disabled={busy || !(Number(value) >= 1 && Number(value) <= 10000)}>{busy ? <><Loader2 size={13} className="sage-spin2" /> Rewriting the mandate…</> : "Save"}</button>
+          <button className="sage-btn sage-btn-sm" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+        </div>
+      )}
       {err && <p className="ws-err">{err}</p>}
     </div>
   );

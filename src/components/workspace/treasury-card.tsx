@@ -98,7 +98,7 @@ export function TreasuryCard() {
               <span className="mono" style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>${(st.balanceUsd ?? 0).toFixed(2)}</span>
             </li>
             <li className="ws-row">
-              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Mandate</span></p><p className="ws-row-meta">Up to ${st.perCampaignCapUsd?.toFixed(2)} per campaign. Anything unspent can only return to {st.reclaimAddress?.slice(0, 6)}…{st.reclaimAddress?.slice(-4)} — your own wallet.</p></div>
+              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Mandate</span></p><p className="ws-row-meta">Up to ${st.perCampaignCapUsd?.toFixed(2)} per campaign (<Link href="/workspace/account">change</Link>). Anything unspent can only return to {st.reclaimAddress?.slice(0, 6)}…{st.reclaimAddress?.slice(-4)} — your own wallet.</p></div>
             </li>
           </ul>
         </>
@@ -115,7 +115,7 @@ export function TreasuryCard() {
             <input className="ws-input" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} aria-label="Per-campaign cap in USDC" />
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void create()} disabled={busy}>{busy ? <><Loader2 size={13} className="sage-spin2" /> Opening…</> : `Open your account on ${network}`}</button>
           </div>
-          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may ever put into one campaign from this account. It is written into the account&apos;s mandate and cannot be raised afterwards, so pick the largest campaign you would fund; the standing mandate can always set a lower ceiling.</p>
+          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may put into any one campaign. You can change it any time on your account page.</p>
           {err && <p className="ws-err">{err}</p>}
         </>
       )}
