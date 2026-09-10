@@ -139,7 +139,7 @@ export function allocate(state: MandateState, surface: string | null): MandateVe
 
   const spendable = state.balanceBase - p.reserveFloorBase;
   if (spendable < p.minCampaignBase) {
-    return { action: "hold", reason: `the treasury is at its reserve floor — nothing above ${usd(p.reserveFloorBase)} to commit` };
+    return { action: "hold", reason: `the account is at its reserve floor — nothing above ${usd(p.reserveFloorBase)} to commit` };
   }
 
   const weekly = p.weeklyCapBase - state.committedThisWeekBase;
@@ -190,7 +190,7 @@ export function stalled(obs: CampaignObservation[], policy: OperatorPolicy): { c
     .filter((o) => o.status === "live" && o.submissions === 0 && o.ageMinutes >= policy.stallAfterMinutes)
     .map((o) => ({
       campaignId: o.campaignId,
-      reason: `no one submitted in ${Math.floor(o.ageMinutes / 60)} hours — stopping it returns ${usd(o.unclaimedBase)} to the treasury`,
+      reason: `no one submitted in ${Math.floor(o.ageMinutes / 60)} hours — stopping it returns ${usd(o.unclaimedBase)} to the account`,
     }));
 }
 

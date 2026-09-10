@@ -1,4 +1,4 @@
-import { getWebTreasury } from "@/lib/treasury/web";
+import { webTreasuryWallets } from "@/lib/treasury/web";
 import "server-only";
 
 import {
@@ -79,10 +79,10 @@ const EMPTY: DeputyOverview = {
  */
 export function getDeputyOverview(wallet: string | null): DeputyOverview {
   if (!wallet) return EMPTY;
-  // the founder's own posts, plus what their account (web treasury) launched under its own wallet
-  const treasury = getWebTreasury(wallet)?.privyWalletAddress ?? null;
+  // the founder's own posts, plus what their accounts (web treasuries, one per chain) launched under their own wallets
+  const accounts = webTreasuryWallets(wallet);
   const mine = listCampaigns().filter(
-    (c) => sameFounder(c.posterWallet, wallet) || (treasury !== null && sameFounder(c.posterWallet, treasury)),
+    (c) => sameFounder(c.posterWallet, wallet) || accounts.some((a) => sameFounder(c.posterWallet, a)),
   );
   if (mine.length === 0) return EMPTY;
 

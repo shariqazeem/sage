@@ -20,12 +20,15 @@ export function BudgetBar({
   approval,
   onRevised,
   onApproved,
+  launchChains,
 }: {
   plan: PlanView;
   jobId: string;
   approval: JobView["approval"];
   onRevised: (job: JobView) => void;
   onApproved: (job: JobView) => void;
+  /** the EVM launch chains the server is configured for, in preference order (the deploy flow offers Arc only when it is here) */
+  launchChains?: readonly number[];
 }) {
   const [editingBudget, setEditingBudget] = useState(false);
 
@@ -163,7 +166,7 @@ export function BudgetBar({
       ) : rail === "starknet" ? (
         <StarknetDeployFlow jobId={jobId} plan={plan} />
       ) : (
-        <DeployFlow jobId={jobId} plan={plan} />
+        <DeployFlow jobId={jobId} plan={plan} launchChains={launchChains} />
       )}
       {error && <div className="lx-err" role="alert" style={{ marginTop: 10 }}>{error}</div>}
     </section>

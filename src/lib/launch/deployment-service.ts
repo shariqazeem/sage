@@ -27,10 +27,17 @@ import type { Deployment } from "@/lib/db/schema";
 /** The default launch chain when a founder's wallet doesn't pin a supported one. */
 export const LAUNCH_CHAIN_ID = 59902;
 
-/** Chains the self-serve launch wizard may deploy to. A chain is only truly enabled
- *  when its V2 factory + operator + token are configured (see `isLaunchChain`), so
- *  GOAT (2345) turns on exactly when its GOAT_* addresses are set — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [5042002, 2345, 59902];
+/** Chains the self-serve launch wizard may deploy to, in order of preference: GOAT mainnet first
+ *  (the real-money default), then Arc while it is on testnet — an explicit choice, never the default
+ *  of a mainnet product — then the legacy Metis testnet. A chain is only truly enabled when its V2
+ *  factory + operator + token are configured (see `isLaunchChain`), so each turns on exactly when
+ *  its `<PREFIX>_*` addresses are set — fails closed. */
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042002, 59902];
+
+/** The launch chains the server is actually configured for, in preference order — what a picker may offer. */
+export function configuredLaunchChains(): number[] {
+  return LAUNCH_ENABLED_CHAINS.filter((id) => launchChainConfig(id).configured);
+}
 
 /** The chain a launch defaults to when nothing chose one: the first ENABLED chain that is actually configured. */
 export function defaultLaunchChain(): number {

@@ -6,9 +6,9 @@
 
 [![Live](https://img.shields.io/badge/live-sagepays.xyz-c2410c?style=flat-square)](https://sagepays.xyz)
 [![Docs](https://img.shields.io/badge/docs-sagepays.xyz%2Fdocs-1a1d21?style=flat-square)](https://sagepays.xyz/docs)
-[![Arc](https://img.shields.io/badge/Arc-default%20rail%20%C2%B7%20USDC%20is%20the%20gas-1e4fd8?style=flat-square)](https://sagepays.xyz/docs/arc)
 [![Network](https://img.shields.io/badge/GOAT%20Network-mainnet-15803d?style=flat-square)](https://explorer.goat.network)
 [![Starknet](https://img.shields.io/badge/Starknet-private%20payout%20rail-c2410c?style=flat-square)](#getting-paid-without-first-becoming-a-crypto-user)
+[![Arc](https://img.shields.io/badge/Arc-testnet%20today%20%C2%B7%20mainnet%2016%20Sep-1e4fd8?style=flat-square)](https://sagepays.xyz/docs/arc)
 [![Telegram](https://img.shields.io/badge/telegram-@sagedeputybot-0088cc?style=flat-square)](https://t.me/sagedeputybot)
 
 [Website](https://sagepays.xyz) · [Documentation](https://sagepays.xyz/docs) · [Case study](https://sagepays.xyz/case-studies/autonomous-paid-testing) · [Live missions](https://sagepays.xyz/marketplace)
@@ -16,36 +16,6 @@
 </div>
 
 ---
-
-## Arc · one account anyone can fund
-
-**Sage runs on Arc now.** When you sign in, Sage keeps a wallet for you on Arc — Circle's chain, where
-USDC is the gas — born under a mandate the agent cannot widen. Send USDC to it from any wallet or
-exchange, or bridge it in from Ethereum, Base or Arbitrum with Circle's App Kit (CCTP v2; Circle's
-forwarder mints on Arc into the account, so you never need a wallet on Arc). The agent launches work
-from that account and pays people from vaults it funds. Withdraw to any address through a one-time
-permit that re-locks to the mandate afterwards. Nothing else to buy, hold or find: on Arc, funding the
-account with USDC funds its gas. GOAT Network keeps the first forty-one real payouts and stays
-available behind an explicit choice; Starknet stays the private rail.
-
-Everything below happened on Arc testnet on 10 September, unattended, from the live code (mainnet the
-day Arc opens on the 16th — the same account, mandate and receipts, one registry entry and one factory
-deploy away):
-
-| # | step | transaction |
-| --- | --- | --- |
-| 1 | the V2 `CampaignVaultFactory` deployed on Arc — `0xfAc019eF6d8B36FE33233244ff0b97f0D9e99B8c` | [`0x12d07d31…cf08`](https://testnet.arcscan.app/tx/0x12d07d3161ee04b24d4ff26ec9b7464642dc6b63c7a6c7b8214a01f6b0e2cf08) |
-| 2 | a founder's account funded with USDC — the wallet Privy holds for them, under the mandate | [`0x57f33490…96dd`](https://testnet.arcscan.app/tx/0x57f334902e7810c418ede2602f9ad0d96c84500df772f3f6468c8d952ed496dd) |
-| 3 | **the agent launched a gig from the account** — created the vault, approved, funded and activated it, four signatures inside the mandate, no human key | [`0x2746e644…15ba`](https://testnet.arcscan.app/tx/0x2746e644156783eda20270a90236878b43f61fc30b668a4821fbdd620bb815ba) · [`0x7e9296ef…1e51`](https://testnet.arcscan.app/tx/0x7e9296ef23438ee0c1915bf13e3a3cd8269fd4d72f99a52c66c7b235c61c1e51) · [`0x41badd15…4332`](https://testnet.arcscan.app/tx/0x41badd15445b663242c95599eb6c504a00c0d0ee40e1a6cdc4aa2a89c1064332) · [`0x22c658c9…97de`](https://testnet.arcscan.app/tx/0x22c658c9e108bacc3e10b1215a41188c23deacf7c0f5d022cc43d6e9958e97de) |
-| 4 | a worker published the deliverable, the agent judged it at 95% and **the vault paid on Arc** | [`0xcfec4694…f239`](https://testnet.arcscan.app/tx/0xcfec4694aed6529bb8959e60604e9da9f13073a2d8afdfc51108d429ac2ff239) |
-| 5 | the founder withdrew from the account to another address through a scoped permit, and the account re-locked | [`0x80557a28…33b1`](https://testnet.arcscan.app/tx/0x80557a2822be4a450985f36417f90635251286e09474a58cb4204e0284fd33b1) |
-| 6 | **the same loop on the live site** — sagepays.xyz's account funded ([`0xc634e4a2…5779`](https://testnet.arcscan.app/tx/0xc634e4a24c1fcaddefd0f35bac7af117d0c3f13b510d0e679bd2fc10be4b5779)), the agent launched [`gig-7Oy89HjBWw`](https://sagepays.xyz/c/gig-7Oy89HjBWw) from it ([create](https://testnet.arcscan.app/tx/0x21e8c3190bf62b65ecc24dc3e40d84298f7f266e6f7f8f9d18624c10980d64f7) · [approve](https://testnet.arcscan.app/tx/0xcc595044f42611b17b92304a60509c4e337d3c43b141d441dc96c9641fd02900) · [fund](https://testnet.arcscan.app/tx/0x865dacc68c3e35895ab3c5291388bce274fb6ba2ddbad92f0bc886ec9ef63b9c) · [activate](https://testnet.arcscan.app/tx/0x0d42498c8c4889799863383875a6039a1784d6125e46da626c28abdaa3f31dd2)), and a worker was judged at 93% and paid by the vault on Arc | [receipt `0x493b855b…d639`](https://sagepays.xyz/proof/0x493b855b8e5a2de061656d49132e137d4bb71157000adfd5d4b1e2256992d639) |
-
-What the Arc rail uses: Arc (chain 5042002) with USDC as native gas and as the ERC-20 at
-`0x3600…0000`; Privy server wallets bound by an on-chain mandate; Circle's **App Kit** with the viem
-adapter for bridging in over **CCTP v2** with the forwarder destination; Arc's explorer for the
-account's activity. Read more: [Sage on Arc](https://sagepays.xyz/docs/arc) · the account is at
-`/workspace/account` once you sign in.
 
 ## Starknet · STRK20 privacy
 
@@ -140,6 +110,39 @@ agent that pays everyone is not doing a job, it is a faucet.
 > disposes.**
 
 ---
+
+## Arc · one account anyone can fund — testnet today, mainnet on 16 September
+
+**Sage runs on Arc testnet today, ahead of Arc mainnet.** Sage can keep a wallet for you on Arc — Circle's
+chain, where USDC is the gas — born under a mandate the agent cannot widen. Send USDC to it from any wallet or
+exchange, or bridge it in from Ethereum, Base or Arbitrum with Circle's App Kit (CCTP v2; Circle's
+forwarder mints on Arc into the account, so you never need a wallet on Arc). The agent launches work
+from that account and pays people from vaults it funds. Withdraw to any address through a one-time
+permit that re-locks to the mandate afterwards. Nothing else to buy, hold or find: on Arc, funding the
+account with USDC funds its gas.
+
+Where it stands: Arc is on testnet, so on sagepays.xyz the account every founder gets is on GOAT Network
+(real USDC) and Starknet is the private rail; Arc is a second, testnet-labelled tab on the account page
+for anyone who wants to try it now. The day Arc mainnet opens (16 September 2026) the same account,
+mandate and receipts move there with one registry entry and one factory deploy, and Arc becomes the
+default rail for new accounts — GOAT keeps its history and stays behind an explicit choice.
+
+Everything below happened on Arc testnet on 10 September, unattended, from the live code:
+
+| # | step | transaction |
+| --- | --- | --- |
+| 1 | the V2 `CampaignVaultFactory` deployed on Arc — `0xfAc019eF6d8B36FE33233244ff0b97f0D9e99B8c` | [`0x12d07d31…cf08`](https://testnet.arcscan.app/tx/0x12d07d3161ee04b24d4ff26ec9b7464642dc6b63c7a6c7b8214a01f6b0e2cf08) |
+| 2 | a founder's account funded with USDC — the wallet Privy holds for them, under the mandate | [`0x57f33490…96dd`](https://testnet.arcscan.app/tx/0x57f334902e7810c418ede2602f9ad0d96c84500df772f3f6468c8d952ed496dd) |
+| 3 | **the agent launched a gig from the account** — created the vault, approved, funded and activated it, four signatures inside the mandate, no human key | [`0x2746e644…15ba`](https://testnet.arcscan.app/tx/0x2746e644156783eda20270a90236878b43f61fc30b668a4821fbdd620bb815ba) · [`0x7e9296ef…1e51`](https://testnet.arcscan.app/tx/0x7e9296ef23438ee0c1915bf13e3a3cd8269fd4d72f99a52c66c7b235c61c1e51) · [`0x41badd15…4332`](https://testnet.arcscan.app/tx/0x41badd15445b663242c95599eb6c504a00c0d0ee40e1a6cdc4aa2a89c1064332) · [`0x22c658c9…97de`](https://testnet.arcscan.app/tx/0x22c658c9e108bacc3e10b1215a41188c23deacf7c0f5d022cc43d6e9958e97de) |
+| 4 | a worker published the deliverable, the agent judged it at 95% and **the vault paid on Arc** | [`0xcfec4694…f239`](https://testnet.arcscan.app/tx/0xcfec4694aed6529bb8959e60604e9da9f13073a2d8afdfc51108d429ac2ff239) |
+| 5 | the founder withdrew from the account to another address through a scoped permit, and the account re-locked | [`0x80557a28…33b1`](https://testnet.arcscan.app/tx/0x80557a2822be4a450985f36417f90635251286e09474a58cb4204e0284fd33b1) |
+| 6 | **the same loop on the live site** — sagepays.xyz's account funded ([`0xc634e4a2…5779`](https://testnet.arcscan.app/tx/0xc634e4a24c1fcaddefd0f35bac7af117d0c3f13b510d0e679bd2fc10be4b5779)), the agent launched [`gig-7Oy89HjBWw`](https://sagepays.xyz/c/gig-7Oy89HjBWw) from it ([create](https://testnet.arcscan.app/tx/0x21e8c3190bf62b65ecc24dc3e40d84298f7f266e6f7f8f9d18624c10980d64f7) · [approve](https://testnet.arcscan.app/tx/0xcc595044f42611b17b92304a60509c4e337d3c43b141d441dc96c9641fd02900) · [fund](https://testnet.arcscan.app/tx/0x865dacc68c3e35895ab3c5291388bce274fb6ba2ddbad92f0bc886ec9ef63b9c) · [activate](https://testnet.arcscan.app/tx/0x0d42498c8c4889799863383875a6039a1784d6125e46da626c28abdaa3f31dd2)), and a worker was judged at 93% and paid by the vault on Arc | [receipt `0x493b855b…d639`](https://sagepays.xyz/proof/0x493b855b8e5a2de061656d49132e137d4bb71157000adfd5d4b1e2256992d639) |
+
+What the Arc rail uses: Arc (chain 5042002) with USDC as native gas and as the ERC-20 at
+`0x3600…0000`; Privy server wallets bound by an on-chain mandate; Circle's **App Kit** with the viem
+adapter for bridging in over **CCTP v2** with the forwarder destination; Arc's explorer for the
+account's activity. Read more: [Sage on Arc](https://sagepays.xyz/docs/arc) · the Arc tab of
+`/workspace/account` once you sign in.
 
 ## Getting paid without first becoming a crypto user
 

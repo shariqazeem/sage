@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAddress } from "viem";
 import { getFounderAddress } from "@/lib/auth/founder";
-import { getWebTreasury } from "@/lib/treasury/web";
+import { getWebTreasuryOn } from "@/lib/treasury/web";
+import { treasuryChainId } from "@/lib/privy/onboarding";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { accountBalanceBase } from "@/lib/treasury/activity";
 import { explorerTxUrl } from "@/lib/deputy/networks";
@@ -18,14 +19,15 @@ export const maxDuration = 120;
 export async function POST(req: NextRequest) {
   const founder = await getFounderAddress();
   if (!founder) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
-  const t = getWebTreasury(founder);
-  if (!t) return NextResponse.json({ ok: false, error: "There is no account to withdraw from yet." }, { status: 404 });
-  let body: { to?: unknown; amountUsd?: unknown };
+  let body: { to?: unknown; amountUsd?: unknown; chainId?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON body." }, { status: 400 });
   }
+  const chainId = typeof body.chainId === "number" && Number.isFinite(body.chainId) ? body.chainId : treasuryChainId();
+  const t = getWebTreasuryOn(founder, chainId);
+  if (!t) return NextResponse.json({ ok: false, error: "There is no account to withdraw from yet." }, { status: 404 });
   const to = typeof body.to === "string" ? body.to.trim() : "";
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return NextResponse.json({ ok: false, error: "Give an address to send to (0x…, 40 hex characters)." }, { status: 400 });
   const usd = Number(body.amountUsd);

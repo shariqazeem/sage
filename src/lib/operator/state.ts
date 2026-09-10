@@ -3,7 +3,7 @@ import type { Campaign } from "@/lib/db/schema";
 import { listCampaigns, listMissions, listSubmissions } from "@/lib/db/campaigns";
 import { founderStorageKey, sameFounder } from "@/lib/auth/founder";
 import { listWorkspaceCampaigns, workspaceOwnedBy } from "@/lib/db/workspaces";
-import { getWebTreasury } from "@/lib/treasury/web";
+import { getWebTreasury, webTreasuryWallets } from "@/lib/treasury/web";
 import { usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
 import { committedThisWeekBase, getMandate, lastLaunchAt, policyFrom } from "@/lib/db/operator";
 import type { CampaignObservation, MandateState } from "./policy";
@@ -69,11 +69,12 @@ export function founderCampaigns(founderAddress: string): Campaign[] {
   const byId = new Map<string, Campaign>();
   const ws = workspaceOwnedBy(founderStorageKey(founderAddress));
   for (const c of ws ? listWorkspaceCampaigns(ws) : []) byId.set(c.id, c);
-  // The account (web treasury) launches with its own wallet as the vault owner and poster; that work
-  // is the founder's. Without this the mandate could not see the exposure of its own launches.
-  const treasury = getWebTreasury(founderAddress)?.privyWalletAddress ?? null;
+  // An account (web treasury) launches with its own wallet as the vault owner and poster; that work
+  // is the founder's, on whichever chain the account lives. Without this the mandate could not see
+  // the exposure of its own launches.
+  const accounts = webTreasuryWallets(founderAddress);
   for (const c of listCampaigns()) {
-    if (sameFounder(c.posterWallet, founderAddress) || (treasury && sameFounder(c.posterWallet, treasury))) byId.set(c.id, c);
+    if (sameFounder(c.posterWallet, founderAddress) || accounts.some((a) => sameFounder(c.posterWallet, a))) byId.set(c.id, c);
   }
   return [...byId.values()].filter((c) => !c.sandbox);
 }
@@ -90,7 +91,9 @@ export async function mandateStateFor(founderAddress: string, nowSec = Math.floo
   let balanceBase = 0;
   if (treasury) {
     try {
-      balanceBase = Number(await usdcBalanceBase(treasury.privyWalletAddress));
+      // On the account's OWN chain. Read without it, this defaulted to GOAT and an Arc account's
+      // mandate saw $0 forever — a hold with a true-sounding reason ("at its reserve floor").
+      balanceBase = Number(await usdcBalanceBase(treasury.privyWalletAddress, treasury.chainId));
     } catch {
       balanceBase = 0; // an unreadable balance is treated as no money: the mandate holds, never spends
     }

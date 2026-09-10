@@ -105,7 +105,7 @@ export default function HowItWorks() {
       <h2>Where the human actually is</h2>
       <p>
         Exactly twice in the whole lifecycle: <strong>approve the plan</strong>, and{" "}
-        <strong>fund it</strong>. Under a standing mandate, once: fund the treasury, and stop any
+        <strong>fund it</strong>. Under a standing mandate, once: fund your account, and stop any
         move you do not like inside its window. Everything after that the agent does on its own and
         narrates afterwards with an artifact backing each claim.
       </p>

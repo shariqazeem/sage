@@ -15,7 +15,7 @@ import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
  * binding (a fresh wallet + mandate). Returns the address the founder funds with their allowance.
  */
 
-/** The chain a new treasury lives on: TREASURY_CHAIN_ID when it is set and configured, else the first configured launch chain (Arc first). */
+/** The chain a new account (web treasury) lives on when nothing chose one: TREASURY_CHAIN_ID when it is set and configured, else the first configured launch chain (GOAT mainnet first). */
 export function treasuryChainId(): number {
   const raw = Number(process.env.TREASURY_CHAIN_ID);
   if (Number.isFinite(raw) && raw > 0 && launchChainConfig(raw).configured) return raw;
@@ -28,7 +28,7 @@ export interface OnboardInput {
   founderAddress: Address;
   /** the per-campaign spend cap in USDC base units (6dp). */
   perCampaignCapBase: number;
-  /** the chain the treasury lives on; defaults to the configured launch default (Arc first). */
+  /** the chain the account lives on; defaults to the configured launch default (GOAT mainnet first). */
   chainId?: number;
 }
 
@@ -74,7 +74,7 @@ export interface WalletlessInput {
   chatId: string;
   /** the per-campaign spend cap in USDC base units (6dp). */
   perCampaignCapBase: number;
-  /** the chain the treasury lives on; defaults to the configured launch default (Arc first). */
+  /** the chain the account lives on; defaults to the configured launch default (GOAT mainnet first). */
   chainId?: number;
 }
 

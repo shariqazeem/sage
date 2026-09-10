@@ -2,9 +2,12 @@ import "../../app/app.css";
 import "@/styles/workspace.css";
 import "@/styles/live.css";
 import Link from "next/link";
-import { Ban } from "lucide-react";
+import { Ban, Landmark } from "lucide-react";
 import { redirect } from "next/navigation";
 import { workspaceContext } from "@/lib/workspaces/context";
+import { founderChain } from "@/lib/auth/founder";
+import { treasuryChainId } from "@/lib/privy/onboarding";
+import { chainConfig } from "@/lib/deputy/networks";
 import { MandateCard } from "@/components/workspace/mandate-card";
 import { NextMove } from "@/components/live/next-move";
 import { TreasuryCard } from "@/components/workspace/treasury-card";
@@ -20,10 +23,19 @@ export const metadata = { title: "Let Sage run it" };
  * product. It is the product: a founder funds once and stops deciding. Settings still tunes the
  * ceilings later; this is where the decision to hand over the wheel is actually made, and where the
  * agent's next move is watched once it has been.
+ *
+ * A STARKNET SIGN-IN GETS THE TRUTH, NOT A FORM. The agent launches from an account Sage holds for
+ * the founder — a Privy wallet on an Ethereum-style chain, reclaiming to the founder's Ethereum
+ * address. A Starknet wallet has no such address, so for that founder this page used to offer the
+ * mandate form, a "$0.00 in the treasury" chip and a "Fund it" button that ended at a card saying
+ * treasuries bind to an Ethereum account. Now it says in one card what the door needs, still shows
+ * the move Sage would make, and leaves the form out.
  */
 export default async function AutopilotPage() {
   const ctx = await workspaceContext();
-  if (!ctx) redirect("/start");
+  if (!ctx) redirect("/start?next=/workspace/autopilot");
+  const onStarknet = founderChain(ctx.address) === "starknet";
+  const home = chainConfig(treasuryChainId());
   return (
     <main className="ws-shell">
       <header className="ws-head">
@@ -31,7 +43,7 @@ export default async function AutopilotPage() {
           <span className="ws-eyebrow">Hire it once</span>
           <h1 className="ws-title">Let Sage run it</h1>
           {/* The card below says all of this in its own words; saying it twice is not emphasis. */}
-          <p className="ws-sub">Fund once. Then it decides, and you can stop any move before the money leaves.</p>
+          <p className="ws-sub">Fund your account once. Then Sage decides what work to buy, and you can stop any move before the money leaves.</p>
         </div>
       </header>
 
@@ -39,10 +51,22 @@ export default async function AutopilotPage() {
 
       <div className="ws-grid">
         <div>
-          <MandateCard />
+          {onStarknet ? (
+            <section className="ws-card">
+              <div className="ws-card-h"><h2><Landmark size={15} /> What this door needs</h2></div>
+              <p className="ws-note" style={{ margin: 0 }}>
+                Sage runs work from an account it holds for you — a wallet on {home.name} under a mandate that caps what it may spend, with your own wallet as the only place unspent money can go. You signed in with a Starknet wallet, and a Starknet address cannot be that reclaim address, so this door opens with an <b>email or an Ethereum wallet sign-in</b>.
+              </p>
+              <p className="ws-note" style={{ margin: "10px 0 0" }}>
+                Nothing about your Starknet work changes: <Link href="/launch">post work</Link> and fund each campaign from your wallet, and every payout settles through the Cairo vault, privately when you ask. See <Link href="/workspace/account">your account</Link> for what you hold and what you have posted.
+              </p>
+            </section>
+          ) : (
+            <MandateCard />
+          )}
         </div>
         <div>
-          <TreasuryCard />
+          {onStarknet ? null : <TreasuryCard />}
           <section className="ws-card">
             <div className="ws-card-h"><h2>What it will never do</h2></div>
             <ul className="nvr">

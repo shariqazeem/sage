@@ -17,14 +17,23 @@ export default function ArcDoc() {
 
       <div className="prose-answer">
         <p>
-          <strong>One account, on one chain, that anyone can fund.</strong> When you sign in, Sage keeps a
-          wallet for you on Arc — Circle&apos;s chain, where USDC is the gas. Send USDC to it from any wallet
-          or exchange, from anywhere. The agent launches work and pays people from it, inside a mandate it
+          <strong>One account, on one chain, that anyone can fund.</strong> Sage can keep a wallet for
+          you on Arc — Circle&apos;s chain, where USDC is the gas. Send USDC to it from any wallet or
+          exchange, from anywhere. The agent launches work and pays people from it, inside a mandate it
           cannot widen. Withdraw to any address, any time. Nothing else to buy, hold, or find.
         </p>
       </div>
 
-      <h2>Why Arc is the default</h2>
+      <p>
+        <strong>Where this stands today.</strong> Arc is on testnet, and Sage runs there with test USDC —
+        the whole loop below is proven on it. Arc mainnet opens on 16 September 2026; the account, the
+        mandate and the receipts move there with one registry entry and one factory deploy. Until then
+        the account every founder gets is on GOAT Network, real USDC, and Starknet is the private rail;
+        Arc is a second tab on <Link href="/workspace/account">your account page</Link>, labelled
+        testnet, for anyone who wants to try it now.
+      </p>
+
+      <h2>Why Arc</h2>
       <ul>
         <li><strong>USDC is the gas.</strong> On every other chain a funded account still needed a second token — BTC on GOAT, ETH elsewhere — before it could move. On Arc the USDC you deposit pays for its own transactions. Funding is the whole setup.</li>
         <li><strong>The same money everywhere.</strong> The account holds USDC; the vaults hold USDC; the receipts are in USDC; a worker is paid in USDC. No wrapped anything, no bridge in the middle of a payout.</li>
@@ -40,7 +49,7 @@ export default function ArcDoc() {
         mandate, whatever happened.
       </p>
       <ul>
-        <li><strong>Fund it</strong> — the address and a QR code on <Link href="/workspace/account">your account page</Link>. On testnet, test USDC comes from Circle&apos;s faucet.</li>
+        <li><strong>Fund it</strong> — the address and a QR code on <Link href="/workspace/account?chain=5042002">the Arc tab of your account page</Link>. On testnet, test USDC comes from Circle&apos;s faucet.</li>
         <li><strong>Use it</strong> — <Link href="/launch">post work</Link>, or <Link href="/workspace/autopilot">let Sage run it</Link>: the agent proposes each move with its reason and launches inside your ceilings.</li>
         <li><strong>Withdraw</strong> — to any address on the chain. The activity list is read from the chain itself, not from a table of ours.</li>
       </ul>
@@ -53,8 +62,8 @@ export default function ArcDoc() {
       </ul>
       <p>
         Arc mainnet is not open yet. The day it opens, the same account, mandate and receipts move there
-        with one registry entry and one factory deploy. GOAT Network and Starknet stay exactly as they are:
-        GOAT holds the first forty-one real payouts and remains available behind an explicit choice;
+        with one registry entry and one factory deploy, and Arc becomes the default rail for new accounts.
+        GOAT Network and Starknet stay exactly as they are: GOAT holds the first forty-one real payouts,
         Starknet is the private rail. Nothing about a campaign already running on either changes.
       </p>
 
@@ -66,7 +75,7 @@ export default function ArcDoc() {
         the world — the same account, funded in USDC from wherever the money is.
       </p>
 
-      <Next items={[{ href: "/docs/settlement", title: "Settlement & proof" }, { href: "/workspace/account", title: "Your account" }]} />
+      <Next items={[{ href: "/docs/settlement", title: "Settlement & proof" }, { href: "/workspace/account?chain=5042002", title: "Your account on Arc" }]} />
     </Doc>
   );
 }

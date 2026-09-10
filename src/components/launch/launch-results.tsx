@@ -104,7 +104,7 @@ interface MapView {
   fieldTest?: FieldTestView | null;
 }
 
-export function LaunchResults({ initial }: { initial: JobView }) {
+export function LaunchResults({ initial, launchChains }: { initial: JobView; launchChains?: readonly number[] }) {
   const router = useRouter();
   const [job, setJob] = useState<JobView>(initial);
   /**
@@ -251,7 +251,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
       )}
 
       {plan && plan.missions.length > 0 && (
-        <BudgetBar plan={plan} jobId={job.id} approval={job.approval} onRevised={(j) => setJob(j)} onApproved={(j) => setJob(j)} />
+        <BudgetBar plan={plan} jobId={job.id} approval={job.approval} onRevised={(j) => setJob(j)} onApproved={(j) => setJob(j)} launchChains={launchChains} />
       )}
     </div>
   );

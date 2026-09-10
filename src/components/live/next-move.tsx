@@ -11,7 +11,7 @@ import { Compass } from "lucide-react";
  * because it is the same kind of fact — a real clock on real money.
  *
  * When there is nothing to propose it says the actual constraint rather than idling, so the pause is
- * legible too: a treasury at its floor, a week's ceiling reached, a board still unclaimed.
+ * legible too: an account at its floor, a week's ceiling reached, a board still unclaimed.
  */
 interface Proposal {
   id: string;
@@ -26,11 +26,25 @@ interface Proposal {
   decidedBy: "llm" | "rules";
   createdAt: number;
 }
+/**
+ * The account, in one of three states — has one, can open one, cannot. The door offered below
+ * depends on which: a "fund it" button shown to someone who cannot open an account is not a call
+ * to action, it is a dead end with a countdown.
+ */
+interface Account {
+  available: boolean;
+  reason: "starknet" | "unconfigured" | null;
+  exists: boolean;
+  balanceBase: number;
+  network: string;
+  isMainnet: boolean;
+}
 interface Data {
   armed: boolean;
   now: number;
   mandate: { productUrl: string | null; instruction: string | null } | null;
   treasury: { balanceBase: number } | null;
+  account?: Account | null;
   committedThisWeekBase: number;
   exposureBase: number;
   liveCount: number;
@@ -54,6 +68,26 @@ interface Data {
 const usd = (b: number) => `$${(b / 1e6).toFixed(2)}`;
 const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, "0")}`;
 const KIND = { testing: "testing run", gig: "gig", grant: "milestone grant" } as const;
+
+/** What the telemetry chip says about the account: a balance, or the plain state instead of a fake $0.00. */
+function AccountTele({ data }: { data: Data }) {
+  const a = data.account;
+  if (!a) return <span><b>{usd(data.treasury?.balanceBase ?? 0)}</b> in your account</span>;
+  if (a.exists) return <span><b>{usd(a.balanceBase)}</b> in your account</span>;
+  if (a.available) return <span>no account yet</span>;
+  return <span>{a.reason === "starknet" ? "no account on Starknet" : "accounts not configured here"}</span>;
+}
+
+/** The one door the founder can actually walk through from here. */
+function AccountDoor({ data }: { data: Data }) {
+  const a = data.account;
+  if (!a || a.exists) return <Link href="/workspace/account" className="nm-btn">Fund it and Sage moves</Link>;
+  if (a.available) return <Link href="/workspace/account" className="nm-btn">Open your account</Link>;
+  if (a.reason === "starknet") {
+    return <span className="nm-assume" style={{ margin: 0, maxWidth: 220 }}>Sage launches from an account it holds for you on {a.network}. It opens with an email or an Ethereum wallet sign-in; your Starknet work is unaffected.</span>;
+  }
+  return <span className="nm-assume" style={{ margin: 0, maxWidth: 220 }}>Accounts are not configured on this deployment.</span>;
+}
 
 export function NextMove() {
   const [data, setData] = useState<Data | null>(null);
@@ -82,7 +116,7 @@ export function NextMove() {
   if (!data) return null;
   const R = 24, C = 2 * Math.PI * R;
   /*
-    ALIVE AT $0. Unarmed, or a treasury at its floor, used to render nothing — the flagship "agent
+    ALIVE AT $0. Unarmed, or an account at its floor, used to render nothing — the flagship "agent
     decides" feature was invisible to every new founder. The rehearsal is the same decision with the
     ring greyed and one door: fund it, and it will.
   */
@@ -92,7 +126,7 @@ export function NextMove() {
       <section className="lv-card">
         <div className="lv-h">
           <h2><Compass size={15} /> What Sage would do next</h2>
-          <span className="lv-tele"><span><b>{usd(data.treasury?.balanceBase ?? 0)}</b> in the treasury</span></span>
+          <span className="lv-tele"><AccountTele data={data} /></span>
         </div>
         {r && !r.because ? (
           <div className="nm-move nm-rehearsal">
@@ -109,21 +143,32 @@ export function NextMove() {
               </p>
               <p className="nm-goal">{r.goal}</p>
               <p className="nm-why">{r.reason}</p>
-              <p className="nm-assume">Sized as if the treasury held {usd(r.assumesFundingBase)}. Nothing is recorded until it does.</p>
+              <p className="nm-assume">Sized as if your account held {usd(r.assumesFundingBase)}. Nothing is recorded until it does.</p>
             </div>
             <div className="nm-act">
-              {data.armed && r.timing ? (
+              {data.armed && r.timing && (data.account?.exists ?? true) ? (
                 <span className="nm-assume">Sage moves when a slot frees.</span>
               ) : (
-                <Link href="/workspace/autopilot#treasury" className="nm-btn">Fund it and Sage moves</Link>
+                <AccountDoor data={data} />
               )}
             </div>
           </div>
         ) : (
           <div className="nm-blocked">
-            <p className="nm-state">{r?.because ? capital(r.because) : "Reading the board."}</p>
-            {r?.because && /name your product/i.test(r.because) && (
-              <Link href="/workspace/autopilot#mandate" className="nm-btn nm-fix">Name your product</Link>
+            {data.account && !data.account.available ? (
+              /* No mandate form is offered to this founder, so the "name your product" door must not be either. */
+              <p className="nm-state">
+                {data.account.reason === "starknet"
+                  ? `Sage decides what work to buy from an account it holds for you on ${data.account.network}. That account opens with an email or an Ethereum wallet sign-in; your Starknet work is unaffected.`
+                  : "Accounts are not configured on this deployment, so Sage cannot decide what to buy here."}
+              </p>
+            ) : (
+              <>
+                <p className="nm-state">{r?.because ? capital(r.because) : "Reading the board."}</p>
+                {r?.because && /name your product/i.test(r.because) && (
+                  <Link href="/workspace/autopilot#mandate" className="nm-btn nm-fix">Name your product</Link>
+                )}
+              </>
             )}
           </div>
         )}
@@ -153,7 +198,7 @@ export function NextMove() {
       <div className="lv-h">
         <h2><Compass size={15} /> What Sage is doing next</h2>
         <span className="lv-tele">
-          <span><b>{usd(data.treasury?.balanceBase ?? 0)}</b> in the treasury</span>
+          <AccountTele data={data} />
           <span><b>{usd(data.committedThisWeekBase)}</b> committed this week</span>
           <span><b>{data.liveCount}</b> running</span>
         </span>

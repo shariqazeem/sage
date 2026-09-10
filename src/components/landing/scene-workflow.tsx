@@ -348,7 +348,7 @@ function RealTake({ i, sc, move }: { i: number; sc: Showcase; move: ShowcaseMove
         {real ? (
           <span>{move.state === "vetoed" ? "Stopped by the founder inside the window" : move.state === "launched" ? "Launched after the veto window passed" : "Proposed — waiting out the veto window"}</span>
         ) : (
-          <span>Sized as if the treasury held <b className="mono">{usd(move.assumesFundingUsd ?? 0)}</b> · nothing recorded</span>
+          <span>Sized as if the account held <b className="mono">{usd(move.assumesFundingUsd ?? 0)}</b> · nothing recorded</span>
         )}
         <Link href="/workspace/autopilot">let it run →</Link>
       </div>

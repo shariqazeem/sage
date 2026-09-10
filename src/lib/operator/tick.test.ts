@@ -8,7 +8,7 @@ vi.mock("./state", () => ({ mandateStateFor: vi.fn() }));
 vi.mock("@/lib/launch/start", () => ({ startInspection: vi.fn() }));
 vi.mock("@/lib/launch/job", () => ({ runInspectionJob: vi.fn() }));
 vi.mock("@/lib/treasury/launch", () => ({ launchFromTreasury: vi.fn() }));
-vi.mock("@/lib/treasury/web", () => ({ getWebTreasury: vi.fn(() => null) }));
+vi.mock("@/lib/treasury/web", () => ({ getWebTreasury: vi.fn(() => null), listWebTreasuries: vi.fn(() => []), webTreasuryWallets: vi.fn(() => []) }));
 vi.mock("@/lib/privy/stop-campaign", () => ({ stopCampaignViaPrivy: vi.fn() }));
 vi.mock("./decide", async (orig) => ({ ...(await orig<typeof import("./decide")>()), choosePosition: vi.fn() }));
 

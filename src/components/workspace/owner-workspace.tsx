@@ -27,6 +27,8 @@ export interface OwnerView {
   }[];
   desk: FounderDesk;
   me: string;
+  /** which rail the owner signed in from — the fund-once account exists on EVM only, and step three says so */
+  chain?: "evm" | "starknet";
 }
 
 const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
@@ -92,9 +94,19 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             </li>
             <li className={paid ? "done" : ""}>
               <span className="ws-check-n">{paid ? <CheckCircle2 size={13} /> : "3"}</span>
-              <span className="ws-check-t">Fund it once</span>
-              <span className="ws-check-s">Fund a treasury once in Settings and Sage deploys, funds and activates every campaign from it — or fund each vault from your wallet. It cannot exceed what you funded.</span>
-              <Link href="/workspace/settings">Treasury →</Link>
+              {view.chain === "starknet" ? (
+                <>
+                  <span className="ws-check-t">Fund it as you launch</span>
+                  <span className="ws-check-s">Each campaign&rsquo;s vault is funded from your Starknet wallet when you post it, in one signed transaction. Sage can never spend more than what you put in it.</span>
+                  <Link href="/workspace/account">Your account →</Link>
+                </>
+              ) : (
+                <>
+                  <span className="ws-check-t">Fund it once</span>
+                  <span className="ws-check-s">Fund your account once and Sage deploys, funds and activates every campaign from it — or fund each vault from your own wallet as you launch. It cannot exceed what you funded.</span>
+                  <Link href="/workspace/account">Your account →</Link>
+                </>
+              )}
             </li>
           </ol>
         </section>

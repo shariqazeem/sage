@@ -89,7 +89,7 @@ export function SceneHero({
             </li>
             <li>
               <Wallet size={13} strokeWidth={2} />
-              One account on Arc — fund it with USDC, nothing else to find
+              One account, funded once — Sage launches from it
             </li>
           </ul>
         </div>

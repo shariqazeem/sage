@@ -19,7 +19,7 @@ export default function DocsOverview() {
         <p>
           <strong>What Sage is.</strong> An AI agent that turns one product URL and one budget into
           paid, verified testing. It browses the product itself, designs the missions, judges what
-          real people submit, and pays them in USDC — on Arc by default, the chain where USDC is the gas, with GOAT Network and Starknet as further rails. Three separate model layers do
+          real people submit, and pays them in USDC — publicly on GOAT Network, privately on Starknet, and on Arc (Circle&apos;s chain, where USDC is the gas) as soon as its mainnet opens. Three separate model layers do
           the reasoning; none of them can move money — an on-chain vault computes every amount and
           enforces every limit.
         </p>
@@ -105,7 +105,7 @@ export default function DocsOverview() {
 
       <h2>Is any of this real?</h2>
       <p>
-        Every payout resolves to a public transaction on the chain it settled on — Arc, GOAT Network or Starknet — with a receipt page citing the
+        Every payout resolves to a public transaction on the chain it settled on — GOAT Network or Starknet — with a receipt page citing the
         evidence it paid for. The{" "}
         <Link href="/case-studies/autonomous-paid-testing">case study</Link> reports the full Stage 2
         result — products inspected, submissions judged, how many were refused — with the place each

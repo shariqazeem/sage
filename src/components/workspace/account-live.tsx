@@ -4,21 +4,21 @@ import { useRouter } from "next/navigation";
 import { Check, Copy, Loader2 } from "lucide-react";
 
 /** The balance, live: the page re-reads it every few seconds so a deposit shows up when it lands. */
-export function AccountBalance({ initialUsd, network }: { initialUsd: number; network: string }) {
+export function AccountBalance({ initialUsd, network, chainId }: { initialUsd: number; network: string; chainId: number }) {
   const [usd, setUsd] = useState(initialUsd);
   const router = useRouter();
   useEffect(() => {
     let live = true;
     const read = async () => {
       try {
-        const r = await fetch("/api/treasury", { cache: "no-store" });
+        const r = await fetch(`/api/treasury?chainId=${chainId}`, { cache: "no-store" });
         const j = (await r.json()) as { balanceUsd?: number };
         if (live && typeof j.balanceUsd === "number" && j.balanceUsd !== usd) { setUsd(j.balanceUsd); router.refresh(); }
       } catch { /* next tick */ }
     };
     const t = setInterval(read, 8000);
     return () => { live = false; clearInterval(t); };
-  }, [usd, router]);
+  }, [usd, router, chainId]);
   return (
     <div className="ac-balance">
       <span className="ac-balance-n mono">{usd.toFixed(2)}</span>
@@ -37,8 +37,46 @@ export function CopyAddress({ address }: { address: string }) {
   );
 }
 
+/**
+ * OPEN THE ACCOUNT on one chain. The cap is the most Sage may put into any one campaign — the one
+ * number the mandate is built from — and it can be changed later. A testnet account says so on the
+ * button, so nobody opens one thinking it holds real money.
+ */
+export function OpenAccount({ chainId, network, isMainnet }: { chainId: number; network: string; isMainnet: boolean }) {
+  const [cap, setCap] = useState("50");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const router = useRouter();
+  const open = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/treasury", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ perCampaignCapUsd: Number(cap) || 50, chainId }) });
+      const j = (await r.json()) as { error?: string };
+      if (!r.ok) { setErr(j.error ?? "Could not open the account."); return; }
+      router.refresh();
+    } catch {
+      setErr("Could not reach Sage.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ac-open">
+      <label className="ac-open-cap">
+        <span>Most Sage may put into one campaign</span>
+        <span className="ac-withdraw-row"><input className="ws-input mono" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} disabled={busy} aria-label="Per-campaign cap in USDC" /><span className="ac-open-unit">USDC</span></span>
+      </label>
+      <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void open()} disabled={busy}>
+        {busy ? <><Loader2 size={13} className="sage-spin2" /> Opening…</> : `Open your account on ${network}${isMainnet ? "" : " (testnet)"}`}
+      </button>
+      {err && <p className="ws-err">{err}</p>}
+    </div>
+  );
+}
+
 /** Withdraw to any address: type it, see exactly what will move, confirm, get the transaction. */
-export function WithdrawForm({ balanceUsd, network }: { balanceUsd: number; network: string }) {
+export function WithdrawForm({ balanceUsd, network, chainId }: { balanceUsd: number; network: string; chainId: number }) {
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<"edit" | "confirm" | "sending" | "done">("edit");
@@ -51,7 +89,7 @@ export function WithdrawForm({ balanceUsd, network }: { balanceUsd: number; netw
     setStage("sending");
     setErr(null);
     try {
-      const r = await fetch("/api/treasury/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: to.trim(), amountUsd: usd }) });
+      const r = await fetch("/api/treasury/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: to.trim(), amountUsd: usd, chainId }) });
       const j = (await r.json()) as { ok?: boolean; txHash?: string; explorerUrl?: string; error?: string };
       if (j.ok && j.txHash && j.explorerUrl) { setResult({ txHash: j.txHash, explorerUrl: j.explorerUrl }); setStage("done"); router.refresh(); }
       else { setErr(j.error ?? "That did not go through."); setStage("edit"); }
@@ -67,6 +105,9 @@ export function WithdrawForm({ balanceUsd, network }: { balanceUsd: number; netw
         <button className="sage-btn sage-btn-sm" onClick={() => { setStage("edit"); setTo(""); setAmount(""); setResult(null); }}>Withdraw again</button>
       </div>
     );
+  }
+  if (balanceUsd <= 0 && stage === "edit") {
+    return <p className="ac-empty">Nothing to withdraw yet. Once the account holds USDC, send any amount of it to any address on {network} from here.</p>;
   }
   return (
     <div className="ac-withdraw">

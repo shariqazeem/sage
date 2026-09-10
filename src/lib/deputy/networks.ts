@@ -66,17 +66,26 @@ export const GOAT_USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8" as Address
  * answers as an ERC-20 at this fixed address with 6 decimals: one balance, two faces. Every amount
  * Sage stores is 6-decimal base units and every token call goes through the ERC-20 face, so the two
  * precisions never meet in code. The founder-facing consequence: funding a wallet with USDC IS
- * funding its gas — no second token to find, which is the reason Arc is the default rail.
+ * funding its gas — no second token to find, which is why Arc becomes the default rail the day its
+ * mainnet opens (see DEFAULT_EVM_LAUNCH_CHAIN).
  */
 export const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
 export const ARC_TESTNET_CHAIN_ID = 5042002;
 
 /**
- * The EVM chain new launches default to. Arc first (2026-09-10, the founder's call: "arc default,
- * goat behind an explicit choice but the history stays"). GOAT remains fully supported for the
- * campaigns already on it and for anyone who picks it; nothing about them changes.
+ * The EVM chain new launches default to: GOAT mainnet, the chain the product runs real money on.
+ *
+ * Arc is on TESTNET until Arc mainnet opens (16 September 2026). A mainnet product must not present
+ * a testnet as its default, so until then Arc sits behind an explicit choice — the founder's rule of
+ * 2026-09-10: "keep it separate and keep strk20 and goat primary, until we goes mainnet". The day Arc
+ * mainnet is in the registry with a factory deployed, this becomes that chain id and GOAT moves
+ * behind the explicit choice instead ("arc default, goat behind an explicit choice but the history
+ * stays"). Nothing about a campaign already on either chain changes with the flip.
  */
-export const DEFAULT_EVM_LAUNCH_CHAIN = ARC_TESTNET_CHAIN_ID;
+export const DEFAULT_EVM_LAUNCH_CHAIN = GOAT_MAINNET_CHAIN_ID;
+
+/** The Arc rail a founder may pick explicitly while it is on testnet: labelled as such everywhere it appears. */
+export const ARC_LAUNCH_CHAIN = ARC_TESTNET_CHAIN_ID;
 
 /** The env-name prefix for a chain's deploy-time addresses and operator key (`<PREFIX>_CAMPAIGN_FACTORY_ADDRESS`, …). */
 export function railEnvPrefix(chainId: number): "ARC" | "GOAT" | "METIS" {

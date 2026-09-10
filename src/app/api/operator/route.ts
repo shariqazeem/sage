@@ -5,6 +5,7 @@ import { allocate, exposureBase, usd } from "@/lib/operator/policy";
 import { mandateStateFor } from "@/lib/operator/state";
 import { forgetRehearsal, rehearse } from "@/lib/operator/rehearsal";
 import { allowedSurfaces } from "@/lib/operator/tick";
+import { accountSummary } from "@/lib/treasury/summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +22,16 @@ export async function GET() {
     a form.
   */
   if (!mandate) {
+    const [rehearsal, account] = await Promise.all([rehearse(founder).catch(() => null), accountSummary(founder)]);
     return NextResponse.json({
       armed: false, mandate: null, proposals: [], now: Math.floor(Date.now() / 1000),
-      rehearsal: await rehearse(founder).catch(() => null),
+      rehearsal,
+      /** has / can open / cannot — and why — so no surface offers a "fund it" door that leads nowhere */
+      account,
     });
   }
   const state = await mandateStateFor(founder);
+  const account = await accountSummary(founder, state ? { balanceBase: state.balanceBase } : {});
   const launches = listLaunches(founder, 12);
   const surfaces = state ? allowedSurfaces(state.productUrl, state.observations) : [];
   const verdict = state ? allocate(state, surfaces[0] ?? null) : null;
@@ -35,6 +40,7 @@ export async function GET() {
     now: Math.floor(Date.now() / 1000),
     mandate: { ...mandate, policy: policyFrom(mandate) },
     treasury: state ? { address: state.treasuryAddress, balanceBase: state.balanceBase } : null,
+    account,
     committedThisWeekBase: state?.committedThisWeekBase ?? 0,
     exposureBase: state ? exposureBase(state.observations) : 0,
     liveCount: state ? state.observations.filter((o) => o.status === "live").length : 0,
@@ -47,7 +53,7 @@ export async function GET() {
       : null,
     proposals: launches,
     rehearsal:
-      mandate.enabled !== 1 || (verdict && verdict.action === "hold" && /reserve floor|treasury/i.test(verdict.reason))
+      mandate.enabled !== 1 || (verdict && verdict.action === "hold" && /reserve floor|treasury|account/i.test(verdict.reason))
         ? await rehearse(founder).catch(() => null)
         : null,
   });
@@ -62,7 +68,7 @@ export async function GET() {
  * a button.
  */
 function fixFor(reason: string): { label: string; href: string } | null {
-  if (/reserve floor|treasury/i.test(reason)) return { label: "Fund the treasury", href: "/workspace/autopilot" };
+  if (/reserve floor|treasury|account/i.test(reason)) return { label: "Fund your account", href: "/workspace/account" };
   if (/mandate is off/i.test(reason)) return { label: "Let Sage run it", href: "/workspace/autopilot" };
   if (/week's ceiling/i.test(reason)) return { label: "Raise the weekly ceiling", href: "/workspace/autopilot" };
   if (/already running|unclaimed on the board/i.test(reason)) return { label: "See what is running", href: "/dashboard" };

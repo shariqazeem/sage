@@ -4,26 +4,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { viemChainFor, chainConfig, explorerAddressUrl, ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
 /**
- * Chains the launch wizard offers. GOAT mainnet only.
+ * Chains the launch wizard offers: GOAT mainnet, and — only where the server has it configured —
+ * Arc, behind an explicit choice and labelled as the testnet it is until Arc mainnet opens.
  *
- * The testnet was a development convenience that leaked into the founder's path: the funding step
- * offered "Metis Sepolia (testnet)" beside real USDC, which asks someone about to spend money to
+ * The Metis testnet was a development convenience that leaked into the founder's path: the funding
+ * step offered "Metis Sepolia (testnet)" beside real USDC, which asks someone about to spend money to
  * first understand a distinction that exists for our benefit and not theirs. A campaign funded in
  * test tokens also cannot pay a real tester, so every mission under it is work nobody gets paid for.
+ * That is why Arc testnet is never the default and never the first button: it is offered to someone
+ * who came to try Sage on Arc, and it says "test USDC" on the button.
  *
- * The server allowlist and the chain registry are unchanged, so campaigns already on the testnet keep
- * working — this only stops offering it to anyone new.
+ * The server allowlist and the chain registry are unchanged, so campaigns already on a testnet keep
+ * working — this only decides what is offered to anyone new.
  */
-const LAUNCH_CHAINS = [DEFAULT_EVM_LAUNCH_CHAIN, 2345];
-function onLaunchChain(chainId: number | null): boolean {
-  return chainId != null && LAUNCH_CHAINS.includes(chainId);
+function launchChainsOffered(configured: readonly number[]): number[] {
+  return [DEFAULT_EVM_LAUNCH_CHAIN, ...(configured.includes(ARC_LAUNCH_CHAIN) ? [ARC_LAUNCH_CHAIN] : [])];
 }
 
 /**
@@ -80,10 +82,11 @@ const STEP_LABELS: Record<Step, string> = {
   activate: "Activating Sage",
 };
 
-export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
+export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHAIN] }: { jobId: string; plan: PlanView; launchChains?: readonly number[] }) {
   const wallet = useWallet();
   const siwe = useSiwe(wallet);
   const storeKey = `sage.deploy.${jobId}`;
+  const offered = launchChainsOffered(launchChains);
 
   const [dep, setDep] = useState<DeploymentView | null>(null);
   const [calls, setCalls] = useState<StepCall[]>([]);
@@ -420,7 +423,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
           <span className="lxd-spin" aria-hidden /> {note}
         </div>
       )}
-      {/* FUND ONCE, THE AGENT LAUNCHES: with a treasury, the wallet-driven steps below are optional. */}
+      {/* FUND ONCE, THE AGENT LAUNCHES: with an account, the wallet-driven steps below are optional. */}
       <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} />
 
       {error && (
@@ -430,7 +433,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
       )}
 
       {phase === "claim" && (
-        <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} />
+        <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} />
       )}
 
       {phase === "limits" && dep && (
@@ -511,7 +514,9 @@ function Stepper({ phase, dep }: { phase: Phase; dep: DeploymentView | null }) {
   );
 }
 
-function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void }) {
+function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void; offered: readonly number[] }) {
+  const onLaunchChain = (chainId: number | null): boolean => chainId != null && offered.includes(chainId);
+  const arcOffered = offered.includes(ARC_LAUNCH_CHAIN);
   return (
     <div className="lxd-panel">
       <p className="lxd-own">Your wallet owns this campaign. Sage receives only the bounded operator role.</p>
@@ -526,29 +531,31 @@ function ClaimPanel({ siwe, busy, onClaim }: { siwe: ReturnType<typeof useSiwe>;
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign pays USDC{chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).isMainnet ? "" : ` on ${chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}`}.</p>
+          <p className="lxd-own">This campaign pays real USDC on {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}.</p>
           {/* The wallet's own dialog will name the chain, so the button names it too — matching
               what the founder is about to see is clarity, not chain-speak. */}
           <button className="lx-btn" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
             Switch network to continue <span className="lxd-net-fine">{chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel}</span>
           </button>
-          <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
-            Use GOAT Mainnet instead <span className="lxd-net-fine">real USDC, BTC gas</span>
-          </button>
+          {arcOffered && (
+            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
+              Try it on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">test USDC · USDC is the gas</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="lxd-chain-pick">
           <button className="lx-btn" disabled={busy} onClick={onClaim}>
             {busy ? "Securing…" : "Secure plan ownership"}
           </button>
-          {siwe.chainId !== 2345 && (
-            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(2345)}>
-              Use GOAT Mainnet instead <span className="lxd-net-fine">real USDC, BTC gas</span>
-            </button>
-          )}
           {siwe.chainId !== DEFAULT_EVM_LAUNCH_CHAIN && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
-              Use {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel} <span className="lxd-net-fine">USDC is the gas</span>
+              Use {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">real USDC, BTC gas</span>
+            </button>
+          )}
+          {arcOffered && siwe.chainId !== ARC_LAUNCH_CHAIN && (
+            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
+              Try it on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">test USDC · USDC is the gas</span>
             </button>
           )}
         </div>

@@ -67,7 +67,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
           <span className="ws-eyebrow" style={{ marginTop: 10 }}>Account</span>
           <h1 className="ws-title">Settings</h1>
-          <p className="ws-sub">The workspace, the wallets behind your account, and the treasury the agent launches from.</p>
+          <p className="ws-sub">The workspace, the wallets you sign in with, and the account Sage launches from.</p>
         </div>
       </header>
 
@@ -143,7 +143,8 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
 
           <TreasuryCard />
 
-          <MandateCard />
+          {/* The mandate launches from the account; a founder who cannot hold one is told so by the card above, not handed a form that arms nothing. */}
+          {account.chain === "evm" && <MandateCard />}
         </div>
 
         <div>

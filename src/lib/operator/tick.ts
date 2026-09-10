@@ -2,10 +2,11 @@ import "server-only";
 import { getAddress, type Address } from "viem";
 import { getCampaign, recordEvent, setCampaignStatus } from "@/lib/db/campaigns";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { armedMandates, getMandate, launchesInState, policyFrom, recordIntent, updateLaunch } from "@/lib/db/operator";
+import { armedMandates, getMandate, launchesInState, recordIntent, updateLaunch } from "@/lib/db/operator";
 import { startInspection } from "@/lib/launch/start";
 import { runInspectionJob } from "@/lib/launch/job";
-import { getWebTreasury } from "@/lib/treasury/web";
+import { listWebTreasuries } from "@/lib/treasury/web";
+import { sameFounder } from "@/lib/auth/founder";
 import { launchFromTreasury } from "@/lib/treasury/launch";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
 import { choosePosition } from "./decide";
@@ -69,10 +70,11 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
   const policy = state.policy;
   if (!policy.enabled) return;
 
-  // 1 — reclaim dead boards
-  const treasury = getWebTreasury(founderAddress);
+  // 1 — reclaim dead boards, each through the account that launched it (its wallet owns the vault)
+  const accounts = listWebTreasuries(founderAddress);
   for (const dead of stalled(state.observations, policy)) {
     const campaign = getCampaign(dead.campaignId);
+    const treasury = campaign ? accounts.find((t) => sameFounder(t.privyWalletAddress, campaign.posterWallet)) ?? null : null;
     if (!campaign || !treasury || !campaign.vaultAddress) continue;
     let vault: Address;
     try {
@@ -144,7 +146,7 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
     const spendable = state.balanceBase - policy.reserveFloorBase;
     const weeklyLeft = policy.weeklyCapBase - state.committedThisWeekBase + l.budgetBase;
     if (spendable < l.budgetBase || weeklyLeft < l.budgetBase) {
-      out.held.push(`${usd(l.budgetBase)} was ready to commit, but the treasury no longer covers it — holding, not cancelling`);
+      out.held.push(`${usd(l.budgetBase)} was ready to commit, but the account no longer covers it — holding, not cancelling`);
       continue;
     }
     const started = startInspection({

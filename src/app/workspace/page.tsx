@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { OwnerWorkspace, type OwnerView } from "@/components/workspace/owner-workspace";
 import { MemberWorkspace, type MemberView } from "@/components/workspace/member-workspace";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
+import { founderChain } from "@/lib/auth/founder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ export default async function WorkspacePage() {
       campaigns: rows,
       desk: loadFounderDesk(ctx.address, 8),
       me: ctx.memberKey,
+      chain: founderChain(ctx.address) ?? "evm",
     };
     return <OwnerWorkspace view={view} />;
   }

@@ -18,9 +18,13 @@ vi.mock("@/lib/telegram/agent-wallet-tools", async (orig) => ({
   ...(await orig<typeof import("@/lib/telegram/agent-wallet-tools")>()),
   usdcBalanceBase: vi.fn(async () => BigInt(60_000_000)),
 }));
+const ACCOUNT = { chatId: "web:t", founderAddress: "0x", privyWalletId: "pw", privyWalletAddress: `0x${"c".repeat(40)}`, policyId: "p", perCampaignCapBase: 15_000_000, chainId: 2345, createdAt: 0, updatedAt: 0 };
 vi.mock("@/lib/treasury/web", () => ({
   webTreasuryKey: (a: string) => `web:${a}`,
-  getWebTreasury: vi.fn(() => ({ chatId: "web:t", founderAddress: "0x", privyWalletId: "pw", privyWalletAddress: `0x${"c".repeat(40)}`, policyId: "p", perCampaignCapBase: 15_000_000, chainId: 2345, createdAt: 0, updatedAt: 0 })),
+  getWebTreasury: vi.fn(() => ACCOUNT),
+  getWebTreasuryOn: vi.fn(() => ACCOUNT),
+  listWebTreasuries: vi.fn(() => [ACCOUNT]),
+  webTreasuryWallets: vi.fn(() => [ACCOUNT.privyWalletAddress]),
 }));
 vi.mock("@/lib/treasury/launch", () => ({ launchFromTreasury: vi.fn(async () => ({ ok: false, reason: "failed", message: "no Privy wallet in this environment" })) }));
 vi.mock("@/lib/launch/job", () => ({ runInspectionJob: vi.fn(async () => {}) }));

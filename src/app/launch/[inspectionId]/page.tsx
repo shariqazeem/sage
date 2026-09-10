@@ -4,6 +4,7 @@ import "../launch.css";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { feedbackAtForInspection } from "@/lib/db/feedback";
 import { jobToView } from "@/lib/launch/job";
+import { configuredLaunchChains } from "@/lib/launch/deployment-service";
 import { LaunchResults } from "@/components/launch/launch-results";
 import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";
 import type { JobView as ClientJobView } from "@/components/launch/types";
@@ -52,7 +53,7 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
           </p>
         )}
 
-        <LaunchResults initial={view as unknown as ClientJobView} />
+        <LaunchResults initial={view as unknown as ClientJobView} launchChains={configuredLaunchChains()} />
 
         {/* The founder decides HERE. Answer "will anyone come?" on the page where they approve. */}
         {view.status === "ready" && <TesterSupplyProof />}

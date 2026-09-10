@@ -1,6 +1,7 @@
 import "server-only";
 import { getAddress } from "viem";
-import { getWebTreasury, webTreasuryKey } from "./web";
+import { getWebTreasuryOn } from "./web";
+import { treasuryChainId } from "@/lib/privy/onboarding";
 import { treasuryPreflight, type TreasuryPreflight } from "./preflight";
 import { autoApprove, MIN_GAS_WEI, nativeBalanceWei, usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
@@ -23,14 +24,16 @@ export interface TreasuryStatus {
   balanceUsd: number;
   chainId: number;
   network: string;
+  /** a testnet account holds test USDC; every door that offers it says so */
+  isMainnet: boolean;
   /** the gas token's symbol; "USDC" means funding the wallet funds its gas too */
   nativeSymbol: string;
   gasNative: string | null;
   enoughGas: boolean | null;
 }
 
-export async function webTreasuryStatus(founderAddress: string): Promise<TreasuryStatus | null> {
-  const t = getWebTreasury(founderAddress);
+export async function webTreasuryStatus(founderAddress: string, chainId: number = treasuryChainId()): Promise<TreasuryStatus | null> {
+  const t = getWebTreasuryOn(founderAddress, chainId);
   if (!t) return null;
   const c = chainConfig(t.chainId);
   const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress, t.chainId).catch(() => null), nativeBalanceWei(t.privyWalletAddress, t.chainId).catch(() => null)]);
@@ -41,6 +44,7 @@ export async function webTreasuryStatus(founderAddress: string): Promise<Treasur
     balanceUsd: balance === null ? 0 : Number(balance) / 1e6,
     chainId: t.chainId,
     network: c.name,
+    isMainnet: c.isMainnet,
     nativeSymbol: c.nativeSymbol,
     gasNative: gas === null ? null : (Number(gas) / 1e18).toFixed(8),
     enoughGas: gas === null ? null : gas >= MIN_GAS_WEI,
@@ -52,9 +56,9 @@ export async function webTreasuryStatus(founderAddress: string): Promise<Treasur
  * mandate IS the pre-authorization); the agent deploys, funds and activates the vault from the
  * treasury inside the mandate's cap. Same checks, same order, as the Telegram tool.
  */
-export async function launchFromTreasury(founderAddress: string, jobId: string): Promise<TreasuryLaunch> {
-  const t = getWebTreasury(founderAddress);
-  if (!t) return { ok: false, reason: "no_treasury", message: "Create a treasury in Settings first — the agent launches from it." };
+export async function launchFromTreasury(founderAddress: string, jobId: string, chainId: number = treasuryChainId()): Promise<TreasuryLaunch> {
+  const t = getWebTreasuryOn(founderAddress, chainId);
+  if (!t) return { ok: false, reason: "no_treasury", message: `Open your account on ${chainConfig(chainId).name} first — Sage launches from it.` };
   const job = getInspectionJob(jobId);
   if (!job || !sameFounder(job.founderWallet, founderAddress)) return { ok: false, reason: "not_yours", message: "That plan isn't yours." };
   if (!autoApprove(jobId, getAddress(founderAddress))) return { ok: false, reason: "not_ready", message: "This plan isn't ready to launch — it may have changed since it was planned; plan it again." };
@@ -72,7 +76,7 @@ export async function launchFromTreasury(founderAddress: string, jobId: string):
   }
   if (!pf.ok) return { ok: false, reason: pf.reason, message: pf.message };
   try {
-    const r = await deployCampaignViaPrivy(webTreasuryKey(founderAddress), jobId);
+    const r = await deployCampaignViaPrivy(t.chatId, jobId);
     return { ok: true, campaignId: r.campaignId, vault: r.vault, steps: r.steps };
   } catch (e) {
     return { ok: false, reason: "failed", message: e instanceof Error ? e.message.slice(0, 200) : "launch failed" };
