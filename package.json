@@ -51,6 +51,8 @@
     "starknet:loop": "tsx --conditions=react-server scripts/starknet-loop.ts"
   },
   "dependencies": {
+    "@circle-fin/adapter-viem-v2": "^1.17.1",
+    "@circle-fin/app-kit": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@privy-io/react-auth": "^3.39.0",
     "@privy-io/server-auth": "^1.32.5",

@@ -14,6 +14,7 @@ import { chainConfig, explorerAddressUrl, explorerTxUrl } from "@/lib/deputy/net
 import { rewardAligned } from "@/lib/format";
 import { TreasuryCard } from "@/components/workspace/treasury-card";
 import { AccountBalance, CopyAddress, WithdrawForm } from "@/components/workspace/account-live";
+import { BridgeIn } from "@/components/workspace/bridge-in";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,6 +79,7 @@ export default async function AccountPage() {
                 </p>
               </div>
             </div>
+            {treasury.chainId === 5042002 ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
           </section>
 
           <section className="ws-card">
@@ -120,7 +122,7 @@ export default async function AccountPage() {
                 {moves.map((m) => (
                   <li className={`ac-move is-${m.direction}`} key={`${m.txHash}:${m.direction}:${m.counterparty}`}>
                     <i>{m.direction === "in" ? "+" : "−"}</i>
-                    <span><span className="mono">{(m.amountBase / 1e6).toFixed(2)} USDC</span> {m.direction === "in" ? "from" : "to"} <span className="mono">{m.counterparty.slice(0, 6)}…{m.counterparty.slice(-4)}</span></span>
+                    <span><span className="mono">{(m.amountBase / 1e6).toFixed(2)} USDC</span> {m.direction === "in" ? "from" : "to"} <span className="mono">{m.counterparty.slice(0, 6)}…{m.counterparty.slice(-4)}</span>{m.at ? <span className="ac-when"> · {new Date(m.at * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span> : null}</span>
                     <a href={explorerTxUrl(treasury.chainId, m.txHash)} target="_blank" rel="noreferrer">tx ↗</a>
                   </li>
                 ))}

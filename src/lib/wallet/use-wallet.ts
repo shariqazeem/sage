@@ -82,6 +82,8 @@ export interface WalletApi {
   /** a viem WalletClient bound to the connected account (null if not connected).
    *  Pass a chainId to bind it to that chain; defaults to Metis Sepolia. */
   getWalletClient: (chainId?: number) => WalletClient | null;
+  /** the raw EIP-1193 provider this session is bound to — for SDKs that speak to the wallet directly (Circle's App Kit). */
+  getProvider: () => EIP1193Provider | null;
 }
 
 /**
@@ -239,5 +241,6 @@ export function useWallet(): WalletApi {
     switchToMetis,
     switchToChain,
     getWalletClient,
+    getProvider: () => providerRef.current ?? getProvider(),
   };
 }
