@@ -1,0 +1,12 @@
+flowchart LR
+  F[Founder<br/>signs in: email or wallet] --> A[The account<br/>a Privy-held wallet on Arc<br/>under an on-chain mandate]
+  X[USDC on Ethereum · Base · Arbitrum] -->|Circle App Kit · CCTP v2<br/>forwarder mints on Arc| A
+  W[USDC from any wallet or exchange] --> A
+  A -->|the agent launches:<br/>create · approve · fund · activate| V[(CampaignVault on Arc<br/>caps, replay protection,<br/>the exact reward)]
+  M[Mission brain<br/>designs the work] --> V
+  P[Worker · human or agent] -->|submits evidence| J[Payout brain<br/>judges · never states an amount]
+  J -->|requestSpend| V
+  V -->|USDC on Arc| P
+  V --> R[Receipt · /proof/tx<br/>Record · /record/wallet]
+  A -->|withdraw: one-time permit,<br/>then re-lock| O[Any address]
+  S[Standing mandate<br/>decides where, never how much] --> A
