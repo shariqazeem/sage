@@ -52,7 +52,11 @@ export default async function AccountPage() {
     treasuryActivity(treasury.privyWalletAddress, treasury.chainId, treasury.createdAt),
     QRCode.toString(treasury.privyWalletAddress, { type: "svg", margin: 1, color: { dark: "#1a1d21", light: "#ffffff" } }),
   ]);
-  const running = getDeputyOverview(founder).campaigns.filter((c) => c.chainId === treasury.chainId);
+  // Work launched FROM the account is posted by the account's own wallet (it owns the vault), so
+  // both the founder's campaigns and the account wallet's campaigns belong here.
+  const seen = new Set<string>();
+  const running = [...getDeputyOverview(founder).campaigns, ...getDeputyOverview(treasury.privyWalletAddress).campaigns]
+    .filter((c) => c.chainId === treasury.chainId && !seen.has(c.id) && seen.add(c.id));
   const balanceUsd = status?.balanceUsd ?? 0;
   return (
     <main className="ws-shell">
