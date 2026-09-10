@@ -7,14 +7,14 @@
 Sage is an AI agent that moves money on verified work. A founder funds one account; the agent designs
 paid work, verifies every deliverable, refuses fraud, and pays people in USDC from a vault it cannot
 exceed. It has already paid real people on GOAT mainnet (41 payouts) and on Starknet (13, on the
-private rail). For ETHOnline it moved its default rail to **Arc**: one account on Arc that anyone can
+private rail). For ETHOnline it brought the whole loop to **Arc**: one account on Arc that anyone can
 fund from anywhere — USDC from any wallet or exchange, or bridged in from Ethereum, Base or Arbitrum
 through Circle's App Kit over CCTP v2 — and the agent launches, pays and settles from it, on the chain
 where USDC is the gas. Withdraw to any address through a one-time permit that re-locks to the mandate.
 
 ## What is new for the hackathon (the continuity delta)
 
-- Arc as the default EVM rail: registry entry, factory deployed, operator, gas semantics (USDC is gas —
+- Arc as a first-class EVM rail (the default the day its mainnet opens; a labelled testnet choice until then): registry entry, factory deployed, operator, gas semantics (USDC is gas —
   the BTC gas stipend problem is gone), Privy signing for the wallet's own chain.
 - The account (`/workspace/account`): a Privy-held wallet on Arc under the on-chain mandate; fund with a
   QR/address, **bridge in from other chains with Circle's App Kit (CCTP v2, forwarder destination)**,
