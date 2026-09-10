@@ -4,6 +4,7 @@ import "@/styles/wallet-connect.css";
 import "@/styles/workspace.css";
 import { redirect } from "next/navigation";
 import { workspaceContext } from "@/lib/workspaces/context";
+import { founderChain } from "@/lib/auth/founder";
 import { StartFlow } from "@/components/workspace/start-flow";
 
 export const runtime = "nodejs";
@@ -24,6 +25,7 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     <StartFlow
       signedIn={!!ctx}
       address={ctx?.address ?? null}
+      chain={ctx ? founderChain(ctx.address) : null}
       hasMemberships={(ctx?.memberships.length ?? 0) > 0}
       emailEnabled={!!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim()}
     />

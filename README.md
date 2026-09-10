@@ -13,6 +13,8 @@
 
 [Website](https://sagepays.xyz) · [Documentation](https://sagepays.xyz/docs) · [Case study](https://sagepays.xyz/case-studies/autonomous-paid-testing) · [Live missions](https://sagepays.xyz/marketplace)
 
+**New (September 2026):** Sage on Arc — one account anyone can fund with USDC alone, on Circle's chain where USDC is the gas. Working on Arc testnet today; on mainnet the day Arc opens, 16 September. [Read the Arc section →](#arc--one-account-anyone-can-fund--testnet-today-mainnet-on-16-september)
+
 </div>
 
 ---

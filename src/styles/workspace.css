@@ -243,3 +243,10 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
   .cap-rail { grid-template-columns: repeat(2, 1fr); gap: 16px 0; }
   .cap-rail::before { display: none; }
 }
+
+/* orientation: which rail you are on, in one line above the first moves */
+.ws-rail { margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: var(--ink-muted); }
+.ws-rail b { color: var(--ink); font-weight: 600; }
+.ws-rail-new { color: var(--accent); text-decoration: none; }
+.ws-rail-new:hover { text-decoration: underline; }
+.ws-new { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-border); border-radius: 999px; padding: 1px 6px; margin-right: 6px; background: var(--accent-soft); vertical-align: 1px; }

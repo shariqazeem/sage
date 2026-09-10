@@ -65,7 +65,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         return (
           <Link key={id} href={id === home ? "/workspace/account" : `/workspace/account?chain=${id}`} className={`ac-tab${id === chainId ? " on" : ""}`} aria-current={id === chainId ? "page" : undefined}>
             <span>{c.chipLabel}</span>
-            <span className="ac-tab-k">{c.isMainnet ? "mainnet · real USDC" : "testnet · test USDC"}{has ? "" : " · not opened"}</span>
+            <span className="ac-tab-k">{c.isMainnet ? "mainnet · real USDC" : "new · testnet · test USDC"}{has ? "" : " · not opened"}</span>
           </Link>
         );
       })}
@@ -90,7 +90,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <p className="ws-note" style={{ margin: "0 0 12px" }}>
                 {chain.isMainnet
                   ? <>Real USDC on {chain.name}. Launches there also need a little {chain.nativeSymbol} for gas; Sage covers the first launch.</>
-                  : <>Test USDC only — {chain.name} is a testnet. There, USDC is the gas too, so the account never needs anything else. Circle&apos;s faucet hands out test USDC.</>}
+                  : <><b>New.</b> Arc is Circle&apos;s chain, where USDC is the gas: fund the account with USDC and it needs nothing else. Testnet today, with test USDC from Circle&apos;s faucet; on mainnet the day Arc opens, 16 September, when it becomes the default.</>}
               </p>
               <OpenAccount chainId={chainId} network={chain.name} isMainnet={chain.isMainnet} />
             </section>

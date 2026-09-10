@@ -7,6 +7,7 @@ import { SageMark } from "@/components/brand/sage-mark";
 import { geist } from "./fonts";
 import { LandingNav } from "./landing-nav";
 import { SceneHero } from "./scene-hero";
+import { ArcNote } from "./arc-note";
 import { SceneWorkflow } from "./scene-workflow";
 import { SceneProof } from "./scene-proof";
 import { SceneCapital } from "./scene-capital";
@@ -49,6 +50,9 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
         {/* SAGE FOR TEAMS (2026-09-04): the landing says one thing four times — what it is, how it
             runs, that it is real, and where to start. Trust, loop, teams, privacy and capital are
             documented, not paraded: a new team read nine scenes and opened none of the doors. */}
+        {/* NEW · Arc: promoted under the hero, labelled testnet until Arc mainnet opens (16 Sep). */}
+        <ArcNote />
+
         <SceneWorkflow showcase={showcase} move={move} />
 
         <SceneProof feed={feed} totals={totals} networkName={network.name} now={now} />

@@ -15,6 +15,8 @@ import { OwnerWorkspace, type OwnerView } from "@/components/workspace/owner-wor
 import { MemberWorkspace, type MemberView } from "@/components/workspace/member-workspace";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
 import { founderChain } from "@/lib/auth/founder";
+import { configuredLaunchChains } from "@/lib/launch/deployment-service";
+import { ARC_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,6 +63,7 @@ export default async function WorkspacePage() {
       desk: loadFounderDesk(ctx.address, 8),
       me: ctx.memberKey,
       chain: founderChain(ctx.address) ?? "evm",
+      arcTestnet: configuredLaunchChains().includes(ARC_LAUNCH_CHAIN),
     };
     return <OwnerWorkspace view={view} />;
   }

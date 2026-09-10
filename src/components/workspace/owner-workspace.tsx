@@ -29,6 +29,8 @@ export interface OwnerView {
   me: string;
   /** which rail the owner signed in from — the fund-once account exists on EVM only, and step three says so */
   chain?: "evm" | "starknet";
+  /** the server has Arc (testnet) configured, so the orientation line may promote it */
+  arcTestnet?: boolean;
 }
 
 const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
@@ -79,6 +81,14 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
       {fresh && (
         <section className="ws-card">
           <div className="ws-card-h"><h2><Sparkles size={15} /> Three moves to your first verified payout</h2></div>
+          {/* ORIENTATION, ONE LINE. Three rails exist; a new founder is on exactly one, and this says which and what that means for money. */}
+          <p className="ws-rail">
+            {view.chain === "starknet" ? (
+              <><b>Your rail is Starknet.</b> Real USDC, private when you ask. Each campaign is funded from your wallet when you post it, and every payout settles through the Cairo vault.</>
+            ) : (
+              <><b>Your rail is GOAT Network.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.arcTestnet ? <> <Link href="/workspace/account?chain=5042002" className="ws-rail-new"><span className="ws-new">new</span>Try the same account on Arc testnet, where USDC is the gas</Link>.</> : null}</>
+            )}
+          </p>
           <ol className="ws-check">
             <li className={invited ? "done" : ""}>
               <span className="ws-check-n">{invited ? <CheckCircle2 size={13} /> : "1"}</span>

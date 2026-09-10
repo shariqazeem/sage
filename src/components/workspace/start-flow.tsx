@@ -15,7 +15,7 @@ type Intent = "pay" | "earn" | "test";
  * change: who you are (a wallet or an email), what you are here to do, and the one detail that
  * sets you up. Motion is entrance-only and collapses under reduced-motion.
  */
-export function StartFlow({ signedIn, address, hasMemberships, emailEnabled = false }: { signedIn: boolean; address: string | null; hasMemberships: boolean; emailEnabled?: boolean }) {
+export function StartFlow({ signedIn, address, chain = null, hasMemberships, emailEnabled = false }: { signedIn: boolean; address: string | null; chain?: "evm" | "starknet" | null; hasMemberships: boolean; emailEnabled?: boolean }) {
   const router = useRouter();
   const [intent, setIntent] = useState<Intent | null>(null);
   const [name, setName] = useState("");
@@ -72,14 +72,15 @@ export function StartFlow({ signedIn, address, hasMemberships, emailEnabled = fa
             <h1 className="st-h1">Welcome to Sage</h1>
             {emailEnabled ? (
               <>
-                <p className="st-p">An email is enough — Sage keeps a wallet for you. Or sign in with a wallet you already have. Either way it is just your account; nothing moves.</p>
+                {/* Each door says what it means for money, in one line, so nobody has to reason about chains. */}
+                <p className="st-p">An email is enough: Sage keeps a wallet for you on GOAT Network, and once you fund it, Sage launches work from it. Or sign in with a wallet you already have. Either way it is just your account; nothing moves.</p>
                 <EmailSignIn onSignedIn={() => router.refresh()} />
                 <div className="st-or"><span>or a wallet you already have</span></div>
               </>
             ) : (
               <p className="st-p">A free signature from a wallet you already have. It authorizes no transaction and moves no funds — it is just your account.</p>
             )}
-            <FounderSignIn explainer={<>Ethereum or Starknet — whichever you use. You can bind the other later in Settings.</>} onSignedIn={() => router.refresh()} />
+            <FounderSignIn explainer={<>Ethereum or Starknet, whichever you use. <b>Ethereum</b> pays on GOAT Network in real USDC; <b>Starknet</b> is the private rail. You can bind the other later in Settings.</>} onSignedIn={() => router.refresh()} />
             <p className="st-foot"><Lock size={12} /> Sage never holds your keys. Work is funded from a vault it cannot exceed.</p>
           </div>
         )}
@@ -87,7 +88,10 @@ export function StartFlow({ signedIn, address, hasMemberships, emailEnabled = fa
         {step === 2 && (
           <div className="st-pane" key="s2">
             <h1 className="st-h1">What are you here to do?</h1>
-            <p className="st-p">Signed in as <span className="mono">{address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}</span>.</p>
+            <p className="st-p">
+              Signed in as <span className="mono">{address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}</span>.
+              {chain === "starknet" ? " Your money moves on Starknet, the private rail: real USDC, private when you ask." : chain === "evm" ? " Your money moves on GOAT Network: real USDC, a public receipt for every payout." : ""}
+            </p>
             <div className="st-choices ws-stagger">
               <button className="st-choice" onClick={() => router.push("/workspace/autopilot")}>
                 <span className="st-choice-ic"><Compass size={18} /></span>
