@@ -16,7 +16,7 @@ import {
   type WorkspaceData,
   type WorkspaceSubmission,
 } from "@/components/campaign/campaign-workspace";
-import { getFounderAddress } from "@/lib/auth/founder";
+import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
@@ -60,6 +60,8 @@ export default async function CampaignConsolePage({
   const session = await getFounderAddress();
   const isOwner =
     ownsCampaign(campaign, session);
+  // The founder's ACCOUNT launched it (the account's wallet owns the vault), not their browser wallet.
+  const ownedViaAccount = isOwner && !sameFounder(campaign.posterWallet, session);
 
   const e = v2Economics(campaign);
   const titleByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.title]));
@@ -153,6 +155,7 @@ export default async function CampaignConsolePage({
 
   const data: WorkspaceData = {
     isOwner,
+    ownedViaAccount,
     integrity,
     id: campaign.id,
     title: campaign.title,

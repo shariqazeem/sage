@@ -69,6 +69,8 @@ export interface WorkspaceIntegrity {
 
 export interface WorkspaceData {
   isOwner: boolean;
+  /** the founder's account launched it — the account's wallet owns the vault, so stopping goes through the account */
+  ownedViaAccount?: boolean;
   /** the judge's cross-submission work, counted from real signal names — see the console loader. */
   integrity: WorkspaceIntegrity;
   id: string;
@@ -708,6 +710,7 @@ function Console({ data }: { data: WorkspaceData }) {
               vaultAddress={data.vaultAddress}
               chainId={data.chainId}
               explorerUrl={chainConfig(data.chainId).explorerUrl}
+              viaAccount={data.ownedViaAccount === true}
             />
           ) : (
             /* The EVM card is viem all the way down and cannot read a felt — it sat on "reading

@@ -30,6 +30,88 @@ export function StopWithdrawCard({
   vaultAddress,
   chainId,
   explorerUrl,
+  viaAccount = false,
+}: {
+  campaignId: string;
+  vaultAddress: string;
+  chainId: number;
+  explorerUrl?: string;
+  /** the founder's account owns the vault: Sage stops it through the account, no browser wallet involved */
+  viaAccount?: boolean;
+}) {
+  if (viaAccount) return <StopViaAccountCard campaignId={campaignId} chainId={chainId} explorerUrl={explorerUrl} />;
+  return <StopWithWalletCard campaignId={campaignId} vaultAddress={vaultAddress} chainId={chainId} explorerUrl={explorerUrl} />;
+}
+
+/**
+ * The vault belongs to the account Sage holds for the founder, so the stop is signed there: a scoped
+ * stop policy, revoke, withdrawRemaining back to the account, re-lock. One confirmation, no wallet.
+ */
+function StopViaAccountCard({ campaignId, chainId, explorerUrl }: { campaignId: string; chainId: number; explorerUrl?: string }) {
+  const cfg = chainConfig(chainId);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ withdrawTx: string | null; revokeTx: string | null; recoveredBase: string; alreadyRevoked: boolean } | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/campaigns/${campaignId}/stop`, { method: "POST" });
+      const j = (await r.json()) as { ok?: boolean; error?: string; viaAccount?: { withdrawTx: string | null; revokeTx: string | null; recoveredBase: string; alreadyRevoked: boolean } | null };
+      if (!r.ok || !j.ok) { setError(j.error ?? "Could not stop the campaign."); return; }
+      setDone(j.viaAccount ?? { withdrawTx: null, revokeTx: null, recoveredBase: "0", alreadyRevoked: false });
+      setConfirming(false);
+    } catch {
+      setError("Could not reach Sage.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const recovered = done ? (Number(done.recoveredBase) / 1e6).toFixed(2) : null;
+  const tx = done?.withdrawTx ?? done?.revokeTx ?? null;
+  return (
+    <div className="sage-agent-card" style={{ marginTop: 18, borderColor: "rgba(180,83,9,0.28)", background: "rgba(180,83,9,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 14, color: "#b45309" }}>
+        <AlertTriangle size={15} strokeWidth={2} />
+        Stop campaign &amp; return the rest to your account
+      </div>
+      <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--ink-muted, #4a473f)" }}>
+        Your account launched this campaign, so it owns the vault. Sage stops the vault through the account and the remaining USDC returns to the account. This can&apos;t be undone, and any not-yet-approved submissions won&apos;t be paid.
+      </p>
+      {done ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "#15803d", fontWeight: 500, flexWrap: "wrap" }}>
+          <Check size={15} strokeWidth={2.6} /> Stopped.{recovered && recovered !== "0.00" ? ` ${recovered} USDC returned to your account.` : " Nothing was left in the vault."}
+          {tx && explorerUrl && (
+            <a href={`${explorerUrl}/tx/${tx}`} target="_blank" rel="noopener noreferrer" className="cw-link mono" style={{ marginLeft: 4 }}>
+              view tx <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+      ) : confirming ? (
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button className="cw-btn-danger" onClick={() => void run()} disabled={busy} style={dangerBtn}>
+            {busy ? <Loader2 size={14} className="spin" /> : <AlertTriangle size={14} />}
+            {busy ? "Stopping through your account…" : "Yes — stop it"}
+          </button>
+          <button onClick={() => { setConfirming(false); setError(null); }} disabled={busy} style={ghostBtn}>Cancel</button>
+        </div>
+      ) : (
+        <button className="cw-btn-danger" onClick={() => setConfirming(true)} style={{ ...dangerBtn, marginTop: 14 }}>Stop &amp; return the rest</button>
+      )}
+      {error && <div className="mono" style={{ marginTop: 10, fontSize: 12.5, color: "#b45309" }}>{error}</div>}
+      <div className="mono" style={{ marginTop: 10, fontSize: 11, color: "var(--ink-faint, #8a8578)" }}>
+        Signed by your account on {cfg.name} under a one-time stop permit, then re-locked to the mandate.
+      </div>
+    </div>
+  );
+}
+
+function StopWithWalletCard({
+  campaignId,
+  vaultAddress,
+  chainId,
+  explorerUrl,
 }: {
   campaignId: string;
   vaultAddress: string;
