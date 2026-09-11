@@ -1,6 +1,6 @@
 import "server-only";
 import { founderChain } from "@/lib/auth/founder";
-import { getWebTreasuryOn } from "./web";
+import { getWebTreasury } from "./web";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { privyConfigured } from "@/lib/privy/client";
 import { usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
@@ -41,9 +41,9 @@ export function accountUnavailableBecause(founder: string): AccountUnavailable |
 
 export async function accountSummary(founder: string, known: { balanceBase?: number } = {}): Promise<AccountSummary> {
   const reason = accountUnavailableBecause(founder);
-  const chainId = treasuryChainId();
+  const t = reason ? null : getWebTreasury(founder);
+  const chainId = t?.chainId ?? treasuryChainId();
   const c = chainConfig(chainId);
-  const t = reason ? null : getWebTreasuryOn(founder, chainId);
   let balanceBase = known.balanceBase ?? 0;
   if (t && known.balanceBase === undefined) {
     try {

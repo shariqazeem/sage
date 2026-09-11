@@ -36,9 +36,13 @@ export function getWebTreasuryOn(founderAddress: string, chainId: number): Agent
   return getAgentWallet(webTreasuryKey(founderAddress, chainId));
 }
 
-/** The account the mandate runs from: the one on the default chain. */
+/**
+ * The account the mandate runs from: the one on the default chain — or, when the founder holds no
+ * account there, their first account by mainnet-first order. A founder who opened only an Arc
+ * account has ONE account, and "let Sage run it" must run from it rather than from nothing.
+ */
 export function getWebTreasury(founderAddress: string): AgentWallet | null {
-  return getWebTreasuryOn(founderAddress, treasuryChainId());
+  return getWebTreasuryOn(founderAddress, treasuryChainId()) ?? listWebTreasuries(founderAddress)[0] ?? null;
 }
 
 /**

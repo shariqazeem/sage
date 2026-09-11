@@ -3,7 +3,8 @@ import type { Campaign } from "@/lib/db/schema";
 import { listCampaigns, listMissions, listSubmissions } from "@/lib/db/campaigns";
 import { founderStorageKey, sameFounder } from "@/lib/auth/founder";
 import { listWorkspaceCampaigns, workspaceOwnedBy } from "@/lib/db/workspaces";
-import { getWebTreasury, webTreasuryWallets } from "@/lib/treasury/web";
+import { getWebTreasury } from "@/lib/treasury/web";
+import { agentWalletAddressesOf } from "@/lib/db/agent-wallets";
 import { usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
 import { committedThisWeekBase, getMandate, lastLaunchAt, policyFrom } from "@/lib/db/operator";
 import type { CampaignObservation, MandateState } from "./policy";
@@ -72,7 +73,7 @@ export function founderCampaigns(founderAddress: string): Campaign[] {
   // An account (web treasury) launches with its own wallet as the vault owner and poster; that work
   // is the founder's, on whichever chain the account lives. Without this the mandate could not see
   // the exposure of its own launches.
-  const accounts = webTreasuryWallets(founderAddress);
+  const accounts = agentWalletAddressesOf(founderAddress);
   for (const c of listCampaigns()) {
     if (sameFounder(c.posterWallet, founderAddress) || accounts.some((a) => sameFounder(c.posterWallet, a))) byId.set(c.id, c);
   }

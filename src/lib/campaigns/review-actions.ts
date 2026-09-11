@@ -16,6 +16,7 @@ import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions
 import { short } from "@/lib/format";
 import type { Campaign } from "@/lib/db/schema";
 import { sameFounder } from "@/lib/auth/founder";
+import { getAgentWalletByAddress } from "@/lib/db/agent-wallets";
 
 /**
  * Founder review actions for a campaign's HELD work — the internal, auth-agnostic core
@@ -55,7 +56,17 @@ export interface HeldItem {
  * with an exception swallowed on the way. `sameFounder` compares both families canonically.
  */
 export function ownsCampaign(campaign: Campaign, wallet: string | null | undefined): boolean {
-  return sameFounder(campaign.posterWallet, wallet);
+  if (!wallet) return false;
+  if (sameFounder(campaign.posterWallet, wallet)) return true;
+  /*
+    WORK LAUNCHED FROM AN ACCOUNT IS THE FOUNDER'S. The account (a Privy wallet Sage holds, on the
+    web or behind the Telegram bot) launches with its own wallet as the vault owner and poster, so a
+    founder who funded once and let Sage launch could not open the console, stop the campaign or
+    release held work on anything the account posted — every door compared one address. Measured
+    2026-09-11 on the founder's own Arc account. The account's row names its founder; ask it.
+  */
+  const agent = getAgentWalletByAddress(campaign.posterWallet);
+  return !!agent && sameFounder(agent.founderAddress, wallet);
 }
 
 /** Held (pending) submissions for a campaign — safe fields only, newest-first, each PRE-ANALYZED (P22). */

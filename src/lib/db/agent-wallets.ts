@@ -27,6 +27,21 @@ export function getAgentWalletByAddress(address: string): AgentWallet | null {
   );
 }
 
+/**
+ * Every wallet Sage holds FOR this founder — the web accounts on each chain and any Telegram agent
+ * wallet bound to the same address. Work launched from any of them is posted by that wallet, so
+ * "does this founder own this campaign" has to ask this, not compare one address.
+ */
+export function agentWalletAddressesOf(founderAddress: string): string[] {
+  const f = founderAddress.toLowerCase();
+  return db
+    .select({ address: agentWallets.privyWalletAddress })
+    .from(agentWallets)
+    .where(sql`lower(${agentWallets.founderAddress}) = ${f}`)
+    .all()
+    .map((r) => r.address);
+}
+
 export interface SaveAgentWalletInput {
   chatId: string;
   founderAddress: string;

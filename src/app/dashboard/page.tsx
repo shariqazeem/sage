@@ -4,6 +4,7 @@ import { listCampaigns } from "@/lib/db/campaigns";
 import { reconcileStoppedMany } from "@/lib/campaigns/reconcile-stopped";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { agentWalletAddressesOf } from "@/lib/db/agent-wallets";
 import { loadFounderDesk, type FounderDesk } from "@/lib/campaigns/founder-activity";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,9 @@ export default async function DashboardPage() {
   if (wallet) {
     // The on-chain vault is the truth: mark any revoked (stopped) campaigns "cancelled" BEFORE the
     // overview reads the DB, so stopped-and-withdrawn campaigns file under "Stopped", not "Running".
-    const mine = listCampaigns().filter((c) => sameFounder(c.posterWallet, wallet));
+    // the founder's own posts, plus everything any account Sage holds for them launched (web, on every chain, and Telegram)
+    const posters = [wallet, ...agentWalletAddressesOf(wallet)];
+    const mine = listCampaigns().filter((c) => posters.some((p) => sameFounder(c.posterWallet, p)));
     await reconcileStoppedMany(mine);
   }
   const overview = getDeputyOverview(wallet);

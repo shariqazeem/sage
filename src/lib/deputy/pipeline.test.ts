@@ -84,6 +84,7 @@ import {
   getSubmission,
   recordEvent,
   listSubmissionsForDedup,
+  listEarlierSubmissionsForDedup,
   setObservationShadow,
   updateSubmission,
 } from "@/lib/db/campaigns";
@@ -520,7 +521,8 @@ describe("P18: Sybil holds — never auto-pay a duplicate or a capped wallet", (
     const copy = artifactFingerprint(body(B).replace("examples for curl", "worked examples for curl"), [B]);
     vi.mocked(getSubmission).mockReturnValue({ ...submission, wallet: B, note: "my own write-up, see the link" } as never);
     vi.mocked(getDecisionBySubmission).mockReturnValue({ id: "dec1", contentSha256: null, artifactFingerprint: copy } as never);
-    vi.mocked(listSubmissionsForDedup).mockReturnValue([{ note: "done — see repo", contentSha256: "ff", artifactFingerprint: honest, wallet: A }]);
+    // the honest page came EARLIER; the fork is judged against what preceded it, never the reverse
+    vi.mocked(listEarlierSubmissionsForDedup).mockReturnValue([{ note: "done — see repo", contentSha256: "ff", artifactFingerprint: honest, wallet: A }]);
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("held");
     expect(r.reason).toMatch(/copied work/i);

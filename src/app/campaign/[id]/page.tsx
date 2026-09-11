@@ -16,7 +16,8 @@ import {
   type WorkspaceData,
   type WorkspaceSubmission,
 } from "@/components/campaign/campaign-workspace";
-import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { getFounderAddress } from "@/lib/auth/founder";
+import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 
 export const runtime = "nodejs";
@@ -58,7 +59,7 @@ export default async function CampaignConsolePage({
 
   const session = await getFounderAddress();
   const isOwner =
-    sameFounder(session, campaign.posterWallet);
+    ownsCampaign(campaign, session);
 
   const e = v2Economics(campaign);
   const titleByHash = new Map(e.missions.map((m) => [m.missionIdHash, m.title]));

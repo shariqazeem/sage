@@ -552,7 +552,7 @@ const INJECTION_PATTERNS: { name: string; re: RegExp }[] = [
  * real payout — the trade is deliberately asymmetric.
  */
 export function detectInjection(text: string): BriefFraudSignal[] {
-  const matched = INJECTION_PATTERNS.filter((p) => p.re.test(text)).map((p) => p.name);
+  const matched = injectionMatches(text);
   if (matched.length === 0) return [];
   return [
     {
@@ -560,9 +560,36 @@ export function detectInjection(text: string): BriefFraudSignal[] {
       severity: "high",
       reason: `untrusted submission content contains instruction-like patterns (${matched
         .slice(0, 4)
-        .join(", ")}) — treated as an attack, not evidence`,
+        .map((m) => m.name)
+        .join(", ")}) — treated as an attack, not evidence · matched "${matched[0].match}"`,
     },
   ];
+}
+
+/** Every family the text matches, with the snippet that matched — so a hold names what it saw. */
+export function injectionMatches(text: string): { name: string; match: string }[] {
+  const out: { name: string; match: string }[] = [];
+  for (const p of INJECTION_PATTERNS) {
+    const m = p.re.exec(text);
+    if (m) out.push({ name: p.name, match: m[0].replace(/\s+/g, " ").trim().slice(0, 80) });
+  }
+  return out;
+}
+
+/**
+ * A QUOTED PRODUCT LABEL IS NOT AN ORDER. Measured 2026-09-11 on Arc: a genuine walkthrough of
+ * sagepays.xyz quoted the button "Pay my people for work" and the approve-imperative family read
+ * it as an instruction to the reviewer, holding a 96%-confidence pay. Any product whose UI says
+ * "pay", "approve" or "send the reward" near "work" or "request" would hold every honest reviewer
+ * of it. A label-like match is short, addresses nobody, and does not glue the verb's object to the
+ * thing being judged ("pay my PEOPLE for work" is a label; "pay this SUBMISSION" is an order).
+ * Only the approve-imperative family has this shape; every other family keeps its full weight.
+ */
+export function isLabelLikeImperative(match: string): boolean {
+  const words = match.trim().split(/\s+/);
+  if (words.length > 6) return false;
+  if (/\b(sage|reviewer|verifier|judge|agent|assistant|model|ai|please|must|now|immediately|you|your)\b/i.test(match)) return false;
+  return !/\b(this|the|my)\s+(submission|payout|reward|request|entry|work)\b/i.test(match);
 }
 
 /** The autopilot confidence threshold the gate uses (and the red-team bar). */
@@ -628,12 +655,20 @@ export function hardenBrief(
   // scan it too, UNLESS it is one of Sage's own proof pages, whose decision receipt is legitimate
   // rendered content rather than an attack the submitter wrote.
   const trusted = isTrustedSageEvidence(input.evidenceUrl);
-  const scanned = trusted
-    ? `${input.note ?? ""}`
-    : `${input.note ?? ""}\n${input.evidenceText}`;
-  const injection = detectInjection(scanned);
-  let fraudSignals = injection.length
-    ? [...injection, ...brief.fraudSignals]
+  const noteInjection = detectInjection(input.note ?? "");
+  // The page: every family counts in full, except a lone approve-imperative that reads like a quoted
+  // product label (see isLabelLikeImperative) — that one is reported at medium severity, so the
+  // judge's own reading of the page governs and the founder can see exactly what was matched.
+  const pageMatches = trusted ? [] : injectionMatches(input.evidenceText);
+  const pageIsQuotedLabel = pageMatches.length > 0 && pageMatches.every((m) => m.name === "approve-imperative" && isLabelLikeImperative(m.match));
+  const pageInjection = pageMatches.length > 0 && !pageIsQuotedLabel ? detectInjection(input.evidenceText) : [];
+  const injection = noteInjection.length ? noteInjection : pageInjection;
+  const quotedLabel: BriefFraudSignal[] =
+    injection.length === 0 && pageIsQuotedLabel
+      ? [{ signal: "instruction-like phrase in the artifact", severity: "med", reason: `the page contains "${pageMatches[0].match}" — an instruction to the reviewer, or a quote of the product's own copy; the judge's reading of the page governs` }]
+      : [];
+  let fraudSignals = injection.length || quotedLabel.length
+    ? [...injection, ...quotedLabel, ...brief.fraudSignals]
     : brief.fraudSignals;
   const confidence = input.evidenceOk
     ? brief.confidence

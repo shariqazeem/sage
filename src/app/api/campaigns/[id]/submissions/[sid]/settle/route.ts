@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { getCampaign, getSubmission } from "@/lib/db/campaigns";
 
@@ -29,7 +30,7 @@ export async function POST(
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  if (!sameFounder(wallet, campaign.posterWallet)) {
+  if (!ownsCampaign(campaign, wallet)) {
     return NextResponse.json(
       { error: "Only the campaign poster can settle." },
       { status: 403 },

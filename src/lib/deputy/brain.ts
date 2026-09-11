@@ -1,4 +1,5 @@
 import "server-only";
+import { profileFor } from "@/lib/llm/provider-profile";
 
 import { stripReasoningPrefix as sharedStripReasoningPrefix } from "@/lib/llm/reasoning";
 import { laneProvider } from "@/lib/llm/complete";
@@ -64,6 +65,8 @@ export const PARSER_POLICY_VERSION = "payout-parse-v4";
 const DEFAULT_BASE_URL = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const LLM_TIMEOUT_MS = 35_000;
+/** The most any one judge call may take, whatever the provider profile says. */
+const LLM_TIMEOUT_CEILING_MS = 150_000;
 // Headroom for the structured summary + reasonCode so a model never truncates its JSON (a
 // truncation fails the parse, fails over, and lands on the heuristic — which can never autopay).
 //
@@ -253,7 +256,11 @@ async function callProvider(
   fetchImpl: typeof fetch = fetch,
 ): Promise<DecisionBrief> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  // THE TIMEOUT COVERS THE TAIL OF THE PROVIDER IT GUARDS. 35 s was sized for a non-reasoning judge;
+  // MiniMax-M3 measured 15, 24, 30 and 118 s on four real briefs (2026-09-11, under load) and every
+  // abort fell to the heuristic, which cannot pay — so honest work sat held until a later sweep
+  // re-judged it. The provider profile knows each model's tail; a hard ceiling still bounds a hang.
+  const timer = setTimeout(() => controller.abort(), Math.max(LLM_TIMEOUT_MS, Math.min(profileFor(p.model, p.endpoint).timeoutMs, LLM_TIMEOUT_CEILING_MS)));
   try {
     const res = await fetchImpl(p.endpoint, {
       method: "POST",

@@ -823,11 +823,17 @@ export async function runDeputyOnSubmission(
   }
 
   // c4. COPIED DELIVERABLE (2026-09-03) — the artifact body itself, fingerprinted with the marker
-  // stripped, against every other submission on the campaign. Only artifact_url lanes carry a
+  // stripped, against every EARLIER submission on the campaign. Only artifact_url lanes carry a
   // fingerprint, so a shared product page can never collide. HELD, never auto-rejected.
+  //
+  // CAUSAL, like the observation lane's near-dup (2b). Measured 2026-09-11 on Arc: an honest page
+  // was submitted first, a fork of it with a swapped wallet two seconds later, and the honest page
+  // was judged AFTER the fork arrived — against "every other submission" the original reads as a
+  // copy of its own copy. The earlier page is the original by definition; the fork is still caught
+  // from its side, because from there the original is an earlier submission.
   const copied = findCopiedArtifact(
     { note: submission.note, contentSha256: decisionRow?.contentSha256 ?? null, artifactFingerprint: decisionRow?.artifactFingerprint ?? null },
-    otherPeoplesWork(listSubmissionsForDedup(campaign.id, submissionId), self),
+    otherPeoplesWork(listEarlierSubmissionsForDedup(campaign.id, submissionId, submission.createdAt), self),
   );
   if (copied) {
     const reason = `possible copied work — ${copied.reason}`;

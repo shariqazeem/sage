@@ -29,9 +29,11 @@ describe("one account per network", () => {
 
   it("a legacy bare row on Arc is the ARC account, not the default one — its chain column decides", () => {
     rows.set(webTreasuryKey(F), { chatId: webTreasuryKey(F), chainId: 5042002, privyWalletAddress: "0xarc" });
-    expect(getWebTreasury(F)).toBeNull();
+    expect(getWebTreasuryOn(F, 2345)).toBeNull();
     expect(getWebTreasuryOn(F, 5042002)?.privyWalletAddress).toBe("0xarc");
     expect(listWebTreasuries(F).map((t) => t.chainId)).toEqual([5042002]);
+    // the mandate runs from the only account the founder has, not from nothing
+    expect(getWebTreasury(F)?.chainId).toBe(5042002);
   });
 
   it("opening the default chain's account beside a legacy Arc row uses the suffixed key, and the mandate sees the default one", async () => {

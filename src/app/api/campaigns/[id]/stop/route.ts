@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
+import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { getCampaign, resolveStoppedCampaignSubmissions,
   setCampaignStatus } from "@/lib/db/campaigns";
 
@@ -20,7 +21,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   if (!campaign) return NextResponse.json({ ok: false, error: "Campaign not found." }, { status: 404 });
 
   const session = await getFounderAddress();
-  if (!sameFounder(session, campaign.posterWallet)) {
+  if (!ownsCampaign(campaign, session)) {
     return NextResponse.json({ ok: false, error: "Not your campaign." }, { status: 403 });
   }
 

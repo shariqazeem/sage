@@ -442,7 +442,14 @@ export async function attachV2Campaign(
            */
           settlementRail: input.settlementRail ?? "evm",
           // P18/P19 — the founder-set per-wallet payout cap (default 1, clamped upstream).
-          perWalletPayoutCap: Math.max(1, Math.round(input.perWalletCap ?? 1)),
+          //
+          // A GRANT PAYS ONE GRANTEE ONCE PER MILESTONE. Its tranches are released to the same wallet
+          // one after the other by design (the submit door even locks milestone two until milestone one
+          // is paid), so a cap of one closed every second milestone as "this wallet has already been
+          // paid" — terminally, with no way to release. Measured 2026-09-11 on Arc: a two-milestone
+          // grant verified its on-chain deposit at 98% and rejected it. The cap is at least the number
+          // of tranches; the founder's own number still wins when it is larger.
+          perWalletPayoutCap: Math.max(1, Math.round(input.perWalletCap ?? 1), input.campaignKind === "grant" ? input.missions.length : 1),
           // P16 pinned private answer key — an immutable snapshot fixed at the same instant as the plan.
           privateCorpus: input.privateCorpus ?? null,
           privateCorpusDigest: input.privateCorpusDigest ?? null,

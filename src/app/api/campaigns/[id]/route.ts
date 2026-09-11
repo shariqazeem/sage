@@ -1,6 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getAddress } from "viem";
-import { getSessionAddress, isSameWallet } from "@/lib/auth/session";
+import { getFounderAddress } from "@/lib/auth/founder";
+import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import {
   getCampaign,
   getDecisionBySubmission,
@@ -63,7 +64,7 @@ export async function GET(
   const { id } = await ctx.params;
   const light = new URL(req.url).searchParams.get("light") === "1";
 
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
   if (!wallet) {
     return NextResponse.json({ error: "Sign in to view this campaign." }, { status: 401 });
   }
@@ -72,7 +73,7 @@ export async function GET(
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  if (!isSameWallet(wallet, campaign.posterWallet)) {
+  if (!ownsCampaign(campaign, wallet)) {
     return NextResponse.json(
       { error: "Only the campaign poster can view this." },
       { status: 403 },
@@ -220,7 +221,7 @@ export async function PATCH(
 ) {
   const { id } = await ctx.params;
 
-  const wallet = await getSessionAddress();
+  const wallet = await getFounderAddress();
   if (!wallet) {
     return NextResponse.json({ error: "Sign in to change this campaign." }, { status: 401 });
   }
@@ -228,7 +229,7 @@ export async function PATCH(
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
-  if (!isSameWallet(wallet, campaign.posterWallet)) {
+  if (!ownsCampaign(campaign, wallet)) {
     return NextResponse.json(
       { error: "Only the campaign poster can change this." },
       { status: 403 },

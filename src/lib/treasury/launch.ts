@@ -1,6 +1,6 @@
 import "server-only";
 import { getAddress } from "viem";
-import { getWebTreasuryOn } from "./web";
+import { getWebTreasury, getWebTreasuryOn } from "./web";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { treasuryPreflight, type TreasuryPreflight } from "./preflight";
 import { autoApprove, MIN_GAS_WEI, nativeBalanceWei, usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
@@ -56,9 +56,9 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
  * mandate IS the pre-authorization); the agent deploys, funds and activates the vault from the
  * treasury inside the mandate's cap. Same checks, same order, as the Telegram tool.
  */
-export async function launchFromTreasury(founderAddress: string, jobId: string, chainId: number = treasuryChainId()): Promise<TreasuryLaunch> {
-  const t = getWebTreasuryOn(founderAddress, chainId);
-  if (!t) return { ok: false, reason: "no_treasury", message: `Open your account on ${chainConfig(chainId).name} first — Sage launches from it.` };
+export async function launchFromTreasury(founderAddress: string, jobId: string, chainId?: number): Promise<TreasuryLaunch> {
+  const t = chainId == null ? getWebTreasury(founderAddress) : getWebTreasuryOn(founderAddress, chainId);
+  if (!t) return { ok: false, reason: "no_treasury", message: `Open your account on ${chainConfig(chainId ?? treasuryChainId()).name} first — Sage launches from it.` };
   const job = getInspectionJob(jobId);
   if (!job || !sameFounder(job.founderWallet, founderAddress)) return { ok: false, reason: "not_yours", message: "That plan isn't yours." };
   if (!autoApprove(jobId, getAddress(founderAddress))) return { ok: false, reason: "not_ready", message: "This plan isn't ready to launch — it may have changed since it was planned; plan it again." };
