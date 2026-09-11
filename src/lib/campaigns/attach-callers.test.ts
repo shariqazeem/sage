@@ -20,8 +20,11 @@ describe("every attachV2Campaign caller carries the plan's visibility", () => {
       const src = readFileSync(f, "utf8");
       const at = src.indexOf("attachV2Campaign(");
       expect(at, "calls attachV2Campaign").toBeGreaterThan(0);
-      const call = src.slice(at, at + 4000);
-      expect(call, "passes visibility").toMatch(/visibility:\s*\w+(\.\w+)*\.visibility/);
+      // The whole file, not a window after the call: since 2026-09-11 the Privy runner builds its
+      // setup input in a helper (`setupInputFor`) so the record can be validated BEFORE any USDC
+      // moves, and that helper — where `visibility: loaded.plan.visibility` lives — sits well past
+      // the call. A window that stops short of it reads a correct file as a regression.
+      expect(src, "passes visibility").toMatch(/visibility:\s*\w+(\.\w+)*\.visibility/);
       expect(src, "derives the autonomy default from visibility").toMatch(/defaultAutonomyFor\(/);
     });
   }

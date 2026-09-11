@@ -62,3 +62,43 @@ describe("which evidence has to be unique", () => {
     expect(evidenceDedupeKey("c1", "   ", TARGET)).toBeNull();
   });
 });
+
+/**
+ * A PAGE ON THE PRODUCT (2026-09-11). The target-surface rule above was not enough: the mission brain
+ * names the page a mission STARTS on, and its instructions walk the tester somewhere else on the
+ * product — "find the 'View live demo' button and click it". MEASURED on plausible.io: the demo
+ * mission's target was the homepage, both testers opened /plausible.io, and the second was refused
+ * for it. The inspected product's origin, with the mission's contract as the tie-breaker, is the
+ * answer (`src/lib/campaigns/product-page.ts`).
+ */
+describe("a page on the inspected product", () => {
+  const PRODUCT = "https://plausible.io/";
+  const HOME = "https://plausible.io/";
+  const DEMO = "https://plausible.io/plausible.io";
+
+  it("does NOT dedupe the demo page the mission walked every tester to", () => {
+    expect(evidenceDedupeKey("c1", DEMO, HOME, { productUrl: PRODUCT, contractKind: null })).toBeNull();
+  });
+
+  it("still dedupes a deliverable the contract says the tester made, on the product's own origin", () => {
+    expect(evidenceDedupeKey("c1", "https://plausible.io/u/alice/post", HOME, { productUrl: PRODUCT, contractKind: "artifact_url" })).toBe(
+      "c1|https://plausible.io/u/alice/post",
+    );
+  });
+
+  it("still dedupes an artifact off the product, whatever the contract", () => {
+    expect(evidenceDedupeKey("c1", "https://gist.github.com/alice/abc", HOME, { productUrl: PRODUCT, contractKind: null })).toBe(
+      "c1|https://gist.github.com/alice/abc",
+    );
+  });
+
+  it("changes nothing for a campaign that inspected no product", () => {
+    expect(evidenceDedupeKey("c1", DEMO, HOME, { productUrl: null, contractKind: null })).toBe(`c1|${DEMO}`);
+    expect(evidenceDedupeKey("c1", DEMO, HOME)).toBe(`c1|${DEMO}`);
+  });
+
+  it("does not widen the starkscan rule above: the TARGET's origin alone still makes nothing a page on the product", () => {
+    // The product there is a Starknet contract; starkscan is the surface, not the product.
+    expect(evidenceDedupeKey("c1", "https://starkscan.co/contract/0xdead", TARGET, { productUrl: "https://example-dapp.xyz/", contractKind: null })).not.toBeNull();
+  });
+});

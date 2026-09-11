@@ -90,3 +90,51 @@ describe("enforce: which capture the judge reads", () => {
     expect(renderEvidence).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * THE PRODUCT PAGE THAT IS NOT A SHELL (2026-09-11). plausible.io's live demo returned 2,155 characters
+ * of chrome and prose to the plain fetch — no loading word, a small payload, plenty of text — so no
+ * shell heuristic fired and the judge held on "the page shows no visitor numbers". The numbers render
+ * client-side. The judge now says when a link is a page on the product (`preferRender`); the render is
+ * then a second opinion that must clear half the static text to replace it.
+ */
+describe("enforce: a product page the caller asked to render", () => {
+  /** rich, not thin: no loading words, well over the thin floor, a small payload (no ratio trigger). */
+  const RICH = `Plausible live demo dashboard. Simple, privacy-friendly analytics for your site. ${"Top pages, top sources, visitors and pageviews. ".repeat(20)}`;
+
+  it("renders on the caller's word alone, and the judge reads the rendered capture", async () => {
+    process.env.RENDERED_EVIDENCE_MODE = "enforce";
+    const rendered = `Visitors 12.4k · Pageviews 31.2k · Top pages /blog /pricing ${"row ".repeat(200)}`;
+    renderEvidence.mockResolvedValue({ text: rendered, outcome: "ok", finalUrl: "https://x.test/" });
+    const r = await fetchEvidence("https://x.test/", { fetchImpl: fetchImpl(RICH), preferRender: true });
+    expect(renderEvidence).toHaveBeenCalledTimes(1);
+    expect(r.mode).toBe("rendered");
+    expect(r.text).toContain("Visitors 12.4k");
+    expect(r.render?.triggerReason).toBe("product_page");
+  });
+
+  it("keeps the static capture when the browser came back with a fraction of the page (a wall)", async () => {
+    process.env.RENDERED_EVIDENCE_MODE = "enforce";
+    renderEvidence.mockResolvedValue({ text: `Accept cookies to continue. ${"nav ".repeat(60)}`, outcome: "ok", finalUrl: "https://x.test/" });
+    const r = await fetchEvidence("https://x.test/", { fetchImpl: fetchImpl(RICH), preferRender: true });
+    expect(r.mode).toBe("static");
+    expect(r.text).toContain("Plausible live demo dashboard");
+    // The attempt is still on the record, with its reason.
+    expect(r.render).toMatchObject({ triggerReason: "product_page", outcome: "ok" });
+  });
+
+  it("does not render a rich page nobody asked to render (the shell rules are unchanged)", async () => {
+    process.env.RENDERED_EVIDENCE_MODE = "enforce";
+    const r = await fetchEvidence("https://x.test/", { fetchImpl: fetchImpl(RICH) });
+    expect(renderEvidence).not.toHaveBeenCalled();
+    expect(r.mode).toBe("static");
+  });
+
+  it("a shell still wins on arriving — the half-the-static floor applies only to the product-page trigger", async () => {
+    process.env.RENDERED_EVIDENCE_MODE = "enforce";
+    renderEvidence.mockResolvedValue({ text: `Real content ${"row ".repeat(60)}`, outcome: "ok", finalUrl: "https://x.test/" });
+    const r = await fetchEvidence("https://x.test/", { fetchImpl: fetchImpl(SHELL), preferRender: true });
+    expect(r.mode).toBe("rendered");
+    expect(r.render?.triggerReason).not.toBe("product_page");
+  });
+});

@@ -1,4 +1,5 @@
 import "server-only";
+import { isProductPage, type ProductPageContext } from "@/lib/campaigns/product-page";
 
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -412,9 +413,15 @@ export function evidenceDedupeKey(
   campaignId: string,
   evidenceUrl: string | null,
   missionTargetSurface: string | null,
+  /** the inspected product + the mission's contract — a page ON the product distinguishes nobody either */
+  product?: ProductPageContext | null,
 ): string | null {
   if (!evidenceUrl?.trim()) return null;
   if (missionTargetSurface && sameUrl(evidenceUrl, missionTargetSurface)) return null;
+  // The mission's instructions start on the target and walk to the page that matters (the live
+  // demo, the pricing page); every honest tester arrives at the same one. `product-page.ts` says
+  // when a link is such a page and when a contract makes it the tester's own.
+  if (product && isProductPage(evidenceUrl, product)) return null;
   return `${campaignId}|${evidenceUrl.trim().toLowerCase()}`;
 }
 
@@ -436,6 +443,8 @@ export function createSubmission(input: {
    * and the second one was refused for agreeing with the first.
    */
   missionTargetSurface?: string | null;
+  /** the inspected product's URL + the mission's contract kind, when known (see `evidenceDedupeKey`). */
+  product?: ProductPageContext | null;
 }): SubmitResult {
   const id = nanoid(12);
   const row: NewSubmission = {
@@ -455,6 +464,7 @@ export function createSubmission(input: {
       input.campaignId,
       input.evidenceUrl ?? null,
       input.missionTargetSurface ?? null,
+      input.product ?? null,
     ),
     status: "pending",
     createdAt: nowSeconds(),

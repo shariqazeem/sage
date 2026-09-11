@@ -23,6 +23,8 @@ import {
 } from "@/lib/campaigns/public-identity";
 import type { Decision, Submission } from "@/lib/db/schema";
 import { verifyEvidence } from "@/lib/x402/verify-evidence";
+import { productUrlForCampaign } from "@/lib/db/inspection";
+import { sameOrigin } from "@/lib/campaigns/product-page";
 import { deriveStoredX402Status } from "@/lib/x402/x402-status";
 import { verifySubmission } from "./brain";
 import {
@@ -426,10 +428,19 @@ export async function ensureDecision(
       ]
     : campaign.criteria;
 
+  // WHICH CAPTURE. A link on the product under test — or on the mission's own target — is where
+  // the page that renders its numbers client-side lives, and where the static shell heuristics stay
+  // quiet because the page is full of chrome. Ask for the browser's capture there; `fetchEvidence`
+  // still keeps the static one when the browser came back with less (`product-page.ts`).
+  const preferRender =
+    !!submission.evidenceUrl &&
+    (sameOrigin(submission.evidenceUrl, productUrlForCampaign(campaign.id)) ||
+      sameOrigin(submission.evidenceUrl, mission?.targetSurface ?? null));
+
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
   const fetched = submission.evidenceUrl
-    ? await verifyEvidence(submission.evidenceUrl)
+    ? await verifyEvidence(submission.evidenceUrl, { preferRender })
     : {
         text: "",
         contentSha256: null,

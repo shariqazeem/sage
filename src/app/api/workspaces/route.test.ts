@@ -11,7 +11,7 @@ const opened = vi.fn(async () => ({ privyWalletAddress: `0x${"c".repeat(40)}` })
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => { void fn(); } }));
 vi.mock("@/lib/workspaces/context", () => ({ workspaceContext: async () => ctx }));
 vi.mock("@/lib/db/workspaces", () => ({ createWorkspace: (i: { name: string }) => ({ id: "ws_1", name: i.name, slug: "s" }), renameWorkspace: vi.fn() }));
-vi.mock("@/lib/treasury/web", () => ({ createWebTreasury: (...a: unknown[]) => opened(...(a as [])) }));
+vi.mock("@/lib/treasury/web", () => ({ DEFAULT_ACCOUNT_CAP_USD: 50, createWebTreasury: (...a: unknown[]) => opened(...(a as [])) }));
 vi.mock("@/lib/treasury/summary", () => ({ accountUnavailableBecause: (f: string) => (f.length > 42 ? "starknet" : null) }));
 
 const { POST } = await import("./route");

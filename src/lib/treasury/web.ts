@@ -72,6 +72,12 @@ export function webTreasuryWallets(founderAddress: string): string[] {
  * key is used for the default chain when it is free, so a founder's first account keeps the shape
  * every existing row has; anything else is chain-suffixed.
  */
+/**
+ * The per-campaign cap a workspace's account opens with, in USD. A Next route file may export only
+ * its handlers, so the number lives here; the founder changes it any time on the account page.
+ */
+export const DEFAULT_ACCOUNT_CAP_USD = 50;
+
 export async function createWebTreasury(founderAddress: string, perCampaignCapUsd: number, chainId: number = treasuryChainId()): Promise<AgentWallet> {
   const existing = getWebTreasuryOn(founderAddress, chainId);
   if (existing) return existing;

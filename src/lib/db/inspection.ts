@@ -363,3 +363,24 @@ export function claimInspectionJob(id: string, wallet: string): { ok: boolean; r
   if ((res.changes ?? 0) === 0) return { ok: false, reason: "claim_race_lost" };
   return { ok: true };
 }
+
+/**
+ * The inspection a public campaign was born from — its product URL, its field test — or null for a
+ * campaign that came from none. Latest first: a retried inspection keeps the same public id.
+ */
+export function getInspectionJobByCampaign(publicCampaignId: string): InspectionJob | null {
+  return (
+    db
+      .select()
+      .from(inspectionJobs)
+      .where(eq(inspectionJobs.publicCampaignId, publicCampaignId))
+      .orderBy(desc(inspectionJobs.createdAt))
+      .limit(1)
+      .get() ?? null
+  );
+}
+
+/** The product a campaign inspected, or null when it inspected none (see `product-page.ts`). */
+export function productUrlForCampaign(publicCampaignId: string): string | null {
+  return getInspectionJobByCampaign(publicCampaignId)?.productUrl ?? null;
+}

@@ -37,6 +37,9 @@ import { verifyStarknetEvidenceClaim } from "@/lib/campaigns/starknet-evidence-c
 import { readClaimSignature } from "@/lib/campaigns/claim-signature";
 import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { briefFromRow, observationFromRow } from "@/lib/deputy/decisions";
+import { parseWorkProofContract } from "@/lib/deputy/work-proof";
+import { productUrlForCampaign } from "@/lib/db/inspection";
+import type { ProductPageContext } from "@/lib/campaigns/product-page";
 import { retryVerdict } from "@/lib/campaigns/retry";
 import { OBS_MAX_ATTEMPTS } from "@/lib/deputy/observation-verify";
 import { short } from "@/lib/format";
@@ -199,6 +202,9 @@ export async function POST(
   if (!note.ok) return NextResponse.json({ error: note.error }, { status: 400 });
 
   let missionTargetSurface: string | null = null;
+  // The inspected product + the mission's contract: whether the link is a page on the product every
+  // tester opens or a proof this tester made (`product-page.ts`). Null off the mission path.
+  let productPage: ProductPageContext | null = null;
   let missionIdHash: string | null = null;
   let missionSpecDigest: string | null = null;
   // P20 retry-while-held: when set, this submit REVISES an existing held observation submission in place
@@ -224,6 +230,10 @@ export async function POST(
     if (!mission || mission.status !== "active") {
       return NextResponse.json({ error: "That mission isn't open for submissions." }, { status: 409 });
     }
+    productPage = {
+      productUrl: productUrlForCampaign(id),
+      contractKind: parseWorkProofContract(mission.verificationContract ?? null)?.kind ?? null,
+    };
     // A grant's milestones release one by one — the same rule the chat door enforces.
     {
       const prior = priorMilestoneUnpaid(campaign.kind, listMissions(id), mission, (pm) => getWalletMissionSubmission(pm.missionIdHash, wallet)?.status === "paid");
@@ -418,6 +428,7 @@ export async function POST(
       // fixed-target mission lands on the same page, and the second was refused for agreeing
       // with the first.
       missionTargetSurface: missionTargetSurface ?? null,
+      product: productPage,
     });
     if (!result.ok) {
       return NextResponse.json({ error: SUBMIT_ERROR[result.error] ?? SUBMIT_ERROR.unknown }, { status: 409 });

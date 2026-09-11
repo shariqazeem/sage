@@ -2,14 +2,13 @@ import { NextResponse, type NextRequest, after } from "next/server";
 import { workspaceContext } from "@/lib/workspaces/context";
 import { createWorkspace, renameWorkspace } from "@/lib/db/workspaces";
 import { founderChain, founderStorageKey } from "@/lib/auth/founder";
-import { createWebTreasury } from "@/lib/treasury/web";
+import { DEFAULT_ACCOUNT_CAP_USD, createWebTreasury } from "@/lib/treasury/web";
 import { accountUnavailableBecause } from "@/lib/treasury/summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** The cap a workspace's account opens with when nobody chose one — changeable on the account page. */
-export const DEFAULT_ACCOUNT_CAP_USD = 50;
 
 /**
  * POST { name } — create the caller's workspace (one per founder), or rename it.

@@ -23,8 +23,10 @@ export interface RenderProvenance {
   finalUrl: string | null;
   mode: "shadow" | "enforce";
   /** Why the render fired. `loading_shell` and `shell_text_ratio` catch the MODERN app shell —
-   *  full nav and footer around an empty body — which "thin text" alone never did. */
-  triggerReason: "thin_text" | "no_js_notice" | "loading_shell" | "shell_text_ratio";
+   *  full nav and footer around an empty body — which "thin text" alone never did. `product_page`
+   *  is the caller's call, not a shell signal: the link is on the product under test, where the
+   *  chrome-rich page that renders its numbers client-side lives (see `preferRender`). */
+  triggerReason: "thin_text" | "no_js_notice" | "loading_shell" | "shell_text_ratio" | "product_page";
   staticLen: number;
   staticDigest: string | null;
   renderedLen: number | null;
@@ -55,6 +57,15 @@ const MAX_REDIRECTS = 2;
 const MAX_TEXT_CHARS = 40_000;
 /** Below this, a static fetch's text is "thin" — the SPA-shell signature that warrants a rendered retry. */
 const RENDER_THIN_CHARS = 200;
+/**
+ * A product-page render replaces a static capture that was NOT a shell, so it is a second opinion,
+ * not a rescue: it wins only when it came back with at least this share of the static text. A
+ * browser that met a consent wall, a bot check or a login gate returns a fraction of the page, and
+ * that fraction must not replace real content. MEASURED on plausible.io's live demo: the static
+ * capture was 2,155 characters of chrome and prose with none of the dashboard's numbers, and no
+ * shell heuristic fired — the page is rich; it just renders the part that matters in JavaScript.
+ */
+const PRODUCT_PAGE_RENDER_FLOOR = 0.5;
 
 const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
 
@@ -170,10 +181,16 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array | null
  * Fetch + normalize evidence. `fetchImpl` is injectable for tests; production
  * uses the global fetch. Every result — success or failure — is a value, so
  * callers never wrap this in try/catch for control flow.
+ *
+ * `preferRender`: the caller knows the link is a page on the product under test (the judge does —
+ * `product-page.ts`), so when rendering is on, render it even though the static capture is not a
+ * shell. The shell heuristics detect an EMPTY page; a product's dashboard is a full page whose
+ * numbers arrive by JavaScript, and the judge holding on "the page shows no visitor numbers" was
+ * judging the wrong capture.
  */
 export async function fetchEvidence(
   rawUrl: string,
-  opts?: { fetchImpl?: typeof fetch },
+  opts?: { fetchImpl?: typeof fetch; preferRender?: boolean },
 ): Promise<EvidenceResult> {
   const fetchImpl = opts?.fetchImpl ?? fetch;
   const fetchedAt = Math.floor(Date.now() / 1000);
@@ -254,7 +271,8 @@ export async function fetchEvidence(
     // Any failure keeps the static result. Dynamic import so this module pulls no browser deps unless a
     // render actually fires.
     const mode = renderedEvidenceMode();
-    if (mode !== "off" && isThinEvidence(staticText, raw)) {
+    const thin = isThinEvidence(staticText, raw);
+    if (mode !== "off" && (thin || opts?.preferRender === true)) {
       try {
         const { renderEvidence, RENDERER_VERSION } = await import("./evidence-render");
         const r = await renderEvidence(rawUrl);
@@ -262,8 +280,9 @@ export async function fetchEvidence(
           requestedUrl: rawUrl,
           finalUrl: r.finalUrl,
           mode,
-          triggerReason:
-            staticText.length < RENDER_THIN_CHARS
+          triggerReason: !thin
+            ? "product_page"
+            : staticText.length < RENDER_THIN_CHARS
               ? "thin_text"
               : LOADING_SHELL.test(staticText)
                 ? "loading_shell"
@@ -292,13 +311,37 @@ export async function fetchEvidence(
          * decided, "longer" is not the question — the only thing worth checking is that the browser
          * actually came back with something, rather than an error page or a blank.
          */
-        if (mode === "enforce" && r.text && r.text.length >= RENDER_THIN_CHARS) {
+        const renderedLen = r.text?.length ?? 0;
+        const substantial = renderedLen >= RENDER_THIN_CHARS;
+        // A shell's render wins on arriving; a product page's must clear PRODUCT_PAGE_RENDER_FLOOR.
+        const richer = thin || renderedLen >= staticText.length * PRODUCT_PAGE_RENDER_FLOOR;
+        if (mode === "enforce" && r.text && substantial && richer) {
           return { text: r.text.slice(0, MAX_TEXT_CHARS), contentSha256: sha256(r.text), fetchedAt, ok: true, mode: "rendered", render };
         }
         // SHADOW (or enforce-but-not-richer): the static evidence is what the judge sees; comparison logged.
         return { ...staticResult, render };
-      } catch {
-        /* keep the static result — the render is best-effort */
+      } catch (err) {
+        // Keep the static result — the render is best-effort — but never silently: a renderer that
+        // cannot even load (a missing browser, a bad import) used to leave no trace at all, so a
+        // product page judged on its shell looked exactly like a page nobody tried to render.
+        const msg = err instanceof Error ? err.message.split("\n")[0].slice(0, 120) : String(err).slice(0, 120);
+        console.warn(`[evidence-render] unavailable · ${msg}`);
+        return {
+          ...staticResult,
+          render: {
+            requestedUrl: rawUrl,
+            finalUrl: null,
+            mode,
+            triggerReason: thin ? "thin_text" : "product_page",
+            staticLen: staticText.length,
+            staticDigest: contentSha256,
+            renderedLen: null,
+            renderedDigest: null,
+            outcome: "error",
+            rendererVersion: "unavailable",
+            at: fetchedAt,
+          },
+        };
       }
     }
 

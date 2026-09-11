@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * and the internal caller reaches it directly (tagged `x-x402: bypass`).
  */
 async function handler(req: NextRequest): Promise<Response> {
-  let body: { url?: unknown };
+  let body: { url?: unknown; preferRender?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -32,12 +32,15 @@ async function handler(req: NextRequest): Promise<Response> {
       failReason: v.error,
     });
   }
-  const ev = await fetchEvidence(v.value);
+  // The caller's knowledge that the link is a page on the product (see `fetchEvidence`); a boolean, nothing else.
+  const ev = await fetchEvidence(v.value, { preferRender: body.preferRender === true });
   return NextResponse.json({
     text: ev.text,
     contentSha256: ev.contentSha256,
     ok: ev.ok,
     failReason: ev.failReason ?? null,
+    mode: ev.mode ?? null,
+    render: ev.render ?? null,
   });
 }
 

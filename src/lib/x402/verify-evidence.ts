@@ -1,6 +1,6 @@
 import "server-only";
 
-import { fetchEvidence } from "@/lib/deputy/evidence";
+import { fetchEvidence, type RenderProvenance } from "@/lib/deputy/evidence";
 import { isX402Live, VERIFICATION_FEE_USD } from "./facilitator";
 import { payAndCall } from "./payer";
 import { classifyX402Failure, type X402Reason, type X402Status } from "./x402-status";
@@ -22,6 +22,22 @@ export interface VerifiedEvidence {
   x402Status: X402Status;
   /** a sanitized reason code when the live payment fell back, else null. */
   x402Reason: X402Reason | null;
+  /** which capture the judge reads — "static" or "rendered" (W2 enforce); absent on failure. */
+  mode?: "static" | "rendered";
+  /** rendered-capture provenance when a render was attempted: lengths, digests, outcome — never page text. */
+  render?: RenderProvenance;
+}
+
+/**
+ * One line per render attempt, so a payout can be traced to the capture it was judged on. The
+ * provenance is lengths + digests + outcome by construction (evidence.ts), so it is safe to log.
+ */
+function noteRender(url: string, ev: { mode?: "static" | "rendered"; render?: RenderProvenance }): void {
+  if (!ev.render) return;
+  const r = ev.render;
+  console.info(
+    `[evidence-render] ${r.triggerReason} → ${ev.mode ?? "static"} · static ${r.staticLen} · rendered ${r.renderedLen ?? "—"} · ${r.outcome} · ${url.slice(0, 120)}`,
+  );
 }
 
 /**
@@ -31,9 +47,15 @@ export interface VerifiedEvidence {
  * payment, x402PaymentTx null). If a live payment fails it falls back to a direct
  * fetch — honestly unpaid, never a simulated tx — so verification stays robust.
  */
-export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
+export async function verifyEvidence(
+  url: string,
+  /** `preferRender`: the link is a page on the product under test — render it (see `fetchEvidence`). */
+  opts?: { preferRender?: boolean },
+): Promise<VerifiedEvidence> {
+  const preferRender = opts?.preferRender === true;
   if (!isX402Live()) {
-    const ev = await fetchEvidence(url);
+    const ev = await fetchEvidence(url, { preferRender });
+    noteRender(url, ev);
     return {
       text: ev.text,
       contentSha256: ev.contentSha256,
@@ -42,6 +64,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       x402PaymentTx: null,
       x402Status: "not_configured",
       x402Reason: null,
+      mode: ev.mode,
+      render: ev.render,
     };
   }
   try {
@@ -50,11 +74,14 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       contentSha256: string | null;
       ok: boolean;
       failReason?: string | null;
+      mode?: "static" | "rendered" | null;
+      render?: RenderProvenance | null;
     }>({
       url: `${internalBaseUrl()}/api/verify/evidence`,
-      body: { url },
+      body: { url, preferRender },
       amountUsd: VERIFICATION_FEE_USD,
     });
+    noteRender(url, { mode: result.mode ?? undefined, render: result.render ?? undefined });
     return {
       text: result.text,
       contentSha256: result.contentSha256,
@@ -63,6 +90,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       x402PaymentTx: paymentTx,
       x402Status: "paid",
       x402Reason: null,
+      mode: result.mode ?? undefined,
+      render: result.render ?? undefined,
     };
   } catch (err) {
     // Non-blocking by design — log a one-line reason, never the full viem stack.
@@ -70,7 +99,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       (err as { shortMessage?: string })?.shortMessage ??
       (err instanceof Error ? err.message.split("\n")[0] : String(err));
     console.warn("[x402] paid verification unavailable — using a direct (unpaid) fetch:", msg);
-    const ev = await fetchEvidence(url);
+    const ev = await fetchEvidence(url, { preferRender });
+    noteRender(url, ev);
     return {
       text: ev.text,
       contentSha256: ev.contentSha256,
@@ -79,6 +109,8 @@ export async function verifyEvidence(url: string): Promise<VerifiedEvidence> {
       x402PaymentTx: null,
       x402Status: "live_fallback",
       x402Reason: classifyX402Failure(msg),
+      mode: ev.mode,
+      render: ev.render,
     };
   }
 }
