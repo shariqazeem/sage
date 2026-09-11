@@ -134,7 +134,17 @@ export interface V2SetupPreview {
   missions: V2MissionPreview[];
 }
 
-const MAX_MISSIONS_SETUP = 3;
+/**
+ * THE MOST MISSIONS ONE CAMPAIGN MAY CARRY — and it must cover what the mission brain designs.
+ *
+ * It was 3 while the architect was asked for "4 to 6" (small products) and "6 to 10" (rich ones),
+ * so from 2 September every inspected plan failed HERE, at attach — after the vault was created,
+ * funded and activated. Measured 2026-09-11 on Arc: a six-mission plan for plausible.io deployed and
+ * funded $6 from the founder's account, then "too_many_missions" left the vault pointing at nothing.
+ * `deploy-runner` now checks this preview BEFORE any money moves; the limit itself is held above the
+ * richest band by a structural test (`mission-count-bands.test.ts`).
+ */
+export const MAX_MISSIONS_SETUP = 12;
 
 /**
  * Validate an address for THIS campaign's chain.

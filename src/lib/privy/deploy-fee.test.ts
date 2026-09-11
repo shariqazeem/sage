@@ -26,7 +26,8 @@ vi.mock("@/lib/launch/deploy-plan", () => ({
 }));
 vi.mock("./executor", () => ({ executeSequenceViaPrivy: (...a: unknown[]) => execSpy(...(a as [])) }));
 vi.mock("@/lib/db/inspection", () => ({ getInspectionJob: () => ({ productUrl: "https://x.test/" }) }));
-vi.mock("@/lib/campaigns/v2-setup", () => ({ attachV2Campaign: async () => ({ ok: true, campaignId: "camp-1" }) }));
+const previewSpy = vi.fn(() => ({ ok: true, errors: [] as string[] }));
+vi.mock("@/lib/campaigns/v2-setup", () => ({ attachV2Campaign: async () => ({ ok: true, campaignId: "camp-1" }), computeV2SetupPreview: () => previewSpy() }));
 vi.mock("@/lib/campaigns/attach-policy", () => ({ attachApprovedPolicyToCampaign: () => ({ ok: true, attached: false }) }));
 vi.mock("@/lib/x402/payer", () => ({ openCampaignFeeOrder: (...a: unknown[]) => openOrderSpy(...(a as [])) }));
 vi.mock("@/lib/db/campaign-fees", () => ({ recordCampaignFee: (...a: unknown[]) => recordSpy(...(a as [])) }));
@@ -58,6 +59,15 @@ describe("deployCampaignViaPrivy — no launch fee, ever", () => {
     await deployCampaignViaPrivy("chat-1", "job-1");
     expect(openOrderSpy).not.toHaveBeenCalled();
     expect(recordSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a plan the campaign record would reject BEFORE any money moves", async () => {
+    // Measured 2026-09-11 on Arc: a six-mission plan funded a vault and only then failed to be
+    // recorded ("too_many_missions"). The record's own preview runs first now.
+    previewSpy.mockReturnValueOnce({ ok: false, errors: ["too_many_missions"] });
+    execSpy.mockClear();
+    await expect(deployCampaignViaPrivy("web:x", "job-1")).rejects.toThrow(/cannot be recorded.*too_many_missions.*nothing was funded/);
+    expect(execSpy).not.toHaveBeenCalled();
   });
 
   it("reports only the core steps", async () => {

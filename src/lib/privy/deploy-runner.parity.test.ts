@@ -22,7 +22,7 @@ vi.mock("@/lib/launch/deployment-service", () => ({
 vi.mock("@/lib/launch/deploy-plan", () => ({ buildDeployBundle: () => ({ predictedVault: A("6"), calls: [{ to: A("5"), data: "0x", step: "create" }] }), deriveDeploymentInputs: () => ({}) }));
 vi.mock("./executor", () => ({ executeSequenceViaPrivy: async () => [{ txHash: "0xtx", explorerUrl: "http://e" }] }));
 vi.mock("@/lib/db/inspection", () => ({ getInspectionJob: () => ({ productUrl: "https://x.test/" }) }));
-vi.mock("@/lib/campaigns/v2-setup", () => ({ attachV2Campaign: async () => ({ ok: true, campaignId: "camp-1" }) }));
+vi.mock("@/lib/campaigns/v2-setup", () => ({ attachV2Campaign: async () => ({ ok: true, campaignId: "camp-1" }), computeV2SetupPreview: () => ({ ok: true, errors: [] }) }));
 vi.mock("@/lib/campaigns/attach-policy", () => ({ attachApprovedPolicyToCampaign: attachPolicySpy }));
 
 const { deployCampaignViaPrivy } = await import("./deploy-runner");

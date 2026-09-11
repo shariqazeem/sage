@@ -10,9 +10,12 @@ import {
   DEFAULT_DURATION_SECONDS,
 } from "@/lib/launch/deployment-service";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { attachV2Campaign, type V2MissionSetupInput } from "@/lib/campaigns/v2-setup";
+import { attachV2Campaign, computeV2SetupPreview, type V2MissionSetupInput, type V2SetupInput } from "@/lib/campaigns/v2-setup";
 import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
+import type { AgentWallet } from "@/lib/db/schema";
+import type { LoadedPlan } from "@/lib/launch/deployment-service";
+import type { DeploymentSettings } from "@/lib/launch/deploy-plan";
 import { executeSequenceViaPrivy } from "./executor";
 import { distillPrivateKey } from "@/lib/deputy/observation-verify";
 import { explorationCounts } from "@/lib/launch/field-test";
@@ -55,18 +58,7 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
   if (!loaded) throw new Error("this inspection has no approved plan to deploy");
 
   const owner = getAddress(wallet.privyWalletAddress);
-  const settingsRes = buildSettings(
-    loaded.plan,
-    {
-      owner, // the Privy wallet OWNS the vault (msg.sender), like the founder's browser wallet does
-      guardian: getAddress(wallet.founderAddress), // the founder's real (SIWE) wallet is the guardian
-      dailyVelocityCapBase: defaultDailyCap(loaded.plan),
-      durationSeconds: DEFAULT_DURATION_SECONDS,
-    },
-    wallet.chainId,
-  );
-  if (!settingsRes.ok) throw new Error(`deploy settings invalid: ${settingsRes.errors.join(", ")}`);
-  const settings = settingsRes.settings;
+  const settings = settingsFor(wallet, loaded);
 
   /**
    * THE LAUNCH FEE — opened here, paid by the founder as the bundle's last call.
@@ -77,20 +69,23 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
    * silent: our billing being down must never cost a founder their launch, so the bundle simply
    * builds without a fee call, exactly as it did before this existed.
    */
-  // Defensive conversion: an absent or unparseable budget means NO fee, never a thrown launch. The
-  // deploy is the founder's, and a billing detail must not be able to take it down.
-  const budgetBase = (() => {
-    try {
-      return BigInt(loaded.plan.totalBudgetBase ?? 0);
-    } catch {
-      return BigInt(0);
-    }
-  })();
   // No launch fee. Sage earns on what it settles (the flat operator fee over x402) and on advances —
   // a 10% founder-side charge existed here behind an env switch and appeared in no document; it
   // was deleted 2026-09-05 so the business model reads exactly as the ledger shows.
   const bundle = buildDeployBundle(loaded.plan, settings);
   const coreCalls = bundle.calls;
+
+  /**
+   * THE RECORD IS CHECKED BEFORE THE MONEY MOVES. Measured 2026-09-11 on Arc: a six-mission plan
+   * deployed, funded and activated a vault from the founder's account, and only THEN failed the
+   * campaign record's validation ("too_many_missions") — $6 in a vault nothing pointed at. The same
+   * pure preview the attach runs is run here first, against the predicted vault; a plan that cannot
+   * be recorded is refused with nothing funded.
+   */
+  const setup = setupInputFor(wallet, loaded, jobId, settings, bundle.predictedVault);
+  const preview = computeV2SetupPreview(setup);
+  if (!preview.ok) throw new Error(`this plan cannot be recorded as a campaign (${preview.errors.join(", ")}) — nothing was funded`);
+
   const results = await executeSequenceViaPrivy(
     wallet.privyWalletId,
     owner,
@@ -98,9 +93,74 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
     wallet.chainId,
   );
 
-
   // Record the campaign — the SAME atomic attach the web app uses, which re-reads the on-chain
   // vault and fails closed unless it matches the approved plan. Deps `{}` = the real adapter.
+  const campaignId = await recordDeployedVault(setup, jobId, bundle.predictedVault, settings.chainId);
+
+  return {
+    vault: bundle.predictedVault,
+    ownerWallet: owner,
+    campaignId,
+    // the CORE calls only — the fee runs separately and its outcome lives on the campaign_fees row
+    steps: coreCalls.map((c, i) => ({ step: c.step, txHash: results[i].txHash, explorerUrl: results[i].explorerUrl })),
+  };
+}
+
+/**
+ * RECOVERY: record a vault this account already deployed and funded for `jobId` but never recorded
+ * (the attach failed after the money moved). The attach re-reads the vault on chain and refuses
+ * unless it matches the approved plan, so nothing can be recorded that was not actually funded.
+ */
+export async function attachDeployedVault(chatId: string, jobId: string, vaultAddress: Address): Promise<{ campaignId: string; vault: Address }> {
+  const wallet = getAgentWallet(chatId);
+  if (!wallet) throw new Error("no agent wallet is bound to this chat");
+  const loaded = loadApprovedPlan(jobId);
+  if (!loaded) throw new Error("this inspection has no approved plan");
+  const settings = settingsFor(wallet, loaded);
+  const vault = getAddress(vaultAddress);
+  const setup = setupInputFor(wallet, loaded, jobId, settings, vault);
+  const campaignId = await recordDeployedVault(setup, jobId, vault, settings.chainId);
+  return { campaignId, vault };
+}
+
+function settingsFor(wallet: AgentWallet, loaded: LoadedPlan): DeploymentSettings {
+  const settingsRes = buildSettings(
+    loaded.plan,
+    {
+      owner: getAddress(wallet.privyWalletAddress), // the Privy wallet OWNS the vault (msg.sender), like the founder's browser wallet does
+      guardian: getAddress(wallet.founderAddress), // the founder's real (SIWE) wallet is the guardian
+      dailyVelocityCapBase: defaultDailyCap(loaded.plan),
+      durationSeconds: DEFAULT_DURATION_SECONDS,
+    },
+    wallet.chainId,
+  );
+  if (!settingsRes.ok) throw new Error(`deploy settings invalid: ${settingsRes.errors.join(", ")}`);
+  return settingsRes.settings;
+}
+
+async function recordDeployedVault(setup: V2SetupInput, jobId: string, vault: Address, chainId: number): Promise<string> {
+  const attach = await attachV2Campaign(setup, {});
+  if (!attach.ok) {
+    // Say WHERE the money is: the vault address is what recovery needs, and it must never be lost.
+    console.error(`[deploy-runner] vault ${vault} on chain ${chainId} is funded but UNRECORDED for job ${jobId}: ${attach.stage} ${attach.errors.join(", ")}`);
+    throw new Error(`the vault ${vault} deployed + funded, but recording it failed (${attach.stage}): ${attach.errors.join(", ")} — it can be recorded later (attachDeployedVault)`);
+  }
+
+  // PARITY with the web deploy (attach/route.ts:159) — the approved revision's VerificationPolicyV2 MUST bind to
+  // the new campaign, fail-closed, so a covenant-required (canary/action-replay) plan launched walletlessly gets
+  // the SAME frozen/reproduced-permit covenant the SIWE web path enforces. A non-required (legacy) revision is a
+  // legitimate no-op. Without this, the campaign row keeps verificationPolicyRequired=false and settlement would
+  // silently pay under legacy rules — the exact Telegram↔web divergence this closes.
+  const policyAttach = attachApprovedPolicyToCampaign(attach.campaignId, jobId);
+  if (!policyAttach.ok) {
+    throw new Error(`the vault deployed + funded, but the verification covenant could not attach (${policyAttach.reason}) — retry recording`);
+  }
+  return attach.campaignId;
+}
+
+/** Everything the campaign record needs, built from the approved plan exactly as the web attach route builds it. */
+function setupInputFor(wallet: AgentWallet, loaded: LoadedPlan, jobId: string, settings: DeploymentSettings, vault: Address): V2SetupInput {
+  const owner = getAddress(wallet.privyWalletAddress);
   const job = getInspectionJob(jobId);
   // THE PAYOUT GATE'S CONTRACT — byte-for-byte with the web attach route: the grounding shadow's
   // criterion evidence translated into pinned-key source ids. Direct plans have no shadow → empty,
@@ -175,56 +235,32 @@ export async function deployCampaignViaPrivy(chatId: string, jobId: string): Pro
   const privateKey = distillPrivateKey(ftForKey, publicStrings);
   const explored = explorationCounts(ftForKey);
 
-  const attach = await attachV2Campaign(
-    {
-      publicCampaignId: loaded.plan.publicCampaignId,
-      privateCorpus: privateKey.observations,
-      privateCorpusDigest: privateKey.digest,
-      privateCorpusSources: privateKey.distinctSources,
-      exploredScreens: explored.screens,
-      exploredElements: explored.elements,
-      // A direct campaign is titled by its OPERATOR, not by the product host — without this the
-      // live gig recorded "Testing campaign · sagepays.xyz" instead of its own name.
-      title: parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? ""),
-      productUrl: job?.productUrl ?? "",
-      chainId: settings.chainId,
-      expectedToken: getAddress(settings.token),
-      founderAddress: owner,
-      operatorAddress: getAddress(settings.operator),
-      guardian: getAddress(settings.guardian),
-      factoryAddress: getAddress(settings.factory),
-      vaultAddress: bundle.predictedVault,
-      missions,
-      autonomy: defaultAutonomyFor(loaded.plan.visibility),
-      // WORK PROOF parity with the web attach — kind + allowlist + visibility ride the approved plan.
-      // Without these a Telegram-launched gig recorded kind "testing", and an invite-only campaign
-      // deployed OPEN to everyone (which, for visibility, it did until 2026-09-04).
-      campaignKind: loaded.plan.campaignKind,
-      denomination: loaded.plan.denomination,
-      visibility: loaded.plan.visibility,
-      allowlist: loaded.plan.allowlist,
-    },
-    {},
-  );
-  if (!attach.ok) {
-    throw new Error(`the vault deployed + funded, but recording it failed (${attach.stage}): ${attach.errors.join(", ")}`);
-  }
-
-  // PARITY with the web deploy (attach/route.ts:159) — the approved revision's VerificationPolicyV2 MUST bind to
-  // the new campaign, fail-closed, so a covenant-required (canary/action-replay) plan launched walletlessly gets
-  // the SAME frozen/reproduced-permit covenant the SIWE web path enforces. A non-required (legacy) revision is a
-  // legitimate no-op. Without this, the campaign row keeps verificationPolicyRequired=false and settlement would
-  // silently pay under legacy rules — the exact Telegram↔web divergence this closes.
-  const policyAttach = attachApprovedPolicyToCampaign(attach.campaignId, jobId);
-  if (!policyAttach.ok) {
-    throw new Error(`the vault deployed + funded, but the verification covenant could not attach (${policyAttach.reason}) — retry recording`);
-  }
-
   return {
-    vault: bundle.predictedVault,
-    ownerWallet: owner,
-    campaignId: attach.campaignId,
-    // the CORE calls only — the fee runs separately and its outcome lives on the campaign_fees row
-    steps: coreCalls.map((c, i) => ({ step: c.step, txHash: results[i].txHash, explorerUrl: results[i].explorerUrl })),
+    publicCampaignId: loaded.plan.publicCampaignId,
+    privateCorpus: privateKey.observations,
+    privateCorpusDigest: privateKey.digest,
+    privateCorpusSources: privateKey.distinctSources,
+    exploredScreens: explored.screens,
+    exploredElements: explored.elements,
+    // A direct campaign is titled by its OPERATOR, not by the product host — without this the
+    // live gig recorded "Testing campaign · sagepays.xyz" instead of its own name.
+    title: parseDirectTitle(job?.goal) ?? campaignTitle(job?.productUrl ?? ""),
+    productUrl: job?.productUrl ?? "",
+    chainId: settings.chainId,
+    expectedToken: getAddress(settings.token),
+    founderAddress: owner,
+    operatorAddress: getAddress(settings.operator),
+    guardian: getAddress(settings.guardian),
+    factoryAddress: getAddress(settings.factory),
+    vaultAddress: vault,
+    missions,
+    autonomy: defaultAutonomyFor(loaded.plan.visibility),
+    // WORK PROOF parity with the web attach — kind + allowlist + visibility ride the approved plan.
+    // Without these a Telegram-launched gig recorded kind "testing", and an invite-only campaign
+    // deployed OPEN to everyone (which, for visibility, it did until 2026-09-04).
+    campaignKind: loaded.plan.campaignKind,
+    denomination: loaded.plan.denomination,
+    visibility: loaded.plan.visibility,
+    allowlist: loaded.plan.allowlist,
   };
 }
