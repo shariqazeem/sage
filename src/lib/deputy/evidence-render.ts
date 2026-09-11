@@ -202,6 +202,20 @@ async function renderOnce(rawUrl: string, testHooks: RenderTestHooks | undefined
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
       viewport: { width: 1280, height: 800 },
           }),
+      /**
+       * A LOCALE, LIKE ANY REAL BROWSER HAS. Without one, headless Chromium on the production box
+       * reports `navigator.language` as "en-US@posix" — and a dashboard built on Intl and date
+       * libraries can decline to mount under it with no error at all.
+       *
+       * MEASURED 2026-09-11 on plausible.io's live demo: the same browser, the same waits, the same
+       * guard — 706 characters of chrome around an empty stats container with zero API calls, at
+       * every sample from 1 s to 25 s; with `locale: "en-US"` the dashboard mounted, made its seven
+       * stats calls and gave 1,565 characters with every headline number. The field test has set
+       * this locale since it was written; the renderer had not been brought along. The timezone is
+       * pinned so a capture does not depend on where the box happens to be.
+       */
+      locale: "en-US",
+      timezoneId: "UTC",
       extraHTTPHeaders: { "x-sage-agent": "SageDeputy/1.0 (+evidence-verification)" },
       acceptDownloads: false,
     });
