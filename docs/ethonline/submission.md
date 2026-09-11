@@ -31,6 +31,32 @@ where USDC is the gas. Withdraw to any address through a one-time permit that re
 - **Arc explorer (Blockscout)** for the account's token-transfer history.
 - **Privy** server wallets + policies for the account and the mandate; **viem** for everything on chain.
 
+## Privy — the prizes Sage already qualifies for (Best B2B financial product · Best financial flow)
+
+Sage is a B2B financial product: an organisation funds one account and an agent pays its people for
+verified work, inside limits enforced by a Privy policy and an on-chain vault. Every Privy piece below
+is live on sagepays.xyz, and the last four were built during the hackathon window:
+
+- **Sign in with an email** (Privy login app): the person gets an embedded wallet; the server verifies
+  Privy's token and mints the same session a SIWE sign-in would. The embedded wallet signs evidence
+  claims on the board and the gasless withdraw of a worker's own balance.
+- **The account** (Privy server wallet, TEE-held): born under a **policy that is the mandate** — create
+  a campaign vault through Sage's factory, approve and fund it up to a per-campaign cap, activate it,
+  sweep unspent money only to the founder's own wallet, nothing else. The agent launches campaigns from
+  it with four policy-bound signatures; no human key.
+- **NEW · one account per network**: `web:<founder>` on the default chain, `web:<founder>@<chainId>`
+  on Arc — USDC on one chain is not USDC on another, and the policy is per chain.
+- **NEW · opened automatically** when a workspace is created, after the response (Privy takes seconds).
+- **NEW · withdraw through a one-time permit**: a scoped policy (this recipient, this amount) is attached
+  for one transfer and the wallet is re-locked to the mandate after, whatever happened.
+- **NEW · change the cap in place**: the account is moved onto a fresh mandate policy with the new cap
+  and the same reclaim address; the old policy is left attached to nothing.
+- The Telegram front door uses the same server wallets + policies, so a founder with no wallet app at
+  all funds and launches from chat.
+
+Code: `src/lib/privy/` (`mandate.ts` policy builder, `onboarding.ts`, `withdraw.ts`, `cap.ts`,
+`executor.ts`), `src/lib/treasury/web.ts`, `src/app/api/treasury/`, `src/lib/auth/privy-login.ts`.
+
 ## Programmable money flows (what the judges asked for)
 
 - Conditional payments: the vault pays only on the agent's verified decision, and only the reward the

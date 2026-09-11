@@ -15,8 +15,13 @@ on GOAT mainnet and thirteen on Starknet. This month we brought it to Arc, Circl
 today, on mainnet the day Arc opens — and I'll show you why that changes what it can be.
 
 ## 2 · 0:12 → 0:40 · the account
-DO › Sign in with email (or wallet). Open **Account**, then the **Arc** tab (marked new · testnet).
-SAY › This is the whole setup. One wallet on Arc, held under a mandate the agent can't widen. Send USDC
+DO › Sign in with email (Privy) and name a workspace. Open **Account**: it is already open on GOAT —
+Privy opened it while you landed. Press **change** on the cap, set 100, save. Then the **Arc** tab
+(marked new · testnet).
+SAY › An email is the whole sign-up: Privy keeps a wallet for me and Sage opens my account under a
+policy it cannot widen — create a vault, fund it up to my cap, send unspent money only back to me.
+Raising the cap writes a new policy; nothing else changes. On Arc, the same account, where USDC is
+the gas. Send USDC
 to it from any wallet or exchange. Or bridge it in from Ethereum or Base — Circle's App Kit, CCTP
 underneath, Circle mints straight into the account. On Arc, USDC is the gas, so this is all it ever
 needs. No second token, no top-ups.
