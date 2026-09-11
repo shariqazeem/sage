@@ -54,13 +54,25 @@ const SETTLED: ReadonlySet<EventKind> = new Set<EventKind>(["settled", "autopay_
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 const ZERO_HASH = `0x${"0".repeat(64)}`;
 
+/** A rail that settles real money — the only kind the public front door and explorer show. */
+export function isMainnetRail(chainId: number | null | undefined): boolean {
+  return chainId != null && chainConfig(chainId).isMainnet;
+}
+
 /**
  * The public payout feed for the landing — the SAME clean, deduped record the agent card uses
  * (real journal events, sandbox-excluded, one receipt per chainId+tx), NOT a single vault's raw
  * on-chain log (which can carry old, unrelated test spends). Each receipt is proof-linkable and
  * carries a real recipient + amount. Newest first, capped at `limit`.
+ *
+ * `mainnetOnly` is applied BEFORE the cap. The landing used to take the newest twelve receipts
+ * across every chain and drop the testnet ones afterwards — fine until a testnet was busy. On
+ * 2026-09-11 thirteen Arc-testnet payouts in one morning were the newest thirteen receipts, the
+ * cap kept exactly those, the filter emptied the list, and the front door said "Watching for
+ * work" over forty-one real mainnet payouts. A filter that runs after a cap is a window into
+ * whatever happened last, not a feed of what it claims to show.
  */
-export function getPublicReceipts(limit = 12): PayoutReceipt[] {
+export function getPublicReceipts(limit = 12, opts?: { mainnetOnly?: boolean }): PayoutReceipt[] {
   const walletByTx = walletsByPayoutTx();
   const seen = new Set<string>();
   const out: PayoutReceipt[] = [];
@@ -74,6 +86,7 @@ export function getPublicReceipts(limit = 12): PayoutReceipt[] {
     seen.add(key);
     const settled = SETTLED.has(e.kind);
     const chainId = e.chainId ?? DEFAULT_CHAIN_ID;
+    if (opts?.mainnetOnly && !isMainnetRail(chainId)) continue;
     out.push({
       txHash: tx as PayoutReceipt["txHash"],
       settled,

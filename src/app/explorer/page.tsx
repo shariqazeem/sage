@@ -11,7 +11,7 @@ import { Anchor, FileCheck2, Landmark, ShieldCheck } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { ExplorerSearch } from "@/components/explorer/explorer-search";
 import { CompareBar } from "@/components/outcomes/compare-bar";
-import { getAgentChainSplit, getPublicReceipts } from "@/lib/erc8004/reputation";
+import { getAgentChainSplit, getPublicReceipts, isMainnetRail } from "@/lib/erc8004/reputation";
 import { chainConfig } from "@/lib/deputy/networks";
 import { short, usd } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -53,10 +53,7 @@ export default function ExplorerPage() {
    * Testnets stay out: a test payout is not a settlement, and mixing valueless tokens into a total
    * headed "settled, verified" would inflate it with money that does not exist.
    */
-  const isMainnetRail = (chainId: number | null | undefined) =>
-    chainId != null && chainConfig(chainId).isMainnet;
-
-  const feed = getPublicReceipts(40).filter((r) => isMainnetRail(r.chainId));
+  const feed = getPublicReceipts(40, { mainnetOnly: true }); // filtered before the cap, never after
   // the campaign behind each receipt, so a row can open its wallet graph
   const campaignByTx = new Map(settledLedger().map((r) => [r.txHash.toLowerCase(), r.campaignId]));
   // Sage's own revenue: only fees that actually settled on-chain are counted, never what is owed.

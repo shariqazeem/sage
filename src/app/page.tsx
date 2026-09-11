@@ -48,9 +48,8 @@ export default async function HomePage() {
    * the page that introduces it. The explorer fixed both derivations weeks ago; this page kept
    * its own copy. Same rows now: the settled ledger for money, the decided ledger for refusals.
    */
-  const isMainnetRail = (chainId: number | null | undefined) =>
-    chainId != null && chainConfig(chainId).isMainnet;
-  const feed = getPublicReceipts().filter((h) => isMainnetRail(h.chainId));
+  // Mainnet-only at the SOURCE: filtering after the cap blanked this feed on a busy testnet day.
+  const feed = getPublicReceipts(12, { mainnetOnly: true });
   const settled = mainnetSettled();
   const decided = decidedOnMainnet(); // one derivation with the explorer, outcomes and launch pages
   const totals = {
