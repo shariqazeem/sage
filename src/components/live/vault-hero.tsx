@@ -13,7 +13,7 @@ import type { WorkspaceMission, WorkspaceSubmission } from "@/components/campaig
 const usd = (base: number) => `$${(base / 1e6).toFixed(2)}`;
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-export function VaultHero({ missions, submissions, fundedBase, paidBase, remainingBase, vaultExplorerUrl, rail }: {
+export function VaultHero({ missions, submissions, fundedBase, paidBase, remainingBase, vaultExplorerUrl, rail, chainName }: {
   missions: WorkspaceMission[];
   submissions: WorkspaceSubmission[];
   fundedBase: number;
@@ -21,6 +21,8 @@ export function VaultHero({ missions, submissions, fundedBase, paidBase, remaini
   remainingBase: number;
   vaultExplorerUrl: string;
   rail: "evm" | "starknet";
+  /** the chain the vault lives on — a label, never a hardcoded "GOAT" on an Arc campaign */
+  chainName?: string;
 }) {
   const allocated = missions.reduce((n, m) => n + m.rewardBase * m.maxCompletions, 0);
   const total = Math.max(fundedBase, allocated, 1);
@@ -52,7 +54,7 @@ export function VaultHero({ missions, submissions, fundedBase, paidBase, remaini
       <div className="vh-legend">
         <span><b className="mono">{usd(fundedBase)}</b> locked on-chain{vaultExplorerUrl && <> · <a href={vaultExplorerUrl} target="_blank" rel="noreferrer">the vault</a></>}</span>
         <span>{missions.length} mission{missions.length === 1 ? "" : "s"} · allocated exactly, to the base unit{unallocated > 0 ? "" : " — nothing left over"}</span>
-        <span>{rail === "starknet" ? "Cairo vault · private payouts" : "CampaignVault · GOAT"}</span>
+        <span>{rail === "starknet" ? "Cairo vault · private payouts" : `CampaignVault · ${chainName ?? "GOAT"}`}</span>
       </div>
       <div className="vh-tray">
         <div className="vh-tray-h"><span>Released</span><b className="mono vh-paid">{usd(paidBase)}</b>{settling > 0 && <em>{settling} settling</em>}<span className="vh-rem">remaining <b className="mono">{usd(remainingBase)}</b></span></div>

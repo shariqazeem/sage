@@ -382,6 +382,7 @@ function Console({ data }: { data: WorkspaceData }) {
         remainingBase={data.remainingBase}
         vaultExplorerUrl={data.vaultExplorerUrl}
         rail={data.chainId === 900001 ? "starknet" : "evm"}
+        chainName={chainConfig(data.chainId).chipLabel}
       />
       <p className="cw-meta">
         <span>{networkLabel(data.chainId)}</span>

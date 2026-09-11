@@ -362,7 +362,8 @@ export function opGetCampaign(id: string): OpResult<CampaignView> {
         mission: titleByHash.get(s.missionIdHash ?? "") ?? "Mission",
         state,
         confidence: brief?.confidence ?? null,
-        reason: brief?.reasonCode ?? null,
+        // the founder's written reason when they refused it; the judge's reason code otherwise
+        reason: state === "rejected" ? (s.rejectReason ?? brief?.reasonCode ?? "rejected") : (brief?.reasonCode ?? null),
         payoutTx: state === "paid" ? s.payoutTx : null,
         explorerUrl: state === "paid" && s.payoutTx ? explorerTxUrl(e.chainId, s.payoutTx) : null,
         proofUrl: state === "paid" && s.payoutTx ? `${base}/proof/${s.payoutTx}` : null,

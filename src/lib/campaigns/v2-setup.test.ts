@@ -114,6 +114,25 @@ describe("attachV2Campaign — agreement-gated ATOMIC persist", () => {
     expect(ms[0].lockedAt).toBeGreaterThan(0);
   });
 
+  it("a GRANT's per-wallet cap is at least its number of milestones — one grantee, one tranche each", async () => {
+    // Measured 2026-09-11 on Arc: a two-milestone grant verified its second tranche at 98% and
+    // rejected it as "this wallet has already been paid". The cap is per campaign; a grant's
+    // tranches all go to the same wallet by design.
+    const base = setupInput();
+    const second = { ...base.missions[0], missionKey: "second", title: "Second tranche" };
+    const grant = { ...base, campaignKind: "grant" as const, missions: [base.missions[0], second] };
+    const r = await attachV2Campaign(grant, { adapter: fakeAdapter(snapshotFor(grant)), operatorAddress: OP });
+    expect(r.ok).toBe(true);
+    expect(getCampaign(grant.publicCampaignId)?.perWalletPayoutCap).toBe(2);
+    // a founder's larger number still wins; a testing run with two missions keeps the default of one
+    const generous = { ...grant, publicCampaignId: `${grant.publicCampaignId}-g`, perWalletCap: 5 };
+    await attachV2Campaign(generous, { adapter: fakeAdapter(snapshotFor(generous)), operatorAddress: OP });
+    expect(getCampaign(generous.publicCampaignId)?.perWalletPayoutCap).toBe(5);
+    const testing = { ...grant, publicCampaignId: `${grant.publicCampaignId}-t`, campaignKind: "testing" as const };
+    await attachV2Campaign(testing, { adapter: fakeAdapter(snapshotFor(testing)), operatorAddress: OP });
+    expect(getCampaign(testing.publicCampaignId)?.perWalletPayoutCap).toBe(1);
+  });
+
   it("a mismatched vault (wrong owner) persists NOTHING", async () => {
     const input = setupInput();
     const broken = snapshotFor(input, { owner: `0x${"9".repeat(40)}` });
