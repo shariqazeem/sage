@@ -17,6 +17,12 @@ run long.
 - A fresh email you can read codes from, open in another tab
 - Camera on for beat 1 and beat 8 only
 
+**One thing that will break the take if you skip it.** When you post the work, tick **"Only
+people I invite."** A public campaign asks every worker to prove they're one person with
+World ID first, which is a real feature and a great one, but it costs a minute you don't
+have in a three-minute demo, and no EVM wallet on prod has been through it yet. Invite-only
+skips that door and is honest: you're paying someone you know.
+
 ---
 
 ## 1 · Camera · 0:00 → 0:15
@@ -84,9 +90,13 @@ There's the money.
 
 ## 5 · Give it work · 1:25 → 2:00
 
-*Post work. Paste the line. Create.*
+*Post work. Paste the line. Tick "Only people I invite." Create.*
 
 Now the work. One sentence, one dollar, one slot.
+
+*Point at the invite toggle as you tick it.*
+
+And I'll keep this one off the public board, because I know who's doing it.
 
 *On the plan page, Launch from the account.*
 
@@ -156,5 +166,7 @@ That's Sage.
   A real wait beats a jump cut.
 - **A launch fails.** Switch to a campaign from earlier this week and say so. Every receipt
   is real either way.
+- **The worker is asked to verify with World ID.** You left the campaign public. Stop the
+  take, repost it with "Only people I invite" ticked.
 - **You fumble.** Stop, breathe, say the line again. Fix it in the edit. Never restart the
   whole take.
