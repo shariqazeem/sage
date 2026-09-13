@@ -18,7 +18,7 @@ import {
   Target, Lock } from "lucide-react";
 import { getAddress } from "viem";
 import { MissionVerify } from "@/components/live/mission-verify";
-import { reward as fmtReward } from "@/lib/format";
+import { reward as fmtReward, short } from "@/lib/format";
 import { CountUp } from "@/components/app/count-up";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
@@ -26,6 +26,7 @@ import { buildStarknetEvidenceTypedData } from "@/lib/campaigns/starknet-evidenc
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import { useWallet } from "@/lib/wallet/use-wallet";
+import { chainConfig } from "@/lib/deputy/networks";
 import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "./embedded-wallet-bridge";
 
@@ -281,15 +282,28 @@ function MissionCard({
   // ("Reconnect your wallet to sign" on an actually-connected wallet).
   const siwe = useSiwe(wallet);
   /*
-    EARN WITH AN EMAIL. A worker who signed in by email holds a Privy embedded wallet and a session
-    bound to it; the board only knew the injected provider, so that session read as signed out and
-    the submit control never appeared. The injected wallet keeps precedence when it is connected;
-    the embedded one counts only when there is no injected wallet and the session is its own.
+    THE WALLET THAT SIGNS IS THE WALLET THAT IS SIGNED IN — never whichever extension happens to be
+    authorized for this site.
+
+    The server pays the address that proved control of itself at sign-in and no other, so the client
+    has to pick its signer the same way or the two disagree. This used to read
+    `wallet.address ?? embedded?.address`, which let an injected wallet shadow the embedded one:
+    a worker who signed in with an email, on a browser where MetaMask had ever been connected to
+    Sage, was asked to sign with MetaMask. MEASURED 2026-09-13 mid-recording. Best case the server
+    refuses a signature from an address that is not the session; worst case it is signed by a wallet
+    the person did not mean to be paid on.
+
+    So: resolve the session address first, then find the signer that MATCHES it. Before sign-in there
+    is no session, and the connected wallet is shown so the door can say who is about to sign in.
   */
   const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
-  const evmAddress = wallet.address ?? embedded?.address ?? null;
-  const emailSignedIn =
-    !wallet.address && !!embedded && !!siwe.authedAddress && siwe.authedAddress.toLowerCase() === embedded.address.toLowerCase();
+  const sameAddr = (a?: string | null, b?: string | null) =>
+    !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  const sessionAddress = siwe.authedAddress ?? null;
+  const signerIsEmbedded = sameAddr(sessionAddress, embedded?.address);
+  const signerIsInjected = sameAddr(sessionAddress, wallet.address);
+  const evmAddress = sessionAddress ?? wallet.address ?? embedded?.address ?? null;
+  const emailSignedIn = signerIsEmbedded;
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");
@@ -371,16 +385,40 @@ function MissionCard({
       // WHICHEVER RAIL, THE WALLET THAT SIGNS IS THE WALLET THAT GETS PAID. On Starknet that is the
       // signed-in Starknet account, never the EVM one a tester may also have connected.
       const account = onStarknet ? starknet.address : evmAddress;
+      /*
+        Pick the signer that IS the session, in that order of truth. An injected wallet that is
+        connected but is not the signed-in address must not sign: the payout would go to the
+        session address while a different wallet vouched for the evidence.
+      */
       const walletClient = onStarknet
         ? null
-        : wallet.address
-          ? wallet.getWalletClient()
-          : embedded
-            ? await embedded.getWalletClient()
+        : signerIsEmbedded && embedded
+          ? await embedded.getWalletClient(chainId)
+          : signerIsInjected
+            ? wallet.getWalletClient(chainId)
             : null;
       if (!account || (!onStarknet && !walletClient)) {
-        setError("Reconnect your wallet to sign.");
+        setError(
+          sessionAddress
+            ? `Sign in again with ${short(sessionAddress)} — that is the wallet this campaign would pay, and it has to be the one that signs.`
+            : "Reconnect your wallet to sign.",
+        );
         return;
+      }
+      /*
+        A wallet refuses eth_signTypedData_v4 when the message's chainId is not the chain it is
+        sitting on, and the claim is stamped with the CAMPAIGN's chain. Signing an Arc claim from a
+        wallet parked on GOAT throws, and the old catch below reported it as "you declined", which
+        sent people looking for a button they never pressed. Ask for the switch first; the helper
+        adds the chain when the wallet has never seen it.
+      */
+      if (!onStarknet && signerIsInjected && !wallet.onChain(chainId)) {
+        try {
+          await wallet.switchToChain(chainId);
+        } catch {
+          setError(`Switch your wallet to ${chainConfig(chainId).name} to sign this one, then submit again.`);
+          return;
+        }
       }
       // ONE string, used for both the signed digest and the request body — they must never diverge.
       const submittedNote = composedNote;
@@ -427,8 +465,15 @@ function MissionCard({
             primaryType: typed.primaryType,
             message: typed.message,
           });
-        } catch {
-          setError("You declined the signature. Nothing was submitted.");
+        } catch (e) {
+          // Only 4001 is a decline. Everything else has a real reason and the person deserves it.
+          const code = (e as { code?: number })?.code;
+          const raw = e instanceof Error ? e.message.split("\n")[0] : String(e);
+          setError(
+            code === 4001 || /user rejected|denied/i.test(raw)
+              ? "You declined the signature. Nothing was submitted."
+              : `Your wallet could not sign this: ${raw.slice(0, 140)}`,
+          );
           return;
         }
       }
@@ -459,6 +504,9 @@ function MissionCard({
     wallet,
     embedded,
     evmAddress,
+    sessionAddress,
+    signerIsEmbedded,
+    signerIsInjected,
     starknet,
     rail,
     evidence,

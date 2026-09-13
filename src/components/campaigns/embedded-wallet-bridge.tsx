@@ -17,8 +17,15 @@ import { createWalletClient, custom, type WalletClient } from "viem";
  */
 export interface EmbeddedWallet {
   address: `0x${string}`;
-  /** A viem wallet client over the embedded wallet's provider — for typed-data signatures. */
-  getWalletClient: () => Promise<WalletClient | null>;
+  /**
+   * A viem wallet client over the embedded wallet's provider — for typed-data signatures.
+   *
+   * Pass the chain the claim is stamped with. A wallet refuses `eth_signTypedData_v4` when the
+   * message's chainId is not the one it is sitting on, and a campaign's claim carries the
+   * CAMPAIGN's chain, which is often not wherever the wallet last was. The switch is attempted
+   * and never fatal: a provider that does not care about the mismatch still signs.
+   */
+  getWalletClient: (chainId?: number) => Promise<WalletClient | null>;
 }
 
 export function EmbeddedWalletBridge({ onChange }: { onChange: (w: EmbeddedWallet | null) => void }) {
@@ -37,8 +44,9 @@ export function EmbeddedWalletBridge({ onChange }: { onChange: (w: EmbeddedWalle
     const address = w.address as `0x${string}`;
     onChange({
       address,
-      getWalletClient: async () => {
+      getWalletClient: async (chainId?: number) => {
         try {
+          if (chainId != null) await w.switchChain(chainId).catch(() => {});
           const provider = await w.getEthereumProvider();
           return createWalletClient({ account: address, transport: custom(provider) });
         } catch {
