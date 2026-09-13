@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+/** Broadcast when a founder signs out, so other identity layers (Privy) can end too. */
+export const SIGNED_OUT_EVENT = "sage:signed-out";
+
 /**
  * IS SOMEONE SIGNED IN AS A FOUNDER, ON EITHER CHAIN?
  *
@@ -95,6 +98,15 @@ export function useFounderSession(): FounderSession {
       fetch("/api/auth/session", { method: "DELETE" }),
       fetch("/api/auth/starknet/session", { method: "DELETE" }),
     ]);
+    /*
+      SIGNING OUT HAS TO END EVERY IDENTITY, NOT JUST OURS.
+      Privy holds its own session in the browser, and clearing only Sage's cookies left it alive:
+      the next "Continue with email" reused it and minted a fresh Sage session for the SAME person
+      with no email and no code. So sign-out did not sign anyone out, and switching accounts was
+      impossible. Reported 2026-09-13. The listener lives inside the Privy provider, because Privy's
+      hooks throw outside it and this file is used on pages that have no provider.
+    */
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
     publish({ identity: { address: null, chain: null }, loading: false });
   }, []);
 

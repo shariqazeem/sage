@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet, type WalletApi } from "@/lib/wallet/use-wallet";
 import { buildSiweMessage } from "./message";
-import { refreshFounderSession } from "./use-founder-session";
+import { refreshFounderSession, SIGNED_OUT_EVENT } from "./use-founder-session";
 
 export interface SiweApi {
   /** The connected wallet (may differ from the authed one until re-signed). */
@@ -100,6 +100,8 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
   const signOut = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" });
     setAuthedAddress(null);
+    // Privy's own session outlives ours unless it is told; see use-founder-session.
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
     void refreshFounderSession();
   }, []);
 

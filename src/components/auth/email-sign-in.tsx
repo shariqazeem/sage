@@ -20,6 +20,13 @@ export function EmailSignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const armed = useRef(false);
   const running = useRef(false);
+  /*
+    Did THIS visit establish the Privy session? Reusing one is right when an exchange failed a
+    moment ago and the person clicks again — asking for a second emailed code there is rude. It is
+    wrong when the session merely outlived a sign-out, because then a click signs the previous
+    person back in without ever asking who they are. Only a session we started here is reused.
+  */
+  const startedHere = useRef(false);
 
   const exchange = useCallback(async () => {
     if (running.current) return;
@@ -62,17 +69,25 @@ export function EmailSignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }, [user, createWallet, getAccessToken, logout, onSignedIn]);
 
   useEffect(() => {
-    if (armed.current && authenticated && ready) void exchange();
+    if (armed.current && authenticated && ready) {
+      startedHere.current = true;
+      void exchange();
+    }
   }, [authenticated, ready, exchange]);
 
   const start = async () => {
     setErr(null);
-    if (authenticated) {
-      // a Privy session from an earlier attempt: reuse it rather than asking for another code
+    if (authenticated && startedHere.current) {
+      // a failed exchange moments ago: reuse it rather than asking for another code
       armed.current = true;
       void exchange();
       return;
     }
+    if (authenticated) {
+      // a session that outlived a sign-out — end it and ask properly, so the door can change hands
+      await logout().catch(() => undefined);
+    }
+    startedHere.current = true;
     armed.current = true;
     login();
   };
