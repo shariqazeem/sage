@@ -4,14 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Copy, Loader2, Wallet } from "lucide-react";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "@/components/campaigns/embedded-wallet-bridge";
+import { chainConfig } from "@/lib/deputy/networks";
 
 /**
  * YOUR WALLET, INSIDE SAGE. Deposit is the address; withdraw is gasless — the wallet signs an
  * EIP-3009 authorization (a browser wallet through its own prompt, an email account through its
  * Privy embedded wallet) and Sage's operator submits it and pays the gas. A worker paid here holds
  * USDC on GOAT and no BTC for gas, so without this they could receive money and never move it.
+ *
+ * IT ASKS EVERY RAIL, because a worker does not choose which chain paid them — the campaign did.
+ * This panel read one chain and printed $0.00 to a worker whose dollar was sitting on another;
+ * measured 2026-09-13, on a payout that had already settled on Arc. The API was chain-parametric
+ * all along and the UI simply never passed a chain. It now reads each configured rail, shows the
+ * ones holding money, and lands on the rail with a balance so nobody is told they were not paid.
  */
-type Balance = { address: string; network: string; usd: number; usdcBase: string; explorerUrl: string };
+type Balance = { address: string; network: string; usd: number; usdcBase: string; explorerUrl: string; chainId: number };
 type Prepared = {
   amountBase: string;
   validBefore: number;
@@ -26,10 +33,15 @@ type Prepared = {
 
 const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
 
+/** The EVM rails a worker can be paid on. A payout's chain is the campaign's, never the worker's choice. */
+const RAILS = [2345, 5042002] as const;
+
 export function YourWallet({ address }: { address: string }) {
   const injected = useWallet();
   const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
-  const [bal, setBal] = useState<Balance | null>(null);
+  const [balances, setBalances] = useState<Balance[]>([]);
+  const [chainId, setChainId] = useState<number | null>(null);
+  const bal = balances.find((b) => b.chainId === chainId) ?? null;
   const [err, setErr] = useState<string | null>(null);
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -39,10 +51,34 @@ export function YourWallet({ address }: { address: string }) {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/wallet", { cache: "no-store" });
-      const j = (await r.json()) as Balance & { ok: boolean; error?: string };
-      if (r.ok && j.ok) setBal(j);
-      else setErr(j.error ?? "could not read the balance");
+      const found = await Promise.all(
+        RAILS.map(async (id) => {
+          try {
+            const r = await fetch(`/api/wallet?chainId=${id}`, { cache: "no-store" });
+            const j = (await r.json()) as Balance & { ok: boolean; error?: string };
+            if (!r.ok || !j.ok) return null;
+            const one: Balance = {
+              address: j.address,
+              network: j.network,
+              usd: j.usd,
+              usdcBase: j.usdcBase,
+              explorerUrl: j.explorerUrl,
+              chainId: id,
+            };
+            return one;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const live = found.filter((b): b is Balance => b !== null);
+      if (live.length === 0) {
+        setErr("could not read the balance");
+        return;
+      }
+      setBalances(live);
+      // Land on the rail that actually holds money; fall back to the default rail.
+      setChainId((current) => current ?? (live.find((b) => b.usd > 0) ?? live[0]).chainId);
     } catch {
       setErr("could not read the balance");
     }
@@ -58,7 +94,7 @@ export function YourWallet({ address }: { address: string }) {
     if (!Number.isFinite(usd) || usd <= 0) { setErr("Give an amount in USDC."); return; }
     try {
       setPhase("preparing");
-      const p = await fetch("/api/wallet/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "prepare", to: to.trim(), amountUsd: usd }) });
+      const p = await fetch("/api/wallet/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "prepare", to: to.trim(), amountUsd: usd, chainId: bal?.chainId }) });
       const prep = (await p.json()) as Prepared & { ok: boolean; error?: string };
       if (!p.ok || !prep.ok) throw new Error(prep.error ?? "could not prepare the withdrawal");
       setPhase("signing");
@@ -81,7 +117,7 @@ export function YourWallet({ address }: { address: string }) {
         throw new Error("Sign in with this wallet to withdraw from it.");
       }
       setPhase("sending");
-      const s = await fetch("/api/wallet/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "submit", to: to.trim(), amountBase: prep.amountBase, validBefore: prep.validBefore, nonce: prep.nonce, signature }) });
+      const s = await fetch("/api/wallet/withdraw", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "submit", to: to.trim(), amountBase: prep.amountBase, validBefore: prep.validBefore, nonce: prep.nonce, signature, chainId: bal?.chainId }) });
       const done = (await s.json()) as { ok: boolean; error?: string; txHash: string; explorerTx: string; amountUsd: number };
       if (!s.ok || !done.ok) throw new Error(done.error ?? "the withdrawal was not sent");
       setSent({ txHash: done.txHash, explorerTx: done.explorerTx, amountUsd: done.amountUsd });
@@ -103,7 +139,22 @@ export function YourWallet({ address }: { address: string }) {
       {emailDoor() && <EmbeddedWalletBridge onChange={setEmbedded} />}
       <div className="yw-h">
         <h2><Wallet size={15} /> Your wallet</h2>
-        <span className="yw-net mono">{bal?.network ?? "GOAT Network"} · USDC</span>
+        {balances.length > 1 ? (
+          <span className="yw-rails">
+            {balances.map((b) => (
+              <button
+                key={b.chainId}
+                type="button"
+                className={`yw-rail${b.chainId === chainId ? " on" : ""}`}
+                onClick={() => setChainId(b.chainId)}
+              >
+                {chainConfig(b.chainId).chipLabel} <span className="mono">${b.usd.toFixed(2)}</span>
+              </button>
+            ))}
+          </span>
+        ) : (
+          <span className="yw-net mono">{bal?.network ?? "GOAT Network"} · USDC</span>
+        )}
       </div>
       <div className="yw-grid">
         <div>

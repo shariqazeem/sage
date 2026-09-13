@@ -16,7 +16,10 @@ describe("Your wallet — deposit is the address, withdraw is gasless", () => {
   it("shows the address to deposit to and the live balance", async () => {
     render(<YourWallet address={address} />);
     expect(screen.getByText(address)).toBeTruthy();
-    expect(await screen.findByText("$1.10")).toBeTruthy();
+    // The panel reads every rail, so the amount appears on the rail chip as well as the balance.
+    // Assert on the BALANCE specifically, which is the number the worker is being told they hold.
+    const balances = await screen.findAllByText("$1.10");
+    expect(balances.some((el) => el.classList.contains("yw-bal"))).toBe(true);
     expect(screen.getByRole("button", { name: /withdraw/i })).toBeTruthy();
     expect(screen.getByText(/You sign; Sage pays the gas/)).toBeTruthy();
   });

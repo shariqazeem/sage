@@ -259,3 +259,16 @@
   .rec-mission { white-space: normal; flex: 1 1 60%; min-width: 0; }
   .rec-amt { margin-left: auto; }
 }
+
+/* The rails a worker can hold money on. A payout's chain is the campaign's, so the panel shows
+   every rail that holds something rather than asking the worker to know which one paid them. */
+.yw-rails { display: flex; gap: 6px; flex-wrap: wrap; }
+.yw-rail {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--r-pill);
+  background: transparent; color: var(--ink-muted);
+  font-size: 12px; cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.yw-rail:hover { border-color: var(--border-strong); color: var(--ink); }
+.yw-rail.on { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent); }
