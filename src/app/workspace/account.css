@@ -1,0 +1,7 @@
+
+/* Fund with a card — the on-ramp door, directly under the QR and above the bridge. */
+.ac-card-fund {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}

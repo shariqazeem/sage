@@ -19,6 +19,7 @@ import { starknetUsdcBalance } from "@/lib/starknet/balance";
 import { starknetAddressUrl } from "@/lib/starknet/explorer";
 import { AccountBalance, CapEditor, CopyAddress, OpenAccount, WithdrawForm } from "@/components/workspace/account-live";
 import { BridgeIn } from "@/components/workspace/bridge-in";
+import { AddFunds } from "@/components/workspace/add-funds";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -167,6 +168,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 </p>
               </div>
             </div>
+            <AddFunds testnet={!chain.isMainnet} bridgeable={treasury.chainId === ARC_LAUNCH_CHAIN} />
             {treasury.chainId === ARC_LAUNCH_CHAIN ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
           </section>
 
