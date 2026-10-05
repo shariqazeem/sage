@@ -14,10 +14,10 @@
  * approved identity can never inherit approval across a prompt/parser change. Approval is code, not
  * configuration: no environment variable can bless a combination.
  *
- * The PRODUCTION approved registry is currently EMPTY — no combination has completed a conclusive live
- * promotion (the P-JUDGE / P-ENTAIL runs to date are inconclusive: gateway rate-limited). So today every
- * url-verifiable autopay safely falls to MANUAL REVIEW; deploying an unapproved identity produces review,
- * not a payout. This only ever SUBTRACTS (turns a would-pay into a review) — it cannot cause a wrong pay.
+ * The PRODUCTION approved registry holds only identities with a conclusive live promotion run on record
+ * (see PRODUCTION_APPROVED). Any other combination — a new provider, model, prompt or parser — falls to
+ * MANUAL REVIEW; deploying an unapproved identity produces review, not a payout. This only ever SUBTRACTS
+ * (turns a would-pay into a review) — it cannot cause a wrong pay.
  */
 import type { DecisionBrief } from "./brain-core";
 
@@ -86,6 +86,19 @@ const PRODUCTION_APPROVED: readonly ApprovalRecord[] = [
     evalSuite: "P-JUDGE judge-eval.live · 19 fixtures × 3 runs (57 calls)",
     approvedOn: "2026-08-25",
     evidence: "docs/deputy-promotions/2026-08-25-minimax-m3.md",
+  },
+  // THE SAME MODEL THROUGH THE GATEWAY. The MiniMax balance ran out (402, 1008) on 2026-09-28; the
+  // gateway serves the same model per use. A different door is a different identity, so it ran the
+  // same battery: 57/57 valid, zero wrong-autopays, zero provenance violations, zero provider
+  // failures, falseHold 0, every adversarial fixture held 3/3 — as the 2026-08-25 run did.
+  {
+    provider: "api.commonstack.ai",
+    model: "minimax/minimax-m3",
+    promptVersion: "payout-v1",
+    parserVersion: "payout-parse-v4",
+    evalSuite: "P-JUDGE judge-eval.live · 19 fixtures × 3 runs (57 calls)",
+    approvedOn: "2026-10-06",
+    evidence: "docs/deputy-promotions/2026-10-06-commonstack-minimax-m3.md",
   },
 ];
 

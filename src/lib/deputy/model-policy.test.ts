@@ -11,11 +11,12 @@ import {
 } from "./model-policy";
 
 /**
- * The autopay policy-identity registry (Gate C item 3). CANDIDATE and APPROVED are separate. Since
- * 2026-08-25 the production registry holds exactly ONE promoted identity (MiniMax-M3 — see
- * docs/deputy-promotions/2026-08-25-minimax-m3.md); every other combination, including the
- * commonstack-haiku CANDIDATE below, still cannot pay. Tests that need an approved identity inject
- * one EXPLICITLY (a deliberate registration), never relying on a shipped default.
+ * The autopay policy-identity registry (Gate C item 3). CANDIDATE and APPROVED are separate. The
+ * production registry holds exactly TWO promoted identities, one model through two doors (MiniMax-M3
+ * direct, 2026-08-25; minimax/minimax-m3 via the CommonStack gateway, 2026-10-06 — see
+ * docs/deputy-promotions/); every other combination, including the commonstack-haiku CANDIDATE
+ * below, still cannot pay. Tests that need an approved identity inject one EXPLICITLY (a deliberate
+ * registration), never relying on a shipped default.
  */
 const CANDIDATE = {
   provider: "api.commonstack.ai",
@@ -52,6 +53,16 @@ describe("candidate vs approved — nothing self-approves", () => {
     // the same model through ANY other door stays blocked — provider, prompt, or parser drift kills it.
     for (const over of [{ provider: "api.commonstack.ai" }, { promptVersion: "payout-v2" }, { parserVersion: "payout-parse-v3" }]) {
       expect(judgeIdentityGate({ ...PROMOTED, ...over }, true).blocked, JSON.stringify(over)).toBe("judge_identity_unapproved");
+    }
+  });
+
+  it("THE GATEWAY ROUTE (2026-10-06): minimax/minimax-m3 @ api.commonstack.ai pays on its OWN promotion, not the direct one's", () => {
+    const GATEWAY = { provider: "api.commonstack.ai", model: "minimax/minimax-m3", promptVersion: "payout-v1", parserVersion: "payout-parse-v4" };
+    expect(judgeIdentityGate(GATEWAY, true)).toEqual({ pay: true, blocked: null, approvedIdentity: true, approvedModel: true });
+    // each identity is approved under its own spelling only: the direct model name on the gateway, the
+    // gateway's model id on the direct host, and any prompt/parser drift all stay blocked.
+    for (const over of [{ model: "MiniMax-M3" }, { provider: "api.minimax.io" }, { promptVersion: "payout-v2" }, { parserVersion: "payout-parse-v3" }]) {
+      expect(judgeIdentityGate({ ...GATEWAY, ...over }, true).blocked, JSON.stringify(over)).toBe("judge_identity_unapproved");
     }
   });
 
