@@ -100,7 +100,7 @@ export function SageActivity({
   }, [campaignId]);
 
   return (
-    <div className="tb-act">
+    <div className="tb-act" id="activity">
       <div className="tb-act-h">
         <span>Sage activity</span>
         <Heartbeat lastCheckedAt={data.lastCheckedAt} now={now} pending={pending} complete={complete} />

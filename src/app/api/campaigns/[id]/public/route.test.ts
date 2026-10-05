@@ -44,6 +44,8 @@ describe("GET /api/campaigns/[id]/public", () => {
     // never leaks session-gated fields
     expect(body).not.toHaveProperty("submissions");
     expect(body).not.toHaveProperty("posterWallet");
+    // readable cross-origin: it carries nothing that /c/<id> and the chain don't already show
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 
   it("404s a draft campaign (hidden from the public)", async () => {

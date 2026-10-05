@@ -71,9 +71,12 @@ export async function GET(
       url: `${siteUrl()}/c/${c.id}`,
     },
     {
-      // short cache so the 5s spectator poll stays fresh, still CDN-cacheable.
+      // short cache so the 5s spectator poll stays fresh, still CDN-cacheable. Readable from any
+      // origin: everything here is already public on /c/<id> and on chain, and external readers
+      // (a ClawUp skill, a programme's own dashboard) are who this endpoint exists for.
       headers: {
         "Cache-Control": "public, max-age=5, s-maxage=5, stale-while-revalidate=30",
+        "Access-Control-Allow-Origin": "*",
       },
     },
   );
