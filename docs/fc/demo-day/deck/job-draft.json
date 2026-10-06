@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "draft": {
+    "kind": "gig",
+    "title": "Online price list in Jamaican dollars",
+    "who": "a Jamaican shop owner",
+    "slots": 1,
+    "whyItMatters": "Your customers need a public, always-on list of what you sell and what it costs, in the currency you actually charge in.",
+    "milestones": [
+      {
+        "title": "Publish your shop's price list online",
+        "deliverable": "A public webpage exists showing at least three of the shop's items, each with a price in Jamaican dollars, and the link has been sent to the founder.",
+        "instructions": "1. Pick a public hosting option you control — a free webpage builder, a public Notion page, a GitHub Pages site, a Google Doc published to the web, or any page the founder can open in a browser without logging in.\n2. Write your shop's price list on that page with at least three items.\n3. For each item, show the item name and its price in Jamaican dollars (J$ or JMD, or the words 'Jamaican dollars' next to the number).\n4. Put your shop's name on the page so the founder knows which shop the list is for.\n5. Submit the full public URL of the page as your evidence.",
+        "criteria": [
+          "The page is publicly reachable without a login or paywall.",
+          "At least three items are listed on the page.",
+          "Every listed price is shown in Jamaican dollars (J$ or JMD prefix, or 'Jamaican dollars' written next to the number).",
+          "The shop's name appears on the page.",
+          "A single working public URL to the page is submitted as evidence."
+        ],
+        "evidence": {
+          "kind": "artifact_url",
+          "allowedHosts": [],
+          "minWords": 30
+        },
+        "effortMinutes": 25
+      }
+    ]
+  },
+  "notes": [],
+  "model": "minimax/minimax-m3"
+}
