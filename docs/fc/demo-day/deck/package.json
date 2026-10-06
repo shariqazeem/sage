@@ -1,0 +1,6 @@
+{
+  "name": "sage-demo-day-deck",
+  "private": true,
+  "description": "Builds Sage-DemoDay.pptx from live numbers; run: npm install && node build-deck.js",
+  "dependencies": { "pptxgenjs": "^3.12.0" }
+}

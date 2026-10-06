@@ -2,29 +2,25 @@
 /**
  * STAGE CHECK — GO or NO-GO before going live at Demo Day.
  *
- *   node scripts/fc/stage-check.mjs "https://sagepays.xyz/stage/index.html?live=…&backup=…&worker=…"
+ *   node scripts/fc/stage-check.mjs --job <campaignId> --worker <0x… phone wallet>
  *
- * Takes the exact deck URL you will present from (its query names the live job, the backup and the
- * worker, read through public/stage/config.js the same way the deck reads it) and checks every
- * dependency of the live moment: the public pages the deck frames, the live job (live, funded,
- * untouched), the backup (paid), every AI lane answering through Sage's own config on the VM,
- * operator gas, the VM's disk and process, and this Mac's free disk. Prints keys never: the VM
- * probe reports hosts, models, status codes and timings only.
+ * Checks every dependency of the live moment: the job's public page and feed (live, funded,
+ * untouched, invite-only, on autopilot), the shop page (served, and carrying THIS worker's wallet,
+ * which is the marker Sage requires), every AI lane answering through Sage's own config on the VM,
+ * operator gas, the VM's disk and process, the deck file (rebuilt today, so its numbers are current)
+ * and this Mac's free disk. Prints no secrets: the VM probe reports hosts, models, codes, timings.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync, statfsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { statfsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const KEY = `${process.env.HOME}/Documents/ssh-key3.key`;
 const VM = "ubuntu@80.225.209.190";
-const STAGE_URL = new URL(process.argv[2] ?? "https://sagepays.xyz/stage/index.html");
-const cfgText = readFileSync(path.join(ROOT, "public/stage/config.js"), "utf8");
-const window = {};
-new Function("window", "location", cfgText)(window, { search: STAGE_URL.search, hostname: STAGE_URL.hostname, origin: STAGE_URL.origin });
-const C = window.STAGE;
+const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
+const C = { site: "https://sagepays.xyz", live: arg("job"), worker: arg("worker"), shop: arg("shop") ?? "https://sagepays.xyz/stage/shop.html" };
+if (!C.live || !C.worker) { console.error("usage: stage-check.mjs --job <campaignId> --worker <0x… phone wallet> [--shop <url>]"); process.exit(2); }
 
 const rows = [];
 const check = (name, ok, detail = "") => rows.push({ name, ok: ok === true ? "ok" : ok === "warn" ? "warn" : "FAIL", detail });
@@ -36,10 +32,16 @@ const get = async (url, as = "text") => {
 const ssh = (cmd, input) => execFileSync("ssh", ["-o", "ConnectTimeout=15", "-i", KEY, VM, cmd], { input, encoding: "utf8", timeout: 240_000 });
 
 // 1 · the pages the deck frames
-for (const p of ["/", "/explorer", `/c/${C.live}`, `/c/${C.backup}`, `/record/${C.worker}`]) {
+for (const p of ["/", `/c/${C.live}`, `/record/${C.worker}`]) {
   try { const r = await get(C.site + p); check(`page ${p}`, r.status === 200, `${r.status} · ${r.ms} ms`); }
   catch (e) { check(`page ${p}`, false, String(e.message ?? e)); }
 }
+try {
+  const r = await get(C.shop);
+  const marker = r.body.toLowerCase().includes(C.worker.toLowerCase());
+  check("shop page served", r.status === 200, `${r.status} · ${C.shop}`);
+  check("shop page carries the worker's wallet", marker, marker ? C.worker : `${C.worker} is NOT on the page: run scripts/fc/push-stage.sh after editing public/stage/shop.html`);
+} catch (e) { check("shop page", false, String(e.message ?? e)); }
 
 // 2 · the live job: live, nothing submitted yet, nothing being verified; the backup: already paid
 try {
@@ -50,10 +52,6 @@ try {
   // mission-plan jobs keep their slots in the plan (maxRecipients 0 here); "vault funded" below covers them
   if ((j.maxRecipients ?? 0) > 0) check("live job has a slot", j.maxRecipients > (j.paid ?? 0), `${j.paid}/${j.maxRecipients} · reward $${j.rewardUsd}`);
 } catch (e) { check("live job", false, String(e.message ?? e)); }
-try {
-  const r = await get(`${C.site}/api/campaigns/${encodeURIComponent(C.backup)}/public`, "json");
-  check("backup job already paid", r.status === 200 && (r.body?.paid ?? 0) >= 1, `paid ${r.body?.paid} · ${r.body?.network}`);
-} catch (e) { check("backup job", false, String(e.message ?? e)); }
 
 // 3 · the VM: Sage up, nothing stuck, disk, vault funding, operator gas, every AI lane answering
 const VM_PROBE = String.raw`
@@ -119,8 +117,11 @@ try {
   const gb = (f.bavail * f.bsize) / 1e9;
   check("this Mac's free disk", gb >= 10 ? true : gb >= 5 ? "warn" : false, `${gb.toFixed(1)} GB`);
 } catch (e) { check("this Mac's free disk", "warn", String(e.message ?? e)); }
-try { const r = await get(STAGE_URL.href); check("the deck itself", r.status === 200 && r.body.includes("Sage · Demo Day"), `${r.status} · ${STAGE_URL.origin}${STAGE_URL.pathname}`); }
-catch (e) { check("the deck itself", false, String(e.message ?? e)); }
+try {
+  const st = statSync(path.join(ROOT, "docs/fc/demo-day/Sage-DemoDay.pptx"));
+  const today = new Date().toDateString() === st.mtime.toDateString();
+  check("deck rebuilt today (fresh numbers)", today ? true : "warn", `Sage-DemoDay.pptx built ${st.mtime.toLocaleString()}${today ? "" : " — run node build-deck.js in docs/fc/demo-day/deck"}`);
+} catch (e) { check("deck file", false, String(e.message ?? e)); }
 
 const w = Math.max(...rows.map((r) => r.name.length));
 for (const r of rows) console.log(`${r.ok.padEnd(4)}  ${r.name.padEnd(w)}  ${r.detail}`);
