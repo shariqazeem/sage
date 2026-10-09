@@ -2,8 +2,10 @@
 /**
  * STAGE CHECK — GO or NO-GO before going live at Demo Day.
  *
- *   node scripts/fc/stage-check.mjs --job <campaignId> --worker <0x… phone wallet>
+ *   node scripts/fc/stage-check.mjs --job <backup campaignId> --worker <0x… seller wallet> [--buyer <0x… buyer account>]
  *
+ * The live job is created on stage, so --job is the BACKUP: posted and launched beforehand, untouched.
+ * --buyer is the founder's Arc testnet account (the one that launches on stage): it must hold enough.
  * Checks every dependency of the live moment: the job's public page and feed (live, funded,
  * untouched, invite-only, on autopilot), the shop page (served, and carrying THIS worker's wallet,
  * which is the marker Sage requires), every AI lane answering through Sage's own config on the VM,
@@ -19,8 +21,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const KEY = `${process.env.HOME}/Documents/ssh-key3.key`;
 const VM = "ubuntu@80.225.209.190";
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
-const C = { site: "https://sagepays.xyz", live: arg("job"), worker: arg("worker"), shop: arg("shop") ?? "https://sagepays.xyz/stage/shop.html" };
-if (!C.live || !C.worker) { console.error("usage: stage-check.mjs --job <campaignId> --worker <0x… phone wallet> [--shop <url>]"); process.exit(2); }
+const C = { site: "https://sagepays.xyz", live: arg("job"), worker: arg("worker"), buyer: arg("buyer"), shop: arg("shop") ?? "https://sagepays.xyz/stage/shop.html" };
+if (!C.live || !C.worker) { console.error("usage: stage-check.mjs --job <backup campaignId> --worker <0x… seller wallet> [--buyer <0x… buyer account>] [--shop <url>]"); process.exit(2); }
 
 const rows = [];
 const check = (name, ok, detail = "") => rows.push({ name, ok: ok === true ? "ok" : ok === "warn" ? "warn" : "FAIL", detail });
@@ -47,11 +49,21 @@ try {
 try {
   const r = await get(`${C.site}/api/campaigns/${encodeURIComponent(C.live)}/public`, "json");
   const j = r.body ?? {};
-  check("live job is live", r.status === 200 && j.status === "live", `${r.status} · status ${j.status} · ${j.network}`);
-  check("live job untouched (0 paid, 0 in review)", j.paid === 0 && j.verifying === 0, `paid ${j.paid} · verifying ${j.verifying}`);
+  check("backup job is live", r.status === 200 && j.status === "live", `${r.status} · status ${j.status} · ${j.network}`);
+  check("backup job untouched (0 paid, 0 in review)", j.paid === 0 && j.verifying === 0, `paid ${j.paid} · verifying ${j.verifying}`);
   // mission-plan jobs keep their slots in the plan (maxRecipients 0 here); "vault funded" below covers them
-  if ((j.maxRecipients ?? 0) > 0) check("live job has a slot", j.maxRecipients > (j.paid ?? 0), `${j.paid}/${j.maxRecipients} · reward $${j.rewardUsd}`);
-} catch (e) { check("live job", false, String(e.message ?? e)); }
+  if ((j.maxRecipients ?? 0) > 0) check("backup job has a slot", j.maxRecipients > (j.paid ?? 0), `${j.paid}/${j.maxRecipients} · reward $${j.rewardUsd}`);
+} catch (e) { check("backup job", false, String(e.message ?? e)); }
+
+// 2b · the buyer's account can launch the job on stage (Arc testnet USDC is also its gas)
+if (C.buyer) {
+  try {
+    const data = "0x70a08231" + C.buyer.slice(2).toLowerCase().padStart(64, "0");
+    const r = await (await fetch("https://rpc.testnet.arc.io", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: "0x3600000000000000000000000000000000000000", data }, "latest"] }), signal: AbortSignal.timeout(20000) })).json();
+    const usd = Number(BigInt(r.result)) / 1e6;
+    check("buyer account can launch on stage", usd >= 2, `${usd.toFixed(2)} test USDC on Arc testnet (needs ≥ 2)`);
+  } catch (e) { check("buyer account", false, String(e.message ?? e)); }
+}
 
 // 3 · the VM: Sage up, nothing stuck, disk, vault funding, operator gas, every AI lane answering
 const VM_PROBE = String.raw`
@@ -91,15 +103,15 @@ try {
   ssh("cat > /tmp/stage-probe.mjs", VM_PROBE);
   const vm = JSON.parse(ssh(`cd /home/ubuntu/sage && node /tmp/stage-probe.mjs ${JSON.stringify(C.live)}; rm -f /tmp/stage-probe.mjs`).trim().split("\n").pop());
   check("nothing stuck in settlement", vm.stuck === 0, `${vm.stuck} pending/settling without a decision`);
-  if (!vm.camp) check("live job in the database", false, C.live);
+  if (!vm.camp) check("backup job in the database", false, C.live);
   else {
     // isPublicWork (src/lib/campaigns/visibility.ts): public = listed AND no named recipients. Public
     // work asks a first-time worker for World ID and waits out the finalization window.
     let named = false; try { named = Array.isArray(JSON.parse(vm.camp.allowlist ?? "null")) && JSON.parse(vm.camp.allowlist).length > 0; } catch {}
-    check("live job is invite-only (pays at once)", named || vm.camp.visibility === "unlisted", `visibility ${vm.camp.visibility} · named recipients ${named ? "yes" : "no"}`);
-    check("live job on autopilot", vm.camp.autonomy === "autopilot", `autonomy ${vm.camp.autonomy}`);
-    if (vm.vaultUsdc != null) check("live vault funded", vm.vaultUsdc * 1e6 >= vm.camp.reward, `$${vm.vaultUsdc} in the vault · reward $${vm.camp.reward / 1e6} · chain ${vm.camp.chain}`);
-    else check("live vault funded", false, vm.vaultErr ?? `no RPC for chain ${vm.camp.chain}`);
+    check("backup job is invite-only (pays at once)", named || vm.camp.visibility === "unlisted", `visibility ${vm.camp.visibility} · named recipients ${named ? "yes" : "no"}`);
+    check("backup job on autopilot", vm.camp.autonomy === "autopilot", `autonomy ${vm.camp.autonomy}`);
+    if (vm.vaultUsdc != null) check("backup vault funded", vm.vaultUsdc * 1e6 >= vm.camp.reward, `$${vm.vaultUsdc} in the vault · reward $${vm.camp.reward / 1e6} · chain ${vm.camp.chain}`);
+    else check("backup vault funded", false, vm.vaultErr ?? `no RPC for chain ${vm.camp.chain}`);
     if (vm.opGas != null) check("operator has gas", vm.opGas > (vm.camp.chain === 2345 ? 0.00001 : 0.2), `${vm.opGas} native on chain ${vm.camp.chain}`);
     else check("operator has gas", "warn", vm.opErr ?? "operator address not configured for this chain");
   }

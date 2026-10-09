@@ -35,18 +35,19 @@ execFileSync("osascript", [path.join(tmp, "x.applescript"), deck, pdf], { timeou
 execFileSync("pdftoppm", ["-jpeg", "-r", "60", pdf, path.join(tmp, "s")]);
 const thumbs = readdirSync(tmp).filter((f) => /^s-\d+\.jpg$/.test(f)).sort();
 const img = (n) => `data:image/jpeg;base64,${readFileSync(path.join(tmp, thumbs[n - 1])).toString("base64")}`;
+const label = (e) => (e.slide ? `${e.slide} · ${e.name}` : `${e.where} · ${e.name}`);
 
 // 2. SCRIPT.md
 const md = [
   "# Sage · Demo Day script (print the PDF, this is the same text)",
   "",
-  "Generated from `deck/script.js` — edit words there. 6 minutes, hard stop. Target finish 5:50.",
+  "Generated from `deck/script.js` — edit words there. 6 minutes is the hard stop; the talk runs about 4:35.",
   "Lines marked **DO** are actions. Everything else you say.",
   "",
 ];
 let prev = "0:00";
 for (const e of SCRIPT) {
-  md.push(`## ${e.slide} · ${e.name} (${prev} → ${e.by})`);
+  md.push(`## ${label(e)} (${prev} → ${e.by})`);
   if (e.note) md.push(`*${e.note}*`, "");
   for (const l of e.lines) md.push(l.startsWith("DO ") ? `**DO: ${fill(l.slice(3))}**` : fill(l), "");
   if (e.ifStuck) { md.push("> **If it stalls**"); for (const l of e.ifStuck) md.push(`> - ${fill(l)}`); md.push(""); }
@@ -57,11 +58,12 @@ writeFileSync(path.join(here, "..", "SCRIPT.md"), md.join("\n"));
 // 3. the printable PDF
 const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const setup = [
-  "Share your ENTIRE screen (not a window). Do Not Disturb on, Mac and phone.",
-  "Keynote: Sage-DemoDay open, playing, on slide 1. The arrow key moves forward.",
-  "Chrome: ONE window, ONE tab: the live job's page, scrolled to “Sage activity”. Full screen.",
-  "Phone: signed in as the seller, the job open, the shop link pasted. Not submitted.",
-  "This paper next to the laptop. Water.",
+  "Share your ENTIRE screen (not one window). Do Not Disturb on. Close every other app.",
+  "Keynote: Sage-DemoDay open and playing, on slide 1. The arrow key moves forward.",
+  "Chrome, BUYER window (your normal profile, signed in to sagepays.xyz). Tab 1: sagepays.xyz/launch?do=pay with the sentence already typed in “Describe the work”. Tab 2: the BACKUP job (posted and launched this morning, nobody has submitted to it).",
+  "Chrome, SELLER window (a second profile or an Incognito window), signed in with the seller's email. Any sagepays.xyz page open.",
+  "Know the shop link by heart: https://sagepays.xyz/stage/shop.html",
+  "This paper next to the laptop. Water. Phone face down, silent.",
 ];
 let html = `<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: A4; margin: 14mm 14mm 16mm; }
@@ -78,14 +80,17 @@ p { margin: 0 0 7px; } .do { font-weight: 800; color: #c2410c; text-transform: u
 .stuck { margin-top: 8px; border-left: 4px solid #b45309; background: #fff7ed; padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 14px; }
 .stuck b { color: #b45309; }
 .live { background: #fdf1ea; border-radius: 10px; padding: 14px 12px; border-top: 0; margin: 6px 0; }
+.badge { width: 210px; height: 118px; border-radius: 8px; background: #1a1d21; color: #9ca0a8; display: grid; place-content: center; text-align: center; font: 700 13px/1.4 ui-monospace, Menlo, monospace; letter-spacing: .12em; }
+.badge b { display: block; color: #fff; font-size: 22px; letter-spacing: .06em; }
 </style></head><body>
 <h1>Sage · Demo Day script</h1>
-<p class="sub">Future Caribbean · Sat 10 Oct · Finance &amp; MSME Capital, 1:15–2:45 PM AST (22:15 Pakistan) · 6:00 hard stop · finish by 5:50</p>
+<p class="sub">Future Caribbean · Sat 10 Oct · Finance &amp; MSME Capital, 1:15–2:45 PM AST (22:15 Pakistan) · runs about 4:35 · 6:00 hard stop</p>
 <div class="setup"><h2>BEFORE YOU GO ON</h2><ol>${setup.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
-<p>The whole talk is one straight line: Keynote → Chrome once → back to Keynote. If you blank: look at the slide, read its headline out loud, breathe, next line.</p></div>`;
+<p>One straight line: Keynote slides 1–4 → Chrome (buyer, then seller) → back to Keynote for 5–8. If you blank: look at the screen, say what is on it, breathe, next line.</p></div>`;
 prev = "0:00";
 for (const e of SCRIPT) {
-  html += `<div class="row${e.name === "LIVE" ? " live" : ""}"><img src="${img(e.slide)}"><div><h3>${e.slide} · ${esc(e.name)}</h3><div class="t">${prev} → ${e.by}</div>`;
+  const pic = e.slide ? `<img src="${img(e.slide)}">` : `<div class="badge">CHROME<b>${esc(e.where.split("·")[1].trim().toUpperCase())}</b></div>`;
+  html += `<div class="row${e.where ? " live" : ""}">${pic}<div><h3>${esc(label(e))}</h3><div class="t">${prev} → ${e.by}</div>`;
   if (e.note) html += `<p class="note">${esc(e.note)}</p>`;
   for (const l of e.lines) html += l.startsWith("DO ") ? `<p class="do">${esc(fill(l.slice(3)))}</p>` : `<p>${esc(fill(l))}</p>`;
   if (e.ifStuck) html += `<div class="stuck"><b>IF IT STALLS</b>${e.ifStuck.map((l) => `<p>${esc(fill(l))}</p>`).join("")}</div>`;
