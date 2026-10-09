@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { releasesOnThirdPartyDecision, statedCurrency, unambiguousGigArgs } from "./direct-fallback";
+import { prefillSlots, releasesOnThirdPartyDecision, statedCurrency, unambiguousGigArgs } from "./direct-fallback";
 import type { GigDraft } from "./gig-draft";
 import { compileDirectCampaign, directCampaignSchema } from "./direct-campaign";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
@@ -190,5 +190,19 @@ describe("unambiguousGigArgs — builds only what the founder's own words settle
     expect(a!.milestones[0].title).toBe("Publish the English menu");
     expect(a!.milestones[0].criteria).toEqual(["Every dish name appears in English", "The page is public"]);
     expect(a!.milestones[0].evidence).toEqual({ kind: "artifact_url", allowedHosts: [] });
+  });
+});
+
+describe("prefillSlots — the composer's headcount is the founder's, never the model's", () => {
+  it("no headcount in the sentence means one payment (the 6 Oct defect: \"three items\" became three people)", () => {
+    expect(prefillSlots("Put your shop's price list online: at least three items, each priced in Jamaican dollars, on a public page, and send me the link. I'll pay J$160.", 1)).toBe(1);
+    expect(prefillSlots("Pay anyone who writes a guide to my product, $5", 1)).toBe(1);
+  });
+  it("a stated headcount is used as written", () => {
+    expect(prefillSlots("Pay 5 people to each publish a short guide, $4 each", 1)).toBe(5);
+    expect(prefillSlots("the first three testers get $2", 1)).toBe(3);
+  });
+  it("a milestone grant pays one recipient per stage", () => {
+    expect(prefillSlots("Pay 3 people J$10,000 in two parts", 2)).toBe(1);
   });
 });

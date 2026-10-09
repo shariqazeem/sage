@@ -88,6 +88,20 @@ const HEADCOUNT_RE = new RegExp(
   "gi",
 );
 
+/**
+ * HOW MANY PEOPLE THE COMPOSER OFFERS TO PAY, before the founder edits it.
+ *
+ * Slots times the price IS the budget, so the count is money and comes from the founder's words or
+ * not at all. The draft model guesses one ("anyone" with no number → 3); measured 6 Oct 2026, it read
+ * "Put your shop's price list online … I'll pay J$160" as three people and the form funded J$480. With
+ * no headcount in the sentence the answer is one payment, which the founder can raise on purpose.
+ * Milestone grants pay one recipient per stage. The model's guess is never consulted.
+ */
+export function prefillSlots(text: string, milestoneCount: number): number {
+  if (milestoneCount > 1) return 1;
+  return statedHeadcount(text) ?? 1;
+}
+
 /** The one headcount the founder stated, or null when they stated none — or more than one. */
 export function statedHeadcount(text: string): number | null {
   const counts = new Set<number>();

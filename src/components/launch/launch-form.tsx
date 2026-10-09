@@ -1,7 +1,7 @@
 "use client";
 import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 
-import { statedHeadcount } from "@/lib/launch/direct-fallback";
+import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { useRouter } from "next/navigation";
@@ -357,7 +357,8 @@ export function LaunchForm() {
       if (!res.ok || !data.ok || !data.draft) throw new Error(data.error ?? "Sage couldn't draft this.");
       const d = data.draft;
       setP("who", d.who);
-      setP("slots", d.milestones.length > 1 ? "1" : (statedHeadcount(draftText) != null ? String(statedHeadcount(draftText)) : clampSlots(d.slots)));
+      // the count is money: the founder's stated headcount, else one payment — never the model's guess
+      setP("slots", clampSlots(prefillSlots(draftText, d.milestones.length)));
       // THE FOUNDER'S WORDS ARE THE MONEY: the currency, the total to split, or the price per person,
       // read from the sentence deterministically — never from the model — and left editable.
       const money = prefillMoneyFromWords(draftText, d.milestones.length);
