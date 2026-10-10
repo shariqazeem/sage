@@ -13,7 +13,7 @@ import { accountUnavailableBecause } from "@/lib/treasury/summary";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { configuredLaunchChains } from "@/lib/launch/deployment-service";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
-import { ARC_LAUNCH_CHAIN, chainConfig, explorerAddressUrl, explorerTxUrl, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { ARC_LAUNCH_CHAIN, ARC_TESTNET_CHAIN_ID, chainConfig, explorerAddressUrl, explorerTxUrl, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { rewardAligned } from "@/lib/format";
 import { starknetUsdcBalance } from "@/lib/starknet/balance";
 import { starknetAddressUrl } from "@/lib/starknet/explorer";
@@ -51,7 +51,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const home = treasuryChainId();
   const accounts = listWebTreasuries(founder);
-  // The networks on offer: the home chain and Arc (testnet, explicitly), plus any chain the founder already holds an account on.
+  // The networks on offer: the home chain and Arc (explicitly), plus any chain the founder already holds an account on.
   const offered = [...new Set([home, ...configuredLaunchChains().filter((id) => id === ARC_LAUNCH_CHAIN), ...accounts.map((a) => a.chainId)])];
   const asked = Number(sp.chain);
   const chainId = offered.includes(asked) ? asked : home;
@@ -168,8 +168,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 </p>
               </div>
             </div>
-            <AddFunds testnet={!chain.isMainnet} bridgeable={treasury.chainId === ARC_LAUNCH_CHAIN} />
-            {treasury.chainId === ARC_LAUNCH_CHAIN ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
+            {/* Card top-ups settle on Base, and Circle's kit names only Arc testnet as a bridge target today, so an
+                Arc mainnet account is funded by sending USDC to its address (above) — never a door that lands money elsewhere. */}
+            {chain.chainId === ARC_LAUNCH_CHAIN ? null : <AddFunds testnet={!chain.isMainnet} bridgeable={treasury.chainId === ARC_TESTNET_CHAIN_ID} />}
+            {treasury.chainId === ARC_TESTNET_CHAIN_ID ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
           </section>
 
           <section className="ws-card">

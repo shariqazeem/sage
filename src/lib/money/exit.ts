@@ -51,7 +51,10 @@ export interface ExitPicture {
  * before they are paid, not after.
  */
 const LIQUIDITY: Record<number, Liquidity> = {
-  5042002: "testnet", // Arc Testnet — mainnet is where it becomes broad
+  // Arc mainnet, open since 16 Sep 2026: native USDC that Circle's CCTP moves to any major chain, but few
+  // exchanges list Arc deposits yet — `limited` until they do, so nobody is promised a direct cash-out.
+  5042: "limited",
+  5042002: "testnet", // Arc Testnet
   2345: "limited", // GOAT Network
   1088: "limited", // Metis Andromeda
   59902: "testnet", // Metis Sepolia

@@ -9,7 +9,7 @@
  */
 import { RpcProvider, hash, num } from "starknet";
 
-const RPC = process.env.STARKNET_RPC_URL ?? "https://rpc.starknet.lava.build:443";
+const RPC = process.env.STARKNET_RPC_URL ?? "https://starknet-rpc.publicnode.com";
 const raw = process.argv[2];
 if (!raw) {
   console.error("usage: node scripts/starknet-signin-doctor.mjs <address>");

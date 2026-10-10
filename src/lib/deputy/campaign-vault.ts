@@ -12,7 +12,7 @@ import {
   type PublicClient,
 } from "viem";
 
-import { chainConfig, explorerTxUrl } from "./networks";
+import { ARC_MAINNET_CHAIN_ID, chainConfig, explorerTxUrl } from "./networks";
 import { publicClient as realPublicClient } from "./chain";
 import { operatorAddress as realOperatorAddress, sendVaultWrite } from "./signer";
 import type { ChainCampaignSnapshot } from "@/lib/campaigns/vault-agreement";
@@ -252,9 +252,11 @@ function realFactoryAddress(chainId: number): Address | null {
   const raw =
     (chainId === 2345
       ? process.env.GOAT_CAMPAIGN_FACTORY_ADDRESS
-      : chainId === 5042002
-        ? process.env.ARC_CAMPAIGN_FACTORY_ADDRESS
-        : process.env.METIS_CAMPAIGN_FACTORY_ADDRESS) ??
+      : chainId === ARC_MAINNET_CHAIN_ID
+        ? process.env.ARC_MAINNET_CAMPAIGN_FACTORY_ADDRESS
+        : chainId === 5042002
+          ? process.env.ARC_CAMPAIGN_FACTORY_ADDRESS
+          : process.env.METIS_CAMPAIGN_FACTORY_ADDRESS) ??
     process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS;
   if (!raw) return null;
   try {

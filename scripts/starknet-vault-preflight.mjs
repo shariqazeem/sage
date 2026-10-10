@@ -10,7 +10,7 @@
 import Database from "better-sqlite3";
 import { RpcProvider, CallData, hash, num, cairo } from "starknet";
 
-const RPC = process.env.STARKNET_RPC_URL ?? "https://rpc.starknet.lava.build:443";
+const RPC = process.env.STARKNET_RPC_URL ?? "https://starknet-rpc.publicnode.com";
 const CLASS = process.env.STARKNET_VAULT_CLASS_HASH ??
   "0x603be1eb5305099466675ed500c819d3880aa3cd950498a47eb938abf39d49a";
 const OPERATOR = process.env.STARKNET_ACCOUNT_ADDRESS ??

@@ -12,7 +12,7 @@ import {
   type WalletClient,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { chainConfig, explorerTxUrl, viemChainFor, DEFAULT_CHAIN_ID } from "./networks";
+import { chainConfig, explorerTxUrl, viemChainFor, DEFAULT_CHAIN_ID, isArcChain, railEnvPrefix } from "./networks";
 import {
   getPendingVendorReadyAt,
   getVaultOwner,
@@ -58,10 +58,12 @@ function normalizeKey(raw: string): `0x${string}` {
 }
 
 function loadOperatorKey(chainId: number): `0x${string}` {
-  if (chainConfig(chainId).chainId === 5042002) {
-    const raw = readKey(["ARC_OPERATOR_PRIVATE_KEY", "GOAT_AGENT_PRIVATE_KEY"]);
+  const id = chainConfig(chainId).chainId;
+  if (isArcChain(id)) {
+    // Arc mainnet may carry its own key; both Arc networks otherwise share the Arc operator, then the GOAT identity.
+    const raw = readKey([`${railEnvPrefix(id)}_OPERATOR_PRIVATE_KEY`, "ARC_OPERATOR_PRIVATE_KEY", "GOAT_AGENT_PRIVATE_KEY"]);
     if (!raw) {
-      throw new Error("Arc operator key not configured (set ARC_OPERATOR_PRIVATE_KEY).");
+      throw new Error(`Arc operator key not configured (set ${railEnvPrefix(id)}_OPERATOR_PRIVATE_KEY).`);
     }
     return normalizeKey(raw);
   }

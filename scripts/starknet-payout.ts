@@ -34,7 +34,7 @@ const OUT = "var/starknet-claims.json";
 
 /** The deployed SageClaims on Starknet mainnet. Overridable by env for a different deployment. */
 const CLAIMS_MAINNET = "0x6fe4d02056825f06683604f8a98912504cf86bce0de5ff19b424995eb1cf57";
-const RPC_MAINNET = "https://rpc.starknet.lava.build:443";
+const RPC_MAINNET = "https://starknet-rpc.publicnode.com";
 const ORIGIN = process.env.SAGE_ORIGIN ?? "https://sagepays.xyz";
 
 function arg(name: string): string | null {

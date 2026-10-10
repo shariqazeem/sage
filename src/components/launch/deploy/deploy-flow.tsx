@@ -12,7 +12,7 @@ import { reward, launchToken, type PlanView } from "../types";
 
 /**
  * Chains the launch wizard offers: GOAT mainnet, and — only where the server has it configured —
- * Arc, behind an explicit choice and labelled as the testnet it is until Arc mainnet opens.
+ * Arc mainnet, behind an explicit choice until the Arc flip makes it the default.
  *
  * The Metis testnet was a development convenience that leaked into the founder's path: the funding
  * step offered "Metis Sepolia (testnet)" beside real USDC, which asks someone about to spend money to
@@ -539,7 +539,7 @@ function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof 
           </button>
           {arcOffered && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
-              Try it on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">test USDC · USDC is the gas</span>
+              Launch on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">{chainConfig(ARC_LAUNCH_CHAIN).isMainnet ? "USDC is the gas" : "test USDC · USDC is the gas"}</span>
             </button>
           )}
         </div>
@@ -555,7 +555,7 @@ function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof 
           )}
           {arcOffered && siwe.chainId !== ARC_LAUNCH_CHAIN && (
             <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
-              Try it on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">test USDC · USDC is the gas</span>
+              Launch on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">{chainConfig(ARC_LAUNCH_CHAIN).isMainnet ? "USDC is the gas" : "test USDC · USDC is the gas"}</span>
             </button>
           )}
         </div>

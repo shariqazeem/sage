@@ -24,10 +24,10 @@ export const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 // Testnet-aware token truth. A testnet payout is a REAL on-chain transaction but the token
 // (mUSDC) has NO value — so it must never be rendered as dollars or described as valuable.
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, isArcChain } from "@/lib/deputy/networks";
 
 export const isTestnetChain = (chainId: number): boolean => !chainConfig(chainId).isMainnet;
-export const tokenSymbol = (chainId: number): string => (isTestnetChain(chainId) && chainId !== 5042002 ? "mUSDC" : "USDC");
+export const tokenSymbol = (chainId: number): string => (isTestnetChain(chainId) && !isArcChain(chainId) ? "mUSDC" : "USDC");
 /** "test mUSDC" on Metis Sepolia, "test USDC" on Arc testnet, "USDC" on a mainnet. */
 export const tokenLabel = (chainId: number): string => (isTestnetChain(chainId) ? `test ${tokenSymbol(chainId)}` : "USDC");
 export const networkLabel = (chainId: number): string =>

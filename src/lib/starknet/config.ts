@@ -21,7 +21,8 @@ import "server-only";
 const MAINNET_USDC = "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb";
 
 /** starkli 0.4.2 and sncast both fail against newer nodes; starknet.js works with this one. */
-const DEFAULT_RPC = "https://rpc.starknet.lava.build:443";
+// Lava discontinued its public Starknet endpoint (found 1 Oct 2026: every Starknet receipt read "couldn't reach Starknet"). PublicNode answers RPC 0.10 and reads Sage's receipts with starknet.js 10.
+const DEFAULT_RPC = "https://starknet-rpc.publicnode.com";
 
 export interface StarknetConfig {
   rpcUrl: string;

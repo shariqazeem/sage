@@ -3,7 +3,7 @@
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useEffect } from "react";
 import { SIGNED_OUT_EVENT } from "@/lib/auth/use-founder-session";
-import { ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN, viemChainFor } from "@/lib/deputy/networks";
+import { ARC_LAUNCH_CHAIN, ARC_TESTNET_CHAIN_ID, DEFAULT_EVM_LAUNCH_CHAIN, viemChainFor } from "@/lib/deputy/networks";
 
 /**
  * Wraps the app in Privy ONLY when a login app is configured; otherwise it renders children and the
@@ -39,7 +39,7 @@ export function SagePrivyProvider({ appId, children }: { appId: string | null; c
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
         // the rails the embedded wallet signs for — GOAT first, so a payout's chain is never a stranger to it
         defaultChain: viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN),
-        supportedChains: [viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN), viemChainFor(ARC_LAUNCH_CHAIN), viemChainFor(59902)],
+        supportedChains: [viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN), viemChainFor(ARC_LAUNCH_CHAIN), viemChainFor(ARC_TESTNET_CHAIN_ID), viemChainFor(59902)],
       }}
     >
       <EndPrivySessionOnSignOut />

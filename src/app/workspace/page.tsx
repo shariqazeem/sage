@@ -63,7 +63,7 @@ export default async function WorkspacePage() {
       desk: loadFounderDesk(ctx.address, 8),
       me: ctx.memberKey,
       chain: founderChain(ctx.address) ?? "evm",
-      arcTestnet: configuredLaunchChains().includes(ARC_LAUNCH_CHAIN),
+      arc: configuredLaunchChains().includes(ARC_LAUNCH_CHAIN),
     };
     return <OwnerWorkspace view={view} />;
   }

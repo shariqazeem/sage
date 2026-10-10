@@ -106,7 +106,7 @@ function decryptKeystore(keystore, passphrase) {
 async function main() {
   const keystorePath = arg("keystore");
   const accountPath = arg("account");
-  const rpcUrl = arg("rpc") ?? "https://rpc.starknet.lava.build:443";
+  const rpcUrl = arg("rpc") ?? "https://starknet-rpc.publicnode.com";
   const which = arg("contract") ?? "claims";
   const target = CONTRACTS[which];
   if (!keystorePath || !accountPath || !target) {

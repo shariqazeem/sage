@@ -28,11 +28,12 @@ import type { Deployment } from "@/lib/db/schema";
 export const LAUNCH_CHAIN_ID = 59902;
 
 /** Chains the self-serve launch wizard may deploy to, in order of preference: GOAT mainnet first
- *  (the real-money default), then Arc while it is on testnet — an explicit choice, never the default
- *  of a mainnet product — then the legacy Metis testnet. A chain is only truly enabled when its V2
- *  factory + operator + token are configured (see `isLaunchChain`), so each turns on exactly when
- *  its `<PREFIX>_*` addresses are set — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042002, 59902];
+ *  (the real-money default until the Arc flip), then Arc mainnet — the explicit choice — then Arc
+ *  testnet (kept so accounts and campaigns already on it keep working; never offered to anyone new),
+ *  then the legacy Metis testnet. A chain is only truly enabled when its V2 factory + operator +
+ *  token are configured (see `isLaunchChain`), so each turns on exactly when its `<PREFIX>_*`
+ *  addresses are set — fails closed. */
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042, 5042002, 59902];
 
 /** The launch chains the server is actually configured for, in preference order — what a picker may offer. */
 export function configuredLaunchChains(): number[] {

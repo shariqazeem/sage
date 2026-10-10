@@ -71,25 +71,34 @@ export const GOAT_USDC = "0x3022b87ac063DE95b1570F46f5e470F8B53112D8" as Address
  */
 export const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
 export const ARC_TESTNET_CHAIN_ID = 5042002;
+/** Arc mainnet, open since 16 September 2026. Same USDC address and precision as the testnet
+ *  (read by `eth_call` on 26 Sep: `decimals()` 6, `symbol()` "USDC"). */
+export const ARC_MAINNET_CHAIN_ID = 5042;
+
+/** Either Arc network: USDC is the gas on both, and one operator identity serves both. */
+export function isArcChain(chainId: number | null | undefined): boolean {
+  return chainId === ARC_MAINNET_CHAIN_ID || chainId === ARC_TESTNET_CHAIN_ID;
+}
 
 /**
  * The EVM chain new launches default to: GOAT mainnet, the chain the product runs real money on.
  *
- * Arc is on TESTNET until Arc mainnet opens (16 September 2026). A mainnet product must not present
- * a testnet as its default, so until then Arc sits behind an explicit choice — the founder's rule of
- * 2026-09-10: "keep it separate and keep strk20 and goat primary, until we goes mainnet". The day Arc
- * mainnet is in the registry with a factory deployed, this becomes that chain id and GOAT moves
- * behind the explicit choice instead ("arc default, goat behind an explicit choice but the history
- * stays"). Nothing about a campaign already on either chain changes with the flip.
+ * Arc was on TESTNET until 16 September 2026, and a mainnet product must not present a testnet as its
+ * default — the founder's rule of 2026-09-10: "keep it separate and keep strk20 and goat primary,
+ * until we goes mainnet". Arc mainnet joined the registry on 26 Sep as the explicit choice. The flip
+ * that makes it the default ("arc default, goat behind an explicit choice but the history stays") is
+ * held until Future Caribbean's judging closes, so the product under review does not change beneath
+ * the judges. Nothing about a campaign already on either chain changes with the flip.
  */
 export const DEFAULT_EVM_LAUNCH_CHAIN = GOAT_MAINNET_CHAIN_ID;
 
-/** The Arc rail a founder may pick explicitly while it is on testnet: labelled as such everywhere it appears. */
-export const ARC_LAUNCH_CHAIN = ARC_TESTNET_CHAIN_ID;
+/** The Arc rail a founder may pick explicitly: Arc mainnet. The testnet stays in the registry, so
+ *  campaigns and accounts already on it keep working, but it is no longer offered to anyone new. */
+export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
 
 /** The env-name prefix for a chain's deploy-time addresses and operator key (`<PREFIX>_CAMPAIGN_FACTORY_ADDRESS`, …). */
-export function railEnvPrefix(chainId: number): "ARC" | "GOAT" | "METIS" {
-  return chainId === ARC_TESTNET_CHAIN_ID ? "ARC" : chainId === 2345 ? "GOAT" : "METIS";
+export function railEnvPrefix(chainId: number): "ARC_MAINNET" | "ARC" | "GOAT" | "METIS" {
+  return chainId === ARC_MAINNET_CHAIN_ID ? "ARC_MAINNET" : chainId === ARC_TESTNET_CHAIN_ID ? "ARC" : chainId === 2345 ? "GOAT" : "METIS";
 }
 
 /**
@@ -108,7 +117,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     name: "Starknet",
     chipLabel: "Starknet",
     // A Starknet RPC, unreachable by viem — kept truthful rather than blank, and guarded by `evm`.
-    rpcUrl: "https://rpc.starknet.lava.build:443",
+    rpcUrl: "https://starknet-rpc.publicnode.com",
     explorerUrl: "https://starkscan.co",
     usdcAddress: null,
     nativeSymbol: "STRK",
@@ -144,6 +153,20 @@ export const CHAINS: Record<number, ChainConfig> = {
     isMainnet: true,
     evm: true,
     gas: "legacy",
+  },
+  5042: {
+    chainId: 5042,
+    key: "arc",
+    name: "Arc",
+    chipLabel: "Arc Mainnet",
+    rpcUrl: process.env.ARC_MAINNET_RPC_URL ?? "https://rpc.mainnet.arc.io",
+    explorerUrl: "https://explorer.arc.io",
+    usdcAddress: ARC_USDC,
+    nativeSymbol: "USDC",
+    nativeName: "USDC",
+    isMainnet: true,
+    evm: true,
+    gas: "eip1559-fallback",
   },
   5042002: {
     chainId: 5042002,

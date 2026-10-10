@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ARC_LAUNCH_CHAIN, chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, GOAT_MAINNET_CHAIN_ID } from "./networks";
+import { ARC_LAUNCH_CHAIN, ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID, chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, GOAT_MAINNET_CHAIN_ID } from "./networks";
 import { LAUNCH_ENABLED_CHAINS } from "@/lib/launch/deployment-service";
 
 /**
- * A MAINNET PRODUCT DOES NOT DEFAULT TO A TESTNET. Arc is supported end to end, and it is on testnet
- * until 16 September 2026; until Arc mainnet is in the registry, the default EVM chain — the shell
- * chip a signed-out judge sees on /explorer, the chain a new account is born on, the first button in
- * the deploy flow — must be a mainnet. The founder's rule of 2026-09-10: "keep it separate and keep
- * strk20 and goat primary, until we goes mainnet". Flip this test the day the flip is deliberate.
+ * A MAINNET PRODUCT DOES NOT DEFAULT TO A TESTNET, and it does not change its default beneath the
+ * people judging it. Arc mainnet opened on 16 September 2026 and joined the registry on 26 Sep as the
+ * explicit second choice; the flip that makes it the default ("arc default, goat behind an explicit
+ * choice but the history stays") waits for Future Caribbean's judging to close. Until then the default
+ * EVM chain — the shell chip a signed-out judge sees on /explorer, the chain a new account is born on,
+ * the first button in the deploy flow — stays GOAT mainnet. Flip this test the day the flip is deliberate.
  */
 describe("the default EVM rail while Arc is on testnet", () => {
   it("is GOAT mainnet, and the launch list leads with it", () => {
@@ -16,11 +17,16 @@ describe("the default EVM rail while Arc is on testnet", () => {
     expect(LAUNCH_ENABLED_CHAINS[0]).toBe(DEFAULT_EVM_LAUNCH_CHAIN);
   });
 
-  it("keeps Arc reachable, second, and labelled as the testnet it is", () => {
+  it("offers Arc mainnet second, as a mainnet, and keeps the testnet only for what is already on it", () => {
+    expect(ARC_LAUNCH_CHAIN).toBe(ARC_MAINNET_CHAIN_ID);
     expect(LAUNCH_ENABLED_CHAINS).toContain(ARC_LAUNCH_CHAIN);
     expect(LAUNCH_ENABLED_CHAINS.indexOf(ARC_LAUNCH_CHAIN)).toBeGreaterThan(LAUNCH_ENABLED_CHAINS.indexOf(DEFAULT_EVM_LAUNCH_CHAIN));
     const arc = chainConfig(ARC_LAUNCH_CHAIN);
-    expect(arc.isMainnet).toBe(false);
-    expect(arc.chipLabel).toMatch(/testnet/i);
+    expect(arc.isMainnet).toBe(true);
+    expect(arc.chipLabel).not.toMatch(/testnet/i);
+    // accounts and campaigns already on the testnet keep resolving, labelled as the testnet they are
+    expect(LAUNCH_ENABLED_CHAINS).toContain(ARC_TESTNET_CHAIN_ID);
+    expect(chainConfig(ARC_TESTNET_CHAIN_ID).isMainnet).toBe(false);
+    expect(chainConfig(ARC_TESTNET_CHAIN_ID).chipLabel).toMatch(/testnet/i);
   });
 });
