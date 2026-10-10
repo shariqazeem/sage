@@ -1,6 +1,6 @@
 # Sage · Demo Day script (print the PDF, this is the same text)
 
-Generated from `deck/script.js` — edit words there. 6 minutes is the hard stop; the talk runs about 4:35.
+Generated from `deck/script.js` — edit words there. 6 minutes is the hard stop; the talk runs about 5:10.
 Lines marked **DO** are actions. Everything else you say.
 
 ## 1 · Opening (0:00 → 0:15)
@@ -29,25 +29,27 @@ Let me show you. Live, with real money, on Arc, where the dollar pays its own fe
 
 **DO: Cmd+Tab to Chrome: the buyer's window, on sagepays.xyz, already signed in.**
 
-## Chrome · buyer · Post the job (1:15 → 1:55)
+## Chrome · buyer · Post the job (1:15 → 2:10)
 I'm the buyer. I write what I want in one sentence, in my own money: put my shop's price list online, three items in Jamaican dollars, J$160.
 
 **DO: Click "Draft with Sage".**
 
 Sage is turning that sentence into a real job: the steps, what must be true when it's done, and what counts as proof. Those are the rules it will judge by.
 
+No forms, no categories. And one thing it never does: set the price. The money is mine to set.
+
 **DO: When the form fills, point at the rules and the price. Tick "Only people I invite". Click "Create the gig".**
 
-## Chrome · buyer · Launch it (1:55 → 2:15)
+## Chrome · buyer · Launch it (2:10 → 2:30)
 Now I fund it. I don't send money to anyone. Sage creates a vault on chain, funds it from my account, and switches it on.
 
-**DO: Click "Let Sage launch it from your account on Arc Mainnet".**
+**DO: Click "Let Sage launch it from your account on Arc".**
 
 Live. The vault holds exactly the reward, and Sage can't pay a cent more.
 
 **DO: Click "the board". Copy the address: Cmd+L, Cmd+C.**
 
-## Chrome · seller · Do the work (2:15 → 2:35)
+## Chrome · seller · Do the work (2:30 → 2:50)
 **DO: Switch to the seller's window (Cmd+`). Paste the address: Cmd+L, Cmd+V, Enter.**
 
 Now I'm the seller, a different person with my own wallet. I've already put my price list online.
@@ -56,8 +58,8 @@ Now I'm the seller, a different person with my own wallet. I've already put my p
 
 Submitted.
 
-## Chrome · seller · Sage decides (2:35 → 3:25)
-*The money moment. Slow down.*
+## Chrome · seller · Sage decides (2:50 → 4:05)
+*The money moment. Slow down. Paid takes about a minute.*
 
 **DO: Scroll down to "Sage activity".**
 
@@ -66,6 +68,8 @@ Watch. Sage is opening my page itself, not trusting my word.
 It checks every rule the buyer set: three items, prices in J-dollars, the shop's name, and my wallet on the page, so nobody else can claim my work.
 
 It has to quote the exact words it relied on. And it can say no: it has refused 26 times so far, every time with the reason written down.
+
+And the money isn't with Sage. It's in the vault the buyer funded. The vault decides the amount; Sage can only say yes or no.
 
 **DO: If it is still checking, say nothing. Silence while the room watches is fine.**
 
@@ -80,30 +84,30 @@ Here's the receipt: the decision, how sure it was, and the exact words from my p
 **DO: Cmd+Tab to Keynote. Press →.**
 
 > **If it stalls**
-> - Drafting takes over 60 seconds, or launch fails: "Here's the same job, posted this morning." Open the buyer's second tab (the backup job), copy its address, and carry on from the seller step.
-> - No Paid after 60 seconds: "It's checking on chain. Here's the one I ran an hour ago." Cmd+Tab to Keynote and →. The next slide shows that receipt.
+> - Drafting takes over 75 seconds, or launch fails: "Here's the same job, posted this morning." Open the buyer's second tab (the backup job), copy its address, and carry on from the seller step.
+> - No Paid after 90 seconds: "It's still checking. Here's the one I ran earlier today." Cmd+Tab to Keynote and →. The next slide shows that receipt.
 > - It says Held: "It held this one for a person to check. That's the guard working: it would rather wait than pay for weak proof." Cmd+Tab and →.
 
-## 5 · Receipt and record (3:25 → 3:50)
+## 5 · Receipt and record (4:05 → 4:30)
 *Works whether the live run paid or stalled.*
 
 If it paid live: "That's the receipt you just saw, and that payment just became a line in my record."
 
-If it stalled: "Here's the receipt from the run an hour ago, and the record it became."
+If it stalled: "Here's the receipt from the run earlier today, and the record it became."
 
 Verified income over thirty and ninety days, who paid me and for how long, how often my work passes. Published formulas over real receipts, not a black-box score. A lender reads it in one call.
 
-## 6 · Next (3:50 → 4:15)
+## 6 · Next (4:30 → 4:50)
 Now imagine where this goes. Next, you won't even post the job: you give Sage a goal and a budget, and it decides what to buy and tells you why before it spends.
 
 Every small business gets an AI finance worker that pays on proof and turns every job into credit. After a hurricane, a programme could pay a thousand people for verified clean-up in minutes.
 
-## 7 · The ask (4:15 → 4:30)
+## 7 · The ask (4:50 → 5:05)
 The engine is live. It needs the institutions it was built for: an MSME programme, a cooperative, and a lender who'd price verified cash flow instead of collateral. Twenty minutes with any of you is our next milestone.
 
 **DO: Press → for the last slide.**
 
-## 8 · Close (4:30 → 4:35)
+## 8 · Close (5:05 → 5:10)
 Sage. Payments that verify themselves. Credit records that write themselves. Thank you.
 
 **DO: Then stop talking.**

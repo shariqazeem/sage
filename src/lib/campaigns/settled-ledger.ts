@@ -28,6 +28,9 @@ export const OPERATOR_WALLETS = new Set(
   [
     "0xdf70f6e8e656e5bb714ff0e8ca176d76f26890e3",
     "0x0def3d4124d0cd1708aeffe6c1bc8182342a44d6",
+    // the Demo Day rehearsal seller (a throwaway key of ours, on /stage/shop.html) — real mainnet USDC,
+    // but our own: it is money that moved, never a person paid
+    "0xeaeee53550dec03bec947e92a0c3c33668fcc21c",
   ].map((w) => w.toLowerCase()),
 );
 

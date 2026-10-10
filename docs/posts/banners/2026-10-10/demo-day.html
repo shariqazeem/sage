@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sage at Future Caribbean Demo Day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #fbfbf9; --ink: #1a1d21; --ink-2: #3d434b; --faint: #8a9099; --rule: #e6e4de;
+    --accent: #c2410c; --accent-deep: #9a3412; --accent-wash: rgba(194, 65, 12, 0.07); --pos: #15803d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1600px; height: 900px; background: var(--paper); }
+  body { font-family: Inter, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; overflow: hidden; position: relative; }
+
+  .light { position: absolute; inset: 0; background:
+      radial-gradient(1000px 640px at 0% -8%, rgba(255, 228, 204, 0.70), transparent 60%),
+      radial-gradient(820px 620px at 100% 100%, rgba(194, 65, 12, 0.07), transparent 62%); }
+  .grid { position: absolute; inset: 0; background-image: radial-gradient(rgba(26, 29, 33, 0.075) 1.1px, transparent 1.2px); background-size: 28px 28px;
+          -webkit-mask-image: linear-gradient(100deg, transparent 0%, transparent 40%, #000 70%); mask-image: linear-gradient(100deg, transparent 0%, transparent 40%, #000 70%); }
+  .frame { position: absolute; inset: 28px; border: 1px solid var(--rule); border-radius: 16px; }
+
+  /* brand lockup */
+  .lockup { position: absolute; left: 104px; top: 92px; display: flex; align-items: center; gap: 16px; }
+  .lockup img { width: 54px; height: auto; }
+  .lockup .name { font: 800 34px/1 Inter, sans-serif; letter-spacing: -0.03em; }
+  .lockup .dom { margin-left: 6px; font: 500 20px/1 "JetBrains Mono", monospace; color: var(--faint); }
+
+  .left { position: absolute; left: 104px; top: 196px; width: 900px; }
+  .pill { display: inline-flex; align-items: center; gap: 12px; padding: 10px 20px 10px 16px; border-radius: 999px; background: var(--accent-wash);
+          color: var(--accent); font: 600 19px/1 "JetBrains Mono", monospace; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid rgba(194, 65, 12, 0.22); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px rgba(194, 65, 12, 0.14); }
+  h1 { margin-top: 30px; font-weight: 800; font-size: 88px; line-height: 0.99; letter-spacing: -0.038em; }
+  h1 .acc { color: var(--accent); }
+  .lede { margin-top: 30px; font-size: 29px; line-height: 1.4; color: var(--ink-2); max-width: 860px; letter-spacing: -0.005em; }
+  .lede b { color: var(--ink); font-weight: 650; }
+
+  .meta { position: absolute; left: 104px; bottom: 96px; display: flex; border: 1px solid var(--rule); border-radius: 10px; background: rgba(255, 255, 255, 0.78); overflow: hidden; }
+  .meta div { padding: 17px 26px; border-right: 1px solid var(--rule); }
+  .meta div:last-child { border-right: 0; }
+  .meta .k { font: 500 13px/1 "JetBrains Mono", monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .meta .v { margin-top: 9px; font: 650 22px/1.1 Inter, sans-serif; color: var(--ink); letter-spacing: -0.01em; }
+
+  /* the right column: the mark, floating, over a receipt */
+  .right { position: absolute; right: 104px; top: 118px; width: 452px; display: flex; flex-direction: column; align-items: center; }
+  .tile { position: relative; width: 300px; }
+  .tile img { position: relative; z-index: 1; width: 300px; height: auto; display: block; filter: drop-shadow(0 22px 28px rgba(154, 52, 18, 0.22)) drop-shadow(0 4px 8px rgba(26, 29, 33, 0.10)); }
+  .receipt { margin-top: 40px; width: 452px; background: #fff; border: 1px solid var(--rule); border-radius: 10px;
+             box-shadow: 0 1px 2px rgba(26,29,33,.05), 0 18px 40px rgba(26,29,33,.08); padding: 22px 26px 22px; }
+  .receipt .head { display: flex; justify-content: space-between; align-items: center; }
+  .receipt .t { font: 600 14px/1 "JetBrains Mono", monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .receipt .paid { font: 700 14px/1 "JetBrains Mono", monospace; letter-spacing: 0.1em; color: var(--pos); background: rgba(21, 128, 61, 0.08); border: 1px solid rgba(21, 128, 61, 0.22); padding: 6px 10px; border-radius: 999px; }
+  .receipt .rule { margin: 16px 0 6px; border-top: 1px dashed #d9d6cf; }
+  .receipt .row { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; font: 500 18px/1.2 "JetBrains Mono", monospace; color: var(--ink-2); }
+  .receipt .row b { font-weight: 700; color: var(--ink); }
+</style>
+</head>
+<body>
+  <div class="light"></div><div class="grid"></div><div class="frame"></div>
+
+  <div class="lockup"><img src="sage-logo-alpha.png" alt=""><span class="name">Sage</span><span class="dom">sagepays.xyz</span></div>
+
+  <section class="left">
+    <span class="pill"><span class="dot"></span>Live demo · Future Caribbean</span>
+    <h1>Sage goes live at<br>Future Caribbean<br><span class="acc">Demo Day.</span></h1>
+    <p class="lede">A job is posted on stage, and an AI agent checks the work and <b>pays for it with real money</b>. No one approves the payment. Every payment becomes <b>a credit record a lender can read.</b></p>
+  </section>
+
+  <div class="meta">
+    <div><p class="k">Where</p><p class="v">Barbados</p></div>
+    <div><p class="k">When</p><p class="v">Sat 10 Oct 2026</p></div>
+    <div><p class="k">Session</p><p class="v">Finance &amp; MSME Capital</p></div>
+  </div>
+
+  <aside class="right">
+    <div class="tile"><img src="sage-logo-alpha.png" alt=""></div>
+    <div class="receipt">
+      <div class="head"><span class="t">Sage decision receipt</span><span class="paid">PAID</span></div>
+      <div class="rule"></div>
+      <div class="row"><span>checked by</span><b>an AI agent</b></div>
+      <div class="row"><span>approved by</span><b>no one</b></div>
+      <div class="row"><span>can overspend</span><b>nothing</b></div>
+      <div class="row"><span>receipt</span><b>public</b></div>
+    </div>
+  </aside>
+</body>
+</html>

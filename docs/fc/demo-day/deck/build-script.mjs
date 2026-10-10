@@ -48,7 +48,7 @@ const label = (e) => (e.slide ? `${e.slide} · ${e.name}` : `${e.where} · ${e.n
 const md = [
   "# Sage · Demo Day script (print the PDF, this is the same text)",
   "",
-  "Generated from `deck/script.js` — edit words there. 6 minutes is the hard stop; the talk runs about 4:35.",
+  "Generated from `deck/script.js` — edit words there. 6 minutes is the hard stop; the talk runs about 5:10.",
   "Lines marked **DO** are actions. Everything else you say.",
   "",
 ];
@@ -91,7 +91,7 @@ p { margin: 0 0 7px; } .do { font-weight: 800; color: #c2410c; text-transform: u
 .badge b { display: block; color: #fff; font-size: 22px; letter-spacing: .06em; }
 </style></head><body>
 <h1>Sage · Demo Day script</h1>
-<p class="sub">Future Caribbean · Sat 10 Oct · Finance &amp; MSME Capital, 1:15–2:45 PM AST (22:15 Pakistan) · runs about 4:35 · 6:00 hard stop</p>
+<p class="sub">Future Caribbean · Sat 10 Oct · Finance &amp; MSME Capital, 1:15–2:45 PM AST (22:15 Pakistan) · runs about 5:10 · 6:00 hard stop</p>
 <div class="setup"><h2>BEFORE YOU GO ON</h2><ol>${setup.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
 <p>One straight line: Keynote slides 1–4 → Chrome (buyer, then seller) → back to Keynote for 5–8. If you blank: look at the screen, say what is on it, breathe, next line.</p></div>`;
 prev = "0:00";
@@ -145,7 +145,7 @@ p.note { font-size: calc(var(--fs) * .5); color: #8b8f97; font-style: italic; }
 .bar button.go { background: #c2410c; }
 .end { text-align: center; color: #8b8f97; padding: 40px 0; font-size: 18px; }
 </style></head><body>
-<div class="top"><span>SAGE · DEMO DAY · runs ~4:35</span><b id="clock">0:00</b></div>
+<div class="top"><span>SAGE · DEMO DAY · runs ~5:10</span><b id="clock">0:00</b></div>
 <main>${sections}<div class="end">— end —</div></main>
 <div class="bar">
   <button id="smaller" aria-label="Smaller text">A−</button><button id="bigger" aria-label="Bigger text">A+</button>
@@ -172,7 +172,7 @@ p.note { font-size: calc(var(--fs) * .5); color: #8b8f97; font-style: italic; }
   $("faster").onclick = () => { speed = Math.min(160, speed + 5); st("speed", speed); };
   $("play").onclick = () => { wake(); playing = !playing; $("play").textContent = playing ? "❚❚" : "▶"; last = 0; if (playing) requestAnimationFrame(tick); };
   $("clockbtn").onclick = () => { wake(); t0 = t0 ? null : Date.now(); };
-  setInterval(() => { const s = t0 ? Math.floor((Date.now() - t0) / 1000) : 0; $("clock").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); $("clock").style.color = s > 330 ? "#f87171" : s > 285 ? "#f59e0b" : "#fff"; }, 250);
+  setInterval(() => { const s = t0 ? Math.floor((Date.now() - t0) / 1000) : 0; $("clock").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); $("clock").style.color = s > 345 ? "#f87171" : s > 330 ? "#f59e0b" : "#fff"; }, 250);
 })();
 </script></body></html>`;
 writeFileSync(path.join(here, "..", "..", "..", "..", "public", "stage", "index.html"), prompter);

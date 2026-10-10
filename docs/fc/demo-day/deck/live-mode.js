@@ -1,6 +1,6 @@
-// Which network the live walkthrough runs on, and the words that depend on it. One switch:
-//   SAGE_LIVE=mainnet (default) — real USDC on Arc mainnet
-//   SAGE_LIVE=testnet           — test USDC on Arc testnet (the proven fallback)
+// The words that depend on where the live walkthrough runs. MAINNET ONLY since 10 Oct 2026: real
+// USDC on Arc mainnet. The testnet mode is retired — Sage no longer launches on a testnet at all
+// (LAUNCH_ENABLED_CHAINS), so a testnet fallback would be a button that refuses on stage.
 // build-deck.js and build-script.mjs fill these into script.js's {placeholders}.
 const MODES = {
   mainnet: {
@@ -12,17 +12,9 @@ const MODES = {
     liveFootnote: (payments) => `Real USDC on Arc mainnet. Every payment is a public transaction. ${payments} mainnet payments since July.`,
     paysIn: "≈ $1.01 in USDC · real money",
   },
-  testnet: {
-    chipLabel: "Arc Testnet",
-    promise: "In the next few minutes, you'll watch it pay someone. Live.",
-    openingLive: "Live.",
-    liveIntro: "Let me show you. Live, on Arc's test network, so these are test dollars. The same engine pays real money on mainnet.",
-    liveFootnote: (payments) => `On Arc's test network: test dollars, the real engine. Real money since July: ${payments} mainnet payments on the public ledger.`,
-    paysIn: "one payment · test USDC",
-  },
 };
 module.exports = function liveMode() {
   const m = (process.env.SAGE_LIVE ?? "mainnet").trim();
-  if (!MODES[m]) throw new Error(`SAGE_LIVE must be mainnet or testnet, not "${m}"`);
+  if (!MODES[m]) throw new Error(`SAGE_LIVE must be mainnet (the testnet mode is retired), not "${m}"`);
   return { name: m, ...MODES[m] };
 };
