@@ -87,3 +87,32 @@ direct host both stay blocked.
 A provider that says "no balance" is not a slow provider, but only the payout brain treats it as a
 reason to fail over. The concierge and the mission brain should fail over on 401/402 as they do on a
 timeout. Tracked; not part of this promotion.
+
+## Re-check, 10 October 2026: after hedging and a 16k ceiling
+
+**Why it ran.** On the afternoon of 10 Oct the same real submission (identical evidence, this
+identity) went from 27.6 s in the morning to 279 s. Most attempts through the gateway ended
+`finish_reason: "length"` at the 8,000-token ceiling. `brain.ts` changed in two ways:
+- **Hedged attempts:** the next attempt starts at 15 s while the previous one is still thinking, and
+  the first valid brief wins.
+- **Room to finish:** `MAX_TOKENS` went from 8,000 to 16,000, and the per-call ceiling from 150 s to 200 s.
+
+The provider, model, prompt and parser did not change, so the identity is the same. The battery ran
+again on prod's code to confirm the approval still holds.
+
+**Result** (`JUDGE_EVAL=1 JUDGE_RUNS=1`, 19 fixtures; raw log in
+`2026-10-10-commonstack-minimax-m3-recheck.log`):
+
+| Metric | Value |
+|---|---|
+| validRows | 19 / 19 |
+| wrongAutopayTotal | 0 (knownGap 0, unexpected 0) |
+| providerFailures | 0 |
+| falseHold | 0 |
+| provenanceViolations | 0 |
+| honestAutopay | 2 of 3 (1 honest review) |
+| latencyMsAvg | 18,345 |
+| cost | $0.010 |
+| conclusive / promotionEligible | true / true |
+
+Every adversarial fixture held, injection variants included. The identity stays approved.

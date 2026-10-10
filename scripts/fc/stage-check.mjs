@@ -5,7 +5,7 @@
  *   node scripts/fc/stage-check.mjs --job <backup campaignId> --worker <0x… seller wallet> [--buyer <0x… buyer account>]
  *
  * The live job is created on stage, so --job is the BACKUP: posted and launched beforehand, untouched.
- * --buyer is the founder's Arc testnet account (the one that launches on stage): it must hold enough.
+ * --buyer is the founder's Arc mainnet account (the one that launches on stage): it must hold enough.
  * Checks every dependency of the live moment: the job's public page and feed (live, funded,
  * untouched, invite-only, on autopilot), the shop page (served, and carrying THIS worker's wallet,
  * which is the marker Sage requires), every AI lane answering through Sage's own config on the VM,
@@ -21,7 +21,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const KEY = `${process.env.HOME}/Documents/ssh-key3.key`;
 const VM = "ubuntu@80.225.209.190";
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
-const C = { site: "https://sagepays.xyz", live: arg("job"), worker: arg("worker"), buyer: arg("buyer"), shop: arg("shop") ?? "https://sagepays.xyz/stage/shop.html" };
+// --receipt: a mainnet payout tx whose /proof page must open fast (it hung for minutes once, right after a restart)
+const C = { site: "https://sagepays.xyz", live: arg("job"), worker: arg("worker"), buyer: arg("buyer"), shop: arg("shop") ?? "https://sagepays.xyz/stage/shop.html", receipt: arg("receipt") ?? "0x83aef6d39781b020de1421ca8e7042fe8a6af781fe31a249e3fe9f5d9ebff522" };
 if (!C.live || !C.worker) { console.error("usage: stage-check.mjs --job <backup campaignId> --worker <0x… seller wallet> [--buyer <0x… buyer account>] [--shop <url>]"); process.exit(2); }
 
 const rows = [];
@@ -34,8 +35,8 @@ const get = async (url, as = "text") => {
 const ssh = (cmd, input) => execFileSync("ssh", ["-o", "ConnectTimeout=15", "-i", KEY, VM, cmd], { input, encoding: "utf8", timeout: 240_000 });
 
 // 1 · the pages the deck frames
-for (const p of ["/", `/c/${C.live}`, `/record/${C.worker}`]) {
-  try { const r = await get(C.site + p); check(`page ${p}`, r.status === 200, `${r.status} · ${r.ms} ms`); }
+for (const p of ["/", `/c/${C.live}`, `/record/${C.worker}`, `/proof/${C.receipt}`]) {
+  try { const r = await get(C.site + p); check(`page ${p}`, r.status === 200 && (r.ms < 10_000 || "warn"), `${r.status} · ${r.ms} ms${r.ms >= 10_000 ? " — slow: open it once more before going live" : ""}`); }
   catch (e) { check(`page ${p}`, false, String(e.message ?? e)); }
 }
 try {
@@ -55,13 +56,13 @@ try {
   if ((j.maxRecipients ?? 0) > 0) check("backup job has a slot", j.maxRecipients > (j.paid ?? 0), `${j.paid}/${j.maxRecipients} · reward $${j.rewardUsd}`);
 } catch (e) { check("backup job", false, String(e.message ?? e)); }
 
-// 2b · the buyer's account can launch the job on stage (Arc testnet USDC is also its gas)
+// 2b · the buyer's account can launch the job on stage (on Arc mainnet USDC is also its gas)
 if (C.buyer) {
   try {
     const data = "0x70a08231" + C.buyer.slice(2).toLowerCase().padStart(64, "0");
-    const r = await (await fetch("https://rpc.testnet.arc.io", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: "0x3600000000000000000000000000000000000000", data }, "latest"] }), signal: AbortSignal.timeout(20000) })).json();
+    const r = await (await fetch("https://rpc.mainnet.arc.io", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: "0x3600000000000000000000000000000000000000", data }, "latest"] }), signal: AbortSignal.timeout(20000) })).json();
     const usd = Number(BigInt(r.result)) / 1e6;
-    check("buyer account can launch on stage", usd >= 2, `${usd.toFixed(2)} test USDC on Arc testnet (needs ≥ 2)`);
+    check("buyer account can launch on stage", usd >= 2, `${usd.toFixed(2)} USDC on Arc mainnet (needs ≥ 2: the J$160 job is $1.01 plus gas, with one retry)`);
   } catch (e) { check("buyer account", false, String(e.message ?? e)); }
 }
 
