@@ -5,7 +5,8 @@ import { getWebTreasuryOn } from "@/lib/treasury/web";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { accountBalanceBase } from "@/lib/treasury/activity";
-import { explorerTxUrl } from "@/lib/deputy/networks";
+import { chainConfig, explorerTxUrl } from "@/lib/deputy/networks";
+import { maxWithdrawBase } from "@/lib/treasury/withdraw-max";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest) {
   const amountBase = BigInt(Math.round(usd * 1_000_000));
   const balance = await accountBalanceBase(t.privyWalletAddress, t.chainId);
   if (amountBase > balance) return NextResponse.json({ ok: false, error: `The account holds ${(Number(balance) / 1e6).toFixed(2)} USDC; that is less than ${usd.toFixed(2)}.` }, { status: 400 });
+  // Where USDC is also the gas (Arc), a transfer of the whole balance cannot pay its own fee and reverts
+  // on chain. Refuse it here, in words, with the amount that will go through.
+  const max = maxWithdrawBase(balance, t.chainId);
+  if (amountBase > max) {
+    const network = chainConfig(t.chainId).name;
+    return NextResponse.json({ ok: false, error: `On ${network}, USDC also pays the network fee, so a cent has to stay behind. The most you can withdraw now is ${(Math.floor(Number(max) / 10_000) / 100).toFixed(2)} USDC.` }, { status: 400 });
+  }
   try {
     const r = await withdrawViaPrivy(t, getAddress(to), amountBase);
     return NextResponse.json({ ok: true, txHash: r.txHash, explorerUrl: explorerTxUrl(t.chainId, r.txHash), amountUsd: usd, to: getAddress(to) });

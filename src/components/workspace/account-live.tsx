@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Loader2 } from "lucide-react";
+import { gasIsUsdc, maxWithdrawUsd } from "@/lib/treasury/withdraw-max";
 
 /** The balance, live: the page re-reads it every few seconds so a deposit shows up when it lands. */
 export function AccountBalance({ initialUsd, network, chainId }: { initialUsd: number; network: string; chainId: number }) {
@@ -84,7 +85,9 @@ export function WithdrawForm({ balanceUsd, network, chainId }: { balanceUsd: num
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
   const usd = Number(amount);
-  const valid = /^0x[0-9a-fA-F]{40}$/.test(to.trim()) && Number.isFinite(usd) && usd > 0 && usd <= balanceUsd + 1e-9;
+  // what can actually leave in one transfer: floored to the cent, and on Arc a cent stays for the fee
+  const maxUsd = maxWithdrawUsd(balanceUsd, chainId);
+  const valid = /^0x[0-9a-fA-F]{40}$/.test(to.trim()) && Number.isFinite(usd) && usd > 0 && usd <= maxUsd + 1e-9;
   const send = async () => {
     setStage("sending");
     setErr(null);
@@ -114,8 +117,9 @@ export function WithdrawForm({ balanceUsd, network, chainId }: { balanceUsd: num
       <input className="ws-input mono" placeholder="0x… any address on this chain" value={to} onChange={(e) => setTo(e.target.value)} spellCheck={false} disabled={stage !== "edit"} aria-label="Send to" />
       <div className="ac-withdraw-row">
         <input className="ws-input mono" type="number" min="0.01" step="0.01" placeholder="amount in USDC" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={stage !== "edit"} aria-label="Amount in USDC" />
-        <button className="sage-btn sage-btn-sm" type="button" onClick={() => setAmount(balanceUsd.toFixed(2))} disabled={stage !== "edit"}>all</button>
+        <button className="sage-btn sage-btn-sm" type="button" onClick={() => setAmount(maxUsd.toFixed(2))} disabled={stage !== "edit"}>all</button>
       </div>
+      {gasIsUsdc(chainId) && <p className="ws-note" style={{ margin: "6px 0 0" }}>On {network}, USDC also pays the network fee, so a cent stays behind: up to {maxUsd.toFixed(2)} USDC can leave now.</p>}
       {stage === "edit" && (
         <button className="sage-btn sage-btn-primary sage-btn-sm" disabled={!valid} onClick={() => setStage("confirm")}>Withdraw</button>
       )}
