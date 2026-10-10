@@ -176,7 +176,7 @@ async function main() {
   s = pres.addSlide({ masterName: "SAGE_LIGHT", sectionTitle: "Finance" });
   T(s, "A receipt for every payment, and a credit record", { x: 0.75, y: 0.6, w: 11.8, h: 0.8, fontSize: 32, bold: true });
   screenshot(s, "receipt.png", 0.75, 1.65, 5.9, 3.69, "A real decision receipt");
-  T(s, "The decision Sage recorded on a rehearsal run", { x: 0.75, y: 5.4, w: 5.9, h: 0.3, fontSize: 11, color: FAINT });
+  T(s, "The decision Sage recorded on a real-money rehearsal (Arc mainnet)", { x: 0.75, y: 5.4, w: 5.9, h: 0.3, fontSize: 11, color: FAINT });
   screenshot(s, "record.png", 6.95, 1.65, 5.65, 2.15, "The seller's verified work record");
   T(s, "The seller's live record on sagepays.xyz/record (excerpt)", { x: 6.95, y: 3.86, w: 5.65, h: 0.3, fontSize: 11, color: FAINT });
   numbered(s, 1, 6.95, 4.35, "Verified income", "30 and 90 days, receipts only.", { w: 4.6, titleSize: 17, bodySize: 13, bodyH: 0.35 });
