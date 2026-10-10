@@ -11,9 +11,10 @@ const fs = require("fs");
 const path = require("path");
 
 const SCRIPT = require("./script.js");
+const LIVE = require("./live-mode.js")(); // SAGE_LIVE=mainnet|testnet
 // Speaker notes come from script.js (the same words as SCRIPT.md and the printable script).
 function notesFor(n, N) {
-  const fill = (t) => t.replace("{refusals}", N.refusals);
+  const fill = (t) => t.replace("{refusals}", N.refusals).replace("{openingLive}", LIVE.openingLive).replace("{liveIntro}", LIVE.liveIntro).replace("{chipLabel}", LIVE.chipLabel);
   const i = SCRIPT.findIndex((x) => x.slide === n);
   const entries = [SCRIPT[i]];
   for (let j = i + 1; j < SCRIPT.length && SCRIPT[j].where; j++) entries.push(SCRIPT[j]); // the browser steps live under the slide you leave from
@@ -82,7 +83,7 @@ function numbered(slide, n, x, y, title, body, o = {}) {
 
 async function main() {
   const N = await liveNumbers();
-  console.log("live numbers:", N);
+  console.log("live numbers:", N, "· live mode:", LIVE.name);
 
   const pres = new pptxgen();
   pres.layout = "LAYOUT_WIDE"; // 13.333 × 7.5 in
@@ -104,9 +105,9 @@ async function main() {
   mark(s, 0.75, 1.95, 1.3);
   T(s, "Sage", { x: 2.4, y: 1.7, w: 8, h: 1.8, fontSize: 120, bold: true, color: "FFFFFF", valign: "middle" });
   T(s, "An AI agent that pays people for verified work.", { x: 0.75, y: 3.75, w: 11.8, h: 0.7, fontSize: 30, color: DARK_TEXT });
-  s.addShape("roundRect", { x: 0.75, y: 4.8, w: 8.6, h: 0.78, fill: { color: DARK_CARD }, line: { color: ACC, width: 1.25 }, rectRadius: 0.39 });
+  s.addShape("roundRect", { x: 0.75, y: 4.8, w: LIVE.name === "mainnet" ? 10.3 : 8.6, h: 0.78, fill: { color: DARK_CARD }, line: { color: ACC, width: 1.25 }, rectRadius: 0.39 });
   s.addShape("ellipse", { x: 1.08, y: 5.08, w: 0.22, h: 0.22, fill: { color: ACC }, line: { color: ACC, width: 0 } });
-  T(s, "In the next few minutes, you'll watch it pay someone. Live.", { x: 1.5, y: 4.8, w: 7.7, h: 0.78, fontSize: 20, bold: true, color: "FFFFFF", valign: "middle" });
+  T(s, LIVE.promise, { x: 1.5, y: 4.8, w: 9.2, h: 0.78, fontSize: 20, bold: true, color: "FFFFFF", valign: "middle" });
   T(s, "Shariq Shaukat  ·  Founder", { x: 0.75, y: 6.7, w: 6, h: 0.4, fontSize: 15, color: DARK_MUTED });
   T(s, "sagepays.xyz", { x: 8.6, y: 6.7, w: 4, h: 0.4, fontSize: 15, color: DARK_MUTED, align: "right" });
   s.addNotes(notesFor(1, N));
@@ -167,7 +168,7 @@ async function main() {
   T(s, [{ text: "J$160  ", options: { fontSize: 40, bold: true, color: INK } }, { text: "one payment", options: { fontSize: 16, color: MUTED } }], { x: 1.15, y: 5.1, w: 6.6, h: 0.7, valign: "middle" });
   [["I post it, as the buyer"], ["I do it, as the seller"], ["Sage checks it and pays. Nobody approves it."]].forEach(([t], i) =>
     numbered(s, i + 1, 8.75, 3.3 + i * 0.95, t, null, { w: 3.6, titleSize: 18, titleColor: DARK_TEXT }));
-  T(s, `On Arc's test network: test dollars, the real engine. Real money since July: ${N.payments} mainnet payments on the public ledger.`, { x: 0.75, y: 6.45, w: 11.8, h: 0.45, fontSize: 14, color: DARK_MUTED });
+  T(s, LIVE.liveFootnote(N.payments), { x: 0.75, y: 6.45, w: 11.8, h: 0.45, fontSize: 14, color: DARK_MUTED });
   s.addNotes(notesFor(4, N));
 
   // ── 5 · RECEIPT AND RECORD ───────────────────────────────────────────────────────────────────

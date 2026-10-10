@@ -8,7 +8,7 @@ Lines marked **DO** are actions. Everything else you say.
 
 Hi, I'm Shariq, and I built Sage.
 
-In the next few minutes I'll post a job, and an AI agent will check the work and pay for it. Live. Nobody will approve that payment, not even me.
+In the next few minutes I'll post a job, and an AI agent will check the work and pay for it. Live, with real money. Nobody will approve that payment, not even me.
 
 But first, why it matters here.
 
@@ -25,7 +25,7 @@ Sage fixes the record by fixing the payment. It's an AI agent that checks the wo
 And it's not a prototype. It has paid real people real money since July. In August it won first place, Grand Champion, at the OpenClaw Summer Bootcamp, from Metis, GOAT Network, ClawUp and CryptoChicks.
 
 ## 4 · Live (1:10 → 1:15)
-Let me show you. Live, on Arc's test network, so these are test dollars. The same engine pays real money on mainnet.
+Let me show you. Live, with real money, on Arc, where the dollar pays its own fee.
 
 **DO: Cmd+Tab to Chrome: the buyer's window, on sagepays.xyz, already signed in.**
 
@@ -41,7 +41,7 @@ Sage is turning that sentence into a real job: the steps, what must be true when
 ## Chrome · buyer · Launch it (1:55 → 2:15)
 Now I fund it. I don't send money to anyone. Sage creates a vault on chain, funds it from my account, and switches it on.
 
-**DO: Click "Let Sage launch it from your account on Arc Testnet".**
+**DO: Click "Let Sage launch it from your account on Arc Mainnet".**
 
 Live. The vault holds exactly the reward, and Sage can't pay a cent more.
 

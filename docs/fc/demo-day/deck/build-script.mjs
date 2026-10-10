@@ -17,7 +17,8 @@ const tmp = path.join(here, ".thumbs");
 const page = await (await fetch("https://sagepays.xyz/caribbean", { signal: AbortSignal.timeout(30000) })).text();
 const refusals = (/(\d+) refusals with the reason/.exec(page.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")) ?? [])[1];
 if (!refusals) throw new Error("could not read the refusal count from sagepays.xyz/caribbean");
-const fill = (t) => t.replace("{refusals}", refusals);
+const LIVE = createRequire(import.meta.url)("./live-mode.js")(); // SAGE_LIVE=mainnet|testnet
+const fill = (t) => t.replace("{refusals}", refusals).replace("{openingLive}", LIVE.openingLive).replace("{liveIntro}", LIVE.liveIntro).replace("{chipLabel}", LIVE.chipLabel);
 
 // 1. thumbnails: Keynote renders the real deck to PDF, poppler slices it
 rmSync(tmp, { recursive: true, force: true }); mkdirSync(tmp);
@@ -31,10 +32,16 @@ const as = `on run argv
   end tell
 end run`;
 writeFileSync(path.join(tmp, "x.applescript"), as);
-execFileSync("osascript", [path.join(tmp, "x.applescript"), deck, pdf], { timeout: 120000 });
-execFileSync("pdftoppm", ["-jpeg", "-r", "60", pdf, path.join(tmp, "s")]);
-const thumbs = readdirSync(tmp).filter((f) => /^s-\d+\.jpg$/.test(f)).sort();
-const img = (n) => `data:image/jpeg;base64,${readFileSync(path.join(tmp, thumbs[n - 1])).toString("base64")}`;
+// Thumbnails never block the build: DECK_PDF (a Keynote export you already have) wins; otherwise ask
+// Keynote; if Keynote is busy (a dialog, a slideshow running) the script is built with slide badges.
+let thumbs = [];
+try {
+  const src = process.env.DECK_PDF ?? pdf;
+  if (!process.env.DECK_PDF) execFileSync("osascript", [path.join(tmp, "x.applescript"), deck, pdf], { timeout: 90000 });
+  execFileSync("pdftoppm", ["-jpeg", "-r", "60", src, path.join(tmp, "s")]);
+  thumbs = readdirSync(tmp).filter((f) => /^s-\d+\.jpg$/.test(f)).sort();
+} catch (e) { console.warn("thumbnails skipped (Keynote busy?):", String(e.message ?? e).split("\n")[0]); }
+const img = (n) => (thumbs[n - 1] ? `data:image/jpeg;base64,${readFileSync(path.join(tmp, thumbs[n - 1])).toString("base64")}` : null);
 const label = (e) => (e.slide ? `${e.slide} · ${e.name}` : `${e.where} · ${e.name}`);
 
 // 2. SCRIPT.md
@@ -89,7 +96,7 @@ p { margin: 0 0 7px; } .do { font-weight: 800; color: #c2410c; text-transform: u
 <p>One straight line: Keynote slides 1–4 → Chrome (buyer, then seller) → back to Keynote for 5–8. If you blank: look at the screen, say what is on it, breathe, next line.</p></div>`;
 prev = "0:00";
 for (const e of SCRIPT) {
-  const pic = e.slide ? `<img src="${img(e.slide)}">` : `<div class="badge">CHROME<b>${esc(e.where.split("·")[1].trim().toUpperCase())}</b></div>`;
+  const pic = e.slide ? (img(e.slide) ? `<img src="${img(e.slide)}">` : `<div class="badge">KEYNOTE<b>SLIDE ${e.slide}</b></div>`) : `<div class="badge">CHROME<b>${esc(e.where.split("·")[1].trim().toUpperCase())}</b></div>`;
   html += `<div class="row${e.where ? " live" : ""}">${pic}<div><h3>${esc(label(e))}</h3><div class="t">${prev} → ${e.by}</div>`;
   if (e.note) html += `<p class="note">${esc(e.note)}</p>`;
   for (const l of e.lines) html += l.startsWith("DO ") ? `<p class="do">${esc(fill(l.slice(3)))}</p>` : `<p>${esc(fill(l))}</p>`;
@@ -103,5 +110,71 @@ const p = await browser.newPage();
 await p.setContent(html, { waitUntil: "load" });
 await p.pdf({ path: path.join(here, "..", "Sage-DemoDay-Script.pdf"), format: "A4", printBackground: true, margin: { top: "14mm", bottom: "16mm", left: "14mm", right: "14mm" } });
 await browser.close();
+
+// 4. the phone teleprompter → public/stage/index.html (an existing file, so push-stage.sh serves it
+//    without a rebuild). Black for an OLED phone, big type, auto-scroll at the presenter's speed,
+//    the screen kept awake, settings remembered on the phone.
+const sections = SCRIPT.map((e) => {
+  const head = e.slide ? `SLIDE ${e.slide} · ${e.name.toUpperCase()}` : `${e.where.toUpperCase()} · ${e.name.toUpperCase()}`;
+  const body = e.lines.map((l) => l.startsWith("DO ") ? `<p class="do">▸ ${esc(fill(l.slice(3)))}</p>` : `<p>${esc(fill(l))}</p>`).join("");
+  const stuck = e.ifStuck ? `<div class="stuck"><b>IF IT STALLS</b>${e.ifStuck.map((l) => `<p>${esc(fill(l))}</p>`).join("")}</div>` : "";
+  return `<section class="${e.where ? "web" : ""}"><h2><span>${esc(head)}</span><i>by ${e.by}</i></h2>${e.note ? `<p class="note">${esc(e.note)}</p>` : ""}${body}${stuck}</section>`;
+}).join("");
+const prompter = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow"><meta name="theme-color" content="#000">
+<meta name="apple-mobile-web-app-capable" content="yes"><title>Sage · teleprompter</title>
+<style>
+:root { --fs: 34px; }
+* { box-sizing: border-box; } html, body { margin: 0; background: #000; color: #f4f2ec; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-text-size-adjust: 100%; }
+main { padding: 18px 18px 140px; }
+.top { position: sticky; top: 0; z-index: 2; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 10px 18px; border-bottom: 1px solid #222; font: 600 14px/1 ui-monospace, Menlo, monospace; color: #8b8f97; }
+.top b { color: #fff; font-size: 22px; }
+section { padding: 22px 0 26px; border-bottom: 1px solid #222; }
+section.web { border-left: 4px solid #c2410c; padding-left: 14px; margin-left: -18px; padding-right: 0; }
+h2 { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 12px; font: 700 15px/1.3 ui-monospace, Menlo, monospace; letter-spacing: .06em; color: #f7a26f; }
+h2 i { font-style: normal; color: #8b8f97; white-space: nowrap; }
+p { margin: 0 0 .6em; font-size: var(--fs); line-height: 1.38; font-weight: 500; }
+p.do { font-size: calc(var(--fs) * .62); font-weight: 800; color: #fb923c; letter-spacing: .02em; text-transform: uppercase; }
+p.note { font-size: calc(var(--fs) * .5); color: #8b8f97; font-style: italic; }
+.stuck { margin-top: 10px; padding: 10px 12px; border: 1px solid #b45309; border-radius: 10px; background: #1c1208; }
+.stuck b { display: block; color: #f59e0b; font: 800 13px/1.6 ui-monospace, Menlo, monospace; }
+.stuck p { font-size: calc(var(--fs) * .5); color: #f3d9b0; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); background: #111; border-top: 1px solid #262626; }
+.bar button { height: 50px; border: 0; border-radius: 12px; background: #222; color: #fff; font: 700 17px/1 -apple-system, Arial, sans-serif; }
+.bar button.go { background: #c2410c; }
+.end { text-align: center; color: #8b8f97; padding: 40px 0; font-size: 18px; }
+</style></head><body>
+<div class="top"><span>SAGE · DEMO DAY · runs ~4:35</span><b id="clock">0:00</b></div>
+<main>${sections}<div class="end">— end —</div></main>
+<div class="bar">
+  <button id="smaller" aria-label="Smaller text">A−</button><button id="bigger" aria-label="Bigger text">A+</button>
+  <button id="slower" aria-label="Scroll slower">−</button><button id="play" class="go" aria-label="Start or pause scrolling">▶</button><button id="faster" aria-label="Scroll faster">+</button>
+  <button id="clockbtn" aria-label="Start or reset the clock">⏱</button>
+</div>
+<script>
+(() => {
+  const st = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } };
+  let fs = Number(st("fs")) || 34, speed = Number(st("speed")) || 30, playing = false, last = 0, carry = 0, t0 = null, lock = null;
+  const apply = () => document.documentElement.style.setProperty("--fs", fs + "px");
+  apply();
+  const wake = async () => { try { lock = await navigator.wakeLock.request("screen"); } catch {} };
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && lock) wake(); });
+  const tick = (ts) => {
+    if (!playing) return;
+    if (last) { carry += speed * (ts - last) / 1000; const px = Math.floor(carry); if (px) { window.scrollBy(0, px); carry -= px; } }
+    last = ts; requestAnimationFrame(tick);
+  };
+  const $ = (id) => document.getElementById(id);
+  $("smaller").onclick = () => { fs = Math.max(20, fs - 3); st("fs", fs); apply(); };
+  $("bigger").onclick = () => { fs = Math.min(64, fs + 3); st("fs", fs); apply(); };
+  $("slower").onclick = () => { speed = Math.max(5, speed - 5); st("speed", speed); };
+  $("faster").onclick = () => { speed = Math.min(160, speed + 5); st("speed", speed); };
+  $("play").onclick = () => { wake(); playing = !playing; $("play").textContent = playing ? "❚❚" : "▶"; last = 0; if (playing) requestAnimationFrame(tick); };
+  $("clockbtn").onclick = () => { wake(); t0 = t0 ? null : Date.now(); };
+  setInterval(() => { const s = t0 ? Math.floor((Date.now() - t0) / 1000) : 0; $("clock").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); $("clock").style.color = s > 330 ? "#f87171" : s > 285 ? "#f59e0b" : "#fff"; }, 250);
+})();
+</script></body></html>`;
+writeFileSync(path.join(here, "..", "..", "..", "..", "public", "stage", "index.html"), prompter);
 rmSync(tmp, { recursive: true, force: true });
-console.log("wrote SCRIPT.md and Sage-DemoDay-Script.pdf (refusals:", refusals + ")");
+console.log("wrote SCRIPT.md, Sage-DemoDay-Script.pdf and the teleprompter (public/stage/index.html) (refusals:", refusals + ")");

@@ -7,7 +7,7 @@
 module.exports = [
   { slide: 1, name: "Opening", by: "0:15", note: "Learn these three lines by heart.", lines: [
     "Hi, I'm Shariq, and I built Sage.",
-    "In the next few minutes I'll post a job, and an AI agent will check the work and pay for it. Live. Nobody will approve that payment, not even me.",
+    "In the next few minutes I'll post a job, and an AI agent will check the work and pay for it. {openingLive} Nobody will approve that payment, not even me.",
     "But first, why it matters here.",
   ]},
   { slide: 2, name: "The problem", by: "0:45", lines: [
@@ -20,7 +20,7 @@ module.exports = [
     "And it's not a prototype. It has paid real people real money since July. In August it won first place, Grand Champion, at the OpenClaw Summer Bootcamp, from Metis, GOAT Network, ClawUp and CryptoChicks.",
   ]},
   { slide: 4, name: "Live", by: "1:15", lines: [
-    "Let me show you. Live, on Arc's test network, so these are test dollars. The same engine pays real money on mainnet.",
+    "{liveIntro}",
     "DO Cmd+Tab to Chrome: the buyer's window, on sagepays.xyz, already signed in.",
   ]},
   { where: "Chrome · buyer", name: "Post the job", by: "1:55", lines: [
@@ -31,7 +31,7 @@ module.exports = [
   ]},
   { where: "Chrome · buyer", name: "Launch it", by: "2:15", lines: [
     "Now I fund it. I don't send money to anyone. Sage creates a vault on chain, funds it from my account, and switches it on.",
-    "DO Click \"Let Sage launch it from your account on Arc Testnet\".",
+    "DO Click \"Let Sage launch it from your account on {chipLabel}\".",
     "Live. The vault holds exactly the reward, and Sage can't pay a cent more.",
     "DO Click \"the board\". Copy the address: Cmd+L, Cmd+C.",
   ]},
