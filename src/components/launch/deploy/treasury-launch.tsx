@@ -53,9 +53,12 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
     return () => { live = false; };
   }, []);
 
+  // "hasDoor" means a door that can LAUNCH this plan now: an account that is short of the budget or of
+  // gas still renders (with its own sentence), but it must not fold the wallet route away.
   useEffect(() => {
-    onState?.({ loading: doors === null, hasDoor: (doors?.length ?? 0) > 0 });
-  }, [doors, onState]);
+    const canLaunch = (doors ?? []).some((d) => (d.balanceUsd ?? 0) >= budgetUsd && d.enoughGas !== false);
+    onState?.({ loading: doors === null, hasDoor: canLaunch });
+  }, [doors, onState, budgetUsd]);
 
   if (doors === null) {
     return <p className="lx-sub" style={{ marginBottom: 14 }}><Loader2 size={14} className="sage-spin2" /> Checking your account…</p>;

@@ -87,6 +87,19 @@ describe("the plan page with an account", () => {
     expect(screen.getByText(/stays with the sign-in you used/)).toBeTruthy();
   });
 
+  it("an account too short for the plan does not fold the wallet route away", async () => {
+    const fetchShort = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u === "/api/treasury") return json(NO_GOAT);
+      if (u.startsWith("/api/treasury?chainId=5042")) return json({ ...ARC, balanceUsd: 0.09 });
+      return json({ ok: false });
+    });
+    vi.stubGlobal("fetch", fetchShort);
+    render(<DeployFlow jobId="j" plan={plan} launchChains={[2345, 5042]} />);
+    expect(await screen.findByRole("button", { name: /Connect your wallet/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Let Sage launch it from your account on Arc$/ })).toHaveProperty("disabled", true);
+  });
+
   it("without an account the wallet route is the page, as before", async () => {
     vi.stubGlobal("fetch", routes({ noAccount: true }));
     render(<DeployFlow jobId="j" plan={plan} launchChains={[2345, 5042]} />);
