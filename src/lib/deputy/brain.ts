@@ -82,7 +82,19 @@ const LLM_TIMEOUT_CEILING_MS = 150_000;
 // longest evidence a brief can carry (EVIDENCE_CHARS), while still bounding a runaway.
 export const MAX_TOKENS = 8000;
 const LLM_ATTEMPTS = 3;
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/**
+ * HEDGED ATTEMPTS — the next attempt starts while the previous one is still thinking.
+ *
+ * MEASURED 10 Oct 2026, the same real submission (identical evidence, same approved judge through the
+ * gateway): 27.6 s in the morning, 279 s in the afternoon, because two attempts ran into the token
+ * ceiling (finish_reason "length") one after the other before a third answered. A reasoning model's
+ * length is stochastic, so a slow attempt is not a sign the next one will be slow — and run in
+ * sequence, every slow failure is added to the worker's wait. If an attempt has not answered by this
+ * mark, the next one starts beside it and the FIRST valid brief wins; nothing about the judgment
+ * changes (same provider, model, prompt and strict parse), only how long a stumble costs. A typical
+ * answer arrives at ~25-30 s, so at most two more calls run, each about a cent.
+ */
+const HEDGE_AFTER_MS = 25_000;
 
 /** A resolved LLM endpoint the brain can call. */
 export interface LlmProvider {
@@ -108,6 +120,8 @@ export interface VerifyOptions {
   fallback?: LlmProvider | null;
   /** Inject fetch (fault-injection tests). Production uses the global fetch. */
   fetchImpl?: typeof fetch;
+  /** When a still-thinking attempt is joined by the next one (tests shorten it). Default HEDGE_AFTER_MS. */
+  hedgeAfterMs?: number;
 }
 
 /**
@@ -326,6 +340,61 @@ async function callProvider(
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
+ * The primary's attempts, hedged (see HEDGE_AFTER_MS). Resolves with the first VALID brief — each one
+ * through the unchanged callProvider, so termination checks, the strict parse and provenance are exactly
+ * as before — or null once every attempt has failed. Never more than LLM_ATTEMPTS calls; never throws.
+ * An attempt that loses the race is left to finish on its own timeout and its answer is discarded.
+ */
+function hedgedPrimary(
+  primary: LlmProvider,
+  input: BrainInput,
+  started: number,
+  fetchImpl: typeof fetch,
+  hedgeAfterMs: number,
+): Promise<DecisionBrief | null> {
+  return new Promise((resolve) => {
+    let launched = 0;
+    let failed = 0;
+    let done = false;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const after = (ms: number, fn: () => void) => {
+      const t = setTimeout(() => {
+        timers.delete(t);
+        fn();
+      }, ms);
+      timers.add(t);
+    };
+    const finish = (brief: DecisionBrief | null) => {
+      if (done) return;
+      done = true;
+      for (const t of timers) clearTimeout(t);
+      timers.clear();
+      resolve(brief);
+    };
+    const launch = () => {
+      if (done || launched >= LLM_ATTEMPTS) return;
+      const attempt = ++launched;
+      // if this attempt is still thinking at the mark, the next one starts beside it
+      if (launched < LLM_ATTEMPTS) after(hedgeAfterMs, () => { if (launched === attempt) launch(); });
+      callProvider(primary, input, started, fetchImpl).then(
+        (brief) => finish(brief),
+        (err) => {
+          if (done) return;
+          console.error(`[deputy/brain] primary ${primary.host} attempt ${attempt}/${LLM_ATTEMPTS} failed:`, errMsg(err));
+          failed++;
+          if (failed >= LLM_ATTEMPTS) return finish(null);
+          // a failure starts the next attempt now, after the same short backoff as before — unless the
+          // hedge already started it
+          if (launched === attempt && launched < LLM_ATTEMPTS) after(600 * attempt, () => { if (launched === attempt) launch(); });
+          else if (failed >= launched && launched >= LLM_ATTEMPTS) finish(null);
+        },
+      );
+    };
+    launch();
+  });
+}
+
+/**
  * Judge one submission. Always resolves with a DecisionBrief — never throws.
  *
  * Chain: PRIMARY (up to LLM_ATTEMPTS, retrying transient failures / malformed
@@ -342,20 +411,12 @@ export async function verifySubmission(input: BrainInput, opts: VerifyOptions = 
 
   const started = Date.now();
 
-  // 1) PRIMARY — retry transient provider failures (CommonStack intermittently
-  //    hangs) before failing over; a fresh connection usually succeeds, which
-  //    keeps autopilot on the verified LLM path instead of the heuristic.
-  for (let attempt = 1; attempt <= LLM_ATTEMPTS; attempt++) {
-    try {
-      return await callProvider(primary, input, started, fetchImpl);
-    } catch (err) {
-      console.error(
-        `[deputy/brain] primary ${primary.host} attempt ${attempt}/${LLM_ATTEMPTS} failed:`,
-        errMsg(err),
-      );
-      if (attempt < LLM_ATTEMPTS) await sleep(600 * attempt);
-    }
-  }
+  // 1) PRIMARY — up to LLM_ATTEMPTS, HEDGED: a failure starts the next attempt after a short backoff
+  //    (CommonStack intermittently hangs; a fresh connection usually succeeds), and an attempt still
+  //    thinking at the hedge mark is joined by the next. The first valid brief wins. This keeps
+  //    autopilot on the verified LLM path instead of the heuristic, and keeps it quick.
+  const won = await hedgedPrimary(primary, input, started, fetchImpl, opts.hedgeAfterMs ?? HEDGE_AFTER_MS);
+  if (won) return won;
 
   // 2) FALLBACK — one shot on a DIFFERENT provider. Demo-day insurance: a primary
   //    outage still yields a verified LLM brief instead of silently degrading to
