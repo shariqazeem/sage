@@ -102,12 +102,21 @@ const SETTLED_KINDS = new Set(["settled", "autopay_settled"]);
  * layer supplies real rows, tests supply fixtures.
  */
 export function summarizeSettled(
-  events: ReadonlyArray<{ kind: string; amount: number | null }>,
+  events: ReadonlyArray<{ kind: string; amount: number | null; txHash?: string | null }>,
 ): { paidCount: number; settledBase: number } {
   let paidCount = 0;
   let settledBase = 0;
+  // ONE PAYOUT, ONE COUNT. An EVM autopay journals the same transaction twice — `settled` from the
+  // settle flow and `autopay_settled` from the autopilot — so counting rows reported every such
+  // payout twice ("2 paid · $2.02" for one $1.01, measured 10 Oct 2026). A row is a payout once per tx.
+  const seen = new Set<string>();
   for (const e of events) {
     if (!SETTLED_KINDS.has(e.kind)) continue;
+    if (e.txHash) {
+      const tx = e.txHash.toLowerCase();
+      if (seen.has(tx)) continue;
+      seen.add(tx);
+    }
     paidCount += 1;
     settledBase += e.amount ?? 0;
   }

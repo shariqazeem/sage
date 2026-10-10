@@ -157,7 +157,7 @@ export function buildLinkedRecord(wallet: string, nowSec = Math.floor(Date.now()
     entries,
   };
   const decided = wallets
-    .map((w) => countDecidedSubmissionsByWallet(w))
+    .map((w) => countDecidedSubmissionsByWallet(w, { mainnetOnly: true }))
     .reduce((acc, d) => ({ paid: acc.paid + d.paid, rejected: acc.rejected + d.rejected }), { paid: 0, rejected: 0 });
   const signals = computeCreditSignals(merged, decided, (id) => getCampaign(id)?.posterWallet ?? null, nowSec);
   return { wallets, record: merged, signals, decided };

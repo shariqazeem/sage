@@ -13,6 +13,8 @@ export interface MemberView {
     team: string;
     kind: "testing" | "grant" | "gig";
     rail: SettlementRail;
+    /** the campaign's own chain — GOAT and Arc are both EVM, so the rail alone cannot name it */
+    chainId: number | null;
     rewardBase: number;
     myStatus: string | null;
     myPayoutTx: string | null;
@@ -53,7 +55,7 @@ export function MemberWorkspace({ view }: { view: MemberView }) {
               <li key={w.id} className="ws-row">
                 <div className="ws-row-main">
                   <p className="ws-row-title"><Link href={`/c/${w.id}`}>{w.title}</Link></p>
-                  <p className="ws-row-meta">{w.team} · {KIND[w.kind]} · pays {fmtReward(w.rewardBase, chainFor(w.rail))} · {networkLabel(chainFor(w.rail))}</p>
+                  <p className="ws-row-meta">{w.team} · {KIND[w.kind]} · pays {fmtReward(w.rewardBase, chainFor(w.rail, w.chainId))} · {networkLabel(chainFor(w.rail, w.chainId))}</p>
                 </div>
                 <div className="ws-row-side">
                   {w.myStatus === "paid" ? (

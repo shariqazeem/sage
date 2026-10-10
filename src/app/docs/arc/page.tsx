@@ -25,12 +25,11 @@ export default function ArcDoc() {
       </div>
 
       <p>
-        <strong>Where this stands today.</strong> Arc is on testnet, and Sage runs there with test USDC —
-        the whole loop below is proven on it. Arc mainnet opens on 16 September 2026; the account, the
-        mandate and the receipts move there with one registry entry and one factory deploy. Until then
-        the account every founder gets is on GOAT Network, real USDC, and Starknet is the private rail;
-        Arc is a second tab on <Link href="/workspace/account">your account page</Link>, labelled
-        testnet, for anyone who wants to try it now.
+        <strong>Where this stands today.</strong> Sage runs on Arc mainnet, in real USDC: the account, the
+        mandate and the receipts, the same as on GOAT Network. The first payout settled on 10 October 2026.
+        An Ethereum sign-in (a wallet, or the one an email holds) can keep one account per network: GOAT
+        Network and Arc are the two tabs of <Link href="/workspace/account">your account page</Link>, and
+        Starknet is the private rail.
       </p>
 
       <h2>Why Arc</h2>
@@ -49,20 +48,17 @@ export default function ArcDoc() {
         mandate, whatever happened.
       </p>
       <ul>
-        <li><strong>Fund it</strong> — the address and a QR code on <Link href="/workspace/account?chain=5042002">the Arc tab of your account page</Link>. On testnet, test USDC comes from Circle&apos;s faucet.</li>
+        <li><strong>Fund it</strong> — the address and a QR code on <Link href="/workspace/account?chain=5042">the Arc tab of your account page</Link>. Send USDC on Arc from any wallet or exchange that supports it.</li>
         <li><strong>Use it</strong> — <Link href="/launch">post work</Link>, or <Link href="/workspace/autopilot">let Sage run it</Link>: the agent proposes each move with its reason and launches inside your ceilings.</li>
         <li><strong>Withdraw</strong> — to any address on the chain. The activity list is read from the chain itself, not from a table of ours.</li>
       </ul>
 
-      <h2>What is proven on Arc testnet</h2>
+      <h2>What is proven on Arc mainnet</h2>
       <ul>
-        <li>The V2 CampaignVault factory is deployed at <code>0xfAc019eF6d8B36FE33233244ff0b97f0D9e99B8c</code>.</li>
-        <li>An account launched a gig from its own wallet — create, approve, fund, activate, four transactions signed inside the mandate — and a worker who submitted a public page was judged and paid on chain, with a receipt. Nobody touched a key.</li>
-        <li>An account withdrew to another address through a scoped permit and re-locked.</li>
+        <li>The V2 CampaignVault factory is deployed at <code>0xdD9a45c181dD95e48CDdC0149C8b821D604C45C9</code>, the same contract as on GOAT Network.</li>
+        <li>An account launched a gig from its own wallet — create, approve, fund, activate, signed inside the mandate — and a worker who submitted a public page was judged and paid $1.01 in real USDC, with <Link href="/proof/0x83aef6d39781b020de1421ca8e7042fe8a6af781fe31a249e3fe9f5d9ebff522">a receipt</Link>. Nobody touched a key and nobody approved the payment.</li>
       </ul>
       <p>
-        Arc mainnet is not open yet. The day it opens, the same account, mandate and receipts move there
-        with one registry entry and one factory deploy, and Arc becomes the default rail for new accounts.
         GOAT Network and Starknet stay exactly as they are: GOAT holds the first forty-one real payouts,
         Starknet is the private rail. Nothing about a campaign already running on either changes.
       </p>
@@ -75,7 +71,7 @@ export default function ArcDoc() {
         the world — the same account, funded in USDC from wherever the money is.
       </p>
 
-      <Next items={[{ href: "/docs/settlement", title: "Settlement & proof" }, { href: "/workspace/account?chain=5042002", title: "Your account on Arc" }]} />
+      <Next items={[{ href: "/docs/settlement", title: "Settlement & proof" }, { href: "/workspace/account?chain=5042", title: "Your account on Arc" }]} />
     </Doc>
   );
 }

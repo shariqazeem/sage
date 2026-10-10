@@ -11,6 +11,7 @@ import { Reveal } from "./reveal";
 type Item = { title: string; body: string; how?: string; needs?: string; href?: string; cta?: string };
 const LIVE: Item[] = [
   { title: "One account — fund it once, withdraw anywhere", body: "Sage keeps a wallet for you under an on-chain mandate. Send USDC to it from any wallet or exchange; the agent deploys, funds and activates each campaign from it inside your ceilings; withdraw what is unspent to any address, any time.", how: "a Privy-held wallet under an on-chain mandate · the agent signs, the mandate bounds", href: "/docs/operator", cta: "How the account works" },
+  { title: "The account on Arc, where USDC is the gas", body: "The same account, mandate and receipts on Arc, Circle's chain — funded with USDC alone, nothing else to find. Live on Arc mainnet: the first real-USDC payout settled on 10 October, in a rehearsal with our own wallets.", how: "one chain-registry entry and a factory deploy · nothing else changed", href: "/proof/0x83aef6d39781b020de1421ca8e7042fe8a6af781fe31a249e3fe9f5d9ebff522", cta: "the receipt" },
   { title: "Verified payments in minutes, at a flat $0.10", body: "Two settlement rails, a public receipt for every payout, a written reason for every refusal.", how: "the agent judges · the vault enforces the limits in code", href: "/explorer", cta: "the ledger" },
   { title: "A cash-flow record per worker, and a lender's view", body: "JSON, CSV and a printable statement a loan officer can check line by line.", how: "published formulas over receipts · never a score", href: "/lender", cta: "for lenders" },
   { title: "Obligations in 14 currencies, Caribbean first", body: "J$, TT$, EC$, Bds$ and ten more, converted once at a stamped, source-attributed rate.", how: "priced in your money · settled in digital dollars", href: "/launch", cta: "the composer" },
@@ -21,7 +22,6 @@ const LIVE: Item[] = [
   { title: "Cash-out today, on the private rail", body: "A worker collects a payout straight to their exchange's Starknet deposit address — Binance takes native USDC on Starknet with no bridge — and turns it into J$ or TT$ by P2P.", how: "native USDC · a claim collected to any Starknet address · no partner needed", href: "/docs/privacy", cta: "how the private rail pays" },
 ];
 const WEEK: Item[] = [
-  { title: "The account on Arc, where USDC is the gas", body: "The same account, mandate and receipts on Arc, Circle's chain — funded with USDC alone, nothing else to find. Proven end to end on Arc testnet on 10 September; on mainnet the day Arc opens it.", how: "one chain-registry entry and a factory deploy · nothing else changes", needs: "Arc mainnet to launch (16 September)", href: "/docs/arc", cta: "Sage on Arc" },
   { title: "Treasuries that run themselves", body: "An organisation funds once; the agent proposes each move with its reason and launches inside the ceilings.", how: "the operator, on real treasuries" },
 ];
 const NEXT: Item[] = [

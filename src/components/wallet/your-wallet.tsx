@@ -33,8 +33,8 @@ type Prepared = {
 
 const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
 
-/** The EVM rails a worker can be paid on. A payout's chain is the campaign's, never the worker's choice. */
-const RAILS = [2345, 5042, 5042002] as const;
+/** The EVM rails a worker can be paid on — mainnets only. A payout's chain is the campaign's, never the worker's choice. */
+const RAILS = [2345, 5042] as const;
 
 export function YourWallet({ address }: { address: string }) {
   const injected = useWallet();

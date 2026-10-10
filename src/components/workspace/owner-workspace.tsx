@@ -19,6 +19,8 @@ export interface OwnerView {
     status: string;
     visibility: "listed" | "unlisted";
     rail: SettlementRail;
+    /** the campaign's own chain — GOAT and Arc are both EVM, so the rail alone cannot name it */
+    chainId: number | null;
     rewardBase: number;
     paid: number;
     pending: number;
@@ -87,7 +89,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             {view.chain === "starknet" ? (
               <><b>Your rail is Starknet.</b> Real USDC, private when you ask. Each campaign is funded from your wallet when you post it, and every payout settles through the Cairo vault.</>
             ) : (
-              <><b>Your rail is GOAT Network.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.arc ? <> <Link href={`/workspace/account?chain=${ARC_LAUNCH_CHAIN}`} className="ws-rail-new"><span className="ws-new">new</span>Open the same account on Arc, where USDC is the gas</Link>.</> : null}</>
+              <><b>Your money moves on GOAT Network or Arc.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.arc ? <> <Link href={`/workspace/account?chain=${ARC_LAUNCH_CHAIN}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Arc, where USDC is the gas</Link>.</> : null}</>
             )}
           </p>
           <ol className="ws-check">
@@ -133,7 +135,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
               <li key={c.id} className="ws-row">
                 <div className="ws-row-main">
                   <p className="ws-row-title"><span className="ws-livedot" aria-hidden /><Link href={`/campaign/${c.id}`}>{c.title}</Link></p>
-                  <p className="ws-row-meta">{KIND[c.kind]} · {fmtReward(c.rewardBase, chainFor(c.rail))} each · {c.paid}/{c.slots} paid{c.pending ? ` · ${c.pending} in review` : ""} · {networkLabel(chainFor(c.rail))}</p>
+                  <p className="ws-row-meta">{KIND[c.kind]} · {fmtReward(c.rewardBase, chainFor(c.rail, c.chainId))} each · {c.paid}/{c.slots} paid{c.pending ? ` · ${c.pending} in review` : ""} · {networkLabel(chainFor(c.rail, c.chainId))}</p>
                 </div>
                 <div className="ws-row-side">
                   <span className={`ws-chip${c.visibility === "unlisted" ? "" : " accent"}`}>{c.visibility === "unlisted" ? "members only" : "public"}</span>

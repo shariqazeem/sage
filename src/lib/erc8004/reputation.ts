@@ -9,7 +9,7 @@ import {
   sumSettledFeesBase,
   walletsByPayoutTx,
 } from "@/lib/db/campaigns";
-import { chainConfig, explorerTxUrl, DEFAULT_CHAIN_ID } from "@/lib/deputy/networks";
+import { chainConfig, explorerTxUrl, DEFAULT_CHAIN_ID, isMainnetChain } from "@/lib/deputy/networks";
 import type { PayoutReceipt } from "@/lib/deputy/chain";
 import { agentAddress, hasAgentKey } from "@/lib/x402/goat-pay";
 import type { BriefRecommendation } from "@/lib/deputy/brain-core";
@@ -38,8 +38,15 @@ const PAYOUT_KINDS: EventKind[] = ["settled", "autopay_settled", "blocked"];
  *  Each event is tagged with its campaign's chainId so the dedup key is
  *  chainId+tx and a per-chain split is possible (testnet ≠ mainnet). */
 function readRepEvents(): RepEvent[] {
-  const chainById = new Map(listCampaigns().map((c) => [c.id, c.chainId]));
-  return listEventsByKinds(PAYOUT_KINDS).map((e) => ({
+  // REAL MONEY ONLY (10 Oct 2026): the agent card, /agents/sage and every reputation total count what
+  // actually moved — mainnet, non-sandbox campaigns. A testnet payout is a real transaction that moved
+  // no real money, and it was being summed into one "$" figure beside the real ones.
+  const chainById = new Map(
+    listCampaigns()
+      .filter((c) => !c.sandbox && isMainnetChain(c.chainId))
+      .map((c) => [c.id, c.chainId]),
+  );
+  return listEventsByKinds(PAYOUT_KINDS).filter((e) => chainById.has(e.campaignId)).map((e) => ({
     kind: e.kind,
     amount: e.amount,
     txHash: e.txHash,

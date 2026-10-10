@@ -44,10 +44,11 @@ describe("getPublicReceipts on a busy testnet day", () => {
     expect(feed[0]?.txHash).toBe(hash(1));
   });
 
-  it("the unfiltered cap alone would have blanked it — the shape the landing had", () => {
+  it("even unfiltered, no testnet receipt reaches the feed — real money is filtered at the source (10 Oct 2026)", () => {
+    // Before, the unfiltered newest-twelve were all testnet and the real payout fell off the end.
     const newestTwelve = getPublicReceipts(12);
-    expect(newestTwelve).toHaveLength(12);
-    expect(newestTwelve.filter((r) => isMainnetRail(r.chainId))).toHaveLength(0);
+    expect(newestTwelve.map((r) => r.chainId)).toEqual([GOAT]);
+    expect(newestTwelve.every((r) => isMainnetRail(r.chainId))).toBe(true);
   });
 
   it("knows which rails settle real money", () => {

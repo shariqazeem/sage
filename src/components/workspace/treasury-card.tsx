@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ARC_LAUNCH_CHAIN } from "@/lib/deputy/networks";
 import Link from "next/link";
 import { ArrowUpRight, Check, Copy, Landmark, Loader2 } from "lucide-react";
 
@@ -82,7 +83,7 @@ export function TreasuryCard() {
     <section className="ws-card" id="account">
       <div className="ws-card-h">
         <h2><Landmark size={15} /> Your account</h2>
-        {st?.linked ? <Link className="ws-chip" href="/workspace/account">fund · withdraw · activity <ArrowUpRight size={11} /></Link> : null}
+        {st && st.available !== false ? <Link className="ws-chip" href="/workspace/account">{st.linked ? "fund · withdraw · every network" : "GOAT Network · Arc"} <ArrowUpRight size={11} /></Link> : null}
       </div>
       {st === null ? (
         <p className="ws-note" style={{ margin: 0 }}><Loader2 size={13} className="sage-spin2" /> Reading…</p>
@@ -115,7 +116,7 @@ export function TreasuryCard() {
             <input className="ws-input" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} aria-label="Per-campaign cap in USDC" />
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void create()} disabled={busy}>{busy ? <><Loader2 size={13} className="sage-spin2" /> Opening…</> : `Open your account on ${network}`}</button>
           </div>
-          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may put into any one campaign. You can change it any time on your account page.</p>
+          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may put into any one campaign. You can change it any time on your account page. One account per network: <Link href={`/workspace/account?chain=${ARC_LAUNCH_CHAIN}`}>open it on Arc instead</Link>, where USDC is the gas.</p>
           {err && <p className="ws-err">{err}</p>}
         </>
       )}

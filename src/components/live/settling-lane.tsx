@@ -71,7 +71,7 @@ export function SettlingLane({ campaignId, title = "Settling" }: { campaignId?: 
                   <svg viewBox="0 0 56 56" aria-hidden><circle className="track" cx="28" cy="28" r={R} /><circle className="prog" cx="28" cy="28" r={R} style={{ strokeDasharray: C, strokeDashoffset: C * (1 - frac) }} /></svg>
                   <div className="mid">{t.state === "approved" ? (remaining > 0 ? mmss(remaining) : "due") : t.state === "settling" ? "…" : t.state === "paid" ? "paid" : "×"}</div>
                 </div>
-                <div className="lv-t-amt">{usd(t.rewardBase)} <span style={{ fontWeight: 500, color: "var(--ink-faint)", fontSize: 11 }}>{t.rail === "starknet" ? "Starknet · private" : "GOAT"}</span></div>
+                <div className="lv-t-amt">{usd(t.rewardBase)} <span style={{ fontWeight: 500, color: "var(--ink-faint)", fontSize: 11 }}>{t.network}</span></div>
                 <div className="lv-t-who">{short(t.wallet)}{campaignId ? "" : ` · ${t.campaignTitle}`}</div>
                 {t.lights ? (
                   <div className="lv-lights">

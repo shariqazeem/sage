@@ -27,13 +27,14 @@ import type { Deployment } from "@/lib/db/schema";
 /** The default launch chain when a founder's wallet doesn't pin a supported one. */
 export const LAUNCH_CHAIN_ID = 59902;
 
-/** Chains the self-serve launch wizard may deploy to, in order of preference: GOAT mainnet first
- *  (the real-money default until the Arc flip), then Arc mainnet — the explicit choice — then Arc
- *  testnet (kept so accounts and campaigns already on it keep working; never offered to anyone new),
- *  then the legacy Metis testnet. A chain is only truly enabled when its V2 factory + operator +
- *  token are configured (see `isLaunchChain`), so each turns on exactly when its `<PREFIX>_*`
- *  addresses are set — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042, 5042002, 59902];
+/** Chains Sage launches on and opens accounts on, in order of preference: GOAT mainnet first (the
+ *  real-money default until the Arc flip), then Arc mainnet — the explicit choice. MAINNETS ONLY
+ *  (10 Oct 2026, the founder's rule once real money ran on all three networks: "no testnet thing").
+ *  Arc testnet and Metis Sepolia left this list, so no account tab, launch door, deploy picker or
+ *  launch route offers them; the chain registry still knows both, so a campaign already on one keeps
+ *  resolving, settling and labelling itself as the testnet it is. A chain is only truly enabled when
+ *  its V2 factory + operator + token are configured (see `isLaunchChain`) — fails closed. */
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042];
 
 /** The launch chains the server is actually configured for, in preference order — what a picker may offer. */
 export function configuredLaunchChains(): number[] {

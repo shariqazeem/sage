@@ -53,6 +53,15 @@ if (cmd === "draft") {
   const r = await api(`/api/launch/${a1}/treasury`, { method: "POST", body: JSON.stringify({ chainId: Number(a2) }) });
   console.error(`launch ${r.status} in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   console.log(JSON.stringify(r, null, 2));
+} else if (cmd === "account") {
+  // open (once per chain) and read the founder's account on a chain: `account <chainId> [capUsd]`
+  const chainId = Number(a1);
+  let r = await api(`/api/treasury?chainId=${chainId}`);
+  if (!r.body.linked) {
+    console.error(`opening the account on chain ${chainId}…`);
+    r = await api("/api/treasury", { method: "POST", body: JSON.stringify({ chainId, perCampaignCapUsd: Number(a2 ?? 10) }) });
+  }
+  console.log(JSON.stringify(r, null, 2));
 } else if (cmd === "job") {
   console.log(JSON.stringify(await api(`/api/launch/${a1}`), null, 2));
 }

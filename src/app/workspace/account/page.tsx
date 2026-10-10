@@ -32,8 +32,9 @@ export const metadata = { title: "Your account" };
  * a Privy wallet under the mandate, one per network. USDC in from any wallet or exchange, the agent
  * launches and pays from it inside the mandate, USDC out to any address through a one-time permit.
  * Everything here is read from the chain or the ledger; nothing is a projection. GOAT mainnet is
- * the account every founder gets; Arc, while it is on testnet, is a second tab that says "testnet"
- * and holds test USDC only — an explicit choice, never the default of a mainnet product.
+ * the account every founder gets; Arc mainnet is the second tab, one click to open. MAINNETS ONLY
+ * (10 Oct 2026): a testnet account opened before Arc mainnet stays in the ledger, but no tab offers
+ * it — the founder's rule, "no testnet thing", once real money ran on all three networks.
  *
  * A Starknet sign-in has no Ethereum address for the mandate to reclaim to, so there is no Sage-
  * held account for it — and the page says that in those words, shows the wallet that IS their
@@ -51,8 +52,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const home = treasuryChainId();
   const accounts = listWebTreasuries(founder);
-  // The networks on offer: the home chain and Arc (explicitly), plus any chain the founder already holds an account on.
-  const offered = [...new Set([home, ...configuredLaunchChains().filter((id) => id === ARC_LAUNCH_CHAIN), ...accounts.map((a) => a.chainId)])];
+  // The networks on offer: the home chain and Arc (explicitly), plus any MAINNET the founder already holds an account on.
+  const offered = [...new Set([home, ...configuredLaunchChains().filter((id) => id === ARC_LAUNCH_CHAIN), ...accounts.map((a) => a.chainId).filter((id) => chainConfig(id).isMainnet)])];
   const asked = Number(sp.chain);
   const chainId = offered.includes(asked) ? asked : home;
   const chain = chainConfig(chainId);
@@ -65,8 +66,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         const has = accounts.some((a) => a.chainId === id);
         return (
           <Link key={id} href={id === home ? "/workspace/account" : `/workspace/account?chain=${id}`} className={`ac-tab${id === chainId ? " on" : ""}`} aria-current={id === chainId ? "page" : undefined}>
-            <span>{c.chipLabel}</span>
-            <span className="ac-tab-k">{c.isMainnet ? "mainnet · real USDC" : "new · testnet · test USDC"}{has ? "" : " · not opened"}</span>
+            <span>{c.name}</span>
+            <span className="ac-tab-k">{c.isMainnet ? "mainnet · real USDC" : "testnet · test USDC"}{has ? "" : " · not opened"}</span>
           </Link>
         );
       })}
@@ -104,9 +105,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <section className="ws-card">
               <div className="ws-card-h"><h2>Open your account on {chain.name}</h2><span className="ws-chip">{chain.isMainnet ? "mainnet" : "testnet"}</span></div>
               <p className="ws-note" style={{ margin: "0 0 12px" }}>
-                {chain.isMainnet
-                  ? <>Real USDC on {chain.name}. Launches there also need a little {chain.nativeSymbol} for gas; Sage covers the first launch.</>
-                  : <><b>New.</b> Arc is Circle&apos;s chain, where USDC is the gas: fund the account with USDC and it needs nothing else. Testnet today, with test USDC from Circle&apos;s faucet; on mainnet the day Arc opens, 16 September, when it becomes the default.</>}
+                {chain.nativeSymbol === "USDC"
+                  ? <>Real USDC on {chain.name}, Circle&apos;s chain, where USDC is the gas too: fund the account with USDC and it needs nothing else.</>
+                  : <>Real USDC on {chain.name}. Launches there also need a little {chain.nativeSymbol} for gas; Sage covers the first launch.</>}
               </p>
               <OpenAccount chainId={chainId} network={chain.name} isMainnet={chain.isMainnet} />
             </section>

@@ -115,7 +115,9 @@ try {
   await fp.waitForURL(/\/launch\/[A-Za-z0-9_-]{8,}/, { timeout: 120000 });
   const jobId = fp.url().split("/launch/")[1].split(/[?#]/)[0];
   mark(`founder: plan page (job ${jobId})`);
-  const go = fp.getByRole("button", { name: /Let Sage launch it from your account on Arc Testnet/ });
+  // LIVE_CHIP picks the account door by its network name: "Arc" (mainnet, real USDC, the default) or "Arc Testnet"
+  const chip = (process.env.LIVE_CHIP ?? "Arc").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const go = fp.getByRole("button", { name: new RegExp(`Let Sage launch it from your account on ${chip}$`) });
   await go.waitFor({ timeout: 60000 });
   await snap(fp, "plan");
   await go.click();

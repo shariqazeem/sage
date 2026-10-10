@@ -117,6 +117,17 @@ describe("summarizeSettled", () => {
     expect(out).toEqual({ paidCount: 2, settledBase: 1_500_000 });
   });
 
+  it("counts one payout once when the settle flow and the autopilot both journal its tx", () => {
+    const tx = "0x83aef6d39781b020de1421ca8e7042fe8a6af781fe31a249e3fe9f5d9ebff522";
+    expect(
+      summarizeSettled([
+        { kind: "settled", amount: 1_010_000, txHash: tx },
+        { kind: "autopay_settled", amount: 1_010_000, txHash: tx.toUpperCase().replace("0X", "0x") },
+        { kind: "autopay_settled", amount: 1_010_000, txHash: "0xabc" },
+      ]),
+    ).toEqual({ paidCount: 2, settledBase: 2_020_000 });
+  });
+
   it("treats a null amount as zero and empty as zero", () => {
     expect(summarizeSettled([{ kind: "settled", amount: null }])).toEqual({
       paidCount: 1,

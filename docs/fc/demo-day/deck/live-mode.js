@@ -4,7 +4,8 @@
 // build-deck.js and build-script.mjs fill these into script.js's {placeholders}.
 const MODES = {
   mainnet: {
-    chipLabel: "Arc Mainnet",
+    // the account door names the network by its registry name: "…from your account on Arc"
+    chipLabel: "Arc",
     promise: "In the next few minutes, you'll watch it pay someone. Live, with real money.",
     openingLive: "Live, with real money.",
     liveIntro: "Let me show you. Live, with real money, on Arc, where the dollar pays its own fee.",

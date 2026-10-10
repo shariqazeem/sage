@@ -26,7 +26,7 @@ describe("walletSpellings", () => {
 
   it("the credit wrapper counts decided work under every spelling the record was built from", () => {
     const credit = readFileSync("src/lib/campaigns/credit.ts", "utf8");
-    expect(credit).toMatch(/countDecidedSubmissionsByWallet\(walletSpellings\(record\.wallet\)\)/);
+    expect(credit).toMatch(/countDecidedSubmissionsByWallet\(walletSpellings\(record\.wallet\)[,)]/);
     const record = readFileSync("src/lib/campaigns/record.ts", "utf8");
     expect(record).toMatch(/const variants = walletSpellings\(wallet\)/);
   });

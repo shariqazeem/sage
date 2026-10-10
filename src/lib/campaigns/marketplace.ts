@@ -98,6 +98,8 @@ export interface MarketplaceRow {
   tokenSymbol: string;
   isTestnet: boolean;
   settlementRail: SettlementRail;
+  /** the campaign's chain — GOAT and Arc are both EVM, so the row names its network from this */
+  chainId: number;
   autopays: boolean;
   /** roughly how involved the work is, derived from what the mission asks for — never a promise. */
   effort: "quick" | "standard" | "deep";
@@ -451,6 +453,7 @@ export function marketplace(): MarketplaceView {
       maxCompletions: m.maxCompletions,
       tokenSymbol: c.tokenSymbol,
       isTestnet: c.isTestnet,
+      chainId: c.chainId,
       settlementRail: c.settlementRail,
       autopays: c.autopays,
       effort: effortOf(m),

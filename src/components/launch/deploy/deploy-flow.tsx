@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { viemChainFor, chainConfig, explorerAddressUrl, ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { viemChainFor, chainConfig, explorerAddressUrl, ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
@@ -531,7 +531,7 @@ function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof 
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign pays real USDC on {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}.</p>
+          <p className="lxd-own">This campaign pays real USDC, on {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}{arcOffered ? ` or ${chainConfig(ARC_LAUNCH_CHAIN).name}` : ""}. Pick the network to launch on.</p>
           {/* The wallet's own dialog will name the chain, so the button names it too — matching
               what the founder is about to see is clarity, not chain-speak. */}
           <button className="lx-btn" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
@@ -562,7 +562,7 @@ function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof 
       )}
       {siwe.address && (
         <div className="lxd-sub-addr mono">
-          Connected: {short(siwe.address)} · {chainConfig(siwe.chainId).chipLabel}
+          Connected: {short(siwe.address)} · {siwe.chainId != null && isSupportedChain(siwe.chainId) ? chainConfig(siwe.chainId).chipLabel : `another network${siwe.chainId != null ? ` (chain ${siwe.chainId})` : ""}`}
         </div>
       )}
     </div>
@@ -669,8 +669,8 @@ function PreviewPanel({ preview, dep, busy, batchSupported, onStart }: { preview
 
           {!preview.sufficientBalance && (
             <div className="lx-note">
-              Your wallet is short {preview.shortfallHuman} {launchToken(dep.chainId)} to fund this campaign. Top up (or use the testnet
-              faucet) and reload before continuing.
+              Your wallet is short {preview.shortfallHuman} {launchToken(dep.chainId)} to fund this campaign. Top it up with USDC on{" "}
+              {chainConfig(dep.chainId).name} and reload before continuing.
             </div>
           )}
           {preview.vaultAlreadyExists && (

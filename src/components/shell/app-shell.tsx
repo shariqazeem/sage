@@ -7,7 +7,7 @@ import { House, Sparkles } from "lucide-react";
 import { AppRail } from "./app-rail";
 import { NetworkChip } from "@/components/app/network-chip";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
-import { DEFAULT_EVM_LAUNCH_CHAIN, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { shellNetworks } from "./shell-networks";
 import "./app-shell.css";
 import { isAppRoute } from "./routes";
 
@@ -41,14 +41,17 @@ function ContextPills() {
    *
    * But which settlement network that IS now depends on who is signed in. It was hardcoded to
    * GOAT, so a founder signed in with a Starknet wallet read "GOAT Mainnet" on every screen — a
-   * chain they hold nothing on and will never settle through.
+   * chain they hold nothing on and will never settle through. And an Ethereum sign-in settles on two
+   * mainnets, GOAT and Arc, so it names both (shell-networks.ts). Nothing renders while the session
+   * is still being asked, so a Starknet founder never sees the EVM pair flash first.
    */
   const founder = useFounderSession();
+  if (founder.loading) return <div className="ctx-pills" />;
   return (
     <div className="ctx-pills">
-      <NetworkChip
-        chainId={founder.chain === "starknet" ? STARKNET_MAINNET_KEY : DEFAULT_EVM_LAUNCH_CHAIN}
-      />
+      {shellNetworks(founder.chain).map((id) => (
+        <NetworkChip key={id} chainId={id} />
+      ))}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { chainConfig } from "@/lib/deputy/networks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Zap, UserCheck, Clock, Users, EyeOff, Wallet } from "lucide-react";
@@ -28,6 +29,7 @@ type SortKey = "top" | "low" | "slots" | "quick";
  * with the chain's name, because that is the part they care about.
  */
 const RAIL_LABEL: Record<SettlementRail, string> = {
+  // An EVM row names its own chain (GOAT or Arc) from the registry; this is the fallback only.
   evm: "GOAT",
   starknet: "Starknet · private",
 };
@@ -148,11 +150,11 @@ export function MarketplaceBoard({
                   </span>
                   <span className="mk-row-chip">
                     {r.settlementRail === "starknet" ? <EyeOff size={11} /> : <Wallet size={11} />}
-                    {RAIL_LABEL[r.settlementRail]}
+                    {r.settlementRail === "starknet" ? RAIL_LABEL.starknet : chainConfig(r.chainId).name.replace(/ Network$/, "")}
                   </span>
                   {needsOtherWallet && (
                     <span className="mk-row-chip mk-row-chip-wallet">
-                      needs a {r.settlementRail === "starknet" ? "Starknet" : "GOAT"} wallet
+                      needs {r.settlementRail === "starknet" ? "a Starknet" : "an Ethereum"} wallet
                     </span>
                   )}
                   {r.isTestnet && <span className="mk-row-chip mk-row-chip-test">testnet</span>}

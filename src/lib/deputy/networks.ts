@@ -216,6 +216,21 @@ export function chainConfig(chainId?: number | null): ChainConfig {
   return CHAINS[DEFAULT_CHAIN_ID];
 }
 
+/**
+ * REAL MONEY — whether a chain settles real USDC. The one test every record, public total and receipt
+ * count uses ("no testnet thing", 10 Oct 2026): a testnet payout is a real transaction that moves no
+ * real money, so it is never income and never part of a settlement total. Unknown or missing → false
+ * (chainConfig would fall back to the default testnet, which is the same answer).
+ */
+export function isMainnetChain(chainId: number | null | undefined): boolean {
+  return chainId != null && chainId in CHAINS && CHAINS[chainId].isMainnet;
+}
+
+/** Every registry chain that settles real money — for queries that filter rows by chain id. */
+export function mainnetChainIds(): number[] {
+  return Object.keys(CHAINS).map(Number).filter((id) => CHAINS[id].isMainnet);
+}
+
 /** Whether a chainId is one the Deputy is configured to operate on. */
 export function isSupportedChain(chainId: number): boolean {
   return chainId in CHAINS;

@@ -21,6 +21,7 @@ import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { campaignAutopays } from "@/lib/campaigns/autopay-status";
 import { BudgetRing } from "@/components/app/budget-ring";
 import { NetworkChip } from "@/components/app/network-chip";
+import { chainConfig } from "@/lib/deputy/networks";
 import { SubmitPanel } from "@/components/campaigns/submit-panel";
 import { V2Board, HowYouGetPaid, TesterFaq } from "@/components/campaigns/v2-board";
 import { identityDoorArmed } from "@/lib/identity/door";
@@ -68,7 +69,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 function boardHeadline(c: NonNullable<ReturnType<typeof getCampaign>>): { title: string; description: string } {
   const e = hasMissionPlan(c.vaultKind) ? v2Economics(c) : null;
   const one = e && e.missions.length === 1 ? e.missions[0] : null;
-  const rail = c.vaultKind === "sage_vault_starknet" ? "Starknet — privately, if you choose" : "GOAT Network";
+  const rail = c.vaultKind === "sage_vault_starknet" ? "Starknet — privately, if you choose" : chainConfig(c.chainId).name;
   const isDirect = c.kind === "gig" || c.kind === "grant";
   if (isDirect && one) {
     const each = (one.rewardBase / 1_000_000).toLocaleString("en-US", { style: "currency", currency: "USD" });

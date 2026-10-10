@@ -2,6 +2,7 @@ import "server-only";
 import { settledLedger } from "./settled-ledger";
 
 import { getCampaign, getMissionByHash, listPaidSubmissionsByWallet } from "@/lib/db/campaigns";
+import { isMainnetChain } from "@/lib/deputy/networks";
 
 /**
  * THE VERIFIED WORK RECORD (move 3 of the pivot) — a wallet's portable, receipt-anchored history
@@ -89,6 +90,10 @@ export function buildWalletRecord(walletRaw: string): WalletRecord | null {
     if (!s.payoutTx) continue; // paid without a tx would be an inconsistency — never show unanchored rows
     const campaign = getCampaign(s.campaignId);
     if (!campaign || campaign.sandbox) continue;
+    // REAL MONEY ONLY (10 Oct 2026). A lender reads this as income and an advance is sized from it, so
+    // a testnet payout — a real transaction that moved no real money — is not a line here. Same rule as
+    // every public total (settled-ledger.ts `mainnet`); the testnet receipt itself stays on chain.
+    if (!isMainnetChain(campaign.chainId)) continue;
     const mission = s.missionIdHash ? getMissionByHash(campaign.id, s.missionIdHash) : null;
     // MONEY FROM THE SETTLED LEDGER FIRST — what the vault actually released, keyed by the
     // anchoring tx; the reward lookup remains only for a row whose settlement never reached the

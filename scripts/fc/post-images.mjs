@@ -10,6 +10,7 @@ const shots = [
   ["receipt-jmd-private-leg", "/proof/0x2337afda7ef311c4bd515d66feb78f0903f16b3cc23e49ef7fb7702fe1bb54", 900],
   ["seller-record", "/record/0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434", 120],
   ["caribbean-proven", "/caribbean", 3950],
+  ["seller-advance", "/record/0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434", 1150],
 ];
 // `node scripts/fc/post-images.mjs receipt-jmd seller-record` captures only the named shots.
 const only = process.argv.slice(2);

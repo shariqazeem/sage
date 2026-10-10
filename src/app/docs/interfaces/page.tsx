@@ -78,7 +78,7 @@ export default function Interfaces() {
             </tr>
             <tr>
               <td>Networks</td>
-              <td>GOAT Network mainnet is where real settlement happens, in real USDC. Metis Sepolia is the test network</td>
+              <td>Three mainnets, all in real USDC: GOAT Network and Arc settle through the EVM vault, and Starknet is the private rail through the Cairo vault</td>
             </tr>
           </tbody>
         </table>

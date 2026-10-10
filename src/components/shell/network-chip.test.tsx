@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { NetworkChip } from "@/components/app/network-chip";
-import { GOAT_MAINNET_CHAIN_ID, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { shellNetworks } from "./shell-networks";
+import { ARC_MAINNET_CHAIN_ID, chainConfig, GOAT_MAINNET_CHAIN_ID, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 
 /**
  * The chip names the SETTLEMENT network, and which one that is depends on who is signed in.
@@ -34,6 +35,23 @@ describe("the network chip", () => {
       const { container, unmount } = render(<NetworkChip chainId={id} />);
       expect(container.textContent).not.toMatch(/sepolia|testnet/i);
       unmount();
+    }
+  });
+});
+
+describe("the networks the shell names", () => {
+  it("an Ethereum sign-in settles on GOAT and Arc, so both are named", () => {
+    expect(shellNetworks("evm")).toEqual([GOAT_MAINNET_CHAIN_ID, ARC_MAINNET_CHAIN_ID]);
+  });
+
+  it("a Starknet sign-in is named Starknet alone; signed out, all three", () => {
+    expect(shellNetworks("starknet")).toEqual([STARKNET_MAINNET_KEY]);
+    expect(shellNetworks(null)).toEqual([GOAT_MAINNET_CHAIN_ID, ARC_MAINNET_CHAIN_ID, STARKNET_MAINNET_KEY]);
+  });
+
+  it("never names a testnet", () => {
+    for (const who of ["evm", "starknet", null] as const) {
+      for (const id of shellNetworks(who)) expect(chainConfig(id).isMainnet).toBe(true);
     }
   });
 });

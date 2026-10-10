@@ -39,7 +39,16 @@ function line(e: CampaignEvent): string | null {
  * rather than inventing activity (CLAUDE.md §5).
  */
 export async function GET() {
+  // One SETTLE line per payout: an EVM autopay journals its tx as both `settled` and `autopay_settled`.
+  const settledTx = new Set<string>();
   const lines = listRecentEvents(24)
+    .filter((e) => {
+      if ((e.kind !== "settled" && e.kind !== "autopay_settled") || !e.txHash) return true;
+      const tx = e.txHash.toLowerCase();
+      if (settledTx.has(tx)) return false;
+      settledTx.add(tx);
+      return true;
+    })
     .map((e) => ({ id: e.id, at: e.createdAt, text: line(e) }))
     .filter((l): l is { id: string; at: number; text: string } => !!l.text);
   return NextResponse.json(

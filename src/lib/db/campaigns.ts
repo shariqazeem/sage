@@ -31,6 +31,7 @@ import type { DecisionBriefContent } from "../deputy/brain-core";
 import { missionSpecDigest, type MissionSpecInput } from "../campaigns/mission-spec";
 import { dedupeKey, missionDedupeKey, nowSeconds } from "./keys";
 import { sameFounder } from "@/lib/auth/founder";
+import { mainnetChainIds } from "@/lib/deputy/networks";
 
 /* ─────────────────────────────────────────────────────── campaigns ────── */
 
@@ -259,16 +260,30 @@ export function findArtifactTwin(campaignId: string, sha: string, excludeId: str
 /** Decided-outcome counts for one wallet (case-insensitive, like the paid listing). "Decided"
  *  means a terminal judgment was recorded — paid or rejected; pending/settling are in flight and
  *  a HOLD is a decision action that leaves the row pending, so neither belongs in a pass rate. */
-export function countDecidedSubmissionsByWallet(wallet: string | string[]): { paid: number; rejected: number } {
+export function countDecidedSubmissionsByWallet(
+  wallet: string | string[],
+  opts: { mainnetOnly?: boolean } = {},
+): { paid: number; rejected: number } {
   // Every spelling the caller knows (walletSpellings) — a Starknet wallet is written several ways,
   // and a count under one of them beside a record built under another read "of 0 judged".
   const spellings = (Array.isArray(wallet) ? wallet : [wallet]).map((w) => w.toLowerCase());
-  const rows = db
-    .select({ status: submissions.status, c: sql<number>`count(*)` })
-    .from(submissions)
-    .where(and(inArray(sql`lower(${submissions.wallet})`, spellings), inArray(submissions.status, ["paid", "rejected"])))
-    .groupBy(submissions.status)
-    .all();
+  const byWallet = and(inArray(sql`lower(${submissions.wallet})`, spellings), inArray(submissions.status, ["paid", "rejected"]));
+  // mainnetOnly: the credit layer's pass rate judges the same population as its record — real-money,
+  // non-sandbox campaigns — or a testnet refusal would move a number a lender prices.
+  const rows = opts.mainnetOnly
+    ? db
+        .select({ status: submissions.status, c: sql<number>`count(*)` })
+        .from(submissions)
+        .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+        .where(and(byWallet, inArray(campaigns.chainId, mainnetChainIds()), eq(campaigns.sandbox, false)))
+        .groupBy(submissions.status)
+        .all()
+    : db
+        .select({ status: submissions.status, c: sql<number>`count(*)` })
+        .from(submissions)
+        .where(byWallet)
+        .groupBy(submissions.status)
+        .all();
   const out = { paid: 0, rejected: 0 };
   for (const r of rows) {
     if (r.status === "paid") out.paid = r.c;
@@ -690,10 +705,12 @@ export function listApprovedSubmissions(): Submission[] {
  * owns the distinct-count logic; blanks and case are handled there.
  */
 export function listPaidRecipientWallets(): string[] {
+  // Real-money, non-sandbox campaigns only — the same population as every payout total (10 Oct 2026).
   return db
     .select({ wallet: submissions.wallet })
     .from(submissions)
-    .where(eq(submissions.status, "paid"))
+    .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+    .where(and(eq(submissions.status, "paid"), inArray(campaigns.chainId, mainnetChainIds()), eq(campaigns.sandbox, false)))
     .all()
     .map((r) => r.wallet);
 }
@@ -1433,15 +1450,18 @@ export function listCampaignEvents(campaignId: string): CampaignEvent[] {
     .all();
 }
 
-/** Recent journal events across all NON-sandbox campaigns, newest first — the ticker. */
+/** Recent journal events across all NON-sandbox, REAL-MONEY campaigns, newest first — the ticker. */
 export function listRecentEvents(limit = 24): CampaignEvent[] {
   return db
     .select()
     .from(events)
     .where(
-      notInArray(
+      inArray(
         events.campaignId,
-        db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.sandbox, true)),
+        db
+          .select({ id: campaigns.id })
+          .from(campaigns)
+          .where(and(eq(campaigns.sandbox, false), inArray(campaigns.chainId, mainnetChainIds()))),
       ),
     )
     .orderBy(desc(events.createdAt))

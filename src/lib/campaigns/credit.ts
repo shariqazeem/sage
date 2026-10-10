@@ -148,7 +148,7 @@ export function computeCreditSignals(
 export function walletCreditSignals(walletRaw: string, nowSec = Math.floor(Date.now() / 1000)): { record: WalletRecord; signals: CreditSignals } | null {
   const record = buildWalletRecord(walletRaw);
   if (!record) return null;
-  const decided = countDecidedSubmissionsByWallet(walletSpellings(record.wallet));
+  const decided = countDecidedSubmissionsByWallet(walletSpellings(record.wallet), { mainnetOnly: true });
   return {
     record,
     signals: computeCreditSignals(record, decided, (id) => getCampaign(id)?.posterWallet ?? null, nowSec),

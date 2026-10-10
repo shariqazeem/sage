@@ -5,6 +5,7 @@ import "./statement.css";
 import { walletCreditSignals } from "@/lib/campaigns/credit";
 import { isRecordPrivate } from "@/lib/campaigns/record-preference";
 import { getCampaign } from "@/lib/db/campaigns";
+import { chainConfig, isSupportedChain } from "@/lib/deputy/networks";
 import { short, shortDateUTC } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { PrintButton } from "./print-button";
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ wallet: s
 }
 
 const usd = (v: number) => `$${v.toFixed(2)}`;
-const railOf = (chainId: number) => (chainId === 900001 ? "Starknet" : chainId === 2345 ? "GOAT Network" : `chain ${chainId}`);
+const railOf = (chainId: number) => (isSupportedChain(chainId) ? chainConfig(chainId).name : `chain ${chainId}`);
 
 export default async function StatementPage({ params }: { params: Promise<{ wallet: string }> }) {
   const { wallet } = await params;

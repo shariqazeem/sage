@@ -1,4 +1,5 @@
 import "server-only";
+import { chainConfig } from "@/lib/deputy/networks";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { getDecisionBySubmission, getLatestSubmissionEvent, listCampaignEvents, listSubmissions, listSubmissionsForDedup } from "@/lib/db/campaigns";
 import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
@@ -20,6 +21,8 @@ export interface LaneTicket {
   wallet: string;
   rewardBase: number;
   rail: "evm" | "starknet";
+  /** the network the tile names — GOAT and Arc are both EVM, so the rail alone cannot say which */
+  network: string;
   state: "approved" | "settling" | "paid" | "revoked";
   approvedAt: number | null;
   finalizesAt: number | null;
@@ -31,6 +34,10 @@ export interface LaneTicket {
 }
 
 const RECENT_SEC = 6 * 3600;
+
+/** "Starknet · private", "GOAT" or "Arc" — short enough for a tile, and never a guess from the rail. */
+const laneNetwork = (c: Campaign): string =>
+  c.settlementRail === "starknet" ? "Starknet · private" : chainConfig(c.chainId).name.replace(/ Network$/, "");
 
 function ticketFor(c: Campaign, s: Submission, nowSec: number): LaneTicket | null {
   const agent = getLatestSubmissionEvent(s.id, "autopay_approved");
@@ -45,7 +52,7 @@ function ticketFor(c: Campaign, s: Submission, nowSec: number): LaneTicket | nul
       peerWallets: listSubmissions(c.id).filter((x) => x.id !== s.id).map((x) => x.wallet),
     });
     return {
-      id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail,
+      id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, network: laneNetwork(c),
       state: s.status === "settling" ? "settling" : "approved",
       approvedAt: agent?.createdAt ?? s.decidedAt ?? null,
       finalizesAt: agent ? agent.createdAt + windowSec : null,
@@ -58,12 +65,12 @@ function ticketFor(c: Campaign, s: Submission, nowSec: number): LaneTicket | nul
   }
   if (!agent) return null; // only tickets that passed through the lane
   if (s.status === "paid" && s.payoutTx && (s.decidedAt ?? 0) >= nowSec - RECENT_SEC) {
-    return { id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, state: "paid", approvedAt: agent.createdAt, finalizesAt: null, windowSec: 0, lights: null, reason: null, txHash: s.payoutTx, at: s.decidedAt ?? nowSec };
+    return { id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, network: laneNetwork(c), state: "paid", approvedAt: agent.createdAt, finalizesAt: null, windowSec: 0, lights: null, reason: null, txHash: s.payoutTx, at: s.decidedAt ?? nowSec };
   }
   if (s.status === "rejected" && (s.decidedAt ?? 0) >= nowSec - RECENT_SEC) {
     const rej = getLatestSubmissionEvent(s.id, "submission_rejected");
     const text = decodeDetail(rej?.detail ?? null).text ?? s.rejectReason ?? "";
-    return { id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, state: "revoked", approvedAt: agent.createdAt, finalizesAt: null, windowSec: 0, lights: null, reason: text.replace(/^0x[0-9a-f…]+ · /i, "") || (s.rejectReason ?? null), txHash: null, at: s.decidedAt ?? nowSec };
+    return { id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, network: laneNetwork(c), state: "revoked", approvedAt: agent.createdAt, finalizesAt: null, windowSec: 0, lights: null, reason: text.replace(/^0x[0-9a-f…]+ · /i, "") || (s.rejectReason ?? null), txHash: null, at: s.decidedAt ?? nowSec };
   }
   return null;
 }

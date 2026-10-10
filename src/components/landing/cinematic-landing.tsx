@@ -50,7 +50,7 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
         {/* SAGE FOR TEAMS (2026-09-04): the landing says one thing four times — what it is, how it
             runs, that it is real, and where to start. Trust, loop, teams, privacy and capital are
             documented, not paraded: a new team read nine scenes and opened none of the doors. */}
-        {/* NEW · Arc: promoted under the hero, labelled testnet until Arc mainnet opens (16 Sep). */}
+        {/* NEW · Arc: promoted under the hero — live on Arc mainnet since 10 Oct. */}
         <ArcNote />
 
         <SceneWorkflow showcase={showcase} move={move} />

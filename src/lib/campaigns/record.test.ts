@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { campaigns } from "@/lib/db/schema";
-import { createCampaign, createMission, createSubmission, updateSubmission } from "@/lib/db/campaigns";
+import { countDecidedSubmissionsByWallet, createCampaign, createMission, createSubmission, updateSubmission } from "@/lib/db/campaigns";
 import { missionIdHash } from "./mission-plan";
 import { buildWalletRecord } from "./record";
 
@@ -16,13 +16,13 @@ import { buildWalletRecord } from "./record";
 let n = 900;
 const W = "0x00000000000000000000000000000000000000aa";
 
-function seedCampaign(kind: "grant" | "testing", opts: { sandbox?: boolean } = {}) {
+function seedCampaign(kind: "grant" | "testing", opts: { sandbox?: boolean; chainId?: number } = {}) {
   const c = createCampaign({
     title: `rec-${kind}-${++n}`,
     rewardAmount: 1_500_000,
     vaultAddress: `0x${"7".repeat(40)}`,
     posterWallet: `0x${"6".repeat(40)}`,
-    chainId: 2345,
+    chainId: opts.chainId ?? 2345,
     status: "live",
     sandbox: opts.sandbox ?? false,
   });
@@ -74,6 +74,26 @@ describe("buildWalletRecord — paid + anchored only, totals exact", () => {
     expect(rec.entries[0]!.proofPath).toBe(`/proof/0x${"b2".repeat(32)}`);
     expect(rec.firstAt).toBe(1_000);
     expect(rec.lastAt).toBe(2_000);
+  });
+
+  it("counts real money only — a testnet payout is not income (10 Oct 2026)", () => {
+    const W2 = "0x00000000000000000000000000000000000000bb";
+    const goat = seedCampaign("grant", { chainId: 2345 });
+    const arc = seedCampaign("grant", { chainId: 5042 });
+    const arcTestnet = seedCampaign("grant", { chainId: 5042002 });
+    const metisSepolia = seedCampaign("testing", { chainId: 59902 });
+    paidSub(goat.id, "g1", 1_010_000, `0x${"d4".repeat(32)}`, 1_000, W2);
+    paidSub(arc.id, "a1", 1_010_000, `0x${"e5".repeat(32)}`, 2_000, W2);
+    paidSub(arcTestnet.id, "t1", 9_000_000, `0x${"f6".repeat(32)}`, 3_000, W2);
+    paidSub(metisSepolia.id, "t2", 9_000_000, `0x${"a7".repeat(32)}`, 4_000, W2);
+
+    const rec = buildWalletRecord(W2)!;
+    expect(rec.entries.map((e) => e.chainId).sort()).toEqual([2345, 5042]);
+    expect(rec.totalUsd).toBe(2.02);
+    expect(rec.completions).toBe(2);
+    // the pass rate a lender reads judges the same population
+    expect(countDecidedSubmissionsByWallet(W2, { mainnetOnly: true })).toEqual({ paid: 2, rejected: 0 });
+    expect(countDecidedSubmissionsByWallet(W2)).toEqual({ paid: 4, rejected: 0 });
   });
 
   it("refuses a non-address; empty wallet yields an honest empty record", () => {

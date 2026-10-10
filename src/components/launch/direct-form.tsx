@@ -263,7 +263,7 @@ export function DirectCampaignForm() {
                     {/* EVM only: this picks the chain a tester's transaction must be on, and that
                         verification reads EVM logs. Starknet is in the registry for truthful
                         amounts and explorer links, not as a verification target. */}
-                    {evmChains().map((c) => (
+                    {evmChains().filter((c) => c.isMainnet).map((c) => (
                       <option key={c.chainId} value={c.chainId}>{c.name}</option>
                     ))}
                   </select>
