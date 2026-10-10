@@ -96,6 +96,10 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
   const [error, setError] = useState<string | null>(null);
   const [batchSupported, setBatchSupported] = useState(false);
   const running = useRef(false);
+  // The founder's account, as the door above reports it. While it can launch (or is still being read),
+  // the wallet route stays folded behind a small link: one main button, the one that works.
+  const [acct, setAcct] = useState<{ loading: boolean; hasDoor: boolean }>({ loading: true, hasDoor: false });
+  const [walletRoute, setWalletRoute] = useState(false);
 
   // Founder-chosen limits (defaults; budget itself is fixed from the approved plan).
   const budgetBase = Number(plan.totalBudgetBase);
@@ -424,7 +428,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
         </div>
       )}
       {/* FUND ONCE, THE AGENT LAUNCHES: with an account, the wallet-driven steps below are optional. */}
-      <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} />
+      <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} onState={setAcct} />
 
       {error && (
         <div className="lx-err" role="alert" style={{ marginTop: 10 }}>
@@ -432,9 +436,22 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
         </div>
       )}
 
-      {phase === "claim" && (
-        <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} />
-      )}
+      {phase === "claim" && !walletRoute && (acct.loading || acct.hasDoor) ? (
+        acct.loading ? null : (
+          <button type="button" className="lxd-tech-toggle" onClick={() => setWalletRoute(true)}>
+            Or fund it from a browser wallet instead
+          </button>
+        )
+      ) : phase === "claim" ? (
+        <>
+          {acct.hasDoor && (
+            <p className="lx-note" style={{ marginBottom: 10 }}>
+              This signs you in with that browser wallet and pays from it. Your account above stays with the sign-in you used; to launch from it, use the button above instead.
+            </p>
+          )}
+          <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} />
+        </>
+      ) : null}
 
       {phase === "limits" && dep && (
         <LimitsPanel
