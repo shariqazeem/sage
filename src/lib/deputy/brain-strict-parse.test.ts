@@ -219,4 +219,9 @@ describe("the completion ceiling leaves room for a REASONING judge", () => {
     const MEASURED_WORST_CASE = 2766;
     expect(MAX_TOKENS).toBeGreaterThanOrEqual(MEASURED_WORST_CASE * 2);
   });
+
+  it("is above the 8000 that truncated most afternoon attempts through the gateway (10 Oct 2026)", () => {
+    // the same submission: 27.6 s clean in the morning, then finish_reason "length" at 8000 on 5 of 7
+    expect(MAX_TOKENS).toBeGreaterThanOrEqual(16_000);
+  });
 });

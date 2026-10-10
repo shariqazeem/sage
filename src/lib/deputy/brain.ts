@@ -65,8 +65,10 @@ export const PARSER_POLICY_VERSION = "payout-parse-v4";
 const DEFAULT_BASE_URL = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const LLM_TIMEOUT_MS = 35_000;
-/** The most any one judge call may take, whatever the provider profile says. */
-const LLM_TIMEOUT_CEILING_MS = 150_000;
+/** The most any one judge call may take, whatever the provider profile says. Sized for a 16k-token
+ *  completion (~100 tokens/s through the gateway, 10 Oct 2026); hedging means a slow call no longer
+ *  holds the decision hostage, so the ceiling only has to let a long think FINISH. */
+const LLM_TIMEOUT_CEILING_MS = 200_000;
 // Headroom for the structured summary + reasonCode so a model never truncates its JSON (a
 // truncation fails the parse, fails over, and lands on the heuristic — which can never autopay).
 //
@@ -80,7 +82,13 @@ const LLM_TIMEOUT_CEILING_MS = 150_000;
 // attempts and degraded to the heuristic, which would have silently disabled autopay for every
 // real payout. 8000 puts the measured worst case at ~35% of the ceiling and leaves room for the
 // longest evidence a brief can carry (EVIDENCE_CHARS), while still bounding a runaway.
-export const MAX_TOKENS = 8000;
+//
+// RAISED 10 Oct 2026, on measurement again: through the gateway the same judge on the same real
+// submission hit finish_reason "length" at 8000 on most afternoon attempts (5 of 7), after 27.6 s
+// clean in the morning. A truncation is not a shorter answer, it is NO answer — the work waits for a
+// person. 16000 lets a long think finish; the strict parse and the normal-completion rule are
+// unchanged, so a longer completion earns nothing it could not earn before.
+export const MAX_TOKENS = 16_000;
 const LLM_ATTEMPTS = 3;
 /**
  * HEDGED ATTEMPTS — the next attempt starts while the previous one is still thinking.
@@ -91,10 +99,10 @@ const LLM_ATTEMPTS = 3;
  * length is stochastic, so a slow attempt is not a sign the next one will be slow — and run in
  * sequence, every slow failure is added to the worker's wait. If an attempt has not answered by this
  * mark, the next one starts beside it and the FIRST valid brief wins; nothing about the judgment
- * changes (same provider, model, prompt and strict parse), only how long a stumble costs. A typical
- * answer arrives at ~25-30 s, so at most two more calls run, each about a cent.
+ * changes (same provider, model, prompt and strict parse), only how long a stumble costs. A clean
+ * answer arrives at ~19-28 s, so a second call usually starts and is discarded — about a cent.
  */
-const HEDGE_AFTER_MS = 25_000;
+const HEDGE_AFTER_MS = 15_000;
 
 /** A resolved LLM endpoint the brain can call. */
 export interface LlmProvider {

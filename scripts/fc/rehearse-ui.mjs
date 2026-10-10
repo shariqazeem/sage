@@ -14,7 +14,8 @@ import { readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 const BASE = process.env.SAGE_BASE ?? "https://sagepays.xyz";
-const SENTENCE = "Put your shop's price list online: at least three items, each priced in Jamaican dollars, on a public page, and send me the link. I'll pay J$160.";
+// SENTENCE overrides the job (e.g. a cheaper J$80 run when the rehearsal account is low); the stage line is the default.
+const SENTENCE = process.env.SENTENCE ?? "Put your shop's price list online: at least three items, each priced in Jamaican dollars, on a public page, and send me the link. I'll pay J$160.";
 const SHOP = `${BASE}/stage/shop.html`;
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : d; };
 const SHOTS = arg("shots", "rehearsal-shots");
