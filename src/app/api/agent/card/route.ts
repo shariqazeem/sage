@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getAgentIdentities, getAgentIdentity } from "@/lib/erc8004/identity";
 import { agentWallet, getAgentReputation } from "@/lib/erc8004/reputation";
 import { agentPageUrl } from "@/lib/site";
 
@@ -29,6 +29,10 @@ export function GET() {
     chainId: id.chainId,
     registry: id.registry,
     registered: id.registered,
+    // ERC-8004 registration-file form: every network this agent is registered on (GOAT, then Metis).
+    registrations: getAgentIdentities()
+      .filter((i) => i.registered && i.agentId)
+      .map((i) => ({ agentId: Number(i.agentId), agentRegistry: `eip155:${i.chainId}:${i.registry}` })),
     stats: {
       settledUsd: r.settledTotalBase / 1e6,
       settledBase: r.settledTotalBase,
