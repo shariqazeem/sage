@@ -1,40 +1,37 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 
-/** One doc page's frame: the eyebrow crumb, the prose column, and the next-page pair. */
-export function Doc({ crumb, children }: { crumb: string; children: ReactNode }) {
+/**
+ * The pieces every docs page is made of: a head (eyebrow, title, lead, and the page's own contents),
+ * then sections. A page names its sections once, in one object; the contents list and each section's
+ * heading both read it, and a section id that isn't in it does not compile. The ids are also the
+ * anchors old docs addresses redirect to (src/lib/site/redirects-docs.ts).
+ */
+export type Toc = Record<string, string>;
+
+export function DocHead({ eyebrow, title, lead, toc }: { eyebrow: string; title: string; lead: ReactNode; toc?: Toc }) {
   return (
-    <article className="prose-page in-docs">
-      <div className="prose-wrap">
-        <p className="docs-crumb">{crumb}</p>
-        {children}
-      </div>
-    </article>
+    <header className="doc-head">
+      <span className="eyebrow">{eyebrow}</span>
+      <h1 className="doc-title">{title}</h1>
+      <p className="lead">{lead}</p>
+      {toc && (
+        <ul className="doc-toc" aria-label="On this page">
+          {Object.entries(toc).map(([id, label]) => (
+            <li key={id}>
+              <a href={`#${id}`}>{label}</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </header>
   );
 }
 
-export function Next({ items }: { items: { href: string; title: string; label?: string }[] }) {
+export function DocSection<T extends Toc>({ toc, id, children }: { toc: T; id: keyof T & string; children: ReactNode }) {
   return (
-    <div className="docs-next">
-      {items.map((i) => (
-        <Link key={i.href} href={i.href}>
-          <span className="lbl">{i.label ?? "Next"}</span>
-          <span className="ttl">{i.title} →</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-export function Cards({ items }: { items: { href: string; title: string; body: string }[] }) {
-  return (
-    <div className="docs-cards">
-      {items.map((i) => (
-        <Link key={i.href} href={i.href} className="docs-card">
-          <h3>{i.title}</h3>
-          <p>{i.body}</p>
-        </Link>
-      ))}
-    </div>
+    <section className="doc-sec" id={id} aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`}>{toc[id]}</h2>
+      {children}
+    </section>
   );
 }
