@@ -6,7 +6,7 @@
  *
  * Since 19 Oct 2026 there are two worlds. The APP is a founder's six screens (Home, Post, Jobs,
  * Account, Team, Settings) and the pages they open: a job, its graph, the agent chat, joining a
- * team, the first run. Everything a stranger reads is the COMPANY SITE, with its own header
+ * team. The first run (/start) has no rail: someone who has not started has nothing to navigate. Everything a stranger reads is the COMPANY SITE, with its own header
  * (src/components/site): the home page, pricing, the ledger, the docs, and the pages people are
  * sent to (a receipt, a work record, a board, finding work).
  *
@@ -16,7 +16,6 @@
 export function isAppRoute(p: string): boolean {
   return (
     /^\/workspace(\/|$)/.test(p) ||
-    /^\/start(\/|$)/.test(p) ||
     /^\/launch/.test(p) ||
     /^\/campaign\//.test(p) ||
     /^\/graph\//.test(p) ||

@@ -129,21 +129,18 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 @keyframes ws-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ═══ /start — entering the product ═══ */
-.st-shell { max-width: 600px; margin: 0 auto; padding: 48px 24px 72px; }
-.st-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 28px; animation: ws-rise var(--dur-3) var(--ease-out) both; }
-.st-steps { list-style: none; margin: 0 0 18px; padding: 0; display: flex; align-items: center; gap: 0; font-size: 12.5px; color: var(--ink-faint); }
-.st-step { display: inline-flex; align-items: center; gap: 8px; }
-.st-step + .st-step::before { content: ""; width: 28px; height: 1px; background: var(--border-strong); margin: 0 10px; }
-.st-step.on { color: var(--ink); font-weight: 600; }
-.st-step.done { color: var(--ink-muted); }
-.st-step-n { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 700; border: 1px solid var(--border-strong); color: var(--ink-faint); background: var(--surface); transition: all var(--dur-2) var(--ease-out); }
-.st-step.on .st-step-n { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft); }
-.st-step.done .st-step-n { background: var(--accent); border-color: var(--accent); color: #fff; }
-.st-bar { height: 3px; border-radius: 999px; background: var(--border); margin: 0 0 22px; overflow: hidden; }
-.st-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--dur-3) var(--ease-out); }
+.st-shell { max-width: 560px; margin: 0 auto; padding: clamp(32px, 8vh, 88px) 16px 72px; }
+.st-brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; margin-bottom: 28px; animation: ws-rise var(--dur-3) var(--ease-out) both; }
+/* three quiet dots: where you are, with nothing to read */
+.st-dots { list-style: none; margin: 0 0 22px; padding: 0; display: flex; gap: 8px; }
+.st-dots li { width: 22px; height: 6px; border-radius: 999px; background: var(--border-strong); display: grid; place-items: center; color: var(--accent-ink); transition: background var(--dur-2) var(--ease-out), width var(--dur-2) var(--ease-out); }
+.st-dots li.on { width: 40px; background: var(--accent); }
+.st-dots li.done { background: var(--accent); }
+.st-dots li svg { display: none; }
+.st-more { margin-top: 12px; }
 .st-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 26px 26px; box-shadow: var(--shadow-card); animation: ws-rise var(--dur-3) var(--ease-out) both; animation-delay: 60ms; }
 .st-pane { animation: ws-rise var(--dur-2) var(--ease-out) both; }
-.st-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 8px; color: var(--ink); line-height: 1.15; }
+.st-h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; color: var(--ink); line-height: 1.12; }
 .st-p { font-size: 14.5px; color: var(--ink-muted); line-height: 1.6; margin: 0 0 18px; }
 .st-p .mono { color: var(--ink); }
 .st-choices { display: flex; flex-direction: column; gap: 10px; }

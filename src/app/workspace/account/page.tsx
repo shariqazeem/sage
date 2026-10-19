@@ -43,7 +43,7 @@ export const metadata = { title: "Your account" };
  * It used to show a "Treasury" card with a create button that failed; that is the screen the
  * founder photographed on 2026-09-10.
  */
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ chain?: string }> }) {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ chain?: string; welcome?: string }> }) {
   const ctx = await workspaceContext();
   if (!ctx) redirect("/start?next=/workspace/account");
   const founder = ctx.address;
@@ -165,6 +165,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </p>
         </div>
       </header>
+      {/* The first run lands here: the account exists, and the next step is the first job. */}
+      {sp.welcome === "1" && (
+        <section className="ws-card ac-welcome">
+          <div className="ws-card-h"><h2>Your account is ready</h2></div>
+          <p className="ws-note pl-quiet">Fund it with USDC below whenever you like. Or post your first job now and fund it when you launch: describe the work in a sentence, and Sage designs it, prices it and shows you the plan first.</p>
+          <div className="ws-nav pl-pay">
+            <Link className="sage-btn sage-btn-primary" href="/launch">Post your first job</Link>
+            <Link className="st-back" href="/workspace">Go to Home</Link>
+          </div>
+        </section>
+      )}
       {tabs}
 
       <div className="ws-grid">
