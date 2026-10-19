@@ -1,5 +1,8 @@
 "use client";
-import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
+
+/** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
+const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).isMainnet);
 
 import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
@@ -73,6 +76,8 @@ type Tranche = {
   verify: string;
   expectedText: string;
   toAddr: string;
+  /** The network the worker's transaction is on (a contract deployed on Metis is checked on Metis). */
+  txChain?: number;
   title?: string;
   /** Drafted by Sage from the founder's sentence (the gig brain) — the steps, the acceptance
    *  criteria with an effort bar, the word floor. Absent when the founder composed by hand. */
@@ -376,6 +381,7 @@ export function LaunchForm() {
           verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
           expectedText: m.evidence.kind === "public_url" ? (m.evidence.expectedText[0] ?? "") : "",
           toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
+          ...(m.evidence.kind === "onchain_tx" && m.evidence.chainId && TX_CHAINS.includes(m.evidence.chainId) ? { txChain: m.evidence.chainId } : {}),
           instructions: m.instructions,
           criteria: m.criteria,
           ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
@@ -405,7 +411,7 @@ export function LaunchForm() {
           t.verify === "page"
             ? { kind: "public_url", expectedText: [t.expectedText.trim()] }
             : t.verify === "onchain"
-              ? { kind: "onchain_tx", chainId: DEFAULT_EVM_LAUNCH_CHAIN, to: t.toAddr.trim() }
+              ? { kind: "onchain_tx", chainId: t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN, to: t.toAddr.trim() }
               : { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" };
         const proofLine =
           t.verify === "page"
@@ -829,10 +835,20 @@ export function LaunchForm() {
                         </label>
                       )}
                       {t.verify === "onchain" && (
-                        <label className="cmp-field cmp-grow">
-                          <span className="cmp-label">Transaction must go to</span>
-                          <input className="lx-input cmp-input mono" type="text" placeholder="0x… contract or recipient" value={t.toAddr} onChange={(e) => setT(i, "toAddr", e.target.value)} />
-                        </label>
+                        <>
+                          <label className="cmp-field cmp-grow">
+                            <span className="cmp-label">Transaction must go to</span>
+                            <input className="lx-input cmp-input mono" type="text" placeholder="0x… contract or recipient" value={t.toAddr} onChange={(e) => setT(i, "toAddr", e.target.value)} />
+                          </label>
+                          <label className="cmp-field">
+                            <span className="cmp-label">On</span>
+                            <select className="lx-input cmp-input" value={t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN} onChange={(e) => setTranches((prev) => prev.map((x, j) => (j === i ? { ...x, txChain: Number(e.target.value) } : x)))}>
+                              {TX_CHAINS.map((id) => (
+                                <option key={id} value={id}>{chainConfig(id).name}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
                       )}
                       {t.verify === "link" && (
                         <span className="cmp-help">Sage fetches the link they publish and checks it shows the finished work and carries their wallet address. Durable pages only — a blog, dev.to, Medium, GitHub, Notion, their own site; paste services are refused.</span>

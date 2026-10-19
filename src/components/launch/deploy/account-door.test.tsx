@@ -108,3 +108,21 @@ describe("the plan page with an account", () => {
     expect(screen.queryByRole("button", { name: /Or fund it from a browser wallet instead/ })).toBeNull();
   });
 });
+
+describe("a plan's limit on the account launch", () => {
+  it("says why, in words, and opens Settings on the plan that lifts it", async () => {
+    const fetchLimited = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u === "/api/treasury") return json(NO_GOAT);
+      if (u.startsWith("/api/treasury?chainId=5042")) return json(ARC);
+      if (u === "/api/launch/j/treasury")
+        return new Response(JSON.stringify({ ok: false, reason: "plan_limit", error: "Free runs one live job at a time, and you have 1 live.", upgradeTo: "pro" }), { status: 402, headers: { "content-type": "application/json" } });
+      return json({ ok: false });
+    });
+    vi.stubGlobal("fetch", fetchLimited);
+    render(<TreasuryLaunch jobId="j" budgetUsd={1.01} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Let Sage launch it from your account on Arc$/ }));
+    expect(await screen.findByText(/Free runs one live job at a time/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Upgrade to Pro" }).getAttribute("href")).toBe("/workspace/settings?plan=pro#plan");
+  });
+});

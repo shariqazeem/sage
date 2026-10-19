@@ -13,10 +13,11 @@ import { getInspectionJob } from "@/lib/db/inspection";
 import { sameFounder } from "@/lib/auth/founder";
 import { chainConfig } from "@/lib/deputy/networks";
 import { launchAllowed } from "@/lib/plans/founder-plan";
+import type { PlanId } from "@/lib/plans/catalog";
 
 export type TreasuryLaunch =
   | { ok: true; campaignId: string; vault: string; steps: { step: string; txHash: string; explorerUrl: string }[] }
-  | { ok: false; reason: "no_treasury" | "not_yours" | "not_ready" | "plan_limit" | TreasuryPreflightReason | "failed"; message: string };
+  | { ok: false; reason: "no_treasury" | "not_yours" | "not_ready" | "plan_limit" | TreasuryPreflightReason | "failed"; message: string; upgradeTo?: PlanId | null };
 type TreasuryPreflightReason = Exclude<TreasuryPreflight, { ok: true }>["reason"];
 
 export interface TreasuryStatus {
@@ -69,7 +70,7 @@ export async function launchFromTreasury(founderAddress: string, jobId: string, 
   const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
   // The plan's limits, before a cent moves (never after: a live job keeps paying its workers).
   const allowed = launchAllowed(founderAddress, budget);
-  if (!allowed.ok) return { ok: false, reason: "plan_limit", message: allowed.message };
+  if (!allowed.ok) return { ok: false, reason: "plan_limit", message: allowed.message, upgradeTo: allowed.upgradeTo };
   const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress, t.chainId), nativeBalanceWei(t.privyWalletAddress, t.chainId)]);
   const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: minLaunchGasWei(t.chainId), address: t.privyWalletAddress, chainId: t.chainId });
   let pf = preflight(gas);

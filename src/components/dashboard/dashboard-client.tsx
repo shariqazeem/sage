@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Blocks, Check, CircleDot, FlaskConical, Inbox, Rocket, Sparkles, Square } from "lucide-react";
+import { ArrowUpRight, Check, CircleDot, FlaskConical, Inbox, Rocket, Sparkles, Square } from "lucide-react";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import { usd as fmtUsd } from "@/lib/format";
 import "@/styles/tester-board.css";
@@ -103,9 +103,8 @@ export function DashboardClient({
     return (
       <main className="st-shell">
         <div className="st-card">
-          <span className="ws-eyebrow">Work</span>
-          <h1 className="st-h1" style={{ marginTop: 8 }}>Sign in to see your work</h1>
-          <p className="st-p">Every campaign you own, what Sage has paid, and each console — behind the wallet you launched from.</p>
+          <h1 className="st-h1">Sign in to see your jobs</h1>
+          <p className="st-p">Every job you&apos;ve posted, what Sage has paid, and each job&apos;s page.</p>
           <FounderSignIn explainer={<>Sign in with the wallet you launched from — <b>Ethereum or Starknet.</b></>} onSignedIn={() => router.refresh()} />
         </div>
       </main>
@@ -119,21 +118,19 @@ export function DashboardClient({
     <main className="ws-shell ws-stagger">
       <header className="ws-head">
         <div>
-          <span className="ws-eyebrow">Work</span>
-          <h1 className="ws-title">Your money at work</h1>
+          <h1 className="ws-title">Jobs</h1>
           <p className="ws-sub">
-            Everything you have posted, and what Sage did with it — verified, paid or held, receipt by receipt, from a vault it can never exceed.
+            Everything you&apos;ve posted, and what Sage did with it: paid, refused or held, each with a receipt.
             {address && <> Signed in as <span className="mono">{short(address)}</span>.</>}
           </p>
         </div>
         <div className="ws-nav">
-          <Link className="ws-chip" href="/workspace"><Blocks size={12} /> Workspace</Link>
           <Link className="sage-btn sage-btn-primary sage-btn-sm" href="/launch?do=pay"><Rocket size={14} /> Post work</Link>
         </div>
       </header>
 
       <section className="ws-stats" aria-label="At a glance">
-        <div className="ws-stat"><span className="ws-stat-v">{campaigns.length}</span><span className="ws-stat-k">Campaigns · {running} running</span></div>
+        <div className="ws-stat"><span className="ws-stat-v">{campaigns.length}</span><span className="ws-stat-k">Jobs · {running} live</span></div>
         <div className={`ws-stat${paidAmountBase > 0 ? " pos" : ""}`}><span className="ws-stat-v">{fmtUsd(paidAmountBase / 1e6)}</span><span className="ws-stat-k">Released</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{totalPaid}</span><span className="ws-stat-k">Payouts</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{approvedRecipients}</span><span className="ws-stat-k">People paid</span></div>

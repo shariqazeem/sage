@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, CreditCard, Link2, Loader2, LogOut, Wallet } from "lucide-react";
+import { ArrowLeft, Check, Link2, Loader2, LogOut, Wallet } from "lucide-react";
 import { short } from "@/lib/format";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
@@ -11,22 +11,27 @@ import { YourWallet } from "@/components/wallet/your-wallet";
 import "@/app/record/record.css";
 import { TreasuryCard } from "./treasury-card";
 import { MandateCard } from "./mandate-card";
+import { PlanCard } from "./plan-card";
+import type { PlanId } from "@/lib/plans/catalog";
 
 export interface SettingsView {
-  workspace: { id: string; name: string };
+  /** Null until the founder has a workspace (the first plan payment opens one). */
+  workspace: { id: string; name: string } | null;
+  /** The plan the pricing page sent them here to buy. */
+  preselect?: PlanId | null;
   account: { address: string; chain: "evm" | "starknet"; linked: { address: string; chain: "evm" | "starknet" }[] };
 }
 
-const chainName = (c: "evm" | "starknet") => (c === "evm" ? "Ethereum · GOAT" : "Starknet");
+const chainName = (c: "evm" | "starknet") => (c === "evm" ? "Ethereum" : "Starknet");
 
 /**
  * Settings: the workspace's name, the plan and how it is paid for, the wallets behind the account
  * (one per rail — the other is bound by signing in with it once), and the way out.
  */
-export function SettingsPanel({ workspace: ws, account }: SettingsView) {
+export function SettingsPanel({ workspace: ws, account, preselect = null }: SettingsView) {
   const router = useRouter();
   const session = useFounderSession();
-  const [name, setName] = useState(ws.name);
+  const [name, setName] = useState(ws?.name ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [binding, setBinding] = useState(false);
@@ -37,6 +42,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
   const hasOther = account.linked.some((l) => l.chain === other);
 
   const rename = async () => {
+    if (!ws) return;
     setSaving(true);
     try {
       const res = await fetch("/api/workspaces", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
@@ -64,15 +70,17 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
     <main className="ws-shell ws-stagger">
       <header className="ws-head">
         <div>
-          <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
-          <span className="ws-eyebrow" style={{ marginTop: 10 }}>Account</span>
+          <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws?.name ?? "Home"}</Link>
           <h1 className="ws-title">Settings</h1>
-          <p className="ws-sub">The workspace, the wallets you sign in with, and the account Sage launches from.</p>
+          <p className="ws-sub">Your plan, the wallets you sign in with, and the account Sage launches from.</p>
         </div>
       </header>
 
       <div className="ws-grid">
         <div>
+          <PlanCard preselect={preselect} />
+
+          {ws && (
           <section className="ws-card">
             <div className="ws-card-h"><h2>Workspace</h2></div>
             <label className="sage-label">Name</label>
@@ -81,6 +89,7 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
               <button className="sage-btn sage-btn-sm" onClick={() => void rename()} disabled={saving || name.trim().length < 2 || name.trim() === ws.name}>{saving ? <Loader2 size={13} className="sage-spin2" /> : saved ? <><Check size={13} /> Saved</> : "Save"}</button>
             </div>
           </section>
+          )}
 
           <section className="ws-card">
             <div className="ws-card-h"><h2><Wallet size={15} /> Wallets</h2></div>
@@ -149,10 +158,17 @@ export function SettingsPanel({ workspace: ws, account }: SettingsView) {
 
         <div>
           <section className="ws-card">
-            <div className="ws-card-h"><h2><CreditCard size={15} /> How Sage earns</h2></div>
-            <p className="ws-note" style={{ margin: 0 }}>
-              No plans, no seats. Sage earns a small fee on each settlement it makes — recorded beside the payout on the receipt — and a financing margin when a member draws an advance against verified inflow. Everything else, including private payouts on Starknet, is included.
-            </p>
+            <div className="ws-card-h"><h2>Networks</h2><Link className="ws-chip" href="/workspace/account">your accounts</Link></div>
+            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b> and <b>GOAT Network</b>. Sage also settles on Arc and Starknet: open an account there from <Link href="/workspace/account">your account page</Link>, under More networks.</p>
+          </section>
+          <section className="ws-card">
+            <div className="ws-card-h"><h2>More</h2></div>
+            <ul className="ws-list">
+              <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/workspace/autopilot">Autopilot</Link></p><p className="ws-row-meta">Let Sage decide what work to buy, inside your limits. Pro and above.</p></div></li>
+              <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/agent">Talk to Sage</Link></p><p className="ws-row-meta">Ask about your jobs, your money and your record, in plain words.</p></div></li>
+              <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/workspace/capital">Working capital</Link></p><p className="ws-row-meta">Advances against verified income, for Programs.</p></div></li>
+              <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/docs">Docs</Link></p><p className="ws-row-meta">How Sage works, its limits, and building on it.</p></div></li>
+            </ul>
           </section>
         </div>
       </div>

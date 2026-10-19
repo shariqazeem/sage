@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BadgeCheck, Receipt, UsersRound } from "lucide-react";
 import { SiteFrame } from "@/components/site/site-frame";
 import { SAGE_TELEGRAM_URL, SAGE_X_URL } from "@/components/site/site-footer";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getAgentIdentities } from "@/lib/erc8004/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,8 @@ const MILESTONES: { when: string; what: string; href?: string; link?: string }[]
 ];
 
 export default function CompanyPage() {
-  const id = getAgentIdentity();
+  const ids = getAgentIdentities();
+  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   return (
     <SiteFrame active="/company">
       <section className="page-head">
@@ -117,10 +118,14 @@ export default function CompanyPage() {
               <span>Sage on chain</span>
               <span className="faint">ERC-8004</span>
             </div>
-            <div className="limit"><span>Network</span><b>{id.network}</b></div>
-            <div className="limit"><span>Agent</span><b>{id.agentId ? `#${id.agentId}` : "registering"}</b></div>
-            <div className="limit"><span>Registry</span><b>{`${id.registry.slice(0, 6)}…${id.registry.slice(-4)}`}</b></div>
-            {id.address && <div className="limit"><span>Agent wallet</span><b>{`${id.address.slice(0, 6)}…${id.address.slice(-4)}`}</b></div>}
+            {ids.map((id) => (
+              <div key={id.chainId} className="limit">
+                <span>{id.network}</span>
+                <b>{id.registered && id.agentId ? `agent #${id.agentId}` : "registration pending"}</b>
+              </div>
+            ))}
+            <div className="limit"><span>Registry</span><b>{short(ids[0].registry)}</b></div>
+            {ids[0].address && <div className="limit"><span>Agent wallet</span><b>{short(ids[0].address)}</b></div>}
           </div>
         </div>
       </section>

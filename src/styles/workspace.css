@@ -129,21 +129,18 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 @keyframes ws-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ═══ /start — entering the product ═══ */
-.st-shell { max-width: 600px; margin: 0 auto; padding: 48px 24px 72px; }
-.st-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 28px; animation: ws-rise var(--dur-3) var(--ease-out) both; }
-.st-steps { list-style: none; margin: 0 0 18px; padding: 0; display: flex; align-items: center; gap: 0; font-size: 12.5px; color: var(--ink-faint); }
-.st-step { display: inline-flex; align-items: center; gap: 8px; }
-.st-step + .st-step::before { content: ""; width: 28px; height: 1px; background: var(--border-strong); margin: 0 10px; }
-.st-step.on { color: var(--ink); font-weight: 600; }
-.st-step.done { color: var(--ink-muted); }
-.st-step-n { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 700; border: 1px solid var(--border-strong); color: var(--ink-faint); background: var(--surface); transition: all var(--dur-2) var(--ease-out); }
-.st-step.on .st-step-n { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft); }
-.st-step.done .st-step-n { background: var(--accent); border-color: var(--accent); color: #fff; }
-.st-bar { height: 3px; border-radius: 999px; background: var(--border); margin: 0 0 22px; overflow: hidden; }
-.st-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--dur-3) var(--ease-out); }
+.st-shell { max-width: 560px; margin: 0 auto; padding: clamp(32px, 8vh, 88px) 16px 72px; }
+.st-brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; margin-bottom: 28px; animation: ws-rise var(--dur-3) var(--ease-out) both; }
+/* three quiet dots: where you are, with nothing to read */
+.st-dots { list-style: none; margin: 0 0 22px; padding: 0; display: flex; gap: 8px; }
+.st-dots li { width: 22px; height: 6px; border-radius: 999px; background: var(--border-strong); display: grid; place-items: center; color: var(--accent-ink); transition: background var(--dur-2) var(--ease-out), width var(--dur-2) var(--ease-out); }
+.st-dots li.on { width: 40px; background: var(--accent); }
+.st-dots li.done { background: var(--accent); }
+.st-dots li svg { display: none; }
+.st-more { margin-top: 12px; }
 .st-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 26px 26px; box-shadow: var(--shadow-card); animation: ws-rise var(--dur-3) var(--ease-out) both; animation-delay: 60ms; }
 .st-pane { animation: ws-rise var(--dur-2) var(--ease-out) both; }
-.st-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 8px; color: var(--ink); line-height: 1.15; }
+.st-h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; color: var(--ink); line-height: 1.12; }
 .st-p { font-size: 14.5px; color: var(--ink-muted); line-height: 1.6; margin: 0 0 18px; }
 .st-p .mono { color: var(--ink); }
 .st-choices { display: flex; flex-direction: column; gap: 10px; }
@@ -250,3 +247,42 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-rail-new { color: var(--accent); text-decoration: none; }
 .ws-rail-new:hover { text-decoration: underline; }
 .ws-new { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-border); border-radius: 999px; padding: 1px 6px; margin-right: 6px; background: var(--accent-soft); vertical-align: 1px; }
+
+/* ── Plan and billing (Settings) ─────────────────────────────────────── */
+.pl-now { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pl-name { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
+.pl-quiet { margin: 2px 0 0; }
+.pl-loading { display: inline-flex; align-items: center; gap: 6px; }
+.pl-fine { margin: 10px 0 0; font-size: 12.5px; }
+.pl-label { margin: 20px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.pl-meters { display: grid; gap: 12px; margin-top: 16px; }
+.pl-meter-top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink-muted); }
+.pl-meter-top .mono { color: var(--ink); }
+.pl-bar { display: block; width: 100%; height: 6px; margin-top: 6px; border: 0; border-radius: var(--r-pill); overflow: hidden; background: var(--border); appearance: none; -webkit-appearance: none; }
+.pl-bar::-webkit-progress-bar { background: var(--border); border-radius: var(--r-pill); }
+.pl-bar::-webkit-progress-value { background: var(--accent); border-radius: var(--r-pill); }
+.pl-bar::-moz-progress-bar { background: var(--accent); border-radius: var(--r-pill); }
+.pl-bar.full::-webkit-progress-value { background: var(--warn); }
+.pl-bar.full::-moz-progress-bar { background: var(--warn); }
+.pl-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.pl-option { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; text-align: left; transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.pl-option:hover:not(:disabled) { border-color: var(--border-strong); }
+.pl-option.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.pl-option:disabled { opacity: 0.45; cursor: not-allowed; }
+.pl-option-name { font-weight: 600; font-size: 14px; }
+.pl-option-price { font-size: 14px; }
+.pl-option-price small { font-size: 11px; color: var(--ink-faint); margin-left: 1px; }
+.pl-nets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.pl-net { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.pl-net.on { border-color: var(--ink); color: var(--ink); }
+.pl-pay { margin-top: 14px; }
+.pl-wallet { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: grid; gap: 8px; }
+.pl-wallet .mono { word-break: break-all; }
+.pl-done { margin-top: 16px; }
+.pl-exports { display: flex; gap: 8px; flex-wrap: wrap; }
+.pl-locked { opacity: 0.55; cursor: default; }
+/* the plan on Home: a quiet link, one click from Plan and billing */
+.ws-plan-link { text-decoration: none; }
+.ws-plan-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ws-stat-link { text-decoration: none; color: inherit; transition: border-color var(--dur-1) var(--ease-out); }
+.ws-stat-link:hover { border-color: var(--accent); }

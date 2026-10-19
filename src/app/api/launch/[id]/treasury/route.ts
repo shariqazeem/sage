@@ -24,6 +24,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const chainId = typeof body.chainId === "number" && Number.isFinite(body.chainId) ? body.chainId : treasuryChainId();
   if (!isLaunchChain(chainId)) return NextResponse.json({ error: "That chain is not one Sage launches on here." }, { status: 400 });
   const r = await launchFromTreasury(founder, id, chainId);
-  if (!r.ok) return NextResponse.json({ ok: false, reason: r.reason, error: r.message }, { status: r.reason === "not_yours" ? 403 : r.reason === "failed" ? 500 : 409 });
+  if (!r.ok) return NextResponse.json({ ok: false, reason: r.reason, error: r.message, upgradeTo: r.upgradeTo ?? null }, { status: r.reason === "not_yours" ? 403 : r.reason === "failed" ? 500 : r.reason === "plan_limit" ? 402 : 409 });
   return NextResponse.json({ ok: true, campaignId: r.campaignId, vault: r.vault, url: `${siteUrl()}/c/${r.campaignId}`, steps: r.steps });
 }

@@ -7,6 +7,7 @@ import { loadApprovedPlan, LAUNCH_CHAIN_ID, isLaunchChain } from "@/lib/launch/d
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { buildClaimTypedData, CLAIM_SCHEMA_VERSION, CLAIM_TTL_SECONDS, type PlanClaim } from "@/lib/launch/claim";
 import { sameFounder } from "@/lib/auth/founder";
+import { launchAllowed } from "@/lib/plans/founder-plan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +49,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const loaded = loadApprovedPlan(id);
   if (!loaded) return NextResponse.json({ ok: false, error: "This inspection has no approved plan to claim." }, { status: 409 });
+
+  // The plan's limits, before the founder is asked to sign anything (the claim route checks again).
+  const allowed = launchAllowed(session, deriveDeploymentInputs(loaded.plan).totalBudgetBase);
+  if (!allowed.ok) {
+    return NextResponse.json({ ok: false, error: allowed.message, planLimit: { code: allowed.code, plan: allowed.plan, upgradeTo: allowed.upgradeTo } }, { status: 402 });
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const claim: PlanClaim = {

@@ -18,6 +18,8 @@ describe("concierge task shadow — maps REAL tool results to controller outcome
     expect(mapConciergeTool("sage_get_inspection", JSON.stringify({ status: "ready", planId: "plan1" }))).toEqual({ tool: "poll_inspection", ok: true, data: { ready: true, planId: "plan1" } });
     expect(mapConciergeTool("sage_fund_and_launch", JSON.stringify({ ok: true, campaignId: "camp1", campaignUrl: "u" }))).toEqual({ tool: "fund_and_launch", ok: true, data: { campaignId: "camp1", campaignUrl: "u" } });
     expect(mapConciergeTool("sage_fund_and_launch", JSON.stringify({ needsFunding: true }))).toEqual({ tool: "fund_and_launch", ok: false, reason: "needsFunding" });
+    // a plan's limit is a business stop, never an ambiguous outcome to go and verify
+    expect(mapConciergeTool("sage_fund_and_launch", JSON.stringify({ ok: false, planLimit: true, message: "Free runs one live job at a time." }))).toEqual({ tool: "fund_and_launch", ok: false, reason: "planLimit" });
     expect(mapConciergeTool("sage_wallet_status", "{}")).toBeNull(); // not a lifecycle transition
   });
 

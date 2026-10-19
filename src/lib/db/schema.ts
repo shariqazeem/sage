@@ -1423,3 +1423,46 @@ export const advanceRepayments = sqliteTable(
 );
 
 export type AdvanceRepaymentRow = typeof advanceRepayments.$inferSelect;
+
+/**
+ * x402 ON METIS: where a Permit2 payment this facilitator settles stands (src/lib/x402/metis/).
+ *
+ * settling → a /settle call claimed the payment and has not signed a transaction yet;
+ * pending   → the transaction is signed and recorded (tx_hash, tx_nonce), its outcome unknown;
+ * settled   → mined, and its Transfer log is the payment: the one success this payment will ever get;
+ * failed    → nothing moved (reverted, never mined, or expired); a later /settle may try again;
+ * mismatch  → mined without the expected Transfer. Terminal, never retried.
+ */
+export type X402MetisSettlementStatus = "settling" | "pending" | "settled" | "failed" | "mismatch";
+
+/**
+ * One row per Permit2 payment, keyed by Permit2's own replay primitive (network:payer:nonce), so a
+ * re-sent or re-encoded signature for the same payment lands on the same row. Every status change is
+ * a compare-and-set on the previous status: of two concurrent settles of one payment, one broadcasts.
+ */
+export const x402MetisSettlements = sqliteTable(
+  "x402_metis_settlements",
+  {
+    paymentKey: text("payment_key").primaryKey(),
+    network: text("network").notNull(),
+    payer: text("payer").notNull(),
+    /** Permit2 nonce (uint256), decimal string */
+    nonce: text("nonce").notNull(),
+    asset: text("asset").notNull(),
+    /** atomic units, decimal string */
+    amount: text("amount").notNull(),
+    payTo: text("pay_to").notNull(),
+    /** Permit2 deadline (uint256 seconds), decimal string */
+    deadline: text("deadline").notNull(),
+    status: text("status").$type<X402MetisSettlementStatus>().notNull(),
+    txHash: text("tx_hash"),
+    /** the facilitator account nonce the settle transaction was signed with */
+    txNonce: integer("tx_nonce"),
+    errorReason: text("error_reason"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("x402m_payer_idx").on(t.payer), index("x402m_status_idx").on(t.status)],
+);
+
+export type X402MetisSettlementRow = typeof x402MetisSettlements.$inferSelect;

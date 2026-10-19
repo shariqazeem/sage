@@ -619,7 +619,7 @@ function SettleRail({
     <div className={`sage-rail${cascade ? " sage-cascade-in" : ""}`}>
       <div className={`sage-rail-node ${verify}`}>
         <RailDot state={verify} />
-        <span className="sage-rail-label">Deputy verified</span>
+        <span className="sage-rail-label">Sage verified</span>
       </div>
       <div className={`sage-rail-node ${checks}`}>
         <RailDot state={checks} />

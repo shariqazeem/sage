@@ -8,7 +8,14 @@
  * agent's reputation. Run this once, when the signing wallet has GOAT gas.
  *
  * USAGE
- *   node scripts/register-erc8004.mjs [agentName]
+ *   node scripts/register-erc8004.mjs [agentName]                 # GOAT Network (2345)
+ *   node scripts/register-erc8004.mjs --chain metis [agentName]   # Metis Andromeda (1088)
+ *
+ * ON METIS (19 Oct 2026): the same canonical registry is deployed on Andromeda. Metis Rise asks that
+ * an agent's Metis wallet be the SAME address as its identity elsewhere, so the Metis registration
+ * signs with METIS_MAINNET_OPERATOR_PRIVATE_KEY, falling back to GOAT_AGENT_PRIVATE_KEY (the same
+ * key as the GOAT identity). Gas is METIS, priced legacy (Andromeda has no EIP-1559). It writes
+ * ERC8004_METIS_AGENT_ID / _ADDRESS / _NAME, leaving the GOAT identity untouched.
  *
  * KEY (in priority order):
  *   - GOAT_AGENT_PRIVATE_KEY env  (a dedicated agent key — recommended long-term)
@@ -47,7 +54,15 @@ const ROOT = join(__dirname, "..");
 
 /* ─────────────────────────────────────────── config (from the guide) ──── */
 const REGISTRY = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
-const AGENT_NAME = process.argv[2] || process.env.SAGE_AGENT_NAME || "Sage";
+const args = process.argv.slice(2);
+const chainFlag = args.indexOf("--chain");
+const ON = chainFlag >= 0 ? String(args[chainFlag + 1] ?? "goat").toLowerCase() : "goat";
+if (chainFlag >= 0) args.splice(chainFlag, 2);
+if (ON !== "goat" && ON !== "metis") {
+  console.error(`--chain must be goat or metis (got "${ON}").`);
+  process.exit(1);
+}
+const AGENT_NAME = args[0] || process.env.SAGE_AGENT_NAME || "Sage";
 
 const goat = defineChain({
   id: 2345,
@@ -58,6 +73,18 @@ const goat = defineChain({
     default: { name: "GOAT Explorer", url: "https://explorer.goat.network" },
   },
 });
+const metis = defineChain({
+  id: 1088,
+  name: "Metis",
+  nativeCurrency: { name: "Metis", symbol: "METIS", decimals: 18 },
+  rpcUrls: { default: { http: [process.env.METIS_MAINNET_RPC_URL || "https://andromeda.metis.io/?owner=1088"] } },
+  blockExplorers: {
+    default: { name: "Metis Explorer", url: "https://andromeda-explorer.metis.io" },
+  },
+});
+const CHAIN = ON === "metis" ? metis : goat;
+const EXPLORER = CHAIN.blockExplorers.default.url;
+const ENV_PREFIX = ON === "metis" ? "ERC8004_METIS_AGENT" : "ERC8004_AGENT";
 
 // Minimal registry ABI: register + the agent-wallet view + the ERC-721 mint event.
 const registryAbi = [
@@ -88,7 +115,7 @@ const registryAbi = [
 
 /* ─────────────────────────────────────────────────── key loading ──────── */
 function loadKey() {
-  let raw = process.env.GOAT_AGENT_PRIVATE_KEY;
+  let raw = (ON === "metis" ? process.env.METIS_MAINNET_OPERATOR_PRIVATE_KEY : undefined) || process.env.GOAT_AGENT_PRIVATE_KEY;
   if (!raw) {
     try {
       const text = readFileSync(join(ROOT, "contracts", ".env"), "utf8");
@@ -121,26 +148,31 @@ function loadKey() {
 /* ───────────────────────────────────────────────────────── run ────────── */
 async function main() {
   const account = privateKeyToAccount(loadKey());
-  const pub = createPublicClient({ chain: goat, transport: http() });
-  const wallet = createWalletClient({ account, chain: goat, transport: http() });
+  const pub = createPublicClient({ chain: CHAIN, transport: http() });
+  const wallet = createWalletClient({ account, chain: CHAIN, transport: http() });
 
-  console.log(`\nERC-8004 registration on GOAT Network (chain 2345)`);
+  console.log(`\nERC-8004 registration on ${CHAIN.name} (chain ${CHAIN.id})`);
   console.log(`  registry:   ${REGISTRY}`);
   console.log(`  agent name: "${AGENT_NAME}"`);
   console.log(`  signer:     ${account.address}   <-- this becomes the agent identity`);
 
   const balance = await pub.getBalance({ address: account.address });
-  console.log(`  gas balance: ${formatEther(balance)} BTC`);
+  console.log(`  gas balance: ${formatEther(balance)} ${CHAIN.nativeCurrency.symbol}`);
   if (balance === 0n) {
     console.error(
-      `\nThis wallet has no GOAT gas. Fund ${account.address} (mainnet-gas form: https://forms.gle/mjqCfinRfWT51xeh7), then re-run.`,
+      ON === "metis"
+        ? `\nThis wallet has no METIS for gas. Send a little METIS on Andromeda to ${account.address}, then re-run.`
+        : `\nThis wallet has no GOAT gas. Fund ${account.address} (mainnet-gas form: https://forms.gle/mjqCfinRfWT51xeh7), then re-run.`,
     );
     process.exit(1);
   }
 
   console.log(`\nSending register("${AGENT_NAME}")…`);
   let hash;
-  try {
+  if (ON === "metis") {
+    const gasPrice = ((await pub.getGasPrice()) * 12n) / 10n;
+    hash = await wallet.writeContract({ address: REGISTRY, abi: registryAbi, functionName: "register", args: [AGENT_NAME], gasPrice, type: "legacy" });
+  } else try {
     hash = await wallet.writeContract({
       address: REGISTRY,
       abi: registryAbi,
@@ -160,7 +192,7 @@ async function main() {
     });
   }
 
-  console.log(`  tx: https://explorer.goat.network/tx/${hash}`);
+  console.log(`  tx: ${EXPLORER}/tx/${hash}`);
   const receipt = await pub.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") {
     console.error(`  register reverted. Name may be taken or the wallet already registered.`);
@@ -189,7 +221,7 @@ async function main() {
   console.log(`  agentId:        ${agentId}`);
   console.log(`  getAgentWallet: ${registeredWallet}`);
   console.log(`  verify match:   ${registeredWallet.toLowerCase() === account.address.toLowerCase()}`);
-  console.log(`\n  Appears on: https://8004scan.io/agents?chain=2345`);
+  console.log(ON === "metis" ? `\n  Registry on Metis: ${EXPLORER}/address/${REGISTRY}` : `\n  Appears on: https://8004scan.io/agents?chain=2345`);
 
   // Persist to .env so the app's identity panel populates automatically.
   try {
@@ -205,13 +237,13 @@ async function main() {
       if (re.test(env)) env = env.replace(re, `${k}=${v}`);
       else env += `${env === "" || env.endsWith("\n") ? "" : "\n"}${k}=${v}\n`;
     };
-    setVar("ERC8004_AGENT_ID", String(agentId));
-    setVar("ERC8004_AGENT_ADDRESS", account.address);
-    setVar("ERC8004_AGENT_NAME", AGENT_NAME);
+    setVar(`${ENV_PREFIX}_ID`, String(agentId));
+    setVar(`${ENV_PREFIX}_ADDRESS`, account.address);
+    setVar(`${ENV_PREFIX}_NAME`, AGENT_NAME);
     writeFileSync(envPath, env);
-    console.log(`  wrote ERC8004_AGENT_ID / _ADDRESS / _NAME to .env — restart the app and the identity panel shows it.\n`);
+    console.log(`  wrote ${ENV_PREFIX}_ID / _ADDRESS / _NAME to .env — restart the app and the identity panel shows it.\n`);
   } catch (e) {
-    console.warn(`  (couldn't write .env: ${e.message}) — set ERC8004_AGENT_ID=${agentId} manually.\n`);
+    console.warn(`  (couldn't write .env: ${e.message}) — set ${ENV_PREFIX}_ID=${agentId} manually.\n`);
   }
 }
 

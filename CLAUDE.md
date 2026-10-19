@@ -10,12 +10,12 @@
 > code wins** — real discrepancies are listed under **Known drift** at the bottom. Update
 > this file deliberately, never casually.
 
-> **DIRECTION CHANGE, 19 Oct 2026 (the founder's decision):** Sage becomes **the company**, building AI
-> agents you can trust with money. It is backed by Metis and GOAT. **Primary networks: Metis Andromeda +
-> GOAT**; Arc and Starknet become secondary options; testnets are gone. It becomes **paid** (Free, Pro,
-> Team, Programs; workers always free), and onboarding is rebuilt Apple-minimal. Product #2 is **Called by
-> Sage**. The plan: `docs/strategy/2026-10-19-sage-the-company.md`. Until it is implemented, the sections
-> below describe the code as it is. Judge new work against the plan.
+> **SAGE, THE COMPANY (19 Oct 2026, the founder's decision; implemented on branch `company`).** Sage
+> builds AI agents you can trust with money. Product #1 is called just **Sage** (never "Sage Work");
+> product #2 is **Called by Sage** (its own repo). **Primary networks: Metis Andromeda + GOAT**; Arc and
+> Starknet are secondary ("More networks"); testnets are gone from every surface. Sage is **paid**: Free,
+> Pro, Team, Programs, and workers are always free (§4). The public site and the app were rebuilt
+> Apple-minimal (§5). The plan and its reasoning: `docs/strategy/2026-10-19-sage-the-company.md`.
 
 ---
 
@@ -33,23 +33,24 @@ The value is **bounded autonomy over money**: the agent spends without a human i
 loop, but the *vault* — not a prompt — enforces the limits. The AI proposes; the vault
 disposes.
 
-**Chains.** **GOAT Network** (chainId **2345**, real USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`,
-native gas **BTC**) is the DEFAULT EVM rail — `DEFAULT_EVM_LAUNCH_CHAIN`, `LAUNCH_ENABLED_CHAINS` GOAT
-first, a new account is born on `treasuryChainId()` = `TREASURY_CHAIN_ID` or the first configured launch
-chain — and holds every real EVM payout; **Starknet mainnet** is the private rail (below). **Arc** (chainId
-**5042002**, `ARC_LAUNCH_CHAIN`; USDC is the NATIVE gas token and also an ERC-20 at
-`0x3600000000000000000000000000000000000000`, 6 dp) is supported end to end (factory, account, launch,
-payout, withdraw, App Kit bridge-in) but is on TESTNET until Arc mainnet opens (16 Sep 2026), so a mainnet
-product keeps it behind an explicit, testnet-labelled choice: the deploy flow's second button, and a second
-tab on `/workspace/account` (`?chain=5042002`). The founder's rule (2026-09-10): "keep it separate and keep
-strk20 and goat primary, until we goes mainnet"; the day Arc mainnet is in the registry with a factory,
-`DEFAULT_EVM_LAUNCH_CHAIN` becomes Arc and GOAT moves behind the explicit choice ("arc default, goat behind an
-explicit choice but the history stays"). Telegram walletless accounts are pinned to GOAT (`chainId: 2345` in
-the tool). Metis Sepolia (**59902**) is the legacy testnet. Per-chain deploy-time config is env-prefixed
-(`railEnvPrefix`): `ARC_CAMPAIGN_FACTORY_ADDRESS`, `ARC_OPERATOR_ADDRESS`, `ARC_OPERATOR_PRIVATE_KEY` (falls
-back to `GOAT_AGENT_PRIVATE_KEY`), `ARC_RPC_URL`. Arc's V2 factory: `0xfAc019eF6d8B36FE33233244ff0b97f0D9e99B8c`.
-On Arc there is no gas stipend to think about: funding the account with USDC funds its gas. (Note: the code
-constant `DEFAULT_CHAIN_ID` is 59902 — see Known drift.)
+**Networks (19 Oct 2026).** ONE policy, in `src/lib/deputy/networks.ts`: `PRIMARY_NETWORKS` = GOAT (2345)
+and Metis Andromeda (1088); `SECONDARY_NETWORKS` = Arc mainnet (5042) and Starknet (900001);
+`networkTier()` says which. Every surface reads it (onboarding, the account tabs, the deploy flow, Privy's
+chain list), and secondary networks appear only under "More networks" or when already held. Launching is
+`LAUNCH_ENABLED_CHAINS = [2345, 1088, 5042]`, each launchable only when its factory, operator and token are
+configured (fails closed).
+- **GOAT Network** (USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`, gas **BTC**) is still
+  `DEFAULT_EVM_LAUNCH_CHAIN` and holds Sage's longest real-money history.
+- **Metis Andromeda** (m.USDC `0xEA32A96608495e54156Ae48931A7c20f0dcc1a21`, 6 dp; gas **METIS**, legacy
+  pricing, no EIP-1559) reads its OWN settings (`railEnvPrefix(1088) = "METIS_MAINNET"`: factory, operator
+  address, key falling back to `GOAT_AGENT_PRIVATE_KEY`, RPC), never the retired Sepolia testnet's. Gas is
+  sized per chain in `src/lib/treasury/gas-policy.ts`. Its V2 factory is deployed by the founder with
+  `contracts/script/deploy-campaign-factory-metis.sh` once the operator holds METIS; until then the rail is
+  wired but not launchable. The default moves to Metis only after a real payout there.
+- **Arc** (USDC is the native gas and an ERC-20 at `0x3600…0000`) and **Starknet** (the private rail, below)
+  keep working end to end; they are hidden, never deleted.
+- Telegram walletless accounts are pinned to GOAT (`chainId: 2345` in the tool). Metis Sepolia (59902) and
+  Arc testnet (5042002) are retired. (The code constant `DEFAULT_CHAIN_ID` is still 59902; see Known drift.)
 
 **Two settlement rails.** `campaign.settlementRail` is `"evm"` or `"starknet"`, and it — not
 the chain id — decides which settler pays. EVM covers GOAT and Metis through the V2
@@ -232,8 +233,19 @@ if you must touch them, that suite must stay green.
   campaign the autopilot approves at once and the sweep settles after `AUTOPAY_FINALIZE_MINUTES`
   (default 30), re-running the near-duplicate, copied-artifact and wallet-cluster watch against
   everything that arrived since; a hit revokes with the reason. Members-only work pays at once. A
-  founder's explicit release carries no window. `src/lib/deputy/finalization.ts`. No plans, no
-  seat caps: Sage earns on settlement and financing (`docs/strategy/autonomous-paymaster.md`).
+  founder's explicit release carries no window. `src/lib/deputy/finalization.ts`.
+- **Plans gate LAUNCHES and features, never payouts (19 Oct 2026).** One catalog
+  (`src/lib/plans/catalog.ts`): the pricing page and the server read the same list. `launchAllowed`
+  (`src/lib/plans/founder-plan.ts`) runs at EVERY door that starts a job, before money moves:
+  - the account launch (web and the operator);
+  - Telegram;
+  - the wallet claim's challenge and the claim itself;
+  - the Starknet deploy description.
+  It is never run after a vault holds money. No settlement path reads a plan (tested): a live job keeps
+  paying its workers whatever its founder's plan does. Feature gates (members-only invites, Autopilot,
+  admins, exports) read `effectivePlan`. `SAGE_PLAN_LIMITS=off` is the emergency switch.
+  Plans are paid in USDC on Metis or GOAT and read from the chain (`src/lib/plans/billing.ts`), from the
+  founder's account (the withdrawal's scoped permit) or any wallet that is theirs. Workers never pay.
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
 - **The agent may decide WHERE to spend, never HOW MUCH.** Under a founder's standing mandate
@@ -252,6 +264,23 @@ if you must touch them, that suite must stay green.
 **One system: "receipt minimalism."** Calm, premium-light, print-like. This is the
 standard all UI converges to; new UI must follow it. (Current reality is fragmented — see
 Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.)
+
+**Two worlds since 19 Oct 2026, and `src/components/shell/routes.ts` decides which a route is:**
+- **The company site:**
+  - Pages: home, pricing, company, Called, ledger, docs.
+  - Every page is wrapped in `SiteFrame` (`src/components/site/`) and styled by `src/styles/site.css`:
+    Apple-like restraint, one idea per section, large type, real product imagery.
+  - The hero's product shot is the latest real receipt, and every number comes from `src/lib/site/live-proof.ts`.
+- **The app** is six screens, and the rail lists exactly these (tested):
+  - Home `/workspace`, Post `/launch`, Jobs `/workspace/jobs`, Account `/workspace/account`,
+    Team `/workspace/people`, Settings `/workspace/settings`.
+  - Everything else is reached from the screen it belongs to.
+- **Neither world:**
+  - `/start` is the focused first run, with no rail.
+  - `/proof/<tx>` is a document: a receipt never wears founder chrome.
+- **Folded pages** keep their addresses alive through `src/lib/site/redirects*.ts`. Never delete a public
+  URL without a redirect.
+- No inline `style=` in new code; classes only.
 
 - **Color.** Paper background `#fbfbf9`; ink text `#1a1d21`; **brand accent terracotta
   `#c2410c` on ALL interactive/brand elements** (links, primary buttons, focus, the mark).

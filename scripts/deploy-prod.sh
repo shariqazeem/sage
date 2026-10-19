@@ -1,10 +1,14 @@
 #!/bin/bash
 # Deploy a file list to prod without a rebuild window: guard → sync each file (ssh cat, quoted path)
-# → checksum every file on prod → build into .next-new → swap → restart → verify.
-#   scripts/deploy-prod.sh <file-list>     (one repo-relative path per line; defaults to /tmp/deploy-next.txt)
+# → retire removed files → checksum every file on prod → build into .next-new → swap → restart → verify.
+#   scripts/deploy-prod.sh <file-list> [removed-list]
+#     file-list:    one repo-relative path per line (defaults to /tmp/deploy-next.txt)
+#     removed-list: files deleted in the repo. They are MOVED on prod to ~/sage-retired/<time>/ (never
+#                   deleted, so a bad deploy can put them back), so a removed page stops being built.
 # Never run while a battery is running on the VM. Contains no secrets; the key path is the operator's.
 set -u
 LIST="${1:-/tmp/deploy-next.txt}"
+REMOVED="${2:-}"
 KEY=~/Documents/ssh-key3.key; VM=ubuntu@80.225.209.190; R=/home/ubuntu/sage
 S() { ssh -n -o StrictHostKeyChecking=no -i $KEY $VM "$@"; }
 cd "$(dirname "$0")/.."
@@ -27,6 +31,17 @@ while read -r f; do
   ssh -o StrictHostKeyChecking=no -i $KEY $VM "mkdir -p '$R/$(dirname "$f")' && cat > '$R/$f'" < "$f" || { echo "SYNC FAILED: $f"; fail=1; }
 done < "$LIST"
 [ $fail = 0 ] || exit 4
+if [ -n "$REMOVED" ] && [ -s "$REMOVED" ]; then
+  STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+  echo "== retire $(wc -l < "$REMOVED" | tr -d ' ') removed files → ~/sage-retired/$STAMP =="
+  while read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in /*|*..*) echo "REFUSED path: $f"; exit 4;; esac
+    S "cd $R && if [ -e '$f' ]; then mkdir -p '/home/ubuntu/sage-retired/$STAMP/$(dirname "$f")' && mv '$f' '/home/ubuntu/sage-retired/$STAMP/$f'; fi" || { echo "RETIRE FAILED: $f"; exit 4; }
+  done < "$REMOVED"
+  # a removed file must really be gone, or it is still built and still served
+  while read -r f; do [ -z "$f" ] && continue; S "test ! -e '$R/$f'" || { echo "STILL PRESENT: $f"; exit 4; }; done < "$REMOVED"
+fi
 echo "== checksums =="
 while read -r f; do [ -z "$f" ] && continue; echo "$(md5 -q "$f")  $f"; done < "$LIST" > /tmp/deploy-local.md5
 ssh -o StrictHostKeyChecking=no -i $KEY $VM "cd $R && while read -r sum f; do echo \"\$(md5sum \"\$f\" | cut -d' ' -f1)  \$f\"; done" < /tmp/deploy-local.md5 > /tmp/deploy-remote.md5
@@ -36,5 +51,5 @@ S "cd $R && rm -rf .next-new && NEXT_DIST_DIR=.next-new npm run build 2>&1 | tai
 echo "== swap + restart =="
 S "cd $R && rm -rf .next-prev && mv .next .next-prev && mv .next-new .next && pm2 restart sage --update-env >/dev/null && sleep 6 && pm2 status sage | grep -E 'sage ' | awk -F'│' '{print \"pm2:\", \$3, \$10}' && rm -rf .next-prev"
 echo "== verify =="
-for p in / /launch /explorer /marketplace /lender /outcomes /docs; do printf "%s → " "$p"; curl -s -o /dev/null -w "%{http_code}\n" --max-time 30 "https://sagepays.xyz$p"; done
+for p in / /pricing /company /ledger /docs /marketplace /launch /start /lender /explorer /faq; do printf "%s → " "$p"; curl -s -o /dev/null -w "%{http_code}\n" --max-time 30 "https://sagepays.xyz$p"; done
 S "tail -3 /home/ubuntu/.pm2/logs/sage-error.log | cut -c1-160"

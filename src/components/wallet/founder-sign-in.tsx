@@ -46,11 +46,14 @@ export function FounderSignIn({
   explainer,
   onSignedIn,
   intent = "signin",
+  families = "all",
 }: {
   explainer?: React.ReactNode;
   onSignedIn?: () => void;
   /** `bind`: the proven wallet joins the account already signed in; the session is not replaced. */
   intent?: "signin" | "bind";
+  /** `evm`: Ethereum wallets only (Starknet is a secondary network, offered behind "More options"). */
+  families?: "all" | "evm";
 }) {
   const evm = useSiwe();
   const starknet = useStarknetSiwe();
@@ -101,7 +104,7 @@ export function FounderSignIn({
     });
   }
 
-  for (const w of starknet.wallets) {
+  for (const w of families === "all" ? starknet.wallets : []) {
     options.push({
       id: `sn:${w.id}`,
       name: collides(w.name),
@@ -129,7 +132,7 @@ export function FounderSignIn({
       emptyMessage="No wallet found in this browser."
       installHints={[
         { name: "MetaMask", url: "https://metamask.io/download" },
-        { name: "Ready", url: "https://www.ready.co" },
+        ...(families === "all" ? [{ name: "Ready", url: "https://www.ready.co" }] : []),
       ]}
     />
   );

@@ -10,6 +10,7 @@ import { MarketplaceBoard } from "@/components/marketplace/marketplace-board";
 import { PayoutProof } from "@/components/marketplace/payout-proof";
 import "@/styles/tester-board.css";
 import "@/styles/marketplace.css";
+import { SiteFrame } from "@/components/site/site-frame";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Get paid for verified work",
   description:
-    "Every paid mission, gig and bounty open on Sage right now. Pick one, do the work, submit your evidence, and an AI agent verifies it and pays you in USDC — publicly on GOAT Network or privately on Starknet. No application, no interview, no human approving the payout.",
+    "Every paid task, gig and bounty open on Sage right now. Pick one, do the work, submit your evidence, and Sage verifies it and pays you in USDC to your own wallet. No application, no interview, never a fee.",
   alternates: { canonical: "/marketplace" },
 };
 
@@ -56,14 +57,15 @@ export default async function MarketplacePage() {
   ];
 
   return (
-    <main className="sb-board mk-page">
+    <SiteFrame active="/marketplace">
+    <div className="sb-board mk-page">
       <header className="mk-hero">
         <div>
-          <div className="sage-eyebrow">Marketplace</div>
-          <h1 className="dash-display mk-title">Get paid to test real products.</h1>
+          <div className="sage-eyebrow">Find work</div>
+          <h1 className="dash-display mk-title">Get paid for real work.</h1>
           <p className="mk-lede">
-            Founders fund a vault up front. Do one short, specific task, describe what you actually
-            saw, and the agent pays you in USDC. No application, no interview.
+            Every job here is funded up front. Do one short, specific task, show what you did, and
+            Sage pays you in USDC to your own wallet. No application, no interview, never a fee.
           </p>
         </div>
         {totals.slots > 0 && (
@@ -152,6 +154,7 @@ export default async function MarketplacePage() {
           exceed, and publishes a receipt you can verify yourself.
         </p>
       </footer>
-    </main>
+    </div>
+    </SiteFrame>
   );
 }
