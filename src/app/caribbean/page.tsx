@@ -49,7 +49,7 @@ export default function CaribbeanPage() {
 
       <section>
         <h2>The four readings, against the track&rsquo;s own bar</h2>
-        <p>The brief names the metrics: payment fee reduction, real-time settlement, credit access without collateral, efficient regional capital movement. These are the live readings, derived on <Link href="/outcomes">/outcomes</Link>.</p>
+        <p>The brief names the metrics: payment fee reduction, real-time settlement, credit access without collateral, efficient regional capital movement. These are the live readings, derived from the same records as the <Link href="/ledger">ledger</Link>.</p>
         <div className="grid2">
           <div className="read"><p className="v ok">$0.10</p><p className="k">flat fee per settlement · recipients keep 100%</p><p className="vs">Against the corridor&rsquo;s {Math.round(o.corridor.benchmarkRate * 100)}% the same {usd(o.corridor.amountUsd)} would have cost {usd(o.corridor.benchmarkCostUsd)}; it cost {usd(o.corridor.sageCostUsd)}.</p></div>
           <div className="read"><p className="v ok">{mins(o.medianMinutesToSettle)}</p><p className="k">median, submission to settled payment</p><p className="vs">Verification included — the part other rails do not attempt. {o.p90MinutesToSettle !== null ? `p90 ${mins(o.p90MinutesToSettle)}.` : ""} Against three days for a corridor transfer.</p></div>
@@ -117,7 +117,7 @@ export default function CaribbeanPage() {
         <div className="tbl"><table>
           <thead><tr><th>Claim</th><th>Status</th><th>Evidence</th></tr></thead>
           <tbody>
-            <tr><td>Autonomous verified payments on mainnet, two rails</td><td><span className="status done">proven</span></td><td><Link href="/explorer">/explorer</Link> · {o.payoutCount} payments, {decided} decisions</td></tr>
+            <tr><td>Autonomous verified payments on mainnet, two rails</td><td><span className="status done">proven</span></td><td><Link href="/ledger">/ledger</Link> · {o.payoutCount} payments, {decided} decisions</td></tr>
             <tr><td>Private payouts — the receipt proves the payment without publishing the recipient</td><td><span className="status done">proven</span></td><td><Link href={`/proof/${PRIVATE}`}>a private receipt</Link></td></tr>
             <tr><td>Verified cash-flow records and the lender&rsquo;s view</td><td><span className="status done">live</span></td><td><Link href={`/record/${RECORD}`}>a record</Link> · <Link href={`/lender?wallet=${RECORD}`}>its lender view</Link></td></tr>
             <tr><td>Obligations in {o.denominationsSupported} currencies at a stamped rate</td><td><span className="status done">live</span></td><td><Link href="/launch">/launch</Link></td></tr>

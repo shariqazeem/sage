@@ -55,7 +55,7 @@ export function SceneCapital({
               Each payout is anchored to an on-chain transaction, inside caps the agent cannot
               exceed. Refusals are recorded with the same weight as approvals.
             </p>
-            <Link href="/explorer" className="cap-link">
+            <Link href="/ledger" className="cap-link">
               Every settlement and refusal <ArrowRight size={13} strokeWidth={2} />
             </Link>
           </article>
@@ -100,7 +100,7 @@ export function SceneCapital({
             <b>{refusalPct}%</b> refused on record
           </span>
           <span className="cap-dot" aria-hidden />
-          <Link href="/outcomes" className="cap-stat cap-stat-link">
+          <Link href="/ledger#outcomes" className="cap-stat cap-stat-link">
             the readings <ArrowRight size={12} strokeWidth={2} />
           </Link>
         </div>

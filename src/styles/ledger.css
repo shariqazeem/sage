@@ -1,0 +1,364 @@
+/**
+ * ledger.css: THE LEDGER (/ledger, 19 Oct 2026). The public record of every payout and every refusal,
+ * inside the company site's frame (site.css). Every value is a token from tokens.css.
+ *
+ * Every class is prefixed `lg-` and scoped under `.site`: the site's own element rules (`.site a`,
+ * `.site p`, `.site h2`) outrank a bare class, and a plain `.ledger` already means something on
+ * another page, so nothing here can leak into it or lose to it.
+ *
+ * Phone first. At 375px every row is stacked (what, then where and when), the filters wrap, and no
+ * line is wider than the screen. From 760px the activity reads as columns, with a header row.
+ */
+
+/* ── by network ─────────────────────────────────────────────────────── */
+.site .lg-nets-wrap {
+  max-width: var(--site-narrow);
+  margin: var(--s-7) auto 0;
+}
+.site .lg-label {
+  display: block;
+  margin: 0 0 var(--s-3);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-muted);
+}
+.site .lg-label-sub {
+  margin-top: var(--s-5);
+}
+.site .lg-nets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.site .lg-nets > li {
+  border-bottom: 1px solid var(--border);
+}
+.site .lg-net {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 14px 0;
+  text-decoration: none;
+  color: inherit;
+}
+.site .lg-net:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+.site .lg-net-name {
+  font-size: 16px;
+  font-weight: 500;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.site .lg-net:hover .lg-net-name,
+.site .lg-net[aria-current="true"] .lg-net-name {
+  color: var(--accent);
+}
+.site .lg-net-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-4);
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+.site .lg-net-figs b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--site-ink);
+}
+.site .lg-net-none {
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+@media (min-width: 640px) {
+  .site .lg-net {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--s-4);
+  }
+  .site .lg-net-figs {
+    display: grid;
+    grid-template-columns: 9rem 7.5rem 6.5rem;
+    text-align: right;
+  }
+}
+
+/* ── filters ────────────────────────────────────────────────────────── */
+.site .lg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3) var(--s-6);
+  margin-bottom: var(--s-5);
+}
+.site .lg-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.site .lg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink-muted);
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.site .lg-chip:hover {
+  border-color: var(--site-ink);
+  color: var(--site-ink);
+}
+.site .lg-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.site .lg-chip[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.site .lg-chip-n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.site .lg-chip[aria-current="true"] .lg-chip-n {
+  color: var(--accent);
+}
+
+/* ── the activity: every payout and every refusal ───────────────────── */
+.site .lg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.site .lg-list > li + li {
+  border-top: 1px solid var(--border);
+}
+.site .lg-row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "dot main amt"
+    ". meta meta";
+  align-items: center;
+  column-gap: var(--s-4);
+  row-gap: 4px;
+  padding: 14px var(--s-4);
+  color: inherit;
+  text-decoration: none;
+}
+.site a.lg-row {
+  transition: background var(--dur-1) var(--ease-out);
+}
+.site a.lg-row:hover {
+  background: var(--accent-soft);
+}
+.site a.lg-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.site .lg-dot {
+  grid-area: dot;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.site .lg-dot.is-refused {
+  background: var(--err);
+}
+.site .lg-main {
+  grid-area: main;
+  min-width: 0;
+}
+.site .lg-title {
+  display: block;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site .lg-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site .lg-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-2);
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.site .lg-meta > * + *::before {
+  content: "·";
+  margin-right: var(--s-2);
+}
+.site .lg-amt {
+  grid-area: amt;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.site .lg-amt.is-refused {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--err);
+}
+.site .lg-head {
+  display: none;
+}
+@media (min-width: 760px) {
+  .site .lg-row {
+    grid-template-columns: 8px minmax(0, 1fr) 150px 130px 110px;
+    grid-template-areas: "dot main net when amt";
+    padding: 14px var(--s-5);
+  }
+  .site .lg-meta {
+    display: contents;
+  }
+  .site .lg-meta > * + *::before {
+    content: none;
+  }
+  .site .lg-net-cell {
+    grid-area: net;
+    font-size: 14px;
+    color: var(--ink-muted);
+  }
+  .site .lg-when {
+    grid-area: when;
+    font-size: 14px;
+  }
+  .site .lg-head {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) 150px 130px 110px;
+    column-gap: var(--s-4);
+    padding: 10px var(--s-5);
+    background: var(--surface);
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+  .site .lg-head > :last-child {
+    text-align: right;
+  }
+}
+
+.site .lg-empty {
+  padding: var(--s-6) var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg);
+  text-align: center;
+  color: var(--ink-muted);
+}
+.site .lg-empty .more {
+  display: inline-block;
+  margin-top: var(--s-3);
+}
+
+.site .lg-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+}
+.site .lg-pager-at {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+/* ── what the jobs got ──────────────────────────────────────────────── */
+.site .lg-note {
+  max-width: var(--site-narrow);
+  margin: var(--s-5) auto 0;
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+/* ── check it yourself: look up a transaction or a wallet ───────────── */
+.site .lg-lookup {
+  padding: clamp(24px, 3vw, 36px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg);
+}
+.site .lg-lookup label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+.site .lg-lookup-row {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.site .lg-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--site-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.site .lg-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.site .lg-hint {
+  margin-top: var(--s-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.site .lg-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--site-ink);
+}
+.site .lg-error svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}

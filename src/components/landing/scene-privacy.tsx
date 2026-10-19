@@ -76,7 +76,7 @@ export function ScenePrivacy() {
         </div>
 
         <div className="prv-actions">
-          <Link href="/explorer" className="prv-link">
+          <Link href="/ledger" className="prv-link">
             Every settlement, including the private rail <ArrowRight size={13} strokeWidth={2} />
           </Link>
           <a

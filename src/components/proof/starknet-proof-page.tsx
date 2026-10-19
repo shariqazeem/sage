@@ -26,7 +26,7 @@ export function StarknetProofPage({ proof }: { proof: StarknetProof }) {
   return (
     <main className="skp">
       <div className="skp-wrap">
-        <Link href="/explorer" className="skp-back">
+        <Link href="/ledger" className="skp-back">
           <ArrowLeft size={14} aria-hidden /> All payouts
         </Link>
 

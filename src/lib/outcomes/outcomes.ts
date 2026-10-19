@@ -14,7 +14,7 @@ import { OPERATOR_WALLETS, decidedOnMainnet, settledLedger } from "@/lib/campaig
  * THE BRIEF'S BAR, AS READINGS — "does your system change outcomes?" answered from the ledger.
  *
  * The rule that makes this page worth a judge's time: every figure is DERIVED at render time from
- * the same rows /explorer verifies, or it is not shown. A number typed into copy is a claim; a
+ * the same rows the ledger lists, or it is not shown. A number typed into copy is a claim; a
  * number computed from settled transactions is a reading. Where the system has not yet produced
  * the data (regional corridor flow), the honest value is "not yet measured", stated as such —
  * this file refuses to know things the ledger does not know.

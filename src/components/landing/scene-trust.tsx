@@ -21,8 +21,8 @@ export function SceneTrust({
 }) {
   const facts: { k: string; v: string; href: string }[] = [
     { k: "Mainnet rails", v: networkName, href: "/docs/settlement" },
-    { k: "Settled, verified", v: `${usd(paidUsd)} · ${payoutCount} payouts`, href: "/explorer" },
-    { k: "Refused on record", v: `${refusedCount} · ${refusalPct}%`, href: "/explorer" },
+    { k: "Settled, verified", v: `${usd(paidUsd)} · ${payoutCount} payouts`, href: "/ledger" },
+    { k: "Refused on record", v: `${refusedCount} · ${refusalPct}%`, href: "/ledger" },
     { k: "Live batteries", v: "P-GEN · P-DIRECT · P-JUDGE · P-WORK · P-ROUTE · P-VERIFY", href: "/docs/safety" },
     { k: "Open source", v: "github.com/shariqazeem/sage", href: "https://github.com/shariqazeem/sage" },
     { k: "Metis Stage 2", v: "1st place", href: "/case-studies/autonomous-paid-testing" },

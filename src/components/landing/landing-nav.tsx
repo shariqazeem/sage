@@ -26,7 +26,7 @@ const LINKS = [
   { href: "/marketplace", label: "Find work" },
   { href: "/verify", label: "Get verified" },
   { href: "#how", label: "How it works" },
-  { href: "/explorer", label: "Live proof" },
+  { href: "/ledger", label: "Live proof" },
   { href: "/lender", label: "For lenders" },
   { href: "/docs", label: "Docs" },
 ];

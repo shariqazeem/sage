@@ -16,8 +16,10 @@ import { decidedOnMainnet } from "./settled-ledger";
  * against the real database: judged = paid + refused, mainnet only, sandbox excluded, held ignored.
  */
 const SURFACES = [
-  "src/app/explorer/page.tsx",
-  "src/app/page.tsx",
+  // the ledger (it replaced /explorer and /outcomes on 19 Oct 2026) and the home page read their
+  // numbers from these two modules, so the modules are what is held to the rule
+  "src/lib/site/ledger.ts",
+  "src/lib/site/live-proof.ts",
   "src/lib/outcomes/outcomes.ts",
   "src/lib/campaigns/tester-supply.ts",
 ];
@@ -29,6 +31,11 @@ describe("the refusal share is derived once", () => {
       expect(src, f).toMatch(/decidedOnMainnet/);
       expect(src, f).not.toMatch(/countDecidedSubmissions\(\)/);
     }
+    // the pages themselves only read those modules
+    expect(readFileSync(resolve(process.cwd(), "src/app/page.tsx"), "utf8")).toMatch(/liveProof\(/);
+    const ledgerPage = readFileSync(resolve(process.cwd(), "src/app/ledger/page.tsx"), "utf8");
+    expect(ledgerPage).toMatch(/readLedger\(/);
+    expect(ledgerPage).not.toMatch(/decidedOnMainnet|countDecidedSubmissions|sharePct\s*=/);
     const trust = readFileSync(resolve(process.cwd(), "src/components/landing/scene-trust.tsx"), "utf8");
     expect(trust).not.toMatch(/Math\.round\(\(refusedCount/);
     const strip = readFileSync(resolve(process.cwd(), "src/components/launch/tester-supply-proof.tsx"), "utf8");

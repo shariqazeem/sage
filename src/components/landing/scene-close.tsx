@@ -40,7 +40,7 @@ export function SceneClose({
           <Link href="/caribbean">Sage for the Caribbean</Link>
           <Link href="/lender">For lenders</Link>
           <span className="cl-dot" aria-hidden />
-          <Link href="/outcomes">Outcomes against the track&rsquo;s bar</Link>
+          <Link href="/ledger#outcomes">Outcomes against the track&rsquo;s bar</Link>
           <span className="cl-dot" aria-hidden />
           <Link href="/docs/compliance">Compliance</Link>
         </p>

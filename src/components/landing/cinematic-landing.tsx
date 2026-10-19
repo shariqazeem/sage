@@ -89,8 +89,7 @@ export function CinematicLanding({ network, totals, feed, now, ecosystem, showca
           </nav>
           <nav className="foot-col" aria-label="Proof">
             <h4>Proof</h4>
-            <Link href="/explorer">Explorer</Link>
-            <Link href="/outcomes">Outcomes</Link>
+            <Link href="/ledger">Ledger</Link>
             <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
             <Link href="/agents/sage">Agent record</Link>
           </nav>

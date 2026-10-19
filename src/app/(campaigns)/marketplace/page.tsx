@@ -125,7 +125,7 @@ export default async function MarketplacePage() {
                 </li>
               </ol>
               <div className="mk-empty-actions">
-                <Link href="/explorer" className="sage-btn">
+                <Link href="/ledger" className="sage-btn">
                   See every payout and refusal <ArrowRight size={15} />
                 </Link>
                 <Link href="/launch" className="sage-btn sage-btn-primary">

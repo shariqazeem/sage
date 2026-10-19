@@ -61,7 +61,7 @@ export function SceneHero({
             <Link href="/start" className="btn btn-primary">
               Get started <ArrowRight size={17} strokeWidth={2.2} />
             </Link>
-            <Link href="/explorer" className="btn btn-ghost">
+            <Link href="/ledger" className="btn btn-ghost">
               See every payout
             </Link>
           </div>
@@ -133,7 +133,7 @@ export function SceneHero({
             )}
             <div className="hl-f">
               <span className="mono">Every row is a transaction you can open.</span>
-              <Link href="/explorer" className="hl-all mono">
+              <Link href="/ledger" className="hl-all mono">
                 All {payoutCount} <ArrowUpRight size={12} strokeWidth={2.2} />
               </Link>
             </div>

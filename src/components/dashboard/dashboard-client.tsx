@@ -165,7 +165,7 @@ export function DashboardClient({
         <p className="ws-empty" style={{ marginTop: 18 }}>
           <Inbox size={18} />
           <span>
-            No campaigns yet — post work above and Sage designs or compiles the missions. Want to see it working first? Open the <Link href="/explorer">public ledger</Link> or <Link href="/marketplace">a live board</Link> — every payout there is a real transaction.
+            No campaigns yet — post work above and Sage designs or compiles the missions. Want to see it working first? Open the <Link href="/ledger">public ledger</Link> or <Link href="/marketplace">a live board</Link> — every payout there is a real transaction.
           </span>
         </p>
       ) : (

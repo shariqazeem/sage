@@ -25,7 +25,7 @@ export default async function GraphPage({ params }: { params: Promise<{ id: stri
     <main className="ws-shell">
       <header className="ws-head">
         <div>
-          <Link href="/explorer" className="ws-back">← Explorer</Link>
+          <Link href="/ledger" className="ws-back">← Ledger</Link>
           <span className="ws-eyebrow" style={{ marginTop: 10 }}>The ledger, as a picture</span>
           <h1 className="ws-title">{c.title}</h1>
           <p className="ws-sub">Who the vault paid, who funded whose gas, and whose payouts met. A linked cluster is one person&rsquo;s wallets; the agent holds every payout in it.</p>

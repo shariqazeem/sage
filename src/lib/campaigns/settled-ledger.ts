@@ -132,6 +132,16 @@ export function mainnetSettledToTesters(
 }
 
 /**
+ * WHO WAS JUDGED, defined once: submissions with the given verdicts on real-money, non-sandbox
+ * campaigns. The refusal share counts this population and the public ledger lists it, from this one
+ * predicate, so the list under "refused" can never be a second answer to how many were refused.
+ */
+function judgedOnMainnet(statuses: string[]) {
+  const mainnetIds = Object.keys(CHAINS).map(Number).filter((id) => chainConfig(id).isMainnet);
+  return and(inArray(campaigns.chainId, mainnetIds), eq(campaigns.sandbox, false), inArray(submissions.status, statuses));
+}
+
+/**
  * THE REFUSAL SHARE — one derivation, for every surface.
  *
  * Measured 2026-09-02 on a single judge's walk: the explorer said 43%, the landing and the outcomes
@@ -142,12 +152,11 @@ export function mainnetSettledToTesters(
  * verdict and is not counted either way.
  */
 export function decidedOnMainnet(): { paid: number; refused: number; sharePct: number } {
-  const mainnetIds = Object.keys(CHAINS).map(Number).filter((id) => chainConfig(id).isMainnet);
   const rows = db
     .select({ status: submissions.status, c: sql<number>`count(*)` })
     .from(submissions)
     .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
-    .where(and(inArray(campaigns.chainId, mainnetIds), eq(campaigns.sandbox, false), inArray(submissions.status, ["paid", "rejected"])))
+    .where(judgedOnMainnet(["paid", "rejected"]))
     .groupBy(submissions.status)
     .all();
   let paid = 0;
@@ -158,4 +167,44 @@ export function decidedOnMainnet(): { paid: number; refused: number; sharePct: n
   }
   const judged = paid + refused;
   return { paid, refused, sharePct: judged > 0 ? Math.round((refused / judged) * 100) : 0 };
+}
+
+/**
+ * One refusal behind `decidedOnMainnet().refused`. There is deliberately no wallet and no reason
+ * text: refusals are the system's integrity story, told without naming anyone (record.ts), and a
+ * public reason written about one person's work is the kind of feedback the no-oracle rule keeps
+ * to the person it was written for.
+ */
+export interface RefusedRow {
+  submissionId: string;
+  campaignId: string;
+  chainId: number;
+  /** a transaction only when the refusal produced one. It almost never does: refusing is free. */
+  txHash: string | null;
+  at: number;
+}
+
+/** Every refusal on real money, newest first. Its length is `decidedOnMainnet().refused`, by construction. */
+export function refusedOnMainnet(): RefusedRow[] {
+  return db
+    .select({
+      submissionId: submissions.id,
+      campaignId: submissions.campaignId,
+      chainId: campaigns.chainId,
+      txHash: submissions.payoutTx,
+      decidedAt: submissions.decidedAt,
+      createdAt: submissions.createdAt,
+    })
+    .from(submissions)
+    .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+    .where(judgedOnMainnet(["rejected"]))
+    .all()
+    .map((r) => ({
+      submissionId: r.submissionId,
+      campaignId: r.campaignId,
+      chainId: r.chainId,
+      txHash: r.txHash ?? null,
+      at: r.decidedAt ?? r.createdAt,
+    }))
+    .sort((a, b) => b.at - a.at);
 }
