@@ -24,6 +24,11 @@ The operator keeps a 0.2 METIS reserve for payouts before it will cover anyone's
 
 ## 2. Deploy the vault factory on Metis
 
+**Checked first, read-only, 19 Oct 2026.** Andromeda runs PUSH0 but not MCOPY, TSTORE or BASEFEE. Sage's
+contracts compile with `evm_version = "paris"`, so they use none of them. Simulated against the live
+Metis RPC with nothing sent: the factory's constructor runs (10,144 bytes of runtime), and
+`createCampaignVault` creates a vault with an m.USDC mission plan. Your METIS deploys working contracts.
+
 On your machine, in `contracts/` (with `GOAT_AGENT_PRIVATE_KEY` in `contracts/.env`):
 
 ```bash
@@ -70,14 +75,27 @@ Once a real Metis payout exists:
 
 Existing GOAT accounts keep working: an account carries its own network.
 
-## 6. x402 on Metis (when its build lands)
+## 6. x402 on Metis (built, off until you turn it on)
 
-Metis has no live x402 facilitator today (none of the public ones list chain 1088). Sage's own facilitator
-is being built (`docs/next/metis-x402.md`, written with it). Turning it on means three things:
-- deploying the x402 Permit2 proxy (one transaction, about 0.004 METIS);
-- funding a facilitator key with a little METIS;
-- setting three env lines.
-It stays off until you do.
+Metis has no live x402 facilitator; Sage has one now (`docs/next/metis-x402.md`). One finding shapes it:
+x402's canonical payment proxy uses MCOPY, which Metis lacks, so it would deploy and then revert on every
+payment. Sage uses the same audited source built for "paris", deployed through the same CREATE2
+deployer to **`0xC5Df359394de02F8E04bfb650E250b20a33BEe6a`**. Called's client signs with that address as
+the spender.
+
+1. Dry run, which sends nothing: `node contracts/script/deploy-x402-permit2-proxy-metis.mjs`.
+2. Deploy, which costs about 0.014 METIS: put a key holding at least 0.03 METIS in
+   `X402_METIS_DEPLOYER_PRIVATE_KEY`, then add `--send`.
+3. Make a NEW facilitator key; it must not be a key Sage pays out with, and the app refuses one.
+   Fund it with about 0.5 METIS, which covers about 250 settles.
+4. On the VM, set:
+   ```
+   X402_METIS_ENABLED=1
+   X402_METIS_FACILITATOR_PRIVATE_KEY=…
+   X402_METIS_PERMIT2_PROXY_ADDRESS=0xC5Df359394de02F8E04bfb650E250b20a33BEe6a
+   ```
+   An allowlist of payees helps at first: `X402_METIS_PAY_TO_ALLOWLIST=<Called's payTo>`.
+5. Restart, check `/api/x402/metis/supported`, then make one real $0.01 payment.
 
 ## 7. Apply Sage to Metis Rise
 
