@@ -56,6 +56,8 @@ export function mapConciergeTool(name: string, resultText: string): ToolOutcome 
       // MONEY tool — fail closed. Malformed/absent output is AMBIGUOUS (verify), not a failure to blindly
       // retry and never a success. Explicit business stops map to hard reasons.
       if (!o) return { tool: "fund_and_launch", ok: false, ambiguousTimeout: true, reason: "malformed_result" };
+      // A plan's limit is an explicit business stop: nothing moved, nothing to verify.
+      if (o.planLimit) return { tool: "fund_and_launch", ok: false, reason: "planLimit" };
       if (o.overCap) return { tool: "fund_and_launch", ok: false, reason: "overCap" };
       if (o.needsFunding) return { tool: "fund_and_launch", ok: false, reason: "needsFunding" };
       if (o.needsGas) return { tool: "fund_and_launch", ok: false, reason: "needsGas" };
