@@ -281,3 +281,8 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .pl-done { margin-top: 16px; }
 .pl-exports { display: flex; gap: 8px; flex-wrap: wrap; }
 .pl-locked { opacity: 0.55; cursor: default; }
+/* the plan on Home: a quiet link, one click from Plan and billing */
+.ws-plan-link { text-decoration: none; }
+.ws-plan-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ws-stat-link { text-decoration: none; color: inherit; transition: border-color var(--dur-1) var(--ease-out); }
+.ws-stat-link:hover { border-color: var(--accent); }
