@@ -46,7 +46,12 @@ while read -r f; do [ -z "$f" ] && continue; echo "$(md5 -q "$f")  $f"; done < "
 ssh -o StrictHostKeyChecking=no -i $KEY $VM "cd $R && while read -r sum f; do echo \"\$(md5sum \"\$f\" | cut -d' ' -f1)  \$f\"; done" < /tmp/deploy-local.md5 > /tmp/deploy-remote.md5
 if diff -q /tmp/deploy-local.md5 /tmp/deploy-remote.md5 >/dev/null; then echo "all $(wc -l < /tmp/deploy-local.md5 | tr -d ' ') checksums match"; else echo "CHECKSUM MISMATCH:"; diff /tmp/deploy-local.md5 /tmp/deploy-remote.md5; exit 5; fi
 echo "== build (into .next-new; the live server keeps .next) =="
-S "cd $R && rm -rf .next-new && NEXT_DIST_DIR=.next-new npm run build 2>&1 | tail -4 && test -f .next-new/BUILD_ID" || { echo "BUILD FAILED (live server untouched)"; exit 6; }
+# The live build's generated route types (.next/types) are part of the type-check (tsconfig includes them)
+# but describe the routes as they WERE: a deploy that removes a page failed on them ("Cannot find module
+# …/caribbean/page.js", 19 Oct 2026). The running server never reads them, so they are set aside for the
+# build and put back if it fails, leaving the live server exactly as it was.
+S "cd $R && rm -rf .next-types-prev && { [ -d .next/types ] && mv .next/types .next-types-prev || true; } && rm -rf .next-new && NEXT_DIST_DIR=.next-new npm run build 2>&1 | tail -4 && test -f .next-new/BUILD_ID" || { S "cd $R && [ -d .next-types-prev ] && [ ! -d .next/types ] && mv .next-types-prev .next/types; true"; echo "BUILD FAILED (live server untouched)"; exit 6; }
+S "cd $R && rm -rf .next-types-prev"
 echo "== swap + restart =="
 S "cd $R && rm -rf .next-prev && mv .next .next-prev && mv .next-new .next && pm2 restart sage --update-env >/dev/null && sleep 6 && pm2 status sage | grep -E 'sage ' | awk -F'│' '{print \"pm2:\", \$3, \$10}' && rm -rf .next-prev"
 echo "== verify =="
