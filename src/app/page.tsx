@@ -40,7 +40,7 @@ export default function HomePage() {
         <div className="site-wrap">
           <h1 className="display rise">Work, verified. Then&nbsp;paid.</h1>
           <p className="lead rise rise-2">
-            Describe the work and set a budget. Sage checks every submission and pays people in USDC, inside limits it can never exceed. Every payout and every refusal gets a public receipt.
+            Describe the work and set a budget. Sage checks every submission and pays people in USDC, inside limits it can never exceed. Every payout gets a public receipt, and every refusal comes with its reason.
           </p>
           <div className="hero-cta rise rise-3">
             <Link href="/start" className="btn btn-primary">
@@ -154,7 +154,7 @@ export default function HomePage() {
             <p className="lead">Your budget sits in a vault on chain that pays only inside the limits you set. Even someone who fools the AI can&apos;t get past them.</p>
             <ul>
               <li><BadgeCheck size={18} strokeWidth={1.75} /><span>Rewards are fixed when the job is made. The AI never sets an amount.</span></li>
-              <li><Gauge size={18} strokeWidth={1.75} /><span>Daily limits and one payout per person, enforced on chain.</span></li>
+              <li><Gauge size={18} strokeWidth={1.75} /><span>Daily limits and one payout per wallet per task, enforced on chain.</span></li>
               <li><ShieldCheck size={18} strokeWidth={1.75} /><span>Farm detection: linked wallets and copied work are caught and refused.</span></li>
               <li><KeyRound size={18} strokeWidth={1.75} /><span>Your money stays yours. Sage holds a bounded role and nothing more.</span></li>
             </ul>
