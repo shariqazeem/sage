@@ -29,7 +29,7 @@ describe("the app is six screens", () => {
 
 describe("the company site never wears founder chrome", () => {
   it("every page in the site header is a site page", () => {
-    for (const { href } of SITE_NAV) if (href !== "/marketplace") expect(isAppRoute(href), href).toBe(false);
+    for (const { href } of SITE_NAV) expect(isAppRoute(href), href).toBe(false);
   });
 
   it("the front door, pricing, the company, Called, the ledger and the docs", () => {

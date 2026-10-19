@@ -22,7 +22,6 @@ export function isAppRoute(p: string): boolean {
     /^\/join\//.test(p) ||
     /^\/agent(\/|$)/.test(p) ||
     // Still on the app's styling until they move to the site frame.
-    /^\/marketplace/.test(p) ||
     /^\/record\//.test(p) ||
     /^\/lender/.test(p)
   );
