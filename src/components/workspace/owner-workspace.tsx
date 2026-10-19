@@ -1,4 +1,4 @@
-import { ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { DEFAULT_EVM_LAUNCH_CHAIN, METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Inbox, Rocket, Settings, Sparkles, Users } from "lucide-react";
 import { reward as fmtReward, networkLabel, usd } from "@/lib/format";
@@ -33,7 +33,8 @@ export interface OwnerView {
   chain?: "evm" | "starknet";
   /** the server has Arc (testnet) configured, so the orientation line may promote it */
   /** Arc mainnet is configured, so the same account can be opened there. */
-  arc?: boolean;
+  /** Metis mainnet is configured: its account door can be offered */
+  metis?: boolean;
 }
 
 const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
@@ -89,7 +90,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             {view.chain === "starknet" ? (
               <><b>Your rail is Starknet.</b> Real USDC, private when you ask. Each campaign is funded from your wallet when you post it, and every payout settles through the Cairo vault.</>
             ) : (
-              <><b>Your money moves on GOAT Network or Arc.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.arc ? <> <Link href={`/workspace/account?chain=${ARC_LAUNCH_CHAIN}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Arc, where USDC is the gas</Link>.</> : null}</>
+              <><b>Your money moves on GOAT Network or Metis.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.metis ? <> <Link href={`/workspace/account?chain=${METIS_MAINNET_CHAIN_ID}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Metis</Link>.</> : null}</>
             )}
           </p>
           <ol className="ws-check">

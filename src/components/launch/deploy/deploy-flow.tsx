@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
-import { viemChainFor, chainConfig, explorerAddressUrl, ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain } from "@/lib/deputy/networks";
+import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
@@ -25,7 +25,16 @@ import { reward, launchToken, type PlanView } from "../types";
  * working — this only decides what is offered to anyone new.
  */
 function launchChainsOffered(configured: readonly number[]): number[] {
-  return [DEFAULT_EVM_LAUNCH_CHAIN, ...(configured.includes(ARC_LAUNCH_CHAIN) ? [ARC_LAUNCH_CHAIN] : [])];
+  // The network policy (networks.ts): the default first, then the other PRIMARY networks that are
+  // configured (Metis), then the SECONDARY ones (Arc). Never a testnet, never an unconfigured chain.
+  const evm = (id: number) => chainConfig(id).evm && chainConfig(id).chainId === id;
+  return [...new Set([DEFAULT_EVM_LAUNCH_CHAIN, ...PRIMARY_NETWORKS.filter((id) => evm(id) && configured.includes(id)), ...SECONDARY_NETWORKS.filter((id) => evm(id) && configured.includes(id))])];
+}
+
+/** What a network costs to use, in the founder's words: its gas token (on Arc, USDC itself). */
+function gasNote(id: number): string {
+  const c = chainConfig(id);
+  return c.nativeSymbol === "USDC" ? "USDC is the gas" : `real USDC, ${c.nativeSymbol} gas`;
 }
 
 /**
@@ -533,7 +542,7 @@ function Stepper({ phase, dep }: { phase: Phase; dep: DeploymentView | null }) {
 
 function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void; offered: readonly number[] }) {
   const onLaunchChain = (chainId: number | null): boolean => chainId != null && offered.includes(chainId);
-  const arcOffered = offered.includes(ARC_LAUNCH_CHAIN);
+  const [first, ...others] = offered;
   return (
     <div className="lxd-panel">
       <p className="lxd-own">Your wallet owns this campaign. Sage receives only the bounded operator role.</p>
@@ -548,33 +557,28 @@ function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof 
         </button>
       ) : !onLaunchChain(siwe.chainId) ? (
         <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign pays real USDC, on {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).name}{arcOffered ? ` or ${chainConfig(ARC_LAUNCH_CHAIN).name}` : ""}. Pick the network to launch on.</p>
-          {/* The wallet's own dialog will name the chain, so the button names it too — matching
-              what the founder is about to see is clarity, not chain-speak. */}
-          <button className="lx-btn" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
-            Switch network to continue <span className="lxd-net-fine">{chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel}</span>
+          <p className="lxd-own">This campaign pays real USDC. Pick the network to launch on.</p>
+          {/* The wallet's own dialog will name the chain, so the button names it too: matching what
+              the founder is about to see is clarity, not chain-speak. */}
+          <button className="lx-btn" onClick={() => void siwe.switchToChain(first)}>
+            Switch network to continue <span className="lxd-net-fine">{chainConfig(first).chipLabel}</span>
           </button>
-          {arcOffered && (
-            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
-              Launch on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">{chainConfig(ARC_LAUNCH_CHAIN).isMainnet ? "USDC is the gas" : "test USDC · USDC is the gas"}</span>
+          {others.map((id) => (
+            <button key={id} className="lx-btn ghost" onClick={() => void siwe.switchToChain(id)}>
+              Launch on {chainConfig(id).chipLabel} instead <span className="lxd-net-fine">{gasNote(id)}</span>
             </button>
-          )}
+          ))}
         </div>
       ) : (
         <div className="lxd-chain-pick">
           <button className="lx-btn" disabled={busy} onClick={onClaim}>
             {busy ? "Securing…" : "Secure plan ownership"}
           </button>
-          {siwe.chainId !== DEFAULT_EVM_LAUNCH_CHAIN && (
-            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(DEFAULT_EVM_LAUNCH_CHAIN)}>
-              Use {chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">real USDC, BTC gas</span>
+          {offered.filter((id) => id !== siwe.chainId).map((id) => (
+            <button key={id} className="lx-btn ghost" onClick={() => void siwe.switchToChain(id)}>
+              Use {chainConfig(id).chipLabel} instead <span className="lxd-net-fine">{gasNote(id)}</span>
             </button>
-          )}
-          {arcOffered && siwe.chainId !== ARC_LAUNCH_CHAIN && (
-            <button className="lx-btn ghost" onClick={() => void siwe.switchToChain(ARC_LAUNCH_CHAIN)}>
-              Launch on {chainConfig(ARC_LAUNCH_CHAIN).chipLabel} instead <span className="lxd-net-fine">{chainConfig(ARC_LAUNCH_CHAIN).isMainnet ? "USDC is the gas" : "test USDC · USDC is the gas"}</span>
-            </button>
-          )}
+          ))}
         </div>
       )}
       {siwe.address && (

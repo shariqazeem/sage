@@ -3,7 +3,7 @@
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useEffect } from "react";
 import { SIGNED_OUT_EVENT } from "@/lib/auth/use-founder-session";
-import { ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN, viemChainFor } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS, viemChainFor } from "@/lib/deputy/networks";
 
 /**
  * Wraps the app in Privy ONLY when a login app is configured; otherwise it renders children and the
@@ -37,9 +37,10 @@ export function SagePrivyProvider({ appId, children }: { appId: string | null; c
         loginMethods: ["email", "google", "wallet"],
         appearance: { theme: "light", accentColor: "#c2410c", logo: "https://sagepays.xyz/icon.png", walletChainType: "ethereum-only" },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
-        // the rails the embedded wallet signs for — GOAT first, then Arc: the two EVM mainnets, nothing else
+        // the networks the embedded wallet signs for: every EVM network Sage settles on, primary first
+        // (GOAT, Metis), then secondary (Arc). A payout's chain is never a stranger to it. No testnets.
         defaultChain: viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN),
-        supportedChains: [viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN), viemChainFor(ARC_LAUNCH_CHAIN)],
+        supportedChains: [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).chainId === id).map((id) => viemChainFor(id)),
       }}
     >
       <EndPrivySessionOnSignOut />

@@ -1,16 +1,14 @@
-import { ARC_LAUNCH_CHAIN, DEFAULT_EVM_LAUNCH_CHAIN, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { chainConfig, PRIMARY_NETWORKS, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 
 /**
- * THE NETWORKS THE APP SHELL NAMES — every network this sign-in can settle on, and nothing else.
+ * THE NETWORKS THE APP SHELL NAMES: the networks this sign-in settles on by default, from the network
+ * policy (networks.ts), and nothing else.
  *
- * An Ethereum sign-in settles on GOAT and on Arc, one account per network, so naming only the default
- * read "GOAT Mainnet" over a founder launching on Arc (10 Oct 2026). A Starknet sign-in settles on
- * Starknet alone. Signed out, the visitor is told all three. Mainnets only: a testnet is never named
- * here, whatever chain a browser wallet happens to sit on.
+ * An Ethereum sign-in (wallet or email) settles on the PRIMARY networks, GOAT and Metis, one account each.
+ * Signed out, the visitor sees the same primary pair. A Starknet sign-in settles on Starknet alone.
+ * Secondary networks (Arc) are opt-in, so the shell does not advertise them, and testnets are never named.
  */
 export function shellNetworks(chain: "evm" | "starknet" | null): number[] {
-  const evm = [...new Set([DEFAULT_EVM_LAUNCH_CHAIN, ARC_LAUNCH_CHAIN])];
   if (chain === "starknet") return [STARKNET_MAINNET_KEY];
-  if (chain === "evm") return evm;
-  return [...evm, STARKNET_MAINNET_KEY];
+  return PRIMARY_NETWORKS.filter((id) => chainConfig(id).evm);
 }

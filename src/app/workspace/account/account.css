@@ -41,6 +41,8 @@
 .ac-tab { display: inline-flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 550; line-height: 1.2; }
 .ac-tab:hover { border-color: var(--border-strong, var(--border)); }
 .ac-tab.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ac-tabs-more { align-self: center; margin: 0 2px 0 8px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.ac-tab-ghost { border-style: dashed; color: var(--ink-soft, var(--ink)); }
 .ac-tab-k { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--ink-faint); }
 .ac-open { display: grid; gap: 12px; }
 .ac-open-cap { display: grid; gap: 6px; font-size: 13px; color: var(--ink-muted); }

@@ -12,8 +12,9 @@ import { treasuryActivity } from "@/lib/treasury/activity";
 import { accountUnavailableBecause } from "@/lib/treasury/summary";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { configuredLaunchChains } from "@/lib/launch/deployment-service";
+import { accountNetworks, moreNetworks } from "@/lib/treasury/account-networks";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
-import { ARC_LAUNCH_CHAIN, ARC_TESTNET_CHAIN_ID, chainConfig, explorerAddressUrl, explorerTxUrl, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { ARC_TESTNET_CHAIN_ID, chainConfig, explorerAddressUrl, explorerTxUrl, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { rewardAligned } from "@/lib/format";
 import { starknetUsdcBalance } from "@/lib/starknet/balance";
 import { starknetAddressUrl } from "@/lib/starknet/explorer";
@@ -52,25 +53,37 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const home = treasuryChainId();
   const accounts = listWebTreasuries(founder);
-  // The networks on offer: the home chain and Arc (explicitly), plus any MAINNET the founder already holds an account on.
-  const offered = [...new Set([home, ...configuredLaunchChains().filter((id) => id === ARC_LAUNCH_CHAIN), ...accounts.map((a) => a.chainId).filter((id) => chainConfig(id).isMainnet)])];
+  // The network policy decides what this page shows (account-networks.ts): primary networks once configured,
+  // secondary ones only when held or asked for, testnets never.
+  const configured = configuredLaunchChains();
   const asked = Number(sp.chain);
-  const chainId = offered.includes(asked) ? asked : home;
+  const nets = accountNetworks({ home, configured, held: accounts.map((a) => a.chainId), asked: Number.isFinite(asked) ? asked : null });
+  const chainId = nets.selected;
   const chain = chainConfig(chainId);
   const treasury = getWebTreasuryOn(founder, chainId);
+  const more = moreNetworks({ configured, shown: [...nets.primary, ...nets.secondary] });
 
-  const tabs = offered.length > 1 ? (
+  const tab = (id: number) => {
+    const c = chainConfig(id);
+    const has = accounts.some((a) => a.chainId === id);
+    return (
+      <Link key={id} href={id === home ? "/workspace/account" : `/workspace/account?chain=${id}`} className={`ac-tab${id === chainId ? " on" : ""}`} aria-current={id === chainId ? "page" : undefined}>
+        <span>{c.name}</span>
+        <span className="ac-tab-k">{has ? "real USDC" : "not opened yet"}</span>
+      </Link>
+    );
+  };
+  const tabs = nets.primary.length + nets.secondary.length > 1 || more.length > 0 ? (
     <nav className="ac-tabs" aria-label="Networks">
-      {offered.map((id) => {
-        const c = chainConfig(id);
-        const has = accounts.some((a) => a.chainId === id);
-        return (
-          <Link key={id} href={id === home ? "/workspace/account" : `/workspace/account?chain=${id}`} className={`ac-tab${id === chainId ? " on" : ""}`} aria-current={id === chainId ? "page" : undefined}>
-            <span>{c.name}</span>
-            <span className="ac-tab-k">{c.isMainnet ? "mainnet · real USDC" : "testnet · test USDC"}{has ? "" : " · not opened"}</span>
-          </Link>
-        );
-      })}
+      {nets.primary.map(tab)}
+      {nets.secondary.length > 0 && <span className="ac-tabs-more" aria-hidden>More networks</span>}
+      {nets.secondary.map(tab)}
+      {more.map((id) => (
+        <Link key={id} href={`/workspace/account?chain=${id}`} className="ac-tab ac-tab-ghost">
+          <span>+ {chainConfig(id).name}</span>
+          <span className="ac-tab-k">more networks</span>
+        </Link>
+      ))}
     </nav>
   ) : null;
 
@@ -171,7 +184,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </div>
             {/* Card top-ups settle on Base, and Circle's kit names only Arc testnet as a bridge target today, so an
                 Arc mainnet account is funded by sending USDC to its address (above) — never a door that lands money elsewhere. */}
-            {chain.chainId === ARC_LAUNCH_CHAIN ? null : <AddFunds testnet={!chain.isMainnet} bridgeable={treasury.chainId === ARC_TESTNET_CHAIN_ID} />}
+            {/* The card door buys USDC on Base; CCTP reaches neither Metis nor Arc mainnet, so those accounts are
+                funded by sending to the address above, never through a door that lands money elsewhere. */}
+            {chain.chainId === 2345 ? <AddFunds testnet={false} bridgeable={false} /> : null}
             {treasury.chainId === ARC_TESTNET_CHAIN_ID ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
           </section>
 
