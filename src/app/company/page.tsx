@@ -63,7 +63,7 @@ export default function CompanyPage() {
           <div className="card">
             <span className="card-icon"><Receipt size={20} strokeWidth={1.75} /></span>
             <h2 className="h3">Every claim has a receipt.</h2>
-            <p>When Sage pays someone, or refuses to, there is a public page that proves it, down to the transaction on chain.</p>
+            <p>When Sage pays someone, there is a public page that proves it, down to the transaction. When it refuses, the reason is written down.</p>
           </div>
           <div className="card">
             <span className="card-icon"><UsersRound size={20} strokeWidth={1.75} /></span>
