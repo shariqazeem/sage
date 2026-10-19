@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "./index";
-import { campaigns, workspaceInvites, workspaceMembers, workspacePayments, workspaces, type Campaign, type Workspace, type WorkspaceInvite, type WorkspaceMember, type WorkspacePayment, type WorkspaceRole } from "./schema";
+import { campaigns, workspaceInvites, workspaceMembers, workspacePayments, workspaces, type Campaign, type Workspace, type WorkspaceInvite, type WorkspaceMember, type WorkspacePayment, type WorkspaceRole, type WorkspacePlan } from "./schema";
 import { nowSeconds } from "./keys";
 import { founderStorageKey, sameFounder } from "@/lib/auth/founder";
 
@@ -43,7 +43,7 @@ export function renameWorkspace(id: string, name: string): void {
   db.update(workspaces).set({ name: name.trim().slice(0, 60) || "My workspace", updatedAt: nowSeconds() }).where(eq(workspaces.id, id)).run();
 }
 
-export function setWorkspacePlan(id: string, plan: "free" | "pro", planUntil: number | null): void {
+export function setWorkspacePlan(id: string, plan: WorkspacePlan, planUntil: number | null): void {
   db.update(workspaces).set({ plan, planUntil, updatedAt: nowSeconds() }).where(eq(workspaces.id, id)).run();
 }
 
@@ -112,6 +112,16 @@ export function addMember(input: { workspaceId: string; memberKey: string; addre
 }
 
 /** Never the owner: a workspace without its owner is a locked door. */
+/** Make a member an admin or back (never the owner, whose role is not this door's to change). */
+export function setMemberRole(workspaceId: string, memberKey: string, role: "admin" | "member"): boolean {
+  const res = db
+    .update(workspaceMembers)
+    .set({ role })
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.memberKey, memberKey), ne(workspaceMembers.role, "owner")))
+    .run();
+  return res.changes > 0;
+}
+
 export function removeMember(workspaceId: string, memberKey: string): boolean {
   const res = db.delete(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.memberKey, memberKey), ne(workspaceMembers.role, "owner"))).run();
   return res.changes > 0;
@@ -185,14 +195,14 @@ export function assignCampaignToWorkspace(campaignId: string, workspaceId: strin
 }
 
 /** Record a plan payment once; a hash already spent returns null and changes nothing. */
-export function recordPlanPayment(input: { txHash: string; workspaceId: string; chainId: number; payer: string; amountBase: bigint; planUntil: number }): WorkspacePayment | null {
+export function recordPlanPayment(input: { txHash: string; workspaceId: string; chainId: number; payer: string; amountBase: bigint; planUntil: number; plan?: WorkspacePlan }): WorkspacePayment | null {
   const res = db
     .insert(workspacePayments)
     .values({ txHash: input.txHash.toLowerCase(), workspaceId: input.workspaceId, chainId: input.chainId, payer: input.payer.toLowerCase(), amountBase: Number(input.amountBase), paidAt: nowSeconds(), planUntil: input.planUntil })
     .onConflictDoNothing()
     .run();
   if (res.changes === 0) return null;
-  setWorkspacePlan(input.workspaceId, "pro", input.planUntil);
+  setWorkspacePlan(input.workspaceId, input.plan ?? "pro", input.planUntil);
   return db.select().from(workspacePayments).where(eq(workspacePayments.txHash, input.txHash.toLowerCase())).get() ?? null;
 }
 

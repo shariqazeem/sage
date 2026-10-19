@@ -15,6 +15,7 @@ import {
 import { buildDeployBundle, deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { verifyClaimSignature, type PlanClaim } from "@/lib/launch/claim";
 import { deploymentView } from "@/lib/launch/deployment-access";
+import { launchAllowed } from "@/lib/plans/founder-plan";
 import { getAddress } from "viem";
 
 export const runtime = "nodejs";
@@ -69,6 +70,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     claim.publicCampaignId === loaded.plan.publicCampaignId;
   if (!planUnchanged) {
     return NextResponse.json({ ok: false, error: "This plan changed since you started — reload and claim again." }, { status: 409 });
+  }
+
+  // The founder's plan, checked at the first step, before any transaction (a live job is never cut off).
+  const allowed = launchAllowed(session, budget);
+  if (!allowed.ok) {
+    return NextResponse.json({ ok: false, error: allowed.message, planLimit: { code: allowed.code, plan: allowed.plan, upgradeTo: allowed.upgradeTo } }, { status: 402 });
   }
 
   // Verify the EIP-712 signature binds THIS wallet to THIS plan.

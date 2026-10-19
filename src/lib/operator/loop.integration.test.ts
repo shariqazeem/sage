@@ -26,6 +26,8 @@ vi.mock("@/lib/treasury/web", () => ({
   listWebTreasuries: vi.fn(() => [ACCOUNT]),
   webTreasuryWallets: vi.fn(() => [ACCOUNT.privyWalletAddress]),
 }));
+// These founders bought Autopilot; the plan gate itself is held in plans.test.ts and below.
+vi.mock("@/lib/plans/founder-plan", async (orig) => ({ ...(await orig<typeof import("@/lib/plans/founder-plan")>()), effectivePlan: vi.fn(() => "pro") }));
 vi.mock("@/lib/treasury/launch", () => ({ launchFromTreasury: vi.fn(async () => ({ ok: false, reason: "failed", message: "no Privy wallet in this environment" })) }));
 vi.mock("@/lib/launch/job", () => ({ runInspectionJob: vi.fn(async () => {}) }));
 vi.mock("@/lib/llm/complete", () => ({ llmCompleteJson: vi.fn() }));

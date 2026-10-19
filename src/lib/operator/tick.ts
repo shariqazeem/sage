@@ -8,6 +8,8 @@ import { runInspectionJob } from "@/lib/launch/job";
 import { listWebTreasuries } from "@/lib/treasury/web";
 import { sameFounder } from "@/lib/auth/founder";
 import { launchFromTreasury } from "@/lib/treasury/launch";
+import { effectivePlan } from "@/lib/plans/founder-plan";
+import { hasFeature } from "@/lib/plans/catalog";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
 import { choosePosition } from "./decide";
 import { allocate, stalled, usd } from "./policy";
@@ -92,6 +94,10 @@ async function tickFounder(founderAddress: string, nowSec: number, out: Operator
       console.error(`[operator] could not stop ${campaign.id}:`, e instanceof Error ? e.message : e);
     }
   }
+
+  // Buying work is Autopilot, a paid feature. Reclaiming above still runs on any plan: it only ever
+  // returns money to the founder. A lapsed plan stops the agent spending, never strands a job.
+  if (!hasFeature(effectivePlan(founderAddress, nowSec), "autopilot")) return;
 
   // 2 — deploy whatever the agent already committed to and designed
   for (const l of launchesInState(founderAddress, "committed")) {

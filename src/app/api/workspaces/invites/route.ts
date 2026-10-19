@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { workspaceContext, canManage } from "@/lib/workspaces/context";
 import { countMembers, createInvite, getWorkspace, memberRole } from "@/lib/db/workspaces";
 import { canAddMember, limitsOf } from "@/lib/workspaces/plan";
+import { effectiveWorkspacePlan } from "@/lib/plans/founder-plan";
+import { cheapestWith, hasFeature, PLANS } from "@/lib/plans/catalog";
 import { siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -20,6 +22,10 @@ export async function POST(req: NextRequest) {
   const ws = typeof body.workspaceId === "string" ? getWorkspace(body.workspaceId) : null;
   if (!ws) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
   if (!canManage(memberRole(ws.id, ctx.memberKey))) return NextResponse.json({ error: "Only the workspace owner or an admin can invite." }, { status: 403 });
+  if (!hasFeature(effectiveWorkspacePlan(ws), "membersOnly")) {
+    const need = PLANS[cheapestWith("membersOnly")].name;
+    return NextResponse.json({ error: `Members-only work, and the invite links that admit people to it, are on ${need} and above.`, upgrade: cheapestWith("membersOnly") }, { status: 402 });
+  }
   const members = countMembers(ws.id);
   // INVITE MANY: an organisation onboards its people from a list — one single-use door each, so a
   // forwarded link admits exactly the person it was sent to. `count` is capped; the plan's member

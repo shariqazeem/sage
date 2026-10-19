@@ -21,7 +21,7 @@ describe("Pro plan payment proof", () => {
   });
   it("refuses a short payment, a payment from someone else, to someone else, or in another token", () => {
     const base = { usdc: USDC, to: OPERATOR, from: PAYER, minBase: BigInt(29_000_000) };
-    expect(findUsdcPayment([log(PAYER, OPERATOR, BigInt(28_990_000))], base)).toMatchObject({ ok: false, reason: expect.stringMatching(/28\.99 USDC; Pro is 29\.00/) });
+    expect(findUsdcPayment([log(PAYER, OPERATOR, BigInt(28_990_000))], base)).toMatchObject({ ok: false, reason: expect.stringMatching(/28\.99 USDC; the plan is 29\.00/) });
     expect(findUsdcPayment([log("0x1111111111111111111111111111111111111111", OPERATOR, BigInt(29_000_000))], base).ok).toBe(false);
     expect(findUsdcPayment([log(PAYER, "0x2222222222222222222222222222222222222222", BigInt(29_000_000))], base).ok).toBe(false);
     expect(findUsdcPayment([log(PAYER, OPERATOR, BigInt(29_000_000), "0x3333333333333333333333333333333333333333")], base).ok).toBe(false);

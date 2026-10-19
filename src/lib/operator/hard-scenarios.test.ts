@@ -12,6 +12,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./state", () => ({ mandateStateFor: vi.fn() }));
 vi.mock("@/lib/launch/start", () => ({ startInspection: vi.fn() }));
 vi.mock("@/lib/launch/job", () => ({ runInspectionJob: vi.fn() }));
+// These founders bought Autopilot; the plan gate itself is held in plans.test.ts and below.
+vi.mock("@/lib/plans/founder-plan", async (orig) => ({ ...(await orig<typeof import("@/lib/plans/founder-plan")>()), effectivePlan: vi.fn(() => "pro") }));
 vi.mock("@/lib/treasury/launch", () => ({ launchFromTreasury: vi.fn() }));
 vi.mock("@/lib/treasury/web", () => ({ getWebTreasury: vi.fn(() => null), listWebTreasuries: vi.fn(() => []), webTreasuryWallets: vi.fn(() => []) }));
 vi.mock("@/lib/privy/stop-campaign", () => ({ stopCampaignViaPrivy: vi.fn() }));

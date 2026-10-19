@@ -5,6 +5,7 @@ import { erc20Abi, formatEther, getAddress, type Address } from "viem";
 import type { McpToolDef, ToolResult } from "@/lib/mcp/server";
 import { founderBinding, onboardWalletless } from "@/lib/privy/onboarding";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
+import { launchAllowed } from "@/lib/plans/founder-plan";
 import { gasRefusalMessage, grantGasStipend } from "@/lib/treasury/gas-stipend";
 import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { stopCampaignViaPrivy } from "@/lib/privy/stop-campaign";
@@ -416,6 +417,17 @@ export async function callAgentWalletTool(
         const loaded = loadApprovedPlan(inspectionId);
         if (!loaded) return err("Couldn't load the approved plan.");
         const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
+        const allowed = launchAllowed(b.founderAddress, budget);
+        if (!allowed.ok) {
+          return ok({
+            ok: false,
+            planLimit: true,
+            plan: allowed.plan,
+            upgradeTo: allowed.upgradeTo,
+            upgradeUrl: `${appUrl()}/pricing`,
+            message: allowed.message,
+          });
+        }
         if (budget > BigInt(b.perCampaignCapBase)) {
           return ok({
             ok: false,

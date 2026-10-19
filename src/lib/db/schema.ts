@@ -309,7 +309,8 @@ export type RecipientInvite = typeof recipientInvites.$inferSelect;
  * chain-agnostic: a member key is a founder storage key (a wallet) or `tg:<chatId>` for someone who
  * joined from Telegram with a Sage-minted wallet; `address` is where they get paid.
  */
-export type WorkspacePlan = "free" | "pro";
+/** The plans (src/lib/plans/catalog.ts). A text column: adding a plan needs no migration. */
+export type WorkspacePlan = "free" | "pro" | "team" | "programs";
 export type WorkspaceRole = "owner" | "admin" | "member";
 
 export const workspaces = sqliteTable(

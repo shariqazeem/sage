@@ -24,6 +24,7 @@ import { explorationCounts } from "@/lib/launch/field-test";
 import { readStarknetSnapshot } from "@/lib/starknet/vault-adapter";
 import { getInspectionJob } from "@/lib/db/inspection";
 import type { FieldTestSummary } from "@/lib/launch/schemas";
+import { launchAllowed } from "@/lib/plans/founder-plan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +78,12 @@ export async function GET(
     (sum: bigint, m) => sum + BigInt(m.rewardBase) * BigInt(m.maxCompletions),
     BigInt(0),
   );
+
+  // The founder's plan, checked before the deploy is even described (never once a vault holds money).
+  const allowed = launchAllowed(owner, totalBase);
+  if (!allowed.ok) {
+    return NextResponse.json({ error: allowed.message, planLimit: { code: allowed.code, plan: allowed.plan, upgradeTo: allowed.upgradeTo } }, { status: 402 });
+  }
 
   const planned = missions.map((m) => ({
     title: m.title,

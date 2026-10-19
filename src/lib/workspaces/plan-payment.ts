@@ -46,8 +46,8 @@ export function findUsdcPayment(
     if (getAddress(ev.from) !== getAddress(expect.from)) continue;
     if (!best || ev.value > best.amountBase) best = { ok: true, from: ev.from, to: ev.to, amountBase: ev.value };
   }
-  if (!best) return { ok: false, reason: "no USDC transfer from your wallet to Sage's operator address in that transaction" };
-  if (best.amountBase < expect.minBase) return { ok: false, reason: `the transfer was ${(Number(best.amountBase) / 1e6).toFixed(2)} USDC; Pro is ${(Number(expect.minBase) / 1e6).toFixed(2)} USDC` };
+  if (!best) return { ok: false, reason: "no USDC transfer from your wallet to Sage's billing address in that transaction" };
+  if (best.amountBase < expect.minBase) return { ok: false, reason: `the transfer was ${(Number(best.amountBase) / 1e6).toFixed(2)} USDC; the plan is ${(Number(expect.minBase) / 1e6).toFixed(2)} USDC` };
   return best;
 }
 

@@ -6,6 +6,8 @@ import { mandateStateFor } from "@/lib/operator/state";
 import { forgetRehearsal, rehearse } from "@/lib/operator/rehearsal";
 import { allowedSurfaces } from "@/lib/operator/tick";
 import { accountSummary } from "@/lib/treasury/summary";
+import { effectivePlan } from "@/lib/plans/founder-plan";
+import { cheapestWith, hasFeature, PLANS } from "@/lib/plans/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,6 +110,9 @@ export async function POST(req: NextRequest) {
   }
 
   const enabled = typeof body.enabled === "boolean" ? (body.enabled ? 1 : 0) : current?.enabled ?? 0;
+  if (enabled === 1 && !hasFeature(effectivePlan(founder), "autopilot")) {
+    return NextResponse.json({ error: `Autopilot is on ${PLANS[cheapestWith("autopilot")].name} and above. Your settings are kept; upgrade to switch it on.`, upgrade: cheapestWith("autopilot") }, { status: 402 });
+  }
   if (enabled === 1 && !productUrl) {
     return NextResponse.json({ error: "Name the product first — the agent may only buy work against surfaces you named." }, { status: 400 });
   }

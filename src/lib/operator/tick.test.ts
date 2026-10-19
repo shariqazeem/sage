@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { effectivePlan } from "@/lib/plans/founder-plan";
 
 /**
  * The tick's money-relevant behaviour: a proposal is arguable for its whole veto window, a vetoed
@@ -7,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./state", () => ({ mandateStateFor: vi.fn() }));
 vi.mock("@/lib/launch/start", () => ({ startInspection: vi.fn() }));
 vi.mock("@/lib/launch/job", () => ({ runInspectionJob: vi.fn() }));
+// These founders bought Autopilot; the plan gate itself is held in plans.test.ts and below.
+vi.mock("@/lib/plans/founder-plan", async (orig) => ({ ...(await orig<typeof import("@/lib/plans/founder-plan")>()), effectivePlan: vi.fn(() => "pro") }));
 vi.mock("@/lib/treasury/launch", () => ({ launchFromTreasury: vi.fn() }));
 vi.mock("@/lib/treasury/web", () => ({ getWebTreasury: vi.fn(() => null), listWebTreasuries: vi.fn(() => []), webTreasuryWallets: vi.fn(() => []) }));
 vi.mock("@/lib/privy/stop-campaign", () => ({ stopCampaignViaPrivy: vi.fn() }));
@@ -46,6 +49,14 @@ describe("the operator tick", () => {
     upsertMandate(FOUNDER, { enabled: 1, productUrl: "https://acme.io", goal: "g", vetoWindowMinutes: 20 }, NOW);
     vi.mocked(mandateStateFor).mockResolvedValue(state() as never);
     vi.mocked(choosePosition).mockResolvedValue({ surface: "acme.io", kind: "testing", goal: "Have real people use acme.io.", reason: "nothing has run here yet", decidedBy: "llm" });
+  });
+
+  it("a founder whose plan has no Autopilot: the agent proposes and buys nothing", async () => {
+    vi.mocked(effectivePlan).mockReturnValueOnce("free");
+    const r = await runOperatorTick(NOW);
+    expect(r.proposed).toBe(0);
+    expect(listLaunches(FOUNDER)).toHaveLength(0);
+    expect(choosePosition).not.toHaveBeenCalled();
   });
 
   it("proposes before it commits: the founder sees the move, its reason and its price first", async () => {

@@ -1,64 +1,66 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getAddress } from "viem";
-import { workspaceContext, canManage } from "@/lib/workspaces/context";
-import { getWorkspace, memberRole, recordPlanPayment } from "@/lib/db/workspaces";
-import { extendedUntil, findUsdcPayment, operatorAddress } from "@/lib/workspaces/plan-payment";
-import { PRO_PERIOD_SECONDS, proPriceUsd } from "@/lib/workspaces/plan";
-import { publicClient } from "@/lib/deputy/chain";
-import { GOAT_USDC } from "@/lib/deputy/networks";
+import { getFounderAddress } from "@/lib/auth/founder";
+import { declaredLinksOf } from "@/lib/campaigns/wallet-links";
+import { chainConfig } from "@/lib/deputy/networks";
+import { isPlanId, PERIOD_DAYS, PLANS, SELF_SERVE } from "@/lib/plans/catalog";
+import { planPriceUsd } from "@/lib/plans/billing-math";
+import { billingAddress, billingChains, isBillingChain, readPlanPayment } from "@/lib/plans/billing";
+import { founderPlan, founderUsage } from "@/lib/plans/founder-plan";
+import { applyPlanPayment, quotePlan } from "@/lib/plans/apply-payment";
+import { listWebTreasuries } from "@/lib/treasury/web";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const GOAT = 2345;
-
-/** GET — what to pay, where, in what. */
+/** GET: what each plan costs, where to pay it, and (signed in) the plan in force and its usage. */
 export async function GET() {
-  const to = operatorAddress();
-  if (!to) return NextResponse.json({ error: "Pro payments aren't configured on this deployment." }, { status: 503 });
-  return NextResponse.json({ chainId: GOAT, token: GOAT_USDC, to, priceUsd: proPriceUsd(), periodDays: PRO_PERIOD_SECONDS / 86_400 });
+  const to = billingAddress();
+  const founder = await getFounderAddress();
+  const current = founder ? founderPlan(founder) : null;
+  const usage = founder ? founderUsage(founder) : null;
+  return NextResponse.json({
+    to,
+    periodDays: PERIOD_DAYS,
+    chains: billingChains().map((id) => ({ chainId: id, network: chainConfig(id).name, token: chainConfig(id).usdcAddress })),
+    plans: SELF_SERVE.map((id) => ({ id, name: PLANS[id].name, priceUsd: planPriceUsd(id) })),
+    current: current ? { plan: current.plan, until: current.until, workspaceId: current.workspace?.id ?? null } : null,
+    usage: usage ? { liveJobs: usage.liveJobs, launchedUsd: Number(usage.launchedBase) / 1e6 } : null,
+  });
 }
 
 /**
- * POST { workspaceId, txHash } — the owner paid Pro in USDC on GOAT from the wallet they are signed
- * in with; Sage reads the receipt, finds the transfer, and extends the plan by one period. A hash is
- * spent once. Nothing is trusted from the body except which transaction to read.
+ * POST { plan, chainId, txHash }: the founder paid a plan in USDC from a wallet that is theirs (the
+ * one they're signed in with, or one they declared as theirs). Sage reads the receipt, finds the
+ * transfer, and extends the plan. Nothing is trusted from the body except which transaction to read.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await workspaceContext();
-  if (!ctx) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const to = operatorAddress();
-  if (!to) return NextResponse.json({ error: "Pro payments aren't configured on this deployment." }, { status: 503 });
-  let body: { workspaceId?: unknown; txHash?: unknown };
+  const founder = await getFounderAddress();
+  if (!founder) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  if (!billingAddress()) return NextResponse.json({ error: "Plan payments aren't configured on this deployment." }, { status: 503 });
+  let body: { plan?: unknown; chainId?: unknown; txHash?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-  const ws = typeof body.workspaceId === "string" ? getWorkspace(body.workspaceId) : null;
-  if (!ws) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
-  if (!canManage(memberRole(ws.id, ctx.memberKey))) return NextResponse.json({ error: "Only the workspace owner or an admin can change the plan." }, { status: 403 });
+  // Older clients paid Pro on GOAT and sent neither field.
+  const plan = body.plan === undefined ? "pro" : body.plan;
+  const chainId = body.chainId === undefined ? 2345 : body.chainId;
+  if (!isPlanId(plan)) return NextResponse.json({ error: "Choose a plan." }, { status: 400 });
+  if (!isBillingChain(chainId)) return NextResponse.json({ error: "Plans are paid on Metis or GOAT Network." }, { status: 400 });
   const txHash = typeof body.txHash === "string" ? body.txHash.trim() : "";
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) return NextResponse.json({ error: "That doesn't look like a transaction hash." }, { status: 400 });
-  let payer: string;
-  try {
-    payer = getAddress(ctx.address);
-  } catch {
-    return NextResponse.json({ error: "Pro is paid from an Ethereum wallet on GOAT for now — sign in with one to pay." }, { status: 400 });
+
+  const q = quotePlan(founder, plan);
+  if (!q.ok) return NextResponse.json({ error: q.error }, { status: q.status });
+  // Theirs: the wallet they're signed in with, wallets they declared as theirs, and their own accounts.
+  const payers = [founder, ...declaredLinksOf(founder), ...listWebTreasuries(founder).map((t) => t.privyWalletAddress)];
+  const check = await readPlanPayment({ chainId, txHash: txHash as `0x${string}`, payers, minBase: q.priceBase });
+  if (!check.ok) {
+    const retryable = "retryable" in check && check.retryable;
+    return NextResponse.json({ error: `Payment not found: ${check.reason}.`, retryable }, { status: retryable ? 409 : 400 });
   }
-  let receipt: { status: "success" | "reverted"; logs: { address: `0x${string}`; data: `0x${string}`; topics: [`0x${string}`, ...`0x${string}`[]] | [] }[] };
-  try {
-    receipt = await publicClient(GOAT).getTransactionReceipt({ hash: txHash as `0x${string}` });
-  } catch {
-    return NextResponse.json({ error: "Couldn't read that transaction yet — give it a few seconds and try again.", retryable: true }, { status: 409 });
-  }
-  if (receipt.status !== "success") return NextResponse.json({ error: "That transaction reverted — no payment was made." }, { status: 400 });
-  const minBase = BigInt(Math.round(proPriceUsd() * 100)) * BigInt(10_000);
-  const check = findUsdcPayment(receipt.logs.filter((l) => l.topics.length > 0) as Parameters<typeof findUsdcPayment>[0], { usdc: GOAT_USDC, to, from: payer, minBase });
-  if (!check.ok) return NextResponse.json({ error: `Payment not found: ${check.reason}.` }, { status: 400 });
-  const now = Math.floor(Date.now() / 1000);
-  const planUntil = extendedUntil(ws.planUntil, now, PRO_PERIOD_SECONDS);
-  const row = recordPlanPayment({ txHash, workspaceId: ws.id, chainId: GOAT, payer, amountBase: check.amountBase, planUntil });
+  const row = applyPlanPayment(q, { txHash, chainId, payer: check.from, amountBase: check.amountBase });
   if (!row) return NextResponse.json({ error: "That payment was already applied." }, { status: 409 });
-  return NextResponse.json({ ok: true, plan: "pro", planUntil, amountUsd: Number(check.amountBase) / 1e6 });
+  return NextResponse.json({ ok: true, plan: q.plan, planUntil: q.until, amountUsd: Number(check.amountBase) / 1e6 });
 }
