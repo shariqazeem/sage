@@ -10,6 +10,13 @@
 > code wins** — real discrepancies are listed under **Known drift** at the bottom. Update
 > this file deliberately, never casually.
 
+> **DIRECTION CHANGE, 19 Oct 2026 (the founder's decision):** Sage becomes **the company**, building AI
+> agents you can trust with money. It is backed by Metis and GOAT. **Primary networks: Metis Andromeda +
+> GOAT**; Arc and Starknet become secondary options; testnets are gone. It becomes **paid** (Free, Pro,
+> Team, Programs; workers always free), and onboarding is rebuilt Apple-minimal. Product #2 is **Called by
+> Sage**. The plan: `docs/strategy/2026-10-19-sage-the-company.md`. Until it is implemented, the sections
+> below describe the code as it is. Judge new work against the plan.
+
 ---
 
 ## 1. Product
