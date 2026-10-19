@@ -82,7 +82,8 @@ describe("the plan page with an account", () => {
     render(<DeployFlow jobId="j" plan={plan} launchChains={[2345, 5042]} />);
     await screen.findByRole("button", { name: /Let Sage launch it from your account on Arc$/ });
     expect(screen.queryByRole("button", { name: /Connect your wallet/ })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Or fund it from a browser wallet instead/ }));
+    // the fold appears once the door reports its state up (an effect, one render later): wait for it
+    await userEvent.click(await screen.findByRole("button", { name: /Or fund it from a browser wallet instead/ }));
     expect(screen.getByRole("button", { name: /Connect your wallet/ })).toBeTruthy();
     expect(screen.getByText(/stays with the sign-in you used/)).toBeTruthy();
   });
