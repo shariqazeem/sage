@@ -30,6 +30,10 @@ const eslintConfig = [
       // Reference design prototype (`.dc.html` + its framework) extracted into the
       // repo — it's a source-of-truth to port from, not app code we lint/build.
       "Sage Master Design Prompt/**",
+      // Decks, posts and recordings: one-off build scripts for documents, not product code.
+      "docs/**",
+      ".next-build-check/**",
+      ".next-new/**",
     ],
   },
 ];

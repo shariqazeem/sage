@@ -46,6 +46,6 @@ describe("the bind path never replaces the session", () => {
     const hook = readFileSync(resolve(process.cwd(), "src/lib/auth/use-siwe.ts"), "utf8");
     expect(hook).toMatch(/mode: opts\.mode \?\? "signin"/);
     const comp = readFileSync(resolve(process.cwd(), "src/components/wallet/founder-sign-in.tsx"), "utf8");
-    expect(comp).toMatch(/evm\.signIn\(\{ mode: intent \}\)/);
+    expect(comp).toMatch(/evm\.signIn\(\{ mode: intent[ ,]/);
   });
 });

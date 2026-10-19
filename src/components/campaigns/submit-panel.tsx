@@ -273,6 +273,8 @@ export function SubmitPanel({
   }
 
   if (!siwe.authed) {
+    // Signed in as another wallet: signing in again SWITCHES accounts, so it is asked for by name.
+    const switchFrom = evm.authedAddress && evm.address && evm.authedAddress.toLowerCase() !== evm.address.toLowerCase() ? evm.authedAddress : null;
     // The SAME component as the Starknet gate above. The browser injects one EVM provider and
     // picks for us, so there is exactly one option — but it is presented in the same language,
     // so which chain a campaign settles on is not something a person feels in the layout.
@@ -282,15 +284,22 @@ export function SubmitPanel({
           options={[
             {
               id: "injected",
-              name: siwe.address ? short(siwe.address) : "your wallet",
-              onSelect: () => void siwe.signIn(),
+              name: siwe.address ? (switchFrom ? `Switch to ${short(siwe.address)}` : short(siwe.address)) : "your wallet",
+              onSelect: () => void evm.signIn(switchFrom ? { replace: true } : undefined),
             },
           ]}
           explainer={
-            <>
-              Connect your wallet and sign a message to submit — <b>that is the address
-              you&rsquo;ll be paid at.</b>
-            </>
+            switchFrom ? (
+              <>
+                You&rsquo;re signed in as {short(switchFrom)}. <b>Work is paid to the wallet you sign in
+                with,</b> so signing in with this one switches accounts.
+              </>
+            ) : (
+              <>
+                Connect your wallet and sign a message to submit — <b>that is the address
+                you&rsquo;ll be paid at.</b>
+              </>
+            )
           }
           busy={siwe.signingIn}
           busyLabel="Waiting for your wallet…"

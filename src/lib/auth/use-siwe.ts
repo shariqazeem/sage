@@ -23,8 +23,12 @@ export interface SiweApi {
   switchToMetis: () => Promise<void>;
   switchToChain: (chainId: number) => Promise<void>;
   /** Run the SIWE-lite flow (connect → nonce → sign → verify). `bind` joins the wallet to the
-   *  account already signed in instead of replacing it. */
-  signIn: (opts?: { mode?: "signin" | "bind" }) => Promise<boolean>;
+   *  account already signed in instead of replacing it. A plain sign-in REFUSES to replace a session
+   *  that belongs to a different wallet unless `replace` is set explicitly (see `conflict`). */
+  signIn: (opts?: { mode?: "signin" | "bind"; replace?: boolean }) => Promise<boolean>;
+  /** Set when a sign-in was refused because someone else is already signed in here: that session's
+   *  address. The caller explains it; nothing was replaced. */
+  conflict: string | null;
   signOut: () => Promise<void>;
   /** Re-read the session cookie — after a sign-in that happened outside this hook (the email door). */
   refresh: () => Promise<void>;
@@ -44,6 +48,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
   const w = injectedWallet ?? own;
   const [authedAddress, setAuthedAddress] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+  const [conflict, setConflict] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,12 +64,29 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     void refresh();
   }, [refresh]);
 
-  const signIn = useCallback(async (opts: { mode?: "signin" | "bind" } = {}): Promise<boolean> => {
+  const signIn = useCallback(async (opts: { mode?: "signin" | "bind"; replace?: boolean } = {}): Promise<boolean> => {
     if (!w.address) await w.connect();
     // SIWE (personal_sign) is chain-independent — don't force a network switch here.
     // The launch wizard switches to the founder's chosen chain only for the on-chain steps.
     const wallet = w.getWalletClient();
     if (!w.address || !wallet) return false;
+    /*
+      NEVER SWAP WHO IS SIGNED IN BEHIND THEIR BACK (Demo Day, 10 Oct 2026). A founder signed in by
+      email clicked a wallet button on the plan page; the plain sign-in here replaced the email session,
+      and the account, which belongs to the email identity, vanished mid-demo. A sign-in now refuses
+      to replace a session that belongs to a different wallet. Linking is `mode: "bind"`; switching
+      accounts is an explicit `replace` (or signing out first).
+    */
+    const mode = opts.mode ?? "signin";
+    const current = await fetch("/api/auth/session", { cache: "no-store" })
+      .then((r) => r.json() as Promise<{ address?: string | null }>)
+      .then((j) => j.address ?? null)
+      .catch(() => authedAddress);
+    if (mode === "signin" && !opts.replace && current && current.toLowerCase() !== w.address.toLowerCase()) {
+      setConflict(current);
+      return false;
+    }
+    setConflict(null);
     // Checksum the address so the message we sign is byte-identical to the one
     // the server rebuilds (it checksums via getAddress). A lowercase injected
     // address would sign a different message and verification would always fail.
@@ -95,7 +117,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     } finally {
       setSigningIn(false);
     }
-  }, [w]);
+  }, [w, authedAddress]);
 
   const signOut = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" });
@@ -125,6 +147,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     switchToChain: w.switchToChain,
     refresh,
     signIn,
+    conflict,
     signOut,
   };
 }

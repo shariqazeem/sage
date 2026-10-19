@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
@@ -94,6 +95,11 @@ const STEP_LABELS: Record<Step, string> = {
 export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHAIN] }: { jobId: string; plan: PlanView; launchChains?: readonly number[] }) {
   const wallet = useWallet();
   const siwe = useSiwe(wallet);
+  const founder = useFounderSession();
+  // Someone is signed in here, and it is NOT the wallet that is connected (an email account with a
+  // browser wallet installed, say). That wallet must not sign in over them (Demo Day, 10 Oct 2026).
+  const foreignWallet =
+    founder.authed && founder.chain === "evm" && !!siwe.address && !!founder.address && founder.address.toLowerCase() !== siwe.address.toLowerCase();
   const storeKey = `sage.deploy.${jobId}`;
   const offered = launchChainsOffered(launchChains);
 
@@ -167,9 +173,21 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
     setNote("Securing plan ownership…");
     try {
       if (!siwe.authed) {
+        // The plan belongs to whoever is signed in. A different wallet signing in here would take the
+        // session (and the account with it) away from them, so it is never attempted.
+        if (founder.authed && founder.chain === "evm") {
+          setError(PLAN_BELONGS_TO_ACCOUNT);
+          return;
+        }
         const ok = await siwe.signIn();
         if (!ok) {
-          setError("Sign-in was cancelled.");
+          // Refused because someone is signed in after all (the session answered late), or cancelled.
+          const who = await fetch("/api/auth/session", { cache: "no-store" })
+            .then((r) => r.json() as Promise<{ address?: string | null }>)
+            .then((j) => j.address ?? null)
+            .catch(() => null);
+          setError(who ? PLAN_BELONGS_TO_ACCOUNT : "Sign-in was cancelled.");
+          if (who) void founder.refresh();
           return;
         }
       }
@@ -225,7 +243,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
       setBusy(false);
       setNote(null);
     }
-  }, [siwe, wallet, post, jobId, storeKey, load]);
+  }, [siwe, founder, wallet, post, jobId, storeKey, load]);
 
   /* ── preview: apply limits, read the chain, reach preflight_ready ───────── */
   const submitPreview = useCallback(async () => {
@@ -458,7 +476,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
               This signs you in with that browser wallet and pays from it. Your account above stays with the sign-in you used; to launch from it, use the button above instead.
             </p>
           )}
-          <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} />
+          <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} signedInAs={foreignWallet ? founder.address : null} />
         </>
       ) : null}
 
@@ -540,7 +558,23 @@ function Stepper({ phase, dep }: { phase: Phase; dep: DeploymentView | null }) {
   );
 }
 
-function ClaimPanel({ siwe, busy, onClaim, offered }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void; offered: readonly number[] }) {
+function ClaimPanel({ siwe, busy, onClaim, offered, signedInAs = null }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void; offered: readonly number[]; signedInAs?: string | null }) {
+  // Signed in as one account with a different wallet connected: explain, never offer a sign-in.
+  if (signedInAs && siwe.address) {
+    return (
+      <div className="lxd-panel" role="status">
+        <p className="lxd-own">
+          You&apos;re signed in as <span className="mono">{short(signedInAs)}</span>, and this plan belongs to that account.
+          The wallet connected here (<span className="mono">{short(siwe.address)}</span>) is a different one, so it can&apos;t
+          launch it.
+        </p>
+        <p className="lxd-own">
+          Launch it from your account with the button above. To use this wallet&apos;s funds, send them to your account
+          first: <a href="/workspace/account">open your account</a>.
+        </p>
+      </div>
+    );
+  }
   const onLaunchChain = (chainId: number | null): boolean => chainId != null && offered.includes(chainId);
   const [first, ...others] = offered;
   return (
@@ -810,6 +844,9 @@ function Row({ k, v }: { k: string; v: string }) {
     </div>
   );
 }
+const PLAN_BELONGS_TO_ACCOUNT =
+  "This plan belongs to the account you're signed in with, not to this wallet. Launch it from your account above, or send this wallet's funds to your account first.";
+
 function short(s: string): string {
   return s && s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s;
 }

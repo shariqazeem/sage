@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { short } from "@/lib/format";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { WalletConnect, type WalletOption } from "./wallet-connect";
 
@@ -81,15 +82,20 @@ export function FounderSignIn({
       ? `${name} (Starknet)`
       : name;
 
+  // A sign-in was refused because another account is signed in here. Switching is now offered by
+  // name, and only a second, explicit choice replaces that session.
+  const switching = intent === "signin" && !!evm.conflict && !!evm.address;
   if (mounted && (evm.address || evmName)) {
     const base = evmName ?? "your Ethereum wallet";
     options.push({
       id: "evm",
-      name: starknet.wallets.some((w) => w.name.toLowerCase() === base.toLowerCase())
-        ? `${base} (Ethereum)`
-        : base,
+      name: switching && evm.address
+        ? `Switch to ${short(evm.address)}`
+        : starknet.wallets.some((w) => w.name.toLowerCase() === base.toLowerCase())
+          ? `${base} (Ethereum)`
+          : base,
       onSelect: async () => {
-        const ok = evm.address ? await evm.signIn({ mode: intent }) : (await evm.connect(), false);
+        const ok = evm.address ? await evm.signIn({ mode: intent, replace: switching }) : (await evm.connect(), false);
         if (ok) onSignedIn?.();
       },
     });
@@ -119,7 +125,7 @@ export function FounderSignIn({
       }
       busy={evm.signingIn || starknet.signingIn}
       busyLabel="Waiting for your wallet…"
-      error={starknet.error}
+      error={switching && evm.conflict ? `You're signed in as ${short(evm.conflict)}. Choose the wallet again to switch accounts.` : starknet.error}
       emptyMessage="No wallet found in this browser."
       installHints={[
         { name: "MetaMask", url: "https://metamask.io/download" },

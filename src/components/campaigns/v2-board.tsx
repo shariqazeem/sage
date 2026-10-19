@@ -333,6 +333,9 @@ function MissionCard({
    * and by everything gated behind them, so they can never disagree about which wallet counts.
    */
   const signedIn = rail === "starknet" ? starknet.authed : siwe.authed || emailSignedIn;
+  // Signed in as another wallet than the one connected: signing in again SWITCHES accounts, so the
+  // button says so and asks for it explicitly (a plain sign-in refuses to replace a session).
+  const switchFrom = siwe.authedAddress && siwe.address && siwe.authedAddress.toLowerCase() !== siwe.address.toLowerCase() ? siwe.authedAddress : null;
   // the wallet that signed in is the wallet that gets paid — and the only one a proof may bind to
   const signedInWallet = (rail === "starknet" ? starknet.address : evmAddress) ?? "";
 
@@ -821,11 +824,15 @@ function MissionCard({
                 <button
                   className="sage-btn sage-btn-primary"
                   disabled={siwe.signingIn}
-                  onClick={() => void siwe.signIn()}
+                  onClick={() => void siwe.signIn(switchFrom ? { replace: true } : undefined)}
                 >
                   {siwe.signingIn ? (
                     <>
                       <Loader2 size={15} className="sage-spin2" /> Signing…
+                    </>
+                  ) : siwe.address && switchFrom ? (
+                    <>
+                      <ShieldCheck size={15} /> Switch to {short(siwe.address)} to submit
                     </>
                   ) : siwe.address ? (
                     <>
@@ -836,8 +843,9 @@ function MissionCard({
                   )}
                 </button>
                 <p className="tb-sig">
-                  A free signature — it just proves the wallet is yours. No gas,
-                  no transaction.
+                  {switchFrom
+                    ? <>You&rsquo;re signed in as {short(switchFrom)}. Work is paid to the wallet you sign in with, so this switches accounts.</>
+                    : <>A free signature — it just proves the wallet is yours. No gas, no transaction.</>}
                 </p>
                 {emailDoor() && !wallet.address && (
                   <>
