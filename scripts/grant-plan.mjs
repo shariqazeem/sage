@@ -9,7 +9,11 @@
  * USAGE (on the VM, from /home/ubuntu/sage, so it uses the app's own database driver):
  *   node scripts/grant-plan.mjs --founder 0xABC… --plan programs --days 3650            # dry run
  *   node scripts/grant-plan.mjs --founder 0xABC… --plan team --days 90 --apply          # writes
+ *   node scripts/grant-plan.mjs --workspace ws_… --plan programs --days 3650 --apply    # one workspace by id
  *   node scripts/grant-plan.mjs --list                                                  # who is on what
+ *
+ * --workspace names an existing workspace directly: the way to grant one owned by a Starknet account,
+ * whose owner key is a felt rather than an Ethereum address.
  *
  * Plans: free | pro | team | programs (src/lib/plans/catalog.ts). A grant never charges anyone and never
  * touches money; it only lifts what the founder may LAUNCH next.
@@ -41,10 +45,11 @@ if (has("list")) {
 }
 
 const founder = (flag("founder") ?? "").trim().toLowerCase();
+const workspaceId = (flag("workspace") ?? "").trim();
 const plan = (flag("plan") ?? "").trim().toLowerCase();
 const days = Number(flag("days") ?? "30");
-if (!/^0x[0-9a-f]{40}$/.test(founder)) {
-  console.error("--founder must be an Ethereum address (0x + 40 hex).");
+if (!workspaceId && !/^0x[0-9a-f]{40}$/.test(founder)) {
+  console.error("Name a workspace (--workspace ws_…) or a founder (--founder 0x + 40 hex).");
   process.exit(1);
 }
 if (!PLANS.includes(plan)) {
@@ -57,8 +62,14 @@ if (!Number.isFinite(days) || days <= 0 || days > 3650) {
 }
 
 const until = plan === "free" ? null : now + Math.round(days * 86_400);
-const ws = db.prepare("select * from workspaces where owner_key = ? order by created_at limit 1").get(founder);
-console.log(`founder   ${founder}`);
+const ws = workspaceId
+  ? db.prepare("select * from workspaces where id = ?").get(workspaceId)
+  : db.prepare("select * from workspaces where owner_key = ? order by created_at limit 1").get(founder);
+if (workspaceId && !ws) {
+  console.error(`No workspace ${workspaceId}.`);
+  process.exit(1);
+}
+console.log(`founder   ${ws ? ws.owner_key : founder}`);
 console.log(`workspace ${ws ? `${ws.id} "${ws.name}" (now ${ws.plan} until ${day(ws.plan_until)})` : "none yet: one will be created"}`);
 console.log(`grant     ${plan} until ${day(until)}`);
 if (!has("apply")) {
