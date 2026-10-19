@@ -3,28 +3,50 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Briefcase, Check, ChevronRight, Compass, FlaskConical, Loader2, Lock, Users } from "lucide-react";
+import { ArrowRight, Briefcase, Check, ChevronRight, Loader2, Lock, Users } from "lucide-react";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { SageMark } from "@/components/brand/sage-mark";
 
-type Intent = "pay" | "earn" | "test";
+type Intent = "pay" | "earn";
 
 /**
- * ENTERING SAGE. Three screens, one question each, one card that stays put while its contents
- * change: who you are (a wallet or an email), what you are here to do, and the one detail that
- * sets you up. Motion is entrance-only and collapses under reduced-motion.
+ * THE FIRST RUN (19 Oct 2026). One question per screen, and only questions that are genuinely the
+ * person's to answer:
+ *
+ *   1. who you are (an email; a wallet if you prefer; Starknet under "more options"),
+ *   2. pay people, or get paid,
+ *   3. what to call your workspace (it is the name your people see on an invite),
+ *
+ * then the app takes over: your account, ready to fund, and the first job. No rail, no menus: a
+ * person who has not started has nothing to navigate yet.
  */
-export function StartFlow({ signedIn, address, chain = null, hasMemberships, emailEnabled = false }: { signedIn: boolean; address: string | null; chain?: "evm" | "starknet" | null; hasMemberships: boolean; emailEnabled?: boolean }) {
+export function StartFlow({
+  signedIn,
+  address,
+  chain = null,
+  hasMemberships,
+  emailEnabled = false,
+  next = null,
+}: {
+  signedIn: boolean;
+  address: string | null;
+  chain?: "evm" | "starknet" | null;
+  hasMemberships: boolean;
+  emailEnabled?: boolean;
+  /** Where to go once signed in, when they came from somewhere specific (the pricing page). */
+  next?: string | null;
+}) {
   const router = useRouter();
   const [intent, setIntent] = useState<Intent | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [invite, setInvite] = useState("");
+  const [moreOptions, setMoreOptions] = useState(false);
 
   const step = !signedIn ? 1 : !intent ? 2 : 3;
-  const progress = step === 1 ? 18 : step === 2 ? 58 : 100;
+  const signedInNow = () => (next ? router.push(next) : router.refresh());
 
   const create = async () => {
     setBusy(true);
@@ -36,9 +58,11 @@ export function StartFlow({ signedIn, address, chain = null, hasMemberships, ema
         setErr(json.error ?? "Could not create the workspace.");
         return;
       }
-      router.push("/workspace");
+      // An Ethereum sign-in has an account now (opened with the workspace): show it, ready to fund.
+      // A Starknet sign-in can't hold one, so it goes straight to posting work.
+      router.push(chain === "starknet" ? "/launch" : "/workspace/account?welcome=1");
     } catch {
-      setErr("Network error — try again.");
+      setErr("Network error. Try again.");
     } finally {
       setBusy(false);
     }
@@ -47,7 +71,7 @@ export function StartFlow({ signedIn, address, chain = null, hasMemberships, ema
   const join = () => {
     const code = invite.trim().split("/").pop()?.split("?")[0] ?? "";
     if (!code.startsWith("ws_inv_")) {
-      setErr("Paste the whole invite link — it ends in ws_inv_…");
+      setErr("Paste the whole invite link. It ends in ws_inv_…");
       return;
     }
     router.push(`/join/${code}`);
@@ -55,16 +79,14 @@ export function StartFlow({ signedIn, address, chain = null, hasMemberships, ema
 
   return (
     <main className="st-shell">
-      <div className="st-brand"><SageMark size={22} /><span>Sage</span></div>
-      <ol className="st-steps" aria-label="Steps">
-        {["Sign in", "What you're here for", "Set up"].map((label, i) => (
-          <li key={label} className={`st-step${step === i + 1 ? " on" : step > i + 1 ? " done" : ""}`}>
-            <span className="st-step-n">{step > i + 1 ? <Check size={12} /> : i + 1}</span>
-            {label}
+      <Link href="/" className="st-brand" aria-label="Sage home"><SageMark size={24} /><span>Sage</span></Link>
+      <ol className="st-dots" aria-label={`Step ${step} of 3`}>
+        {[1, 2, 3].map((n) => (
+          <li key={n} className={step === n ? "on" : step > n ? "done" : ""} aria-current={step === n ? "step" : undefined}>
+            {step > n ? <Check size={10} /> : null}
           </li>
         ))}
       </ol>
-      <div className="st-bar" aria-hidden><i style={{ width: `${progress}%` }} /></div>
 
       <div className="st-card">
         {step === 1 && (
@@ -72,49 +94,42 @@ export function StartFlow({ signedIn, address, chain = null, hasMemberships, ema
             <h1 className="st-h1">Welcome to Sage</h1>
             {emailEnabled ? (
               <>
-                {/* Each door says what it means for money, in one line, so nobody has to reason about chains. */}
-                <p className="st-p">An email is enough: Sage keeps a wallet for you, and once you fund it with USDC, Sage launches work from it, on GOAT Network or Metis. Or sign in with a wallet you already have. Either way it is just your account; nothing moves.</p>
-                <EmailSignIn onSignedIn={() => router.refresh()} />
-                <div className="st-or"><span>or a wallet you already have</span></div>
+                <p className="st-p">Sign in with your email. Sage keeps an account for you, and nothing moves until you say so.</p>
+                <EmailSignIn onSignedIn={signedInNow} />
+                <div className="st-or"><span>or use a wallet</span></div>
               </>
             ) : (
-              <p className="st-p">A free signature from a wallet you already have. It authorizes no transaction and moves no funds — it is just your account.</p>
+              <p className="st-p">Sign in with a wallet you already have. It&apos;s one free signature: no transaction, no funds move.</p>
             )}
-            <FounderSignIn explainer={<>Ethereum or Starknet, whichever you use. <b>Ethereum</b> pays in real USDC on GOAT Network or Metis; <b>Starknet</b> is the private rail. You can bind the other later in Settings.</>} onSignedIn={() => router.refresh()} />
-            <p className="st-foot"><Lock size={12} /> Sage never holds your keys. Work is funded from a vault it cannot exceed.</p>
+            <FounderSignIn
+              families={moreOptions ? "all" : "evm"}
+              explainer={moreOptions ? <>Ethereum or Starknet. Payments run on Metis and GOAT Network; Starknet is for private payouts.</> : <>Any Ethereum wallet. Payments run on Metis and GOAT Network.</>}
+              onSignedIn={signedInNow}
+            />
+            {!moreOptions && (
+              <button type="button" className="st-back st-more" onClick={() => setMoreOptions(true)}>More sign-in options</button>
+            )}
+            <p className="st-foot"><Lock size={12} /> Sage never holds your keys. Work is paid from a vault it can&apos;t overspend.</p>
           </div>
         )}
 
         {step === 2 && (
           <div className="st-pane" key="s2">
-            <h1 className="st-h1">What are you here to do?</h1>
+            <h1 className="st-h1">What brings you to Sage?</h1>
             <p className="st-p">
-              Signed in as <span className="mono">{address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}</span>.
-              {chain === "starknet" ? " Your money moves on Starknet, the private rail: real USDC, private when you ask." : chain === "evm" ? " Your money moves on GOAT Network or Metis, one account each: real USDC, a public receipt for every payout." : ""}
+              Signed in as <span className="mono">{address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}</span>. You can do both later.
             </p>
-            <div className="st-choices ws-stagger">
-              <button className="st-choice" onClick={() => router.push("/workspace/autopilot")}>
-                <span className="st-choice-ic"><Compass size={18} /></span>
-                <span className="st-choice-t">Let Sage run it</span>
-                <span className="st-choice-s">Fund once and stop deciding. Sage picks the work, designs it, pays for it and tells you why — inside ceilings you set.</span>
-                <ChevronRight size={16} className="st-choice-arrow" />
-              </button>
+            <div className="st-choices">
               <button className="st-choice" onClick={() => setIntent("pay")}>
                 <span className="st-choice-ic"><Users size={18} /></span>
-                <span className="st-choice-t">Pay my people for work</span>
-                <span className="st-choice-s">A workspace for your team, contractors or grantees. Invite them, post the work, fund it once — Sage verifies and pays.</span>
+                <span className="st-choice-t">Pay people for work</span>
+                <span className="st-choice-s">Product testing, gigs, bounties and milestone grants. Sage checks the work and pays.</span>
                 <ChevronRight size={16} className="st-choice-arrow" />
               </button>
               <button className="st-choice" onClick={() => (hasMemberships ? router.push("/workspace") : setIntent("earn"))}>
                 <span className="st-choice-ic"><Briefcase size={18} /></span>
                 <span className="st-choice-t">Get paid for work</span>
-                <span className="st-choice-s">Join a team with the invite link you were sent, or pick open work from the board.</span>
-                <ChevronRight size={16} className="st-choice-arrow" />
-              </button>
-              <button className="st-choice" onClick={() => router.push("/launch")}>
-                <span className="st-choice-ic"><FlaskConical size={18} /></span>
-                <span className="st-choice-t">Test my product</span>
-                <span className="st-choice-s">Sage inspects your product itself, designs paid test missions, and pays the testers you fund.</span>
+                <span className="st-choice-s">Find open work, or join a team with the link you were sent. Always free.</span>
                 <ChevronRight size={16} className="st-choice-arrow" />
               </button>
             </div>
@@ -124,26 +139,30 @@ export function StartFlow({ signedIn, address, chain = null, hasMemberships, ema
         {step === 3 && intent === "pay" && (
           <div className="st-pane" key="s3pay">
             <h1 className="st-h1">Name your workspace</h1>
-            <p className="st-p">Your team, programme or company. Free for you and two people; rename it any time.</p>
-            <input className="ws-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Kingston Market Co-op" maxLength={60} disabled={busy} autoFocus onKeyDown={(e) => { if (e.key === "Enter" && name.trim().length >= 2) void create(); }} />
+            <p className="st-p">Your company, team or programme. It&apos;s the name people see when you invite them.</p>
+            <input className="ws-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Labs" maxLength={60} disabled={busy} autoFocus onKeyDown={(e) => { if (e.key === "Enter" && name.trim().length >= 2) void create(); }} />
             <div className="st-actions">
               <button className="sage-btn sage-btn-primary" onClick={() => void create()} disabled={busy || name.trim().length < 2}>
-                {busy ? <><Loader2 size={15} className="sage-spin2" /> Creating…</> : <>Create workspace <ArrowRight size={15} /></>}
+                {busy ? <><Loader2 size={15} className="sage-spin2" /> Setting up…</> : <>Continue <ArrowRight size={15} /></>}
               </button>
               <button className="st-back" onClick={() => setIntent(null)}>Back</button>
             </div>
+            <p className="st-foot">You start on Free: one live job at a time, real money, real people.</p>
             {err && <p className="ws-err">{err}</p>}
           </div>
         )}
 
         {step === 3 && intent === "earn" && (
           <div className="st-pane" key="s3earn">
-            <h1 className="st-h1">Join your team</h1>
-            <p className="st-p">Paste the invite link you were sent. No link yet? Open work is on the board.</p>
-            <input className="ws-input" value={invite} onChange={(e) => setInvite(e.target.value)} placeholder="https://sagepays.xyz/join/ws_inv_…" autoFocus onKeyDown={(e) => { if (e.key === "Enter") join(); }} />
+            <h1 className="st-h1">Find your first paid work</h1>
+            <p className="st-p">Open work is on the board, paid in USDC to your own wallet. Were you sent an invite? Paste it here.</p>
             <div className="st-actions">
-              <button className="sage-btn sage-btn-primary" onClick={join}>Join <ArrowRight size={15} /></button>
-              <Link className="st-back" href="/marketplace">See open work instead</Link>
+              <Link className="sage-btn sage-btn-primary" href="/marketplace">See open work <ArrowRight size={15} /></Link>
+            </div>
+            <div className="st-or"><span>or join a team</span></div>
+            <input className="ws-input" value={invite} onChange={(e) => setInvite(e.target.value)} placeholder="https://sagepays.xyz/join/ws_inv_…" onKeyDown={(e) => { if (e.key === "Enter") join(); }} />
+            <div className="st-actions">
+              <button className="sage-btn" onClick={join} disabled={!invite.trim()}>Join</button>
               <button className="st-back" onClick={() => setIntent(null)}>Back</button>
             </div>
             {err && <p className="ws-err">{err}</p>}

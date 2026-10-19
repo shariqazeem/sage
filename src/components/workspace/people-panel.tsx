@@ -7,6 +7,8 @@ import { ArrowLeft, Copy, Link2, Loader2, MessageCircle, Users, Wallet, X } from
 import { short, since } from "@/lib/format";
 import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
+import { cheapestWith, hasFeature, PLANS } from "@/lib/plans/catalog";
+import { UpgradeLink } from "@/components/plans/upgrade-link";
 
 export interface PeopleView {
   workspace: { id: string; name: string; plan: WorkspacePlan; memberCap: number };
@@ -20,9 +22,13 @@ const Avatar = ({ m }: { m: PeopleView["members"][number] }) =>
   : m.viaTelegram ? <span className="ws-avatar"><MessageCircle size={14} /></span>
   : <span className="ws-avatar"><Wallet size={14} /></span>;
 
-/** The people of a workspace: who is in, how the next one gets in, and the plan's cap in plain sight. */
+/** The team: who is in, how the next one gets in, and who can run things beside the owner. */
 export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleView) {
   const router = useRouter();
+  // Members-only work (and the invite links into it) is a paid feature; say so before the click.
+  const canInvite = hasFeature(ws.plan, "membersOnly");
+  const canAppoint = hasFeature(ws.plan, "roles");
+  const isOwner = members.some((m) => m.key === me && m.role === "owner");
   const [invite, setInvite] = useState<{ url: string; telegram: string } | null>(null);
   // INVITE MANY — paste a list, get one single-use door per person, forward each on WhatsApp.
   const [manyOpen, setManyOpen] = useState(false);
@@ -72,6 +78,14 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
     }
   };
 
+  const setRole = async (memberKey: string, role: "admin" | "member") => {
+    setErr(null);
+    const res = await fetch("/api/workspaces/members", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceId: ws.id, memberKey, role }) });
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    if (res.ok) router.refresh();
+    else setErr(json.error ?? "That role couldn't be changed.");
+  };
+
   const remove = async (memberKey: string) => {
     if (!confirm("Remove this member from the workspace?")) return;
     const res = await fetch("/api/workspaces/members", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceId: ws.id, memberKey }) });
@@ -83,18 +97,25 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
       <header className="ws-head">
         <div>
           <Link href="/workspace" className="ws-back"><ArrowLeft size={12} /> {ws.name}</Link>
-          <span className="ws-eyebrow" style={{ marginTop: 10 }}>Members &amp; invites</span>
-          <h1 className="ws-title">People</h1>
-          <p className="ws-sub"><b>{memberCount}</b> {memberCount === 1 ? "person" : "people"}. Members see the work you post and are paid to the wallet they joined with — by Sage, once it has verified the work.</p>
+          <h1 className="ws-title">Team</h1>
+          <p className="ws-sub"><b>{memberCount}</b> {memberCount === 1 ? "person" : "people"}. Members see the work you post for them and are paid to the wallet they joined with, by Sage, once it has verified the work.</p>
         </div>
         <div className="ws-nav">
-          {!invite && (
+          {canInvite && !invite && (
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void mintInvite()} disabled={busy}>
               {busy ? <><Loader2 size={14} className="sage-spin2" /> Creating…</> : <><Link2 size={14} /> Invite people</>}
             </button>
           )}
         </div>
       </header>
+
+      {!canInvite && (
+        <section className="ws-card">
+          <div className="ws-card-h"><h2><Link2 size={15} /> Invite your people</h2></div>
+          <p className="ws-note pl-quiet">Members-only work, and the invite links that bring people into it, are on {PLANS[cheapestWith("membersOnly")].name} and above. Public work is open to anyone on every plan.</p>
+          <div className="ws-nav pl-pay"><UpgradeLink to={cheapestWith("membersOnly")} className="sage-btn sage-btn-primary sage-btn-sm" /></div>
+        </section>
+      )}
 
       {invite && (
         <section className="ws-card">
@@ -104,6 +125,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           <div className="ws-invite"><code>{invite.telegram}</code><button className="sage-btn sage-btn-sm" onClick={() => void copy(invite.telegram, "tg")}>{copied === "tg" ? "Copied" : <><MessageCircle size={13} /> Copy</>}</button></div>
         </section>
       )}
+      {canInvite && (
       <section className="ws-card">
         <div className="ws-card-h"><h2><Users size={15} /> Invite many</h2>{many && <button className="ws-chip" onClick={() => { setMany(null); setNames(""); }} aria-label="Start over"><X size={11} /></button>}</div>
         {!many ? (
@@ -135,10 +157,11 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           </ul>
         )}
       </section>
+      )}
       {err && <p className="ws-err">{err}</p>}
 
       <section className="ws-card">
-        <div className="ws-card-h"><h2><Users size={15} /> Members</h2><span className="ws-chip">{memberCount}</span></div>
+        <div className="ws-card-h"><h2><Users size={15} /> Members</h2>{isOwner && !canAppoint ? <span className="ws-note pl-quiet">Admins are on {PLANS[cheapestWith("roles")].name}</span> : <span className="ws-chip">{memberCount}</span>}</div>
         <ul className="ws-list">
           {members.map((m) => (
             <li key={m.key} className="ws-row">
@@ -150,7 +173,16 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
                 </div>
               </div>
               <div className="ws-row-side">
-                {m.role === "owner" ? <span className="ws-chip accent">owner</span> : m.key !== me ? <button className="ws-chip" onClick={() => void remove(m.key)} aria-label="Remove member"><X size={11} /> remove</button> : null}
+                {m.role === "owner" ? <span className="ws-chip accent">owner</span> : m.key !== me ? (
+                  <>
+                    {isOwner && canAppoint && (
+                      <button className="ws-chip" onClick={() => void setRole(m.key, m.role === "admin" ? "member" : "admin")}>
+                        {m.role === "admin" ? "remove admin" : "make admin"}
+                      </button>
+                    )}
+                    <button className="ws-chip" onClick={() => void remove(m.key)} aria-label="Remove member"><X size={11} /> remove</button>
+                  </>
+                ) : null}
               </div>
             </li>
           ))}

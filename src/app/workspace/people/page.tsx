@@ -10,7 +10,7 @@ import { PeoplePanel } from "@/components/workspace/people-panel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "People" };
+export const metadata = { title: "Team" };
 
 export default async function PeoplePage() {
   const ctx = await workspaceContext();

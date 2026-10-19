@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { LenderClient } from "./lender-client";
 import { siteUrl } from "@/lib/site";
+import { SiteFrame } from "@/components/site/site-frame";
 
 /**
  * The page a credit officer opens.
@@ -20,8 +21,10 @@ export const metadata: Metadata = {
 
 export default function LenderPage() {
   return (
-    <main className="lend-page">
-      <LenderClient />
-    </main>
+    <SiteFrame>
+      <div className="lend-page">
+        <LenderClient />
+      </div>
+    </SiteFrame>
   );
 }

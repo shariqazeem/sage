@@ -1,5 +1,5 @@
 import "./agents.css";
-import { PublicNav } from "@/components/shell/public-nav";
+import { SiteFrame } from "@/components/site/site-frame";
 // the jailbreak box renders a real Deputy receipt — pull in its shared styles.
 import "../../app/app.css";
 import "../../app/demo-moments.css";
@@ -57,11 +57,9 @@ export default function AgentPage() {
   const led = attackLedger();
 
   return (
-    <>
-      {/* Sage's own public identity card — read by strangers and by other agents, so it needs a
-          door back into the product. It carries its own stylesheet, so it works here despite this
-          page importing none of the content sheets. */}
-      <PublicNav />
+    // Sage's own public identity card, read by strangers and by other agents: the company header is
+    // its door back into the product.
+    <SiteFrame active="/company">
       <AgentProfilePage
         identity={identity}
         wallet={agentWallet(identity)}
@@ -78,6 +76,6 @@ export default function AgentPage() {
         }}
         pnl={getAgentPnL()}
       />
-    </>
+    </SiteFrame>
   );
 }

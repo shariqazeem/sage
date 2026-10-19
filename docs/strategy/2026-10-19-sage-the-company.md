@@ -1,5 +1,15 @@
 # Sage, the company: the plan from 19 October 2026
 
+> **The founder's answers, 19 Oct 2026 (they override the proposals below):**
+> - Product #1 is named just **Sage**: the company and its flagship share the name, and other products
+>   ship "by Sage" (Called by Sage). Read every "Sage Work" below as "Sage".
+> - Paid plans are built as proposed: Free, Pro $29, Team $149, Programs custom, workers always free.
+>   Demand is not a precondition: Sage creates its own demand by paying people.
+> - Metis is all in: the rail, identity (ERC-8004) and x402, built now. The founder funds the Metis
+>   operator as the last step; the default network moves to Metis after a real payout there.
+> - Execute the whole plan at once (site, app, onboarding, plans, Metis), not on the November and
+>   December timeline in §7.
+
 > The founder's decision, 19 Oct 2026, effective immediately: **the hackathon era is over.** Sage stops
 > being a hackathon entry and becomes **a company that builds AI agents**, backed by the two ecosystems
 > that already know us: **Metis** (first place, Grand Champion, OpenClaw Summer Builder Bootcamp; Elena

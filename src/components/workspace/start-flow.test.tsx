@@ -1,34 +1,45 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { StartFlow } from "./start-flow";
 
 /**
- * THREE RAILS, ONE LINE EACH. A founder choosing a door at sign-in should not have to reason about
- * chains afterwards: the email door says where its wallet lives, the wallet door says which rail each
- * wallet pays on, and the screen after sign-in names the rail they are on. Measured on the founder's
- * own account (11 Sep 2026): "with three chains, people including me will get confused".
+ * THE FIRST RUN (19 Oct 2026). Email first; a wallet is the second door, Ethereum only until the
+ * person asks for more (Starknet is a secondary network); then two choices, not four; then the
+ * workspace's name. Every line says what a door means for money, and none says "testnet".
  */
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
 vi.mock("@/components/auth/email-sign-in", () => ({ EmailSignIn: () => <button>Continue with email</button> }));
-vi.mock("@/components/wallet/founder-sign-in", () => ({ FounderSignIn: ({ explainer }: { explainer?: ReactNode }) => <div data-testid="wallet-door">{explainer}</div> }));
+vi.mock("@/components/wallet/founder-sign-in", () => ({
+  FounderSignIn: ({ explainer, families }: { explainer?: ReactNode; families?: string }) => <div data-testid="wallet-door" data-families={families}>{explainer}</div>,
+}));
 
-describe("the start flow says what each door means for money", () => {
-  it("the email door names both EVM mainnets; the wallet door names all three networks", () => {
+describe("the first run", () => {
+  it("email first; the wallet door is Ethereum on Metis and GOAT until more options are asked for", async () => {
     render(<StartFlow signedIn={false} address={null} hasMemberships={false} emailEnabled />);
-    expect(screen.getByText(/keeps a wallet for you.*on GOAT Network or Metis/)).toBeTruthy();
-    const door = screen.getByTestId("wallet-door").textContent ?? "";
-    expect(door).toMatch(/Ethereum/);
-    expect(door).toMatch(/GOAT Network or Metis/);
-    expect(door).toMatch(/Starknet.*private rail/);
-    expect(door).not.toMatch(/testnet/i);
+    expect(screen.getByText(/Sign in with your email/)).toBeTruthy();
+    const door = screen.getByTestId("wallet-door");
+    expect(door.dataset.families).toBe("evm");
+    expect(door.textContent).toMatch(/Metis and GOAT Network/);
+    expect(door.textContent).not.toMatch(/Starknet|testnet/i);
+    await userEvent.click(screen.getByRole("button", { name: "More sign-in options" }));
+    expect(screen.getByTestId("wallet-door").dataset.families).toBe("all");
+    expect(screen.getByTestId("wallet-door").textContent).toMatch(/Starknet is for private payouts/);
   });
 
-  it("after sign-in, names the rail the founder is on", () => {
-    const { unmount } = render(<StartFlow signedIn address={`0x${"1".repeat(40)}`} chain="evm" hasMemberships={false} />);
-    expect(screen.getByText(/Your money moves on GOAT Network or Metis/)).toBeTruthy();
-    unmount();
-    render(<StartFlow signedIn address={`0x${"2".repeat(63)}`} chain="starknet" hasMemberships={false} />);
-    expect(screen.getByText(/Your money moves on Starknet, the private rail/)).toBeTruthy();
+  it("two choices after sign-in: pay people, or get paid", () => {
+    render(<StartFlow signedIn address={`0x${"1".repeat(40)}`} chain="evm" hasMemberships={false} />);
+    const choices = screen.getAllByRole("button").map((b) => b.textContent ?? "");
+    expect(choices.filter((t) => /Pay people for work|Get paid for work/.test(t))).toHaveLength(2);
+    expect(choices.some((t) => /Let Sage run it|Test my product/.test(t))).toBe(false);
+  });
+
+  it("paying people asks one thing, the workspace's name, and says the plan they start on", async () => {
+    render(<StartFlow signedIn address={`0x${"1".repeat(40)}`} chain="evm" hasMemberships={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /Pay people for work/ }));
+    expect(screen.getByText("Name your workspace")).toBeTruthy();
+    expect(screen.getByText(/You start on Free: one live job at a time/)).toBeTruthy();
   });
 });

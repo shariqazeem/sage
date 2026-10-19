@@ -1,18 +1,18 @@
 /**
  * app-shell.css — P27 premium app shell (Adaption-style, on Sage's LIGHT system).
- * A floating hover-expand rail, a top-center Home|Agent mode pill, and top-right context pills.
+ * A floating hover-expand rail: the app's one piece of chrome (19 Oct 2026, six screens).
  * Everything is fixed/floating chrome on the base tokens (src/styles/tokens.css) — it floats over
  * both the .hire and .lx page scopes, so it carries its own styling. No gradients, no dark surfaces.
  * All motion rides the --dur/--ease tokens → prefers-reduced-motion collapses it.
  */
 
-/* When the shell is active (set on <html> by AppShell), give the page content room for the fixed
-   top mode-pill + (on narrow screens) the rail. Targets the known page containers. */
+/* When the shell is active (set on <html> by AppShell), give the page content room beside the rail
+   (and, on narrow screens, above the bottom bar). Targets the known page containers. */
 html[data-app-shell="on"] .sb-shell,
 html[data-app-shell="on"] .lx-wrap,
 html[data-app-shell="on"] .agent-page,
 html[data-app-shell="on"] .spp {
-  padding-top: 78px; /* .spp: the record and statement pages share the receipt layout; its own 28px sat under the pill */
+  padding-top: 48px;
 }
 @media (max-width: 1180px) {
   html[data-app-shell="on"] .sb-shell,
@@ -187,72 +187,6 @@ html[data-app-shell="on"] .spp {
   padding-top: 0.25rem;
 }
 
-/* ── top-center mode pill ──────────────────────────────────────────────────────────── */
-.mode-pill {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 61;
-  display: inline-flex;
-  padding: 4px;
-  gap: 2px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  box-shadow: var(--shadow-sm);
-}
-.mode-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 18px;
-  border-radius: var(--r-pill);
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--ink-muted);
-  text-decoration: none;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out);
-}
-.mode-seg:hover {
-  color: var(--ink);
-}
-.mode-seg.on {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-/* ── top-right context pills ───────────────────────────────────────────────────────── */
-.ctx-pills {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 60;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-}
-.ctx-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
 /* ── mobile: the rail becomes a floating bottom bar ────────────────────────────────── */
 @media (max-width: 720px) {
   .app-rail {
@@ -288,12 +222,6 @@ html[data-app-shell="on"] .spp {
     padding: 0;
     border-radius: var(--r-pill);
   }
-  .app-rail-pill.app-rail-invite {
-    display: none; /* keep the mobile bar tight */
-  }
-  .ctx-pills {
-    display: none; /* the mode pill owns the top on mobile; network shows in-page */
-  }
 }
 
 /* The brand mark is an IMAGE now, not an inline SVG. The collapsed rail leaves ~20px of inner width
@@ -310,6 +238,6 @@ html[data-app-shell="on"] .spp {
    its title and the network chip in its corner (7 Sep 2026) — the statement's own print rule hid the rail
    but not these. Nothing the shell renders belongs on paper. */
 @media print {
-  .mode-pill, .ctx-pills, .app-rail, .fbw { display: none !important; }
+  .app-rail, .fbw { display: none !important; }
   html[data-app-shell="on"] .spp, html[data-app-shell="on"] .st { padding-top: 0 !important; }
 }

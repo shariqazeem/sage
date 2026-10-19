@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -46,18 +46,16 @@ describe("fixtures purged (real-only)", () => {
 });
 
 describe("legacy campaign routes redirect to the canonical journey (07-B)", () => {
-  // Generic create/browse intents go to the new /launch flow; a specific V1 campaign
-  // review goes to the preserved legacy console (/app?legacy=1). None render a surface.
-  const canonicalPages = [
-    "src/app/(campaigns)/campaigns/page.tsx",
-    "src/app/(campaigns)/campaigns/new/page.tsx",
-  ];
-
-  it("generic poster routes redirect to /launch", () => {
-    for (const rel of canonicalPages) {
-      const src = readFileSync(join(process.cwd(), rel), "utf8");
-      expect(src, rel).toContain('redirect("/launch")');
-      expect(src.includes("NewCampaignForm"), rel).toBe(false);
+  // Generic create/browse intents are config redirects now (src/lib/site/redirects.ts): browsing
+  // goes to Jobs, creating goes to Post. A specific V1 campaign review still goes to the preserved
+  // legacy console (/app?legacy=1). None render a surface.
+  it("generic poster routes redirect: browsing to Jobs, creating to Post", async () => {
+    const { SITE_REDIRECTS } = await import("@/lib/site/redirects");
+    const to = (source: string) => SITE_REDIRECTS.find((r) => r.source === source)?.destination;
+    expect(to("/campaigns")).toBe("/workspace/jobs");
+    expect(to("/campaigns/new")).toBe("/launch");
+    for (const rel of ["src/app/(campaigns)/campaigns/page.tsx", "src/app/(campaigns)/campaigns/new/page.tsx"]) {
+      expect(existsSync(join(process.cwd(), rel)), `${rel} must not render a surface`).toBe(false);
     }
   });
 

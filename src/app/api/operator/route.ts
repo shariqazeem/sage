@@ -73,7 +73,7 @@ function fixFor(reason: string): { label: string; href: string } | null {
   if (/reserve floor|treasury|account/i.test(reason)) return { label: "Fund your account", href: "/workspace/account" };
   if (/mandate is off/i.test(reason)) return { label: "Let Sage run it", href: "/workspace/autopilot" };
   if (/week's ceiling/i.test(reason)) return { label: "Raise the weekly ceiling", href: "/workspace/autopilot" };
-  if (/already running|unclaimed on the board/i.test(reason)) return { label: "See what is running", href: "/dashboard" };
+  if (/already running|unclaimed on the board/i.test(reason)) return { label: "See what is running", href: "/workspace/jobs" };
   return null;
 }
 

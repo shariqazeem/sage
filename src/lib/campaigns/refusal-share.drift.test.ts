@@ -17,7 +17,8 @@ import { decidedOnMainnet } from "./settled-ledger";
  */
 const SURFACES = [
   "src/app/explorer/page.tsx",
-  "src/app/page.tsx",
+  // the home page's numbers come from one module (the hero receipt, the totals, the rows)
+  "src/lib/site/live-proof.ts",
   "src/lib/outcomes/outcomes.ts",
   "src/lib/campaigns/tester-supply.ts",
 ];
@@ -29,8 +30,6 @@ describe("the refusal share is derived once", () => {
       expect(src, f).toMatch(/decidedOnMainnet/);
       expect(src, f).not.toMatch(/countDecidedSubmissions\(\)/);
     }
-    const trust = readFileSync(resolve(process.cwd(), "src/components/landing/scene-trust.tsx"), "utf8");
-    expect(trust).not.toMatch(/Math\.round\(\(refusedCount/);
     const strip = readFileSync(resolve(process.cwd(), "src/components/launch/tester-supply-proof.tsx"), "utf8");
     expect(strip).not.toMatch(/heldOrRejectedPct/);
   });

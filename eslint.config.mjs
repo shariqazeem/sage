@@ -32,6 +32,8 @@ const eslintConfig = [
       "Sage Master Design Prompt/**",
       // Decks, posts and recordings: one-off build scripts for documents, not product code.
       "docs/**",
+      // Agent worktrees and local tooling live here; each is its own checkout.
+      ".claude/**",
       ".next-build-check/**",
       ".next-new/**",
     ],

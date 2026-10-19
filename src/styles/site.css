@@ -152,13 +152,16 @@
 }
 @media (max-width: 880px) {
   .site-nav,
-  .site-signin,
-  .site-actions .btn {
+  .site-signin {
     display: none;
+  }
+  /* On a phone the call to action stays, beside the menu. */
+  .site-actions {
+    margin-left: auto;
   }
   .site-menu {
     display: block;
-    margin-left: auto;
+    margin-left: 4px;
   }
 }
 

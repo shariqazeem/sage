@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Blocks, BookOpen, Compass, House, Landmark, Rocket, Send, Settings, Sparkles, Users, Wallet } from "lucide-react";
+import { Blocks, House, PenLine, Settings, Users, Wallet } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -14,43 +14,21 @@ import { useFounderSession } from "@/lib/auth/use-founder-session";
  * are real routes; active state comes from usePathname(). On mobile it reflows to a bottom icon bar (CSS).
  */
 /**
- * TWO GROUPS, BECAUSE THE GROUPING IS THE NARRATIVE.
- *
- * Six items was the stated ceiling for a FLAT list — past that a rail stops being navigation and
- * becomes a sitemap. Labelled groups change that arithmetic: nobody scans eight, they scan two
- * headings and then four items under one of them.
- *
- * And the split says what the product is. WORK is money going out — define it, fund it, let the
- * agent pay it. CAPITAL is money proven — every payout and refusal on chain, and the verified
- * cash flow a lender can advance against. Sage is the cash-flow oracle; the rail should read that
- * way before a single word of copy does.
- *
- * `/record/[wallet]` is deliberately NOT here. It is one person's credit file, so it belongs where
- * a person is named — a receipt, an explorer row — not in global chrome where it has no subject.
+ * SIX SCREENS (19 Oct 2026, Sage the company). The whole app is what a founder does: see what is
+ * happening, post work, follow the jobs, fund the account, run the team, change settings. Every
+ * other surface (Autopilot, working capital, the agent chat, the ledger) is reached from the
+ * screen it belongs to, not from global chrome, where eleven doors meant none got opened.
  */
-// SAGE FOR TEAMS (2026-09-04): the rail is the workspace. Six items, one group of work and one of
-// account; the capital surfaces (/explorer, /outcomes, /lender) and the public board stay reachable
-// from the pages and the docs that need them, not from global chrome where a new team saw eleven
-// doors and opened none.
 const NAV = [
   {
-    group: "Workspace",
+    group: "Sage",
     items: [
       { href: "/workspace", label: "Home", Icon: House },
+      { href: "/launch", label: "Post", Icon: PenLine },
+      { href: "/workspace/jobs", label: "Jobs", Icon: Blocks },
       { href: "/workspace/account", label: "Account", Icon: Wallet },
-      { href: "/dashboard", label: "Work", Icon: Blocks },
-      { href: "/launch", label: "Post work", Icon: Rocket },
-      { href: "/workspace/autopilot", label: "Let Sage run it", Icon: Compass },
-      { href: "/workspace/people", label: "People", Icon: Users },
-      { href: "/agent", label: "Agent", Icon: Sparkles },
-    ],
-  },
-  {
-    group: "Account",
-    items: [
-      { href: "/workspace/capital", label: "Capital", Icon: Landmark },
+      { href: "/workspace/people", label: "Team", Icon: Users },
       { href: "/workspace/settings", label: "Settings", Icon: Settings },
-      { href: "/docs", label: "Docs", Icon: BookOpen },
     ],
   },
 ] as const;
@@ -65,7 +43,6 @@ function short(a: string): string {
 export function AppRail() {
   const pathname = usePathname() ?? "";
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
   const siwe = useSiwe();
   const founder = useFounderSession();
   // Either session counts as signed in; the rail is identity chrome, not an EVM control.
@@ -81,17 +58,11 @@ export function AppRail() {
 
   const isActive = (href: string): boolean => {
     const base = href.split("?")[0];
-    if (base === "/dashboard") return pathname === "/dashboard";
-    if (base === "/agent") return pathname.startsWith("/agent");
+    // Home is the workspace itself, not every page under it.
+    if (base === "/workspace") return pathname === "/workspace";
+    // A job's own page lives under Jobs.
+    if (base === "/workspace/jobs") return pathname.startsWith(base) || pathname.startsWith("/campaign/") || pathname.startsWith("/graph/");
     return pathname.startsWith(base);
-  };
-
-  const invite = () => {
-    const url = typeof window !== "undefined" ? window.location.origin : "https://sagepays.xyz";
-    void navigator.clipboard?.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    });
   };
 
   return (
@@ -128,16 +99,6 @@ export function AppRail() {
         ))}
       </nav>
 
-      <button
-        className="app-rail-pill app-rail-invite"
-        onClick={invite}
-        title="Invite your team"
-        type="button"
-      >
-        <Send size={18} strokeWidth={1.9} />
-        <span className="app-rail-label">{copied ? "Link copied!" : "Invite your team"}</span>
-      </button>
-
       {stillAsking ? (
         <div className="app-rail-pill app-rail-user" aria-hidden>
           <span className="app-rail-avatar">
@@ -146,22 +107,22 @@ export function AppRail() {
           <span className="app-rail-label">…</span>
         </div>
       ) : signedInAs ? (
-        <div className="app-rail-pill app-rail-user" title={signedInAs}>
+        <Link className="app-rail-pill app-rail-user" href="/workspace/settings" title={signedInAs}>
           <span className="app-rail-avatar">
             <Wallet size={14} strokeWidth={2} />
           </span>
           <span className="app-rail-label">
             <span className="mono">{short(signedInAs)}</span>
-            <span className="app-rail-sub">Founder</span>
+            <span className="app-rail-sub">Your settings</span>
           </span>
-        </div>
+        </Link>
       ) : (
         // The rail is chrome, not the place to render a wallet list. It sends a signed-out
         // visitor to the dashboard, which offers every wallet family — rather than firing
         // MetaMask directly, which is a door a Starknet founder cannot walk through.
         <Link
           className="app-rail-pill app-rail-user"
-          href="/dashboard"
+          href="/start"
           title="Sign in"
         >
           <span className="app-rail-avatar">

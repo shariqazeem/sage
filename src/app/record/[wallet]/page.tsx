@@ -26,6 +26,7 @@ import { buildLinkedRecord, linkedWalletsOf } from "@/lib/campaigns/wallet-links
 import { LinkWalletsButton } from "./link-wallets";
 import { TakeAdvanceButton } from "./take-advance";
 import { offerFor } from "@/lib/advance/self-serve";
+import { SiteFrame } from "@/components/site/site-frame";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,10 +92,11 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   const otherLabel = same(evmSession, record.wallet) ? "Starknet" : "Ethereum";
 
   return (
+    // A person's record is a public page (lenders, teams, the person themselves): the company frame,
+    // never the founder's rail.
+    <SiteFrame>
     <div className="spp">
       <div className="spp-col">
-        {/* The mark lives in the app rail on this route, so the page does not draw a second one —
-            /proof keeps the standalone mark-and-kicker treatment because it has no rail. */}
         <div className="spp-top spp-reveal">
           <span className="spp-kicker">Verified work record</span>
         </div>
@@ -407,5 +409,6 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
         </footer>
       </div>
     </div>
+    </SiteFrame>
   );
 }

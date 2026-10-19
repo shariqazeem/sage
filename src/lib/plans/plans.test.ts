@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { campaigns, inspectionJobs, walletLinks, workspaceMembers, workspaces } from "@/lib/db/schema";
 import { addMember, createWorkspace, setWorkspacePlan, walletMemberKey } from "@/lib/db/workspaces";
+import { createInspectionJob } from "@/lib/db/inspection";
 import { linkWallets } from "@/lib/campaigns/wallet-links";
 import { cheapestWith, hasFeature, monthlyLabel, PERIOD_SECONDS, PLAN_ORDER, PLANS, planInForce, SELF_SERVE, WORKER_TERMS } from "./catalog";
 import { checkLaunch } from "./limits";
@@ -163,6 +164,18 @@ describe("which plan a founder is on, and what they have live", () => {
     const u = founderUsage(FOUNDER, NOW);
     expect(u.liveJobs).toBe(1);
     expect(u.launchedBase).toBe(usd(12)); // 5 live + 7 completed, both this period
+  });
+
+  it("a job launched from the founder's ACCOUNT counts as theirs (the email door's usual path)", () => {
+    // The account's wallet posts the vault, so the campaign's poster is not the founder; the plan
+    // that launched it is. Every launch door starts from a founder-owned plan.
+    const ACCOUNT = "0x9999999999999999999999999999999999999999";
+    const id = job({ usdc: 6, by: ACCOUNT });
+    createInspectionJob({ founderWallet: FOUNDER, publicCampaignId: id, productUrl: "https://acme.io", goal: "g", targetUsers: "", totalBudgetBase: usd(6), tokenDecimals: 6, planningRequestId: "req-account-launch" });
+    const u = founderUsage(FOUNDER, NOW);
+    expect(u.liveJobs).toBe(1);
+    expect(u.launchedBase).toBe(usd(6));
+    expect(founderUsage(ACCOUNT, NOW).liveJobs).toBe(1); // the account's own view, unchanged
   });
 
   it("only the last 30 days count toward the month", () => {

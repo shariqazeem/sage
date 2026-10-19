@@ -1,6 +1,7 @@
 import { DEFAULT_EVM_LAUNCH_CHAIN, METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Inbox, Rocket, Settings, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Inbox, Rocket, Sparkles } from "lucide-react";
+import { hasFeature, PLANS, planInForce } from "@/lib/plans/catalog";
 import { reward as fmtReward, networkLabel, usd } from "@/lib/format";
 import type { FounderDesk } from "@/lib/campaigns/founder-activity";
 import type { SettlementRail, WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
@@ -41,9 +42,9 @@ const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "s
 const KIND = { testing: "Testing run", grant: "Milestone grant", gig: "Gig" } as const;
 
 /**
- * THE OWNER'S HOME. Four numbers, then — while the workspace is new — the three moves that make
- * the first verified payout happen; then the work that is open and the agent's own timeline.
- * People and the plan have their own pages. Nothing here is decoration: every number is a row.
+ * THE OWNER'S HOME. Four numbers (the fourth is the plan, one click from changing it), then, while
+ * the workspace is new, the three moves to the first verified payout: fund, post, watch it pay.
+ * Then the work that is open and the agent's own timeline. Every number is a row.
  */
 export function OwnerWorkspace({ view }: { view: OwnerView }) {
   const ws = view.workspace;
@@ -51,22 +52,20 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
   const paidCount = view.campaigns.reduce((n, c) => n + c.paid, 0);
   const paidUsd = view.campaigns.reduce((n, c) => n + c.paidBase, 0) / 1e6;
   const inReview = view.campaigns.reduce((n, c) => n + c.pending, 0);
-  const invited = view.memberCount > 1;
   const posted = view.campaigns.length > 0;
   const paid = paidCount > 0;
-  const fresh = !(invited && posted && paid);
+  const fresh = !(posted && paid);
+  const plan = planInForce(ws);
 
   return (
     <main className="ws-shell ws-stagger">
       <header className="ws-head">
         <div>
-          <span className="ws-eyebrow">Workspace</span>
+          <Link className="ws-eyebrow ws-plan-link" href="/workspace/settings#plan">{PLANS[plan].name} plan</Link>
           <h1 className="ws-title">{ws.name}</h1>
-          <p className="ws-sub">Sage inspects, verifies and pays your people&rsquo;s work from the budget you fund — every payout a receipt, every refusal a reason, no one at your organization in the loop.</p>
+          <p className="ws-sub">Sage checks the work and pays your people from the budget you fund. Every payout has a receipt; every refusal, a reason.</p>
         </div>
         <div className="ws-nav">
-          <Link className="ws-chip" href="/workspace/people"><Users size={12} /> People</Link>
-          <Link className="ws-chip" href="/workspace/settings"><Settings size={12} /> Settings</Link>
           <Link className="sage-btn sage-btn-primary sage-btn-sm" href="/launch?do=pay"><Rocket size={14} /> Post work</Link>
         </div>
       </header>
@@ -75,59 +74,58 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         <div className="ws-stat"><span className="ws-stat-v">{live.length}</span><span className="ws-stat-k">Open work</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{inReview}</span><span className="ws-stat-k">In review</span></div>
         <div className={`ws-stat${paidUsd > 0 ? " pos" : ""}`}><span className="ws-stat-v">{usd(paidUsd)}</span><span className="ws-stat-k">Paid · {paidCount} payout{paidCount === 1 ? "" : "s"}</span></div>
-        <div className="ws-stat"><span className="ws-stat-v">{view.memberCount}</span><span className="ws-stat-k">People</span></div>
+        <Link className="ws-stat ws-stat-link" href="/workspace/settings#plan"><span className="ws-stat-v">{PLANS[plan].name}</span><span className="ws-stat-k">{PLANS[plan].liveJobs === 1 ? "One live job at a time" : "Unlimited live jobs"}</span></Link>
       </section>
 
-      <NextMove />
-
-      <SettlingLane title="Settling — the finalization window" />
+      {/* Autopilot's next move, on the plans that include it; the settling window once there is work to settle. */}
+      {hasFeature(plan, "autopilot") && <NextMove />}
+      {!fresh && <SettlingLane title="Settling — the finalization window" />}
 
       {fresh && (
         <section className="ws-card">
-          <div className="ws-card-h"><h2><Sparkles size={15} /> Three moves to your first verified payout</h2></div>
-          {/* ORIENTATION, ONE LINE. Three rails exist; a new founder is on exactly one, and this says which and what that means for money. */}
+          <div className="ws-card-h"><h2><Sparkles size={15} /> Your first verified payout</h2></div>
+          {/* ORIENTATION, ONE LINE: which networks this founder's money moves on, and what that means. */}
           <p className="ws-rail">
             {view.chain === "starknet" ? (
-              <><b>Your rail is Starknet.</b> Real USDC, private when you ask. Each campaign is funded from your wallet when you post it, and every payout settles through the Cairo vault.</>
+              <><b>Your money moves on Starknet.</b> Real USDC, private when you ask. Each job is funded from your wallet when you post it.</>
             ) : (
-              <><b>Your money moves on GOAT Network or Metis.</b> Real USDC, a public receipt for every payout. Fund your account once and Sage launches from it, or fund each campaign from your wallet as you post it.{view.metis ? <> <Link href={`/workspace/account?chain=${METIS_MAINNET_CHAIN_ID}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Metis</Link>.</> : null}</>
+              <><b>Your money moves on Metis or GOAT Network.</b> Real USDC, and a public receipt for every payout.{view.metis ? <> <Link href={`/workspace/account?chain=${METIS_MAINNET_CHAIN_ID}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Metis</Link>.</> : null}</>
             )}
           </p>
           <ol className="ws-check">
-            <li className={invited ? "done" : ""}>
-              <span className="ws-check-n">{invited ? <CheckCircle2 size={13} /> : "1"}</span>
-              <span className="ws-check-t">Invite your people</span>
-              <span className="ws-check-s">A link for wallets, or a Telegram link that gives them a wallet — no app, no seed phrase.</span>
-              <Link href="/workspace/people">Invite →</Link>
+            <li className={posted ? "done" : ""}>
+              <span className="ws-check-n">{posted ? <CheckCircle2 size={13} /> : "1"}</span>
+              {view.chain === "starknet" ? (
+                <>
+                  <span className="ws-check-t">Fund it as you launch</span>
+                  <span className="ws-check-s">Each job&rsquo;s vault is funded from your Starknet wallet in one signed transaction. Sage can never spend more than you put in.</span>
+                </>
+              ) : (
+                <>
+                  <span className="ws-check-t">Fund your account</span>
+                  <span className="ws-check-s">Send USDC to your account once. Sage launches every job from it, and can never spend more than you put in.</span>
+                </>
+              )}
+              <Link href="/workspace/account">Your account →</Link>
             </li>
             <li className={posted ? "done" : ""}>
               <span className="ws-check-n">{posted ? <CheckCircle2 size={13} /> : "2"}</span>
               <span className="ws-check-t">Post the work</span>
-              <span className="ws-check-s">A gig, a milestone grant or a testing run — members-only, or open to the public board, where Sage approves at once and finalizes after a window it uses to watch for copies and wallet clusters.</span>
-              <Link href="/launch?do=pay">Post work →</Link>
+              <span className="ws-check-s">One sentence: a product test, a gig or a milestone grant. Sage designs it, prices it, and shows you the plan before anything moves.</span>
+              <Link href="/launch?do=pay">Post →</Link>
             </li>
             <li className={paid ? "done" : ""}>
               <span className="ws-check-n">{paid ? <CheckCircle2 size={13} /> : "3"}</span>
-              {view.chain === "starknet" ? (
-                <>
-                  <span className="ws-check-t">Fund it as you launch</span>
-                  <span className="ws-check-s">Each campaign&rsquo;s vault is funded from your Starknet wallet when you post it, in one signed transaction. Sage can never spend more than what you put in it.</span>
-                  <Link href="/workspace/account">Your account →</Link>
-                </>
-              ) : (
-                <>
-                  <span className="ws-check-t">Fund it once</span>
-                  <span className="ws-check-s">Fund your account once and Sage deploys, funds and activates every campaign from it — or fund each vault from your own wallet as you launch. It cannot exceed what you funded.</span>
-                  <Link href="/workspace/account">Your account →</Link>
-                </>
-              )}
+              <span className="ws-check-t">Watch it pay</span>
+              <span className="ws-check-s">Sage checks every submission. Real work is paid in USDC at once; anything else is refused, with the reason written down.</span>
+              <Link href="/workspace/jobs">Your jobs →</Link>
             </li>
           </ol>
         </section>
       )}
 
       <section className="ws-card">
-        <div className="ws-card-h"><h2><Rocket size={15} /> Open work</h2><Link className="ws-chip" href="/dashboard">all work <ArrowUpRight size={11} /></Link></div>
+        <div className="ws-card-h"><h2><Rocket size={15} /> Open work</h2><Link className="ws-chip" href="/workspace/jobs">all jobs <ArrowUpRight size={11} /></Link></div>
         {live.length === 0 ? (
           <p className="ws-empty"><Inbox size={18} /><span>Nothing is open right now. <Link href="/launch?do=pay">Post work</Link> and your members hear about it the moment it is live.</span></p>
         ) : (
@@ -150,7 +148,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
 
       {view.desk.events.length > 0 && (
         <section className="ws-card">
-          <div className="ws-card-h"><h2><Sparkles size={15} /> Sage at work</h2><Link className="ws-chip" href="/dashboard">everything <ArrowUpRight size={11} /></Link></div>
+          <div className="ws-card-h"><h2><Sparkles size={15} /> Sage at work</h2><Link className="ws-chip" href="/workspace/jobs">everything <ArrowUpRight size={11} /></Link></div>
           <SageAtWork desk={view.desk} limit={6} />
         </section>
       )}

@@ -8,6 +8,8 @@ import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
+import { UpgradeLink } from "@/components/plans/upgrade-link";
+import type { PlanId } from "@/lib/plans/catalog";
 import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
@@ -109,6 +111,8 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set when a plan's limit refused the launch: the plan that lifts it (null: talk to us).
+  const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
   const [batchSupported, setBatchSupported] = useState(false);
   const running = useRef(false);
   // The founder's account, as the door above reports it. While it can launch (or is still being read),
@@ -169,6 +173,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
   /* ── claim: sign the EIP-712 plan-claim, take ownership ─────────────────── */
   const claim = useCallback(async () => {
     setError(null);
+    setUpgrade(undefined);
     setBusy(true);
     setNote("Securing plan ownership…");
     try {
@@ -211,6 +216,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
       const ch = await post(`/api/launch/${jobId}/claim/challenge`, { chainId: liveChainId });
       if (!ch.data.ok) {
         setError(String(ch.data.error ?? "Could not start the claim."));
+        if (ch.status === 402) setUpgrade((ch.data.planLimit as { upgradeTo?: PlanId | null } | undefined)?.upgradeTo ?? null);
         return;
       }
       const claimObj = ch.data.claim as PlanClaim;
@@ -231,6 +237,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
       const claimed = await post(`/api/launch/${jobId}/claim`, { claim: claimObj, signature });
       if (!claimed.data.ok) {
         setError(String(claimed.data.error ?? "Could not record the claim."));
+        if (claimed.status === 402) setUpgrade((claimed.data.planLimit as { upgradeTo?: PlanId | null } | undefined)?.upgradeTo ?? null);
         return;
       }
       const d = claimed.data.deployment as DeploymentView;
@@ -460,6 +467,7 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
       {error && (
         <div className="lx-err" role="alert" style={{ marginTop: 10 }}>
           {error}
+          {upgrade !== undefined && <> <UpgradeLink to={upgrade} className="lxd-link" /></>}
         </div>
       )}
 
@@ -819,7 +827,7 @@ function LiveSuccess({ dep, plan }: { dep: DeploymentView; plan: PlanView }) {
           <a href={`/c/${dep.attachedCampaignId}`} className="lxd-link" style={{ textDecoration: "none" }}>
             View public tester board →
           </a>
-          <a href="/dashboard" className="lxd-link" style={{ textDecoration: "none" }}>
+          <a href="/workspace/jobs" className="lxd-link" style={{ textDecoration: "none" }}>
             All your campaigns →
           </a>
         </div>
