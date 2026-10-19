@@ -24,23 +24,22 @@ console.log(JSON.stringify(rows)); process.exit(rows.length ? 1 : 0);
 JS
 ssh -o StrictHostKeyChecking=no -i $KEY $VM "cat > /home/ubuntu/guard.cjs" < /tmp/guard.cjs
 S "node /home/ubuntu/guard.cjs" || { echo "ABORT: pending/settling work"; exit 3; }
-echo "== sync $(wc -l < "$LIST" | tr -d ' ') files =="
+echo "== sync $(wc -l < "$LIST" | tr -d ' ') files (one tar stream, one connection) =="
+# One connection for the whole list: an ssh per file exhausted the Mac's local ports at ~200 files
+# ("Can't assign requested address", 19 Oct 2026). COPYFILE_DISABLE + --no-mac-metadata keep macOS
+# from adding AppleDouble files and xattr headers that Linux tar would warn about.
 fail=0
-while read -r f; do
-  [ -z "$f" ] && continue
-  ssh -o StrictHostKeyChecking=no -i $KEY $VM "mkdir -p '$R/$(dirname "$f")' && cat > '$R/$f'" < "$f" || { echo "SYNC FAILED: $f"; fail=1; }
-done < "$LIST"
+COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -cf - -T "$LIST" | ssh -o StrictHostKeyChecking=no -i $KEY $VM "cd $R && tar -xf - --no-same-owner" || { echo "SYNC FAILED"; fail=1; }
 [ $fail = 0 ] || exit 4
 if [ -n "$REMOVED" ] && [ -s "$REMOVED" ]; then
   STAMP=$(date -u +%Y%m%dT%H%M%SZ)
   echo "== retire $(wc -l < "$REMOVED" | tr -d ' ') removed files → ~/sage-retired/$STAMP =="
-  while read -r f; do
-    [ -z "$f" ] && continue
-    case "$f" in /*|*..*) echo "REFUSED path: $f"; exit 4;; esac
-    S "cd $R && if [ -e '$f' ]; then mkdir -p '/home/ubuntu/sage-retired/$STAMP/$(dirname "$f")' && mv '$f' '/home/ubuntu/sage-retired/$STAMP/$f'; fi" || { echo "RETIRE FAILED: $f"; exit 4; }
-  done < "$REMOVED"
-  # a removed file must really be gone, or it is still built and still served
-  while read -r f; do [ -z "$f" ] && continue; S "test ! -e '$R/$f'" || { echo "STILL PRESENT: $f"; exit 4; }; done < "$REMOVED"
+  while read -r f; do [ -z "$f" ] && continue; case "$f" in /*|*..*) echo "REFUSED path: $f"; exit 4;; esac; done < "$REMOVED"
+  # One connection: each path is moved aside (kept, never deleted), then every one is checked gone,
+  # because a removed file still present is still built and still served.
+  ssh -o StrictHostKeyChecking=no -i $KEY $VM "cd $R && while read -r f; do [ -z \"\$f\" ] && continue; if [ -e \"\$f\" ]; then mkdir -p \"/home/ubuntu/sage-retired/$STAMP/\$(dirname \"\$f\")\" && mv \"\$f\" \"/home/ubuntu/sage-retired/$STAMP/\$f\" || exit 1; fi; done; " < "$REMOVED" || { echo "RETIRE FAILED"; exit 4; }
+  left=$(ssh -o StrictHostKeyChecking=no -i $KEY $VM "cd $R && while read -r f; do [ -n \"\$f\" ] && [ -e \"\$f\" ] && echo \"\$f\"; done; true" < "$REMOVED")
+  [ -z "$left" ] || { echo "STILL PRESENT:"; echo "$left"; exit 4; }
 fi
 echo "== checksums =="
 while read -r f; do [ -z "$f" ] && continue; echo "$(md5 -q "$f")  $f"; done < "$LIST" > /tmp/deploy-local.md5
