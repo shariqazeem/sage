@@ -127,7 +127,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
       )}
 
       <section className="ws-card">
-        <div className="ws-card-h"><h2><Rocket size={15} /> Open work</h2><Link className="ws-chip" href="/dashboard">all work <ArrowUpRight size={11} /></Link></div>
+        <div className="ws-card-h"><h2><Rocket size={15} /> Open work</h2><Link className="ws-chip" href="/workspace/jobs">all jobs <ArrowUpRight size={11} /></Link></div>
         {live.length === 0 ? (
           <p className="ws-empty"><Inbox size={18} /><span>Nothing is open right now. <Link href="/launch?do=pay">Post work</Link> and your members hear about it the moment it is live.</span></p>
         ) : (
@@ -150,7 +150,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
 
       {view.desk.events.length > 0 && (
         <section className="ws-card">
-          <div className="ws-card-h"><h2><Sparkles size={15} /> Sage at work</h2><Link className="ws-chip" href="/dashboard">everything <ArrowUpRight size={11} /></Link></div>
+          <div className="ws-card-h"><h2><Sparkles size={15} /> Sage at work</h2><Link className="ws-chip" href="/workspace/jobs">everything <ArrowUpRight size={11} /></Link></div>
           <SageAtWork desk={view.desk} limit={6} />
         </section>
       )}

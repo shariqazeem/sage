@@ -289,7 +289,7 @@ async function StarknetAccount({ founder }: { founder: string }) {
 
         <div>
           <section className="ws-card">
-            <div className="ws-card-h"><h2>Your work on Starknet</h2><Link className="ws-chip" href="/dashboard">all work →</Link></div>
+            <div className="ws-card-h"><h2>Your work on Starknet</h2><Link className="ws-chip" href="/workspace/jobs">all jobs →</Link></div>
             {posted.length === 0 ? (
               <p className="ac-empty">Nothing yet. <Link href="/launch">Post work</Link> — a gig, a milestone grant or a testing run, funded from this wallet.</p>
             ) : (

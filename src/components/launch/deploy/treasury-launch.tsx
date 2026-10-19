@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Landmark, Loader2, Sparkles } from "lucide-react";
+import { UpgradeLink } from "@/components/plans/upgrade-link";
+import type { PlanId } from "@/lib/plans/catalog";
 
 interface Account { chainId: number; network: string; address: string; isMainnet: boolean }
 interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; accounts?: Account[] }
@@ -27,6 +29,8 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
   const [doors, setDoors] = useState<Status[] | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // undefined: no plan refusal; null: no plan would help; a plan: the one that lifts it.
+  const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
   const [done, setDone] = useState<Launched | null>(null);
 
   useEffect(() => {
@@ -70,9 +74,10 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
     setErr(null);
     try {
       const r = await fetch(`/api/launch/${jobId}/treasury`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chainId }) });
-      const j = (await r.json()) as Launched & { error?: string };
+      const j = (await r.json()) as Launched & { error?: string; reason?: string; upgradeTo?: PlanId | null };
       if (!r.ok) {
         setErr(j.error ?? "Could not launch from your account.");
+        setUpgrade(j.reason === "plan_limit" ? j.upgradeTo ?? null : undefined);
         return;
       }
       setDone(j);
@@ -114,6 +119,7 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
         );
       })}
       {err && <p className="ws-err">{err}</p>}
+      {upgrade !== undefined && <div className="ws-nav"><UpgradeLink to={upgrade} className="sage-btn sage-btn-sm" /></div>}
     </div>
   );
 }

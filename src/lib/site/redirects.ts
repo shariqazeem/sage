@@ -13,4 +13,18 @@ export interface SiteRedirect {
   permanent: boolean;
 }
 
-export const SITE_REDIRECTS: SiteRedirect[] = [];
+export const SITE_REDIRECTS: SiteRedirect[] = [
+  // Comparison pages, the case study and the Caribbean page: their stories are the home page's
+  // use cases now (testing, gigs, milestone grants in local currency).
+  { source: "/vs/:path*", destination: "/", permanent: true },
+  { source: "/case-studies/:path*", destination: "/", permanent: true },
+  { source: "/caribbean", destination: "/", permanent: true },
+  // The old "hire an AI worker" page: starting is one door now.
+  { source: "/hire", destination: "/start", permanent: true },
+  { source: "/dev/:path*", destination: "/", permanent: true },
+  { source: "/faq", destination: "/docs", permanent: true },
+  // The founder's list of work is Jobs, one of the app's six screens.
+  { source: "/dashboard", destination: "/workspace/jobs", permanent: true },
+  { source: "/campaigns", destination: "/workspace/jobs", permanent: true },
+  { source: "/campaigns/new", destination: "/launch", permanent: true },
+];

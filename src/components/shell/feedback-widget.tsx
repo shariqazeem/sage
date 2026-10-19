@@ -22,13 +22,7 @@ export function FeedbackWidget() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   // working surfaces only — never the marketing landing or proof receipts.
-  const show =
-    pathname.startsWith("/launch") ||
-    pathname.startsWith("/missions") ||
-    pathname.startsWith("/app") ||
-    pathname.startsWith("/agent") ||
-    pathname.startsWith("/campaigns") ||
-    pathname.startsWith("/hire");
+  const show = pathname.startsWith("/launch") || pathname.startsWith("/agent") || pathname.startsWith("/workspace");
   if (!show) return null;
 
   const inspectionId = /^\/launch\/([A-Za-z0-9_-]{6,40})/.exec(pathname)?.[1] ?? null;

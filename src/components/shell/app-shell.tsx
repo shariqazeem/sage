@@ -1,13 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { House, Sparkles } from "lucide-react";
 import { AppRail } from "./app-rail";
-import { NetworkChip } from "@/components/app/network-chip";
-import { useFounderSession } from "@/lib/auth/use-founder-session";
-import { shellNetworks } from "./shell-networks";
 import "./app-shell.css";
 import { isAppRoute } from "./routes";
 
@@ -17,45 +12,6 @@ import { isAppRoute } from "./routes";
  * on app routes (usePathname); the marketing landing, /proof, /agents/sage and the legacy console get
  * nothing. Sets html[data-app-shell="on"] so page content clears the fixed chrome (see app-shell.css).
  */
-// The FOUNDER app surfaces get the shell. The public tester board /c/[slug] does NOT — testers aren't
-// founders, so they keep the clean campaign-scoped header instead of the founder rail.
-function ModePill({ pathname }: { pathname: string }) {
-  const onAgent = pathname.startsWith("/agent");
-  return (
-    <div className="mode-pill" role="group" aria-label="Mode">
-      <Link href="/workspace" className={`mode-seg${onAgent ? "" : " on"}`}>
-        <House size={14} strokeWidth={2} /> Home
-      </Link>
-      <Link href="/agent" className={`mode-seg${onAgent ? " on" : ""}`}>
-        <Sparkles size={14} strokeWidth={2} /> Agent
-      </Link>
-    </div>
-  );
-}
-
-function ContextPills() {
-  /**
-   * Names the SETTLEMENT network, never the browser wallet's incidental chain — a founder whose
-   * wallet happens to sit on a testnet must not see a real-money product mislabelled. The wallet's
-   * own chain is surfaced during the deploy steps, where it actually matters.
-   *
-   * But which settlement network that IS now depends on who is signed in. It was hardcoded to
-   * GOAT, so a founder signed in with a Starknet wallet read "GOAT Mainnet" on every screen — a
-   * chain they hold nothing on and will never settle through. And an Ethereum sign-in settles on two
-   * mainnets, GOAT and Arc, so it names both (shell-networks.ts). Nothing renders while the session
-   * is still being asked, so a Starknet founder never sees the EVM pair flash first.
-   */
-  const founder = useFounderSession();
-  if (founder.loading) return <div className="ctx-pills" />;
-  return (
-    <div className="ctx-pills">
-      {shellNetworks(founder.chain).map((id) => (
-        <NetworkChip key={id} chainId={id} />
-      ))}
-    </div>
-  );
-}
-
 export function AppShell() {
   const pathname = usePathname() ?? "";
   const active = isAppRoute(pathname);
@@ -70,11 +26,7 @@ export function AppShell() {
   }, [active]);
 
   if (!active) return null;
-  return (
-    <>
-      <AppRail />
-      <ModePill pathname={pathname} />
-      <ContextPills />
-    </>
-  );
+  // One piece of chrome: the rail. Networks live on the Account screen and in Settings, and the
+  // agent chat is reached from Settings, so neither needs a floating pill over every page.
+  return <AppRail />;
 }

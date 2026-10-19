@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Compass, Loader2 } from "lucide-react";
+import { UpgradeLink } from "@/components/plans/upgrade-link";
+import type { PlanId } from "@/lib/plans/catalog";
 
 interface Mandate {
   enabled: number;
@@ -24,6 +26,8 @@ export function MandateCard() {
   const [v, setV] = useState<View | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // The plan that lifts a refusal, when saving was refused for the plan (Autopilot is Pro and above).
+  const [upgrade, setUpgrade] = useState<PlanId | null>(null);
   const [f, setF] = useState({ productUrl: "", goal: "", instruction: "", weeklyCapUsd: "50", perCampaignCapUsd: "15", probeUsd: "5", reserveFloorUsd: "0", vetoWindowMinutes: "20" });
 
   const load = async () => {
@@ -59,9 +63,11 @@ export function MandateCard() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...f, enabled, weeklyCapUsd: Number(f.weeklyCapUsd), perCampaignCapUsd: Number(f.perCampaignCapUsd), probeUsd: Number(f.probeUsd), reserveFloorUsd: Number(f.reserveFloorUsd), vetoWindowMinutes: Number(f.vetoWindowMinutes) }),
       });
-      const j = (await r.json()) as { error?: string };
-      if (!r.ok) setErr(j.error ?? "Could not save that.");
-      else await load();
+      const j = (await r.json()) as { error?: string; upgrade?: PlanId };
+      if (!r.ok) {
+        setErr(j.error ?? "Could not save that.");
+        setUpgrade(r.status === 402 ? j.upgrade ?? null : null);
+      } else await load();
     } finally {
       setBusy(false);
     }
@@ -71,7 +77,7 @@ export function MandateCard() {
 
   return (
     <section className="ws-card">
-      <div className="ws-card-h"><h2><Compass size={15} /> Let Sage run it</h2></div>
+      <div className="ws-card-h"><h2><Compass size={15} /> Autopilot</h2><span className="ws-note pl-quiet">Pro and above</span></div>
       {/* The page around this already states the bargain and lists the guarantees; a card that
           repeats them buries the thing it is actually for, which is the fields. */}
       <p className="ws-note">Set the ceilings. Sage works inside them.</p>
@@ -97,6 +103,7 @@ export function MandateCard() {
       </div>
 
       {err && <p className="mc-err">{err}</p>}
+      {upgrade && <p><UpgradeLink to={upgrade} className="nm-btn" /></p>}
       {v?.armed && v.stance && <p className="mc-stance">{v.stance.reason.charAt(0).toUpperCase() + v.stance.reason.slice(1)}.</p>}
 
       <div className="mc-actions">

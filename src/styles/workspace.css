@@ -250,3 +250,37 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-rail-new { color: var(--accent); text-decoration: none; }
 .ws-rail-new:hover { text-decoration: underline; }
 .ws-new { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent-border); border-radius: 999px; padding: 1px 6px; margin-right: 6px; background: var(--accent-soft); vertical-align: 1px; }
+
+/* ── Plan and billing (Settings) ─────────────────────────────────────── */
+.pl-now { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pl-name { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
+.pl-quiet { margin: 2px 0 0; }
+.pl-loading { display: inline-flex; align-items: center; gap: 6px; }
+.pl-fine { margin: 10px 0 0; font-size: 12.5px; }
+.pl-label { margin: 20px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.pl-meters { display: grid; gap: 12px; margin-top: 16px; }
+.pl-meter-top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink-muted); }
+.pl-meter-top .mono { color: var(--ink); }
+.pl-bar { display: block; width: 100%; height: 6px; margin-top: 6px; border: 0; border-radius: var(--r-pill); overflow: hidden; background: var(--border); appearance: none; -webkit-appearance: none; }
+.pl-bar::-webkit-progress-bar { background: var(--border); border-radius: var(--r-pill); }
+.pl-bar::-webkit-progress-value { background: var(--accent); border-radius: var(--r-pill); }
+.pl-bar::-moz-progress-bar { background: var(--accent); border-radius: var(--r-pill); }
+.pl-bar.full::-webkit-progress-value { background: var(--warn); }
+.pl-bar.full::-moz-progress-bar { background: var(--warn); }
+.pl-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.pl-option { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; text-align: left; transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.pl-option:hover:not(:disabled) { border-color: var(--border-strong); }
+.pl-option.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.pl-option:disabled { opacity: 0.45; cursor: not-allowed; }
+.pl-option-name { font-weight: 600; font-size: 14px; }
+.pl-option-price { font-size: 14px; }
+.pl-option-price small { font-size: 11px; color: var(--ink-faint); margin-left: 1px; }
+.pl-nets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.pl-net { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.pl-net.on { border-color: var(--ink); color: var(--ink); }
+.pl-pay { margin-top: 14px; }
+.pl-wallet { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: grid; gap: 8px; }
+.pl-wallet .mono { word-break: break-all; }
+.pl-done { margin-top: 16px; }
+.pl-exports { display: flex; gap: 8px; flex-wrap: wrap; }
+.pl-locked { opacity: 0.55; cursor: default; }
