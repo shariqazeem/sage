@@ -40,6 +40,6 @@ describe("the company site never wears founder chrome", () => {
     // The most-shared thing Sage produces, usually opened by someone who has never heard of it.
     expect(isAppRoute("/proof/0x123")).toBe(false);
     expect(isAppRoute("/c/some-board")).toBe(false);
-    for (const p of ["/claim", "/verify", "/agents/sage"]) expect(isAppRoute(p), p).toBe(false);
+    for (const p of ["/claim", "/verify", "/agents/sage", "/marketplace", "/record/0xabc", "/lender"]) expect(isAppRoute(p), p).toBe(false);
   });
 });

@@ -20,9 +20,6 @@ export function isAppRoute(p: string): boolean {
     /^\/campaign\//.test(p) ||
     /^\/graph\//.test(p) ||
     /^\/join\//.test(p) ||
-    /^\/agent(\/|$)/.test(p) ||
-    // Still on the app's styling until they move to the site frame.
-    /^\/record\//.test(p) ||
-    /^\/lender/.test(p)
+    /^\/agent(\/|$)/.test(p)
   );
 }
