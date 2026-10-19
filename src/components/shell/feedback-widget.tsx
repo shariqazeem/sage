@@ -22,7 +22,8 @@ export function FeedbackWidget() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   // working surfaces only — never the marketing landing or proof receipts.
-  const show = pathname.startsWith("/launch") || pathname.startsWith("/agent") || pathname.startsWith("/workspace");
+  // The app's own screens only ("/agent" exactly, not "/agents/sage", which is a public page).
+  const show = pathname.startsWith("/launch") || pathname === "/agent" || pathname.startsWith("/agent/") || pathname.startsWith("/workspace");
   if (!show) return null;
 
   const inspectionId = /^\/launch\/([A-Za-z0-9_-]{6,40})/.exec(pathname)?.[1] ?? null;
