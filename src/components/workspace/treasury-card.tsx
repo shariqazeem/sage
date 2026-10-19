@@ -98,7 +98,7 @@ export function TreasuryCard() {
               <span className="mono" style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>${(st.balanceUsd ?? 0).toFixed(2)}</span>
             </li>
             <li className="ws-row">
-              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Mandate</span></p><p className="ws-row-meta">Up to ${st.perCampaignCapUsd?.toFixed(2)} per campaign (<Link href="/workspace/account">change</Link>). Anything unspent can only return to {st.reclaimAddress?.slice(0, 6)}…{st.reclaimAddress?.slice(-4)} — your own wallet.</p></div>
+              <div className="ws-row-main"><p className="ws-row-title"><span className="t">Mandate</span></p><p className="ws-row-meta">Up to ${st.perCampaignCapUsd?.toFixed(2)} per campaign (<Link href="/workspace/account">change</Link>). Money left in a stopped job comes back to {st.reclaimAddress?.slice(0, 6)}…{st.reclaimAddress?.slice(-4)}, your own wallet, and you can withdraw to any address you name.</p></div>
             </li>
           </ul>
         </>

@@ -42,9 +42,9 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
           <p className="ws-sub">Every payout Sage makes is a receipt on chain, and every receipt is a row in someone&rsquo;s record. That record is what a programme underwrites and what an advance is drawn against.</p>
         </div>
         <div className="ws-nav">
-          <Link className="ws-chip" href="/explorer"><Blocks size={12} /> Public explorer</Link>
+          <Link className="ws-chip" href="/ledger"><Blocks size={12} /> Public ledger</Link>
           <Link className="ws-chip" href="/lender"><Landmark size={12} /> Lender view</Link>
-          <Link className="ws-chip" href="/outcomes"><BarChart3 size={12} /> Outcomes</Link>
+          <Link className="ws-chip" href="/ledger"><BarChart3 size={12} /> Outcomes</Link>
         </div>
       </header>
 
@@ -151,14 +151,14 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
                   <p className="ws-row-title"><BarChart3 size={14} /> <span className="t">Outcomes</span></p>
                   <p className="ws-row-meta">The system&rsquo;s readings against the track&rsquo;s own bar, computed live, gaps stated.</p>
                 </div>
-                <Link className="ws-chip" href="/outcomes">open <ArrowUpRight size={11} /></Link>
+                <Link className="ws-chip" href="/ledger">open <ArrowUpRight size={11} /></Link>
               </li>
               <li className="ws-row">
                 <div className="ws-row-main">
                   <p className="ws-row-title"><ShieldCheck size={14} /> <span className="t">Public explorer</span></p>
                   <p className="ws-row-meta">Every settlement and every refusal, on two mainnet rails, each a transaction anyone can open.</p>
                 </div>
-                <Link className="ws-chip" href="/explorer">open <ArrowUpRight size={11} /></Link>
+                <Link className="ws-chip" href="/ledger">open <ArrowUpRight size={11} /></Link>
               </li>
               <li className="ws-row">
                 <div className="ws-row-main">

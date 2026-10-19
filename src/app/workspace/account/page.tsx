@@ -293,7 +293,7 @@ async function StarknetAccount({ founder }: { founder: string }) {
             <ul className="ac-facts">
               <li><b>What it is.</b> Sage can hold an account for you and launch every campaign from it inside a mandate, so you fund once instead of signing each launch — and <Link href="/workspace/autopilot">let it decide</Link> what work to buy next.</li>
               <li><b>Where it lives.</b> That account is a wallet on {home.name}, reclaiming only to an Ethereum address. It opens with an email or an Ethereum wallet sign-in.</li>
-              <li><b>What changes for you.</b> Nothing. Your Starknet work, your vaults and your receipts stay exactly as they are. <Link href="/docs/operator">How the account works →</Link></li>
+              <li><b>What changes for you.</b> Nothing. Your Starknet work, your vaults and your receipts stay exactly as they are. <Link href="/docs/payments#account">How the account works →</Link></li>
             </ul>
           </section>
         </div>
