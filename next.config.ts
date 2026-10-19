@@ -1,6 +1,9 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
+import { SITE_REDIRECTS } from "./src/lib/site/redirects";
+import { DOCS_REDIRECTS } from "./src/lib/site/redirects-docs";
+import { LEDGER_REDIRECTS } from "./src/lib/site/redirects-ledger";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +35,9 @@ const nextConfig: NextConfig = {
       // The public board shipped briefly as /missions before being renamed. Permanent (308) so any
       // link already shared — including the browseUrl the MCP tool handed to other agents — survives.
       { source: "/missions", destination: "/marketplace", permanent: true },
+      ...SITE_REDIRECTS,
+      ...DOCS_REDIRECTS,
+      ...LEDGER_REDIRECTS,
     ];
   },
 };
