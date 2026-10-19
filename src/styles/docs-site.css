@@ -1,0 +1,487 @@
+/**
+ * docs-site.css: THE DOCS (19 Oct 2026: thirteen pages folded into five). A sidebar beside one
+ * reading column, inside the company site's frame. It builds on site.css (the frame, .eyebrow,
+ * .lead, .more, .card-icon, .limits) and adds only what long-form reading needs: the sidebar, the
+ * prose rhythm, tables, code and the previous and next links.
+ *
+ * Every value is a token from tokens.css. Every rule starts at `.docs`, for two reasons: nothing
+ * here can reach another page, and each rule outranks site.css's element rules (`.site p`,
+ * `.site h3`, `.site a`) by specificity rather than by stylesheet order, which Next does not
+ * promise across chunks.
+ *
+ * Below 880px (the header's own breakpoint) the sidebar becomes one row of tabs under the header
+ * that scrolls sideways by itself. That row, wide tables and code blocks scroll sideways on their
+ * own; the page never does.
+ */
+.docs {
+  --docs-side: 13.5rem;
+  --docs-tabs-h: 0px;
+  display: grid;
+  grid-template-columns: var(--docs-side) minmax(0, 1fr);
+  gap: var(--s-9);
+  align-items: start;
+  padding-block: var(--s-8) var(--s-10);
+}
+.docs .docs-main {
+  min-width: 0;
+}
+
+/* ── the sidebar ────────────────────────────────────────────────────── */
+.docs .docs-nav {
+  position: sticky;
+  top: calc(var(--site-head-h) + var(--s-6));
+}
+.docs .docs-nav-label {
+  display: block;
+  margin: 0 0 var(--s-3) var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.docs .docs-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-1);
+}
+.docs .docs-nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.docs .docs-nav-link svg {
+  flex: none;
+  color: var(--ink-faint);
+  transition: color var(--dur-1) var(--ease-out);
+}
+.docs .docs-nav-link:hover {
+  color: var(--site-ink);
+  background: var(--surface);
+}
+.docs .docs-nav-link[aria-current="page"] {
+  color: var(--site-ink);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.docs .docs-nav-link[aria-current="page"] svg,
+.docs .docs-nav-link:hover svg {
+  color: var(--accent);
+}
+.docs .docs-nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── the page head ──────────────────────────────────────────────────── */
+.docs .doc-head .eyebrow {
+  display: block;
+  margin-bottom: var(--s-4);
+}
+.docs .doc-title {
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tracking-h1);
+}
+.docs .doc-head .lead {
+  margin-top: var(--s-4);
+  max-width: 44ch;
+}
+.docs .doc-toc {
+  list-style: none;
+  margin: var(--s-6) 0 0;
+  padding: var(--s-4) 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  font-size: var(--fs-mono);
+}
+.docs .doc-toc a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.docs .doc-toc a:hover {
+  color: var(--accent);
+}
+
+/* ── sections + prose ───────────────────────────────────────────────── */
+.docs .doc-sec {
+  margin-top: var(--s-9);
+  scroll-margin-top: calc(var(--site-head-h) + var(--docs-tabs-h) + var(--s-5));
+}
+.docs .doc-sec h2 {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tracking-h2);
+}
+.docs .doc-sec h3 {
+  margin-top: var(--s-6);
+  font-size: var(--fs-lead);
+  line-height: 1.3;
+  letter-spacing: var(--tracking-lead);
+}
+.docs .doc-sec p,
+.docs .doc-sec ul,
+.docs .doc-sec ol {
+  margin-top: var(--s-4);
+  max-width: 68ch;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.docs .doc-sec ul,
+.docs .doc-sec ol {
+  padding-left: 1.25em;
+}
+.docs .doc-sec ul {
+  list-style: disc;
+}
+.docs .doc-sec ol {
+  list-style: decimal;
+}
+.docs .doc-sec li + li {
+  margin-top: var(--s-2);
+}
+.docs .doc-sec li::marker {
+  color: var(--ink-faint);
+}
+.docs .doc-sec a:not(.more):not(.doc-card) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 3px;
+}
+.docs .doc-sec a:not(.more):not(.doc-card):hover {
+  text-decoration-color: var(--accent);
+}
+.docs .doc-sec strong {
+  font-weight: 600;
+}
+
+/* inline code, and the occasional block of it */
+.docs code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.docs .doc-code {
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: 1.65;
+}
+.docs .doc-code code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+/* points: a short list where each line leads with an icon */
+.docs .doc-sec ul.doc-points {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.docs .doc-sec .doc-points li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--s-3);
+  margin-top: 0;
+}
+.docs .doc-points svg {
+  margin-top: var(--s-1);
+  color: var(--accent);
+}
+
+/* ── tables: where the technical rows live ──────────────────────────── */
+.docs .doc-table {
+  margin-top: var(--s-5);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.docs .doc-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-mono);
+  line-height: 1.55;
+}
+.docs .doc-table th,
+.docs .doc-table td {
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+  vertical-align: top;
+}
+.docs .doc-table th {
+  font-weight: 600;
+  color: var(--ink-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.docs .doc-table td + td,
+.docs .doc-table th + th {
+  border-left: 1px solid var(--border);
+}
+.docs .doc-table tr + tr td {
+  border-top: 1px solid var(--border);
+}
+.docs .doc-table td:first-child {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── a quiet note beside the text ───────────────────────────────────── */
+.docs .doc-note {
+  margin-top: var(--s-5);
+  max-width: 68ch;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.docs .doc-note svg {
+  margin-top: var(--s-1);
+  color: var(--accent);
+}
+.docs .doc-sec .doc-note p {
+  margin-top: 0;
+  color: var(--ink-muted);
+}
+
+/* ── steps: the loop, and the way in ────────────────────────────────── */
+.docs .doc-sec .doc-steps {
+  list-style: none;
+  margin: var(--s-6) 0 0;
+  padding: 0;
+  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.docs .doc-sec .doc-steps.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.docs .doc-sec .doc-step {
+  margin-top: 0;
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.docs .doc-step .card-icon {
+  width: 36px;
+  height: 36px;
+}
+.docs .doc-sec .doc-step h3 {
+  margin-top: var(--s-4);
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.docs .doc-sec .doc-step p {
+  margin-top: var(--s-2);
+  font-size: var(--fs-mono);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.docs .doc-step .more {
+  display: inline-block;
+  margin-top: var(--s-3);
+  font-size: var(--fs-mono);
+}
+
+/* ── cards: the overview's map of the other pages ───────────────────── */
+.docs .doc-cards {
+  margin-top: var(--s-6);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.docs .doc-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: box-shadow var(--dur-2) var(--ease-out);
+}
+.docs .doc-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+.docs .doc-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.docs .doc-sec .doc-card h3 {
+  margin-top: var(--s-4);
+  font-size: var(--fs-lead);
+  line-height: 1.3;
+  letter-spacing: var(--tracking-lead);
+}
+.docs .doc-sec .doc-card p {
+  margin-top: var(--s-2);
+  font-size: var(--fs-mono);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.docs .doc-card .more {
+  margin-top: auto;
+  padding-top: var(--s-4);
+  font-size: var(--fs-mono);
+}
+
+/* the limits panel from site.css, inside the reading column */
+.docs .doc-sec .limits {
+  margin-top: var(--s-5);
+  max-width: 34rem;
+}
+
+/* ── previous and next ──────────────────────────────────────────────── */
+.docs .doc-pager {
+  margin-top: var(--s-10);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.docs .doc-pager-link {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-decoration: none;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.docs .doc-pager-link:hover {
+  border-color: var(--accent-border);
+}
+.docs .doc-pager-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.docs .doc-pager-link.next {
+  grid-column: 2;
+  text-align: right;
+}
+.docs .doc-pager-dir {
+  font-size: var(--fs-mono);
+  color: var(--ink-faint);
+}
+.docs .doc-pager-title {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* ── narrower screens ───────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .docs .doc-sec .doc-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 880px) {
+  .docs {
+    --docs-tabs-h: 57px;
+    display: block;
+    padding-top: 0;
+  }
+  /* the sidebar, as one row of tabs under the header, edge to edge */
+  .docs .docs-nav {
+    position: sticky;
+    top: var(--site-head-h);
+    z-index: 40;
+    margin-inline: calc(var(--site-gutter) * -1);
+    background: var(--scrim-header);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .docs .docs-nav-label {
+    display: none;
+  }
+  .docs .docs-nav-list {
+    display: flex;
+    gap: var(--s-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: var(--s-2) var(--site-gutter);
+  }
+  .docs .docs-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+  .docs .docs-nav-list li {
+    flex: none;
+  }
+  .docs .docs-nav-link {
+    white-space: nowrap;
+    padding: var(--s-2) var(--s-4);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .docs .docs-nav-link[aria-current="page"] {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+  }
+  .docs .docs-nav-link svg {
+    display: none;
+  }
+  .docs .doc-head {
+    padding-top: var(--s-7);
+  }
+}
+
+@media (max-width: 640px) {
+  .docs .doc-sec .doc-steps,
+  .docs .doc-sec .doc-steps.three,
+  .docs .doc-cards,
+  .docs .doc-pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .docs .doc-pager-link.next {
+    grid-column: auto;
+  }
+  .docs .doc-sec {
+    margin-top: var(--s-8);
+  }
+  .docs .doc-table td:first-child {
+    white-space: normal;
+  }
+  /* a table of three or more columns keeps readable columns and scrolls inside its own box */
+  .docs .doc-table.wide table {
+    min-width: 36rem;
+  }
+}

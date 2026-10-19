@@ -1,41 +1,22 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import "../content.css";
-import "./docs.css";
-import { DocsNav } from "./nav";
+import { SiteFrame } from "@/components/site/site-frame";
+import { DocsNav, DocsPager } from "@/components/site/docs-nav";
+import "@/styles/docs-site.css";
 
 /**
- * The docs shell. One sidebar, one content column, shared by every page under /docs.
- *
- * The founder AppShell rail is deliberately not mounted here: it is chrome for someone with an
- * account and a funded vault, and offering a stranger a Dashboard link is a nav item that promises
- * something they do not have yet. The conversion path out of docs is the footer, which points at
- * the things a reader can actually do — see a real payout, or launch.
+ * THE DOCS FRAME: the company header and footer, the five-page sidebar, one reading column, and the
+ * previous and next links under it. Each page under /docs is only its own content.
  */
 export default function DocsLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="docs-shell">
-      <aside className="docs-side">
-        <Link href="/" className="docs-brand">
-          <span className="docs-brand-mark" aria-hidden="true">S</span>
-          <span>
-            Sage
-            <span className="docs-brand-tag">Documentation</span>
-          </span>
-        </Link>
-
+    <SiteFrame active="/docs">
+      <div className="site-wrap docs">
         <DocsNav />
-
-        <div className="docs-side-foot">
-          <Link href="/case-studies/autonomous-paid-testing">Case study</Link>
-          <Link href="/vs/beta-testers">vs. beta testers</Link>
-          <Link href="/faq">FAQ</Link>
-          <a href="https://github.com/shariqazeem/sage">GitHub</a>
-          <Link href="/launch">Launch a campaign →</Link>
+        <div className="docs-main">
+          {children}
+          <DocsPager />
         </div>
-      </aside>
-
-      <main className="docs-main">{children}</main>
-    </div>
+      </div>
+    </SiteFrame>
   );
 }
