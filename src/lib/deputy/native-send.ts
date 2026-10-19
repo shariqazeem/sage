@@ -2,7 +2,7 @@ import "server-only";
 import { createWalletClient, http, type Address, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { publicClient } from "./chain";
-import { chainConfig, isArcChain, railEnvPrefix, viemChainFor } from "./networks";
+import { chainConfig, isArcChain, METIS_MAINNET_CHAIN_ID, railEnvPrefix, viemChainFor } from "./networks";
 
 /**
  * A NATIVE (gas-token) transfER FROM THE OPERATOR — kept OUT of the frozen signer, which only ever
@@ -13,7 +13,9 @@ function operatorKey(chainId: number): `0x${string}` {
   const c = chainConfig(chainId).chainId;
   const raw = (c === 2345
     ? process.env.GOAT_AGENT_PRIVATE_KEY
-    : isArcChain(c)
+    : c === METIS_MAINNET_CHAIN_ID
+      ? (process.env.METIS_MAINNET_OPERATOR_PRIVATE_KEY ?? process.env.GOAT_AGENT_PRIVATE_KEY)
+      : isArcChain(c)
       ? (process.env[`${railEnvPrefix(c)}_OPERATOR_PRIVATE_KEY`] ?? process.env.ARC_OPERATOR_PRIVATE_KEY ?? process.env.GOAT_AGENT_PRIVATE_KEY)
       : (process.env.OPERATOR_PRIVATE_KEY ?? process.env.PRIVATE_KEY))?.trim();
   if (!raw) throw new Error("operator key not configured");

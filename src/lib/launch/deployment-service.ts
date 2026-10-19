@@ -28,13 +28,15 @@ import type { Deployment } from "@/lib/db/schema";
 export const LAUNCH_CHAIN_ID = 59902;
 
 /** Chains Sage launches on and opens accounts on, in order of preference: GOAT mainnet first (the
- *  real-money default until the Arc flip), then Arc mainnet — the explicit choice. MAINNETS ONLY
+ *  real-money default until the Metis flip), Metis Andromeda (primary since 19 Oct 2026, launchable the
+ *  moment METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS + METIS_MAINNET_OPERATOR_ADDRESS are set), then Arc
+ *  mainnet — secondary, behind "More networks". MAINNETS ONLY
  *  (10 Oct 2026, the founder's rule once real money ran on all three networks: "no testnet thing").
  *  Arc testnet and Metis Sepolia left this list, so no account tab, launch door, deploy picker or
  *  launch route offers them; the chain registry still knows both, so a campaign already on one keeps
  *  resolving, settling and labelling itself as the testnet it is. A chain is only truly enabled when
  *  its V2 factory + operator + token are configured (see `isLaunchChain`) — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 5042];
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 1088, 5042];
 
 /** The launch chains the server is actually configured for, in preference order — what a picker may offer. */
 export function configuredLaunchChains(): number[] {
@@ -58,7 +60,8 @@ export interface LaunchChainConfig {
 
 /** The V2 factory address for a chain (server env), or null when unconfigured. */
 function factoryAddress(chainId: number): Address | null {
-  const raw = process.env[`${railEnvPrefix(chainId)}_CAMPAIGN_FACTORY_ADDRESS`] ?? process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS;
+  // Metis mainnet never borrows the generic factory: unset means not launchable, never a wrong address.
+  const raw = process.env[`${railEnvPrefix(chainId)}_CAMPAIGN_FACTORY_ADDRESS`] ?? (chainId === 1088 ? undefined : process.env.CAMPAIGN_VAULT_FACTORY_ADDRESS);
   return raw ? safeAddr(raw) : null;
 }
 

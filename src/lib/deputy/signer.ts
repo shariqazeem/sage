@@ -12,7 +12,7 @@ import {
   type WalletClient,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { chainConfig, explorerTxUrl, viemChainFor, DEFAULT_CHAIN_ID, isArcChain, railEnvPrefix } from "./networks";
+import { chainConfig, explorerTxUrl, viemChainFor, DEFAULT_CHAIN_ID, isArcChain, railEnvPrefix, METIS_MAINNET_CHAIN_ID } from "./networks";
 import {
   getPendingVendorReadyAt,
   getVaultOwner,
@@ -64,6 +64,15 @@ function loadOperatorKey(chainId: number): `0x${string}` {
     const raw = readKey([`${railEnvPrefix(id)}_OPERATOR_PRIVATE_KEY`, "ARC_OPERATOR_PRIVATE_KEY", "GOAT_AGENT_PRIVATE_KEY"]);
     if (!raw) {
       throw new Error(`Arc operator key not configured (set ${railEnvPrefix(id)}_OPERATOR_PRIVATE_KEY).`);
+    }
+    return normalizeKey(raw);
+  }
+  if (id === METIS_MAINNET_CHAIN_ID) {
+    // Metis mainnet: its own key, else the shared operator identity (the GOAT agent). NEVER the Sepolia
+    // OPERATOR_PRIVATE_KEY below, which belongs to the retired testnet.
+    const raw = readKey(["METIS_MAINNET_OPERATOR_PRIVATE_KEY", "GOAT_AGENT_PRIVATE_KEY"]);
+    if (!raw) {
+      throw new Error("Metis mainnet operator key not configured (set METIS_MAINNET_OPERATOR_PRIVATE_KEY).");
     }
     return normalizeKey(raw);
   }

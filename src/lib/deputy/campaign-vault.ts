@@ -12,7 +12,7 @@ import {
   type PublicClient,
 } from "viem";
 
-import { ARC_MAINNET_CHAIN_ID, chainConfig, explorerTxUrl } from "./networks";
+import { ARC_MAINNET_CHAIN_ID, chainConfig, explorerTxUrl, METIS_MAINNET_CHAIN_ID } from "./networks";
 import { publicClient as realPublicClient } from "./chain";
 import { operatorAddress as realOperatorAddress, sendVaultWrite } from "./signer";
 import type { ChainCampaignSnapshot } from "@/lib/campaigns/vault-agreement";
@@ -249,6 +249,17 @@ export interface CampaignVaultAdapterDeps {
 
 /** The V2 factory address for a chain (provenance), from env. Null = unconfigured. */
 function realFactoryAddress(chainId: number): Address | null {
+  // Metis mainnet reads ONLY its own factory: no generic fallback, so an unset variable fails closed
+  // instead of pointing a mainnet launch at the Sepolia factory (which shared the METIS_ prefix).
+  if (chainId === METIS_MAINNET_CHAIN_ID) {
+    const own = process.env.METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS;
+    if (!own) return null;
+    try {
+      return getAddress(own);
+    } catch {
+      return null;
+    }
+  }
   const raw =
     (chainId === 2345
       ? process.env.GOAT_CAMPAIGN_FACTORY_ADDRESS

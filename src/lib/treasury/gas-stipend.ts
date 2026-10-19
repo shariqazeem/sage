@@ -1,9 +1,10 @@
 import { chainConfig } from "@/lib/deputy/networks";
 import "server-only";
-import { getAddress, type Hash } from "viem";
+import { formatEther, getAddress, type Hash } from "viem";
 import { publicClient } from "@/lib/deputy/chain";
 import { operatorNativeBalanceWei, sendNative } from "@/lib/deputy/native-send";
 import { getGasStipend, recordGasStipend } from "@/lib/db/gas-stipends";
+import { minLaunchGasWei, operatorGasFloorWei } from "./gas-policy";
 
 /**
  * THE OPERATOR NEVER PAYS FOR A FLOW THAT PRODUCES NO FEE — AND NEVER TWICE.
@@ -59,7 +60,8 @@ export async function grantGasStipend(
   const chainId = input.chainId ?? 2345;
   const wallet = getAddress(input.wallet);
   const operatorGasWei = await (deps.operatorGas ?? operatorNativeBalanceWei)(chainId);
-  const d = decideGasStipend({ ...input, operatorGasWei, alreadyCovered: (deps.already ?? ((w) => getGasStipend(w) !== null))(wallet) });
+  // the operator's settlement reserve is the CHAIN's own (0.2 METIS on Metis, not GOAT's BTC-sized floor)
+  const d = decideGasStipend({ ...input, operatorGasWei, operatorFloorWei: operatorGasFloorWei(chainId), alreadyCovered: (deps.already ?? ((w) => getGasStipend(w) !== null))(wallet) });
   if (!d.grant) return { granted: false, reason: d.reason };
   try {
     const txHash = await (deps.send ?? sendNative)(chainId, wallet, d.amountWei);
@@ -76,7 +78,9 @@ export async function grantGasStipend(
 /** The sentence a founder reads when the operator did not cover the gas — each reason is something they can act on. */
 export function gasRefusalMessage(reason: StipendRefusal, wallet: string, chainId = 2345): string {
   const c = chainConfig(chainId);
-  const ask = c.nativeSymbol === "USDC" ? `Send a little more USDC to ${wallet} (on ${c.name}, USDC is the gas)` : `Send about 0.00001 ${c.nativeSymbol} (${c.name}'s gas token) to ${wallet}`;
+  // the amount named is the chain's own launch floor (0.05 METIS on Metis), never a BTC-sized number
+  const need = formatEther(minLaunchGasWei(c.chainId)).replace(/(\.\d*?[1-9])0+$/, "$1");
+  const ask = c.nativeSymbol === "USDC" ? `Send a little more USDC to ${wallet} (on ${c.name}, USDC is the gas)` : `Send about ${need} ${c.nativeSymbol} (${c.name}'s gas token) to ${wallet}`;
   switch (reason) {
     case "already_covered":
       return `Sage covered this wallet's launch gas once already. ${ask}, then try again.`;

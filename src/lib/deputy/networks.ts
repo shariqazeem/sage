@@ -96,9 +96,57 @@ export const DEFAULT_EVM_LAUNCH_CHAIN = GOAT_MAINNET_CHAIN_ID;
  *  campaigns and accounts already on it keep working, but it is no longer offered to anyone new. */
 export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
 
-/** The env-name prefix for a chain's deploy-time addresses and operator key (`<PREFIX>_CAMPAIGN_FACTORY_ADDRESS`, …). */
-export function railEnvPrefix(chainId: number): "ARC_MAINNET" | "ARC" | "GOAT" | "METIS" {
-  return chainId === ARC_MAINNET_CHAIN_ID ? "ARC_MAINNET" : chainId === ARC_TESTNET_CHAIN_ID ? "ARC" : chainId === 2345 ? "GOAT" : "METIS";
+/**
+ * Metis Andromeda, the Metis mainnet. USDC is the bridged m.USDC (read by `eth_call` on 19 Oct 2026:
+ * `symbol()` "m.USDC", `decimals()` 6, about 4.16M supply). Gas is METIS (18 dp), LEGACY pricing: no
+ * `baseFeePerGas` in its blocks, about 13 gwei measured 19 Oct.
+ */
+export const METIS_MAINNET_CHAIN_ID = 1088;
+/** The retired Metis testnet. Kept only so old campaigns resolve; it shares nothing with mainnet. */
+export const METIS_SEPOLIA_CHAIN_ID = 59902;
+
+/**
+ * THE NETWORK POLICY (Sage the company, 19 Oct 2026; docs/strategy/2026-10-19-sage-the-company.md).
+ *
+ * PRIMARY networks are the ones everyone sees: onboarding, account tabs, launch doors. SECONDARY networks
+ * stay fully working (their campaigns settle, their receipts and accounts stay reachable), but live
+ * behind "More networks" and are never offered by default. Testnets are offered nowhere. Sage was
+ * spread over five networks for hackathons, and every surface invented its own subset, which is how
+ * onboarding came to collide. Every surface reads these two lists, and network-policy.test.ts holds
+ * them to it.
+ *
+ * Order matters: the first primary network is the one shown first. GOAT leads until Metis has paid
+ * real money through Sage. Then Metis moves first, together with DEFAULT_EVM_LAUNCH_CHAIN and
+ * TREASURY_CHAIN_ID on the VM.
+ */
+export const PRIMARY_NETWORKS: readonly number[] = [GOAT_MAINNET_CHAIN_ID, METIS_MAINNET_CHAIN_ID];
+export const SECONDARY_NETWORKS: readonly number[] = [ARC_MAINNET_CHAIN_ID, 900_001];
+
+/** Where a network sits in the policy: shown to everyone, opt-in, or not offered at all. */
+export function networkTier(chainId: number | null | undefined): "primary" | "secondary" | "retired" {
+  if (chainId == null) return "retired";
+  if (PRIMARY_NETWORKS.includes(chainId)) return "primary";
+  if (SECONDARY_NETWORKS.includes(chainId)) return "secondary";
+  return "retired";
+}
+
+/**
+ * The env-name prefix for a chain's deploy-time addresses and operator key (`<PREFIX>_CAMPAIGN_FACTORY_ADDRESS`, …).
+ *
+ * METIS_MAINNET is Andromeda; plain METIS is the RETIRED Sepolia testnet. Before 19 Oct both fell through
+ * to METIS, so a job on Metis mainnet would have read the TESTNET factory address and testnet operator
+ * key. Mainnet and testnet never share a setting.
+ */
+export function railEnvPrefix(chainId: number): "ARC_MAINNET" | "ARC" | "GOAT" | "METIS_MAINNET" | "METIS" {
+  return chainId === ARC_MAINNET_CHAIN_ID
+    ? "ARC_MAINNET"
+    : chainId === ARC_TESTNET_CHAIN_ID
+      ? "ARC"
+      : chainId === 2345
+        ? "GOAT"
+        : chainId === METIS_MAINNET_CHAIN_ID
+          ? "METIS_MAINNET"
+          : "METIS";
 }
 
 /**
@@ -143,9 +191,9 @@ export const CHAINS: Record<number, ChainConfig> = {
   1088: {
     chainId: 1088,
     key: "metis-andromeda",
-    name: "Metis Andromeda",
-    chipLabel: "Metis Andromeda",
-    rpcUrl: process.env.METIS_RPC ?? "https://andromeda.metis.io/?owner=1088",
+    name: "Metis",
+    chipLabel: "Metis Mainnet",
+    rpcUrl: process.env.METIS_MAINNET_RPC_URL ?? process.env.METIS_RPC ?? "https://andromeda.metis.io/?owner=1088",
     explorerUrl: "https://andromeda-explorer.metis.io",
     usdcAddress: "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21" as Address,
     nativeSymbol: "METIS",

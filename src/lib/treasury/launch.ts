@@ -3,7 +3,8 @@ import { getAddress } from "viem";
 import { getWebTreasury, getWebTreasuryOn } from "./web";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { treasuryPreflight, type TreasuryPreflight } from "./preflight";
-import { autoApprove, MIN_GAS_WEI, nativeBalanceWei, usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
+import { autoApprove, nativeBalanceWei, usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
+import { minLaunchGasWei } from "./gas-policy";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
@@ -47,7 +48,7 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
     isMainnet: c.isMainnet,
     nativeSymbol: c.nativeSymbol,
     gasNative: gas === null ? null : (Number(gas) / 1e18).toFixed(8),
-    enoughGas: gas === null ? null : gas >= MIN_GAS_WEI,
+    enoughGas: gas === null ? null : gas >= minLaunchGasWei(t.chainId),
   };
 }
 
@@ -66,11 +67,11 @@ export async function launchFromTreasury(founderAddress: string, jobId: string, 
   if (!loaded) return { ok: false, reason: "not_ready", message: "Couldn't load the approved plan." };
   const budget = deriveDeploymentInputs(loaded.plan).totalBudgetBase;
   const [balance, gas] = await Promise.all([usdcBalanceBase(t.privyWalletAddress, t.chainId), nativeBalanceWei(t.privyWalletAddress, t.chainId)]);
-  const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: MIN_GAS_WEI, address: t.privyWalletAddress, chainId: t.chainId });
+  const preflight = (gasWei: bigint) => treasuryPreflight({ budgetBase: budget, capBase: BigInt(t.perCampaignCapBase), balanceBase: balance, gasWei, minGasWei: minLaunchGasWei(t.chainId), address: t.privyWalletAddress, chainId: t.chainId });
   let pf = preflight(gas);
   if (!pf.ok && pf.reason === "needsGas") {
     // The USDC is there and only gas is missing: the operator covers the launch floor, once.
-    const stipend = await grantGasStipend({ chainId: t.chainId, wallet: t.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: MIN_GAS_WEI });
+    const stipend = await grantGasStipend({ chainId: t.chainId, wallet: t.privyWalletAddress, walletUsdcBase: balance, budgetBase: budget, gasWei: gas, minGasWei: minLaunchGasWei(t.chainId) });
     if (stipend.granted) pf = preflight(await nativeBalanceWei(t.privyWalletAddress, t.chainId));
     else pf = { ok: false, reason: "needsGas", message: gasRefusalMessage(stipend.reason, t.privyWalletAddress, t.chainId) };
   }
