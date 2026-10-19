@@ -19,11 +19,12 @@ describe("the app is six screens", () => {
   });
 
   it("the pages a screen opens keep the rail too", () => {
-    for (const p of ["/campaign/abc", "/graph/abc", "/agent", "/join/xyz", "/launch/direct", "/workspace/autopilot"]) expect(isAppRoute(p), p).toBe(true);
+    for (const p of ["/campaign/abc", "/graph/abc", "/agent", "/launch/direct", "/workspace/autopilot"]) expect(isAppRoute(p), p).toBe(true);
   });
 
-  it("the first run is focused: no rail before there is anything to navigate", () => {
+  it("the first run and an invite are focused: no rail before there is anything to navigate", () => {
     expect(isAppRoute("/start")).toBe(false);
+    expect(isAppRoute("/join/ws_inv_abc")).toBe(false);
   });
 });
 
