@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeCheck, Coins, FlaskConical, Gauge, KeyRound, Landmark, Layers, ShieldCheck, UsersRound } from "lucide-react";
+import { BadgeCheck, Coins, FileCheck2, FlaskConical, Gauge, HandCoins, KeyRound, Landmark, Layers, ScrollText, ShieldCheck, UsersRound } from "lucide-react";
 import { SiteFrame } from "@/components/site/site-frame";
 import { ReceiptCard, ReceiptRows } from "@/components/site/receipt-card";
 import { liveProof } from "@/lib/site/live-proof";
@@ -201,7 +201,43 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 7 — price */}
+      {/* 7 — what every payout leaves behind: the credit story, for anyone paid anywhere */}
+      <section className="sec sec-white" id="records">
+        <div className="site-wrap">
+          <div className="sec-head">
+            <span className="eyebrow">Records</span>
+            <h2 className="h2">Every payout leaves a record a lender can read.</h2>
+            <p className="lead">For many people the work is real and the paperwork doesn&apos;t exist. Sage checks the work before it pays, so each payout adds a verified line to the person&apos;s own record.</p>
+          </div>
+          <div className="grid-3">
+            <div className="card">
+              <span className="card-icon"><ScrollText size={20} strokeWidth={1.75} /></span>
+              <h3 className="h3">The record</h3>
+              <p>Every verified payout with its receipt, plus income over 30 and 90 days and distinct payers, by published formulas. Never a score.</p>
+              <Link href="/record" className="more">How records work</Link>
+            </div>
+            <div className="card">
+              <span className="card-icon"><FileCheck2 size={20} strokeWidth={1.75} /></span>
+              <h3 className="h3">The statement</h3>
+              <p>A printable statement of verified income to hand to a bank, every line checkable on chain. Teams open each member&apos;s from Team.</p>
+              <Link href="/record#statement" className="more">What&apos;s on it</Link>
+            </div>
+            <div className="card">
+              <span className="card-icon"><HandCoins size={20} strokeWidth={1.75} /></span>
+              <h3 className="h3">The advance</h3>
+              <p>A lender reads verified income and sets the multiple. An advance drawn against it is repaid from the next verified payouts.</p>
+              <Link href="/lender" className="more">The lender&apos;s view</Link>
+            </div>
+          </div>
+          <div className="sec-foot">
+            <Link href="/outcomes" className="more">
+              What it adds up to
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* 8 — price */}
       <section className="sec">
         <div className="site-wrap">
           <div className="sec-head">
@@ -230,7 +266,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 8 — the company */}
+      {/* 9 — the company */}
       <section className="sec sec-white">
         <div className="site-wrap">
           <div className="sec-head">
@@ -255,7 +291,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 9 — begin */}
+      {/* 10 — begin */}
       <section className="sec close">
         <div className="site-wrap">
           <h2 className="h2">Put Sage to work.</h2>

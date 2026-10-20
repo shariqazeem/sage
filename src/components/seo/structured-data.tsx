@@ -1,5 +1,7 @@
 import { siteUrl } from "@/lib/site";
 import { FAQ } from "@/lib/seo/faq";
+import { PLAN_ORDER, PLANS } from "@/lib/plans/catalog";
+import { planPriceUsd } from "@/lib/plans/billing-math";
 
 /**
  * STRUCTURED DATA — written for the engines that ANSWER rather than the ones that rank.
@@ -28,7 +30,7 @@ export function StructuredData() {
         url: site,
         logo: `${site}/sagelogo.jpg`,
         description:
-          "Sage runs an AI agent that inspects a live web product, designs paid user-testing missions, and pays human testers in USDC for verified evidence.",
+          "Sage builds AI agents you can trust with money: limits enforced in code, and a public receipt for everything they do. Its first product pays people in USDC for work it has verified.",
       },
       {
         "@type": "WebSite",
@@ -44,18 +46,20 @@ export function StructuredData() {
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
         url: site,
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "USD",
-          description:
-            "Free to use. A founder funds their own campaign vault; Sage pays testers out of it.",
-        },
+        // The plans as the server enforces them (src/lib/plans/catalog.ts): a price a model repeats
+        // must be the price a customer is charged. Programs is arranged per programme, so it has none.
+        offers: PLAN_ORDER.flatMap((id) => {
+          const price = planPriceUsd(id);
+          return price === null
+            ? []
+            : [{ "@type": "Offer", name: PLANS[id].name, price: String(price), priceCurrency: "USD", description: PLANS[id].blurb }];
+        }),
         featureList: [
-          "Inspects a live product in a real browser and designs testing missions from what it observes",
-          "Pays human testers in USDC from an on-chain vault the agent cannot exceed",
-          "Publishes a verifiable receipt for every payout",
-          "Judges tester evidence against what the agent itself saw, in any language",
+          "Turns a one-sentence description of work into tasks with a fixed reward each",
+          "Checks every submission with AI against links, on-chain state and its own observations",
+          "Pays people in USDC from an on-chain vault the agent cannot overspend",
+          "Publishes a verifiable receipt for every payout and a written reason for every refusal",
+          "Keeps a public record of verified work for everyone it pays",
         ],
       },
       {

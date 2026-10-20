@@ -14,15 +14,13 @@ export interface SiteRedirect {
 }
 
 export const SITE_REDIRECTS: SiteRedirect[] = [
-  // Comparison pages, the case study and the Caribbean page: their stories are the home page's
-  // use cases now (testing, gigs, milestone grants in local currency).
-  { source: "/vs/:path*", destination: "/", permanent: true },
-  { source: "/case-studies/:path*", destination: "/", permanent: true },
-  { source: "/caribbean", destination: "/", permanent: true },
+  // The comparison pages, the case study, the Caribbean page and the FAQ are PAGES again (restored
+  // 20 Oct 2026, in the company frame): an address someone may still hold is never folded away when
+  // the page under it is worth reading. Only a page whose content truly moved redirects.
   // The old "hire an AI worker" page: starting is one door now.
   { source: "/hire", destination: "/start", permanent: true },
+  // A development-only preview (it 404s in production): nothing a stranger could have been sent.
   { source: "/dev/:path*", destination: "/", permanent: true },
-  { source: "/faq", destination: "/docs", permanent: true },
   // The founder's list of work is Jobs, one of the app's six screens.
   { source: "/dashboard", destination: "/workspace/jobs", permanent: true },
   { source: "/campaigns", destination: "/workspace/jobs", permanent: true },

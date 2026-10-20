@@ -1,0 +1,478 @@
+/**
+ * read.css: THE COMPANY'S READING PAGES (20 Oct 2026). The pages folded on 19 Oct and brought back in
+ * the company frame: the Caribbean, outcomes, records, the two comparisons, the case study and the
+ * FAQ. One centred head, one reading column under it. It builds on site.css (the frame, .eyebrow,
+ * .lead, .more, .btn, .stats) and adds only what long-form reading needs: prose rhythm, the short
+ * answer, tables, figures, steps, notes and a lookup.
+ *
+ * Every value is a token from tokens.css. Every rule starts at `.read`, for the reason
+ * docs-site.css gives: it outranks site.css's element rules (`.site p`, `.site h3`, `.site a`) by
+ * specificity rather than by stylesheet order, which Next does not promise across chunks.
+ *
+ * Wide tables scroll sideways inside their own box; the page never does.
+ */
+.read {
+  padding-bottom: var(--s-10);
+}
+.read .read-col {
+  max-width: 760px;
+}
+
+/* ── the head ───────────────────────────────────────────────────────── */
+.read .read-head {
+  padding-block: clamp(56px, 7vw, 104px) clamp(32px, 4vw, 48px);
+  text-align: center;
+}
+.read .read-head .eyebrow {
+  display: block;
+  margin-bottom: var(--s-4);
+}
+.read .read-title {
+  max-width: 22ch;
+  margin: 0 auto;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tracking-h1);
+}
+.read .read-head .lead {
+  max-width: 48ch;
+  margin: var(--s-5) auto 0;
+}
+.read .read-head .hero-cta {
+  margin-top: var(--s-6);
+}
+
+/* ── the short answer, first ────────────────────────────────────────── */
+.read .read-answer {
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.read .read-answer p {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  letter-spacing: var(--tracking-lead);
+  color: var(--ink-muted);
+}
+.read .read-answer strong {
+  color: var(--site-ink);
+  font-weight: 600;
+}
+
+/* ── sections + prose ───────────────────────────────────────────────── */
+.read .read-sec {
+  margin-top: var(--s-8);
+  scroll-margin-top: calc(var(--site-head-h) + var(--s-5));
+}
+.read .read-sec h2 {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tracking-h2);
+}
+.read .read-sec h3 {
+  font-size: var(--fs-lead);
+  line-height: 1.3;
+  letter-spacing: var(--tracking-lead);
+}
+.read .read-sec p,
+.read .read-sec ul,
+.read .read-sec ol {
+  margin-top: var(--s-4);
+  max-width: 68ch;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.read .read-sec ul,
+.read .read-sec ol {
+  padding-left: 1.25em;
+}
+.read .read-sec ul {
+  list-style: disc;
+}
+.read .read-sec ol {
+  list-style: decimal;
+}
+.read .read-sec li + li {
+  margin-top: var(--s-2);
+}
+.read .read-sec li::marker {
+  color: var(--ink-faint);
+}
+.read .read-sec a:not(.more):not(.btn),
+.read .read-foot a,
+.read .read-answer a,
+.read .read-head .lead a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 3px;
+}
+.read .read-sec a:not(.more):not(.btn):hover,
+.read .read-foot a:hover,
+.read .read-answer a:hover,
+.read .read-head .lead a:hover {
+  text-decoration-color: var(--accent);
+}
+.read .read-sec strong {
+  font-weight: 600;
+}
+.read code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+/* ── tables ─────────────────────────────────────────────────────────── */
+.read .read-table {
+  margin-top: var(--s-5);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.read .read-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.read .read-table th,
+.read .read-table td {
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+  vertical-align: top;
+}
+.read .read-table th {
+  font-weight: 600;
+  font-size: var(--fs-mono);
+  color: var(--ink-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.read .read-table td + td,
+.read .read-table th + th {
+  border-left: 1px solid var(--border);
+}
+.read .read-table tr + tr td {
+  border-top: 1px solid var(--border);
+}
+.read .read-table td:first-child {
+  font-weight: 500;
+}
+.read .read-table.wide td:first-child {
+  min-width: 10rem;
+}
+/* a path or a call reads as one unit: it never breaks mid-word inside a cell */
+.read .read-table code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.read .read-table .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── figures: one reading, its number, and what it means ────────────── */
+.read .read-figs {
+  margin-top: var(--s-5);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.read .read-figs.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.read .read-fig {
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.read .read-fig-v {
+  font-size: clamp(1.9rem, 1.3rem + 1.8vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--site-ink);
+}
+.read .read-fig-k {
+  margin-top: var(--s-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--site-ink);
+}
+.read .read-sec .read-fig p {
+  margin-top: var(--s-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+/* ── a reading, written out: the big number, then how it was made ───── */
+.read .read-big {
+  margin-top: var(--s-4);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+  flex-wrap: wrap;
+}
+.read .read-big b {
+  font-size: clamp(2.4rem, 1.5rem + 3vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.read .read-big span {
+  font-size: var(--fs-body);
+  color: var(--ink-muted);
+}
+.read .read-sec .read-src {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+/* ── steps: how one thing becomes the next ──────────────────────────── */
+.read .read-sec ol.read-steps {
+  list-style: none;
+  padding: 0;
+  max-width: none;
+  display: grid;
+  gap: var(--s-3);
+  counter-reset: read-step;
+}
+.read .read-sec .read-steps li {
+  margin-top: 0;
+  counter-increment: read-step;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0 var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.read .read-steps li::before {
+  content: counter(read-step, decimal-leading-zero);
+  grid-row: span 3;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--ink-faint);
+  padding-top: 0.3em;
+}
+.read .read-sec .read-steps p {
+  margin-top: var(--s-2);
+  color: var(--ink-muted);
+}
+.read .read-steps .more {
+  display: inline-block;
+  margin-top: var(--s-3);
+}
+
+/* ── chips: the currencies work can be priced in ────────────────────── */
+.read .read-sec ul.read-chips {
+  margin-top: var(--s-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  list-style: none;
+  padding: 0;
+}
+.read .read-sec ul.read-chips + ul.read-chips {
+  margin-top: var(--s-2);
+}
+.read .read-sec .read-chips li {
+  margin-top: 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--ink-muted);
+}
+.read .read-sec .read-chips li.on {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* a status chip: the one place a pill is allowed */
+.read .read-status {
+  display: inline-block;
+  padding: 2px var(--s-3);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--site-ink);
+}
+
+/* ── a quiet note: the honest limits ────────────────────────────────── */
+.read .read-note {
+  margin-top: var(--s-6);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+}
+.read .read-sec .read-note p,
+.read .read-note p {
+  margin-top: 0;
+  color: var(--ink-muted);
+  max-width: none;
+}
+.read .read-note p + p {
+  margin-top: var(--s-3);
+}
+.read .read-note strong {
+  color: var(--site-ink);
+  font-weight: 600;
+}
+
+/* ── the FAQ: every question with its answer under it, nothing hidden ─ */
+.read .read-faq {
+  margin-top: var(--s-6);
+  border-top: 1px solid var(--border);
+}
+.read .read-faq-item {
+  padding-block: var(--s-5);
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: calc(var(--site-head-h) + var(--s-5));
+}
+.read .read-faq-item h2 {
+  font-size: var(--fs-lead);
+  line-height: 1.35;
+  letter-spacing: var(--tracking-lead);
+}
+.read .read-faq-item p {
+  margin-top: var(--s-2);
+  max-width: 68ch;
+  line-height: var(--lh-body);
+  color: var(--ink-muted);
+}
+
+/* ── a lookup: one field, one button, works without JavaScript ──────── */
+.read .read-lookup {
+  margin-top: var(--s-5);
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.read .read-lookup input {
+  flex: 1 1 18rem;
+  min-width: 0;
+  height: 44px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--site-ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+}
+.read .read-lookup input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.read .read-sec .read-lookup-msg {
+  margin-top: var(--s-3);
+  font-size: 0.9375rem;
+  color: var(--ink-muted);
+}
+.read .read-sec .read-lookup-msg.bad {
+  color: var(--site-ink);
+}
+
+/* ── cards that open somewhere: who uses a record, and how ──────────── */
+.read .read-cards {
+  margin-top: var(--s-5);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.read .read-card {
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.read .read-card .card-icon {
+  width: 36px;
+  height: 36px;
+}
+.read .read-sec .read-card h3 {
+  margin-top: var(--s-4);
+}
+.read .read-sec .read-card p {
+  margin-top: var(--s-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.read .read-card .more {
+  display: inline-block;
+  margin-top: var(--s-3);
+}
+
+/* ── the way on: related pages and the next action ──────────────────── */
+.read .read-foot {
+  margin-top: var(--s-8);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+  color: var(--ink-muted);
+  line-height: var(--lh-body);
+}
+.read .read-foot p + p {
+  margin-top: var(--s-3);
+}
+.read .read-cta {
+  margin-top: var(--s-6);
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+/* ── narrower screens ───────────────────────────────────────────────── */
+@media (max-width: 880px) {
+  .read .read-figs.three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .read .read-figs,
+  .read .read-figs.three,
+  .read .read-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .read .read-answer,
+  .read .read-note {
+    padding: var(--s-4) var(--s-5);
+  }
+  .read .read-sec {
+    margin-top: var(--s-7);
+  }
+  .read .read-sec .read-steps li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .read .read-steps li::before {
+    grid-row: auto;
+    padding-top: 0;
+  }
+  /* a table of three or more columns keeps readable columns and scrolls inside its own box */
+  .read .read-table.wide table {
+    min-width: 34rem;
+  }
+}

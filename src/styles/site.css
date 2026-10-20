@@ -876,7 +876,7 @@ a.family-card:hover {
 }
 .site-foot-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
   gap: var(--s-6);
 }
 @media (max-width: 880px) {

@@ -268,8 +268,13 @@ Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.
 **Two worlds since 19 Oct 2026, and `src/components/shell/routes.ts` decides which a route is:**
 - **The company site:**
   - Pages: home, pricing, company, Called, ledger, docs.
+  - Reading pages (restored 20 Oct 2026 after being folded the day before): outcomes, records (`/record`, above
+    every `/record/<wallet>`), the Caribbean, the FAQ, the two comparisons (`/vs/*`) and the case study. They use
+    `ReadPage` (`src/components/site/read-page.tsx`) and `src/styles/read.css`; their numbers come from
+    `src/lib/site/readings.ts`, which reads the same derivations as the home page and the ledger (tested).
   - Every page is wrapped in `SiteFrame` (`src/components/site/`) and styled by `src/styles/site.css`:
-    Apple-like restraint, one idea per section, large type, real product imagery.
+    Apple-like restraint, one idea per section, large type, real product imagery. The footer links every
+    public page.
   - The hero's product shot is the latest real receipt, and every number comes from `src/lib/site/live-proof.ts`.
 - **The app** is six screens, and the rail lists exactly these (tested):
   - Home `/workspace`, Post `/launch`, Jobs `/workspace/jobs`, Account `/workspace/account`,
@@ -278,8 +283,10 @@ Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.
 - **Neither world:**
   - `/start` is the focused first run, with no rail.
   - `/proof/<tx>` is a document: a receipt never wears founder chrome.
-- **Folded pages** keep their addresses alive through `src/lib/site/redirects*.ts`. Never delete a public
-  URL without a redirect.
+- **Old addresses stay alive.** The founder's rule (20 Oct 2026): never remove a public route. A page worth
+  reading stays a page (in the company frame); only a page whose content truly moved redirects, through
+  `src/lib/site/redirects*.ts`. A redirect left on a live page's path shadows it, so
+  `src/lib/site/restored-pages.test.ts` holds both sides.
 - No inline `style=` in new code; classes only.
 
 - **Color.** Paper background `#fbfbf9`; ink text `#1a1d21`; **brand accent terracotta

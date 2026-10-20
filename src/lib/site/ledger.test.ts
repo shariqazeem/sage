@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { campaigns, events, submissions } from "@/lib/db/schema";
@@ -9,6 +10,7 @@ import { marketplace, payoutWait } from "@/lib/campaigns/marketplace";
 import { liveProof } from "./live-proof";
 import { LEDGER_REDIRECTS } from "./redirects-ledger";
 import { LEDGER_PAGE_SIZE, ledgerHref, ledgerOutcomes, lookupTarget, parseLedgerQuery, readLedger, type LedgerQuery } from "./ledger";
+import { publicReadings } from "./readings";
 
 /**
  * THE LEDGER ADDS UP TO THE HOME PAGE. /explorer and /outcomes folded into /ledger on 19 Oct 2026,
@@ -132,6 +134,34 @@ describe("the ledger's totals are the home page's totals", () => {
   });
 });
 
+describe("the outcomes and Caribbean pages read the same numbers (20 Oct 2026)", () => {
+  it("money, payouts, refusals, people, the wait and the networks are the ledger's own", () => {
+    seed();
+    const r = publicReadings();
+    const l = readLedger(ALL);
+    const jobs = ledgerOutcomes();
+    expect([r.paidUsd, r.payouts, r.refused]).toEqual([l.totals.paidUsd, l.totals.payouts, l.totals.refused]);
+    expect(r.refusedSharePct).toBe(decidedOnMainnet().sharePct);
+    expect([r.people, r.medianWaitSeconds, r.measuredWaits]).toEqual([jobs.people, jobs.medianWaitSeconds, jobs.measured]);
+    // only networks that have paid someone, in the ledger's order, adding up to the ledger's total
+    expect(r.networks.map((n) => n.name)).toEqual(l.networks.filter((n) => n.payouts > 0).map((n) => n.name));
+    expect(r.networks.reduce((s, n) => s + n.payouts, 0)).toBe(l.totals.payouts);
+    // and the home page agrees with all of it
+    const home = liveProof();
+    expect([home.paidUsd, home.payouts, home.refused]).toEqual([r.paidUsd, r.payouts, r.refused]);
+  });
+
+  it("counts funders and local-currency payouts over the same settled rows as the payouts", () => {
+    seed();
+    // the Starknet job priced in Jamaican dollars; the testnet one too, which must never count
+    db.update(campaigns).set({ currency: "JMD" }).where(inArray(campaigns.id, ["stark", "sepolia"])).run();
+    const r = publicReadings();
+    expect(r.funders).toBe(1); // every seeded job is funded by one wallet
+    expect(r.funders).toBeLessThanOrEqual(r.payouts);
+    expect(r.denominated).toEqual({ payouts: 1, usd: 0.5, currencies: ["JMD"] });
+  });
+});
+
 describe("by network", () => {
   it("primary networks first (shown before their first payout), then the others that have moved money", () => {
     seed();
@@ -248,14 +278,11 @@ describe("the address bar", () => {
 });
 
 describe("the old addresses", () => {
-  it("/explorer and /outcomes are gone, and both land on the ledger for good", () => {
-    expect(LEDGER_REDIRECTS).toEqual([
-      { source: "/explorer", destination: "/ledger", permanent: true },
-      { source: "/outcomes", destination: "/ledger", permanent: true },
-    ]);
+  it("/explorer lands on the ledger for good; /outcomes is its own page again (20 Oct 2026)", () => {
+    expect(LEDGER_REDIRECTS).toEqual([{ source: "/explorer", destination: "/ledger", permanent: true }]);
     const root = process.cwd();
     expect(existsSync(join(root, "src/app/explorer"))).toBe(false);
-    expect(existsSync(join(root, "src/app/outcomes"))).toBe(false);
+    expect(existsSync(join(root, "src/app/outcomes/page.tsx"))).toBe(true);
     expect(readFileSync(join(root, "next.config.ts"), "utf8")).toContain("...LEDGER_REDIRECTS");
   });
 

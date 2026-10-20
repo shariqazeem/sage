@@ -20,6 +20,8 @@ const SURFACES = [
   "src/lib/site/ledger.ts",
   // the home page's numbers come from one module (the hero receipt, the totals, the rows)
   "src/lib/site/live-proof.ts",
+  // the outcomes and Caribbean pages' numbers (restored 20 Oct 2026) come from one module
+  "src/lib/site/readings.ts",
   "src/lib/outcomes/outcomes.ts",
   "src/lib/campaigns/tester-supply.ts",
 ];
@@ -35,6 +37,12 @@ describe("the refusal share is derived once", () => {
     const ledgerPage = readFileSync(resolve(process.cwd(), "src/app/ledger/page.tsx"), "utf8");
     expect(ledgerPage).toMatch(/readLedger\(/);
     expect(ledgerPage).not.toMatch(/decidedOnMainnet|countDecidedSubmissions|sharePct\s*=/);
+    // the outcomes and Caribbean pages only read theirs (src/lib/site/readings.ts)
+    for (const page of ["src/app/outcomes/page.tsx", "src/app/caribbean/page.tsx"]) {
+      const src = readFileSync(resolve(process.cwd(), page), "utf8");
+      expect(src, page).toMatch(/publicReadings\(/);
+      expect(src, page).not.toMatch(/decidedOnMainnet|readOutcomes\(|countDecidedSubmissions|sharePct\s*=/);
+    }
     const strip = readFileSync(resolve(process.cwd(), "src/components/launch/tester-supply-proof.tsx"), "utf8");
     expect(strip).not.toMatch(/heldOrRejectedPct/);
   });

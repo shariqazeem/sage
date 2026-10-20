@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, Link2, Loader2, MessageCircle, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, FileCheck2, Link2, Loader2, Lock, MessageCircle, ScrollText, Users, Wallet, X } from "lucide-react";
 import { short, since } from "@/lib/format";
 import { WhatsAppShare } from "@/components/share/whatsapp-share";
 import type { WorkspacePlan, WorkspaceRole } from "@/lib/db/schema";
@@ -28,6 +28,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
   // Members-only work (and the invite links into it) is a paid feature; say so before the click.
   const canInvite = hasFeature(ws.plan, "membersOnly");
   const canAppoint = hasFeature(ws.plan, "roles");
+  const canExport = hasFeature(ws.plan, "exports");
   const isOwner = members.some((m) => m.key === me && m.role === "owner");
   const [invite, setInvite] = useState<{ url: string; telegram: string } | null>(null);
   // INVITE MANY — paste a list, get one single-use door per person, forward each on WhatsApp.
@@ -164,7 +165,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
         <div className="ws-card-h"><h2><Users size={15} /> Members</h2>{isOwner && !canAppoint ? <span className="ws-note pl-quiet">Admins are on {PLANS[cheapestWith("roles")].name}</span> : <span className="ws-chip">{memberCount}</span>}</div>
         <ul className="ws-list">
           {members.map((m) => (
-            <li key={m.key} className="ws-row">
+            <li key={m.key} className="ws-row ws-member-row">
               <div className="ws-member">
                 <Avatar m={m} />
                 <div className="ws-row-main">
@@ -173,6 +174,18 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
                 </div>
               </div>
               <div className="ws-row-side">
+                {/* Every payment a member receives lands on their own public record; the team reads it
+                    where anyone can, and the member's own privacy choice still applies there. */}
+                {m.address && (
+                  <>
+                    <a className="ws-chip" href={`/record/${m.address.toLowerCase()}`} target="_blank" rel="noreferrer" aria-label={`Open the record of ${m.displayName ?? short(m.address)}`}>
+                      <ScrollText size={11} /> record
+                    </a>
+                    <a className="ws-chip" href={`/record/${m.address.toLowerCase()}/statement`} target="_blank" rel="noreferrer" aria-label={`Open the statement of ${m.displayName ?? short(m.address)}`}>
+                      <FileCheck2 size={11} /> statement
+                    </a>
+                  </>
+                )}
                 {m.role === "owner" ? <span className="ws-chip accent">owner</span> : m.key !== me ? (
                   <>
                     {isOwner && canAppoint && (
@@ -187,6 +200,21 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="ws-card">
+        <div className="ws-card-h"><h2><ScrollText size={15} /> Records and statements</h2></div>
+        <p className="ws-note pl-quiet">Every payment a member receives lands on their own record of verified work. Open it beside their name, or print their statement for a lender, a programme or an audit. Members choose whether the amounts are public; the counts, dates and transactions always are.</p>
+        <div className="ws-nav pl-pay">
+          <Link href="/record" className="sage-btn sage-btn-sm"><ScrollText size={13} /> How records work</Link>
+          {canExport ? (
+            <a className="sage-btn sage-btn-sm" href="/api/workspaces/export?kind=payouts"><Download size={13} /> Every payout (CSV)</a>
+          ) : (
+            <Link className="sage-btn sage-btn-sm" href={`/workspace/settings?plan=${cheapestWith("exports")}#plan`} title={`On ${PLANS[cheapestWith("exports")].name} and above`}>
+              <Lock size={13} /> Every payout (CSV) · {PLANS[cheapestWith("exports")].name}
+            </Link>
+          )}
+        </div>
       </section>
     </main>
   );

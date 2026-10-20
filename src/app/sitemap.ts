@@ -26,6 +26,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/ledger`, lastModified: now, changeFrequency: "hourly", priority: 0.8 },
     { url: `${base}/company`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/called`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    // The reading pages (restored 20 Oct 2026): what the ledger adds up to, what a record holds and
+    // who reads it, one region's story, and the pages written to be quoted (FAQ, comparisons, a case study).
+    { url: `${base}/outcomes`, lastModified: now, changeFrequency: "daily", priority: 0.7 },
+    { url: `${base}/record`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/lender`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/caribbean`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${base}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/vs/beta-testers`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/vs/bug-bounty`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/case-studies/autonomous-paid-testing`, lastModified: now, changeFrequency: "yearly", priority: 0.5 },
     // The docs: five pages, each its own answer to its own question, so each is worth submitting
     // rather than hoping a crawler finds them from one index page. The same list as the sidebar.
     ...DOCS_PAGES.map((page) => ({
