@@ -16,6 +16,13 @@
 > Starknet are secondary ("More networks"); testnets are gone from every surface. Sage is **paid**: Free,
 > Pro, Team, Programs, and workers are always free (§4). The public site and the app were rebuilt
 > Apple-minimal (§5). The plan and its reasoning: `docs/strategy/2026-10-19-sage-the-company.md`.
+>
+> **21 Oct 2026 (the founder's decisions): GOAT is PAUSED for new money.** GOAT's USDC (`0x3022…12D8`) is
+> Stargate's bridged "Hydra" USDC.e, and Stargate ends support for GOAT on 23 Oct 2026. `PAUSED_NETWORKS`
+> (`src/lib/deputy/networks.ts`) stops every new launch, account and plan payment there; withdrawals, stops,
+> receipts and records keep working. Metis is now the ONE primary network and the default ("pause GOAT, no
+> Arc default": nothing new launches until Metis's factory is live; Arc stays an explicit choice). Plans are
+> billed on Metis only, renew like a card from the Sage balance, and take promo codes (§4).
 
 ---
 
@@ -33,9 +40,11 @@ The value is **bounded autonomy over money**: the agent spends without a human i
 loop, but the *vault* — not a prompt — enforces the limits. The AI proposes; the vault
 disposes.
 
-**Networks (19 Oct 2026).** ONE policy, in `src/lib/deputy/networks.ts`: `PRIMARY_NETWORKS` = GOAT (2345)
-and Metis Andromeda (1088); `SECONDARY_NETWORKS` = Arc mainnet (5042) and Starknet (900001);
-`networkTier()` says which. Every surface reads it (onboarding, the account tabs, the deploy flow, Privy's
+**Networks (19 Oct 2026; GOAT paused 21 Oct).** ONE policy, in `src/lib/deputy/networks.ts`: `PRIMARY_NETWORKS` =
+Metis Andromeda (1088); `SECONDARY_NETWORKS` = Arc mainnet (5042), Starknet (900001) and GOAT (2345, PAUSED:
+`isPausedNetwork`, `pausedNetworkReason`); `networkTier()` says which. A paused network stays configured (its
+accounts can withdraw and its jobs can stop) but `isLaunchChain`, `configuredLaunchChains`, `createWebTreasury`,
+`deployCampaignViaPrivy`, the Telegram tools and billing all refuse it, with `launchClosedReason()`'s words. Every surface reads it (onboarding, the account tabs, the deploy flow, Privy's
 chain list), and secondary networks appear only under "More networks" or when already held. Launching is
 `LAUNCH_ENABLED_CHAINS = [2345, 1088, 5042]`, each launchable only when its factory, operator and token are
 configured (fails closed).
@@ -244,8 +253,17 @@ if you must touch them, that suite must stay green.
   It is never run after a vault holds money. No settlement path reads a plan (tested): a live job keeps
   paying its workers whatever its founder's plan does. Feature gates (members-only invites, Autopilot,
   admins, exports) read `effectivePlan`. `SAGE_PLAN_LIMITS=off` is the emergency switch.
-  Plans are paid in USDC on Metis or GOAT and read from the chain (`src/lib/plans/billing.ts`), from the
-  founder's account (the withdrawal's scoped permit) or any wallet that is theirs. Workers never pay.
+  Plans are paid in USDC on **Metis only** (`BILLING_NETWORKS`, `src/lib/plans/billing.ts`) and read from the
+  chain, from the founder's Sage balance (the withdrawal's scoped permit; Sage covers the network fee,
+  `decideTransferGas`) or any wallet that is theirs. Workers never pay. Buying happens at `/checkout`; every
+  payment records its plan, period and method and gets a receipt at `/billing/receipt/<tx>`.
+  - **Renewal like a card** (`src/lib/plans/renewal.ts`, the sweep's LAST step): on by default, from the Sage
+    balance; a reminder 3 days ahead; the charge in the plan's last day; one renewal per workspace per period
+    end (`plan_renewals` primary key), the hash written the moment it is sent, a crash finished from the chain;
+    retries at most every 6 h for 3 days. No balance, or renewal off: reminded, never charged.
+  - **Promo codes** (`src/lib/plans/promo.ts`, created with `scripts/promo.mjs`): DAYS (free days, nothing paid,
+    a never-paid workspace starts with renewal off) or PERCENT (off the first payment, priced on the server,
+    redeemed in the payment's own transaction). One per workspace; uses, expiry and new-only honoured.
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
 - **The agent may decide WHERE to spend, never HOW MUCH.** Under a founder's standing mandate
@@ -377,6 +395,8 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `AUTOPAY_HOURLY_CAP` † | Payouts per campaign per hour before the autopilot holds on pace | 4 |
 | `OPERATOR_GAS_FLOOR_WEI` † | The BTC (wei) the operator keeps for settlements before it covers a walletless founder's launch gas — the **gas stipend** (`src/lib/treasury/gas-stipend.ts`): sent once per wallet, only against USDC the wallet already holds for the plan, never more than `MIN_GAS_WEI`; both launch doors try it before asking the founder for BTC | 0.000005 BTC |
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
+| `SAGE_BILLING_ADDRESS` † | Where plan payments go (the founder's own wallet), on Metis | Falls back to the operator's address |
+| `TREASURY_CHAIN_ID` † | The network a new account opens on, when set, configured and NOT paused | The launch default (Metis) |
 
 ---
 

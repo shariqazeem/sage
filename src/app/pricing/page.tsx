@@ -8,21 +8,29 @@ import { planPriceUsd } from "@/lib/plans/billing-math";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Free to start, with real money. Pro $29 and Team $149 a month, paid in USDC on Metis or GOAT Network. People who get paid never pay.",
+  description: "Free to start, with real money. Pro $29 and Team $149 a month, paid in USDC on Metis, renewing like a card subscription. People who get paid never pay.",
   alternates: { canonical: "/pricing" },
 };
 
-/** Where each plan's button goes. Paid plans open Settings on the plan, through sign-in if needed. */
+/** Where each plan's button goes. Paid plans open the checkout on the plan, through sign-in if needed. */
 function cta(id: PlanId): { href: string; label: string; external?: boolean } {
   if (id === "free") return { href: "/start", label: "Start free" };
   if (id === "programs") return { href: SAGE_X_URL, label: "Talk to us", external: true };
-  return { href: `/workspace/settings?plan=${id}#plan`, label: `Choose ${PLANS[id].name}` };
+  return { href: `/checkout?plan=${id}`, label: `Get ${PLANS[id].name}` };
 }
 
 const QUESTIONS: { q: string; a: string }[] = [
   {
     q: "How do I pay?",
-    a: "In USDC, on Metis or GOAT Network. Pay from your Sage account in one click, or send it from any wallet that's yours. Sage reads the payment on chain and your plan starts at once. No card is needed.",
+    a: "Like a card subscription, in USDC on Metis. Pay from your Sage balance in one click and it renews itself every 30 days, with a reminder three days before; or pay from MetaMask or any wallet. Sage reads the payment on chain, your plan starts at once, and every payment gets a receipt.",
+  },
+  {
+    q: "Can I cancel?",
+    a: "Any time, in Settings: turn off renewal and your plan runs to the end of the month you paid for, then you're on Free. Nothing you launched stops paying the people doing the work.",
+  },
+  {
+    q: "I have a promo code. Where does it go?",
+    a: "At checkout, under \"Have a promo code?\". A code gives free days of a plan or money off your first payment, and each workspace can use a code once.",
   },
   {
     q: "What counts toward the monthly amount?",
@@ -52,7 +60,7 @@ export default function PricingPage() {
       <section className="page-head">
         <div className="site-wrap">
           <h1 className="display">Simple plans. Workers never&nbsp;pay.</h1>
-          <p className="lead">Start free, with real money. When you pay people every week, upgrade in USDC on Metis or GOAT Network.</p>
+          <p className="lead">Start free, with real money. When you pay people every week, upgrade: paid in USDC on Metis, renewing like a card, cancel any time.</p>
         </div>
       </section>
 

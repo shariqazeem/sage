@@ -283,8 +283,13 @@ export default function Build() {
       <DocSection toc={TOC} id="telegram">
         <p>
           <a href="https://t.me/sagedeputybot">@sagedeputybot</a> runs Sage from a chat. Describe the work and Sage
-          drafts the plan. A founder with no wallet app gets an account Sage keeps for them on GOAT Network, and can fund
-          it and launch from the chat. People invited through the chat can submit their work and cash out there too.
+          drafts the plan. A founder with no wallet app gets an account Sage keeps for them, and can fund it and launch
+          from the chat. People invited through the chat can submit their work and cash out there too.
+        </p>
+        <p>
+          Those chat accounts live on GOAT Network, which is paused for new jobs while its USDC loses Stargate
+          support (23 October 2026). Until chat accounts open on Metis, the chat checks balances, reviews held work and
+          withdraws; new jobs are launched on the web.
         </p>
         <p>
           The trade-off: that account is a wallet a provider holds (Privy), bounded by spending rules. It isn&apos;t a

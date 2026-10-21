@@ -17,12 +17,13 @@ vi.mock("@/components/wallet/founder-sign-in", () => ({
 }));
 
 describe("the first run", () => {
-  it("email first; the wallet door is Ethereum on Metis and GOAT until more options are asked for", async () => {
+  it("email first; the wallet door is Ethereum on Metis until more options are asked for", async () => {
     render(<StartFlow signedIn={false} address={null} hasMemberships={false} emailEnabled />);
     expect(screen.getByText(/Sign in with your email/)).toBeTruthy();
     const door = screen.getByTestId("wallet-door");
     expect(door.dataset.families).toBe("evm");
-    expect(door.textContent).toMatch(/Metis and GOAT Network/);
+    expect(door.textContent).toMatch(/Payments run on Metis\./);
+    expect(door.textContent).not.toMatch(/GOAT/);
     expect(door.textContent).not.toMatch(/Starknet|testnet/i);
     await userEvent.click(screen.getByRole("button", { name: "More sign-in options" }));
     expect(screen.getByTestId("wallet-door").dataset.families).toBe("all");

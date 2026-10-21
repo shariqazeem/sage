@@ -43,6 +43,6 @@ describe("Team: records and statements", () => {
     unmount();
     render(<PeoplePanel {...view("free")} />);
     const locked = screen.getByRole("link", { name: /Every payout \(CSV\) · Pro/ });
-    expect(locked.getAttribute("href")).toBe("/workspace/settings?plan=pro#plan");
+    expect(locked.getAttribute("href")).toBe("/checkout?plan=pro");
   });
 });

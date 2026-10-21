@@ -21,32 +21,40 @@ import { deserializePlan } from "./serde";
 import { verifyPlanForApproval, type DeploymentReadyPlan } from "./approve";
 import { MISSION_PROMPT_VERSION } from "./mission-prompt";
 import { buildDeployBundle, deriveDeploymentInputs, type DeployPlanBundle, type DeploymentSettings } from "./deploy-plan";
-import { chainConfig, railEnvPrefix } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, isPausedNetwork, METIS_MAINNET_CHAIN_ID, networkTier, pausedNetworkReason, railEnvPrefix } from "@/lib/deputy/networks";
 import type { Deployment } from "@/lib/db/schema";
 
 /** The default launch chain when a founder's wallet doesn't pin a supported one. */
 export const LAUNCH_CHAIN_ID = 59902;
 
-/** Chains Sage launches on and opens accounts on, in order of preference: GOAT mainnet first (the
- *  real-money default until the Metis flip), Metis Andromeda (primary since 19 Oct 2026, launchable the
- *  moment METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS + METIS_MAINNET_OPERATOR_ADDRESS are set), then Arc
- *  mainnet — secondary, behind "More networks". MAINNETS ONLY
- *  (10 Oct 2026, the founder's rule once real money ran on all three networks: "no testnet thing").
- *  Arc testnet and Metis Sepolia left this list, so no account tab, launch door, deploy picker or
- *  launch route offers them; the chain registry still knows both, so a campaign already on one keeps
- *  resolving, settling and labelling itself as the testnet it is. A chain is only truly enabled when
- *  its V2 factory + operator + token are configured (see `isLaunchChain`) — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [2345, 1088, 5042];
+/** Chains Sage launches on and opens accounts on, in order of preference: Metis Andromeda first (the
+ *  default since 21 Oct 2026, launchable the moment METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS +
+ *  METIS_MAINNET_OPERATOR_ADDRESS are set), then GOAT mainnet — PAUSED for new money (networks.ts
+ *  PAUSED_NETWORKS) but still listed, because the accounts and jobs founders already hold there must
+ *  stay reachable — then Arc mainnet, secondary, behind "More networks". MAINNETS ONLY (10 Oct 2026,
+ *  the founder's rule once real money ran on all three networks: "no testnet thing"). Arc testnet and
+ *  Metis Sepolia left this list, so no account tab, launch door, deploy picker or launch route offers
+ *  them; the chain registry still knows both, so a campaign already on one keeps resolving, settling
+ *  and labelling itself as the testnet it is. A chain is only truly enabled when its V2 factory +
+ *  operator + token are configured and it is not paused (see `isLaunchChain`) — fails closed. */
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [1088, 2345, 5042];
 
-/** The launch chains the server is actually configured for, in preference order — what a picker may offer. */
+/** The launch chains a picker may offer: configured, not paused, in preference order. */
 export function configuredLaunchChains(): number[] {
-  return LAUNCH_ENABLED_CHAINS.filter((id) => launchChainConfig(id).configured);
+  return LAUNCH_ENABLED_CHAINS.filter((id) => !isPausedNetwork(id) && launchChainConfig(id).configured);
 }
 
-/** The chain a launch defaults to when nothing chose one: the first ENABLED chain that is actually configured. */
+/**
+ * The chain a launch (and a new account) defaults to when nothing chose one: the first PRIMARY network
+ * that is configured and not paused. When none is (Metis before its factory is live), it is still
+ * Metis: the door then says Metis is not open yet, rather than quietly sending someone's money to a
+ * network the founder chose not to default to ("pause GOAT, no Arc default", 21 Oct 2026).
+ */
 export function defaultLaunchChain(): number {
-  for (const id of LAUNCH_ENABLED_CHAINS) if (launchChainConfig(id).configured) return id;
-  return LAUNCH_CHAIN_ID;
+  for (const id of LAUNCH_ENABLED_CHAINS) {
+    if (networkTier(id) === "primary" && !isPausedNetwork(id) && launchChainConfig(id).configured) return id;
+  }
+  return DEFAULT_EVM_LAUNCH_CHAIN;
 }
 
 export interface LaunchChainConfig {
@@ -106,7 +114,23 @@ export function launchChainConfig(chainId: number = LAUNCH_CHAIN_ID): LaunchChai
  * never trusted directly — so an unconfigured or unknown chain fails closed.
  */
 export function isLaunchChain(chainId: number): boolean {
-  return LAUNCH_ENABLED_CHAINS.includes(chainId) && launchChainConfig(chainId).configured;
+  return LAUNCH_ENABLED_CHAINS.includes(chainId) && !isPausedNetwork(chainId) && launchChainConfig(chainId).configured;
+}
+
+/**
+ * Why a chain is not open for something new, in words a founder can act on, or null when it is open.
+ * One sentence for every door (a launch, an account, a plan), so no door invents its own.
+ */
+export function launchClosedReason(chainId: number): string | null {
+  const paused = pausedNetworkReason(chainId);
+  if (paused) return paused;
+  if (!LAUNCH_ENABLED_CHAINS.includes(chainId)) return `Sage doesn't launch or open accounts on ${chainConfig(chainId).name}.`;
+  if (!launchChainConfig(chainId).configured) {
+    return chainId === METIS_MAINNET_CHAIN_ID
+      ? "Sage is opening on Metis. New jobs and accounts open there the moment its vault factory is live."
+      : `${chainConfig(chainId).name} isn't open for new jobs on this deployment yet.`;
+  }
+  return null;
 }
 
 export interface LoadedPlan {

@@ -32,6 +32,7 @@ import { finalizationFor } from "@/lib/deputy/finalization-db";
 import { encodeDetail } from "@/lib/campaigns/journal";
 import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
+import { renewDuePlans } from "@/lib/plans/renewal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +82,8 @@ async function runSweep() {
     operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
     /** new work the roster was told about, and how many people were reached. */
     roster: { campaigns: 0, sent: 0 },
+    /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
+    billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -235,6 +238,14 @@ async function runSweep() {
   summary.operator = await runOperatorTick(nowSeconds(), (fn) => after(fn)).catch((e) => {
     console.error("[sweep] operator tick failed:", e instanceof Error ? e.message : e);
     return { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] };
+  });
+
+  // PLANS THAT RENEW LIKE A CARD (21 Oct 2026): a reminder three days ahead, the renewal from the
+  // owner's Sage balance in the plan's last day. After every payout path on purpose, and guarded: a
+  // billing failure is recorded on its renewal row and can never cost a settlement.
+  summary.billing = await renewDuePlans(nowSeconds()).catch((e) => {
+    console.error("[sweep] plan renewals failed:", e instanceof Error ? e.message : e);
+    return { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 };
   });
 
   return summary;

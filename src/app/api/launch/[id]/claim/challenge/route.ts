@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { loadApprovedPlan, LAUNCH_CHAIN_ID, isLaunchChain } from "@/lib/launch/deployment-service";
+import { loadApprovedPlan, LAUNCH_CHAIN_ID, isLaunchChain, launchClosedReason } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { buildClaimTypedData, CLAIM_SCHEMA_VERSION, CLAIM_TTL_SECONDS, type PlanClaim } from "@/lib/launch/claim";
 import { sameFounder } from "@/lib/auth/founder";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof body.chainId === "number" && body.chainId !== LAUNCH_CHAIN_ID) {
     if (!isLaunchChain(body.chainId)) {
       return NextResponse.json(
-        { ok: false, error: "That network isn't available for launches yet." },
+        { ok: false, error: launchClosedReason(body.chainId) ?? "That network isn't available for launches yet." },
         { status: 400 },
       );
     }

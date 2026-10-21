@@ -44,13 +44,21 @@ describe("POST /api/workspaces/plan", () => {
   it("refuses a visitor who is not signed in", async () => {
     founder.mockResolvedValue(null);
     const { POST } = await import("./route");
-    expect((await POST(post({ plan: "pro", chainId: 2345, txHash: TX }))).status).toBe(401);
+    expect((await POST(post({ plan: "pro", chainId: 1088, txHash: TX }))).status).toBe(401);
+    expect(readPayment).not.toHaveBeenCalled();
+  });
+
+  it("plans are paid on Metis only: a GOAT payment is refused before anything is read (21 Oct 2026)", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ plan: "pro", chainId: 2345, txHash: TX }));
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/Metis/);
     expect(readPayment).not.toHaveBeenCalled();
   });
 
   it("a verified payment puts the founder on the plan (opening a workspace if they had none)", async () => {
     const { POST } = await import("./route");
-    const res = await POST(post({ plan: "pro", chainId: 2345, txHash: TX }));
+    const res = await POST(post({ plan: "pro", chainId: 1088, txHash: TX }));
     const body = (await res.json()) as { ok?: boolean; plan?: string; planUntil?: number };
     expect(res.status).toBe(200);
     expect(body).toMatchObject({ ok: true, plan: "pro" });
@@ -58,13 +66,13 @@ describe("POST /api/workspaces/plan", () => {
     expect(ws).toHaveLength(1);
     expect(ws[0]).toMatchObject({ plan: "pro", planUntil: body.planUntil });
     // the price is the server's: the reader was asked for the Pro price, not a number from the body
-    expect(readPayment).toHaveBeenCalledWith(expect.objectContaining({ chainId: 2345, minBase: BigInt(29_000_000) }));
+    expect(readPayment).toHaveBeenCalledWith(expect.objectContaining({ chainId: 1088, minBase: BigInt(29_000_000) }));
   });
 
   it("the same transaction is applied once", async () => {
     const { POST } = await import("./route");
-    expect((await POST(post({ plan: "pro", chainId: 2345, txHash: TX }))).status).toBe(200);
-    const again = await POST(post({ plan: "pro", chainId: 2345, txHash: TX }));
+    expect((await POST(post({ plan: "pro", chainId: 1088, txHash: TX }))).status).toBe(200);
+    const again = await POST(post({ plan: "pro", chainId: 1088, txHash: TX }));
     expect(again.status).toBe(409);
     expect(db.select().from(workspacePayments).all()).toHaveLength(1);
   });
@@ -72,7 +80,7 @@ describe("POST /api/workspaces/plan", () => {
   it("a payment the chain doesn't show changes nothing", async () => {
     readPayment.mockResolvedValue({ ok: false, reason: "the transfer was 9.00 USDC; the plan is 29.00 USDC" });
     const { POST } = await import("./route");
-    const res = await POST(post({ plan: "pro", chainId: 2345, txHash: TX }));
+    const res = await POST(post({ plan: "pro", chainId: 1088, txHash: TX }));
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toMatch(/the plan is 29\.00/);
     expect(db.select().from(workspacePayments).all()).toHaveLength(0);
@@ -82,7 +90,7 @@ describe("POST /api/workspaces/plan", () => {
     const ws = createWorkspace({ name: "Acme", ownerKey: walletMemberKey(FOUNDER), ownerAddress: FOUNDER });
     setWorkspacePlan(ws.id, "team", Math.floor(Date.now() / 1000) + 10 * 86_400);
     const { POST } = await import("./route");
-    const res = await POST(post({ plan: "pro", chainId: 2345, txHash: TX2 }));
+    const res = await POST(post({ plan: "pro", chainId: 1088, txHash: TX2 }));
     expect(res.status).toBe(409);
     expect(readPayment).not.toHaveBeenCalled();
   });
@@ -90,7 +98,7 @@ describe("POST /api/workspaces/plan", () => {
   it("only plans on Metis or GOAT, and only plans that are bought here", async () => {
     const { POST } = await import("./route");
     expect((await POST(post({ plan: "pro", chainId: 5042, txHash: TX }))).status).toBe(400);
-    expect((await POST(post({ plan: "programs", chainId: 2345, txHash: TX }))).status).toBe(400);
+    expect((await POST(post({ plan: "programs", chainId: 1088, txHash: TX }))).status).toBe(400);
     expect(readPayment).not.toHaveBeenCalled();
   });
 });

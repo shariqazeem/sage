@@ -28,10 +28,12 @@ import { reward, launchToken, type PlanView } from "../types";
  * working — this only decides what is offered to anyone new.
  */
 function launchChainsOffered(configured: readonly number[]): number[] {
-  // The network policy (networks.ts): the default first, then the other PRIMARY networks that are
-  // configured (Metis), then the SECONDARY ones (Arc). Never a testnet, never an unconfigured chain.
+  // The network policy (networks.ts): the default first, then the other PRIMARY networks, then the
+  // SECONDARY ones (Arc). Only what the server says is open (configured, not paused): never a testnet,
+  // never an unconfigured chain, never a paused one.
   const evm = (id: number) => chainConfig(id).evm && chainConfig(id).chainId === id;
-  return [...new Set([DEFAULT_EVM_LAUNCH_CHAIN, ...PRIMARY_NETWORKS.filter((id) => evm(id) && configured.includes(id)), ...SECONDARY_NETWORKS.filter((id) => evm(id) && configured.includes(id))])];
+  const open = (id: number) => evm(id) && configured.includes(id);
+  return [...new Set([DEFAULT_EVM_LAUNCH_CHAIN, ...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter(open))];
 }
 
 /** What a network costs to use, in the founder's words: its gas token (on Arc, USDC itself). */
@@ -585,9 +587,20 @@ function ClaimPanel({ siwe, busy, onClaim, offered, signedInAs = null }: { siwe:
   }
   const onLaunchChain = (chainId: number | null): boolean => chainId != null && offered.includes(chainId);
   const [first, ...others] = offered;
+  // Nothing primary is open yet (Metis before its factory is live): say so first. A secondary network
+  // stays an explicit choice, never the button a founder lands on (21 Oct 2026, "no Arc default").
+  const primaryOpen = first != null && PRIMARY_NETWORKS.includes(first);
+  if (first == null) {
+    return (
+      <div className="lxd-panel" role="status">
+        <p className="lxd-own">Sage is opening on Metis. Your plan is saved: launch it here the moment Metis is live.</p>
+      </div>
+    );
+  }
   return (
     <div className="lxd-panel">
       <p className="lxd-own">Your wallet owns this campaign. Sage receives only the bounded operator role.</p>
+      {!primaryOpen && <p className="lxd-own">Sage is opening on Metis, its main network; your plan is saved for it. You can launch on a secondary network instead.</p>}
       {!siwe.available ? (
         <div className="lx-note">
           No wallet detected. Install a browser wallet (e.g. MetaMask) to create and fund your campaign, then reload this

@@ -8,12 +8,13 @@ const execSpy = vi.fn(async (..._a: unknown[]): Promise<Array<{ txHash: string; 
 const openOrderSpy = vi.fn(async (..._a: unknown[]) => ({ orderId: "ord-1", payToAddress: A("f") }));
 const recordSpy = vi.fn();
 
+const wallet = vi.hoisted(() => ({ chainId: 1088 }));
 vi.mock("@/lib/db/agent-wallets", () => ({
-  getAgentWallet: () => ({ privyWalletId: "pw", privyWalletAddress: A("1"), founderAddress: A("2"), chainId: 2345 }),
+  getAgentWallet: () => ({ privyWalletId: "pw", privyWalletAddress: A("1"), founderAddress: A("2"), chainId: wallet.chainId }),
 }));
 vi.mock("@/lib/launch/deployment-service", () => ({
   loadApprovedPlan: () => ({ plan: { publicCampaignId: "camp-1", totalBudgetBase: "10000000", missions: [] } }),
-  buildSettings: () => ({ ok: true, settings: { chainId: 2345, token: A("7"), operator: A("8"), guardian: A("2"), factory: A("9") } }),
+  buildSettings: () => ({ ok: true, settings: { chainId: 1088, token: A("7"), operator: A("8"), guardian: A("2"), factory: A("9") } }),
   defaultDailyCap: () => BigInt(1),
   DEFAULT_DURATION_SECONDS: BigInt(604800),
 }));
@@ -42,9 +43,16 @@ const { deployCampaignViaPrivy } = await import("./deploy-runner");
  */
 describe("deployCampaignViaPrivy — no launch fee, ever", () => {
   beforeEach(() => {
+    wallet.chainId = 1088;
     execSpy.mockClear();
     openOrderSpy.mockClear();
     recordSpy.mockClear();
+  });
+
+  it("a wallet on a PAUSED network (GOAT, 21 Oct 2026) launches nothing: refused before a call is sent", async () => {
+    wallet.chainId = 2345;
+    await expect(deployCampaignViaPrivy("chat-1", "job-1")).rejects.toThrow(/GOAT Network are paused/);
+    expect(execSpy).not.toHaveBeenCalled();
   });
 
   it("runs the core calls in ONE sequence and nothing else", async () => {

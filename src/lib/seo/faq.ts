@@ -34,14 +34,14 @@ export interface FaqEntry {
 const free = PLANS.free;
 const PRICE_ANSWER = [
   `Free to start: ${free.liveJobs === 1 ? "one live job" : `${free.liveJobs} live jobs`} at a time and up to $${free.monthlyUsd.toLocaleString("en-US")} of work a month, paying real people.`,
-  `Pro is $${planPriceUsd("pro")} a month and Team $${planPriceUsd("team")} a month, paid in USDC; ${PLANS.programs.name} is set up with you.`,
+  `Pro is $${planPriceUsd("pro")} a month and Team $${planPriceUsd("team")} a month, paid in USDC on Metis and renewing like a card subscription until you cancel; ${PLANS.programs.name} is set up with you.`,
   "There is no fee on payouts, Sage pays the network fee, and the people doing the work never pay.",
 ].join(" ");
 
 export const FAQ: readonly FaqEntry[] = [
   {
     q: "What is Sage at sagepays.xyz?",
-    a: "An AI agent that pays people in USDC for work it has verified. You describe the work and set a budget; Sage checks every submission and pays from an on-chain vault it cannot overspend, with a public receipt for every payout and a written reason for every refusal. It runs on Metis and GOAT Network, also settles on Arc and Starknet, and is registered as an on-chain agent under ERC-8004.",
+    a: "An AI agent that pays people in USDC for work it has verified. You describe the work and set a budget; Sage checks every submission and pays from an on-chain vault it cannot overspend, with a public receipt for every payout and a written reason for every refusal. It runs on Metis, also settles on Arc and Starknet, and is registered as an on-chain agent under ERC-8004.",
   },
   {
     q: "What kind of work can Sage pay for?",
@@ -73,7 +73,7 @@ export const FAQ: readonly FaqEntry[] = [
   },
   {
     q: "Which networks does Sage pay on?",
-    a: "USDC on Metis and GOAT Network, Sage's primary networks, and also on Arc and Starknet. On Starknet a payout can be private: the receipt proves the payment without naming who collected it.",
+    a: "USDC on Metis Andromeda, Sage's primary network, and also on Arc and Starknet. On Starknet a payout can be private: the receipt proves the payment without naming who collected it. New jobs on GOAT Network are paused because Stargate ends support for its USDC on 23 October 2026; every past GOAT payout stays on the public ledger.",
   },
   {
     q: "Can a lender or a team see what someone has been paid?",

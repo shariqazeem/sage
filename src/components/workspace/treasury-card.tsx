@@ -76,13 +76,13 @@ export function TreasuryCard() {
     }
   };
 
-  const network = st?.network ?? "GOAT Network";
+  const network = st?.network ?? "Metis";
   const usdcIsGas = st?.nativeSymbol === "USDC";
   return (
     <section className="ws-card" id="account">
       <div className="ws-card-h">
         <h2><Landmark size={15} /> Your account</h2>
-        {st && st.available !== false ? <Link className="ws-chip" href="/workspace/account">{st.linked ? "fund · withdraw · every network" : "GOAT Network · Arc"} <ArrowUpRight size={11} /></Link> : null}
+        {st && st.available !== false ? <Link className="ws-chip" href="/workspace/account">{st.linked ? "fund · withdraw · every network" : "Metis · Arc"} <ArrowUpRight size={11} /></Link> : null}
       </div>
       {st === null ? (
         <p className="ws-note" style={{ margin: 0 }}><Loader2 size={13} className="sage-spin2" /> Reading…</p>
@@ -115,7 +115,7 @@ export function TreasuryCard() {
             <input className="ws-input" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} aria-label="Per-campaign cap in USDC" />
             <button className="sage-btn sage-btn-primary sage-btn-sm" onClick={() => void create()} disabled={busy}>{busy ? <><Loader2 size={13} className="sage-spin2" /> Opening…</> : `Open your account on ${network}`}</button>
           </div>
-          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may put into any one campaign. You can change it any time on your account page. One account per network: GOAT Network and Metis are both on <Link href="/workspace/account">your account page</Link>.</p>
+          <p className="ws-note" style={{ margin: "8px 0 0" }}>The number is the most Sage may put into any one campaign. You can change it any time on your account page. One account per network: Metis, and Arc under More networks, are on <Link href="/workspace/account">your account page</Link>.</p>
           {err && <p className="ws-err">{err}</p>}
         </>
       )}

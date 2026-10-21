@@ -11,16 +11,15 @@ import { webTreasuryStatus } from "@/lib/treasury/launch";
 import { treasuryActivity } from "@/lib/treasury/activity";
 import { accountUnavailableBecause } from "@/lib/treasury/summary";
 import { treasuryChainId } from "@/lib/privy/onboarding";
-import { configuredLaunchChains } from "@/lib/launch/deployment-service";
+import { configuredLaunchChains, launchClosedReason } from "@/lib/launch/deployment-service";
 import { accountNetworks, moreNetworks } from "@/lib/treasury/account-networks";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
-import { ARC_TESTNET_CHAIN_ID, chainConfig, explorerAddressUrl, explorerTxUrl, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { ARC_TESTNET_CHAIN_ID, chainConfig, explorerAddressUrl, explorerTxUrl, isPausedNetwork, pausedNetworkReason, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { rewardAligned } from "@/lib/format";
 import { starknetUsdcBalance } from "@/lib/starknet/balance";
 import { starknetAddressUrl } from "@/lib/starknet/explorer";
 import { AccountBalance, CapEditor, CopyAddress, OpenAccount, WithdrawForm } from "@/components/workspace/account-live";
 import { BridgeIn } from "@/components/workspace/bridge-in";
-import { AddFunds } from "@/components/workspace/add-funds";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,8 +55,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   // The network policy decides what this page shows (account-networks.ts): primary networks once configured,
   // secondary ones only when held or asked for, testnets never.
   const configured = configuredLaunchChains();
+  // An account on a PAUSED network stays listed, so its money stays reachable (balance, withdraw); a
+  // paused network is never offered to open anew (networks.ts PAUSED_NETWORKS).
+  const listable = [...configured, ...accounts.map((a) => a.chainId).filter(isPausedNetwork)];
   const asked = Number(sp.chain);
-  const nets = accountNetworks({ home, configured, held: accounts.map((a) => a.chainId), asked: Number.isFinite(asked) ? asked : null });
+  const nets = accountNetworks({ home, configured: listable, held: accounts.map((a) => a.chainId), asked: Number.isFinite(asked) ? asked : null });
   const chainId = nets.selected;
   const chain = chainConfig(chainId);
   const treasury = getWebTreasuryOn(founder, chainId);
@@ -69,7 +71,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     return (
       <Link key={id} href={id === home ? "/workspace/account" : `/workspace/account?chain=${id}`} className={`ac-tab${id === chainId ? " on" : ""}`} aria-current={id === chainId ? "page" : undefined}>
         <span>{c.name}</span>
-        <span className="ac-tab-k">{has ? "real USDC" : "not opened yet"}</span>
+        <span className="ac-tab-k">{isPausedNetwork(id) ? "paused" : has ? "real USDC" : launchClosedReason(id) ? "opening soon" : "not opened yet"}</span>
       </Link>
     );
   };
@@ -122,7 +124,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                   ? <>Real USDC on {chain.name}, Circle&apos;s chain, where USDC is the gas too: fund the account with USDC and it needs nothing else.</>
                   : <>Real USDC on {chain.name}. Launches there also need a little {chain.nativeSymbol} for gas; Sage covers the first launch.</>}
               </p>
-              <OpenAccount chainId={chainId} network={chain.name} isMainnet={chain.isMainnet} />
+              {launchClosedReason(chainId) ? (
+                <p className="ws-note pl-quiet">{launchClosedReason(chainId)}</p>
+              ) : (
+                <OpenAccount chainId={chainId} network={chain.name} isMainnet={chain.isMainnet} />
+              )}
             </section>
           </div>
           <div>
@@ -180,6 +186,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <div className="ws-grid">
         <div>
+          {isPausedNetwork(treasury.chainId) ? (
+            <section className="ws-card ac-paused">
+              <div className="ws-card-h"><h2>Paused for new jobs</h2><span className="ws-chip warn">don&apos;t send funds here</span></div>
+              <p className="ws-note pl-quiet">{pausedNetworkReason(treasury.chainId)}</p>
+              <p className="ws-note pl-quiet">
+                Anything this account holds is still yours. Withdraw it below to a wallet you control, then move it off GOAT with{" "}
+                <a href="https://stargate.finance/bridge" target="_blank" rel="noreferrer">Stargate</a> before 23 October to keep a supported way out.
+              </p>
+            </section>
+          ) : (
           <section className="ws-card">
             <div className="ws-card-h"><h2>Fund it</h2><span className={`ws-chip${chain.isMainnet ? " live" : ""}`}>{chain.chipLabel}{chain.isMainnet ? "" : " · test USDC"}</span></div>
             <div className="ac-fund">
@@ -197,9 +213,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 Arc mainnet account is funded by sending USDC to its address (above) — never a door that lands money elsewhere. */}
             {/* The card door buys USDC on Base; CCTP reaches neither Metis nor Arc mainnet, so those accounts are
                 funded by sending to the address above, never through a door that lands money elsewhere. */}
-            {chain.chainId === 2345 ? <AddFunds testnet={false} bridgeable={false} /> : null}
             {treasury.chainId === ARC_TESTNET_CHAIN_ID ? <BridgeIn account={treasury.privyWalletAddress} destinationChain="Arc_Testnet" testnet={!chain.isMainnet} /> : null}
           </section>
+          )}
 
           <section className="ws-card">
             <div className="ws-card-h"><h2>Balance</h2></div>

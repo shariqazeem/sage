@@ -12,10 +12,10 @@ const A = (c: string) => `0x${c.repeat(40)}` as const;
 
 const { attachPolicySpy } = vi.hoisted(() => ({ attachPolicySpy: vi.fn() }));
 
-vi.mock("@/lib/db/agent-wallets", () => ({ getAgentWallet: () => ({ privyWalletId: "pw", privyWalletAddress: A("1"), founderAddress: A("2"), chainId: 2345 }) }));
+vi.mock("@/lib/db/agent-wallets", () => ({ getAgentWallet: () => ({ privyWalletId: "pw", privyWalletAddress: A("1"), founderAddress: A("2"), chainId: 1088 }) }));
 vi.mock("@/lib/launch/deployment-service", () => ({
   loadApprovedPlan: () => ({ plan: { publicCampaignId: "pub1", missions: [{ missionKey: "m", title: "t", objective: "o", instructions: "i", targetSurface: "https://x.test/", criteria: ["c"], evidenceRequirements: ["e"], rewardBase: "1000000", maxCompletions: "1" }] } }),
-  buildSettings: () => ({ ok: true, settings: { chainId: 2345, token: A("3"), operator: A("4"), guardian: A("2"), factory: A("5") } }),
+  buildSettings: () => ({ ok: true, settings: { chainId: 1088, token: A("3"), operator: A("4"), guardian: A("2"), factory: A("5") } }),
   defaultDailyCap: () => BigInt(1),
   DEFAULT_DURATION_SECONDS: 604800,
 }));

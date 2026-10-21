@@ -14,13 +14,25 @@ vi.mock("@/lib/privy/onboarding", () => ({
     rows.set(input.chatId, { chatId: input.chatId, chainId: input.chainId ?? 2345, privyWalletAddress: `0x${input.chatId.length.toString(16).padStart(40, "a")}` });
   }),
 }));
-vi.mock("@/lib/launch/deployment-service", () => ({ LAUNCH_ENABLED_CHAINS: [2345, 5042002, 59902] }));
+// Every network here is open: this file is about keying accounts. A paused or unopened network refusing
+// a new account is held in network-pause.test.ts.
+const closed = new Map<number, string>();
+vi.mock("@/lib/launch/deployment-service", () => ({ LAUNCH_ENABLED_CHAINS: [2345, 5042002, 59902], launchClosedReason: (id: number) => closed.get(id) ?? null }));
 
 const { createWebTreasury, getWebTreasury, getWebTreasuryOn, listWebTreasuries, webTreasuryKey, webTreasuryWallets } = await import("./web");
 const F = `0x${"1".repeat(40)}`;
 
 describe("one account per network", () => {
-  beforeEach(() => rows.clear());
+  beforeEach(() => {
+    rows.clear();
+    closed.clear();
+  });
+
+  it("never opens an account on a network that is paused or not open, and says why", async () => {
+    closed.set(2345, "New jobs on GOAT Network are paused.");
+    await expect(createWebTreasury(F, 50, 2345)).rejects.toThrow(/paused/);
+    expect(getWebTreasuryOn(F, 2345)).toBeNull();
+  });
 
   it("keys the default chain's account bare and every other chain's by chain id", () => {
     expect(webTreasuryKey(F)).toBe(`web:${F.toLowerCase()}`);

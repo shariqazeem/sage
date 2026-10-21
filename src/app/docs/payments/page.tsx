@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Ban, Flame, Gift, KeyRound, Receipt } from "lucide-react";
-import { chainConfig, PRIMARY_NETWORKS, SECONDARY_NETWORKS, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { chainConfig, isPausedNetwork, PRIMARY_NETWORKS, SECONDARY_NETWORKS, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { PERIOD_DAYS, PLANS } from "@/lib/plans/catalog";
 import { planPriceUsd } from "@/lib/plans/billing-math";
 import { DocHead, DocSection } from "../parts";
@@ -9,7 +9,7 @@ import { DocHead, DocSection } from "../parts";
 export const metadata: Metadata = {
   title: "Payments and networks",
   description:
-    "How Sage pays: each payout settles in USDC from the job's vault, on Metis and GOAT Network, and also on Arc and Starknet, with a public receipt. No fee on payouts. Plans are paid in USDC.",
+    "How Sage pays: each payout settles in USDC from the job's vault, on Metis, and also on Arc and Starknet, with a public receipt. No fee on payouts. Plans are paid in USDC on Metis and renew like a card subscription.",
   alternates: { canonical: "/docs/payments" },
 };
 
@@ -25,7 +25,7 @@ const TOC = {
 /** The networks table reads the same two lists every other screen does. */
 const NETWORK_ROWS = [
   ...PRIMARY_NETWORKS.map((id) => ({ id, tier: "Primary" })),
-  ...SECONDARY_NETWORKS.map((id) => ({ id, tier: id === STARKNET_MAINNET_KEY ? "More networks, private payouts" : "More networks" })),
+  ...SECONDARY_NETWORKS.map((id) => ({ id, tier: isPausedNetwork(id) ? "Paused for new jobs" : id === STARKNET_MAINNET_KEY ? "More networks, private payouts" : "More networks" })),
 ].map(({ id, tier }) => {
   const c = chainConfig(id);
   return {
@@ -79,8 +79,8 @@ export default function Payments() {
 
       <DocSection toc={TOC} id="networks">
         <p>
-          Sage pays in USDC on two primary networks, Metis and GOAT Network. It also settles on Arc, under More
-          networks, and on Starknet, for private payouts. Test networks are never shown.
+          Sage pays in USDC on its primary network, Metis Andromeda. It also settles on Arc, under More networks,
+          and on Starknet, for private payouts. Test networks are never shown.
         </p>
         <div className="doc-table wide">
           <table>
@@ -109,6 +109,12 @@ export default function Payments() {
         <p>
           On Arc, USDC is also the gas, so funding an account with USDC is all the setup there is. Jobs keep the
           network they were created on, and their receipts keep working.
+        </p>
+        <p>
+          <strong>GOAT Network is paused for new jobs.</strong> Its USDC is bridged by Stargate, which ends support for
+          GOAT on 23 October 2026, so no new job, account or plan payment starts there. Everything already on GOAT
+          keeps working: receipts, records, withdrawals and stopping a job. To keep a supported way out, move USDC
+          off GOAT with Stargate before that date.
         </p>
       </DocSection>
 
@@ -206,13 +212,23 @@ export default function Payments() {
         <p>{PLANS_LINE}</p>
         <ul>
           <li>
-            Pay in USDC on Metis or GOAT Network: in one click from your Sage account, or from any wallet that&apos;s
+            Pay in USDC on Metis: in one click from your Sage balance, or from MetaMask or any wallet that&apos;s
             yours.
           </li>
           <li>Sage reads the payment on chain and starts your plan at once. No card is needed.</li>
           <li>
-            A plan runs {PERIOD_DAYS} days. Paying again before it ends adds the new days on top, so paying early never
-            loses a day.
+            A plan runs {PERIOD_DAYS} days. Paid from your Sage balance, it renews itself at the end of each period,
+            like a card subscription, with a reminder three days before. Turn renewal off in Settings any time; the
+            plan then runs to the end of its period. Paid from a wallet, Sage reminds you instead.
+          </li>
+          <li>Paying again before a plan ends adds the new days on top, so paying early never loses a day.</li>
+          <li>
+            Sage pays the network fee on a payment from your balance, so paying for Sage needs only USDC. Every
+            payment gets a receipt in Settings.
+          </li>
+          <li>
+            A promo code goes in at checkout. It gives free days of a plan, or money off the first payment; each
+            workspace can use a code once.
           </li>
           <li>Upgrading starts the new plan now and credits the days left on the old one.</li>
           <li>A smaller plan starts when your current one ends.</li>

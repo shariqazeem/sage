@@ -92,12 +92,15 @@ describe("gas on Metis is sized for METIS, not BTC", () => {
   });
 });
 
-describe("the network policy (19 Oct 2026)", () => {
-  it("two primary networks, GOAT and Metis; Arc and Starknet secondary", () => {
-    expect([...PRIMARY_NETWORKS].sort()).toEqual([GOAT_MAINNET_CHAIN_ID, METIS_MAINNET_CHAIN_ID].sort());
+describe("the network policy (21 Oct 2026: GOAT paused, Metis primary)", () => {
+  it("one primary network, Metis; Arc, Starknet and the paused GOAT behind More networks", () => {
+    expect([...PRIMARY_NETWORKS]).toEqual([METIS_MAINNET_CHAIN_ID]);
     expect(SECONDARY_NETWORKS).toContain(ARC_MAINNET_CHAIN_ID);
     expect(SECONDARY_NETWORKS).toContain(STARKNET_MAINNET_KEY);
+    // GOAT stays in the policy so the accounts, jobs and receipts already there stay reachable
+    expect(SECONDARY_NETWORKS).toContain(GOAT_MAINNET_CHAIN_ID);
     expect(networkTier(METIS_MAINNET_CHAIN_ID)).toBe("primary");
+    expect(networkTier(GOAT_MAINNET_CHAIN_ID)).toBe("secondary");
     expect(networkTier(ARC_MAINNET_CHAIN_ID)).toBe("secondary");
     expect(networkTier(ARC_TESTNET_CHAIN_ID)).toBe("retired");
     expect(networkTier(METIS_SEPOLIA_CHAIN_ID)).toBe("retired");

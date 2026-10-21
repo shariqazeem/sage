@@ -11,6 +11,7 @@ import {
   serializeSettings,
   LAUNCH_CHAIN_ID,
   isLaunchChain,
+  launchClosedReason,
 } from "@/lib/launch/deployment-service";
 import { buildDeployBundle, deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { verifyClaimSignature, type PlanClaim } from "@/lib/launch/claim";
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // it is part of the signed domain.
   const chainId = claim.chainId ?? LAUNCH_CHAIN_ID;
   if (!isLaunchChain(chainId)) {
-    return NextResponse.json({ ok: false, error: "That network isn't available for launches yet." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: launchClosedReason(chainId) ?? "That network isn't available for launches yet." }, { status: 400 });
   }
 
   // The plan must be unchanged since the challenge was issued.

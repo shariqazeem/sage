@@ -1,0 +1,543 @@
+/**
+ * checkout.css: BUYING A PLAN (21 Oct 2026). One calm page, the shape every good card checkout has:
+ * what you are buying on the left, how you pay on the right, one button, then a receipt. Every value
+ * is a token from tokens.css; every rule starts at `.ck` so nothing here reaches another page.
+ */
+.ck {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.ck .ck-head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.ck .ck-head-in,
+.ck .ck-main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-inline: clamp(16px, 4vw, 32px);
+}
+.ck .ck-head-in {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.ck .ck-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ck .ck-brand small {
+  color: var(--ink-faint);
+  font-weight: 500;
+  font-size: 14px;
+}
+.ck .ck-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.ck .ck-main {
+  padding-block: clamp(32px, 5vw, 64px) var(--s-10);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+.ck a {
+  color: var(--accent);
+}
+
+/* ── the order ──────────────────────────────────────────────────────── */
+.ck .ck-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.ck .ck-back:hover {
+  color: var(--accent);
+}
+.ck .ck-plan {
+  margin-top: var(--s-5);
+}
+.ck .ck-plan-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.ck .ck-price {
+  margin-top: var(--s-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.ck .ck-price b {
+  font-size: clamp(2.4rem, 1.6rem + 2.6vw, 3.25rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.ck .ck-price span {
+  color: var(--ink-muted);
+}
+.ck .ck-blurb {
+  margin-top: var(--s-2);
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.ck .ck-gets {
+  list-style: none;
+  margin: var(--s-6) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.ck .ck-gets li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--s-3);
+  line-height: 1.5;
+  font-size: 15px;
+}
+.ck .ck-gets svg {
+  margin-top: 3px;
+  color: var(--accent);
+}
+.ck .ck-lines {
+  margin-top: var(--s-6);
+  border-top: 1px solid var(--border);
+}
+.ck .ck-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-block: var(--s-3);
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+.ck .ck-line span:first-child {
+  color: var(--ink-muted);
+}
+.ck .ck-line b,
+.ck .ck-line .num {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ck .ck-line.total b {
+  font-size: 17px;
+}
+.ck .ck-line.promo span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-strong);
+}
+.ck .ck-promo {
+  margin-top: var(--s-4);
+}
+.ck .ck-promo .ck-link {
+  margin-top: 0;
+}
+.ck .ck-promo .ck-hash {
+  margin-top: 0;
+  max-width: 360px;
+}
+.ck .ck-promo .ck-hash input {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ck .ck-promo-on {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-strong);
+  font-size: 14px;
+}
+.ck .ck-promo-on button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ck .ck-promo-on button:hover {
+  background: var(--surface);
+}
+/* a code that doesn't apply is a caution, not a failed payment: red is kept for money outcomes */
+.ck .ck-promo-err {
+  margin: var(--s-2) 0 0;
+  font-size: 13px;
+  color: var(--warn);
+}
+.ck .ck-fine {
+  margin-top: var(--s-4);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+/* ── the payment ────────────────────────────────────────────────────── */
+.ck .ck-pay {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: clamp(20px, 3vw, 32px);
+  box-shadow: var(--shadow-sm);
+}
+.ck .ck-pay h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.ck .ck-methods {
+  margin-top: var(--s-4);
+  display: grid;
+  gap: var(--s-3);
+}
+.ck .ck-method {
+  display: grid;
+  grid-template-columns: 20px 36px minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  padding: var(--s-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ck .ck-method:hover:not([disabled]) {
+  border-color: var(--accent-border);
+}
+.ck .ck-method[aria-checked="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.ck .ck-method[disabled],
+.ck .ck-method[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.7;
+}
+.ck .ck-method:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ck .ck-radio {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+}
+.ck .ck-method[aria-checked="true"] .ck-radio {
+  border-color: var(--accent);
+}
+.ck .ck-method[aria-checked="true"] .ck-radio::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.ck .ck-method-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+.ck .ck-method-t {
+  display: block;
+  font-weight: 600;
+  font-size: 15px;
+}
+.ck .ck-method-s {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.ck .ck-method-s .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* topping up the balance, right here */
+.ck .ck-topup {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  border: 1px dashed var(--border-strong);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.ck .ck-addr {
+  margin-top: var(--s-2);
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+.ck .ck-addr code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.ck .ck-renew {
+  margin-top: var(--s-4);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.ck .ck-renew input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.ck .ck-renew small {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.ck .ck-note {
+  margin-top: var(--s-4);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.ck .ck-err {
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--err-soft);
+  border: 1px solid var(--err-border);
+  color: var(--err);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ck .ck-btn {
+  margin-top: var(--s-5);
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.ck .ck-btn:hover:not([disabled]) {
+  background: var(--accent-strong);
+}
+.ck .ck-btn[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+.ck .ck-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ck .ck-btn-quiet {
+  height: 40px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ck .ck-btn-quiet:hover {
+  border-color: var(--accent-border);
+}
+.ck .ck-link {
+  margin-top: var(--s-4);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ck .ck-hash {
+  margin-top: var(--s-3);
+  display: flex;
+  gap: var(--s-2);
+}
+.ck .ck-hash input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.ck .ck-trust {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: var(--s-2);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.ck .ck-trust div {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--s-2);
+  line-height: 1.5;
+}
+.ck .ck-trust svg {
+  margin-top: 2px;
+  color: var(--ink-faint);
+}
+
+/* ── progress and done ──────────────────────────────────────────────── */
+.ck .ck-steps {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.ck .ck-steps li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: center;
+  font-size: 15px;
+  color: var(--ink-faint);
+}
+.ck .ck-steps li.on {
+  color: var(--ink);
+}
+.ck .ck-steps li.done {
+  color: var(--ink-muted);
+}
+.ck .ck-steps li.done svg {
+  color: var(--ok);
+}
+.ck .ck-done {
+  text-align: center;
+  padding-block: var(--s-4);
+}
+.ck .ck-done-mark {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  border-radius: var(--r-pill);
+  background: var(--ok-soft);
+  color: var(--ok);
+  display: grid;
+  place-items: center;
+}
+.ck .ck-done h2 {
+  margin-top: var(--s-4);
+  font-size: 22px;
+}
+.ck .ck-done p {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.ck .ck-done-actions {
+  margin-top: var(--s-5);
+  display: flex;
+  justify-content: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.ck .ck-done-actions .ck-btn {
+  margin-top: 0;
+  width: auto;
+  padding: 0 var(--s-5);
+  height: 40px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ck .ck-spin {
+    animation: ck-spin 0.9s linear infinite;
+  }
+}
+@keyframes ck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .ck .ck-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ck .ck-secure span {
+    display: none;
+  }
+}

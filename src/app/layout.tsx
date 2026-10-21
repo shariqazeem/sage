@@ -50,7 +50,7 @@ const SITE = siteUrl();
 const TITLE =
   "Sage — an AI agent that moves money on verified work";
 const DESCRIPTION =
-  "Sage is autonomous payments infrastructure: an AI agent that takes a budget and an outcome, inspects products, designs paid work, verifies every deliverable, detects fraud, and pays in USDC from an on-chain vault it cannot exceed — public receipts on GOAT, private payouts on Starknet, a verified work record for every recipient, and working capital against it.";
+  "Sage is autonomous payments infrastructure: an AI agent that takes a budget and an outcome, inspects products, designs paid work, verifies every deliverable, detects fraud, and pays in USDC from an on-chain vault it cannot exceed — on Metis, with public receipts, private payouts on Starknet, a verified work record for every recipient, and working capital against it.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 // palette matches tokens.css instead of drifting.
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Sage: pay people for work an AI has verified — public receipts on GOAT, private payouts on Starknet";
+export const alt = "Sage: pay people for work an AI has verified, in USDC on Metis, with a public receipt for every payout";
 
 const PAPER = "#fbfbf9";
 const INK = "#1a1d21";

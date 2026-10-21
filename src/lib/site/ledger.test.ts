@@ -166,11 +166,13 @@ describe("by network", () => {
   it("primary networks first (shown before their first payout), then the others that have moved money", () => {
     seed();
     const l = readLedger(ALL);
+    // Metis is the one primary network since 21 Oct 2026 (shown before its first payout); GOAT, paused
+    // for new money, keeps its history under the secondary networks that have moved money.
     expect(l.networks.map((n) => [n.key, n.tier])).toEqual([
-      ["goat", "primary"],
       ["metis-andromeda", "primary"],
       ["arc", "secondary"],
       ["starknet", "secondary"],
+      ["goat", "secondary"],
     ]);
     const by = Object.fromEntries(l.networks.map((n) => [n.key, n]));
     expect([by.goat.paidUsd, by.goat.payouts, by.goat.refused]).toEqual([2.75, 3, 2]);

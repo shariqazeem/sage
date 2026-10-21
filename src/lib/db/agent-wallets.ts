@@ -42,6 +42,21 @@ export function agentWalletAddressesOf(founderAddress: string): string[] {
     .map((r) => r.address);
 }
 
+/**
+ * The Telegram chat this founder talks to Sage from, if any: an agent wallet bound to their address
+ * under a chat id (web accounts are keyed `web:<founder>`, so they never match). Used to send a
+ * founder the few messages about their own account, such as a plan that renews soon.
+ */
+export function telegramChatOf(founderAddress: string): string | null {
+  const f = founderAddress.toLowerCase();
+  const row = db
+    .select({ chatId: agentWallets.chatId })
+    .from(agentWallets)
+    .where(sql`lower(${agentWallets.founderAddress}) = ${f} and ${agentWallets.chatId} not like 'web:%'`)
+    .get();
+  return row?.chatId ?? null;
+}
+
 export interface SaveAgentWalletInput {
   chatId: string;
   founderAddress: string;

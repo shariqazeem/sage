@@ -1,0 +1,77 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ARC_MAINNET_CHAIN_ID, GOAT_MAINNET_CHAIN_ID, METIS_MAINNET_CHAIN_ID, isPausedNetwork, pausedNetworkReason } from "@/lib/deputy/networks";
+import { configuredLaunchChains, defaultLaunchChain, isLaunchChain, launchChainConfig, launchClosedReason } from "./deployment-service";
+import { billingChains, isBillingChain } from "@/lib/plans/billing";
+
+/**
+ * GOAT IS PAUSED FOR NEW MONEY, METIS IS THE DEFAULT, ARC IS AN EXPLICIT CHOICE (21 Oct 2026).
+ *
+ * GOAT Network's USDC is Stargate's bridged USDC, and Stargate ends support for GOAT on 23 October
+ * 2026. The founder chose "pause GOAT, no Arc default". What these hold:
+ * - a paused network is CONFIGURED (its accounts, withdrawals and stops still work) and yet no door
+ *   offers it, opens an account on it, or bills on it;
+ * - the default is Metis even before Metis is live, so nothing quietly falls back to Arc;
+ * - Arc, when configured, is still there for a founder who chooses it.
+ */
+const ENV = ["GOAT_CAMPAIGN_FACTORY_ADDRESS", "GOAT_OPERATOR_ADDRESS", "ARC_MAINNET_CAMPAIGN_FACTORY_ADDRESS", "ARC_MAINNET_OPERATOR_ADDRESS", "METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS", "METIS_MAINNET_OPERATOR_ADDRESS"] as const;
+const saved: Record<string, string | undefined> = {};
+const A = (c: string) => `0x${c.repeat(40)}`;
+
+beforeEach(() => {
+  for (const k of ENV) saved[k] = process.env[k];
+  // GOAT and Arc fully configured; Metis not yet (its factory isn't deployed)
+  process.env.GOAT_CAMPAIGN_FACTORY_ADDRESS = A("1");
+  process.env.GOAT_OPERATOR_ADDRESS = A("2");
+  process.env.ARC_MAINNET_CAMPAIGN_FACTORY_ADDRESS = A("3");
+  process.env.ARC_MAINNET_OPERATOR_ADDRESS = A("4");
+  delete process.env.METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS;
+  delete process.env.METIS_MAINNET_OPERATOR_ADDRESS;
+});
+afterEach(() => {
+  for (const k of ENV) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
+
+describe("a paused network", () => {
+  it("GOAT is paused, with a reason a person can act on; Metis and Arc are not", () => {
+    expect(isPausedNetwork(GOAT_MAINNET_CHAIN_ID)).toBe(true);
+    expect(pausedNetworkReason(GOAT_MAINNET_CHAIN_ID)).toMatch(/Stargate.*23 October 2026.*withdraw/);
+    expect(isPausedNetwork(METIS_MAINNET_CHAIN_ID)).toBe(false);
+    expect(isPausedNetwork(ARC_MAINNET_CHAIN_ID)).toBe(false);
+  });
+
+  it("stays configured, so existing accounts keep their withdrawals and stops, yet no door launches or opens there", () => {
+    expect(launchChainConfig(GOAT_MAINNET_CHAIN_ID).configured).toBe(true);
+    expect(isLaunchChain(GOAT_MAINNET_CHAIN_ID)).toBe(false);
+    expect(configuredLaunchChains()).not.toContain(GOAT_MAINNET_CHAIN_ID);
+    expect(launchClosedReason(GOAT_MAINNET_CHAIN_ID)).toBe(pausedNetworkReason(GOAT_MAINNET_CHAIN_ID));
+  });
+
+  it("is never billed on: plans are paid on Metis only", () => {
+    expect(billingChains()).toEqual([METIS_MAINNET_CHAIN_ID]);
+    expect(isBillingChain(GOAT_MAINNET_CHAIN_ID)).toBe(false);
+    expect(isBillingChain(ARC_MAINNET_CHAIN_ID)).toBe(false);
+  });
+});
+
+describe("the default, before and after Metis opens", () => {
+  it("is Metis even while Metis isn't live: no quiet fallback to Arc, and the door says why", () => {
+    expect(defaultLaunchChain()).toBe(METIS_MAINNET_CHAIN_ID);
+    expect(isLaunchChain(METIS_MAINNET_CHAIN_ID)).toBe(false);
+    expect(launchClosedReason(METIS_MAINNET_CHAIN_ID)).toMatch(/opening on Metis/);
+    // Arc is still an explicit choice for whoever picks it
+    expect(configuredLaunchChains()).toEqual([ARC_MAINNET_CHAIN_ID]);
+    expect(launchClosedReason(ARC_MAINNET_CHAIN_ID)).toBeNull();
+  });
+
+  it("the moment Metis is configured it opens, first in every picker", () => {
+    process.env.METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS = A("5");
+    process.env.METIS_MAINNET_OPERATOR_ADDRESS = A("6");
+    expect(isLaunchChain(METIS_MAINNET_CHAIN_ID)).toBe(true);
+    expect(defaultLaunchChain()).toBe(METIS_MAINNET_CHAIN_ID);
+    expect(configuredLaunchChains()).toEqual([METIS_MAINNET_CHAIN_ID, ARC_MAINNET_CHAIN_ID]);
+    expect(launchClosedReason(METIS_MAINNET_CHAIN_ID)).toBeNull();
+  });
+});

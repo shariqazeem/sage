@@ -92,6 +92,8 @@ interface LimiterStore {
   publicMcpDaily: RateLimiter;
   /** ONE global daily budget for public MCP inspections, so the ASP surface can't be farmed. */
   publicMcpGlobalDaily: RateLimiter;
+  /** promo code checks / min / founder: a shared code is meant to be typed, never guessed by a script. */
+  promo: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -138,6 +140,7 @@ function limiters(): LimiterStore {
         Math.max(1, Number(process.env.PUBLIC_MCP_GLOBAL_DAILY_CAP) || 150),
         86_400_000,
       ),
+      promo: new RateLimiter(10, 60_000), // 10 promo code checks / min / founder
     };
   }
   return g.__sageLimiters;

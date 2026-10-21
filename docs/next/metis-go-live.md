@@ -3,6 +3,12 @@
 *Written 19 Oct 2026. Everything up to here is built and deployed. This is the one part that needs real
 money from you: METIS for gas. Nothing below moves anyone else's funds.*
 
+> **21 Oct 2026: this is now the step every new job waits on.** GOAT is paused for new money (Stargate ends
+> support for its USDC on 23 Oct), and Metis is already the default network in code: until steps 1-2 are done,
+> no new job launches (Arc stays an explicit choice) and no Sage balance opens on Metis. Plans are billed on
+> Metis too: set `SAGE_BILLING_ADDRESS` on the VM to your own wallet so plan payments reach you. Step 5's code
+> change is already made; only the VM's `TREASURY_CHAIN_ID` (if set to 2345) should be removed or set to 1088.
+
 The Metis rail is wired end to end, but it is not yet launchable. It fails closed until its factory is
 deployed and its settings are on the VM. These are the steps, in order.
 

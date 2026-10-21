@@ -103,7 +103,7 @@ export function StartFlow({
             )}
             <FounderSignIn
               families={moreOptions ? "all" : "evm"}
-              explainer={moreOptions ? <>Ethereum or Starknet. Payments run on Metis and GOAT Network; Starknet is for private payouts.</> : <>Any Ethereum wallet. Payments run on Metis and GOAT Network.</>}
+              explainer={moreOptions ? <>Ethereum or Starknet. Payments run on Metis; Starknet is for private payouts.</> : <>Any Ethereum wallet. Payments run on Metis.</>}
               onSignedIn={signedInNow}
             />
             {!moreOptions && (

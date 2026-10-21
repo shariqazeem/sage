@@ -151,8 +151,9 @@ export default function CompanyPage() {
             </Link>
           </div>
           <p className="nets band-after">
-            <span>Primary networks: <b>Metis</b> and <b>GOAT Network</b></span>
+            <span>Primary network: <b>Metis</b></span>
             <span>Also settles on <b>Arc</b> and <b>Starknet</b></span>
+            <span>New jobs on <b>GOAT Network</b> paused</span>
           </p>
         </div>
       </section>

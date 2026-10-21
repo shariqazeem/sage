@@ -159,7 +159,7 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
         <div>
           <section className="ws-card">
             <div className="ws-card-h"><h2>Networks</h2><Link className="ws-chip" href="/workspace/account">your accounts</Link></div>
-            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b> and <b>GOAT Network</b>. Sage also settles on Arc and Starknet: open an account there from <Link href="/workspace/account">your account page</Link>, under More networks.</p>
+            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b>. Sage also settles on Arc and Starknet, and new jobs on GOAT Network are paused (its USDC loses Stargate support on 23 October): open an account there from <Link href="/workspace/account">your account page</Link>, under More networks.</p>
           </section>
           <section className="ws-card">
             <div className="ws-card-h"><h2>More</h2></div>

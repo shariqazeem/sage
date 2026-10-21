@@ -285,8 +285,36 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .pl-done { margin-top: 16px; }
 .pl-exports { display: flex; gap: 8px; flex-wrap: wrap; }
 .pl-locked { opacity: 0.55; cursor: default; }
+/* the subscription view (21 Oct 2026): renewal switch, notice, actions, history */
+.pl-price { margin-left: 8px; font-size: 14px; font-weight: 500; color: var(--ink-muted); letter-spacing: 0; }
+.pl-renew { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.pl-renew input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.pl-notice { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r-md); font-size: 13.5px; line-height: 1.5; border: 1px solid var(--border); background: var(--bg); color: var(--ink); }
+.pl-notice.warn { border-color: var(--warn-border); background: var(--warn-soft); color: var(--warn); }
+.pl-continue { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r-md); background: var(--accent-soft); border: 1px solid var(--accent-border); }
+.pl-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.pl-actions .mono { color: var(--ink-faint); font-size: 12px; margin-left: 4px; }
+.pl-history { list-style: none; margin: 0; padding: 0; display: grid; }
+.pl-history li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+.pl-history li:first-child { border-top: 0; padding-top: 2px; }
+.pl-h-when { color: var(--ink-faint); font-size: 12px; }
+.pl-h-what { min-width: 0; color: var(--ink); }
+.pl-h-what small { display: block; color: var(--ink-faint); font-size: 12px; }
+.pl-h-amt { font-variant-numeric: tabular-nums; }
+.pl-h-pad { width: 1px; }
+@media (max-width: 560px) {
+  .pl-now { flex-direction: column; }
+  .pl-history li { grid-template-columns: minmax(0, 1fr) auto; }
+  .pl-h-when { grid-column: 1 / -1; }
+}
 /* the plan on Home: a quiet link, one click from Plan and billing */
 .ws-plan-link { text-decoration: none; }
 .ws-plan-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ws-stat-link { text-decoration: none; color: inherit; transition: border-color var(--dur-1) var(--ease-out); }
 .ws-stat-link:hover { border-color: var(--accent); }
+
+/* the plan's renewal, on Home: a reminder three days ahead, or why it didn't go through */
+.ws-billing-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 14px; line-height: 1.5; text-decoration: none; }
+.ws-billing-notice:hover { border-color: var(--accent-border); }
+.ws-billing-notice.warn { border-color: var(--warn-border); background: var(--warn-soft); color: var(--warn); }
+.ws-billing-go { color: var(--accent); font-weight: 600; font-size: 13px; white-space: nowrap; }

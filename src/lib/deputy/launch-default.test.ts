@@ -1,20 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { ARC_LAUNCH_CHAIN, ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID, chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, GOAT_MAINNET_CHAIN_ID } from "./networks";
+import { ARC_LAUNCH_CHAIN, ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID, chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, GOAT_MAINNET_CHAIN_ID, isPausedNetwork, METIS_MAINNET_CHAIN_ID, pausedNetworkReason } from "./networks";
 import { LAUNCH_ENABLED_CHAINS } from "@/lib/launch/deployment-service";
 
 /**
- * A MAINNET PRODUCT DOES NOT DEFAULT TO A TESTNET, and it does not change its default beneath the
- * people judging it. Arc mainnet opened on 16 September 2026 and joined the registry on 26 Sep as the
- * explicit second choice; the flip that makes it the default ("arc default, goat behind an explicit
- * choice but the history stays") waits for Future Caribbean's judging to close. Until then the default
- * EVM chain — the shell chip a signed-out judge sees on /explorer, the chain a new account is born on,
- * the first button in the deploy flow — stays GOAT mainnet. Flip this test the day the flip is deliberate.
+ * A MAINNET PRODUCT DOES NOT DEFAULT TO A TESTNET, and its default is a deliberate decision. GOAT
+ * mainnet was the default from July; on 21 Oct 2026 the founder paused it for new money (its USDC
+ * loses Stargate support on 23 Oct) and chose "pause GOAT, no Arc default": the default is Metis,
+ * the launch list leads with it, GOAT stays listed (its accounts must stay reachable) but is paused,
+ * and Arc stays an explicit choice. Flip this test only the day the next flip is deliberate.
  */
 describe("the default EVM rail, and the launch list", () => {
-  it("is GOAT mainnet, and the launch list leads with it", () => {
-    expect(DEFAULT_EVM_LAUNCH_CHAIN).toBe(GOAT_MAINNET_CHAIN_ID);
+  it("is Metis mainnet, the launch list leads with it, and GOAT is listed but paused", () => {
+    expect(DEFAULT_EVM_LAUNCH_CHAIN).toBe(METIS_MAINNET_CHAIN_ID);
     expect(chainConfig(DEFAULT_EVM_LAUNCH_CHAIN).isMainnet).toBe(true);
     expect(LAUNCH_ENABLED_CHAINS[0]).toBe(DEFAULT_EVM_LAUNCH_CHAIN);
+    expect(LAUNCH_ENABLED_CHAINS).toContain(GOAT_MAINNET_CHAIN_ID);
+    expect(isPausedNetwork(GOAT_MAINNET_CHAIN_ID)).toBe(true);
+    expect(isPausedNetwork(METIS_MAINNET_CHAIN_ID)).toBe(false);
+    expect(isPausedNetwork(ARC_MAINNET_CHAIN_ID)).toBe(false);
+    expect(pausedNetworkReason(GOAT_MAINNET_CHAIN_ID)).toMatch(/Stargate.*23 October 2026/);
   });
 
   it("offers Arc mainnet second, as a mainnet, and no testnet at all", () => {

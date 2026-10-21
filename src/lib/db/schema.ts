@@ -323,6 +323,10 @@ export const workspaces = sqliteTable(
     plan: text("plan").notNull().default("free").$type<WorkspacePlan>(),
     /** unix seconds the paid plan runs until; null = never paid. */
     planUntil: integer("plan_until"),
+    /** renew the paid plan from the owner's Sage balance when it ends (on unless they turn it off). */
+    autoRenew: integer("auto_renew", { mode: "boolean" }).notNull().default(true),
+    /** the plan_until whose "renews soon" reminder was sent, so each period is reminded once. */
+    renewRemindedFor: integer("renew_reminded_for"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -374,10 +378,91 @@ export const workspacePayments = sqliteTable(
     amountBase: integer("amount_base").notNull(),
     paidAt: integer("paid_at").notNull(),
     planUntil: integer("plan_until").notNull(),
+    /** the plan this payment bought (null on rows before 21 Oct 2026, which were all Pro). */
+    plan: text("plan").$type<WorkspacePlan>(),
+    /** when the period this payment covers began: the old end for a renewal, the moment of paying otherwise. */
+    periodStart: integer("period_start"),
+    /** how it was paid: from the Sage balance, from a wallet, or by the automatic renewal. */
+    method: text("method").$type<PlanPaymentMethod>(),
   },
   (t) => [index("workspace_payments_workspace_idx").on(t.workspaceId)],
 );
 export type WorkspacePayment = typeof workspacePayments.$inferSelect;
+export type PlanPaymentMethod = "balance" | "wallet" | "renewal";
+
+/**
+ * ONE RENEWAL PER WORKSPACE PER PERIOD END, EVER (21 Oct 2026). The automatic renewal claims this row
+ * before any money moves; the primary key is what makes a second charge for the same month impossible,
+ * whatever retries, restarts or overlapping sweeps do. `status` is charging → paid, or failed (retried,
+ * at most every few hours, until the grace window closes).
+ */
+export const planRenewals = sqliteTable(
+  "plan_renewals",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    /** the plan_until this renewal continues from. */
+    periodEnd: integer("period_end").notNull(),
+    plan: text("plan").notNull().$type<WorkspacePlan>(),
+    status: text("status").notNull().$type<"charging" | "paid" | "failed">(),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: integer("last_attempt_at"),
+    /** the USDC payment, once it is sent. */
+    txHash: text("tx_hash"),
+    /** the network fee Sage covered for this renewal, if it had to. */
+    gasTxHash: text("gas_tx_hash"),
+    /** why the last attempt did not go through, in words the owner can act on. */
+    error: text("error"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.periodEnd] }), index("plan_renewals_status_idx").on(t.status)],
+);
+export type PlanRenewal = typeof planRenewals.$inferSelect;
+
+/**
+ * PROMO CODES (21 Oct 2026): giveaways that bring people in. A code gives FREE DAYS of a plan (nothing
+ * is paid) or a PERCENT OFF the first payment (the server computes the discounted price; renewals are
+ * full price). Created by the founder with scripts/promo.mjs, stored upper-case, limited by uses, an
+ * expiry, and optionally to workspaces that never paid.
+ */
+export const promoCodes = sqliteTable("promo_codes", {
+  code: text("code").primaryKey(),
+  plan: text("plan").notNull().$type<WorkspacePlan>(),
+  kind: text("kind").notNull().$type<"days" | "percent">(),
+  days: integer("days"),
+  percentOff: integer("percent_off"),
+  /** null = unlimited. */
+  maxUses: integer("max_uses"),
+  uses: integer("uses").notNull().default(0),
+  expiresAt: integer("expires_at"),
+  /** only a workspace that has never paid for a plan may use it. */
+  newOnly: integer("new_only", { mode: "boolean" }).notNull().default(false),
+  /** who it is for, for the founder's own books; never shown to the person redeeming it. */
+  note: text("note"),
+  createdAt: integer("created_at").notNull(),
+  disabledAt: integer("disabled_at"),
+});
+export type PromoCode = typeof promoCodes.$inferSelect;
+
+/** One redemption per code per workspace, ever (the primary key). */
+export const promoRedemptions = sqliteTable(
+  "promo_redemptions",
+  {
+    code: text("code").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+    founder: text("founder").notNull(),
+    plan: text("plan").notNull().$type<WorkspacePlan>(),
+    kind: text("kind").notNull().$type<"days" | "percent">(),
+    daysGranted: integer("days_granted"),
+    percentOff: integer("percent_off"),
+    /** the discounted payment, for a percent code. */
+    txHash: text("tx_hash"),
+    planUntil: integer("plan_until"),
+    redeemedAt: integer("redeemed_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.code, t.workspaceId] }), index("promo_redemptions_workspace_idx").on(t.workspaceId)],
+);
+export type PromoRedemption = typeof promoRedemptions.$inferSelect;
 
 /** The real events that form a Deputy's work journal (§2d) — never fabricated. */
 export type EventKind =

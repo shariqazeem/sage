@@ -2,7 +2,7 @@ import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { getAddress, type Address } from "viem";
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, isPausedNetwork } from "@/lib/deputy/networks";
 import { defaultLaunchChain, launchChainConfig } from "@/lib/launch/deployment-service";
 import { createServerWallet } from "./client";
 import { createMandatePolicy } from "./mandate";
@@ -15,10 +15,14 @@ import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
  * binding (a fresh wallet + mandate). Returns the address the founder funds with their allowance.
  */
 
-/** The chain a new account (web treasury) lives on when nothing chose one: TREASURY_CHAIN_ID when it is set and configured, else the first configured launch chain (GOAT mainnet first). */
+/**
+ * The chain a new account (web treasury) lives on when nothing chose one: TREASURY_CHAIN_ID when it is
+ * set, configured and not paused, else the launch default (Metis). A TREASURY_CHAIN_ID left pointing at
+ * GOAT after its pause (21 Oct 2026) must not keep opening accounts there.
+ */
 export function treasuryChainId(): number {
   const raw = Number(process.env.TREASURY_CHAIN_ID);
-  if (Number.isFinite(raw) && raw > 0 && launchChainConfig(raw).configured) return raw;
+  if (Number.isFinite(raw) && raw > 0 && launchChainConfig(raw).configured && !isPausedNetwork(raw)) return raw;
   return defaultLaunchChain();
 }
 

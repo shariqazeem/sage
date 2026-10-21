@@ -19,7 +19,7 @@ import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
-import { GOAT_USDC, chainConfig } from "@/lib/deputy/networks";
+import { GOAT_MAINNET_CHAIN_ID, GOAT_USDC, chainConfig, pausedNetworkReason } from "@/lib/deputy/networks";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listLaunchablePlans } from "@/lib/campaigns/launchable";
@@ -335,6 +335,21 @@ export async function callAgentWalletTool(
     switch (name) {
       case "sage_setup_wallet": {
         const existing = founderBinding(chatId);
+        // GOAT IS PAUSED FOR NEW MONEY (networks.ts PAUSED_NETWORKS). The chat door's wallets live on
+        // GOAT, so no new one is minted there and nobody is told to send funds to one; a wallet that
+        // already exists keeps its balance, its status and its way out.
+        const paused = pausedNetworkReason(existing?.chainId ?? GOAT_MAINNET_CHAIN_ID);
+        if (paused) {
+          return ok({
+            ok: false,
+            networkPaused: true,
+            alreadySetUp: !!existing,
+            walletAddress: existing?.privyWalletAddress ?? null,
+            message: existing
+              ? `${paused} Do not ask the founder to send funds to this wallet. Their balance stays theirs: they can check it or withdraw it any time.`
+              : `${paused} Sage can't open a new wallet in chat right now. New jobs open on Metis; the founder can sign in at ${appUrl()}/start.`,
+          });
+        }
         if (existing) {
           const balance = await usdcBalanceBase(existing.privyWalletAddress);
           return ok({
@@ -398,6 +413,11 @@ export async function callAgentWalletTool(
       case "sage_fund_and_launch": {
         const b = founderBinding(chatId);
         if (!b) return err("The founder hasn't set up an agent wallet yet — call sage_setup_wallet.");
+        // A paused network takes no new money: refused before any check, stipend or call.
+        const paused = pausedNetworkReason(b.chainId);
+        if (paused) {
+          return ok({ ok: false, networkPaused: true, message: `${paused} Nothing was launched and nothing moved. New jobs open on Metis; the founder can post at ${appUrl()}/launch.` });
+        }
         const askedFor = typeof args.inspectionId === "string" ? args.inspectionId.trim() : "";
         // Resolve the plan SERVER-SIDE when the model didn't carry an id, or carried one that is no
         // longer launchable — the founder's own most recent ready, un-launched plan.

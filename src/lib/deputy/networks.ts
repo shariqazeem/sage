@@ -81,22 +81,6 @@ export function isArcChain(chainId: number | null | undefined): boolean {
 }
 
 /**
- * The EVM chain new launches default to: GOAT mainnet, the chain the product runs real money on.
- *
- * Arc was on TESTNET until 16 September 2026, and a mainnet product must not present a testnet as its
- * default — the founder's rule of 2026-09-10: "keep it separate and keep strk20 and goat primary,
- * until we goes mainnet". Arc mainnet joined the registry on 26 Sep as the explicit choice. The flip
- * that makes it the default ("arc default, goat behind an explicit choice but the history stays") is
- * held until Future Caribbean's judging closes, so the product under review does not change beneath
- * the judges. Nothing about a campaign already on either chain changes with the flip.
- */
-export const DEFAULT_EVM_LAUNCH_CHAIN = GOAT_MAINNET_CHAIN_ID;
-
-/** The Arc rail a founder may pick explicitly: Arc mainnet. The testnet stays in the registry, so
- *  campaigns and accounts already on it keep working, but it is no longer offered to anyone new. */
-export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
-
-/**
  * Metis Andromeda, the Metis mainnet. USDC is the bridged m.USDC (read by `eth_call` on 19 Oct 2026:
  * `symbol()` "m.USDC", `decimals()` 6, about 4.16M supply). Gas is METIS (18 dp), LEGACY pricing: no
  * `baseFeePerGas` in its blocks, about 13 gwei measured 19 Oct.
@@ -104,6 +88,22 @@ export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
 export const METIS_MAINNET_CHAIN_ID = 1088;
 /** The retired Metis testnet. Kept only so old campaigns resolve; it shares nothing with mainnet. */
 export const METIS_SEPOLIA_CHAIN_ID = 59902;
+
+/**
+ * The EVM chain new launches default to: Metis Andromeda (21 Oct 2026, the founder's decision).
+ *
+ * GOAT mainnet was the default from July, and every early payout ran there. It is PAUSED for new money
+ * (see PAUSED_NETWORKS below): its USDC loses Stargate support on 23 October 2026. The founder chose
+ * "pause GOAT, no Arc default": nothing new launches until Metis is live, and Arc stays an explicit
+ * choice under "More networks". Until Metis's factory and operator are configured the default is not
+ * launchable, and every launch door says so instead of falling back somewhere else. Nothing about a
+ * campaign already on any chain changes with the default.
+ */
+export const DEFAULT_EVM_LAUNCH_CHAIN = METIS_MAINNET_CHAIN_ID;
+
+/** The Arc rail a founder may pick explicitly: Arc mainnet. The testnet stays in the registry, so
+ *  campaigns and accounts already on it keep working, but it is no longer offered to anyone new. */
+export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
 
 /**
  * THE NETWORK POLICY (Sage the company, 19 Oct 2026; docs/strategy/2026-10-19-sage-the-company.md).
@@ -115,12 +115,40 @@ export const METIS_SEPOLIA_CHAIN_ID = 59902;
  * onboarding came to collide. Every surface reads these two lists, and network-policy.test.ts holds
  * them to it.
  *
- * Order matters: the first primary network is the one shown first. GOAT leads until Metis has paid
- * real money through Sage. Then Metis moves first, together with DEFAULT_EVM_LAUNCH_CHAIN and
- * TREASURY_CHAIN_ID on the VM.
+ * Order matters: the first primary network is the one shown first. Since 21 Oct 2026 Metis is the
+ * only primary network. GOAT moved behind "More networks" when it was paused (PAUSED_NETWORKS): its
+ * accounts, jobs and receipts stay reachable there, and nothing new starts on it.
  */
-export const PRIMARY_NETWORKS: readonly number[] = [GOAT_MAINNET_CHAIN_ID, METIS_MAINNET_CHAIN_ID];
-export const SECONDARY_NETWORKS: readonly number[] = [ARC_MAINNET_CHAIN_ID, 900_001];
+export const PRIMARY_NETWORKS: readonly number[] = [METIS_MAINNET_CHAIN_ID];
+export const SECONDARY_NETWORKS: readonly number[] = [ARC_MAINNET_CHAIN_ID, 900_001, GOAT_MAINNET_CHAIN_ID];
+
+/**
+ * NETWORKS PAUSED FOR NEW MONEY (21 Oct 2026, the founder's decision).
+ *
+ * GOAT Network's USDC (0x3022…12D8) is Stargate's bridged USDC ("Hydra" USDC.e), and Stargate ends
+ * support for GOAT Network on 23 October 2026. LayerZero tells holders to bridge it out before then,
+ * and promises no issuer-backed way out after it. A job funded there after that date would pay people
+ * in a token they may not be able to move. So on a paused network nothing new STARTS:
+ * - no job launches, at any door (the account, Telegram, a wallet's claim, the standing mandate);
+ * - no new account opens there, and no plan is paid there.
+ * Everything already there keeps working: receipts, records, the ledger, withdrawals, stopping a job and
+ * reclaiming what is left, and payouts from jobs already funded. Lift a pause here, deliberately, when
+ * the network has a USDC with a supported way in and out.
+ */
+export const PAUSED_NETWORKS: Readonly<Record<number, string>> = {
+  [GOAT_MAINNET_CHAIN_ID]:
+    "New jobs on GOAT Network are paused: its USDC is bridged by Stargate, which ends support for GOAT on 23 October 2026. Everything already on GOAT keeps working, and you can withdraw at any time.",
+};
+
+/** Whether nothing new may start on this network (see PAUSED_NETWORKS). */
+export function isPausedNetwork(chainId: number | null | undefined): boolean {
+  return chainId != null && Object.prototype.hasOwnProperty.call(PAUSED_NETWORKS, chainId);
+}
+
+/** The sentence a person reads when a paused network refuses something new, or null when it isn't paused. */
+export function pausedNetworkReason(chainId: number | null | undefined): string | null {
+  return isPausedNetwork(chainId) ? PAUSED_NETWORKS[chainId as number] : null;
+}
 
 /** Where a network sits in the policy: shown to everyone, opt-in, or not offered at all. */
 export function networkTier(chainId: number | null | undefined): "primary" | "secondary" | "retired" {

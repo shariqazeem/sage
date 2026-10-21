@@ -36,6 +36,8 @@ export interface OwnerView {
   /** Arc mainnet is configured, so the same account can be opened there. */
   /** Metis mainnet is configured: its account door can be offered */
   metis?: boolean;
+  /** what to say about the plan's next renewal (or a failed one), from the billing view; null = nothing. */
+  billingNotice?: { tone: "info" | "warn"; text: string } | null;
 }
 
 const chainFor = (rail: SettlementRail, chainId?: number | null) => (rail === "starknet" ? 900001 : (chainId ?? DEFAULT_EVM_LAUNCH_CHAIN));
@@ -70,6 +72,13 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
         </div>
       </header>
 
+      {view.billingNotice && (
+        <Link href="/workspace/settings#plan" className={`ws-billing-notice ${view.billingNotice.tone}`}>
+          <span>{view.billingNotice.text}</span>
+          <span className="ws-billing-go">Manage billing →</span>
+        </Link>
+      )}
+
       <section className="ws-stats" aria-label="At a glance">
         <div className="ws-stat"><span className="ws-stat-v">{live.length}</span><span className="ws-stat-k">Open work</span></div>
         <div className="ws-stat"><span className="ws-stat-v">{inReview}</span><span className="ws-stat-k">In review</span></div>
@@ -89,7 +98,7 @@ export function OwnerWorkspace({ view }: { view: OwnerView }) {
             {view.chain === "starknet" ? (
               <><b>Your money moves on Starknet.</b> Real USDC, private when you ask. Each job is funded from your wallet when you post it.</>
             ) : (
-              <><b>Your money moves on Metis or GOAT Network.</b> Real USDC, and a public receipt for every payout.{view.metis ? <> <Link href={`/workspace/account?chain=${METIS_MAINNET_CHAIN_ID}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Metis</Link>.</> : null}</>
+              <><b>Your money moves on Metis.</b> Real USDC, and a public receipt for every payout.{view.metis ? <> <Link href={`/workspace/account?chain=${METIS_MAINNET_CHAIN_ID}`} className="ws-rail-new"><span className="ws-new">new</span>Your account on Metis</Link>.</> : <> Sage is opening there now; your account opens the moment it&apos;s live.</>}</>
             )}
           </p>
           <ol className="ws-check">

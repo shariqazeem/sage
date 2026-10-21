@@ -3,7 +3,7 @@ import { getFounderAddress } from "@/lib/auth/founder";
 import { createWebTreasury, getWebTreasuryOn, listWebTreasuries } from "@/lib/treasury/web";
 import { CAP_MAX_USD, CAP_MIN_USD, setAccountCap } from "@/lib/privy/cap";
 import { webTreasuryStatus } from "@/lib/treasury/launch";
-import { isLaunchChain } from "@/lib/launch/deployment-service";
+import { isLaunchChain, launchClosedReason } from "@/lib/launch/deployment-service";
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { chainConfig } from "@/lib/deputy/networks";
 import { accountUnavailableBecause as unavailableBecause } from "@/lib/treasury/summary";
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
   const cap = typeof body.perCampaignCapUsd === "number" && Number.isFinite(body.perCampaignCapUsd) ? body.perCampaignCapUsd : 50;
   const chainId = typeof body.chainId === "number" && Number.isFinite(body.chainId) ? body.chainId : treasuryChainId();
-  if (!isLaunchChain(chainId)) return NextResponse.json({ error: "That chain is not one Sage opens accounts on here." }, { status: 400 });
+  if (!isLaunchChain(chainId)) return NextResponse.json({ error: launchClosedReason(chainId) ?? "That chain is not one Sage opens accounts on here." }, { status: 400 });
   try {
     await createWebTreasury(founder, cap, chainId);
   } catch (e) {

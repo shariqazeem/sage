@@ -11,13 +11,13 @@ import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { gasRefusalMessage, grantGasStipend } from "./gas-stipend";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { sameFounder } from "@/lib/auth/founder";
-import { chainConfig } from "@/lib/deputy/networks";
+import { chainConfig, pausedNetworkReason } from "@/lib/deputy/networks";
 import { launchAllowed } from "@/lib/plans/founder-plan";
 import type { PlanId } from "@/lib/plans/catalog";
 
 export type TreasuryLaunch =
   | { ok: true; campaignId: string; vault: string; steps: { step: string; txHash: string; explorerUrl: string }[] }
-  | { ok: false; reason: "no_treasury" | "not_yours" | "not_ready" | "plan_limit" | TreasuryPreflightReason | "failed"; message: string; upgradeTo?: PlanId | null };
+  | { ok: false; reason: "no_treasury" | "not_yours" | "not_ready" | "plan_limit" | "network_paused" | TreasuryPreflightReason | "failed"; message: string; upgradeTo?: PlanId | null };
 type TreasuryPreflightReason = Exclude<TreasuryPreflight, { ok: true }>["reason"];
 
 export interface TreasuryStatus {
@@ -62,6 +62,9 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
 export async function launchFromTreasury(founderAddress: string, jobId: string, chainId?: number): Promise<TreasuryLaunch> {
   const t = chainId == null ? getWebTreasury(founderAddress) : getWebTreasuryOn(founderAddress, chainId);
   if (!t) return { ok: false, reason: "no_treasury", message: `Open your account on ${chainConfig(chainId ?? treasuryChainId()).name} first — Sage launches from it.` };
+  // A paused network takes no new money (networks.ts): refused before a stipend or a single call is sent.
+  const paused = pausedNetworkReason(t.chainId);
+  if (paused) return { ok: false, reason: "network_paused", message: paused };
   const job = getInspectionJob(jobId);
   if (!job || !sameFounder(job.founderWallet, founderAddress)) return { ok: false, reason: "not_yours", message: "That plan isn't yours." };
   if (!autoApprove(jobId, getAddress(founderAddress))) return { ok: false, reason: "not_ready", message: "This plan isn't ready to launch — it may have changed since it was planned; plan it again." };

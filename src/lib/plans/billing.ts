@@ -1,16 +1,18 @@
 import "server-only";
 import { getAddress, type Address } from "viem";
 import { publicClient } from "@/lib/deputy/chain";
-import { chainConfig, isMainnetChain, PRIMARY_NETWORKS } from "@/lib/deputy/networks";
+import { chainConfig, isMainnetChain, isPausedNetwork, METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 import { findUsdcPayment, type PaymentCheck } from "@/lib/workspaces/plan-payment";
 
 /**
  * WHERE A PLAN IS PAID, AND HOW SAGE KNOWS IT WAS.
  *
- * In USDC, on a primary network (Metis or GOAT), to Sage's billing address. The proof is the
- * transfer itself: Sage reads the receipt and looks for exactly that transfer, from a wallet that is
- * the founder's. No card, no processor, no invoice: the same money rail the product runs on, and a
- * plan bought on Metis is itself an Andromeda transaction.
+ * In USDC on Metis, to Sage's billing address (the founder's decision, 21 Oct 2026: "Metis only").
+ * GOAT took plan payments until it was paused for new money (networks.ts PAUSED_NETWORKS): its USDC
+ * loses Stargate support on 23 October 2026, and a subscription is not paid in a token that may have
+ * no way out. The proof is the transfer itself: Sage reads the receipt and looks for exactly that
+ * transfer, from a wallet that is the founder's. No card, no processor: the same money rail the
+ * product runs on, and a plan bought on Metis is itself an Andromeda transaction.
  */
 
 /** Sage's billing address: SAGE_BILLING_ADDRESS, else the operator's (one EVM address on every network). */
@@ -27,12 +29,21 @@ export function billingAddress(): Address | null {
   }
 }
 
-/** The networks a plan can be paid on: the primary EVM networks that carry real USDC. */
+/** The networks a plan is paid on, in order. One today: Metis Andromeda. */
+export const BILLING_NETWORKS: readonly number[] = [METIS_MAINNET_CHAIN_ID];
+
+/** The billing networks that can take a payment now: real USDC, never a paused network. */
 export function billingChains(): number[] {
-  return PRIMARY_NETWORKS.filter((id) => {
+  return BILLING_NETWORKS.filter((id) => {
     const c = chainConfig(id);
-    return c.evm && isMainnetChain(id) && !!c.usdcAddress;
+    return c.evm && isMainnetChain(id) && !!c.usdcAddress && !isPausedNetwork(id);
   });
+}
+
+/** How a person reads where plans are paid, from the same list the server checks. */
+export function billingNetworksLine(): string {
+  const names = billingChains().map((id) => chainConfig(id).name);
+  return names.length ? `in USDC on ${names.join(" or ")}` : "in USDC";
 }
 
 export function isBillingChain(chainId: unknown): chainId is number {

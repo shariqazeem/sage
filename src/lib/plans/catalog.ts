@@ -52,16 +52,17 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     id: "free",
     name: "Free",
     priceUsd: 0,
-    blurb: "Post real work and pay real people. No card, no trial clock.",
+    blurb: "Try Sage on real work, with real money. No card, no trial clock.",
     liveJobs: 1,
     monthlyUsd: 50,
     features: [],
     highlights: [
-      "One live job at a time",
-      "Up to $50 of work a month",
+      "One live job at a time, up to $50 of work a month",
+      "Sage's AI agent on every job: it writes the tasks, checks each submission and pays the real ones",
       "Product testing, gigs and milestone grants",
-      "AI verification and farm detection on every job",
-      "A public receipt for every payout and refusal",
+      "Farm and fraud checks on every submission",
+      "A public receipt for every payout, and a reason for every refusal",
+      "Talk to Sage on the web or in Telegram",
     ],
   },
   pro: {
@@ -74,11 +75,10 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     features: ["membersOnly", "autopilot", "exports"],
     highlights: [
       "Everything in Free",
-      "Unlimited live jobs",
-      "Up to $5,000 of work a month",
-      "Members-only work, by invite link",
-      "Autopilot: Sage decides what work to buy, inside your limits",
-      "Export every payout as CSV",
+      "Unlimited live jobs, up to $5,000 of work a month",
+      "Autopilot: fund once, and Sage's agent decides what work to buy next, inside limits you set",
+      "Private work for your own people, by invite link",
+      "Every payout exported for your books (CSV)",
     ],
   },
   team: {
@@ -92,8 +92,8 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     highlights: [
       "Everything in Pro",
       "Up to $50,000 of work a month",
-      "Admins beside the owner",
-      "Fraud reports: linked wallets and refused work, per job",
+      "Admins who run jobs beside you",
+      "A fraud report for every job: linked wallets and refused work, with the reasons",
     ],
   },
   programs: {
@@ -106,7 +106,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     features: ["membersOnly", "autopilot", "exports", "roles", "fraudReports"],
     highlights: [
       "Everything in Team, with no monthly ceiling",
-      "Set up with you, for your programme's rules",
+      "Set up with you, to your programme's rules",
       "Credit records your lenders can read",
       "A named contact and a response time",
     ],

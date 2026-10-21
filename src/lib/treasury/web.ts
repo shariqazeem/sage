@@ -3,7 +3,7 @@ import { getAddress } from "viem";
 import { founderStorageKey } from "@/lib/auth/founder";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
 import { onboardFounder, treasuryChainId } from "@/lib/privy/onboarding";
-import { LAUNCH_ENABLED_CHAINS } from "@/lib/launch/deployment-service";
+import { LAUNCH_ENABLED_CHAINS, launchClosedReason } from "@/lib/launch/deployment-service";
 import { chainConfig } from "@/lib/deputy/networks";
 import type { AgentWallet } from "@/lib/db/schema";
 
@@ -81,6 +81,10 @@ export const DEFAULT_ACCOUNT_CAP_USD = 50;
 export async function createWebTreasury(founderAddress: string, perCampaignCapUsd: number, chainId: number = treasuryChainId()): Promise<AgentWallet> {
   const existing = getWebTreasuryOn(founderAddress, chainId);
   if (existing) return existing;
+  // No new account opens on a network that is paused or not open yet: the money a founder sends to a
+  // new account must be money Sage can launch with (networks.ts PAUSED_NETWORKS).
+  const closed = launchClosedReason(chainId);
+  if (closed) throw new Error(closed);
   /*
     ONE OPENING AT A TIME PER FOUNDER AND CHAIN. A new workspace opens its account in the background
     (Privy takes several seconds), and the founder may press "Open your account" meanwhile. Without

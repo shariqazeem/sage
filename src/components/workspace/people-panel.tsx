@@ -210,7 +210,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleV
           {canExport ? (
             <a className="sage-btn sage-btn-sm" href="/api/workspaces/export?kind=payouts"><Download size={13} /> Every payout (CSV)</a>
           ) : (
-            <Link className="sage-btn sage-btn-sm" href={`/workspace/settings?plan=${cheapestWith("exports")}#plan`} title={`On ${PLANS[cheapestWith("exports")].name} and above`}>
+            <Link className="sage-btn sage-btn-sm" href={`/checkout?plan=${cheapestWith("exports")}`} title={`On ${PLANS[cheapestWith("exports")].name} and above`}>
               <Lock size={13} /> Every payout (CSV) · {PLANS[cheapestWith("exports")].name}
             </Link>
           )}

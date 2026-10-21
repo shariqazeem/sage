@@ -16,6 +16,7 @@ import { MemberWorkspace, type MemberView } from "@/components/workspace/member-
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
 import { founderChain } from "@/lib/auth/founder";
 import { configuredLaunchChains } from "@/lib/launch/deployment-service";
+import { billingView } from "@/lib/plans/billing-view";
 import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 export const runtime = "nodejs";
@@ -65,6 +66,8 @@ export default async function WorkspacePage() {
       me: ctx.memberKey,
       chain: founderChain(ctx.address) ?? "evm",
       metis: configuredLaunchChains().includes(METIS_MAINNET_CHAIN_ID),
+      // The chain is read only when a renewal is close or failed, so an ordinary Home load costs nothing.
+      billingNotice: founderChain(ctx.address) === "evm" ? (await billingView(ctx.address, { readBalance: "when-relevant" })).notice : null,
     };
     return <OwnerWorkspace view={view} />;
   }
