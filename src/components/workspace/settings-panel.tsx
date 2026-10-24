@@ -12,6 +12,7 @@ import "@/app/record/record.css";
 import { TreasuryCard } from "./treasury-card";
 import { MandateCard } from "./mandate-card";
 import { PlanCard } from "./plan-card";
+import { AgentKeysCard } from "./agent-keys-card";
 import type { PlanId } from "@/lib/plans/catalog";
 
 export interface SettingsView {
@@ -84,7 +85,7 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
           <section className="ws-card">
             <div className="ws-card-h"><h2>Workspace</h2></div>
             <label className="sage-label">Name</label>
-            <div className="ws-invite" style={{ marginTop: 6 }}>
+            <div className="ws-invite set-name">
               <input className="ws-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
               <button className="sage-btn sage-btn-sm" onClick={() => void rename()} disabled={saving || name.trim().length < 2 || name.trim() === ws.name}>{saving ? <Loader2 size={13} className="sage-spin2" /> : saved ? <><Check size={13} /> Saved</> : "Save"}</button>
             </div>
@@ -112,12 +113,12 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
               ))}
             </ul>
             {!hasOther && (
-              <div style={{ marginTop: 14 }}>
+              <div className="set-gap">
                 {!binding ? (
                   <button className="sage-btn sage-btn-sm" onClick={() => setBinding(true)}><Link2 size={13} /> Bind a {chainName(other)} wallet</button>
                 ) : (
                   <>
-                    <p className="ws-note" style={{ margin: "0 0 10px" }}>Sign in with the {chainName(other)} wallet once, then link. Both stay signed in, and work on either rail belongs to you.</p>
+                    <p className="ws-note set-lede">Sign in with the {chainName(other)} wallet once, then link. Both stay signed in, and work on either rail belongs to you.</p>
                     <FounderSignIn explainer={<>Pick the <b>{chainName(other)}</b> wallet.</>} onSignedIn={() => void link()} />
                     <div className="st-actions"><button className="st-back" onClick={() => void link()}>Already signed in with both — link now</button><button className="st-back" onClick={() => setBinding(false)}>Cancel</button></div>
                   </>
@@ -132,12 +133,12 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
             */}
             {account.chain === "evm" && <YourWallet address={account.address} />}
             {account.chain === "evm" && (
-              <div style={{ marginTop: 14 }}>
+              <div className="set-gap">
                 {!adding ? (
                   <button className="sage-btn sage-btn-sm" onClick={() => setAdding(true)}><Wallet size={13} /> Add an Ethereum wallet to this account</button>
                 ) : (
                   <>
-                    <p className="ws-note" style={{ margin: "0 0 10px" }}>Sign once with the wallet you want to add. You stay signed in as this account; the wallet becomes yours here too.</p>
+                    <p className="ws-note set-lede">Sign once with the wallet you want to add. You stay signed in as this account; the wallet becomes yours here too.</p>
                     <FounderSignIn intent="bind" explainer={<>Pick the wallet to <b>add</b>.</>} onSignedIn={() => { setAdding(false); setAddMsg("Wallet added — it pays and receives as you now."); router.refresh(); }} />
                     <div className="st-actions"><button className="st-back" onClick={() => setAdding(false)}>Cancel</button></div>
                   </>
@@ -145,12 +146,14 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
                 {addMsg && <p className="ws-ok">{addMsg}</p>}
               </div>
             )}
-            <div style={{ marginTop: 16 }}>
+            <div className="set-gap">
               <button className="st-back" onClick={() => void session.signOut().then(() => router.push("/"))}><LogOut size={12} /> Sign out</button>
             </div>
           </section>
 
           <TreasuryCard />
+
+          {ws && <AgentKeysCard />}
 
           {/* The mandate launches from the account; a founder who cannot hold one is told so by the card above, not handed a form that arms nothing. */}
           {account.chain === "evm" && <MandateCard />}
@@ -159,7 +162,7 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
         <div>
           <section className="ws-card">
             <div className="ws-card-h"><h2>Networks</h2><Link className="ws-chip" href="/workspace/account">your accounts</Link></div>
-            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b>. Sage also settles on Arc and Starknet, and new jobs on GOAT Network are paused (its USDC loses Stargate support on 23 October): open an account there from <Link href="/workspace/account">your account page</Link>, under More networks.</p>
+            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b>, and network fees are paid in METIS from your account. Sage also settles on Arc and Starknet (under More networks on <Link href="/workspace/account">your account page</Link>). GOAT Network is closed to new jobs; anything you hold there stays yours to withdraw.</p>
           </section>
           <section className="ws-card">
             <div className="ws-card-h"><h2>More</h2></div>

@@ -351,3 +351,39 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .home-bar::-webkit-progress-bar { background: var(--border); border-radius: var(--r-pill); }
 .home-bar::-webkit-progress-value { background: var(--ok); border-radius: var(--r-pill); }
 .home-bar::-moz-progress-bar { background: var(--ok); border-radius: var(--r-pill); }
+
+/* ═══ Settings: spacing that used to be inline, and the AI agents card ═══ */
+.set-name { margin-top: 6px; }
+.set-gap { margin-top: 14px; }
+.set-lede { margin: 0 0 10px; }
+.ag-lede { margin: 0 0 14px; }
+.ag-list { margin-bottom: 12px; }
+.ag-connect { margin-top: 4px; }
+.ag-fresh { display: grid; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--accent-border); border-radius: var(--r-md); background: var(--accent-soft); }
+.ag-fresh-t { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.ag-key-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ag-key { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12.5px; word-break: break-all; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--border); color: var(--ink); }
+.ag-form { display: grid; gap: 12px; margin-top: 4px; }
+.ag-scopes { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.ag-scopes legend { margin-bottom: 6px; font-size: 13px; color: var(--ink-muted); }
+.ag-scopes label { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 13.5px; line-height: 1.5; color: var(--ink-muted); }
+.ag-scopes b { color: var(--ink); font-weight: 600; }
+.ag-scopes input { margin-top: 3px; accent-color: var(--accent); }
+.ag-setup { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.ag-snippet { margin: 0; padding: 12px 14px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; word-break: break-all; }
+
+/* ═══ small controls shared by the account, Settings and anything else in the app ═══ */
+.acct-copy { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.acct-copy:hover { border-color: var(--accent); color: var(--accent); }
+.acct-link { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--accent); text-decoration: none; }
+.acct-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.acct-seg { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); width: max-content; max-width: 100%; }
+.acct-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.acct-seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.acct-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-muted); max-width: 520px; }
+.acct-amount { display: flex; gap: 8px; align-items: center; }
+.acct-amount .ws-input { flex: 1; min-width: 0; }
+.acct-unit { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); min-width: 44px; }
+.acct-max { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.acct-max:hover { border-color: var(--accent); color: var(--accent); }
+.acct-hint { font-size: 12px; color: var(--ink-faint); }

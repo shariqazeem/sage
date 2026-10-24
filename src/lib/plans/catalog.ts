@@ -40,6 +40,8 @@ export interface PlanSpec {
   liveJobs: number;
   /** Total budget launched in any 30 days, in USD. */
   monthlyUsd: number;
+  /** AI agents the owner can connect at once (live keys), enforced where keys are minted. */
+  agentKeys: number;
   features: readonly Feature[];
   /** The pricing table's lines, in order. Only things that exist. */
   highlights: readonly string[];
@@ -55,6 +57,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     blurb: "Try Sage on real work, with real money. No card, no trial clock.",
     liveJobs: 1,
     monthlyUsd: 50,
+    agentKeys: 1,
     features: [],
     highlights: [
       "One live job at a time, up to $50 of work a month",
@@ -63,6 +66,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
       "Farm and fraud checks on every submission",
       "A public receipt for every payout, and a reason for every refusal",
       "Talk to Sage on the web or in Telegram",
+      "Connect your own AI agent (Claude, Cursor or your code) with a key you can revoke",
     ],
   },
   pro: {
@@ -72,6 +76,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     blurb: "For founders and small teams who pay people every week.",
     liveJobs: UNLIMITED,
     monthlyUsd: 5_000,
+    agentKeys: 5,
     features: ["membersOnly", "autopilot", "exports"],
     highlights: [
       "Everything in Free",
@@ -79,6 +84,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
       "Autopilot: fund once, and Sage's agent decides what work to buy next, inside limits you set",
       "Private work for your own people, by invite link",
       "Every payout exported for your books (CSV)",
+      "Up to 5 AI agents connected, each with its own permissions",
     ],
   },
   team: {
@@ -88,12 +94,14 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     blurb: "For programmes and DAOs that pay many contributors.",
     liveJobs: UNLIMITED,
     monthlyUsd: 50_000,
+    agentKeys: 25,
     features: ["membersOnly", "autopilot", "exports", "roles", "fraudReports"],
     highlights: [
       "Everything in Pro",
       "Up to $50,000 of work a month",
       "Admins who run jobs beside you",
       "A fraud report for every job: linked wallets and refused work, with the reasons",
+      "Up to 25 AI agents connected",
     ],
   },
   programs: {
@@ -103,6 +111,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
     blurb: "For ecosystems, grant-makers and lenders.",
     liveJobs: UNLIMITED,
     monthlyUsd: UNLIMITED,
+    agentKeys: 100,
     features: ["membersOnly", "autopilot", "exports", "roles", "fraudReports"],
     highlights: [
       "Everything in Team, with no monthly ceiling",

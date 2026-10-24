@@ -258,7 +258,7 @@ export const asOpenAI = (t: { name: string; description: string; inputSchema: un
 // the wallet is bound SERVER-SIDE — the SIWE session on web, the chat's Privy agent wallet on
 // Telegram — never a tool arg, so it can only read the caller's own campaigns. Bound on BOTH
 // surfaces: the walletless founder is precisely the one who never sees a campaign id.
-const MY_CAMPAIGNS_TOOL = {
+export const MY_CAMPAIGNS_TOOL = {
   name: "sage_my_campaigns",
   description:
     "List THIS founder's own campaigns with live counts — status, reward, submissions, how many are pending review, and total released — PLUS their plans under readyToLaunch: ready but NOT yet launched (a plan is not a campaign until funded). Use when the founder asks about 'my campaigns', how they're doing, or whether anything needs their review. A plan in readyToLaunch launches with sage_fund_and_launch (Telegram) or at its planUrl (web) — never report it as missing or failed. No arguments; the founder is identified by their connected wallet.",

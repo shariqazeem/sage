@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 
 const TOC = {
   "ways-in": "Ways in",
+  agents: "Connect your own agent",
   mcp: "The MCP server",
   earn: "Let your agent earn",
   api: "The Agent API",
@@ -93,6 +94,13 @@ export default function Build() {
                 </td>
               </tr>
               <tr>
+                <td>Your own agent</td>
+                <td>Claude, Cursor or your code, acting as you with the permissions you give it</td>
+                <td>
+                  <code>POST /mcp</code> with a workspace key
+                </td>
+              </tr>
+              <tr>
                 <td>Agent API</td>
                 <td>Sage&apos;s own integrations, with a key</td>
                 <td>
@@ -107,6 +115,58 @@ export default function Build() {
           account: open work at <Link href="/marketplace">/marketplace</Link>, each job&apos;s board at{" "}
           <code>/c/&lt;job&gt;</code>, receipts at <code>/proof/&lt;transaction&gt;</code>, and each person&apos;s record
           at <code>/record/&lt;wallet&gt;</code>.
+        </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="agents">
+        <p>
+          A workspace owner can connect an AI agent they run, and it works Sage the way they would: it lists their jobs,
+          plans new work in a sentence, reads their account, and, if they allow it, launches a ready plan from their
+          account. Create a key in <Link href="/workspace/settings#agents">Settings, AI agents</Link>, tick what it may
+          do, and add Sage to the agent:
+        </p>
+        <pre className="doc-code">
+          <code>{`claude mcp add --transport http sage ${base}/mcp --header "Authorization: Bearer sage_sk_…"`}</code>
+        </pre>
+        <div className="doc-table">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Permission</th>
+                <th scope="col">Its tools</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Read (always)</td>
+                <td>
+                  <code>sage_my_campaigns</code>, <code>sage_account</code>, <code>sage_get_campaign</code>,{" "}
+                  <code>sage_get_submission</code>, <code>sage_get_inspection</code>, <code>sage_get_proof</code>,{" "}
+                  <code>sage_browse_missions</code>, <code>sage_example_plan</code>
+                </td>
+              </tr>
+              <tr>
+                <td>Plan work</td>
+                <td>
+                  <code>sage_start_inspection</code>, <code>sage_answer_questions</code>,{" "}
+                  <code>sage_create_direct_campaign</code>, <code>sage_first_look</code>, <code>sage_goal_checkpoints</code>,{" "}
+                  <code>sage_check_evidence</code>. Moves no money.
+                </td>
+              </tr>
+              <tr>
+                <td>Launch from your account</td>
+                <td>
+                  <code>sage_launch_from_account</code>: funds a ready plan exactly as your own Launch button does
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The agent is always you: a tool argument can&apos;t name another founder. A key never lifts a limit. Your plan
+          caps how much can launch, your account&apos;s per-job limit caps each job, and each job&apos;s vault pays only
+          verified work. Sage keeps a hash of the key, never the key, and a revoked key stops on its next call. Free
+          connects one agent, Pro five and Team twenty-five.
         </p>
       </DocSection>
 

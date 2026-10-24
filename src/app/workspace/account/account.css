@@ -47,10 +47,6 @@
 .acct-addr-main { display: grid; gap: 8px; min-width: 0; }
 .acct-addr { display: block; font-family: var(--font-mono); font-size: 13px; word-break: break-all; padding: 10px 12px; border-radius: var(--r-sm); background: var(--bg); border: 1px solid var(--border); color: var(--ink); }
 .acct-addr-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.acct-copy { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.acct-copy:hover { border-color: var(--accent); color: var(--accent); }
-.acct-link { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--accent); text-decoration: none; }
-.acct-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 .acct-ways { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; counter-reset: way; }
 .acct-ways li { counter-increment: way; display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
@@ -59,16 +55,6 @@
 .acct-ways i { font-style: normal; font-weight: 600; color: var(--ink); }
 
 /* swap and send forms */
-.acct-seg { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); width: max-content; max-width: 100%; }
-.acct-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.acct-seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
-.acct-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-muted); max-width: 520px; }
-.acct-amount { display: flex; gap: 8px; align-items: center; }
-.acct-amount .ws-input { flex: 1; min-width: 0; }
-.acct-unit { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); min-width: 44px; }
-.acct-max { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.acct-max:hover { border-color: var(--accent); color: var(--accent); }
-.acct-hint { font-size: 12px; color: var(--ink-faint); }
 .acct-quote { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); max-width: 520px; }
 .acct-quote.muted { display: flex; align-items: center; gap: 8px; color: var(--ink-faint); font-size: 13px; }
 .acct-quote-main { margin: 0; font-size: 14px; color: var(--ink); }
