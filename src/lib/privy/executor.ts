@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Address, Hex } from "viem";
 import { writePublicClient } from "@/lib/deputy/chain";
-import { explorerTxUrl } from "@/lib/deputy/networks";
+import { chainConfig, explorerTxUrl } from "@/lib/deputy/networks";
 import { signEvmTransaction, type EvmTxRequest } from "./client";
 
 /**
@@ -35,6 +35,35 @@ export interface PrivyExecResult {
   explorerUrl: string;
 }
 
+/**
+ * HOW A TRANSACTION IS PRICED DEPENDS ON THE CHAIN, and one shape for every chain broke Metis.
+ *
+ * Metis Andromeda has no EIP-1559: its blocks carry no base fee, and its node REJECTS a type-2
+ * transaction before reading it. Measured 24 Oct 2026 against andromeda.metis.io with a throwaway
+ * key: a signed type-2 transaction answered "rlp: expected input list for types.txdata", while the
+ * same transaction as type 0 got as far as "insufficient funds". Until then this executor signed
+ * type 2 everywhere, so every account action on Metis (launch, withdraw, a plan paid from the
+ * balance, stopping a job) would have failed on the first try. A chain registered as `legacy` is
+ * signed as type 0 with a gas price; every other chain keeps EIP-1559.
+ */
+export async function priceTransaction(
+  chainId: number,
+  tx: Omit<EvmTxRequest, "max_fee_per_gas" | "max_priority_fee_per_gas" | "gas_price" | "type">,
+  fees: { baseFeePerGas: bigint | null; gasPrice: () => Promise<bigint>; priorityFee: () => Promise<bigint> },
+): Promise<EvmTxRequest> {
+  const bump = (n: bigint): bigint => (n * BigInt(12)) / BigInt(10); // +20% headroom
+  if (chainConfig(chainId).gas === "legacy") {
+    return { ...tx, type: 0, gas_price: toHex(bump(await fees.gasPrice())) };
+  }
+  // GOAT rejects a tip below 130000 wei; floor it well above that (still a negligible cost), and let
+  // maxFee cover a bumped base fee plus the tip so a base-fee wiggle between blocks can't underprice.
+  // GOAT wants ~4× its 130000-wei minimum tip; every other chain says what it wants.
+  const maxPriorityFeePerGas = chainId === 2345 ? BigInt(500_000) : await fees.priorityFee().catch(() => BigInt(1_000_000_000));
+  const baseFee = fees.baseFeePerGas ?? (await fees.gasPrice());
+  // no `type` here: Privy reads EIP-1559 from the fee fields, exactly as every GOAT and Arc launch was signed
+  return { ...tx, max_fee_per_gas: toHex(bump(baseFee) + maxPriorityFeePerGas), max_priority_fee_per_gas: toHex(maxPriorityFeePerGas) };
+}
+
 /** Build → Privy-sign → broadcast → await one call. Throws on revert or a refused signature. */
 export async function executeViaPrivy(
   walletId: string,
@@ -53,22 +82,13 @@ export async function executeViaPrivy(
     client.estimateGas({ account: from, to: call.to, data: call.data, value }),
     client.getBlock({ blockTag: "latest" }),
   ]);
-  // GOAT rejects a tip below 130000 wei; floor it well above that (still a negligible cost), and let
-  // maxFee cover a bumped base fee plus the tip so a base-fee wiggle between blocks can't underprice.
-  // GOAT wants ~4× its 130000-wei minimum tip; every other chain says what it wants.
-  const maxPriorityFeePerGas = chainId === 2345 ? BigInt(500_000) : await client.estimateMaxPriorityFeePerGas().catch(() => BigInt(1_000_000_000));
-  const baseFee = block.baseFeePerGas ?? (await client.getGasPrice());
-  const maxFeePerGas = bump(baseFee) + maxPriorityFeePerGas;
-
-  const tx: EvmTxRequest = {
+  const tx: EvmTxRequest = await priceTransaction(chainId, {
     to: call.to,
     value: toHex(value),
     data: call.data,
     nonce: toHex(BigInt(nonce)),
     gas_limit: toHex(bump(gasLimit)),
-    max_fee_per_gas: toHex(maxFeePerGas),
-    max_priority_fee_per_gas: toHex(maxPriorityFeePerGas),
-  };
+  }, { baseFeePerGas: block.baseFeePerGas ?? null, gasPrice: () => client.getGasPrice(), priorityFee: () => client.estimateMaxPriorityFeePerGas() });
 
   const signed = await signEvmTransaction(walletId, tx, chainId);
   const txHash = await client.sendRawTransaction({ serializedTransaction: signed });

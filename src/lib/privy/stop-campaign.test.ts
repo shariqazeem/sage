@@ -40,13 +40,10 @@ vi.mock("./mandate", () => ({
   },
 }));
 vi.mock("./client", () => ({
-  setWalletPolicies: async () => {
-    h.policiesSet += 1;
-  },
-}));
-vi.mock("./withdraw", () => ({
-  restoreBasePolicy: async () => {
-    h.restored += 1;
+  // the base mandate going back on is the re-lock; anything else is the scoped permit going on
+  setWalletPolicies: async (_id: string, ids: string[]) => {
+    if (ids[0] === "pol_base") h.restored += 1;
+    else h.policiesSet += 1;
   },
 }));
 vi.mock("./executor", () => ({

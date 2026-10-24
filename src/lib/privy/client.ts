@@ -107,8 +107,10 @@ export interface EvmTxRequest {
   gas_limit: `0x${string}`;
   max_fee_per_gas?: `0x${string}`;
   max_priority_fee_per_gas?: `0x${string}`;
-  /** Legacy fallback — GOAT accepts EIP-1559 but some nodes want legacy gas. */
+  /** Legacy pricing (type 0), for a chain without EIP-1559: Metis Andromeda refuses anything else. */
   gas_price?: `0x${string}`;
+  /** 0 = legacy. Omitted for EIP-1559, which Privy infers from the fee fields. */
+  type?: 0;
 }
 
 /**

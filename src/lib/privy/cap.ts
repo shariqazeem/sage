@@ -8,6 +8,7 @@ import { launchChainConfig } from "@/lib/launch/deployment-service";
 import { createMandatePolicy, type MandateSpec } from "./mandate";
 import { mandateName } from "./mandate-name";
 import { setWalletPolicies } from "./client";
+import { withWalletLock } from "./scoped";
 
 /** The cap a founder may choose for one campaign, in whole USDC — the same bounds as opening. */
 export const CAP_MIN_USD = 1;
@@ -38,9 +39,12 @@ export async function setAccountCap(wallet: AgentWallet, capBase: bigint): Promi
     reclaim: getAddress(wallet.founderAddress),
     perCampaignCapBase: capBase,
   };
-  const policyId = await createMandatePolicy(spec);
-  await setWalletPolicies(wallet.privyWalletId, [policyId]);
-  updateMandate(wallet.chatId, policyId, Number(capBase));
+  // under the wallet's permit lock: a swap or withdrawal in flight would re-lock to the OLD mandate
+  await withWalletLock(wallet, async () => {
+    const policyId = await createMandatePolicy(spec);
+    await setWalletPolicies(wallet.privyWalletId, [policyId]);
+    updateMandate(wallet.chatId, policyId, Number(capBase));
+  });
   const saved = getAgentWallet(wallet.chatId);
   if (!saved) throw new Error("the account row vanished while its cap was being changed");
   return saved;

@@ -94,6 +94,10 @@ interface LimiterStore {
   publicMcpGlobalDaily: RateLimiter;
   /** promo code checks / min / founder: a shared code is meant to be typed, never guessed by a script. */
   promo: RateLimiter;
+  /** swap quotes / min / founder: a quote is two chain reads, typed as the founder edits an amount. */
+  swapQuote: RateLimiter;
+  /** money moves from an account (swap, send) / min / founder: a person confirms each one. */
+  accountMove: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -141,8 +145,13 @@ function limiters(): LimiterStore {
         86_400_000,
       ),
       promo: new RateLimiter(10, 60_000), // 10 promo code checks / min / founder
+      swapQuote: new RateLimiter(40, 60_000), // 40 swap quotes / min / founder
+      accountMove: new RateLimiter(6, 60_000), // 6 account moves / min / founder
     };
   }
+  // a store memoized by an older build (dev HMR) lacks kinds added since: add them, never crash
+  g.__sageLimiters.swapQuote ??= new RateLimiter(40, 60_000);
+  g.__sageLimiters.accountMove ??= new RateLimiter(6, 60_000);
   return g.__sageLimiters;
 }
 

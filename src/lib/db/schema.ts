@@ -1551,3 +1551,64 @@ export const x402MetisSettlements = sqliteTable(
 );
 
 export type X402MetisSettlementRow = typeof x402MetisSettlements.$inferSelect;
+
+/**
+ * MOVES SAGE MADE INSIDE AN ACCOUNT, at the founder's request: a swap between USDC and METIS, or METIS
+ * sent to an address (24 Oct 2026). The chain is still the record of what moved: every row carries its
+ * transaction. It exists because a native METIS transfer leaves no log on Metis, so the account's
+ * activity could not otherwise show a METIS leg at all. Amounts are base units as decimal strings
+ * (USDC 6 dp, METIS 18 dp), never floats.
+ */
+export type AccountMoveKind = "swap" | "send";
+export type AccountAsset = "usdc" | "metis";
+export const accountMoves = sqliteTable(
+  "account_moves",
+  {
+    id: text("id").primaryKey(),
+    founder: text("founder").notNull(),
+    wallet: text("wallet").notNull(),
+    chainId: integer("chain_id").notNull(),
+    kind: text("kind").$type<AccountMoveKind>().notNull(),
+    assetIn: text("asset_in").$type<AccountAsset>().notNull(),
+    amountIn: text("amount_in").notNull(),
+    assetOut: text("asset_out").$type<AccountAsset>(),
+    amountOut: text("amount_out"),
+    /** where it went: the address a send went to, or the pool a swap went through */
+    counterparty: text("counterparty").notNull(),
+    txHash: text("tx_hash").notNull(),
+    /** a swap's approval, when it needed one */
+    approveTxHash: text("approve_tx_hash"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("account_moves_wallet_idx").on(t.wallet), index("account_moves_founder_idx").on(t.founder)],
+);
+export type AccountMove = typeof accountMoves.$inferSelect;
+
+/**
+ * CONNECT YOUR OWN AI AGENT (24 Oct 2026). A key a workspace owner mints for an agent they run (Claude,
+ * Cursor, their own code). The agent acts AS the owner through Sage's MCP and Agent API, inside the
+ * owner's plan and the account's mandate, and only with the scopes the owner ticked. Sage stores a
+ * SHA-256 of the key, never the key: it is shown once. Revoking stamps `revoked_at`; the row stays for
+ * the record of what the agent did.
+ */
+export type AgentKeyScope = "read" | "plan" | "launch";
+export const agentKeys = sqliteTable(
+  "agent_keys",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    /** the owner the agent acts as (founder storage key) */
+    founder: text("founder").notNull(),
+    name: text("name").notNull(),
+    /** the first characters of the key, to recognise it in a list */
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    /** comma-separated AgentKeyScope */
+    scopes: text("scopes").notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at"),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [uniqueIndex("agent_keys_hash_idx").on(t.keyHash), index("agent_keys_workspace_idx").on(t.workspaceId)],
+);
+export type AgentKey = typeof agentKeys.$inferSelect;

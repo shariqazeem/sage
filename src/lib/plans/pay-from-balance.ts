@@ -5,7 +5,7 @@ import { withdrawViaPrivy } from "@/lib/privy/withdraw";
 import { accountBalanceBase } from "@/lib/treasury/activity";
 import { nativeBalanceWei } from "@/lib/telegram/agent-wallet-tools";
 import { grantGasStipend } from "@/lib/treasury/gas-stipend";
-import { minLaunchGasWei, operatorGasFloorWei } from "@/lib/treasury/gas-policy";
+import { minLaunchGasWei, needsFeeMessage, operatorCoversGas, operatorGasFloorWei, SWAP_GAS_UNITS } from "@/lib/treasury/gas-policy";
 import { operatorNativeBalanceWei, sendNative } from "@/lib/deputy/native-send";
 import { publicClient } from "@/lib/deputy/chain";
 import { acquireLock, releaseLock } from "@/lib/db/campaigns";
@@ -19,10 +19,11 @@ import { applyPlanPayment, quotePlan, type Quote } from "./apply-payment";
 export const TRANSFER_GAS = BigInt(120_000);
 
 /**
- * SAGE PAYS THE NETWORK FEE ON A PLAN PAYMENT, so paying for Sage from the Sage balance needs USDC
- * and nothing else, the way a card needs a balance and nothing else. Pure decision: cover exactly one
- * transfer (with a quarter of headroom) when the balance lacks it, and only while the operator keeps
- * its settlement reserve. A few tenths of a cent on Metis, against a $29 payment.
+ * THE NETWORK FEE ON A PLAN PAYMENT. Since 24 Oct 2026 the account pays it, like every other move
+ * (gas-policy.ts operatorCoversGas): a few tenths of a cent of METIS against a $29 payment, and a
+ * balance without it is told how to add some. A deployment that turns the operator's cover back on
+ * gets this pure decision: cover exactly one transfer (with a quarter of headroom) when the balance
+ * lacks it, and only while the operator keeps its settlement reserve.
  */
 export type TransferGasDecision =
   | { cover: true; amountWei: bigint }
@@ -88,11 +89,16 @@ export async function payPlanFromBalance(
       };
     }
 
-    // The network fee, which the founder never has to find: the one-time launch stipend first (it also
-    // leaves room for a launch), then exactly one transfer's worth.
+    // The network fee. The account pays it; only a deployment that turned the operator's cover back on
+    // sends any (the one-time launch stipend first, then exactly one transfer's worth).
     let gasTxHash: Hash | null = null;
     const gasPrice = await publicClient(input.chainId).getGasPrice().catch(() => BigInt(0));
     const gas = await nativeBalanceWei(wallet, input.chainId);
+    const feeWei = (TRANSFER_GAS * gasPrice * BigInt(12)) / BigInt(10);
+    if (gasPrice > BigInt(0) && gas < feeWei && !operatorCoversGas()) {
+      const c = chainConfig(input.chainId);
+      return { ok: false, code: "gas", status: 400, error: `Nothing was charged. ${needsFeeMessage({ chainId: input.chainId, action: "payment", needWei: feeWei, haveWei: gas, swapFeeWei: SWAP_GAS_UNITS * gasPrice, nativeSymbol: c.nativeSymbol, network: c.name })}` };
+    }
     if (gasPrice > BigInt(0) && gas < TRANSFER_GAS * gasPrice) {
       const stipend = await grantGasStipend({ chainId: input.chainId, wallet, walletUsdcBase: balance, budgetBase: q.priceBase, gasWei: gas, minGasWei: minLaunchGasWei(input.chainId) });
       if (stipend.granted) {
