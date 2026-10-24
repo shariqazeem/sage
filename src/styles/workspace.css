@@ -318,3 +318,36 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-billing-notice:hover { border-color: var(--accent-border); }
 .ws-billing-notice.warn { border-color: var(--warn-border); background: var(--warn-soft); color: var(--warn); }
 .ws-billing-go { color: var(--accent); font-weight: 600; font-size: 13px; white-space: nowrap; }
+
+/* ═══ HOME (24 Oct 2026): the money, the one next step, live jobs, what Sage did ═══ */
+.home-top { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 860px) { .home-top { grid-template-columns: 1fr; } }
+.home-tile { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px 22px; box-shadow: var(--shadow-card); min-width: 0; }
+.home-k { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+.home-bal { font-size: clamp(30px, 4.4vw, 40px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.home-bal.small { font-size: 20px; letter-spacing: -0.01em; }
+.home-bal-u { margin-left: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--ink-faint); }
+.home-fee { font-size: 13px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.home-fee .faint, .home-usage.faint { color: var(--ink-faint); }
+.home-moves { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.home-move { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--r-md); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 600; background: var(--surface); transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.home-move:hover { border-color: var(--accent); color: var(--accent); }
+.home-usage { font-size: 13.5px; color: var(--ink-muted); }
+.home-usage b { color: var(--ink); font-weight: 650; }
+.home-link { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; padding-top: 8px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.home-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* the one next step: the only call to action on Home besides "Post a job" */
+.home-step { grid-column: 1 / -1; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 16px 20px; border: 1px solid var(--accent-border); border-radius: var(--r-lg); background: var(--accent-soft); }
+@media (max-width: 860px) { .home-money { order: 1; } .home-step { order: 2; } .home-plan { order: 3; } }
+.home-step-ic { width: 28px; height: 28px; border-radius: var(--r-pill); display: grid; place-items: center; color: var(--accent); background: var(--surface); border: 1px solid var(--accent-border); }
+.home-step-main h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; color: var(--ink); }
+.home-step-main p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-muted); }
+@media (max-width: 640px) { .home-step { grid-template-columns: 28px minmax(0, 1fr); } .home-step .sage-btn { grid-column: 1 / -1; justify-self: start; } }
+
+/* a live job's progress: paid of its slots */
+.home-job .ws-row-main { display: grid; gap: 0; }
+.home-bar { appearance: none; -webkit-appearance: none; display: block; width: min(320px, 100%); height: 4px; margin-top: 8px; border: 0; border-radius: var(--r-pill); background: var(--border); overflow: hidden; color: var(--ok); }
+.home-bar::-webkit-progress-bar { background: var(--border); border-radius: var(--r-pill); }
+.home-bar::-webkit-progress-value { background: var(--ok); border-radius: var(--r-pill); }
+.home-bar::-moz-progress-bar { background: var(--ok); border-radius: var(--r-pill); }

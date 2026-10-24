@@ -42,6 +42,10 @@ export interface TreasuryStatus {
   enoughGas: boolean | null;
   /** the account can swap USDC ⇄ its gas token inside Sage (Metis) */
   canSwap: boolean;
+  /** the network's gas price now, in wei (decimal string), so a form can price a fee; null where unread */
+  gasPriceWei: string | null;
+  /** the gas a launch needs on this network, in wei (decimal string) */
+  launchFloorWei: string;
 }
 
 export async function webTreasuryStatus(founderAddress: string, chainId: number = treasuryChainId()): Promise<TreasuryStatus | null> {
@@ -49,10 +53,11 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
   if (!t) return null;
   const c = chainConfig(t.chainId);
   const swaps = swapsOn(t.chainId);
-  const [balance, gas, price] = await Promise.all([
+  const [balance, gas, price, gasPrice] = await Promise.all([
     usdcBalanceBase(t.privyWalletAddress, t.chainId).catch(() => null),
     nativeBalanceWei(t.privyWalletAddress, t.chainId).catch(() => null),
     swaps ? readMetisPriceUsdcBase() : Promise.resolve(null),
+    publicClient(t.chainId).getGasPrice().catch(() => null),
   ]);
   return {
     address: t.privyWalletAddress,
@@ -68,6 +73,8 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
     gasUsd: gas === null || price === null ? null : metisToUsd(gas, price),
     enoughGas: gas === null ? null : gas >= minLaunchGasWei(t.chainId),
     canSwap: swaps,
+    gasPriceWei: gasPrice === null ? null : gasPrice.toString(),
+    launchFloorWei: minLaunchGasWei(t.chainId).toString(),
   };
 }
 

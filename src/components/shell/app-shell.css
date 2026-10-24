@@ -21,10 +21,20 @@ html[data-app-shell="on"] .spp {
     padding-right: 24px;
   }
 }
+/* The workspace screens (.ws-shell) are centred at 1080px. Below ~1240px their left edge reaches the
+   rail (16px + 60px), and they were laid out under it: measured 24 Oct 2026 at 900px wide, the page
+   title began at 24px with the rail covering 16-76px. Give them the same room the launch page has. */
+@media (max-width: 1240px) {
+  html[data-app-shell="on"] .ws-shell {
+    padding-left: 96px;
+    padding-right: 24px;
+  }
+}
 @media (max-width: 720px) {
   html[data-app-shell="on"] .sb-shell,
   html[data-app-shell="on"] .lx-wrap,
-  html[data-app-shell="on"] .agent-page {
+  html[data-app-shell="on"] .agent-page,
+  html[data-app-shell="on"] .ws-shell {
     padding-left: 16px;
     padding-right: 16px;
     padding-bottom: 92px; /* room for the mobile bottom rail */

@@ -58,9 +58,9 @@ export function StartFlow({
         setErr(json.error ?? "Could not create the workspace.");
         return;
       }
-      // An Ethereum sign-in has an account now (opened with the workspace): show it, ready to fund.
-      // A Starknet sign-in can't hold one, so it goes straight to posting work.
-      router.push(chain === "starknet" ? "/launch" : "/workspace/account?welcome=1");
+      // Home asks for the one next step (open or fund the account, then the first job). A Starknet
+      // sign-in can't hold an account, so it goes straight to posting work.
+      router.push(chain === "starknet" ? "/launch" : "/workspace");
     } catch {
       setErr("Network error. Try again.");
     } finally {

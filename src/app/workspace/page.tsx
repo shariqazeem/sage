@@ -11,13 +11,46 @@ import { listSubmissions } from "@/lib/db/campaigns";
 import { loadFounderDesk } from "@/lib/campaigns/founder-activity";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { redirect } from "next/navigation";
-import { OwnerWorkspace, type OwnerView } from "@/components/workspace/owner-workspace";
+import { OwnerWorkspace, type HomeAccount, type OwnerView } from "@/components/workspace/owner-workspace";
 import { MemberWorkspace, type MemberView } from "@/components/workspace/member-workspace";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
 import { founderChain } from "@/lib/auth/founder";
-import { configuredLaunchChains } from "@/lib/launch/deployment-service";
+import { launchClosedReason } from "@/lib/launch/deployment-service";
 import { billingView } from "@/lib/plans/billing-view";
-import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
+import { chainConfig } from "@/lib/deputy/networks";
+import { effectivePlan, founderUsage } from "@/lib/plans/founder-plan";
+import { getMandate } from "@/lib/db/operator";
+import { treasuryChainId } from "@/lib/privy/onboarding";
+import { getWebTreasury, webTreasuryOpening } from "@/lib/treasury/web";
+import { webTreasuryStatus } from "@/lib/treasury/launch";
+import { accountUnavailableBecause } from "@/lib/treasury/summary";
+
+/** The account as Home shows it: balances when it is open, and otherwise the plain state. */
+async function homeAccount(founder: string): Promise<HomeAccount> {
+  const because = accountUnavailableBecause(founder);
+  const home = treasuryChainId();
+  const network = chainConfig(home).name;
+  if (because) return { state: because, network };
+  const t = getWebTreasury(founder);
+  if (!t) {
+    if (webTreasuryOpening(founder, home)) return { state: "opening", network };
+    const closed = launchClosedReason(home);
+    return closed ? { state: "closed", network, reason: closed } : { state: "none", network };
+  }
+  const c = chainConfig(t.chainId);
+  const s = await webTreasuryStatus(founder, t.chainId);
+  return {
+    state: "open",
+    network: c.name,
+    nativeSymbol: c.nativeSymbol,
+    usdc: s?.balanceUsd ?? 0,
+    gasWei: s?.gasWei ?? null,
+    gasUsd: s?.gasUsd ?? null,
+    launchFloorWei: s?.launchFloorWei ?? "0",
+    usdcIsGas: c.nativeSymbol === "USDC",
+    canSwap: s?.canSwap ?? false,
+  };
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +98,12 @@ export default async function WorkspacePage() {
       desk: loadFounderDesk(ctx.address, 8),
       me: ctx.memberKey,
       chain: founderChain(ctx.address) ?? "evm",
-      metis: configuredLaunchChains().includes(METIS_MAINNET_CHAIN_ID),
+      usage: (() => {
+        const u = founderUsage(ctx.address);
+        return { plan: effectivePlan(ctx.address), liveJobs: u.liveJobs, launchedUsd: Number(u.launchedBase) / 1e6 };
+      })(),
+      account: await homeAccount(ctx.address),
+      autopilotArmed: getMandate(ctx.address)?.enabled === 1,
       // The chain is read only when a renewal is close or failed, so an ordinary Home load costs nothing.
       billingNotice: founderChain(ctx.address) === "evm" ? (await billingView(ctx.address, { readBalance: "when-relevant" })).notice : null,
     };
