@@ -837,6 +837,16 @@ export async function callSageTool(
       if (campaign.status !== "live" && campaign.status !== "draft") {
         return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: `This campaign is ${campaign.status} — invites are for live campaigns.` }) }], isError: false };
       }
+      /*
+        A CHAT-MINTED RECIPIENT WALLET CASHES OUT BY SIGNATURE (EIP-3009 transferWithAuthorization), which
+        only GOAT's USDC supports. Metis m.USDC has no such function (measured 19 Oct 2026), and the wallet
+        holds no METIS for a fee, so a person invited this way to a Metis job would be paid and unable to
+        move it. Refused in words instead, with the door that works: a workspace invite on the web, where
+        the person signs in with an email and is paid to a wallet they control.
+      */
+      if ((campaign.chainId ?? 2345) !== 2345 || campaign.settlementRail === "starknet") {
+        return { content: [{ type: "text", text: JSON.stringify({ ok: false, error: "Chat invite links pay into a wallet that can only cash out on GOAT, so they aren't offered for this job. Invite people from the web instead (Team, Invite people): they sign in with an email and are paid to a wallet they control." }) }], isError: false };
+      }
       const invite = createRecipientInvite(campaign.id, wallet);
       return {
         content: [

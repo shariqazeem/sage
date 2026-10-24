@@ -6,6 +6,7 @@ import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { publicClient } from "@/lib/deputy/chain";
 import { chainConfig } from "@/lib/deputy/networks";
 import { reward } from "@/lib/format";
+import { formatNative, minLaunchGasWei } from "@/lib/treasury/gas-policy";
 
 /**
  * The deterministic (no-LLM) /status dashboard for a chat that owns an agent wallet: the wallet
@@ -37,14 +38,19 @@ export async function buildWalletStatus(chatId: string): Promise<string | null> 
   const w = getAgentWallet(chatId);
   if (!w) return null;
 
-  const balance = await usdcBalanceBase(w.privyWalletAddress, w.chainId);
+  const c = chainConfig(w.chainId);
+  const [balance, gasWei] = await Promise.all([
+    usdcBalanceBase(w.privyWalletAddress, w.chainId),
+    c.nativeSymbol === "USDC" ? Promise.resolve(null) : publicClient(w.chainId).getBalance({ address: getAddress(w.privyWalletAddress) }).catch(() => null),
+  ]);
   const overview = getDeputyOverview(w.privyWalletAddress);
-  const live = overview.campaigns.filter((c) => c.status === "live");
+  const live = overview.campaigns.filter((camp) => camp.status === "live");
 
   const lines: string[] = [
-    "Your Sage agent wallet",
+    `Your Sage agent wallet on ${c.name}`,
     `Address: ${w.privyWalletAddress}`,
     `Balance: ${reward(Number(balance), w.chainId)}  ·  Cap: ${reward(Number(w.perCampaignCapBase), w.chainId)} per campaign`,
+    ...(gasWei !== null ? [`Network fees: ${formatNative(gasWei)} ${c.nativeSymbol}${gasWei < minLaunchGasWei(w.chainId) ? ` (about ${formatNative(minLaunchGasWei(w.chainId))} launches a campaign)` : ""}`] : []),
     "",
   ];
 

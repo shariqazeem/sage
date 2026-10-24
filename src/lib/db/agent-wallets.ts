@@ -54,7 +54,8 @@ export function telegramChatOf(founderAddress: string): string | null {
     .from(agentWallets)
     .where(sql`lower(${agentWallets.founderAddress}) = ${f} and ${agentWallets.chatId} not like 'web:%'`)
     .get();
-  return row?.chatId ?? null;
+  // a wallet set aside when its network paused is keyed `<chat>@<chainId>`; the chat is the part before
+  return row?.chatId ? (row.chatId.split("@")[0] ?? null) : null;
 }
 
 export interface SaveAgentWalletInput {
@@ -109,4 +110,15 @@ export function updateMandate(chatId: string, policyId: string, perCampaignCapBa
     .set({ policyId, perCampaignCapBase, updatedAt: nowSeconds() })
     .where(eq(agentWallets.chatId, chatId))
     .run();
+}
+
+/**
+ * Move a binding to a new key (a chat's wallet set aside when its network was paused, so a new one
+ * can open under the chat's own key). The wallet, its mandate and its money are untouched: only the
+ * key the chat finds it by changes. Refuses to overwrite a row already at the new key.
+ */
+export function renameAgentWallet(fromChatId: string, toChatId: string): boolean {
+  if (getAgentWallet(toChatId)) return false;
+  const res = db.update(agentWallets).set({ chatId: toChatId, updatedAt: nowSeconds() }).where(eq(agentWallets.chatId, fromChatId)).run();
+  return res.changes > 0;
 }

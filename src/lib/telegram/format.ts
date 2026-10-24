@@ -154,7 +154,7 @@ export function helpText(): string {
     "",
     "How it works:",
     "1. Tell me your product URL and a budget — I inspect it and design specific testing missions.",
-    "2. You approve the plan and fund the campaign (real USDC on GOAT).",
+    "2. You approve the plan and fund it with real USDC on Metis (plus a little METIS for network fees).",
     "3. Sage pays testers automatically for verified work — and DMs you every payout with a proof link.",
     "",
     "Commands:",

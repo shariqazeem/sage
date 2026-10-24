@@ -43,6 +43,7 @@ vi.mock("@/lib/privy/onboarding", () => ({
         }
       : null,
   onboardWalletless: vi.fn(),
+  treasuryChainId: () => 1088,
 }));
 
 import { callAgentWalletTool, MIN_GAS_WEI } from "./agent-wallet-tools";
@@ -59,19 +60,19 @@ beforeEach(() => {
 });
 
 describe("wallet status answers the gas question", () => {
-  it("reports the native BTC balance, not just USDC", async () => {
+  it("reports the native gas balance in the wallet's own token, not just USDC", async () => {
     h.gasWei = BigInt(5_000_000_000_000);
     const s = await status();
     expect(s.balanceUsdc).toBe(6.5);
-    expect(s.gasSymbol).toBe("BTC");
-    expect(s.gasBalanceBtc).toBe("0.000005");
+    expect(s.gasSymbol).toBe("BTC"); // this wallet is on GOAT
+    expect(s.gasBalance).toBe("0.000005");
   });
 
   it("says plainly when there is not enough gas to launch", async () => {
     h.gasWei = BigInt(0);
     const s = await status();
     expect(s.enoughGasToLaunch).toBe(false);
-    expect(s.gasBalanceBtc).toBe("0");
+    expect(s.gasBalance).toBe("0");
   });
 
   it("says so when there is enough", async () => {
@@ -85,14 +86,14 @@ describe("wallet status answers the gas question", () => {
     h.gasWei = MIN_GAS_WEI - BigInt(1);
     expect((await status()).enoughGasToLaunch).toBe(false);
     const s = await status();
-    expect(s.minGasToLaunchBtc).toBe("0.000003");
+    expect(s.minGasToLaunch).toBe("0.000003");
   });
 
   it("degrades honestly when the chain read fails, rather than claiming zero gas", async () => {
     // Reporting 0 on an RPC blip would send a funded founder off to top up gas they already have.
     h.throwGas = true;
     const s = await status();
-    expect(s.gasBalanceBtc).toBeNull();
+    expect(s.gasBalance).toBeNull();
     expect(s.enoughGasToLaunch).toBeNull();
     expect(s.balanceUsdc).toBe(6.5); // the USDC read still succeeded
   });
