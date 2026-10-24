@@ -23,6 +23,18 @@
 > receipts and records keep working. Metis is now the ONE primary network and the default ("pause GOAT, no
 > Arc default": nothing new launches until Metis's factory is live; Arc stays an explicit choice). Plans are
 > billed on Metis only, renew like a card from the Sage balance, and take promo codes (§4).
+>
+> **24 Oct 2026 (the founder's decisions): people pay their own network fee, and the account does more.**
+> - The account pays its own METIS (`operatorCoversGas` in `src/lib/treasury/gas-policy.ts`; `OPERATOR_COVERS_GAS=1`
+>   brings the operator's old cover back). Every door short of METIS says how much and how to get it (`needsFeeMessage`).
+>   The operator still pays what only it sends (settling a payout).
+> - The account swaps USDC ⇄ METIS through Netswap's METIS/m.USDC pool (`src/lib/treasury/swap-venue.ts`, `swap.ts`),
+>   sends METIS (`send-native.ts`), and reads METIS deposits from the Metis explorer (`account-activity.ts`). Every
+>   scoped permit (withdraw, swap, send, stop, cap change) takes one per-wallet lock (`src/lib/privy/scoped.ts`).
+> - Metis rejects EIP-1559: the Privy executor signs a `legacy` chain as type 0 (`priceTransaction`, measured).
+> - Telegram chat wallets open on Metis; a GOAT one is set aside under `<chat>@2345` (`src/lib/telegram/chat-wallets.ts`).
+> - Owners connect their own AI agent with a workspace key (`sage_sk_…`, `src/lib/agent-keys/`) on `POST /mcp`.
+> - Home asks for one next step; the landing shows a real decided payout (`src/lib/site/live-work.ts`).
 
 ---
 
@@ -58,8 +70,9 @@ configured (fails closed).
   wired but not launchable. The default moves to Metis only after a real payout there.
 - **Arc** (USDC is the native gas and an ERC-20 at `0x3600…0000`) and **Starknet** (the private rail, below)
   keep working end to end; they are hidden, never deleted.
-- Telegram walletless accounts are pinned to GOAT (`chainId: 2345` in the tool). Metis Sepolia (59902) and
-  Arc testnet (5042002) are retired. (The code constant `DEFAULT_CHAIN_ID` is still 59902; see Known drift.)
+- Telegram walletless accounts open on the default network (Metis) once it is live; a chat whose wallet is on
+  GOAT gets a new one and the GOAT one is set aside, still withdrawable. Metis Sepolia (59902) and Arc testnet
+  (5042002) are retired. (The code constant `DEFAULT_CHAIN_ID` is still 59902; see Known drift.)
 
 **Two settlement rails.** `campaign.settlementRail` is `"evm"` or `"starknet"`, and it — not
 the chain id — decides which settler pays. EVM covers GOAT and Metis through the V2
@@ -271,6 +284,11 @@ if you must touch them, that suite must stay green.
   work — and the pure policy sizes it from the ceilings and the observed results. A proposal naming
   an amount is rejected; a surface outside the founder's own set is refused rather than sanitised.
   Every move is recorded with its reason BEFORE money moves and is vetoable for a window.
+- **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
+  short of it, the door names the amount and the way to get it, and moves nothing.
+- **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only
+  the scopes they ticked (read, plan, launch); identity is bound server-side (a caller's `founderOverride` or
+  `clientRef` is dropped), the plan, the account's per-job limit and the vault still decide, and revoking is immediate.
 - **Reaching a person is opt-in, always.** The roster (`src/lib/roster/`) messages only people who
   asked, at most one campaign per person per cooldown, never about work they already did, and never
   about a campaign with no claimable slots. Being paid is not consent.
@@ -397,6 +415,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `ERC8004_AGENT_ID` | Registered on-chain identity | Identity "pending registration" |
 | `SAGE_BILLING_ADDRESS` † | Where plan payments go (the founder's own wallet), on Metis | Falls back to the operator's address |
 | `TREASURY_CHAIN_ID` † | The network a new account opens on, when set, configured and NOT paused | The launch default (Metis) |
+| `OPERATOR_COVERS_GAS` † | `"1"` brings back the operator's gas cover (the launch stipend, the fee on a plan paid from the balance) | Off: every account pays its own network fee |
 
 ---
 

@@ -373,7 +373,7 @@ export function Checkout(props: CheckoutProps) {
                     <span>
                       <span className="ck-method-t">Sage balance</span>
                       <span className="ck-method-s">
-                        <span className="num">{balanceUsd == null ? "…" : usd(balanceUsd)}</span> available on {billing?.network}. One click, and it can renew itself.
+                        <span className="num">{balanceUsd == null ? "…" : usd(balanceUsd)}</span> available on {billing?.network}. One click, and it can renew itself. The network fee, a fraction of a cent, comes from the METIS in your account.
                       </span>
                     </span>
                   </button>

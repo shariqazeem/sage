@@ -7,7 +7,14 @@ import { UpgradeLink } from "@/components/plans/upgrade-link";
 import type { PlanId } from "@/lib/plans/catalog";
 
 interface Account { chainId: number; network: string; address: string; isMainnet: boolean }
-interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; accounts?: Account[] }
+interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; nativeSymbol?: string; gasWei?: string | null; launchFloorWei?: string; canSwap?: boolean; accounts?: Account[] }
+
+/** "0.05": a wei amount in plain digits for a sentence. */
+const native = (wei: string | undefined | null) => {
+  if (!wei) return "a little";
+  const n = Number(BigInt(wei)) / 1e18;
+  return n >= 0.01 ? n.toFixed(2).replace(/0$/, "") : n.toPrecision(2);
+};
 interface Launched { campaignId: string; url: string; steps: { step: string; explorerUrl: string }[] }
 
 /**
@@ -65,7 +72,7 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
   }, [doors, onState, budgetUsd]);
 
   if (doors === null) {
-    return <p className="lx-sub" style={{ marginBottom: 14 }}><Loader2 size={14} className="sage-spin2" /> Checking your account…</p>;
+    return <p className="lx-sub tl-gap"><Loader2 size={14} className="sage-spin2" /> Checking your account…</p>;
   }
   if (doors.length === 0) return null;
 
@@ -90,9 +97,9 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
 
   if (done) {
     return (
-      <div className="lxd-panel" style={{ marginBottom: 14 }}>
-        <p className="lx-sub"><Sparkles size={14} /> Sage deployed, funded and activated the vault from your account. The campaign is live.</p>
-        <div className="ws-nav" style={{ marginTop: 8 }}>
+      <div className="lxd-panel tl-gap">
+        <p className="lx-sub"><Sparkles size={14} /> Sage deployed, funded and activated the vault from your account. The job is live.</p>
+        <div className="ws-nav tl-top">
           <Link className="sage-btn sage-btn-primary sage-btn-sm" href={`/campaign/${done.campaignId}`}>Open the console <ArrowUpRight size={13} /></Link>
           <a className="ws-chip" href={done.url} target="_blank" rel="noopener noreferrer">the board</a>
           {done.steps.map((s) => <a key={s.step} className="ws-chip" href={s.explorerUrl} target="_blank" rel="noopener noreferrer">{s.step} tx</a>)}
@@ -102,18 +109,35 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
   }
 
   return (
-    <div className="lxd-panel" style={{ marginBottom: 14 }}>
+    <div className="lxd-panel tl-gap">
       {doors.map((st) => {
         const short = st.balanceUsd !== undefined && st.balanceUsd < budgetUsd;
+        const needsFee = st.enoughGas === false;
         const network = st.network ?? "your account";
+        const sym = st.nativeSymbol ?? "gas";
+        const hasSomeFee = !!st.gasWei && BigInt(st.gasWei) > BigInt(0);
+        const accountHref = `/workspace/account${st.chainId ? `?chain=${st.chainId}&do=` : "?do="}`;
         return (
-          <div key={st.chainId ?? "default"} style={{ display: "grid", gap: 8 }}>
-            <p className="lx-sub"><Landmark size={14} /> Your account on {network} holds ${(st.balanceUsd ?? 0).toFixed(2)} {st.isMainnet === false ? "test " : ""}USDC{st.enoughGas === false ? " and needs gas" : ""}. This campaign needs ${budgetUsd.toFixed(2)}.{short ? " Top it up, or deploy from your wallet below." : st.isMainnet === false ? " Sage can launch it now, on the testnet — the work pays test USDC." : " Sage can launch it now — no wallet steps."}</p>
+          <div key={st.chainId ?? "default"} className="tl-door">
+            <p className="lx-sub">
+              <Landmark size={14} /> Your account on {network} holds ${(st.balanceUsd ?? 0).toFixed(2)} {st.isMainnet === false ? "test " : ""}USDC. This job needs ${budgetUsd.toFixed(2)}.
+              {short
+                ? ` Add $${(budgetUsd - (st.balanceUsd ?? 0)).toFixed(2)} or more, or fund it from your wallet below.`
+                : needsFee
+                  ? ` It also needs about ${native(st.launchFloorWei)} ${sym} for network fees, paid from the account.`
+                  : " Sage can launch it now, with no wallet steps."}
+            </p>
+            {(short || needsFee) && (
+              <div className="ws-nav">
+                <Link className="ws-chip accent" href={`${accountHref}add`}>Add money</Link>
+                {needsFee && st.canSwap && hasSomeFee && <Link className="ws-chip" href={`${accountHref}swap`}>Swap USDC to {sym}</Link>}
+              </div>
+            )}
             <div className="ws-nav">
-              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || st.enoughGas === false}>
+              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || needsFee}>
                 {busy === (st.chainId ?? 0) ? <><Loader2 size={13} className="sage-spin2" /> Sage is launching…</> : <><Sparkles size={13} /> Let Sage launch it from your account on {network}</>}
               </button>
-              <span className="ws-note" style={{ margin: 0 }}>Cap ${st.perCampaignCapUsd?.toFixed(2)} per campaign · unspent returns to you</span>
+              <span className="ws-note tl-flat">Up to ${st.perCampaignCapUsd?.toFixed(2)} per job · unspent returns to you</span>
             </div>
           </div>
         );

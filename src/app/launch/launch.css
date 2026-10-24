@@ -785,3 +785,9 @@
 .lx-check input { margin-top: 3px; accent-color: var(--lx-accent, #c2410c); flex: none; }
 .lx-check span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--lx-ink, #1a1d21); }
 .lx-check em { font-style: normal; font-size: 11.5px; line-height: 1.45; color: var(--lx-muted, #8a8f98); }
+
+/* launch from the account (treasury-launch.tsx): spacing that used to be inline */
+.tl-gap { margin-bottom: 14px; }
+.tl-top { margin-top: 8px; }
+.tl-door { display: grid; gap: 8px; }
+.tl-flat { margin: 0; }

@@ -1,0 +1,684 @@
+/**
+ * landing.css: THE FRONT DOOR (24 Oct 2026). On top of site.css, scoped `lp-` so nothing here reaches
+ * another page. The page shows the agent working: a real decided payout in the hero, the latest real
+ * payouts drifting under it, then the job in four moves, the account, the limits, the founder's own
+ * agent, the people paid, the plans. Every value is a token; green only for money that moved.
+ */
+
+/* ── hero: copy left, the real payout right ───────────────────────────── */
+.lp-hero {
+  padding-block: clamp(56px, 8vw, 112px) clamp(48px, 6vw, 88px);
+  background:
+    radial-gradient(1200px 480px at 85% -10%, var(--accent-soft), transparent 65%),
+    var(--bg);
+}
+.lp-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+.lp-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lp-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-live i {
+    animation: lp-pulse 2.2s var(--ease-out) infinite;
+  }
+}
+@keyframes lp-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--ok-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.site .lp-display {
+  margin-top: var(--s-4);
+  font-size: clamp(2.6rem, 1.2rem + 4.6vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  max-width: 14ch;
+}
+.site .lp-lead {
+  margin-top: var(--s-5);
+  max-width: 34rem;
+}
+.lp-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+  margin: 40px 0 0;
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+  max-width: 36rem;
+}
+.lp-facts div {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 4px;
+}
+.lp-facts dd {
+  grid-row: 1;
+}
+.lp-facts dt {
+  grid-row: 2;
+}
+.lp-facts dd {
+  margin: 0;
+  font-size: clamp(1.35rem, 1.1rem + 0.8vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--site-ink);
+}
+.lp-facts dt {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* the decided payout */
+.lp-worked {
+  display: block;
+  padding: 22px 22px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-hero);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
+}
+.lp-worked:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+.lp-worked-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.lp-worked-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--site-ink);
+}
+.lp-worked-when {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.site .lp-worked-job {
+  margin: 14px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--site-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lp-checks {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.lp-checks li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 4px;
+}
+.lp-check-ic {
+  grid-row: span 2;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  color: var(--ok);
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-border);
+  margin-top: 1px;
+}
+.lp-check-t {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--site-ink);
+}
+.lp-check-q {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-checks li {
+    animation: site-rise var(--dur-3) var(--ease-out) both;
+  }
+  .lp-checks li:nth-child(1) {
+    animation-delay: 320ms;
+  }
+  .lp-checks li:nth-child(2) {
+    animation-delay: 620ms;
+  }
+  .lp-checks li:nth-child(3) {
+    animation-delay: 920ms;
+  }
+  .lp-worked-paid {
+    animation: site-rise var(--dur-3) var(--ease-out) 1200ms both;
+  }
+}
+.lp-worked-paid {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-strong);
+}
+.lp-worked-amt {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ok);
+}
+.lp-worked-amt small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+.lp-worked-meta {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.lp-worked-foot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* ── the hero's ledger: the latest real payouts, each a transaction ───── */
+.lp-ledger {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-hero);
+  overflow: hidden;
+}
+.lp-ledger-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.lp-ledger-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--site-ink);
+}
+.lp-ledger-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.lp-ledger-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-ledger-live i {
+    animation: lp-pulse 2.2s var(--ease-out) infinite;
+  }
+  .lp-ledger-rows li {
+    animation: site-rise var(--dur-3) var(--ease-out) both;
+  }
+  .lp-ledger-rows li:nth-child(1) { animation-delay: 260ms; }
+  .lp-ledger-rows li:nth-child(2) { animation-delay: 380ms; }
+  .lp-ledger-rows li:nth-child(3) { animation-delay: 500ms; }
+  .lp-ledger-rows li:nth-child(4) { animation-delay: 620ms; }
+  .lp-ledger-rows li:nth-child(5) { animation-delay: 740ms; }
+  .lp-ledger-rows li:nth-child(6) { animation-delay: 860ms; }
+}
+.lp-ledger-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lp-ledger-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--dur-1) var(--ease-out);
+}
+.lp-ledger-rows li:first-child .lp-ledger-row {
+  border-top: 0;
+}
+.lp-ledger-row:hover {
+  background: var(--bg);
+}
+.lp-ledger-ic {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  color: var(--ok);
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-border);
+}
+.lp-ledger-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.lp-ledger-job {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--site-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-ledger-meta {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-ledger-amt {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ok);
+}
+.lp-ledger-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  text-decoration: none;
+}
+
+/* the decided payout, under How it works */
+.lp-decided {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+  margin-top: clamp(48px, 6vw, 80px);
+}
+.lp-decided .h3 {
+  margin-top: var(--s-3);
+}
+.site .lp-decided .muted {
+  margin-top: var(--s-3);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* ── shared section pieces ────────────────────────────────────────────── */
+.lp-head {
+  max-width: 760px;
+  margin-bottom: clamp(36px, 5vw, 56px);
+}
+.lp-head .h2 {
+  margin-top: var(--s-3);
+}
+.site .lp-lead-sm {
+  margin-top: var(--s-4);
+  font-size: clamp(1.05rem, 0.98rem + 0.35vw, 1.2rem);
+}
+.lp-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(32px, 6vw, 88px);
+  align-items: center;
+}
+.lp-split .h2 {
+  margin-top: var(--s-3);
+}
+.lp-split-rev > :first-child {
+  order: 2;
+}
+.lp-list {
+  list-style: none;
+  margin: var(--s-6) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.lp-list li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.lp-list li svg {
+  color: var(--accent);
+  margin-top: 2px;
+}
+.lp-list b {
+  color: var(--site-ink);
+  font-weight: 600;
+}
+.lp-soon {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+
+/* ── how it works: four moves, joined ─────────────────────────────────── */
+.lp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  position: relative;
+}
+.lp-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.lp-steps h3 {
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+.lp-steps p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.lp-step-n {
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.lp-brief {
+  margin: auto 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--site-ink);
+}
+.lp-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.lp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.lp-chip.ok {
+  color: var(--ok);
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+}
+.site .lp-under {
+  margin-top: var(--s-6);
+  font-size: 14.5px;
+  color: var(--ink-faint);
+}
+
+/* ── the account, drawn ───────────────────────────────────────────────── */
+.lp-account {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-hero);
+  display: grid;
+  gap: 10px;
+}
+.lp-account-top {
+  display: flex;
+  justify-content: space-between;
+}
+.lp-k {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.lp-account-bal {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--site-ink);
+}
+.lp-account-bal small {
+  font-size: 14px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.lp-account-fee {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.lp-account-moves {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.lp-account-moves span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--site-ink);
+}
+.lp-account-moves span.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.lp-account-quote {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.lp-account-quote div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.lp-account-quote b {
+  color: var(--site-ink);
+  font-weight: 600;
+}
+.lp-account-cap {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* ── the founder's own agent ──────────────────────────────────────────── */
+.lp-code {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-inverse);
+  background: var(--surface-inverse-raised);
+  overflow: hidden;
+}
+.lp-code-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-inverse);
+  font-size: 12.5px;
+  color: var(--ink-inverse-muted);
+}
+.lp-code pre {
+  margin: 0;
+  padding: 16px 18px 20px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-inverse);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.site .sec-ink .btn.lp-on-ink {
+  color: var(--ink-inverse);
+  border-color: var(--border-inverse);
+}
+.site .sec-ink .btn.lp-on-ink:hover {
+  border-color: var(--ink-inverse);
+}
+.site .sec-ink .lead {
+  color: var(--ink-inverse-muted);
+}
+
+/* ── records ──────────────────────────────────────────────────────────── */
+.lp-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.lp-records li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.lp-records li svg {
+  color: var(--accent);
+  margin-top: 2px;
+}
+.lp-records div {
+  display: grid;
+  gap: 4px;
+}
+.lp-records b {
+  font-size: 15px;
+  color: var(--site-ink);
+}
+.lp-records span {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.lp-records .more {
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+
+/* ── narrow screens ───────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .lp-hero-grid,
+  .lp-split,
+  .lp-decided {
+    grid-template-columns: 1fr;
+  }
+  .lp-split-rev > :first-child {
+    order: 0;
+  }
+  .lp-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .lp-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lp-steps {
+    grid-template-columns: 1fr;
+  }
+  .lp-worked {
+    padding: 18px 16px 16px;
+  }
+  .lp-account {
+    padding: 18px 16px;
+  }
+}

@@ -52,7 +52,7 @@ export default function Payments() {
       <DocHead
         eyebrow="Payments"
         title="Payments and networks"
-        lead="Sage pays in USDC. Your budget goes to the people you pay: Sage takes no fee from payouts, and pays the network fee on every one."
+        lead="Sage pays in USDC. Your budget goes to the people you pay: Sage takes no fee from payouts, and pays the network fee on every one. Your own account pays its own small fees, in METIS."
         toc={TOC}
       />
 
@@ -111,29 +111,42 @@ export default function Payments() {
           network they were created on, and their receipts keep working.
         </p>
         <p>
-          <strong>GOAT Network is paused for new jobs.</strong> Its USDC is bridged by Stargate, which ends support for
+          <strong>GOAT Network is closed to new jobs.</strong> Its USDC was bridged by Stargate, which ended support for
           GOAT on 23 October 2026, so no new job, account or plan payment starts there. Everything already on GOAT
-          keeps working: receipts, records, withdrawals and stopping a job. To keep a supported way out, move USDC
-          off GOAT with Stargate before that date.
+          keeps working: receipts, records, withdrawals and stopping a job.
         </p>
       </DocSection>
 
       <DocSection toc={TOC} id="account">
         <p>
-          Your account is a wallet Sage keeps for you, held by Privy, one per network. It opens on Sage&apos;s default
-          network when you create your workspace, and you can add others from the Account page. Fund it by sending USDC
-          to its address, from any wallet or exchange; there&apos;s a QR code to scan. The balance and activity you see
-          are read from the chain.
+          Your account is a wallet Sage keeps for you, held by Privy, one per network. It opens on Metis when you create
+          your workspace, and you can add others from the Account page. The balance and activity you see are read from
+          the chain. You can do three things with the money in it:
         </p>
+        <ul>
+          <li>
+            <strong>Add money.</strong> Withdraw METIS from Binance, OKX or another exchange and choose the Metis network,
+            send USDC or METIS from any Metis wallet, or bridge USDC from Ethereum with the{" "}
+            <a href="https://bridge.metis.io">official Metis bridge</a>. There&apos;s a QR code to scan.
+          </li>
+          <li>
+            <strong>Swap</strong> METIS and USDC inside the account, through the Netswap pool, the deepest on Metis. The
+            quote is the pool&apos;s own; you see the least you&apos;ll receive before you confirm, and if the price moves
+            below it nothing is swapped. The swap can only pay back into your account.
+          </li>
+          <li>
+            <strong>Send</strong> USDC or METIS to any address, at any time.
+          </li>
+        </ul>
         <p>
           Sage launches your jobs from it, inside spending rules the wallet provider enforces: no single job can be
           funded above your per-job cap, $50 unless you change it, anywhere from $1 to $10,000. That holds for jobs you
           post and for <Link href="/docs/how-it-works#autopilot">Autopilot</Link> alike.
         </p>
         <p>
-          Withdraw any amount to any address, at any time. Each withdrawal gets a one-time permit for that address and
-          that amount, and the account locks back to its rules straight after. Stopping a job returns what&apos;s left
-          to wherever the job was funded from.
+          Every move outside those rules (a send, a swap) gets a one-time permit for that move alone, and the account
+          locks back to its rules straight after. Stopping a job returns what&apos;s left to wherever the job was funded
+          from.
         </p>
         <p>
           Signed in with a Starknet wallet? You fund each job from your own wallet, and payouts settle through the
@@ -158,7 +171,7 @@ export default function Payments() {
           Sage. Starknet payouts get their own receipt, which names the vault that paid.
         </p>
         <p>
-          On GOAT, Metis and Arc, when a vault refuses a payout on chain, its receipt says so: payout blocked, no funds
+          On Metis, Arc and GOAT, when a vault refuses a payout on chain, its receipt says so: payout blocked, no funds
           moved. Most refusals happen before anything reaches the chain. Those are counted in public, and their reasons
           go to the person who submitted and to the job&apos;s owner.
         </p>
@@ -187,15 +200,17 @@ export default function Payments() {
           <li>
             <Flame size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Launching uses a little gas.</strong> Creating and funding a job takes a few small transactions
-              from your account, paid in the network&apos;s own token: BTC on GOAT, METIS on Metis, USDC on Arc.
+              <strong>Your account pays its own fees.</strong> Launching a job, a send, a swap or a plan payment is a
+              small transaction from your account, paid in the network&apos;s own token: METIS on Metis (about 0.05 METIS
+              launches a job, and most other moves cost well under 0.005), USDC on Arc. Keep a little METIS in the
+              account; the Account page shows how much it holds and what it covers.
             </span>
           </li>
           <li>
             <Gift size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Your first launch is covered.</strong> If your account holds the USDC for a job, or for a plan,
-              but no gas yet, Sage sends it enough gas to go ahead, once per account.
+              <strong>Getting METIS is easy.</strong> Most exchanges that list METIS withdraw it straight onto the Metis
+              network, and you can swap a little of your USDC to METIS inside the account once it can pay for the swap.
             </span>
           </li>
           <li>
@@ -223,8 +238,8 @@ export default function Payments() {
           </li>
           <li>Paying again before a plan ends adds the new days on top, so paying early never loses a day.</li>
           <li>
-            Sage pays the network fee on a payment from your balance, so paying for Sage needs only USDC. Every
-            payment gets a receipt in Settings.
+            A payment from your balance pays its own network fee, a fraction of a cent of METIS. Every payment gets a
+            receipt in Settings.
           </li>
           <li>
             A promo code goes in at checkout. It gives free days of a plan, or money off the first payment; each

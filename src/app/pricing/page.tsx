@@ -46,7 +46,7 @@ const QUESTIONS: { q: string; a: string }[] = [
   },
   {
     q: "Is there a fee on payouts?",
-    a: "No. Your budget goes to the people you pay, and Sage pays the network fee on every payout. Launching a job takes a few small transactions from your account; if it has no gas yet, Sage covers your first launch.",
+    a: "No. Your budget goes to the people you pay, and Sage pays the network fee on every payout. Your account pays its own small fees in METIS: about 0.05 METIS, a few cents, launches a job.",
   },
   {
     q: "Do the people I pay need a plan?",
