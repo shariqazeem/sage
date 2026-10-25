@@ -12,7 +12,8 @@
 
 > **SAGE, THE COMPANY (19 Oct 2026, the founder's decision; implemented on branch `company`).** Sage
 > builds AI agents you can trust with money. Product #1 is called just **Sage** (never "Sage Work");
-> product #2 is **Called by Sage** (its own repo). **Primary networks: Metis Andromeda + GOAT**; Arc and
+> product #2 is **ParallaxPay by Sage** (its own repo; named "Called" 19-24 Oct, then the founder took the
+> original name back, and `/called` redirects to `/parallaxpay`). **Primary networks: Metis Andromeda + GOAT**; Arc and
 > Starknet are secondary ("More networks"); testnets are gone from every surface. Sage is **paid**: Free,
 > Pro, Team, Programs, and workers are always free (§4). The public site and the app were rebuilt
 > Apple-minimal (§5). The plan and its reasoning: `docs/strategy/2026-10-19-sage-the-company.md`.
@@ -303,7 +304,7 @@ Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.
 
 **Two worlds since 19 Oct 2026, and `src/components/shell/routes.ts` decides which a route is:**
 - **The company site:**
-  - Pages: home, pricing, company, Called, ledger, docs.
+  - Pages: home, pricing, company, ParallaxPay, ledger, docs.
   - Reading pages (restored 20 Oct 2026 after being folded the day before): outcomes, records (`/record`, above
     every `/record/<wallet>`), the Caribbean, the FAQ, the two comparisons (`/vs/*`) and the case study. They use
     `ReadPage` (`src/components/site/read-page.tsx`) and `src/styles/read.css`; their numbers come from

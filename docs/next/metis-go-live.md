@@ -1,113 +1,81 @@
-# Metis go-live: the founder's last step
+# Metis go-live: the runbook
 
-*Written 19 Oct 2026. Everything up to here is built and deployed. This is the one part that needs real
-money from you: METIS for gas. Nothing below moves anyone else's funds.*
+*Rewritten 25 Oct 2026. Everything is built, deployed and tested; Metis is the default network in code.
+What is left needs real METIS from you, and one command walks it: `scripts/metis-go-live.sh`. Every step
+that sends a transaction or changes the server asks first; nothing secret is printed.*
 
-> **21 Oct 2026: this is now the step every new job waits on.** GOAT is paused for new money (Stargate ends
-> support for its USDC on 23 Oct), and Metis is already the default network in code: until steps 1-2 are done,
-> no new job launches (Arc stays an explicit choice) and no Sage balance opens on Metis. Plans are billed on
-> Metis too: set `SAGE_BILLING_ADDRESS` on the VM to your own wallet so plan payments reach you. Step 5's code
-> change is already made; only the VM's `TREASURY_CHAIN_ID` (if set to 2345) should be removed or set to 1088.
+## What to send, and where
 
-The Metis rail is wired end to end, but it is not yet launchable. It fails closed until its factory is
-deployed and its settings are on the VM. These are the steps, in order.
+All on the **Metis network** (Andromeda, chain 1088). Prices measured 24-25 Oct 2026: gas 12.15 gwei
+(legacy), METIS about $3.52.
 
-## 1. Fund the operator with METIS
+| Address | What it pays for | Least | Comfortable |
+| --- | --- | --- | --- |
+| Operator `0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6` | the factory deploy (0.032), the identity (0.004), every payout Sage settles (0.0022 each) | **0.05** (the script refuses less) | **0.5** (about 200 payouts) |
+| x402 facilitator (made by step 4; its own key) | the proxy deploy (0.011), every x402 settlement (0.0018 each) | **0.03** (the deploy script refuses less) | **0.25** (about 130 settlements) |
+| Your own Sage account (opens after step 2) | your first job's launch fee (0.028) and moves (under 0.003 each) | **0.05** | **0.1** |
 
-Send **about 1 METIS** on **Metis Andromeda (chain 1088)** to Sage's operator:
+So **0.13 METIS (about $0.45) is the least** that gets everything live, and **about 0.85 METIS
+(about $3)** runs it comfortably. Every account pays its own fee now (24 Oct 2026, the founder's
+decision): Sage's operator pays only what only it can send, the payouts.
 
-```
-0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6
-```
-
-It is the same address as Sage's GOAT agent, which is the address Metis Rise expects an agent to use on
-Metis. Measured costs:
-- the factory deploy is about 2.2M gas, roughly 0.03 METIS;
-- each launch is about 1.9M gas, roughly 0.026 METIS;
-- each payout is about 0.002 METIS.
-
-The operator keeps a 0.2 METIS reserve for payouts before it will cover anyone's launch gas.
-
-## 2. Deploy the vault factory on Metis
-
-**Checked first, read-only, 19 Oct 2026.** Andromeda runs PUSH0 but not MCOPY, TSTORE or BASEFEE. Sage's
-contracts compile with `evm_version = "paris"`, so they use none of them. Simulated against the live
-Metis RPC with nothing sent: the factory's constructor runs (10,144 bytes of runtime), and
-`createCampaignVault` creates a vault with an m.USDC mission plan. Your METIS deploys working contracts.
-
-On your machine, in `contracts/` (with `GOAT_AGENT_PRIVATE_KEY` in `contracts/.env`):
+## The steps
 
 ```bash
-bash script/deploy-campaign-factory-metis.sh
+scripts/metis-go-live.sh                # 1. status: what is funded, deployed and set (read-only)
+# fund the operator (above)
+scripts/metis-go-live.sh factory        # 2. deploy the job factory, set it on the server, restart
+scripts/metis-go-live.sh identity       # 3. register Sage's ERC-8004 identity on Metis
+scripts/metis-go-live.sh x402-key       # 4. make the facilitator's own key on the server, print its address
+# fund the facilitator (above)
+scripts/metis-go-live.sh x402           # 5. deploy the Permit2 proxy, switch x402 on, restart
+scripts/metis-go-live.sh billing 0x…    # 6. where plan payments and Metis x402 sales go (your wallet)
 ```
 
-The script:
-- checks it is talking to chain 1088;
-- refuses to run if the operator holds less than 0.05 METIS;
-- deploys with legacy gas (Andromeda has no EIP-1559);
-- prints three lines for the VM's `.env`:
+What each one does:
 
-```
-METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS=0x…
-METIS_MAINNET_OPERATOR_ADDRESS=0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6
-METIS_MAINNET_RPC_URL=https://andromeda.metis.io/?owner=1088
-```
+1. **Status** reads the chain and the server: the operator's and facilitator's METIS, whether the factory,
+   identity, proxy and billing address are set, and whether the site still shows Metis as opening.
+2. **Factory** runs `contracts/script/deploy-campaign-factory-metis.sh` with the operator key in
+   `contracts/.env` (legacy gas; Andromeda has no EIP-1559), then writes
+   `METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS` and `METIS_MAINNET_OPERATOR_ADDRESS` to the server's `.env`
+   and restarts, after the same no-payout-in-flight check a deploy uses. From then on Metis launches jobs
+   and opens accounts; the landing page drops its "opening on Metis" label on its own.
+3. **Identity** runs `scripts/register-erc8004.mjs --chain metis` with the same operator key (Metis Rise
+   expects the agent's Metis wallet to be its identity elsewhere) and copies the three
+   `ERC8004_METIS_AGENT_*` lines to the server.
+4. **x402 key** makes `X402_METIS_FACILITATOR_PRIVATE_KEY` on the server, once, in `.env` (mode 600), with
+   `scripts/vm/facilitator-key.mjs`. It never leaves the server, and it is never a payout key (the app
+   refuses one: one key is one nonce sequence).
+5. **x402** dry-runs, then deploys, the paris build of x402's Permit2 proxy at
+   `0xC5Df359394de02F8E04bfb650E250b20a33BEe6a` (the canonical one cannot run on Metis: no MCOPY), then
+   sets `X402_METIS_PERMIT2_PROXY_ADDRESS` and `X402_METIS_ENABLED=1`. Then:
+   - `GET https://sagepays.xyz/api/x402/metis/supported` answers the facilitator's kinds;
+   - Sage's four paid tools answer 402 at `https://sagepays.xyz/mcp/metis/<tool>` and are paid in m.USDC to
+     the billing address (`src/lib/x402/metis/seller.ts`); the free `/mcp/public/<tool>` doors are unchanged.
+6. **Billing** sets `SAGE_BILLING_ADDRESS`: plans renew into it, and Metis x402 sales are paid to it (or to
+   `X402_METIS_PAY_TO` when that is set).
 
-Add them to `/home/ubuntu/sage/.env` and restart (`pm2 restart sage --update-env`). From that moment Metis
-appears as a launch network, and accounts can open on it.
+## The first real ones
 
-## 3. Register Sage's identity on Metis (ERC-8004)
+- **A payout.** Post a small job (a $2 gig) from your account's Metis tab and let a real person finish it.
+  The receipt at `/proof/<tx>` links to the Metis explorer. Until there is one, the landing's examples are
+  older payouts on other networks.
+- **An x402 payment.** From a wallet holding a little m.USDC and METIS:
+  ```bash
+  PAYER_KEY=0x… node scripts/x402-metis-pay.mjs sage_first_look '{"url":"https://sagepays.xyz"}' --approve
+  ```
+  It reads the 402, approves Permit2 once, signs exactly $0.05 to the billing address, and prints the
+  tool's answer and the settlement transaction.
 
-```bash
-node scripts/register-erc8004.mjs --chain metis
-```
+## The server's TREASURY_CHAIN_ID
 
-It signs with the same operator key and writes `ERC8004_METIS_AGENT_ID`, `_ADDRESS` and `_NAME` to `.env`.
-A read-only simulation on 19 Oct confirmed `register("Sage")` succeeds on Metis. Copy the three lines to
-the VM's `.env` and restart. The Company page and the agent card then show Sage registered on both
-networks.
+The server still has `TREASURY_CHAIN_ID` set (from the GOAT days). The code ignores it while GOAT is paused
+and falls back to Metis, so it is harmless; remove it, or set it to 1088, whenever convenient.
 
-## 4. Prove one real payout on Metis
+## Metis Rise
 
-Post a small job (for example a $2 gig), launched from your account's Metis tab, and let a real person
-complete it. Sage pays it on Metis. The receipt at `/proof/<tx>` links to the Metis explorer.
-
-## 5. Make Metis the default (only after step 4)
-
-Once a real Metis payout exists:
-- set `TREASURY_CHAIN_ID=1088` on the VM, so new accounts open on Metis;
-- in `src/lib/deputy/networks.ts`, move `METIS_MAINNET_CHAIN_ID` first in `PRIMARY_NETWORKS` and set
-  `DEFAULT_EVM_LAUNCH_CHAIN` to Metis.
-
-Existing GOAT accounts keep working: an account carries its own network.
-
-## 6. x402 on Metis (built, off until you turn it on)
-
-Metis has no live x402 facilitator; Sage has one now (`docs/next/metis-x402.md`). One finding shapes it:
-x402's canonical payment proxy uses MCOPY, which Metis lacks, so it would deploy and then revert on every
-payment. Sage uses the same audited source built for "paris", deployed through the same CREATE2
-deployer to **`0xC5Df359394de02F8E04bfb650E250b20a33BEe6a`**. Called's client signs with that address as
-the spender.
-
-1. Dry run, which sends nothing: `node contracts/script/deploy-x402-permit2-proxy-metis.mjs`.
-2. Deploy, which costs about 0.014 METIS: put a key holding at least 0.03 METIS in
-   `X402_METIS_DEPLOYER_PRIVATE_KEY`, then add `--send`.
-3. Make a NEW facilitator key; it must not be a key Sage pays out with, and the app refuses one.
-   Fund it with about 0.5 METIS, which covers about 250 settles.
-4. On the VM, set:
-   ```
-   X402_METIS_ENABLED=1
-   X402_METIS_FACILITATOR_PRIVATE_KEY=…
-   X402_METIS_PERMIT2_PROXY_ADDRESS=0xC5Df359394de02F8E04bfb650E250b20a33BEe6a
-   ```
-   An allowlist of payees helps at first: `X402_METIS_PAY_TO_ALLOWLIST=<Called's payTo>`.
-5. Restart, check `/api/x402/metis/supported`, then make one real $0.01 payment.
-
-## 7. Apply Sage to Metis Rise
-
-With the factory address, the registry entry and a live URL in hand, fill the Rise form. Ranking is 80%
-monthly active users and 20% METIS gas. A user counts with 3 or more transactions, or $2 or more settled,
-on Andromeda in a month. On Metis, each of these produces counted users:
-- a founder's launch (4 transactions);
-- a worker paid $2 or more;
-- a plan paid in m.USDC.
+Ranking is 80% monthly active users and 20% METIS gas. A user counts with 3 or more transactions, or $2 or
+more settled, on Andromeda in a month. On Metis each of these produces counted users: a founder's launch (4
+transactions), a worker paid $2 or more, a plan paid in m.USDC, a swap or a send from an account, and every
+x402 payment to Sage's tools.

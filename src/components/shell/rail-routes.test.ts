@@ -34,7 +34,7 @@ describe("the company site never wears founder chrome", () => {
   });
 
   it("the front door, pricing, the company, Called, the ledger and the docs", () => {
-    for (const p of ["/", "/pricing", "/company", "/called", "/ledger", "/docs", "/docs/build"]) expect(isAppRoute(p), p).toBe(false);
+    for (const p of ["/", "/pricing", "/company", "/parallaxpay", "/ledger", "/docs", "/docs/build"]) expect(isAppRoute(p), p).toBe(false);
   });
 
   it("a receipt is a DOCUMENT, not an app page, and so is a public board", () => {

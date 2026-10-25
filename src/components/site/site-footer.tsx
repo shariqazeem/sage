@@ -45,7 +45,7 @@ const COLUMNS = [
     title: "Company",
     links: [
       { href: "/company", label: "About" },
-      { href: "/called", label: "Called by Sage" },
+      { href: "/parallaxpay", label: "ParallaxPay by Sage" },
       { href: SAGE_X_URL, label: "X" },
       { href: SAGE_TELEGRAM_URL, label: "Telegram" },
     ],

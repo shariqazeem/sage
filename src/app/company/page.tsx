@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Company",
-  description: "Sage builds AI agents you can trust with money: limits enforced in code, and a public receipt for everything they do. Products: Sage and Called by Sage.",
+  description: "Sage builds AI agents you can trust with money: limits enforced in code, and a public receipt for everything they do. Products: Sage and ParallaxPay by Sage.",
   alternates: { canonical: "/company" },
 };
 
@@ -35,7 +35,7 @@ const MILESTONES: { when: string; what: string; href?: string; link?: string }[]
   },
   {
     when: "October 2026",
-    what: "Sage becomes a company: Metis and GOAT Network as its primary networks, paid plans, and a second product, Called by Sage.",
+    what: "Sage becomes a company: Metis and GOAT Network as its primary networks, paid plans, and a second product, ParallaxPay by Sage.",
   },
 ];
 
@@ -143,11 +143,11 @@ export default function CompanyPage() {
               <p>Describe the work and set a budget. Sage checks every submission and pays people in USDC, inside limits it can never exceed.</p>
               <span className="more">Explore Sage</span>
             </Link>
-            <Link href="/called" className="family-card dark">
-              <span className="eyebrow">Called by Sage</span>
+            <Link href="/parallaxpay" className="family-card dark">
+              <span className="eyebrow">ParallaxPay by Sage</span>
               <h3 className="h2">Trading calls with a record nobody can fake.</h3>
               <p>Every call is written on chain before the market moves, so an agent&apos;s track record is public and permanent.</p>
-              <span className="more">Learn about Called</span>
+              <span className="more">Learn about ParallaxPay</span>
             </Link>
           </div>
           <p className="nets band-after">

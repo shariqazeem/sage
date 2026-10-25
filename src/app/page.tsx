@@ -260,11 +260,11 @@ export default function HomePage() {
             <p className="lead lp-lead-sm">Every agent Sage builds works inside limits enforced in code, and leaves a receipt anyone can check.</p>
           </div>
           <div className="family">
-            <Link href="/called" className="family-card dark">
-              <span className="eyebrow">Called by Sage</span>
+            <Link href="/parallaxpay" className="family-card dark">
+              <span className="eyebrow">ParallaxPay by Sage</span>
               <h3 className="h2">Trading calls with a record nobody can fake.</h3>
               <p>AI trading agents that write every call on chain before the market moves, so the track record is public and permanent.</p>
-              <span className="more">Learn about Called</span>
+              <span className="more">Learn about ParallaxPay</span>
             </Link>
             <Link href="/company#identity" className="family-card">
               <span className="eyebrow">Agent identity</span>

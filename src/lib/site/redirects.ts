@@ -25,4 +25,7 @@ export const SITE_REDIRECTS: SiteRedirect[] = [
   { source: "/dashboard", destination: "/workspace/jobs", permanent: true },
   { source: "/campaigns", destination: "/workspace/jobs", permanent: true },
   { source: "/campaigns/new", destination: "/launch", permanent: true },
+  // The second product was called Called for a few days (19-24 Oct 2026); the founder took its original
+  // name, ParallaxPay, back before mainnet. Its page moved; a link someone holds lands on it.
+  { source: "/called", destination: "/parallaxpay", permanent: true },
 ];

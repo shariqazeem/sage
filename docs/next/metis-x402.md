@@ -6,7 +6,7 @@ nothing deployed**.*
 
 ## What it is
 
-An x402 **facilitator** for Metis Andromeda (`eip155:1088`). A seller (Called by Sage first) answers a
+An x402 **facilitator** for Metis Andromeda (`eip155:1088`). A seller (Sage's own paid tools first, at `/mcp/metis/<tool>`) answers a
 request with HTTP 402 and a price in m.USDC. The buyer signs a payment, and the seller hands it to this
 facilitator. The facilitator verifies it, then settles it on chain: it sends the transaction, pays the
 gas in METIS, and moves the buyer's m.USDC to the seller. It implements x402 v2 to the spec: the `exact`
@@ -58,7 +58,7 @@ script's header. Simulated on Metis with a real signature it settles. A redirect
 Permit2's `InvalidSigner`, and an unfunded payer gets `TRANSFER_FROM_FAILED`. The deploy costs ~724k gas;
 a settle costs ~104k gas (~121k to a payee with no m.USDC yet), about **0.002 METIS**.
 
-## How a seller uses it (Called)
+## How a seller uses it
 
 1. **The payer approves Permit2 once**, which costs them one transaction, so they need a little METIS:
    `m.USDC.approve(0x000000000022D473030F116dDEE9F6B43aC78BA3, max)`.
@@ -111,6 +111,12 @@ reconciles it instead of resending.
 
 ## The founder's steps to turn it on
 
+*25 Oct 2026: `scripts/metis-go-live.sh x402-key` then `scripts/metis-go-live.sh x402` do steps 1-4 below,
+with the facilitator key made on the server (it never leaves it) and used as the deployer, so one funding
+covers the deploy and the settlements. Sage's own paid tools then sell at `/mcp/metis/<tool>`
+(`src/lib/x402/metis/seller.ts`), paid to the billing address; `scripts/x402-metis-pay.mjs` is the client
+for the first real payment. The steps by hand:*
+
 1. **Dry run** (sends nothing): `node contracts/script/deploy-x402-permit2-proxy-metis.mjs`. It checks the
    chain id, Permit2, the deployer, the MCOPY probe, the initcode hash and the CREATE2 address, simulates
    the deploy, and prints the cost (~0.014 METIS).
@@ -122,7 +128,7 @@ reconciles it instead of resending.
 4. **Set on the VM**, then deploy Sage as usual (migration 0063 applies itself on first database use):
    - `X402_METIS_PERMIT2_PROXY_ADDRESS=0xC5Df359394de02F8E04bfb650E250b20a33BEe6a`
    - `X402_METIS_FACILITATOR_PRIVATE_KEY=…`
-   - `X402_METIS_PAY_TO_ALLOWLIST=<Called's payTo>`: recommended at first;
+   - `X402_METIS_PAY_TO_ALLOWLIST=<the seller's payTo>`: recommended at first;
    - `X402_METIS_ENABLED=1`.
 
    Optional: `METIS_MAINNET_RPC_URL` (default andromeda.metis.io), `X402_METIS_ACCEPT_USDT=1`,

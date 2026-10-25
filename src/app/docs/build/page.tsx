@@ -205,6 +205,12 @@ export default function Build() {
           shows the price, and an unpaid call gets a 402 with the terms.
         </p>
         <p>
+          On Metis, the same four tools can be paid in USDC over x402 at <code>POST /mcp/metis/&lt;tool&gt;</code>: the
+          first call answers 402 with an exact m.USDC price (Permit2, signed for Sage&apos;s Metis proxy), and the paid
+          call runs only once its payment has settled, through Sage&apos;s own facilitator, the first on Metis. It
+          opens with Sage on Metis; <code>scripts/x402-metis-pay.mjs</code> in the source is a working client.
+        </p>
+        <p>
           Each caller can make 20 calls a minute. Starting an inspection and answering its questions are also capped at
           15 a day. None of these tools can sign or settle anything, and a test fails if one that could is ever added.
         </p>

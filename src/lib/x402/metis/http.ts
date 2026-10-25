@@ -100,18 +100,41 @@ const json = (body: unknown, status = 200) => NextResponse.json(body, { status }
 
 type Door = { ok: true; config: MetisFacilitatorConfig; chain: MetisChain } | { ok: false; response: Response };
 
-/** Steps 1 to 3. `limiter` picks the rate limit for this route. */
-export async function openDoor(req: Request, limiter: "supported" | "verify" | "settle"): Promise<Door> {
+export type Readiness = { ok: true; config: MetisFacilitatorConfig; chain: MetisChain } | { ok: false; status: 404 | 503; message: string };
+
+/**
+ * Steps 1 and 3 without a request: the env gate and the proxy check. Shared by the facilitator's own
+ * routes and by Sage selling its tools over this facilitator (seller.ts), so both refuse for the same
+ * reasons and share one cached proxy verdict.
+ */
+export async function facilitatorReady(): Promise<Readiness> {
   const gate = readFacilitatorConfig();
-  if (!gate.open) {
-    return { ok: false, response: json({ error: gate.message }, gate.status) };
-  }
-  if (!state()[limiter].hit(clientIp(req.headers)).ok) {
-    return { ok: false, response: json({ error: "Too many requests" }, 429) };
-  }
+  if (!gate.open) return { ok: false, status: gate.status, message: gate.message };
   const { config } = gate;
   const chain = chainFor(config.rpcUrl);
+  const verdict = await proxyVerdict(config, chain);
+  if (!verdict.ok) return { ok: false, status: 503, message: `x402 on Metis is unavailable: ${verdict.message}` };
+  return { ok: true, config, chain };
+}
 
+/** The deps a settlement runs with: one send lane per facilitator key, so every caller shares its nonces. */
+export function settleDepsFor(config: MetisFacilitatorConfig, chain: MetisChain) {
+  return {
+    config,
+    chain,
+    claims: dbClaimStore,
+    nowSeconds: () => Math.floor(Date.now() / 1000),
+    lane: laneFor(config.account.address),
+    takeBroadcastSlot: () => dailyLimiter(config.dailySettleCap).hit("global").ok,
+    receiptTimeoutMs: RECEIPT_TIMEOUT_MS,
+  };
+}
+
+export function verifyDepsFor(config: MetisFacilitatorConfig, chain: MetisChain) {
+  return { config, chain, claims: dbClaimStore, nowSeconds: () => Math.floor(Date.now() / 1000) };
+}
+
+async function proxyVerdict(config: MetisFacilitatorConfig, chain: MetisChain): Promise<ProxyVerdict> {
   const cacheKey = `${config.rpcUrl}|${config.proxy}`;
   const cached = state().verdicts.get(cacheKey);
   let verdict = cached?.verdict;
@@ -125,9 +148,24 @@ export async function openDoor(req: Request, limiter: "supported" | "verify" | "
     }
     state().verdicts.set(cacheKey, { at: Date.now(), verdict });
   }
-  if (!verdict || !verdict.ok) {
-    const message = verdict && !verdict.ok ? verdict.message : "the Permit2 proxy has not been checked";
-    return { ok: false, response: json({ error: `x402 on Metis is unavailable: ${message}` }, 503) };
+  return verdict ?? { ok: false, message: "the Permit2 proxy has not been checked" };
+}
+
+/** Steps 1 to 3. `limiter` picks the rate limit for this route. */
+export async function openDoor(req: Request, limiter: "supported" | "verify" | "settle"): Promise<Door> {
+  const gate = readFacilitatorConfig();
+  if (!gate.open) {
+    return { ok: false, response: json({ error: gate.message }, gate.status) };
+  }
+  if (!state()[limiter].hit(clientIp(req.headers)).ok) {
+    return { ok: false, response: json({ error: "Too many requests" }, 429) };
+  }
+  const { config } = gate;
+  const chain = chainFor(config.rpcUrl);
+
+  const verdict = await proxyVerdict(config, chain);
+  if (!verdict.ok) {
+    return { ok: false, response: json({ error: `x402 on Metis is unavailable: ${verdict.message}` }, 503) };
   }
   return { ok: true, config, chain };
 }
@@ -185,12 +223,7 @@ export async function handleVerify(req: Request): Promise<Response> {
   const read = await readBody(req);
   if (!read.ok) return read.response;
   try {
-    const result: VerifyResponse = await verifyPayment(read.body, {
-      config: door.config,
-      chain: door.chain,
-      claims: dbClaimStore,
-      nowSeconds: () => Math.floor(Date.now() / 1000),
-    });
+    const result: VerifyResponse = await verifyPayment(read.body, verifyDepsFor(door.config, door.chain));
     return json(result);
   } catch (e) {
     console.error("[x402-metis] verify failed:", describe(e));
@@ -211,15 +244,7 @@ export async function handleSettle(req: Request): Promise<Response> {
   if (!read.ok) return read.response;
   const { config, chain } = door;
   try {
-    const result: SettleResponse = await settlePayment(read.body, {
-      config,
-      chain,
-      claims: dbClaimStore,
-      nowSeconds: () => Math.floor(Date.now() / 1000),
-      lane: laneFor(config.account.address),
-      takeBroadcastSlot: () => dailyLimiter(config.dailySettleCap).hit("global").ok,
-      receiptTimeoutMs: RECEIPT_TIMEOUT_MS,
-    });
+    const result: SettleResponse = await settlePayment(read.body, settleDepsFor(config, chain));
     return json(result);
   } catch (e) {
     console.error("[x402-metis] settle failed:", describe(e));
