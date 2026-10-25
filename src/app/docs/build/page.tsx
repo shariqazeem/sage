@@ -207,7 +207,7 @@ export default function Build() {
         <p>
           On Metis, the same four tools can be paid in USDC over x402 at <code>POST /mcp/metis/&lt;tool&gt;</code>: the
           first call answers 402 with an exact m.USDC price (Permit2, signed for Sage&apos;s Metis proxy), and the paid
-          call runs only once its payment has settled, through Sage&apos;s own facilitator, the first on Metis. It
+          call runs only once its payment has settled, through Sage&apos;s own x402 facilitator for Metis. It
           opens with Sage on Metis; <code>scripts/x402-metis-pay.mjs</code> in the source is a working client.
         </p>
         <p>

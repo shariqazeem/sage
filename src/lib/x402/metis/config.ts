@@ -17,7 +17,11 @@ import { M_USDC, M_USDT, METIS_DEFAULT_RPC } from "./constants";
  *
  * Optional:
  *   METIS_MAINNET_RPC_URL                 default https://andromeda.metis.io/?owner=1088
- *   X402_METIS_PAY_TO_ALLOWLIST           comma-separated payees; when set, the only ones settled for
+ *   X402_METIS_PAY_TO_ALLOWLIST           who the facilitator settles for. Unset: Sage's own payee only
+ *                                         (metisSellerPayTo), so Sage never pays the gas for someone
+ *                                         else's sale unless the founder chooses to (24 Oct 2026: "we can't
+ *                                         afford to pay everyone's"). A comma-separated list names the
+ *                                         payees; "*" settles for anyone.
  *   X402_METIS_ACCEPT_USDT="1"            also settle m.USDT (m.USDC always)
  *   X402_METIS_DAILY_SETTLE_CAP           broadcasts per day, default 500: bounds the gas a public
  *                                         /settle can spend
@@ -54,6 +58,18 @@ const OTHER_SIGNING_KEYS = [
   "ARC_MAINNET_OPERATOR_PRIVATE_KEY",
 ] as const;
 
+/**
+ * The address Sage is paid at on Metis, or null: `X402_METIS_PAY_TO`, else the billing address. The
+ * seller asks to be paid here, and an unset allowlist settles for this address alone.
+ */
+export function metisSellerPayTo(env: Readonly<Record<string, string | undefined>> = process.env): Address | null {
+  for (const raw of [env.X402_METIS_PAY_TO, env.SAGE_BILLING_ADDRESS]) {
+    const v = raw?.trim();
+    if (v && isAddress(v)) return getAddress(v);
+  }
+  return null;
+}
+
 const normKey = (k: string): string => (k.startsWith("0x") || k.startsWith("0X") ? k.slice(2) : k).toLowerCase();
 
 export function readFacilitatorConfig(env: Readonly<Record<string, string | undefined>> = process.env): ConfigGate {
@@ -89,9 +105,13 @@ export function readFacilitatorConfig(env: Readonly<Record<string, string | unde
   const rpcUrl = env.METIS_MAINNET_RPC_URL?.trim() || METIS_DEFAULT_RPC;
   if (!/^https?:\/\//.test(rpcUrl)) problems.push("METIS_MAINNET_RPC_URL is not an http(s) URL");
 
-  let payToAllowlist: Address[] | null = null;
+  // Unset: Sage's own payee alone (none yet: nothing settles). "*": anyone, and Sage pays their gas.
+  const sagePayee = metisSellerPayTo(env);
+  let payToAllowlist: Address[] | null = sagePayee ? [sagePayee] : [];
   const rawList = env.X402_METIS_PAY_TO_ALLOWLIST?.trim();
-  if (rawList) {
+  if (rawList === "*") {
+    payToAllowlist = null;
+  } else if (rawList) {
     const entries = rawList.split(/[\s,]+/).filter(Boolean);
     if (entries.some((e) => !isAddress(e, { strict: false }))) {
       problems.push("X402_METIS_PAY_TO_ALLOWLIST has an entry that is not an address");

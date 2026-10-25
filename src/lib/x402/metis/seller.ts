@@ -1,6 +1,7 @@
 import "server-only";
 
-import { getAddress, isAddress, type Address } from "viem";
+import type { Address } from "viem";
+import { metisSellerPayTo } from "./config";
 import { M_USDC, METIS_NETWORK } from "./constants";
 import { facilitatorReady, settleDepsFor, verifyDepsFor } from "./http";
 import { settlePayment } from "./settle";
@@ -11,8 +12,8 @@ import { serviceOf, type PricedService } from "@/lib/mcp/pricing";
 /**
  * SAGE SELLS ITS OWN TOOLS OVER ITS OWN FACILITATOR ON METIS (25 Oct 2026).
  *
- * The facilitator (http.ts, verify.ts, settle.ts) lets anyone sell for m.USDC on Metis. This is the
- * first seller: Sage's four paid tools, at their own addresses (`/mcp/metis/<tool>`), so an AI agent can
+ * The facilitator (http.ts, verify.ts, settle.ts) can settle any seller's m.USDC on Metis, and by
+ * default settles only Sage's own (config.ts). This is that seller: Sage's four paid tools, at their own addresses (`/mcp/metis/<tool>`), so an AI agent can
  * pay another agent in USDC on Metis end to end, and the free `/mcp/public/<tool>` doors that a
  * marketplace lists as free stay exactly as they are.
  *
@@ -26,14 +27,8 @@ import { serviceOf, type PricedService } from "@/lib/mcp/pricing";
  * billing address (`SAGE_BILLING_ADDRESS`).
  */
 
-/** The address Sage is paid at on Metis, or null. */
-export function metisSellerPayTo(env: Readonly<Record<string, string | undefined>> = process.env): Address | null {
-  for (const raw of [env.X402_METIS_PAY_TO, env.SAGE_BILLING_ADDRESS]) {
-    const v = raw?.trim();
-    if (v && isAddress(v)) return getAddress(v);
-  }
-  return null;
-}
+/** The address Sage is paid at on Metis, or null (config.ts owns it: the allowlist defaults to it). */
+export { metisSellerPayTo };
 
 /** USD → m.USDC base units (6 dp), as the integer string the requirements carry. */
 export const usdToBase = (usd: number): string => String(Math.round(usd * 1_000_000));

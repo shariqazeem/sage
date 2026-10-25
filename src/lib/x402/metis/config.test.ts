@@ -56,7 +56,7 @@ describe("the env gate: off unless every piece is set", () => {
     expect(config.proxy).toBe(PROXY_BUILDS.paris.address);
     expect(config.rpcUrl).toBe(METIS_DEFAULT_RPC);
     expect(config.assets).toEqual([M_USDC.address]);
-    expect(config.payToAllowlist).toBeNull();
+    expect(config.payToAllowlist).toEqual([]); // no payee for Sage yet: settles for nobody
     expect(config.dailySettleCap).toBe(500);
     expect(JSON.stringify(config)).not.toContain(FACILITATOR_KEY.slice(2));
   });
@@ -75,5 +75,17 @@ describe("the env gate: off unless every piece is set", () => {
     expect(gate.config.payToAllowlist).toEqual([PROXY_BUILDS.canonical.address, M_USDC.address]);
     expect(gate.config.dailySettleCap).toBe(40);
     expect(gate.config.rpcUrl).toBe("https://metis-rpc.publicnode.com");
+  });
+
+  it("settles only Sage's own sales unless the allowlist says otherwise", () => {
+    const sage = PROXY_BUILDS.canonical.address; // any checksummed address will do as Sage's payee
+    const allow = (env: Record<string, string>) => {
+      const gate = readFacilitatorConfig({ ...full, ...env });
+      return gate.open ? gate.config.payToAllowlist : "closed";
+    };
+    expect(allow({ SAGE_BILLING_ADDRESS: sage.toLowerCase() })).toEqual([sage]);
+    expect(allow({ X402_METIS_PAY_TO: sage, SAGE_BILLING_ADDRESS: M_USDC.address })).toEqual([sage]);
+    expect(allow({ SAGE_BILLING_ADDRESS: sage, X402_METIS_PAY_TO_ALLOWLIST: M_USDC.address })).toEqual([M_USDC.address]);
+    expect(allow({ SAGE_BILLING_ADDRESS: sage, X402_METIS_PAY_TO_ALLOWLIST: "*" })).toBeNull();
   });
 });

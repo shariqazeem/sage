@@ -128,7 +128,10 @@ for the first real payment. The steps by hand:*
 4. **Set on the VM**, then deploy Sage as usual (migration 0063 applies itself on first database use):
    - `X402_METIS_PERMIT2_PROXY_ADDRESS=0xC5Df359394de02F8E04bfb650E250b20a33BEe6a`
    - `X402_METIS_FACILITATOR_PRIVATE_KEY=…`
-   - `X402_METIS_PAY_TO_ALLOWLIST=<the seller's payTo>`: recommended at first;
+   - `X402_METIS_PAY_TO_ALLOWLIST`: leave it unset. Since 25 Oct 2026 unset means Sage's own sales only
+     (its payee: `X402_METIS_PAY_TO`, else `SAGE_BILLING_ADDRESS`), so the facilitator never pays the gas
+     for someone else's sale by default. A list names other sellers; `*` settles for anyone, and Sage
+     pays their gas;
    - `X402_METIS_ENABLED=1`.
 
    Optional: `METIS_MAINNET_RPC_URL` (default andromeda.metis.io), `X402_METIS_ACCEPT_USDT=1`,
@@ -151,7 +154,7 @@ what is missing. Until the proxy at the configured address is a known build that
   its own.
 - **The facilitator pays gas for a public `/settle`.** A buyer can withdraw the approval between verify and
   settle and waste one settle's gas. Four things limit that: simulation right before sending, a per-IP rate
-  limit, the daily cap and a small hot wallet; the payTo allowlist goes further.
+  limit, the daily cap and a small hot wallet; and by default it settles only Sage's own sales.
 - **EOA payers only.** Contract wallets (EIP-1271) are refused, not simulated.
 - **One instance.** Transaction nonces are serialized per process, so run one Sage instance (as pm2 does
   today) or give each instance its own key.
