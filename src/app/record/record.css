@@ -196,6 +196,12 @@
 .rec-link { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .rec-link-btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 0.8125rem; color: var(--accent); background: none; border: 1px solid var(--accent-border, var(--accent)); border-radius: 6px; padding: 0.35rem 0.75rem; cursor: pointer; }
 .rec-link-btn:disabled { opacity: 0.6; cursor: default; }
+/* The advance in two steps (26 Oct 2026, on Metis): approve repayment, then take it. The step that is
+   next reads as the action; a finished step reads as done; the one waiting on it stays quiet. */
+.rec-take-steps { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px; }
+.rec-take-steps li { display: grid; gap: 5px; justify-items: start; }
+.rec-take-steps li:not(.on):not(.done) .rec-link-btn { color: var(--ink-faint); border-color: var(--border); }
+.rec-take-steps li.done .rec-link-btn { color: var(--ink-muted); border-color: var(--border); }
 .rec-link-hint { font-size: 0.75rem; color: var(--ink-faint); }
 .rec-link-err { font-size: 0.75rem; color: var(--err, #dc2626); }
 

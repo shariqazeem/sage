@@ -18,9 +18,10 @@ export const maxDuration = 120;
  * the live record at the moment of disbursement. Sage still scores nobody; the lender picked the
  * multiple, the formula did the rest, and both are recorded on the row.
  *
- * The advance goes out as a CLAIM LINK from the pot — the same envelope every other private payout
- * uses — so the advance itself is private-capable. The link is BEARER CASH: it is returned once in
- * this response and stored on the row for the borrower's own dashboard; it is never logged.
+ * Since 26 Oct 2026 the advance goes out on Metis, from the pot's own wallet straight to the borrower's,
+ * and only once the borrower has approved the pot to collect it back (the waterfall on their next
+ * verified payouts, collect.ts). Advances made earlier on Starknet keep their claim links; `history`
+ * still never returns a secret.
  */
 function authorized(req: NextRequest): boolean {
   const secret = process.env.SAGE_ADMIN_SECRET?.trim();

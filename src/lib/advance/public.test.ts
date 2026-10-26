@@ -14,7 +14,7 @@ beforeEach(() => {
 const seed = () => {
   const a = createAdvance({
     borrowerWallet: W, principalBase: BigInt(200_000), multiple: 1, waterfallBps: 5000,
-    potAddress: "0x46a1",
+    potAddress: "0x46a1", chainId: 900_001,
   });
   recordDisbursement(a.id, { tx: "0xd15b", claimCommitment: "0xc0", claimSecret: "0xdeadbeef" });
   recordRepayment({

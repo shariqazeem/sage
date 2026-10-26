@@ -25,7 +25,7 @@ import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { buildLinkedRecord, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { LinkWalletsButton } from "./link-wallets";
 import { TakeAdvanceButton } from "./take-advance";
-import { offerFor } from "@/lib/advance/self-serve";
+import { offerWithPot, POT_PAUSED } from "@/lib/advance/self-serve";
 import { SiteFrame } from "@/components/site/site-frame";
 
 export const runtime = "nodejs";
@@ -85,10 +85,11 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   const viewerOwnsThis = same(evmSession, record.wallet) || same(starknetSession, record.wallet);
   const alreadyLinked = evmSession && starknetSession ? linkedWalletsOf(evmSession).some((w) => same(w, starknetSession)) : true;
   const canLink = !!evmSession && !!starknetSession && viewerOwnsThis && !alreadyLinked;
-  // WORKING CAPITAL, SELF-SERVE — the owner sees what the published formula allows right now and can
-  // take it in one click; everyone else sees the facility's terms on the lender view instead.
-  const offer = viewerOwnsThis ? offerFor(record.wallet) : null;
-  const showTake = !!offer && offer.terms.armed && !offer.active && offer.offerUsd >= 0.1;
+  // WORKING CAPITAL, SELF-SERVE — the owner sees what the published formula allows right now, capped by
+  // what the pot holds (on Metis since 26 Oct 2026), and takes it in two steps; when the pot cannot pay, a
+  // calm sentence instead of a button. Everyone else sees the facility's terms on the lender view.
+  const offer = viewerOwnsThis ? await offerWithPot(record.wallet) : null;
+  const showCapital = !!offer && offer.terms.armed && !offer.active && offer.capacityUsd >= 0.1;
   const otherLabel = same(evmSession, record.wallet) ? "Starknet" : "Ethereum";
 
   return (
@@ -263,17 +264,30 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           </section>
         )}
 
-        {showTake && offer && (
+        {showCapital && offer && (
           <section className="rec-adv spp-reveal" aria-label="Working capital">
             <div className="rec-sig-head">
               <span className="rec-sig-title">Working capital</span>
               <span className="rec-sig-sub mono">capacity ${offer.capacityUsd.toFixed(2)} · = {offer.terms.multiple}× monthly verified inflow</span>
             </div>
-            <TakeAdvanceButton wallet={record.wallet} offerUsd={offer.offerUsd} multiple={offer.terms.multiple} waterfallBps={offer.terms.waterfallBps} />
+            {offer.pot.open && offer.approval && offer.offerUsd >= 0.1 ? (
+              <TakeAdvanceButton
+                wallet={record.wallet}
+                offerUsd={offer.offerUsd}
+                multiple={offer.terms.multiple}
+                waterfallBps={offer.terms.waterfallBps}
+                pot={offer.pot.address}
+                token={offer.pot.token}
+                approved={offer.approval.approved}
+                needsFee={offer.approval.needsFee}
+              />
+            ) : (
+              <p className="rec-link-hint">{offer.pot.open ? POT_PAUSED : offer.pot.message}</p>
+            )}
           </section>
         )}
         {offer?.active && (
-          <p className="rec-link-hint">Advance outstanding: ${offer.active.outstandingUsd.toFixed(2)} of ${offer.active.principalUsd.toFixed(2)} — repaid automatically from your next verified payouts.</p>
+          <p className="rec-link-hint">Advance outstanding: ${offer.active.outstandingUsd.toFixed(2)} of ${offer.active.principalUsd.toFixed(2)}, repaid automatically from your next verified payouts under your approval.</p>
         )}
         {/* THE ADVANCE FACILITY (capital in). Rendered only when a facility has actually run for
             this wallet — an empty promise box would be marketing, and this page is receipts.
@@ -306,8 +320,14 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                   <div className="rec-adv-terms">
                     Terms, published: capacity was {a.terms.multipleOfMonthlyInflow}× monthly
                     verified inflow (90d window ÷ 3); at most {a.terms.waterfallPct}% of each
-                    subsequent verified payout routes to repayment. Recourse is the Sage-routed
-                    remainder — nothing else.
+                    later verified payout {a.network === "Metis" ? "is collected toward it on Metis, under the borrower's own approval" : "routed to repayment on Starknet"}.
+                    Repayment comes from verified income only: nothing else.
+                    {a.missedPayouts > 0 && (
+                      <>
+                        {" "}{a.missedPayouts} verified payout{a.missedPayouts === 1 ? "" : "s"} passed without a repayment (the approval
+                        withdrawn, or the money already moved).
+                      </>
+                    )}
                   </div>
                   {a.repayments.length > 0 && (
                     <ul className="rec-adv-reps">
@@ -320,7 +340,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                           </span>
                           {r.escrowTxUrl ? (
                             <a href={r.escrowTxUrl} target="_blank" rel="noreferrer noopener">
-                              escrow tx →
+                              {a.network === "Metis" ? "transaction →" : "escrow tx →"}
                             </a>
                           ) : (
                             <span className="rec-adv-tx">{short(r.escrowTx)}</span>

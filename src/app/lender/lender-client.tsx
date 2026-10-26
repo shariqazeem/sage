@@ -78,8 +78,8 @@ const usd = (v: number | undefined) =>
 
 /** Real wallets with verified inflow on mainnet — a lender should not have to supply one to look. */
 const EXAMPLE_WALLETS = [
-  { address: "0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", note: "Starknet · private rail" },
-  { address: "0xccbfb9bba88f282282a29aa1338175cc835e768d", note: "GOAT · public rail" },
+  { address: "0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", note: "paid on Starknet" },
+  { address: "0xccbfb9bba88f282282a29aa1338175cc835e768d", note: "paid on GOAT Network" },
 ];
 
 export function LenderClient() {
@@ -398,12 +398,12 @@ export function LenderClient() {
                           {a.status === "repaid"
                             ? ` — repaid from ${a.repayments.length} verified payout${a.repayments.length === 1 ? "" : "s"}, ≤${a.terms.waterfallPct}% of each`
                             : a.outstandingUsd !== null
-                              ? ` — ${usd(a.outstandingUsd)} outstanding, ≤${a.terms.waterfallPct}% of each payout routes to repayment`
+                              ? ` — ${usd(a.outstandingUsd)} outstanding, ≤${a.terms.waterfallPct}% of each later payout repays it`
                               : ""}
                         </span>
                         {a.repayments[0]?.escrowTxUrl ? (
                           <a href={a.repayments[0].escrowTxUrl} target="_blank" rel="noreferrer noopener">
-                            escrow tx <ArrowRight size={12} aria-hidden />
+                            repayment tx <ArrowRight size={12} aria-hidden />
                           </a>
                         ) : null}
                       </li>
@@ -411,9 +411,9 @@ export function LenderClient() {
                   </ul>
                 ) : (
                   <p className="lend-adv-none">
-                    No advance has run against this record yet. The facility is armed and dry-run against live records — today&rsquo;s
-                    LP is Sage&rsquo;s own pot, and repayment routes from each subsequent verified
-                    payout (the waterfall), with recourse on the Sage-routed remainder only.
+                    No advance has run against this record yet. The facility runs on Metis, and today&rsquo;s lender is
+                    Sage&rsquo;s own pot. Repayment is collected from each later verified payout under the borrower&rsquo;s
+                    own approval (the waterfall), and from nothing else.
                   </p>
                 )}
                 <div className="lend-adv-pipe">

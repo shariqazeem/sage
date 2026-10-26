@@ -135,7 +135,7 @@ export function CapitalPanel({ view }: { view: CapitalView }) {
               <li className="ws-row">
                 <div className="ws-row-main">
                   <p className="ws-row-title"><Banknote size={14} /> <span className="t">Working-capital advance</span></p>
-                  <p className="ws-row-meta">{view.advance.armed ? `Self-serve on a member's record: up to ${usd(view.advance.maxUsd)} at ${view.advance.multiple}× monthly verified inflow, repaid from ${view.advance.waterfallPct}% of each next payout.` : "Operator-run today; self-serve switches on per deployment."}</p>
+                  <p className="ws-row-meta">{view.advance.armed ? `Self-serve on a member's record, on Metis: up to ${usd(view.advance.maxUsd)} at ${view.advance.multiple}× monthly verified inflow, repaid from ${view.advance.waterfallPct}% of each next payout.` : "Operator-run today; self-serve switches on per deployment."}</p>
                 </div>
                 <span className={`ws-chip${view.advance.armed ? " live" : ""}`}>{view.advance.armed ? "armed" : "operator"}</span>
               </li>

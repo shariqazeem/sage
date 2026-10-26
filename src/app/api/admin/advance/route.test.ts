@@ -1,13 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const escrowPayouts = vi.fn(async () => ({ transactionHash: "0xd15b", totalBase: BigInt(0), count: 1 }));
+/**
+ * THE OPERATOR'S ADVANCE DOOR, ON METIS (26 Oct 2026): bound by the same rules as the self-serve one, through
+ * the same disburseAdvance: the published formula, one active advance, the pot's balance, and the
+ * borrower's approval before a cent goes out.
+ */
+const p = vi.hoisted(() => ({
+  allowance: BigInt(10_000_000),
+  sendUsdc: vi.fn<(...a: unknown[]) => Promise<string>>(async () => `0x${"d1".repeat(32)}`),
+}));
+vi.mock("@/lib/advance/pot", () => ({
+  POT_CHAIN_ID: 1088,
+  POT_MIN_METIS_WEI: BigInt("5000000000000000"),
+  MIN_ADVANCE_BASE: BigInt(100_000),
+  potConfig: () => ({ ok: true, pot: { address: "0x2222222222222222222222222222222222222222", token: "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21", account: {} } }),
+  potBalances: async () => ({ usdcBase: BigInt(10_000_000), metisWei: BigInt("500000000000000000") }),
+  allowanceToPot: async () => p.allowance,
+  potSendUsdc: (...a: unknown[]) => p.sendUsdc(...a),
+  potReceipt: async () => "success",
+}));
 const walletCreditSignals = vi.fn();
 const advanceCapacityUsd = vi.fn((..._a: unknown[]) => 1.0);
-
-vi.mock("@/lib/starknet/claims", () => ({ escrowPayouts: (...a: unknown[]) => escrowPayouts(...(a as [])) }));
-vi.mock("@/lib/starknet/config", () => ({
-  starknetConfig: () => ({ rpcUrl: "https://rpc.test", claimsAddress: "0x6fe", tokenAddress: "0x033", accountAddress: "0x46a1", privateKey: "0x1" }),
-}));
 vi.mock("@/lib/campaigns/credit", () => ({
   walletCreditSignals: (...a: unknown[]) => walletCreditSignals(...(a as [string])),
   advanceCapacityUsd: (...a: unknown[]) => advanceCapacityUsd(...(a as [never, number])),
@@ -17,7 +30,7 @@ import { POST } from "./route";
 import { db } from "@/lib/db";
 import { advances, advanceRepayments } from "@/lib/db/schema";
 
-const W = "0x4f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434";
+const W = "0x00000000000000000000000000000000000000cc";
 const call = (body: unknown, secret?: string) =>
   POST(
     new Request("http://test/api/admin/advance", {
@@ -33,7 +46,8 @@ beforeEach(() => {
   db.delete(advances).run();
   walletCreditSignals.mockReturnValue({ record: {}, signals: { inflow90dUsd: 3 } });
   advanceCapacityUsd.mockReturnValue(1.0);
-  escrowPayouts.mockClear();
+  p.allowance = BigInt(10_000_000);
+  p.sendUsdc.mockClear();
 });
 
 describe("the advance endpoint", () => {
@@ -42,7 +56,7 @@ describe("the advance endpoint", () => {
     expect((await call({ action: "disburse", wallet: W, usd: 0.5 }, "anything")).status).toBe(404);
     process.env.SAGE_ADMIN_SECRET = "s3cr3t";
     expect((await call({ action: "disburse", wallet: W, usd: 0.5 }, "wrong")).status).toBe(404);
-    expect(escrowPayouts).not.toHaveBeenCalled();
+    expect(p.sendUsdc).not.toHaveBeenCalled();
   });
 
   it("THE FORMULA BINDS THE LENDER — over capacity is refused with the arithmetic shown", async () => {
@@ -50,36 +64,43 @@ describe("the advance endpoint", () => {
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error: string };
     expect(j.error).toContain("$1.00"); // the capacity, named
-    expect(escrowPayouts).not.toHaveBeenCalled();
+    expect(p.sendUsdc).not.toHaveBeenCalled();
   });
 
   it("no record → capacity is $0.00 and nothing moves", async () => {
     walletCreditSignals.mockReturnValue(null);
     const res = await call({ action: "disburse", wallet: W, usd: 0.1 }, "s3cr3t");
     expect(res.status).toBe(409);
-    expect(escrowPayouts).not.toHaveBeenCalled();
+    expect(p.sendUsdc).not.toHaveBeenCalled();
   });
 
   it("a dry run prices the advance and creates NOTHING", async () => {
     const res = await call({ action: "disburse", wallet: W, usd: 0.5, dryRun: true }, "s3cr3t");
     expect(res.status).toBe(200);
-    expect(escrowPayouts).not.toHaveBeenCalled();
+    expect(p.sendUsdc).not.toHaveBeenCalled();
     expect(db.select().from(advances).all()).toHaveLength(0);
   });
 
-  it("disburses within capacity: row + escrow + a claim link returned ONCE", async () => {
+  it("disburses within capacity once the borrower approved: the row, and the transfer to their wallet", async () => {
     const res = await call({ action: "disburse", wallet: W, usd: 0.5, waterfallBps: 5000 }, "s3cr3t");
     expect(res.status).toBe(200);
-    const j = (await res.json()) as { claimUrl: string; disburseTx: string };
-    expect(j.claimUrl).toMatch(/\/claim#0x[0-9a-f]+/);
-    expect(j.disburseTx).toBe("0xd15b");
+    const j = (await res.json()) as { disburseTx: string; explorerUrl: string };
+    expect(j.disburseTx).toBe(`0x${"d1".repeat(32)}`);
+    expect(j.explorerUrl).toContain(j.disburseTx);
+    expect(p.sendUsdc).toHaveBeenCalledTimes(1);
     const [row] = db.select().from(advances).all();
-    expect(row.outstandingBase).toBe(500_000);
-    expect(row.status).toBe("active");
-    // the row keeps the secret for the borrower's dashboard; history redacts it
+    expect(row).toMatchObject({ outstandingBase: 500_000, status: "active", chainId: 1088, disburseClaimSecret: null });
     const hist = await call({ action: "history", wallet: W }, "s3cr3t");
     const h = (await hist.json()) as { advances: Array<{ disburseClaimSecret: string | null }> };
-    expect(h.advances[0].disburseClaimSecret).toBe("(held)");
+    expect(h.advances[0].disburseClaimSecret).toBeNull();
+  });
+
+  it("sends nothing until the borrower has approved repayment", async () => {
+    p.allowance = BigInt(0);
+    const res = await call({ action: "disburse", wallet: W, usd: 0.5 }, "s3cr3t");
+    expect(res.status).toBe(409);
+    expect(p.sendUsdc).not.toHaveBeenCalled();
+    expect(db.select().from(advances).all()).toHaveLength(0);
   });
 
   it("one active advance per borrower — the second is refused in words", async () => {
@@ -89,10 +110,11 @@ describe("the advance endpoint", () => {
     expect(((await res.json()) as { error: string }).error).toMatch(/already has an active advance/);
   });
 
-  it("escrow failure answers 502 and says the row needs resolving — never a silent half-state", async () => {
-    escrowPayouts.mockRejectedValueOnce(new Error("sequencer down"));
+  it("a failed send answers 502 and leaves no row: nothing moved, nothing owed", async () => {
+    p.sendUsdc.mockRejectedValueOnce(new Error("node down"));
     const res = await call({ action: "disburse", wallet: W, usd: 0.5 }, "s3cr3t");
     expect(res.status).toBe(502);
-    expect(((await res.json()) as { error: string }).error).toMatch(/DISBURSEMENT FAILED/);
+    expect(((await res.json()) as { error: string }).error).toMatch(/Nothing moved and nothing is owed/);
+    expect(db.select().from(advances).all()).toHaveLength(0);
   });
 });

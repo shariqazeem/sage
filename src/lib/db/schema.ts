@@ -1478,6 +1478,8 @@ export const advances = sqliteTable(
     disburseClaimSecret: text("disburse_claim_secret"),
     createdAt: integer("created_at").notNull(),
     repaidAt: integer("repaid_at"),
+    /** the rail the advance lives on: 1088 (Metis) since 26 Oct 2026; every earlier row was Starknet. */
+    chainId: integer("chain_id").notNull().default(900_001),
   },
   (t) => [index("adv_borrower_idx").on(t.borrowerWallet)],
 );
@@ -1493,10 +1495,13 @@ export const advanceRepayments = sqliteTable(
     /** the verified payout this slice came out of — the witnessed event, not a bank promise. */
     submissionId: text("submission_id").notNull(),
     amountBase: integer("amount_base").notNull(),
-    /** the pot's leg: commitment on chain, secret held by the operator to collect later. */
-    claimCommitment: text("claim_commitment").notNull(),
-    claimSecret: text("claim_secret").notNull(),
-    escrowTx: text("escrow_tx").notNull(),
+    /** Starknet only — the pot's leg: commitment on chain, secret held by the operator to collect later. */
+    claimCommitment: text("claim_commitment"),
+    claimSecret: text("claim_secret"),
+    /** the transaction that moved this slice: an escrow on Starknet, the pot's transferFrom on Metis.
+     *  Null for a payout whose share could not be collected (then `note` says why). */
+    escrowTx: text("escrow_tx"),
+    note: text("note"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
@@ -1508,6 +1513,15 @@ export const advanceRepayments = sqliteTable(
 );
 
 export type AdvanceRepaymentRow = typeof advanceRepayments.$inferSelect;
+
+/** The pot covered a borrower's one approval fee on Metis, once per wallet (drizzle/0066). */
+export const advanceFeeTopups = sqliteTable("advance_fee_topups", {
+  wallet: text("wallet").primaryKey(),
+  chainId: integer("chain_id").notNull(),
+  amountWei: text("amount_wei").notNull(),
+  txHash: text("tx_hash").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
 
 /**
  * x402 ON METIS: where a Permit2 payment this facilitator settles stands (src/lib/x402/metis/).

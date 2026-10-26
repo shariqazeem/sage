@@ -33,6 +33,7 @@ import { encodeDetail } from "@/lib/campaigns/journal";
 import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
 import { renewDuePlans } from "@/lib/plans/renewal";
+import { collectAdvanceRepayments } from "@/lib/advance/collect";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,7 @@ async function runSweep() {
     roster: { campaigns: 0, sent: 0 },
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
+    advances: { advances: 0, collected: 0, collectedBase: 0, missed: 0, paused: null as string | null },
   };
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
@@ -238,6 +240,14 @@ async function runSweep() {
   summary.operator = await runOperatorTick(nowSeconds(), (fn) => after(fn)).catch((e) => {
     console.error("[sweep] operator tick failed:", e instanceof Error ? e.message : e);
     return { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] };
+  });
+
+  // THE WATERFALL ON METIS (26 Oct 2026): the pot collects its share of each verified payout a borrower
+  // received since their advance, under the approval they gave. After every payout path on purpose: a
+  // collection reads payouts that have already settled, and a failure here can never cost one.
+  summary.advances = await collectAdvanceRepayments().catch((e) => {
+    console.error("[sweep] advance collection failed:", e instanceof Error ? e.message : e);
+    return { advances: 0, collected: 0, collectedBase: 0, missed: 0, paused: "error" };
   });
 
   // PLANS THAT RENEW LIKE A CARD (21 Oct 2026): a reminder three days ahead, the renewal from the

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { advances, advanceRepayments, type AdvanceRow } from "@/lib/db/schema";
+import { advanceFeeTopups, advances, advanceRepayments, type AdvanceRow } from "@/lib/db/schema";
 import { founderStorageKey } from "@/lib/auth/founder";
 import { WATERFALL_BPS_MAX } from "@/lib/advance/waterfall";
 
@@ -20,6 +20,8 @@ export interface CreateAdvanceInput {
   multiple: number;
   waterfallBps: number;
   potAddress: string;
+  /** the rail it lives on: Metis (1088) for every new advance since 26 Oct 2026. */
+  chainId: number;
 }
 
 export function createAdvance(input: CreateAdvanceInput): AdvanceRow {
@@ -45,9 +47,32 @@ export function createAdvance(input: CreateAdvanceInput): AdvanceRow {
     disburseClaimSecret: null,
     createdAt: now(),
     repaidAt: null,
+    chainId: input.chainId,
   };
   db.insert(advances).values(row).run();
   return row;
+}
+
+/** Remove an advance whose disbursement provably moved nothing (never sent, or reverted). */
+export function voidUndisbursedAdvance(advanceId: string): void {
+  db.delete(advances).where(eq(advances.id, advanceId)).run();
+}
+
+/** Every active advance on one rail, oldest first: what the collector services. */
+export function listActiveAdvancesOn(chainId: number): AdvanceRow[] {
+  return db
+    .select()
+    .from(advances)
+    .where(and(eq(advances.status, "active"), eq(advances.chainId, chainId)))
+    .all()
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/** The submissions already considered for an advance's repayment (collected or missed), once each. */
+export function consideredSubmissions(advanceId: string): Set<string> {
+  return new Set(
+    db.select({ id: advanceRepayments.submissionId }).from(advanceRepayments).where(eq(advanceRepayments.advanceId, advanceId)).all().map((r) => r.id),
+  );
 }
 
 /** The one advance the waterfall must service for this earner, if any. Chain-agnostic key. */
@@ -61,12 +86,13 @@ export function getActiveAdvance(wallet: string): AdvanceRow | null {
   return row ?? null;
 }
 
+/** The disbursement's transaction, written the moment it is sent (Metis), or the escrow's claim (Starknet). */
 export function recordDisbursement(
   advanceId: string,
-  d: { tx: string; claimCommitment: string; claimSecret: string },
+  d: { tx: string; claimCommitment?: string | null; claimSecret?: string | null },
 ): void {
   db.update(advances)
-    .set({ disburseTx: d.tx, disburseClaimCommitment: d.claimCommitment, disburseClaimSecret: d.claimSecret })
+    .set({ disburseTx: d.tx, disburseClaimCommitment: d.claimCommitment ?? null, disburseClaimSecret: d.claimSecret ?? null })
     .where(eq(advances.id, advanceId))
     .run();
 }
@@ -75,9 +101,11 @@ export interface RepaymentInput {
   advanceId: string;
   submissionId: string;
   amountBase: bigint;
-  claimCommitment: string;
-  claimSecret: string;
+  /** the transaction that moved the slice: an escrow on Starknet, the pot's transferFrom on Metis. */
   escrowTx: string;
+  /** Starknet only: the pot's claim leg. */
+  claimCommitment?: string | null;
+  claimSecret?: string | null;
 }
 
 /**
@@ -105,8 +133,8 @@ export function recordRepayment(input: RepaymentInput): { remainingBase: bigint;
         advanceId: input.advanceId,
         submissionId: input.submissionId,
         amountBase: Number(input.amountBase),
-        claimCommitment: input.claimCommitment,
-        claimSecret: input.claimSecret,
+        claimCommitment: input.claimCommitment ?? null,
+        claimSecret: input.claimSecret ?? null,
         escrowTx: input.escrowTx,
         createdAt: now(),
       })
@@ -121,6 +149,57 @@ export function recordRepayment(input: RepaymentInput): { remainingBase: bigint;
       .run();
     return { remainingBase: remaining, repaid };
   });
+}
+
+/**
+ * A verified payout whose share could not be collected (the borrower withdrew the approval, or the money
+ * had already left the wallet). Recorded with no transaction and a reason, so it is considered exactly once
+ * and the balance it would have paid down is untouched: "at most N% of each payout", never a catch-up.
+ */
+export function recordMissedRepayment(input: { advanceId: string; submissionId: string; note: string }): void {
+  db.insert(advanceRepayments)
+    .values({
+      id: `rep-${crypto.randomUUID().slice(0, 12)}`,
+      advanceId: input.advanceId,
+      submissionId: input.submissionId,
+      amountBase: 0,
+      claimCommitment: null,
+      claimSecret: null,
+      escrowTx: null,
+      note: input.note.slice(0, 200),
+      createdAt: now(),
+    })
+    .run();
+}
+
+/** Whether the pot has already covered this wallet's approval fee (once per wallet). */
+export function getFeeTopup(wallet: string): { txHash: string; amountWei: string } | null {
+  const row = db.select().from(advanceFeeTopups).where(eq(advanceFeeTopups.wallet, founderStorageKey(wallet))).get();
+  return row ? { txHash: row.txHash, amountWei: row.amountWei } : null;
+}
+
+/**
+ * Reserve a wallet's one fee cover BEFORE sending it: the primary key refuses a second reservation, so two
+ * requests racing the same wallet cannot both send. False when it was already reserved or covered.
+ */
+export function reserveFeeTopup(input: { wallet: string; chainId: number; amountWei: bigint }): boolean {
+  try {
+    db.insert(advanceFeeTopups)
+      .values({ wallet: founderStorageKey(input.wallet), chainId: input.chainId, amountWei: input.amountWei.toString(), txHash: "pending", createdAt: now() })
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function completeFeeTopup(wallet: string, txHash: string): void {
+  db.update(advanceFeeTopups).set({ txHash }).where(eq(advanceFeeTopups.wallet, founderStorageKey(wallet))).run();
+}
+
+/** The send failed before reaching the chain: free the reservation so the wallet can be covered later. */
+export function releaseFeeTopup(wallet: string): void {
+  db.delete(advanceFeeTopups).where(eq(advanceFeeTopups.wallet, founderStorageKey(wallet))).run();
 }
 
 /** The credit file's view: the advance history for a wallet, newest first, with repayments. */

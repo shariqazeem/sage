@@ -371,6 +371,7 @@ describe("waterfall — an active advance splits the escrow", () => {
       multiple: 1,
       waterfallBps: over.bps ?? 5000,
       potAddress: SAGE_OPERATOR,
+      chainId: 900_001, // a Starknet-era advance: the escrow split this file tests
     });
   };
 
