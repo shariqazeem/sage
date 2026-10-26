@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAgentIdentities, getAgentIdentity } from "@/lib/erc8004/identity";
 import { agentWallet, getAgentReputation } from "@/lib/erc8004/reputation";
-import { agentPageUrl } from "@/lib/site";
+import { agentPageUrl, siteUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTION =
-  "Sage's Payout Deputy — an autonomous ERC-8004 agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.";
+  "Sage, an autonomous ERC-8004 agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.";
 
 /**
  * GET /api/agent/card — the canonical machine-readable agent URI. Matches the
@@ -21,8 +21,11 @@ export function GET() {
   const r = getAgentReputation();
 
   const body = {
+    // The ERC-8004 registration-file shape (this URL is the agentURI Sage registers on Metis).
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name: id.name ?? "Sage",
     description: DESCRIPTION,
+    image: `${siteUrl()}/icon.png`,
     url: agentPageUrl(),
     wallet: agentWallet(id),
     ...(id.agentId ? { agentId: id.agentId } : {}),

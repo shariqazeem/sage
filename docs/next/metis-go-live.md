@@ -1,9 +1,27 @@
 # Metis go-live: the runbook
 
-*Rewritten 25 Oct 2026. Everything is built, deployed and tested; Metis is the default network in code.
-What is left needs real METIS from you, and one command walks it: `scripts/metis-go-live.sh`. Every step
-that sends a transaction or changes the server asks first, every step is safe to run twice (it never
-deploys or registers twice), and nothing secret is printed.*
+*Rewritten 25 Oct 2026; **run on 26 Oct 2026, and Sage is live on Metis.** One command walks it:
+`scripts/metis-go-live.sh`. Every step that sends a transaction or changes the server asks first, every
+step is safe to run twice (it never deploys or registers twice), and nothing secret is printed.*
+
+## Live (26 Oct 2026)
+
+| What | Where | Transaction |
+| --- | --- | --- |
+| Job factory (V2 `CampaignVaultFactory`) | `0xdD9a45c181dD95e48CDdC0149C8b821D604C45C9` | `0x24d6b3ad…6227` (0.0271 METIS) |
+| ERC-8004 identity | agent **139**, URI `https://sagepays.xyz/api/agent/card`, wallet = the operator | `0x11205a5a…4a9e` (0.0026 METIS) |
+| x402 Permit2 proxy (paris build) | `0xC5Df359394de02F8E04bfb650E250b20a33BEe6a` | `0x8c3624e9…5bac` (0.0104 METIS, from the facilitator) |
+| Billing address | the founder's MetaMask `0xDF70f6E8e656E5bb714fF0E8CA176d76F26890e3` | (a setting) |
+| x402 on | `/api/x402/metis/supported` 200; `/mcp/metis/<tool>` answers 402 ($0.05 for `sage_first_look`) | (a setting) |
+
+Checked before money went in: the factory and vault bytecode target `paris` (no MCOPY/TSTORE/BASEFEE can
+run; the 85 contract tests pass on that EVM), the factory's constructor and a founder's
+`createCampaignVault` were simulated on Metis itself, and `register(<card URL>)` was simulated before it
+was sent. Left after go-live: the operator holds 0.0203 METIS (about 9 payouts) and the facilitator
+0.0196 (about 11 settlements); top both up toward the comfortable amounts below.
+
+**Still to happen:** the founder opens their account (Account → Metis → Open), funds it, and posts a small
+job; the first real Metis payout and the first real x402 payment are the proofs that remain.
 
 ## What to send, and where
 

@@ -66,9 +66,11 @@ configured (fails closed).
 - **Metis Andromeda** (m.USDC `0xEA32A96608495e54156Ae48931A7c20f0dcc1a21`, 6 dp; gas **METIS**, legacy
   pricing, no EIP-1559) reads its OWN settings (`railEnvPrefix(1088) = "METIS_MAINNET"`: factory, operator
   address, key falling back to `GOAT_AGENT_PRIVATE_KEY`, RPC), never the retired Sepolia testnet's. Gas is
-  sized per chain in `src/lib/treasury/gas-policy.ts`. Its V2 factory is deployed by the founder with
-  `contracts/script/deploy-campaign-factory-metis.sh` once the operator holds METIS; until then the rail is
-  wired but not launchable. The default moves to Metis only after a real payout there.
+  sized per chain in `src/lib/treasury/gas-policy.ts`. **LIVE since 26 Oct 2026** (`scripts/metis-go-live.sh`,
+  runbook `docs/next/metis-go-live.md`): V2 factory `0xdD9a45c181dD95e48CDdC0149C8b821D604C45C9`, ERC-8004
+  agent **139** (its URI is `https://sagepays.xyz/api/agent/card`), and Sage's x402 facilitator (proxy
+  `0xC5Df…Ee6a`, signer `0x86D7…7ABB`, key only on the VM) selling Sage's tools at `/mcp/metis/<tool>`,
+  paid to `SAGE_BILLING_ADDRESS`. No real payout on Metis yet.
 - **Arc** (USDC is the native gas and an ERC-20 at `0x3600…0000`) and **Starknet** (the private rail, below)
   keep working end to end; they are hidden, never deleted.
 - Telegram walletless accounts open on the default network (Metis) once it is live; a chat whose wallet is on

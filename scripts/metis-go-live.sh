@@ -108,7 +108,7 @@ case "${1:-status}" in
       say "This Mac already registered Sage on Metis (ERC8004_METIS_AGENT_ID in .env); copying it to the server, not registering again."
     else
       ask "Register Sage's ERC-8004 identity on Metis now (one transaction from the operator, ~0.005 METIS)?"
-      node scripts/register-erc8004.mjs --chain metis Sage
+      node scripts/register-erc8004.mjs --chain metis --uri https://sagepays.xyz/api/agent/card Sage
       grep -qE '^ERC8004_METIS_AGENT_ID=' .env || { say "No agent id was written to .env (see the output above); the server was not changed."; exit 1; }
     fi
     for name in ERC8004_METIS_AGENT_ID ERC8004_METIS_AGENT_ADDRESS ERC8004_METIS_AGENT_NAME; do

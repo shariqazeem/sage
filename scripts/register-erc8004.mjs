@@ -62,7 +62,19 @@ if (ON !== "goat" && ON !== "metis") {
   console.error(`--chain must be goat or metis (got "${ON}").`);
   process.exit(1);
 }
+// What the registry stores is the agent's URI (ERC-8004 `register(string agentURI)`), which explorers
+// resolve to a registration file. GOAT's identity (July 2026) registered the bare name; --uri registers a
+// resolvable one (Sage's is https://sagepays.xyz/api/agent/card), and the owner can change it later with
+// setAgentURI. Without --uri the name is registered, as before.
+const uriFlag = args.indexOf("--uri");
+const AGENT_URI_ARG = uriFlag >= 0 ? String(args[uriFlag + 1] ?? "") : undefined;
+if (uriFlag >= 0) args.splice(uriFlag, 2);
+if (AGENT_URI_ARG !== undefined && !/^(https:\/\/|data:)/.test(AGENT_URI_ARG)) {
+  console.error(`--uri must be an https: or data: URI (got "${AGENT_URI_ARG}").`);
+  process.exit(1);
+}
 const AGENT_NAME = args[0] || process.env.SAGE_AGENT_NAME || "Sage";
+const AGENT_URI = AGENT_URI_ARG || AGENT_NAME;
 
 const goat = defineChain({
   id: 2345,
@@ -154,6 +166,7 @@ async function main() {
   console.log(`\nERC-8004 registration on ${CHAIN.name} (chain ${CHAIN.id})`);
   console.log(`  registry:   ${REGISTRY}`);
   console.log(`  agent name: "${AGENT_NAME}"`);
+  console.log(`  agent URI:  ${AGENT_URI}`);
   console.log(`  signer:     ${account.address}   <-- this becomes the agent identity`);
 
   const balance = await pub.getBalance({ address: account.address });
@@ -167,17 +180,17 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\nSending register("${AGENT_NAME}")…`);
+  console.log(`\nSending register("${AGENT_URI}")…`);
   let hash;
   if (ON === "metis") {
     const gasPrice = ((await pub.getGasPrice()) * 12n) / 10n;
-    hash = await wallet.writeContract({ address: REGISTRY, abi: registryAbi, functionName: "register", args: [AGENT_NAME], gasPrice, type: "legacy" });
+    hash = await wallet.writeContract({ address: REGISTRY, abi: registryAbi, functionName: "register", args: [AGENT_URI], gasPrice, type: "legacy" });
   } else try {
     hash = await wallet.writeContract({
       address: REGISTRY,
       abi: registryAbi,
       functionName: "register",
-      args: [AGENT_NAME],
+      args: [AGENT_URI],
     });
   } catch (err) {
     // Some Bitcoin-L2 RPCs want a legacy (non-1559) tx. Retry once with gasPrice.
@@ -187,7 +200,7 @@ async function main() {
       address: REGISTRY,
       abi: registryAbi,
       functionName: "register",
-      args: [AGENT_NAME],
+      args: [AGENT_URI],
       gasPrice,
     });
   }

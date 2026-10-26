@@ -132,7 +132,7 @@ function printEnv(address) {
   say(`  METIS_MAINNET_RPC_URL=${RPC}`);
   say("  X402_METIS_ENABLED=1");
   say("Optional:");
-  say("  X402_METIS_PAY_TO_ALLOWLIST=<the payTo addresses to settle for, comma-separated>");
+  say("  X402_METIS_PAY_TO_ALLOWLIST=<other sellers, comma-separated, or * for anyone> (unset: only Sage's own sales settle)");
   say("  X402_METIS_ACCEPT_USDT=1");
 }
 
