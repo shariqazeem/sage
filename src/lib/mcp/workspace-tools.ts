@@ -87,7 +87,7 @@ export async function callWorkspaceTool(name: string, rawArgs: Record<string, un
 
   if (name === "sage_account") {
     const because = accountUnavailableBecause(ctx.founder);
-    if (because) return json({ ok: true, exists: false, reason: because === "starknet" ? "A Starknet sign-in has no Sage account: its jobs are funded from its own wallet." : "Accounts aren't configured on this deployment." });
+    if (because) return json({ ok: true, exists: false, reason: because === "starknet" ? "A Starknet sign-in has no Sage account. Sage runs on Metis: an email or MetaMask sign-in opens one." : "Accounts aren't configured on this deployment." });
     const t = getWebTreasury(ctx.founder);
     if (!t) return json({ ok: true, exists: false, reason: "The owner hasn't opened a Sage account yet.", openAt: `${siteUrl()}/workspace/account` });
     const s = await webTreasuryStatus(ctx.founder, t.chainId);

@@ -13,7 +13,7 @@ import { verifyVaultBacksPlan } from "@/lib/starknet/verify-attach";
 import { toFelt } from "@/lib/starknet/felt";
 import { starknetConfig, starknetVaultClassHash } from "@/lib/starknet/config";
 import { planVaultDeployment, saltForJob } from "@/lib/starknet/vault-calls";
-import { STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { pausedNetworkReason, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
 import { getCampaignByVault } from "@/lib/db/campaigns";
 import { recordEvent } from "@/lib/db/campaigns";
 import { getFounderAddress } from "@/lib/auth/founder";
@@ -46,6 +46,9 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
+  // Starknet is closed (26 Oct 2026, networks.ts CLOSED_NETWORKS): no new vault is described or attached.
+  const closed = pausedNetworkReason(STARKNET_MAINNET_KEY);
+  if (closed) return NextResponse.json({ error: closed }, { status: 400 });
 
   const owner = await getFounderAddress();
   if (!owner) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
@@ -181,6 +184,8 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
+  const closed = pausedNetworkReason(STARKNET_MAINNET_KEY);
+  if (closed) return NextResponse.json({ error: closed }, { status: 400 });
 
   const owner = await getFounderAddress();
   if (!owner) {

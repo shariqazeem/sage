@@ -150,7 +150,7 @@ describe("the mapper does not manufacture NaN (P-DIRECT, 2026-08-31)", () => {
   });
 });
 
-describe("a named recipient may be on either rail", () => {
+describe("a named recipient is an address Sage can pay on Metis (26 Oct 2026)", () => {
   const withAllowlist = (w: string) =>
     directCampaignSchema.safeParse({
       kind: "gig",
@@ -162,12 +162,26 @@ describe("a named recipient may be on either rail", () => {
       ],
     }).success;
 
-  it("accepts a Starknet felt — the rail Sage just launched", () => {
-    expect(withAllowlist("0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434")).toBe(true);
-    expect(withAllowlist("0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048")).toBe(true);
+  it("refuses a Starknet felt now that Starknet is closed: on Metis it names nobody the vault can pay", () => {
+    expect(withAllowlist("0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434")).toBe(false);
+    expect(withAllowlist("0x5db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048")).toBe(false);
   });
 
-  it("still accepts an EVM address", () => {
+  it("says why, in words a founder can act on", () => {
+    const r = directCampaignSchema.safeParse({
+      kind: "gig",
+      title: "Logo page",
+      whyItMatters: "Paying a designer for the new logo page.",
+      allowlist: ["0x04f1f6530f84e4a1db7fa35bafc313174a2482a54c775c4321487eb0fe91f434"],
+      milestones: [
+        { title: "Publish the logo page", instructions: "Publish it live on the site.", criteria: ["The page is live"], evidence: { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" }, slots: 1, rewardUsd: 50 },
+      ],
+    });
+    expect(r.success).toBe(false);
+    expect(JSON.stringify(r.error?.issues)).toMatch(/Ethereum-style address.*Sage pays on Metis/);
+  });
+
+  it("accepts an EVM address", () => {
     expect(withAllowlist("0x" + "a".repeat(40))).toBe(true);
   });
 

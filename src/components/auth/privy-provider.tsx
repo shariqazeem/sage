@@ -3,7 +3,7 @@
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useEffect } from "react";
 import { SIGNED_OUT_EVENT } from "@/lib/auth/use-founder-session";
-import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS, viemChainFor } from "@/lib/deputy/networks";
+import { DEFAULT_EVM_LAUNCH_CHAIN, viemChainFor } from "@/lib/deputy/networks";
 
 /**
  * Wraps the app in Privy ONLY when a login app is configured; otherwise it renders children and the
@@ -34,13 +34,15 @@ export function SagePrivyProvider({ appId, children }: { appId: string | null; c
     <PrivyProvider
       appId={appId}
       config={{
-        loginMethods: ["email", "google", "wallet"],
+        // The email door is email (or Google), nothing else. A wallet signs in through the MetaMask door
+        // (one signature, SIWE), so a wallet never has two ways in that could disagree (26 Oct 2026).
+        loginMethods: ["email", "google"],
         appearance: { theme: "light", accentColor: "#c2410c", logo: "https://sagepays.xyz/icon.png", walletChainType: "ethereum-only" },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
-        // the networks the embedded wallet signs for: every EVM network Sage settles on, primary first
-        // (GOAT, Metis), then secondary (Arc). A payout's chain is never a stranger to it. No testnets.
+        // One network: the embedded wallet knows Metis, the network everything runs on. It signs no
+        // transaction (jobs launch from the account Sage keeps on Metis), so nothing else is needed.
         defaultChain: viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN),
-        supportedChains: [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).chainId === id).map((id) => viemChainFor(id)),
+        supportedChains: [viemChainFor(DEFAULT_EVM_LAUNCH_CHAIN)],
       }}
     >
       <EndPrivySessionOnSignOut />

@@ -2,23 +2,28 @@
 
 import { useEffect, useState } from "react";
 
+import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { short } from "@/lib/format";
-import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { WalletConnect, type WalletOption } from "./wallet-connect";
 
+/** Whether the email door exists on this deployment (its Privy app id is public, and inlined at build). */
+const EMAIL_DOOR = !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
+
 /**
- * SIGNING IN AS A FOUNDER, WITH WHATEVER WALLET YOU ALREADY HAVE.
+ * SIGNING IN: an email, or MetaMask (any Ethereum wallet). Both doors, at every sign-in moment.
  *
- * Sage was built EVM-first and its SIWE session quietly became the account system, so a founder
- * arriving with a Starknet wallet could not start at all — not because anything about their
- * campaign needed Ethereum, but because the sign-in had been written when only one chain existed.
- * Someone holding Ready would have bounced off the front door before seeing the product.
+ * Two doors lead into Sage, and they lead to the same place: an email (Privy), or an Ethereum wallet's
+ * one free signature (SIWE). Either way the founder is an Ethereum address, their account opens on
+ * Metis, and everything after it (launching, the account, plans) is the same screen (26 Oct 2026, the
+ * founder's rule: "if we connect with email or MetaMask, things should be the same on both"). So the
+ * email door is offered here too, above the wallet, wherever a page asks someone to sign in; it used to
+ * appear only on /start, and every other prompt offered a wallet alone. `email={false}` is for a page
+ * that draws its own email door (the first run). Linking a second wallet (`bind`) is wallets only.
  *
- * Both families are offered in ONE list, through the same component every other wallet moment
- * uses. Not two sections labelled by chain: a person is picking the wallet they own, and which
- * cryptographic family it belongs to is Sage's problem, not a category they should have to
- * navigate.
+ * Starknet wallets were offered here too until Starknet was closed on 26 Oct 2026 (networks.ts
+ * CLOSED_NETWORKS). They are not a second list behind "more options": a sign-in that cannot hold an
+ * account on Metis is a door into a different product.
  */
 /**
  * The injected EVM provider's own name, when it says one.
@@ -46,17 +51,16 @@ export function FounderSignIn({
   explainer,
   onSignedIn,
   intent = "signin",
-  families = "all",
+  email = true,
 }: {
   explainer?: React.ReactNode;
   onSignedIn?: () => void;
   /** `bind`: the proven wallet joins the account already signed in; the session is not replaced. */
   intent?: "signin" | "bind";
-  /** `evm`: Ethereum wallets only (Starknet is a secondary network, offered behind "More options"). */
-  families?: "all" | "evm";
+  /** Offer the email door above the wallet (default). False on a page that draws its own. */
+  email?: boolean;
 }) {
   const evm = useSiwe();
-  const starknet = useStarknetSiwe();
 
   /**
    * WHICH WALLETS EXIST IS A CLIENT FACT, AND MUST NOT BE GUESSED DURING RENDER.
@@ -72,68 +76,58 @@ export function FounderSignIn({
   const options: WalletOption[] = [];
   const evmName = mounted ? injectedEvmName() : null;
 
-  /**
-   * ONE EXTENSION CAN APPEAR TWICE, AND MUST NOT LOOK LIKE TWO WALLETS.
-   *
-   * MetaMask provides `window.ethereum` AND registers a Starknet wallet through its snap, so it
-   * arrived in this list once as a vague "your Ethereum wallet" and again as "MetaMask" — two rows
-   * for one extension, neither saying which chain it would sign on. Where a name appears on both
-   * sides it is disambiguated by the network, which is the only thing that actually differs.
-   */
-  const collides = (name: string) =>
-    !!evmName && starknet.wallets.some((w) => w.name.toLowerCase() === evmName.toLowerCase())
-      ? `${name} (Starknet)`
-      : name;
-
   // A sign-in was refused because another account is signed in here. Switching is now offered by
   // name, and only a second, explicit choice replaces that session.
   const switching = intent === "signin" && !!evm.conflict && !!evm.address;
   if (mounted && (evm.address || evmName)) {
-    const base = evmName ?? "your Ethereum wallet";
     options.push({
       id: "evm",
-      name: switching && evm.address
-        ? `Switch to ${short(evm.address)}`
-        : starknet.wallets.some((w) => w.name.toLowerCase() === base.toLowerCase())
-          ? `${base} (Ethereum)`
-          : base,
+      name:
+        switching && evm.address
+          ? `Switch to ${short(evm.address)}`
+          : (evmName ?? "your Ethereum wallet"),
       onSelect: async () => {
-        const ok = evm.address ? await evm.signIn({ mode: intent, replace: switching }) : (await evm.connect(), false);
+        const ok = evm.address
+          ? await evm.signIn({ mode: intent, replace: switching })
+          : (await evm.connect(), false);
         if (ok) onSignedIn?.();
       },
     });
   }
 
-  for (const w of families === "all" ? starknet.wallets : []) {
-    options.push({
-      id: `sn:${w.id}`,
-      name: collides(w.name),
-      icon: w.icon,
-      onSelect: async () => {
-        if (await starknet.signIn(w)) onSignedIn?.();
-      },
-    });
-  }
-
+  const emailDoor = EMAIL_DOOR && email && intent === "signin";
   return (
-    <WalletConnect
-      options={options}
-      explainer={
-        explainer ?? (
-          <>
-            Sign in with any wallet you already have — <b>Ethereum or Starknet.</b> This is your
-            Sage account; it is not where a campaign gets funded.
-          </>
-        )
-      }
-      busy={evm.signingIn || starknet.signingIn}
-      busyLabel="Waiting for your wallet…"
-      error={switching && evm.conflict ? `You're signed in as ${short(evm.conflict)}. Choose the wallet again to switch accounts.` : starknet.error}
-      emptyMessage="No wallet found in this browser."
-      installHints={[
-        { name: "MetaMask", url: "https://metamask.io/download" },
-        ...(families === "all" ? [{ name: "Ready", url: "https://www.ready.co" }] : []),
-      ]}
-    />
+    <>
+      {emailDoor && (
+        <>
+          <EmailSignIn onSignedIn={() => onSignedIn?.()} />
+          <div className="es-or">
+            <span>or use MetaMask</span>
+          </div>
+        </>
+      )}
+      <WalletConnect
+        options={options}
+        explainer={
+          explainer ?? (
+            <>
+              Sign in with <b>MetaMask</b> or any Ethereum wallet. It is one
+              free signature: no transaction, and nothing moves.
+            </>
+          )
+        }
+        busy={evm.signingIn}
+        busyLabel="Waiting for your wallet…"
+        error={
+          switching && evm.conflict
+            ? `You're signed in as ${short(evm.conflict)}. Choose the wallet again to switch accounts.`
+            : null
+        }
+        emptyMessage="No wallet found in this browser."
+        installHints={[
+          { name: "MetaMask", url: "https://metamask.io/download" },
+        ]}
+      />
+    </>
   );
 }

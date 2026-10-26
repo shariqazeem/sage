@@ -262,7 +262,7 @@ function OwnerGate({ data }: { data: WorkspaceData }) {
           <FounderSignIn
             explainer={
               <>
-                Sign in to manage this campaign — <b>Ethereum or Starknet.</b>
+                Sign in to manage this campaign: <b>MetaMask</b> or any Ethereum wallet.
               </>
             }
             onSignedIn={() => router.refresh()}

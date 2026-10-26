@@ -985,8 +985,8 @@ export function LaunchForm() {
         <div className="lxo-hint">{step === 0 ? MODE_HINT[mode] : s.hint}</div>
         {!founder.authed && last && !showSignIn && (
           <p className="lxo-hint" style={{ marginTop: 6, opacity: 0.85 }}>
-            You&apos;ll sign a free message to start — no gas, no transaction, nothing spent. It just
-            ties this inspection to you so your plan and any feedback stay yours.
+            You&apos;ll sign in to start, with your email or MetaMask: no gas, no transaction, nothing spent.
+            It just ties this inspection to you so your plan and any feedback stay yours.
           </p>
         )}
         {showSignIn && !founder.authed && (
@@ -994,8 +994,8 @@ export function LaunchForm() {
             <FounderSignIn
               explainer={
                 <>
-                  Sign in with any wallet you already have — <b>Ethereum or Starknet.</b> This just
-                  ties the inspection to you; nothing is funded here.
+                  <b>MetaMask</b> or any Ethereum wallet. Signing in just ties the inspection to you;
+                  nothing is funded here.
                 </>
               }
               onSignedIn={() => {
@@ -1041,7 +1041,7 @@ export function LaunchForm() {
                 ? "Connecting…"
                 : founder.authed
                   ? "Let Sage inspect"
-                  : "Connect wallet & inspect"}
+                  : "Sign in & inspect"}
             <span aria-hidden>→</span>
           </button>
         ) : (

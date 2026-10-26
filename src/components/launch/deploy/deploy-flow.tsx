@@ -3,44 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
-import { useSiwe } from "@/lib/auth/use-siwe";
-import { useFounderSession } from "@/lib/auth/use-founder-session";
-import { viemChainFor, chainConfig, explorerAddressUrl, DEFAULT_EVM_LAUNCH_CHAIN, isSupportedChain, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
+import { viemChainFor, chainConfig, explorerAddressUrl } from "@/lib/deputy/networks";
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
 import { TreasuryLaunch } from "./treasury-launch";
-import { UpgradeLink } from "@/components/plans/upgrade-link";
-import type { PlanId } from "@/lib/plans/catalog";
-import { buildClaimTypedData, type PlanClaim } from "@/lib/launch/claim";
 import { reward, launchToken, type PlanView } from "../types";
 
 /**
- * Chains the launch wizard offers: GOAT mainnet, and — only where the server has it configured —
- * Arc mainnet, behind an explicit choice until the Arc flip makes it the default.
- *
- * The Metis testnet was a development convenience that leaked into the founder's path: the funding
- * step offered "Metis Sepolia (testnet)" beside real USDC, which asks someone about to spend money to
- * first understand a distinction that exists for our benefit and not theirs. A campaign funded in
- * test tokens also cannot pay a real tester, so every mission under it is work nobody gets paid for.
- * That is why Arc testnet is never the default and never the first button: it is offered to someone
- * who came to try Sage on Arc, and it says "test USDC" on the button.
- *
- * The server allowlist and the chain registry are unchanged, so campaigns already on a testnet keep
- * working — this only decides what is offered to anyone new.
+ * ONE WAY TO LAUNCH (26 Oct 2026, the founder's rule: an email and MetaMask must be the same "from login to
+ * launching"). A plan launches from the account Sage keeps on Metis, in one step, for everyone, through
+ * TreasuryLaunch. The browser-wallet route that sat behind it (claim the plan with a wallet signature, then
+ * sign create, approve, fund and activate from MetaMask, on a network picked here) was a door only a wallet
+ * sign-in could use, and it offered networks that are now closed, so it no longer starts. What remains of it
+ * below RESUMES a deployment a founder began that way before, from its durable server state, so nothing in
+ * flight is stranded.
  */
-function launchChainsOffered(configured: readonly number[]): number[] {
-  // The network policy (networks.ts): the default first, then the other PRIMARY networks, then the
-  // SECONDARY ones (Arc). Only what the server says is open (configured, not paused): never a testnet,
-  // never an unconfigured chain, never a paused one.
-  const evm = (id: number) => chainConfig(id).evm && chainConfig(id).chainId === id;
-  const open = (id: number) => evm(id) && configured.includes(id);
-  return [...new Set([DEFAULT_EVM_LAUNCH_CHAIN, ...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter(open))];
-}
-
-/** What a network costs to use, in the founder's words: its gas token (on Arc, USDC itself). */
-function gasNote(id: number): string {
-  const c = chainConfig(id);
-  return c.nativeSymbol === "USDC" ? "USDC is the gas" : `real USDC, ${c.nativeSymbol} gas`;
-}
 
 /**
  * The founder deployment journey. Everything money-affecting is verified server-side; this
@@ -96,16 +72,9 @@ const STEP_LABELS: Record<Step, string> = {
   activate: "Activating Sage",
 };
 
-export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHAIN] }: { jobId: string; plan: PlanView; launchChains?: readonly number[] }) {
+export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
   const wallet = useWallet();
-  const siwe = useSiwe(wallet);
-  const founder = useFounderSession();
-  // Someone is signed in here, and it is NOT the wallet that is connected (an email account with a
-  // browser wallet installed, say). That wallet must not sign in over them (Demo Day, 10 Oct 2026).
-  const foreignWallet =
-    founder.authed && founder.chain === "evm" && !!siwe.address && !!founder.address && founder.address.toLowerCase() !== siwe.address.toLowerCase();
   const storeKey = `sage.deploy.${jobId}`;
-  const offered = launchChainsOffered(launchChains);
 
   const [dep, setDep] = useState<DeploymentView | null>(null);
   const [calls, setCalls] = useState<StepCall[]>([]);
@@ -113,14 +82,8 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Set when a plan's limit refused the launch: the plan that lifts it (null: talk to us).
-  const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
   const [batchSupported, setBatchSupported] = useState(false);
   const running = useRef(false);
-  // The founder's account, as the door above reports it. While it can launch (or is still being read),
-  // the wallet route stays folded behind a small link: one main button, the one that works.
-  const [acct, setAcct] = useState<{ loading: boolean; hasDoor: boolean }>({ loading: true, hasDoor: false });
-  const [walletRoute, setWalletRoute] = useState(false);
 
   // Founder-chosen limits (defaults; budget itself is fixed from the approved plan).
   const budgetBase = Number(plan.totalBudgetBase);
@@ -171,88 +134,6 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
     const data = await res.json().catch(() => ({ ok: false, error: "Unexpected response." }));
     return { status: res.status, data } as { status: number; data: Record<string, unknown> };
   }, []);
-
-  /* ── claim: sign the EIP-712 plan-claim, take ownership ─────────────────── */
-  const claim = useCallback(async () => {
-    setError(null);
-    setUpgrade(undefined);
-    setBusy(true);
-    setNote("Securing plan ownership…");
-    try {
-      if (!siwe.authed) {
-        // The plan belongs to whoever is signed in. A different wallet signing in here would take the
-        // session (and the account with it) away from them, so it is never attempted.
-        if (founder.authed && founder.chain === "evm") {
-          setError(PLAN_BELONGS_TO_ACCOUNT);
-          return;
-        }
-        const ok = await siwe.signIn();
-        if (!ok) {
-          // Refused because someone is signed in after all (the session answered late), or cancelled.
-          const who = await fetch("/api/auth/session", { cache: "no-store" })
-            .then((r) => r.json() as Promise<{ address?: string | null }>)
-            .then((j) => j.address ?? null)
-            .catch(() => null);
-          setError(who ? PLAN_BELONGS_TO_ACCOUNT : "Sign-in was cancelled.");
-          if (who) void founder.refresh();
-          return;
-        }
-      }
-      // Read the live chain straight from the provider — React state can lag a
-      // just-made MetaMask switch, and the claim must bind the chain the wallet is
-      // ACTUALLY on (else the EIP-712 domain mismatches and MetaMask shows the wrong
-      // network for the signature).
-      let liveChainId = wallet.chainId ?? undefined;
-      try {
-        const prov = typeof window !== "undefined" ? window.ethereum : null;
-        if (prov) liveChainId = parseInt((await prov.request({ method: "eth_chainId" })) as string, 16);
-      } catch {
-        /* fall back to hook state */
-      }
-      const walletClient = wallet.getWalletClient(liveChainId);
-      const account = wallet.address;
-      if (!walletClient || !account) {
-        setError("Connect your wallet to continue.");
-        return;
-      }
-      const ch = await post(`/api/launch/${jobId}/claim/challenge`, { chainId: liveChainId });
-      if (!ch.data.ok) {
-        setError(String(ch.data.error ?? "Could not start the claim."));
-        if (ch.status === 402) setUpgrade((ch.data.planLimit as { upgradeTo?: PlanId | null } | undefined)?.upgradeTo ?? null);
-        return;
-      }
-      const claimObj = ch.data.claim as PlanClaim;
-      const typed = buildClaimTypedData(claimObj);
-      let signature: string;
-      try {
-        signature = await walletClient.signTypedData({
-          account: getAddress(account),
-          domain: typed.domain,
-          types: typed.types,
-          primaryType: typed.primaryType,
-          message: typed.message,
-        });
-      } catch {
-        setError("You declined the ownership signature. Nothing was deployed.");
-        return;
-      }
-      const claimed = await post(`/api/launch/${jobId}/claim`, { claim: claimObj, signature });
-      if (!claimed.data.ok) {
-        setError(String(claimed.data.error ?? "Could not record the claim."));
-        if (claimed.status === 402) setUpgrade((claimed.data.planLimit as { upgradeTo?: PlanId | null } | undefined)?.upgradeTo ?? null);
-        return;
-      }
-      const d = claimed.data.deployment as DeploymentView;
-      localStorage.setItem(storeKey, d.id);
-      setDep(d);
-      // Fetch the full deployment (with the plan-bound calls) so a resume into an in-flight
-      // deployment can render its preview + continue where it left off.
-      await load(d.id);
-    } finally {
-      setBusy(false);
-      setNote(null);
-    }
-  }, [siwe, founder, wallet, post, jobId, storeKey, load]);
 
   /* ── preview: apply limits, read the chain, reach preflight_ready ───────── */
   const submitPreview = useCallback(async () => {
@@ -446,49 +327,33 @@ export function DeployFlow({ jobId, plan, launchChains = [DEFAULT_EVM_LAUNCH_CHA
   const phase: Phase = dep?.next.phase ?? "claim";
 
   return (
-    <div className="lxd" aria-label="Create and fund campaign">
+    <div className="lxd" aria-label="Fund and launch">
       {phase !== "live" && (
         <div className="lxd-lead">
-          <h3 className="lxd-lead-h">Fund your campaign</h3>
+          <h3 className="lxd-lead-h">Launch it from your account</h3>
           <p className="lxd-lead-p">
-            You own the vault — Sage only holds a bounded operator role. It can pay verified mission
-            work inside your limits, and can <b>never</b> withdraw your funds.
+            Sage creates this job&apos;s vault from your account on Metis, funds it with the budget above and starts
+            paying verified work inside your limits. It can <b>never</b> spend more than this job&apos;s budget, and
+            what the job doesn&apos;t spend returns to your account.
           </p>
         </div>
       )}
-      <Stepper phase={phase} dep={dep} />
+      {/* Only a deployment begun from a browser wallet before 26 Oct 2026 has steps to show: it resumes here. */}
+      {dep && <Stepper phase={phase} dep={dep} />}
 
       {note && (
         <div className="lxd-note" role="status">
           <span className="lxd-spin" aria-hidden /> {note}
         </div>
       )}
-      {/* FUND ONCE, THE AGENT LAUNCHES: with an account, the wallet-driven steps below are optional. */}
-      <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} onState={setAcct} />
+      {/* FUND ONCE, THE AGENT LAUNCHES: the one door, for an email and a wallet sign-in alike. */}
+      {!dep && <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} />}
 
       {error && (
         <div className="lx-err" role="alert" style={{ marginTop: 10 }}>
           {error}
-          {upgrade !== undefined && <> <UpgradeLink to={upgrade} className="lxd-link" /></>}
         </div>
       )}
-
-      {phase === "claim" && !walletRoute && (acct.loading || acct.hasDoor) ? (
-        acct.loading ? null : (
-          <button type="button" className="lxd-tech-toggle" onClick={() => setWalletRoute(true)}>
-            Or fund it from a browser wallet instead
-          </button>
-        )
-      ) : phase === "claim" ? (
-        <>
-          {acct.hasDoor && (
-            <p className="lx-note" style={{ marginBottom: 10 }}>
-              This signs you in with that browser wallet and pays from it. Your account above stays with the sign-in you used; to launch from it, use the button above instead.
-            </p>
-          )}
-          <ClaimPanel siwe={siwe} busy={busy} onClaim={claim} offered={offered} signedInAs={foreignWallet ? founder.address : null} />
-        </>
-      ) : null}
 
       {phase === "limits" && dep && (
         <LimitsPanel
@@ -565,83 +430,6 @@ function Stepper({ phase, dep }: { phase: Phase; dep: DeploymentView | null }) {
         );
       })}
     </ol>
-  );
-}
-
-function ClaimPanel({ siwe, busy, onClaim, offered, signedInAs = null }: { siwe: ReturnType<typeof useSiwe>; busy: boolean; onClaim: () => void; offered: readonly number[]; signedInAs?: string | null }) {
-  // Signed in as one account with a different wallet connected: explain, never offer a sign-in.
-  if (signedInAs && siwe.address) {
-    return (
-      <div className="lxd-panel" role="status">
-        <p className="lxd-own">
-          You&apos;re signed in as <span className="mono">{short(signedInAs)}</span>, and this plan belongs to that account.
-          The wallet connected here (<span className="mono">{short(siwe.address)}</span>) is a different one, so it can&apos;t
-          launch it.
-        </p>
-        <p className="lxd-own">
-          Launch it from your account with the button above. To use this wallet&apos;s funds, send them to your account
-          first: <a href="/workspace/account">open your account</a>.
-        </p>
-      </div>
-    );
-  }
-  const onLaunchChain = (chainId: number | null): boolean => chainId != null && offered.includes(chainId);
-  const [first, ...others] = offered;
-  // Nothing primary is open yet (Metis before its factory is live): say so first. A secondary network
-  // stays an explicit choice, never the button a founder lands on (21 Oct 2026, "no Arc default").
-  const primaryOpen = first != null && PRIMARY_NETWORKS.includes(first);
-  if (first == null) {
-    return (
-      <div className="lxd-panel" role="status">
-        <p className="lxd-own">Sage is opening on Metis. Your plan is saved: launch it here the moment Metis is live.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="lxd-panel">
-      <p className="lxd-own">Your wallet owns this campaign. Sage receives only the bounded operator role.</p>
-      {!primaryOpen && <p className="lxd-own">Sage is opening on Metis, its main network; your plan is saved for it. You can launch on a secondary network instead.</p>}
-      {!siwe.available ? (
-        <div className="lx-note">
-          No wallet detected. Install a browser wallet (e.g. MetaMask) to create and fund your campaign, then reload this
-          page. You’ll never paste a private key.
-        </div>
-      ) : !siwe.address ? (
-        <button className="lx-btn" disabled={busy || siwe.connecting} onClick={() => void siwe.connect()}>
-          {siwe.connecting ? "Connecting…" : "Connect your wallet"}
-        </button>
-      ) : !onLaunchChain(siwe.chainId) ? (
-        <div className="lxd-chain-pick">
-          <p className="lxd-own">This campaign pays real USDC. Pick the network to launch on.</p>
-          {/* The wallet's own dialog will name the chain, so the button names it too: matching what
-              the founder is about to see is clarity, not chain-speak. */}
-          <button className="lx-btn" onClick={() => void siwe.switchToChain(first)}>
-            Switch network to continue <span className="lxd-net-fine">{chainConfig(first).chipLabel}</span>
-          </button>
-          {others.map((id) => (
-            <button key={id} className="lx-btn ghost" onClick={() => void siwe.switchToChain(id)}>
-              Launch on {chainConfig(id).chipLabel} instead <span className="lxd-net-fine">{gasNote(id)}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="lxd-chain-pick">
-          <button className="lx-btn" disabled={busy} onClick={onClaim}>
-            {busy ? "Securing…" : "Secure plan ownership"}
-          </button>
-          {offered.filter((id) => id !== siwe.chainId).map((id) => (
-            <button key={id} className="lx-btn ghost" onClick={() => void siwe.switchToChain(id)}>
-              Use {chainConfig(id).chipLabel} instead <span className="lxd-net-fine">{gasNote(id)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {siwe.address && (
-        <div className="lxd-sub-addr mono">
-          Connected: {short(siwe.address)} · {siwe.chainId != null && isSupportedChain(siwe.chainId) ? chainConfig(siwe.chainId).chipLabel : `another network${siwe.chainId != null ? ` (chain ${siwe.chainId})` : ""}`}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -865,9 +653,6 @@ function Row({ k, v }: { k: string; v: string }) {
     </div>
   );
 }
-const PLAN_BELONGS_TO_ACCOUNT =
-  "This plan belongs to the account you're signed in with, not to this wallet. Launch it from your account above, or send this wallet's funds to your account first.";
-
 function short(s: string): string {
   return s && s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s;
 }

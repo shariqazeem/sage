@@ -77,7 +77,7 @@ export interface Ledger {
   hasOwnWallet: boolean;
 }
 
-/** Primary networks first, then the secondary ones, then any other real-money rail (the next one counts the day it pays). */
+/** Metis first, then GOAT (paused), then any other real-money rail that has moved money: Arc and Starknet, closed, keep their history here. */
 function networkOrder(): number[] {
   const listed = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS];
   const others = Object.keys(CHAINS)

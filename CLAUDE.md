@@ -36,6 +36,21 @@
 > - Telegram chat wallets open on Metis; a GOAT one is set aside under `<chat>@2345` (`src/lib/telegram/chat-wallets.ts`).
 > - Owners connect their own AI agent with a workspace key (`sage_sk_…`, `src/lib/agent-keys/`) on `POST /mcp`.
 > - Home asks for one next step; the landing shows a real decided payout (`src/lib/site/live-work.ts`).
+>
+> **26 Oct 2026 (the founder's decisions): ONE network, Metis, and one way in.** "Completely close Arc except the
+> payouts on Arc… keep GOAT as paused so it shows we were on GOAT… if we connect with email or MetaMask, things
+> should be the same on both, from login to launching."
+> - `CLOSED_NETWORKS` (`networks.ts`): Arc (5042) and Starknet (900001) are paused AND offered nowhere (sign-in,
+>   account tabs, "More networks", launch choices, copy). What already happened there stays true: receipts,
+>   records, the ledger, claim links, payouts from funded jobs. `isPausedNetwork` covers closed networks, so every
+>   door that refuses GOAT refuses them too. GOAT stays PAUSED (shown, labelled paused, resumable).
+> - Two sign-in doors, the same account on Metis: an email (Privy: email or Google only) or MetaMask (SIWE).
+>   `FounderSignIn` offers both at every sign-in moment; no Starknet wallets. Linking binds one way only: an old
+>   Starknet account may link an Ethereum wallet to carry its workspace onto Metis.
+> - One way to launch: from the account, through `TreasuryLaunch` (it opens the account in place if there is
+>   none). The browser-wallet route and the public/private rail choice no longer start; a wallet deployment
+>   already in flight still resumes. A session is the payee: an email sign-in submits work and sets its record's
+>   privacy without a browser wallet. New named recipients are Ethereum-style addresses.
 
 ---
 
@@ -53,14 +68,15 @@ The value is **bounded autonomy over money**: the agent spends without a human i
 loop, but the *vault* — not a prompt — enforces the limits. The AI proposes; the vault
 disposes.
 
-**Networks (19 Oct 2026; GOAT paused 21 Oct).** ONE policy, in `src/lib/deputy/networks.ts`: `PRIMARY_NETWORKS` =
-Metis Andromeda (1088); `SECONDARY_NETWORKS` = Arc mainnet (5042), Starknet (900001) and GOAT (2345, PAUSED:
-`isPausedNetwork`, `pausedNetworkReason`); `networkTier()` says which. A paused network stays configured (its
+**Networks (19 Oct 2026; GOAT paused 21 Oct; one network 26 Oct).** ONE policy, in `src/lib/deputy/networks.ts`:
+`PRIMARY_NETWORKS` = Metis Andromeda (1088); `SECONDARY_NETWORKS` = GOAT (2345, PAUSED: `isPausedNetwork`,
+`pausedNetworkReason`); `CLOSED_NETWORKS` = Arc mainnet (5042) and Starknet (900001), paused and offered
+nowhere (`isClosedNetwork`); `networkTier()` says which (a closed network reads "retired"). A paused network stays configured (its
 accounts can withdraw and its jobs can stop) but `isLaunchChain`, `configuredLaunchChains`, `createWebTreasury`,
 `deployCampaignViaPrivy`, the Telegram tools and billing all refuse it, with `launchClosedReason()`'s words. Every surface reads it (onboarding, the account tabs, the deploy flow, Privy's
-chain list), and secondary networks appear only under "More networks" or when already held. Launching is
-`LAUNCH_ENABLED_CHAINS = [2345, 1088, 5042]`, each launchable only when its factory, operator and token are
-configured (fails closed).
+chain list), and GOAT appears only where a founder already holds something there. Launching is
+`LAUNCH_ENABLED_CHAINS = [1088, 2345]` (GOAT listed so its accounts stay reachable, refused while paused), each
+launchable only when its factory, operator and token are configured (fails closed).
 - **GOAT Network** (USDC `0x3022b87ac063DE95b1570F46f5e470F8B53112D8`, gas **BTC**) is still
   `DEFAULT_EVM_LAUNCH_CHAIN` and holds Sage's longest real-money history.
 - **Metis Andromeda** (m.USDC `0xEA32A96608495e54156Ae48931A7c20f0dcc1a21`, 6 dp; gas **METIS**, legacy
@@ -72,7 +88,8 @@ configured (fails closed).
   `0xC5Df…Ee6a`, signer `0x86D7…7ABB`, key only on the VM) selling Sage's tools at `/mcp/metis/<tool>`,
   paid to `SAGE_BILLING_ADDRESS`. No real payout on Metis yet.
 - **Arc** (USDC is the native gas and an ERC-20 at `0x3600…0000`) and **Starknet** (the private rail, below)
-  keep working end to end; they are hidden, never deleted.
+  are CLOSED since 26 Oct 2026: nothing new starts there and no surface offers them; what is already there keeps
+  working (receipts, records, claim links, payouts from jobs already funded). Hidden, never deleted.
 - Telegram walletless accounts open on the default network (Metis) once it is live; a chat whose wallet is on
   GOAT gets a new one and the GOAT one is set aside, still withdrawable. Metis Sepolia (59902) and Arc testnet
   (5042002) are retired. (The code constant `DEFAULT_CHAIN_ID` is still 59902; see Known drift.)
@@ -103,8 +120,8 @@ Three rules that keep them from leaking into each other:
   genuinely different work after the settler returns.
 
 **Two front doors, one engine:**
-- **Web** (`sagepays.xyz`): connect a browser wallet or sign in with an email, SIWE, guided launch →
-  deploy → live. **The account** (`/workspace/account`): a Privy-held wallet under the mandate, ONE PER
+- **Web** (`sagepays.xyz`): sign in with an email or MetaMask (the same account either way), guided launch →
+  launch from the account → live. **The account** (`/workspace/account`): a Privy-held wallet under the mandate, ONE PER
   NETWORK (`src/lib/treasury/web.ts`: the default chain's account under `web:<founder>`, any other chain's
   under `web:<founder>@<chainId>`; the mandate runs from the default-chain one) — fund it from anywhere
   (address + QR, balance and activity read from the chain), the agent launches from it

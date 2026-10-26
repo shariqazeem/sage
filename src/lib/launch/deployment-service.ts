@@ -27,17 +27,17 @@ import type { Deployment } from "@/lib/db/schema";
 /** The default launch chain when a founder's wallet doesn't pin a supported one. */
 export const LAUNCH_CHAIN_ID = 59902;
 
-/** Chains Sage launches on and opens accounts on, in order of preference: Metis Andromeda first (the
- *  default since 21 Oct 2026, launchable the moment METIS_MAINNET_CAMPAIGN_FACTORY_ADDRESS +
- *  METIS_MAINNET_OPERATOR_ADDRESS are set), then GOAT mainnet — PAUSED for new money (networks.ts
+/** Chains Sage launches on and opens accounts on, in order of preference: Metis Andromeda (the default
+ *  since 21 Oct 2026, live since 26 Oct), then GOAT mainnet — PAUSED for new money (networks.ts
  *  PAUSED_NETWORKS) but still listed, because the accounts and jobs founders already hold there must
- *  stay reachable — then Arc mainnet, secondary, behind "More networks". MAINNETS ONLY (10 Oct 2026,
+ *  stay reachable, and lifting its pause is how it resumes. Arc left this list on 26 Oct 2026 when it
+ *  was CLOSED (networks.ts CLOSED_NETWORKS): one network, Metis. MAINNETS ONLY (10 Oct 2026,
  *  the founder's rule once real money ran on all three networks: "no testnet thing"). Arc testnet and
  *  Metis Sepolia left this list, so no account tab, launch door, deploy picker or launch route offers
  *  them; the chain registry still knows both, so a campaign already on one keeps resolving, settling
  *  and labelling itself as the testnet it is. A chain is only truly enabled when its V2 factory +
  *  operator + token are configured and it is not paused (see `isLaunchChain`) — fails closed. */
-export const LAUNCH_ENABLED_CHAINS: readonly number[] = [1088, 2345, 5042];
+export const LAUNCH_ENABLED_CHAINS: readonly number[] = [1088, 2345];
 
 /** The launch chains a picker may offer: configured, not paused, in preference order. */
 export function configuredLaunchChains(): number[] {

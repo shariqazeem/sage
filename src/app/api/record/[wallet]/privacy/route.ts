@@ -3,6 +3,7 @@ import { privacyChallenge } from "@/lib/verify/privacy-challenge";
 import { verifyMessage } from "viem";
 
 import { setRecordPrivate } from "@/lib/campaigns/record-preference";
+import { getSessionAddress } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,16 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "amountsPrivate must be true or false" }, { status: 400 });
   }
   const amountsPrivate = body.amountsPrivate;
+
+  // SIGNED IN AS THIS WALLET IS PROOF ENOUGH (26 Oct 2026). An email sign-in has no browser wallet to
+  // sign with, and its session already proves the address, exactly as it does when the submit route
+  // pays it. The session cookie is SameSite=Lax, so another site cannot send this POST with it.
+  const session = await getSessionAddress();
+  if (session && session.toLowerCase() === wallet.toLowerCase()) {
+    setRecordPrivate(wallet, amountsPrivate);
+    return NextResponse.json({ ok: true, wallet: wallet.toLowerCase(), amountsPrivate });
+  }
+
   const issuedAt = typeof body.issuedAt === "number" ? body.issuedAt : NaN;
   const signature = typeof body.signature === "string" ? body.signature : "";
 

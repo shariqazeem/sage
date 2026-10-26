@@ -37,6 +37,10 @@ const MILESTONES: { when: string; what: string; href?: string; link?: string }[]
     when: "October 2026",
     what: "Sage becomes a company: Metis and GOAT Network as its primary networks, paid plans, and a second product, ParallaxPay by Sage.",
   },
+  {
+    when: "October 2026",
+    what: "Live on Metis: Sage's job factory, its on-chain identity and its own x402 payments. One network from here; GOAT Network, where Sage started, is paused.",
+  },
 ];
 
 export default function CompanyPage() {
@@ -151,9 +155,8 @@ export default function CompanyPage() {
             </Link>
           </div>
           <p className="nets band-after">
-            <span>Primary network: <b>Metis</b></span>
-            <span>Also settles on <b>Arc</b> and <b>Starknet</b></span>
-            <span>New jobs on <b>GOAT Network</b> paused</span>
+            <span>Runs on <b>Metis</b></span>
+            <span><b>GOAT Network</b>, where Sage started, paused</span>
           </p>
         </div>
       </section>

@@ -23,13 +23,18 @@ const snState = {
 };
 
 vi.mock("@/lib/auth/use-starknet-siwe", () => ({ useStarknetSiwe: () => snState }));
+const evmState = { authedAddress: null as string | null, address: null as string | null };
 vi.mock("@/lib/auth/use-siwe", () => ({
   useSiwe: () => ({
     authed: false,
-    address: null,
+    address: evmState.address,
+    authedAddress: evmState.authedAddress,
     signingIn: false,
+    conflict: null,
     signIn: vi.fn(),
     signOut: vi.fn(),
+    refresh: vi.fn(),
+    connect: vi.fn(),
   }),
 }));
 
@@ -42,6 +47,7 @@ beforeEach(() => {
     loading: false,
     error: null,
   });
+  Object.assign(evmState, { authedAddress: null, address: null });
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ submission: null }) })));
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -87,15 +93,27 @@ describe("which wallet a tester is asked for", () => {
     expect(screen.getByText(/that is the address you.{0,3}ll be paid at/i)).toBeTruthy();
   });
 
-  it("keeps the EVM sign-in on a public campaign", () => {
-    render(<SubmitPanel campaignId="c1" live rail="evm" />);
-    expect(screen.getByRole("button", { name: /Connect your wallet/i })).toBeTruthy();
+  it("offers the one sign-in on a public campaign (email or MetaMask), never a Starknet wallet", () => {
+    const { container } = render(<SubmitPanel campaignId="c1" live rail="evm" />);
+    expect(container.querySelector(".wc")).toBeTruthy();
+    expect(screen.getByText(/Work is paid to the account you sign in with/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Ready/i })).toBeNull();
   });
 
-  it("defaults to the EVM sign-in when no rail is given", () => {
+  it("defaults to that sign-in when no rail is given", () => {
     render(<SubmitPanel campaignId="c1" live />);
-    expect(screen.getByRole("button", { name: /Connect your wallet/i })).toBeTruthy();
+    expect(screen.getByText(/Work is paid to the account you sign in with/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Ready/i })).toBeNull();
+  });
+
+  it("lets a tester signed in by EMAIL through to the form, with no browser wallet at all", () => {
+    // The session is the payee (the submit route pays the session's address). The gate used to want a
+    // connected browser wallet matching it, so an email sign-in was told to connect one and could not submit.
+    evmState.authedAddress = "0x1111111111111111111111111111111111111111";
+    evmState.address = null;
+    const { container } = render(<SubmitPanel campaignId="c1" live rail="evm" />);
+    expect(container.querySelector(".wc")).toBeNull();
+    expect(screen.getByText(/Signed in as 0x1111/)).toBeTruthy();
   });
 
   it("points a tester with no Starknet wallet somewhere they can get one", () => {

@@ -1107,16 +1107,16 @@ export function HowYouGetPaid({
       /* The door is said BEFORE sign-in, not met after it: on public work the person, not the wallet,
          holds the slot, and a visitor should know that on the first screen. */
       <>
-        Connect your wallet + <b>one free signature</b>, then <b>prove you are one person</b> — once{" "}
+        Sign in with your email or MetaMask, then <b>prove you are one person</b> — once{" "}
         <span className="muted">
           — about a minute; no name, document or country. One person, one slot.
         </span>
       </>
     ) : (
       <>
-        Connect your wallet + <b>one free signature</b>{" "}
+        Sign in with your email or MetaMask{" "}
         <span className="muted">
-          — it just proves the wallet is yours. No gas, no transaction.
+          — the account you sign in with is the one paid. No gas, no transaction.
         </span>
       </>
     ),

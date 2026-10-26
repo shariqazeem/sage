@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Users } from "lucide-react";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
-import { EmailSignIn } from "@/components/auth/email-sign-in";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { short } from "@/lib/format";
 import { SageMark } from "@/components/brand/sage-mark";
@@ -52,13 +51,7 @@ export function JoinCard({ code, workspaceName, open, emailEnabled = false }: { 
             <p className="st-p">You&rsquo;ll see the work this team posts, submit yours, and get paid to the account you sign in with — verified by Sage, with a receipt for every payout.</p>
             {!session.authed ? (
               <>
-                {emailEnabled && (
-                  <>
-                    <EmailSignIn onSignedIn={() => session.refresh()} />
-                    <div className="st-or"><span>or a wallet you already have</span></div>
-                  </>
-                )}
-                <FounderSignIn explainer={<>Sign in with the wallet you want to be <b>paid at</b> — Ethereum or Starknet.</>} onSignedIn={() => session.refresh()} />
+                <FounderSignIn email={emailEnabled} explainer={<><b>MetaMask</b> or any Ethereum wallet: you&rsquo;re paid at the wallet you sign in with.</>} onSignedIn={() => session.refresh()} />
               </>
             ) : done ? (
               <p className="ws-ok"><Check size={14} /> You&rsquo;re in — opening your workspace…</p>

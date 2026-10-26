@@ -1,34 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { accountNetworks, moreNetworks } from "./account-networks";
 
-/** Primary always (once configured), secondary only when held or asked for, testnets never. */
+/**
+ * WHICH NETWORKS AN ACCOUNT PAGE SHOWS (26 Oct 2026: one network, Metis). Metis always; GOAT only where the
+ * founder holds an account there (paused, so its money stays reachable); Arc and Starknet never, even when
+ * held, asked for or fully configured; testnets never. Nothing is left to open under "More networks".
+ */
 describe("the networks an account page shows", () => {
-  it("shows GOAT and Metis once configured, home first", () => {
-    const r = accountNetworks({ home: 2345, configured: [2345, 1088, 5042], held: [] });
-    expect(r.primary).toEqual([2345, 1088]);
+  it("shows Metis, the home network, and nothing else for a new founder", () => {
+    const r = accountNetworks({ home: 1088, configured: [1088, 2345, 5042], held: [] });
+    expect(r.primary).toEqual([1088]);
     expect(r.secondary).toEqual([]);
-    expect(r.selected).toBe(2345);
+    expect(r.selected).toBe(1088);
   });
 
-  it("hides Metis until its factory is configured (no dead door)", () => {
-    expect(accountNetworks({ home: 2345, configured: [2345, 5042], held: [] }).primary).toEqual([2345]);
+  it("keeps a held GOAT account reachable (paused), and selects it when asked", () => {
+    expect(accountNetworks({ home: 1088, configured: [1088, 2345], held: [1088, 2345] }).secondary).toEqual([2345]);
+    const asked = accountNetworks({ home: 1088, configured: [1088, 2345], held: [2345], asked: 2345 });
+    expect(asked.secondary).toEqual([2345]);
+    expect(asked.selected).toBe(2345);
   });
 
-  it("keeps a held secondary account reachable, and opens one when asked", () => {
-    expect(accountNetworks({ home: 2345, configured: [2345, 1088, 5042], held: [5042] }).secondary).toEqual([5042]);
-    const asked = accountNetworks({ home: 2345, configured: [2345, 1088, 5042], held: [], asked: 5042 });
-    expect(asked.secondary).toEqual([5042]);
-    expect(asked.selected).toBe(5042);
+  it("never shows Arc or Starknet: closed, even when held, asked for or configured", () => {
+    const r = accountNetworks({ home: 1088, configured: [1088, 2345, 5042, 900001], held: [5042, 900001], asked: 5042 });
+    expect([...r.primary, ...r.secondary]).not.toContain(5042);
+    expect([...r.primary, ...r.secondary]).not.toContain(900001);
+    expect(r.selected).toBe(1088);
   });
 
   it("never shows a retired testnet, even if held or asked for", () => {
-    const r = accountNetworks({ home: 2345, configured: [2345, 1088, 5042, 5042002], held: [5042002], asked: 5042002 });
+    const r = accountNetworks({ home: 1088, configured: [1088, 2345, 5042002], held: [5042002], asked: 5042002 });
     expect([...r.primary, ...r.secondary]).not.toContain(5042002);
-    expect(r.selected).toBe(2345);
+    expect(r.selected).toBe(1088);
   });
 
-  it("offers the configured secondary networks not yet shown under More networks", () => {
-    expect(moreNetworks({ configured: [2345, 1088, 5042], shown: [2345, 1088] })).toEqual([5042]);
-    expect(moreNetworks({ configured: [2345, 1088, 5042], shown: [2345, 1088, 5042] })).toEqual([]);
+  it("offers nothing more to open: GOAT is paused, Arc and Starknet are closed", () => {
+    expect(moreNetworks({ configured: [1088, 2345, 5042], shown: [1088] })).toEqual([]);
+    expect(moreNetworks({ configured: [1088, 2345, 5042], shown: [1088, 2345] })).toEqual([]);
   });
 });

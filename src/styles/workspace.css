@@ -141,7 +141,6 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .st-dots li.on { width: 40px; background: var(--accent); }
 .st-dots li.done { background: var(--accent); }
 .st-dots li svg { display: none; }
-.st-more { margin-top: 12px; }
 .st-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 26px 26px; box-shadow: var(--shadow-card); animation: ws-rise var(--dur-3) var(--ease-out) both; animation-delay: 60ms; }
 .st-pane { animation: ws-rise var(--dur-2) var(--ease-out) both; }
 .st-h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; color: var(--ink); line-height: 1.12; }
@@ -162,8 +161,6 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .st-foot { margin-top: 18px; font-size: 12px; color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
 
 /* ── the email door ── */
-.es-wrap { display: flex; flex-direction: column; gap: 6px; }
-.es-btn { width: 100%; }
 .st-or { display: flex; align-items: center; gap: 12px; margin: 16px 0 12px; font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-mono); }
 .st-or::before, .st-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 

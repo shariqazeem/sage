@@ -20,7 +20,7 @@ import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { launchClosedReason, loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
-import { GOAT_MAINNET_CHAIN_ID, GOAT_USDC, chainConfig, isPausedNetwork, pausedNetworkReason } from "@/lib/deputy/networks";
+import { ARC_MAINNET_CHAIN_ID, GOAT_MAINNET_CHAIN_ID, GOAT_USDC, chainConfig, isPausedNetwork, pausedNetworkReason } from "@/lib/deputy/networks";
 import { formatNative, minLaunchGasWei, needsFeeMessage, operatorCoversGas, SWAP_GAS_UNITS, TRANSFER_GAS_UNITS } from "@/lib/treasury/gas-policy";
 import { quoteAccountSwap, swapFromAccount } from "@/lib/treasury/swap";
 import { isSwapSide, swapsOn, type SwapSide } from "@/lib/treasury/swap-venue";
@@ -215,7 +215,7 @@ export const AGENT_WALLET_TOOLS: McpToolDef[] = [
       properties: {
         amountUsd: { type: "number", description: "How much USDC to withdraw (whole USDC)." },
         toAddress: { type: "string", description: "The 0x… address to send the USDC to." },
-        network: { type: "string", enum: ["metis", "goat"], description: "OPTIONAL. Which of the founder's wallets to withdraw from: omit for their active wallet; \"goat\" for the older GOAT wallet." },
+        network: { type: "string", enum: ["metis", "goat", "arc"], description: "OPTIONAL. Which of the founder's wallets to withdraw from: omit for their active wallet; \"goat\" or \"arc\" for an older wallet set aside on that network." },
       },
       required: ["amountUsd", "toAddress"],
     },
@@ -469,7 +469,7 @@ export async function callAgentWalletTool(
           network: net.name,
           walletAddress: result.privyWalletAddress,
           perCampaignCapUsdc: capUsd,
-          olderWallet: setAside ? { network: chainConfig(setAside.chainId).name, address: setAside.privyWalletAddress, note: "Still theirs; they can withdraw from it with sage_request_withdrawal (network: goat)." } : null,
+          olderWallet: setAside ? { network: chainConfig(setAside.chainId).name, address: setAside.privyWalletAddress, note: `Still theirs; they can withdraw from it with sage_request_withdrawal (network: ${setAside.chainId === ARC_MAINNET_CHAIN_ID ? "arc" : "goat"}).` } : null,
           message: `Agent wallet created on ${net.name} (you can spend up to ${capUsd} USDC per campaign; any leftover stays as their balance). Relay this to the founder: ${fundingLine(home)} Put the address on its OWN LINE so it's easy to tap-copy:\n${result.privyWalletAddress}`,
         });
       }
@@ -611,14 +611,15 @@ export async function callAgentWalletTool(
           vault: result.vault,
           campaignUrl: `${appUrl()}/c/${result.campaignId}`,
           launchTxs: result.steps.map((s) => ({ step: s.step, explorerUrl: s.explorerUrl })),
-          message: "Campaign is live on autopilot — the Deputy will pay verified testers from this vault.",
+          message: "Campaign is live on autopilot — Sage will pay verified work from this vault.",
         });
       }
       case "sage_request_withdrawal": {
-        // The active wallet, or an older one set aside on a paused network when the founder names it.
+        // The active wallet, or an older one set aside on a paused (GOAT) or closed (Arc) network when the founder names it.
         const net = typeof args.network === "string" ? args.network.trim().toLowerCase() : "";
-        const b = net === "goat" ? chatWalletOn(chatId, GOAT_MAINNET_CHAIN_ID) : founderBinding(chatId);
-        if (!b) return err(net === "goat" ? "There's no GOAT wallet for this chat." : "There's no agent wallet yet, so there's nothing to withdraw.");
+        const older = net === "goat" ? GOAT_MAINNET_CHAIN_ID : net === "arc" ? ARC_MAINNET_CHAIN_ID : null;
+        const b = older != null ? chatWalletOn(chatId, older) : founderBinding(chatId);
+        if (!b) return err(older != null ? `There's no ${chainConfig(older).name} wallet for this chat.` : "There's no agent wallet yet, so there's nothing to withdraw.");
         const amountUsd = typeof args.amountUsd === "number" ? args.amountUsd : 0;
         const toAddress = typeof args.toAddress === "string" ? args.toAddress : "";
         if (!(amountUsd > 0)) return err("Ask the founder how much USDC they want to withdraw.");

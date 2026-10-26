@@ -5,6 +5,10 @@ import { StructuredData } from "@/components/seo/structured-data";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
+// The two sign-in doors (an email, or MetaMask) render on many pages, from FounderSignIn: their styles are
+// global so every page draws them the same. Both are class-scoped (es-*, wc-*).
+import "../styles/email-sign-in.css";
+import "../styles/wallet-connect.css";
 import { AppShell } from "@/components/shell/app-shell";
 import { FeedbackWidget } from "@/components/shell/feedback-widget";
 import { geist } from "@/components/landing/fonts";

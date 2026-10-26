@@ -97,7 +97,7 @@ export function EmailSignIn({ onSignedIn }: { onSignedIn: () => void }) {
       <button className="sage-btn sage-btn-primary es-btn" onClick={() => void start()} disabled={!ready || busy}>
         {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing you in…</> : <><Mail size={15} /> Continue with email</>}
       </button>
-      {err && <p className="ws-err">{err}</p>}
+      {err && <p className="ws-err es-err">{err}</p>}
     </div>
   );
 }

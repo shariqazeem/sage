@@ -112,14 +112,16 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
                 </li>
               ))}
             </ul>
-            {!hasOther && (
+            {/* Binding goes ONE way since 26 Oct 2026: a Starknet account from before the close links an Ethereum
+                wallet and carries its workspace onto Metis. An Ethereum account is never offered a Starknet one. */}
+            {!hasOther && account.chain === "starknet" && (
               <div className="set-gap">
                 {!binding ? (
                   <button className="sage-btn sage-btn-sm" onClick={() => setBinding(true)}><Link2 size={13} /> Bind a {chainName(other)} wallet</button>
                 ) : (
                   <>
                     <p className="ws-note set-lede">Sign in with the {chainName(other)} wallet once, then link. Both stay signed in, and work on either rail belongs to you.</p>
-                    <FounderSignIn explainer={<>Pick the <b>{chainName(other)}</b> wallet.</>} onSignedIn={() => void link()} />
+                    <FounderSignIn email={false} explainer={<>Pick the <b>{chainName(other)}</b> wallet.</>} onSignedIn={() => void link()} />
                     <div className="st-actions"><button className="st-back" onClick={() => void link()}>Already signed in with both — link now</button><button className="st-back" onClick={() => setBinding(false)}>Cancel</button></div>
                   </>
                 )}
@@ -162,7 +164,7 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
         <div>
           <section className="ws-card">
             <div className="ws-card-h"><h2>Networks</h2><Link className="ws-chip" href="/workspace/account">your accounts</Link></div>
-            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b>, and network fees are paid in METIS from your account. Sage also settles on Arc and Starknet (under More networks on <Link href="/workspace/account">your account page</Link>). GOAT Network is closed to new jobs; anything you hold there stays yours to withdraw.</p>
+            <p className="ws-note pl-quiet">Your money moves on <b>Metis</b>, and network fees are paid in METIS from <Link href="/workspace/account">your account</Link>. GOAT Network is paused; anything you hold there stays yours to withdraw.</p>
           </section>
           <section className="ws-card">
             <div className="ws-card-h"><h2>More</h2></div>

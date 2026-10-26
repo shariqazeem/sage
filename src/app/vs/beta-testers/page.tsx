@@ -118,7 +118,7 @@ export default function VsBetaTestersPage() {
                 <tr>
                   <td>How people are paid</td>
                   <td>However you arrange it</td>
-                  <td>USDC on Metis (also Arc and Starknet)</td>
+                  <td>USDC on Metis</td>
                 </tr>
               </tbody>
             </table>

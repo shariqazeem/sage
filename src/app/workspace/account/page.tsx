@@ -38,9 +38,10 @@ export const metadata = { title: "Account" };
  * Ethereum), swap USDC and METIS, and send either one anywhere. Below it: the one limit the mandate is
  * built from, what moved (read from the chain), and the jobs it funds. Nothing here is a projection.
  *
- * A network that is paused (GOAT) stays listed while it holds money, with send as its only action. A
- * Starknet sign-in has no Ethereum address for the mandate to reclaim to, so its wallet IS its account,
- * and the page says that.
+ * A network that is paused (GOAT) stays listed while it holds money, with send as its only action. Arc and
+ * Starknet are closed (26 Oct 2026: one network, Metis) and never appear. A Starknet session from before the
+ * close has no Ethereum address for the mandate to reclaim to, so its wallet IS its account, and the page
+ * says what still works there and where new work starts.
  */
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ chain?: string; do?: string }> }) {
   const ctx = await workspaceContext();
@@ -269,7 +270,7 @@ async function StarknetAccount({ founder }: { founder: string }) {
         <div>
           <span className="ws-eyebrow">Account · Starknet</span>
           <h1 className="ws-title">Your wallet is your account.</h1>
-          <p className="ws-sub">You signed in with a Starknet wallet. Work you post is funded from it, each launch signed by you, and every payout settles through the Cairo vault, privately when you ask.</p>
+          <p className="ws-sub">You signed in with a Starknet wallet. Sage runs on Metis now: nothing new starts on Starknet, and everything you did here keeps its receipts.</p>
         </div>
       </header>
 
@@ -288,11 +289,10 @@ async function StarknetAccount({ founder }: { founder: string }) {
           </section>
 
           <section className="ws-card">
-            <div className="ws-card-h"><h2>Fund once, let Sage launch</h2><span className="ws-chip">not on Starknet yet</span></div>
+            <div className="ws-card-h"><h2>New work starts on {home.name}</h2><span className="ws-chip">Starknet closed</span></div>
             <ul className="ac-facts">
-              <li><b>What it is.</b> Sage can hold an account for you and launch every job from it inside a mandate, so you fund once instead of signing each launch, and <Link href="/workspace/autopilot">let it decide</Link> what work to buy next.</li>
-              <li><b>Where it lives.</b> That account is a wallet on {home.name}, reclaiming only to an Ethereum address. It opens with an email or an Ethereum wallet sign-in.</li>
-              <li><b>What changes for you.</b> Nothing. Your Starknet work, your vaults and your receipts stay exactly as they are. <Link href="/docs/payments#account">How the account works →</Link></li>
+              <li><b>Your account.</b> Sage keeps an account for you on {home.name} and launches every job from it inside a mandate, so you fund once instead of signing each launch. It opens when you sign in with your email or MetaMask.</li>
+              <li><b>What stays here.</b> Your Starknet jobs, vaults and receipts stay exactly as they are, and claim links still pay. <Link href="/docs/payments#account">How the account works →</Link></li>
             </ul>
           </section>
         </div>
@@ -301,7 +301,7 @@ async function StarknetAccount({ founder }: { founder: string }) {
           <section className="ws-card">
             <div className="ws-card-h"><h2>Your work on Starknet</h2><Link className="ws-chip" href="/workspace/jobs">all jobs →</Link></div>
             {posted.length === 0 ? (
-              <p className="ac-empty">Nothing yet. <Link href="/launch">Post work</Link>: a gig, a milestone grant or a testing run, funded from this wallet.</p>
+              <p className="ac-empty">Nothing here. New work starts on {home.name}: sign in with your email or MetaMask to post it.</p>
             ) : (
               <ul className="ws-list">
                 {posted.map((c) => (
@@ -328,7 +328,7 @@ function Unconfigured() {
         <div>
           <span className="ws-eyebrow">Account</span>
           <h1 className="ws-title">Not configured here.</h1>
-          <p className="ws-sub">Accounts are wallets Privy holds under a mandate, and this deployment has no Privy app configured. <Link href="/launch">Post work</Link> from your own wallet instead.</p>
+          <p className="ws-sub">Accounts are wallets Privy holds under a mandate, and this deployment has no Privy app configured, so nothing can launch here until it is.</p>
         </div>
       </header>
     </main>

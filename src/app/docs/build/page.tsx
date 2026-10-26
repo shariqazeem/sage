@@ -74,7 +74,7 @@ export default function Build() {
             <tbody>
               <tr>
                 <td>Web</td>
-                <td>People. Sign in with an email, an Ethereum wallet or a Starknet wallet</td>
+                <td>People. Sign in with an email or MetaMask (any Ethereum wallet): the same account either way</td>
                 <td>
                   <code>/start</code>
                 </td>
@@ -353,9 +353,8 @@ export default function Build() {
           from the chat. People invited through the chat can submit their work and cash out there too.
         </p>
         <p>
-          Those chat accounts live on GOAT Network, which is paused for new jobs while its USDC loses Stargate
-          support (23 October 2026). Until chat accounts open on Metis, the chat checks balances, reviews held work and
-          withdraws; new jobs are launched on the web.
+          Chat accounts open on Metis, like every account. A chat whose account was on GOAT Network, which is paused,
+          keeps it, set aside and withdrawable, and gets a new one on Metis.
         </p>
         <p>
           The trade-off: that account is a wallet a provider holds (Privy), bounded by spending rules. It isn&apos;t a
@@ -425,13 +424,13 @@ export default function Build() {
               </tr>
               <tr>
                 <td>x402</td>
-                <td>Sage pays for its own evidence checks over x402 on GOAT, and the public MCP can charge per call</td>
+                <td>Sage&apos;s paid tools take x402 payments in USDC on Metis, settled by Sage&apos;s own facilitator; the public MCP stays free</td>
               </tr>
               <tr>
                 <td>Settlement</td>
                 <td>
-                  One vault per job: <code>CampaignVault</code> on GOAT, Metis and Arc, <code>SageVault</code> on
-                  Starknet. One dispatcher picks the settler by the job&apos;s network
+                  One vault per job: a <code>CampaignVault</code> on Metis. Jobs from before keep the vault they were made
+                  with, and one dispatcher picks the settler by the job&apos;s network
                 </td>
               </tr>
             </tbody>

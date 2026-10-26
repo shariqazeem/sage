@@ -14,7 +14,7 @@ type Intent = "pay" | "earn";
  * THE FIRST RUN (19 Oct 2026). One question per screen, and only questions that are genuinely the
  * person's to answer:
  *
- *   1. who you are (an email; a wallet if you prefer; Starknet under "more options"),
+ *   1. who you are (an email, or MetaMask: two doors to the same account on Metis, 26 Oct 2026),
  *   2. pay people, or get paid,
  *   3. what to call your workspace (it is the name your people see on an invite),
  *
@@ -24,14 +24,12 @@ type Intent = "pay" | "earn";
 export function StartFlow({
   signedIn,
   address,
-  chain = null,
   hasMemberships,
   emailEnabled = false,
   next = null,
 }: {
   signedIn: boolean;
   address: string | null;
-  chain?: "evm" | "starknet" | null;
   hasMemberships: boolean;
   emailEnabled?: boolean;
   /** Where to go once signed in, when they came from somewhere specific (the pricing page). */
@@ -43,7 +41,6 @@ export function StartFlow({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [invite, setInvite] = useState("");
-  const [moreOptions, setMoreOptions] = useState(false);
 
   const step = !signedIn ? 1 : !intent ? 2 : 3;
   const signedInNow = () => (next ? router.push(next) : router.refresh());
@@ -58,9 +55,9 @@ export function StartFlow({
         setErr(json.error ?? "Could not create the workspace.");
         return;
       }
-      // Home asks for the one next step (open or fund the account, then the first job). A Starknet
-      // sign-in can't hold an account, so it goes straight to posting work.
-      router.push(chain === "starknet" ? "/launch" : "/workspace");
+      // Home asks for the one next step (fund the account, then the first job), for an email and a
+      // wallet alike. A Starknet session from before Starknet closed lands there too and is told why.
+      router.push("/workspace");
     } catch {
       setErr("Network error. Try again.");
     } finally {
@@ -94,21 +91,18 @@ export function StartFlow({
             <h1 className="st-h1">Welcome to Sage</h1>
             {emailEnabled ? (
               <>
-                <p className="st-p">Sign in with your email. Sage keeps an account for you, and nothing moves until you say so.</p>
+                <p className="st-p">Sign in with your email. Sage keeps an account for you on Metis, and nothing moves until you say so.</p>
                 <EmailSignIn onSignedIn={signedInNow} />
-                <div className="st-or"><span>or use a wallet</span></div>
+                <div className="st-or"><span>or use MetaMask</span></div>
               </>
             ) : (
-              <p className="st-p">Sign in with a wallet you already have. It&apos;s one free signature: no transaction, no funds move.</p>
+              <p className="st-p">Sign in with MetaMask or another Ethereum wallet. It&apos;s one free signature: no transaction, no funds move.</p>
             )}
             <FounderSignIn
-              families={moreOptions ? "all" : "evm"}
-              explainer={moreOptions ? <>Ethereum or Starknet. Payments run on Metis; Starknet is for private payouts.</> : <>Any Ethereum wallet. Payments run on Metis.</>}
+              email={false}
+              explainer={<>The same account either way: it opens on Metis, and everything after it is identical.</>}
               onSignedIn={signedInNow}
             />
-            {!moreOptions && (
-              <button type="button" className="st-back st-more" onClick={() => setMoreOptions(true)}>More sign-in options</button>
-            )}
             <p className="st-foot"><Lock size={12} /> Sage never holds your keys. Work is paid from a vault it can&apos;t overspend.</p>
           </div>
         )}

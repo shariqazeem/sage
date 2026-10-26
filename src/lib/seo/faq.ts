@@ -41,7 +41,7 @@ const PRICE_ANSWER = [
 export const FAQ: readonly FaqEntry[] = [
   {
     q: "What is Sage at sagepays.xyz?",
-    a: "An AI agent that pays people in USDC for work it has verified. You describe the work and set a budget; Sage checks every submission and pays from an on-chain vault it cannot overspend, with a public receipt for every payout and a written reason for every refusal. It runs on Metis, also settles on Arc and Starknet, and is registered as an on-chain agent under ERC-8004.",
+    a: "An AI agent that pays people in USDC for work it has verified. You describe the work and set a budget; Sage checks every submission and pays from an on-chain vault it cannot overspend, with a public receipt for every payout and a written reason for every refusal. It runs on Metis, and is registered there as an on-chain agent under ERC-8004.",
   },
   {
     q: "What kind of work can Sage pay for?",
@@ -69,11 +69,11 @@ export const FAQ: readonly FaqEntry[] = [
   },
   {
     q: "Do I need a crypto wallet?",
-    a: "No, neither to post work nor to do it. Sign in with an email and Sage opens an account for you, a wallet held under spending rules that only let Sage launch your jobs within your cap; or run everything from Telegram through @sagedeputybot. A browser wallet works too.",
+    a: "No, neither to post work nor to do it. Sign in with your email, or with MetaMask if you have it: either way Sage opens the same account for you on Metis, a wallet held under spending rules that only let Sage launch your jobs within your cap. You can also run everything from Telegram through @sagedeputybot.",
   },
   {
     q: "Which networks does Sage pay on?",
-    a: "USDC on Metis Andromeda, Sage's primary network, and also on Arc and Starknet. On Starknet a payout can be private: the receipt proves the payment without naming who collected it. New jobs on GOAT Network are paused because Stargate ends support for its USDC on 23 October 2026; every past GOAT payout stays on the public ledger.",
+    a: "USDC on Metis Andromeda: Sage runs on one network. New jobs on GOAT Network, where Sage started, are paused because Stargate ended support for its USDC on 23 October 2026; every past GOAT payout stays on the public ledger, as do the payouts Sage made earlier on Arc and Starknet.",
   },
   {
     q: "Can a lender or a team see what someone has been paid?",

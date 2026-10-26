@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { Check, Eye, EyeOff, Loader2 } from "lucide-react";
 
+import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { useWallet } from "@/lib/wallet/use-wallet";
 
 /**
@@ -26,11 +27,16 @@ export function PrivacyToggle({
   wallet: string;
   amountsPrivate: boolean;
 }) {
-  const { address, connect, connecting, available, getWalletClient } = useWallet();
+  const { address: connected, connect, connecting, available, getWalletClient } = useWallet();
+  const founder = useFounderSession();
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Signed in as this record's wallet (an email sign-in or MetaMask, 26 Oct 2026): the session is the
+  // proof, and no signature is asked for. Otherwise the connected browser wallet signs, as before.
+  const bySession = founder.chain === "evm" && !!founder.address && founder.address.toLowerCase() === wallet.toLowerCase();
+  const address = bySession ? founder.address : connected;
   const isOwner = !!address && address.toLowerCase() === wallet.toLowerCase();
   const current = done ?? amountsPrivate;
 
@@ -39,8 +45,20 @@ export function PrivacyToggle({
       setError(null);
       setPending(true);
       try {
+        if (bySession) {
+          const res = await fetch(`/api/record/${wallet}/privacy`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ amountsPrivate: next }),
+          });
+          const data = (await res.json()) as { ok?: boolean; error?: string };
+          if (!res.ok || !data.ok) throw new Error(data.error ?? "That didn't save.");
+          setDone(next);
+          setTimeout(() => window.location.reload(), 900);
+          return;
+        }
         const client = getWalletClient();
-        if (!client || !address) throw new Error("Your wallet isn't connected.");
+        if (!client || !connected) throw new Error("Your wallet isn't connected.");
         const issuedAt = Math.floor(Date.now() / 1000);
         const message = [
           "Sage record privacy",
@@ -49,7 +67,7 @@ export function PrivacyToggle({
           `issued: ${issuedAt}`,
         ].join("\n");
 
-        const signature = await client.signMessage({ account: address, message });
+        const signature = await client.signMessage({ account: connected, message });
         const res = await fetch(`/api/record/${wallet}/privacy`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -68,7 +86,7 @@ export function PrivacyToggle({
         setPending(false);
       }
     },
-    [address, getWalletClient, wallet],
+    [bySession, connected, getWalletClient, wallet],
   );
 
   // The OPTION is always stated, even with no wallet installed — otherwise the one person who

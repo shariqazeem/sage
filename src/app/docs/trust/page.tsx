@@ -22,7 +22,7 @@ import { DocHead, DocSection } from "../parts";
 export const metadata: Metadata = {
   title: "Safety and limits",
   description:
-    "Why Sage can be trusted with money: an on-chain vault no model can talk past, farm and sybil defences, how and why Sage refuses work, private payouts on Starknet, and sanctions screening.",
+    "Why Sage can be trusted with money: an on-chain vault no model can talk past, farm and sybil defences, how and why Sage refuses work, and sanctions screening.",
   alternates: { canonical: "/docs/trust" },
 };
 
@@ -281,7 +281,9 @@ export default function Trust() {
       <DocSection toc={TOC} id="privacy">
         <p>
           An ordinary payout on chain writes a permanent public line: this address earned this much, on this day. For
-          someone who lives on that income, being paid shouldn&apos;t publish it. On Starknet, Sage can pay privately.
+          someone who lives on that income, being paid shouldn&apos;t publish it. Sage paid privately on Starknet until 26
+          October 2026, when it moved to one network, Metis. New work doesn&apos;t offer it; a private payout already
+          made collects exactly as below.
         </p>
         <ol>
           <li>

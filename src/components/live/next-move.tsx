@@ -84,7 +84,7 @@ function AccountDoor({ data }: { data: Data }) {
   if (!a || a.exists) return <Link href="/workspace/account" className="nm-btn">Fund it and Sage moves</Link>;
   if (a.available) return <Link href="/workspace/account" className="nm-btn">Open your account</Link>;
   if (a.reason === "starknet") {
-    return <span className="nm-assume" style={{ margin: 0, maxWidth: 220 }}>Sage launches from an account it holds for you on {a.network}. It opens with an email or an Ethereum wallet sign-in; your Starknet work is unaffected.</span>;
+    return <span className="nm-assume" style={{ margin: 0, maxWidth: 220 }}>Sage launches from an account it holds for you on {a.network}. It opens with an email or MetaMask sign-in; nothing new starts on Starknet.</span>;
   }
   return <span className="nm-assume" style={{ margin: 0, maxWidth: 220 }}>Accounts are not configured on this deployment.</span>;
 }
@@ -159,7 +159,7 @@ export function NextMove() {
               /* No mandate form is offered to this founder, so the "name your product" door must not be either. */
               <p className="nm-state">
                 {data.account.reason === "starknet"
-                  ? `Sage decides what work to buy from an account it holds for you on ${data.account.network}. That account opens with an email or an Ethereum wallet sign-in; your Starknet work is unaffected.`
+                  ? `Sage decides what work to buy from an account it holds for you on ${data.account.network}. That account opens with an email or MetaMask sign-in; nothing new starts on Starknet.`
                   : "Accounts are not configured on this deployment, so Sage cannot decide what to buy here."}
               </p>
             ) : (

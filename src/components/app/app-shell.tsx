@@ -279,9 +279,8 @@ export function AppShell({
                         <FounderSignIn
                           explainer={
                             <>
-                              Sign in to create and review campaigns — with{" "}
-                              <b>any wallet you already have.</b> This is your Sage account, not
-                              where a campaign gets funded.
+                              <b>MetaMask</b> or any Ethereum wallet, one free signature. Either door
+                              opens the same Sage account, on Metis.
                             </>
                           }
                           onSignedIn={() => void founder.refresh()}

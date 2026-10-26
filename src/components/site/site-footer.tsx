@@ -86,7 +86,7 @@ export function SiteFooter() {
         </div>
         <div className="site-foot-base">
           <span>© {new Date().getUTCFullYear()} Sage</span>
-          <span>Payments in USDC on Metis. Also on Arc and Starknet.</span>
+          <span>Payments in USDC on Metis.</span>
         </div>
       </div>
     </footer>

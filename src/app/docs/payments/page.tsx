@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Ban, Flame, Gift, KeyRound, Receipt } from "lucide-react";
-import { chainConfig, isPausedNetwork, PRIMARY_NETWORKS, SECONDARY_NETWORKS, STARKNET_MAINNET_KEY } from "@/lib/deputy/networks";
+import { chainConfig, isPausedNetwork, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 import { PERIOD_DAYS, PLANS } from "@/lib/plans/catalog";
 import { planPriceUsd } from "@/lib/plans/billing-math";
 import { DocHead, DocSection } from "../parts";
@@ -9,7 +9,7 @@ import { DocHead, DocSection } from "../parts";
 export const metadata: Metadata = {
   title: "Payments and networks",
   description:
-    "How Sage pays: each payout settles in USDC from the job's vault, on Metis, and also on Arc and Starknet, with a public receipt. No fee on payouts. Plans are paid in USDC on Metis and renew like a card subscription.",
+    "How Sage pays: each payout settles in USDC from the job's vault on Metis, with a public receipt. No fee on payouts. Plans are paid in USDC on Metis and renew like a card subscription.",
   alternates: { canonical: "/docs/payments" },
 };
 
@@ -22,10 +22,10 @@ const TOC = {
   plans: "How plans are billed",
 } as const;
 
-/** The networks table reads the same two lists every other screen does. */
+/** The networks table reads the same two lists every other screen does: Metis, and GOAT (paused). */
 const NETWORK_ROWS = [
-  ...PRIMARY_NETWORKS.map((id) => ({ id, tier: "Primary" })),
-  ...SECONDARY_NETWORKS.map((id) => ({ id, tier: isPausedNetwork(id) ? "Paused for new jobs" : id === STARKNET_MAINNET_KEY ? "More networks, private payouts" : "More networks" })),
+  ...PRIMARY_NETWORKS.map((id) => ({ id, tier: "Everything runs here" })),
+  ...SECONDARY_NETWORKS.map((id) => ({ id, tier: isPausedNetwork(id) ? "Paused: what's there keeps working" : "Where you already hold something" })),
 ].map(({ id, tier }) => {
   const c = chainConfig(id);
   return {
@@ -79,15 +79,15 @@ export default function Payments() {
 
       <DocSection toc={TOC} id="networks">
         <p>
-          Sage pays in USDC on its primary network, Metis Andromeda. It also settles on Arc, under More networks,
-          and on Starknet, for private payouts. Test networks are never shown.
+          Sage runs on one network, <strong>Metis Andromeda</strong>. Every job launches there, every account opens
+          there, every payout settles there in USDC, and plans are paid there. Test networks are never shown.
         </p>
         <div className="doc-table wide">
           <table>
             <thead>
               <tr>
                 <th scope="col">Network</th>
-                <th scope="col">Where you see it</th>
+                <th scope="col">Status</th>
                 <th scope="col">Chain</th>
                 <th scope="col">USDC</th>
                 <th scope="col">Gas</th>
@@ -107,21 +107,22 @@ export default function Payments() {
           </table>
         </div>
         <p>
-          On Arc, USDC is also the gas, so funding an account with USDC is all the setup there is. Jobs keep the
-          network they were created on, and their receipts keep working.
+          <strong>GOAT Network is paused.</strong> Sage paid its first people there, from July 2026. Its USDC was bridged
+          by Stargate, which ended support for GOAT on 23 October 2026, so no new job, account or plan payment starts
+          there. Everything already on GOAT keeps working: receipts, records, withdrawals and stopping a job. It resumes
+          when GOAT has a USDC with a supported way in and out.
         </p>
         <p>
-          <strong>GOAT Network is closed to new jobs.</strong> Its USDC was bridged by Stargate, which ended support for
-          GOAT on 23 October 2026, so no new job, account or plan payment starts there. Everything already on GOAT
-          keeps working: receipts, records, withdrawals and stopping a job.
+          Payouts Sage made earlier on Arc and Starknet keep their receipts and records, and a Starknet claim link still
+          pays. Nothing new starts on either.
         </p>
       </DocSection>
 
       <DocSection toc={TOC} id="account">
         <p>
-          Your account is a wallet Sage keeps for you, held by Privy, one per network. It opens on Metis when you create
-          your workspace, and you can add others from the Account page. The balance and activity you see are read from
-          the chain. You can do three things with the money in it:
+          Your account is a wallet Sage keeps for you on Metis, held by Privy. It opens when you create your workspace,
+          and it is the same account whether you signed in with your email or with MetaMask. The balance and activity
+          you see are read from the chain. You can do three things with the money in it:
         </p>
         <ul>
           <li>
@@ -149,9 +150,8 @@ export default function Payments() {
           from.
         </p>
         <p>
-          Signed in with a Starknet wallet? You fund each job from your own wallet, and payouts settle through the
-          Starknet vault. A Starknet sign-in can&apos;t hold a Sage account, because the account needs an Ethereum
-          address to send leftovers back to. You can also fund any job straight from a wallet you sign in with.
+          Every job launches from the account, in one step, for every sign-in. Money in MetaMask or on an exchange goes
+          to the account&apos;s address first; the Account page shows it with a QR code.
         </p>
       </DocSection>
 
@@ -168,10 +168,10 @@ export default function Payments() {
         <p>
           The evidence itself isn&apos;t published, only a fingerprint of it (a hash), so a receipt proves what was
           judged without exposing someone&apos;s work. Anyone can check the transaction on the explorer without asking
-          Sage. Starknet payouts get their own receipt, which names the vault that paid.
+          Sage. A payout made earlier on Starknet has its own receipt, which names the vault that paid.
         </p>
         <p>
-          On Metis, Arc and GOAT, when a vault refuses a payout on chain, its receipt says so: payout blocked, no funds
+          When a vault refuses a payout on chain, its receipt says so: payout blocked, no funds
           moved. Most refusals happen before anything reaches the chain. Those are counted in public, and their reasons
           go to the person who submitted and to the job&apos;s owner.
         </p>
@@ -202,7 +202,7 @@ export default function Payments() {
             <span>
               <strong>Your account pays its own fees.</strong> Launching a job, a send, a swap or a plan payment is a
               small transaction from your account, paid in the network&apos;s own token: METIS on Metis (about 0.05 METIS
-              launches a job, and most other moves cost well under 0.005), USDC on Arc. Keep a little METIS in the
+              launches a job, and most other moves cost well under 0.005). Keep a little METIS in the
               account; the Account page shows how much it holds and what it covers.
             </span>
           </li>
@@ -216,8 +216,8 @@ export default function Payments() {
           <li>
             <Receipt size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Collecting a private payout is free.</strong> On Starknet, Sage sends the collection and pays its
-              fee.
+              <strong>Collecting a private payout is free.</strong> For one made earlier on Starknet, Sage sends the
+              collection and pays its fee.
             </span>
           </li>
         </ul>

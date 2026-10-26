@@ -220,7 +220,7 @@ function AccountStrip({ account }: { account?: HomeAccount }) {
         : account.state === "closed"
           ? { k: `Account · ${account.network}`, t: "Opening soon", s: account.reason }
           : account.state === "starknet"
-            ? { k: "Account · Starknet", t: "Your wallet is your account", s: "Each job is funded from your Starknet wallet when you post it." }
+            ? { k: "Account · Starknet", t: "Sage runs on Metis now", s: "Sign in with your email or MetaMask to open your account on Metis and post new work." }
             : { k: "Account", t: "Not configured here", s: "Post work from your own wallet." };
   return (
     <section className="home-tile home-money" aria-label="Your account">

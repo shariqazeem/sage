@@ -92,18 +92,23 @@ describe("gas on Metis is sized for METIS, not BTC", () => {
   });
 });
 
-describe("the network policy (21 Oct 2026: GOAT paused, Metis primary)", () => {
-  it("one primary network, Metis; Arc, Starknet and the paused GOAT behind More networks", () => {
+describe("the network policy (26 Oct 2026: one network, Metis; GOAT paused; Arc and Starknet closed)", () => {
+  it("one primary network, Metis; GOAT the only secondary, paused; Arc and Starknet offered nowhere", () => {
     expect([...PRIMARY_NETWORKS]).toEqual([METIS_MAINNET_CHAIN_ID]);
-    expect(SECONDARY_NETWORKS).toContain(ARC_MAINNET_CHAIN_ID);
-    expect(SECONDARY_NETWORKS).toContain(STARKNET_MAINNET_KEY);
     // GOAT stays in the policy so the accounts, jobs and receipts already there stay reachable
-    expect(SECONDARY_NETWORKS).toContain(GOAT_MAINNET_CHAIN_ID);
+    expect([...SECONDARY_NETWORKS]).toEqual([GOAT_MAINNET_CHAIN_ID]);
+    expect(SECONDARY_NETWORKS).not.toContain(ARC_MAINNET_CHAIN_ID);
+    expect(SECONDARY_NETWORKS).not.toContain(STARKNET_MAINNET_KEY);
     expect(networkTier(METIS_MAINNET_CHAIN_ID)).toBe("primary");
     expect(networkTier(GOAT_MAINNET_CHAIN_ID)).toBe("secondary");
-    expect(networkTier(ARC_MAINNET_CHAIN_ID)).toBe("secondary");
+    // closed: offered by no surface, exactly like a retired testnet...
+    expect(networkTier(ARC_MAINNET_CHAIN_ID)).toBe("retired");
+    expect(networkTier(STARKNET_MAINNET_KEY)).toBe("retired");
     expect(networkTier(ARC_TESTNET_CHAIN_ID)).toBe("retired");
     expect(networkTier(METIS_SEPOLIA_CHAIN_ID)).toBe("retired");
+    // ...but still real money in the registry, so what already happened there reads as what it was
+    expect(chainConfig(ARC_MAINNET_CHAIN_ID).isMainnet).toBe(true);
+    expect(chainConfig(STARKNET_MAINNET_KEY).isMainnet).toBe(true);
   });
 
   it("no testnet is primary or secondary, and every listed network is a real registry entry", () => {

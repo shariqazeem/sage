@@ -105,7 +105,7 @@ export function DashboardClient({
         <div className="st-card">
           <h1 className="st-h1">Sign in to see your jobs</h1>
           <p className="st-p">Every job you&apos;ve posted, what Sage has paid, and each job&apos;s page.</p>
-          <FounderSignIn explainer={<>Sign in with the wallet you launched from — <b>Ethereum or Starknet.</b></>} onSignedIn={() => router.refresh()} />
+          <FounderSignIn explainer={<><b>MetaMask</b> or any Ethereum wallet: the one you launched from.</>} onSignedIn={() => router.refresh()} />
         </div>
       </main>
     );

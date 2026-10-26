@@ -252,7 +252,7 @@ export function NewCampaignForm({
       {showSignIn && !founder.authed && (
         <div style={{ marginTop: 12 }}>
           <FounderSignIn
-            explainer={<>Sign in to create this campaign — <b>Ethereum or Starknet.</b></>}
+            explainer={<><b>MetaMask</b> or any Ethereum wallet. Nothing is funded here.</>}
             onSignedIn={() => {
               setShowSignIn(false);
               void founder.refresh();

@@ -791,3 +791,8 @@
 .tl-top { margin-top: 8px; }
 .tl-door { display: grid; gap: 8px; }
 .tl-flat { margin: 0; }
+/* Opening the account from the plan (26 Oct 2026): the one launch door, without leaving the page. */
+.tl-open-cap { display: grid; gap: 6px; margin: 10px 0 12px; font-size: 13px; color: var(--ink-muted); }
+.tl-open-row { display: flex; gap: 8px; align-items: center; }
+.tl-open-row .ws-input { max-width: 160px; }
+.tl-open-unit { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); }

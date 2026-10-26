@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Landmark, Loader2, Sparkles } from "lucide-react";
 import { UpgradeLink } from "@/components/plans/upgrade-link";
+import { isPausedNetwork } from "@/lib/deputy/networks";
 import type { PlanId } from "@/lib/plans/catalog";
 
 interface Account { chainId: number; network: string; address: string; isMainnet: boolean }
-interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; nativeSymbol?: string; gasWei?: string | null; launchFloorWei?: string; canSwap?: boolean; accounts?: Account[] }
+interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; nativeSymbol?: string; gasWei?: string | null; launchFloorWei?: string; canSwap?: boolean; accounts?: Account[]; available?: boolean; reason?: string | null; error?: string }
 
 /** "0.05": a wei amount in plain digits for a sentence. */
 const native = (wei: string | undefined | null) => {
@@ -17,64 +18,127 @@ const native = (wei: string | undefined | null) => {
 };
 interface Launched { campaignId: string; url: string; steps: { step: string; explorerUrl: string }[] }
 
+/** What stands before a launch door, when no account can be shown yet. */
+type Gate = { kind: "signed-out" } | { kind: "no-account"; chainId: number; network: string };
+
 /**
- * "LET SAGE LAUNCH IT." When the founder has an account, the wallet-driven deploy below is optional:
- * one click and the agent deploys, funds and activates the vault from the account, inside the
- * mandate. The refusals are the account's own sentences (cap, balance, gas).
+ * "LET SAGE LAUNCH IT." The ONE way a plan launches (26 Oct 2026): one click and the agent deploys, funds
+ * and activates the vault from the founder's account on Metis, inside the mandate. The same door for an
+ * email sign-in and a MetaMask one; the refusals are the account's own sentences (cap, balance, gas).
  *
- * One door per account: a founder holding an account on GOAT and one on Arc sees both, each naming
- * its chain and balance.
+ * Only an account on a network that is open gets a door: one on a paused network (GOAT) or a closed one
+ * (Arc, Starknet) keeps its money and its withdrawals on the Account screen, and launches nothing here.
  *
  * THE DOOR IS THE PAGE'S MAIN BUTTON (Demo Day, 10 Oct 2026). A founder signed in by email reached
  * this page with $5 in the account; the door was a small button and the wallet route below it a big
  * "Connect your wallet". On stage the big one got clicked, MetaMask signed in, the email session was
- * replaced, and the account — which belongs to the email identity — vanished from the page. So the
- * door renders large, reports its state up (DeployFlow folds the wallet route away while an account
- * can launch), says "Checking your account…" instead of rendering nothing, and retries a failed read.
+ * replaced, and the account — which belongs to the email identity — vanished from the page. The wallet
+ * route is gone now; the door says "Checking your account…" instead of rendering nothing, retries a
+ * failed read, and when there is no account yet it opens one right here rather than sending the founder
+ * somewhere else.
  */
-export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; budgetUsd: number; onState?: (s: { loading: boolean; hasDoor: boolean }) => void }) {
+export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd: number }) {
   const [doors, setDoors] = useState<Status[] | null>(null);
+  const [gate, setGate] = useState<Gate | null>(null);
+  const [reads, setReads] = useState(0);
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // undefined: no plan refusal; null: no plan would help; a plan: the one that lifts it.
   const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
   const [done, setDone] = useState<Launched | null>(null);
+  // The most Sage may put into one job, for an account opened from this page: at least this job's budget.
+  const [cap, setCap] = useState(String(Math.max(50, Math.ceil(budgetUsd))));
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     let live = true;
-    const read = async (): Promise<Status[]> => {
-      const first = (await (await fetch("/api/treasury", { cache: "no-store" })).json()) as Status;
-      const others = (first.accounts ?? []).filter((a) => a.chainId !== first.chainId);
+    const read = async (): Promise<{ doors: Status[]; gate: Gate | null }> => {
+      const res = await fetch("/api/treasury", { cache: "no-store" });
+      if (res.status === 401) return { doors: [], gate: { kind: "signed-out" } };
+      const first = (await res.json()) as Status;
+      const others = (first.accounts ?? []).filter((a) => a.chainId !== first.chainId && !isPausedNetwork(a.chainId));
       // one account's read failing must not hide the others
       const rest = await Promise.allSettled(others.map(async (a) => (await (await fetch(`/api/treasury?chainId=${a.chainId}`, { cache: "no-store" })).json()) as Status));
-      return [first, ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))].filter((st) => st.linked);
+      const found = [first, ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))].filter((st) => st.linked && !isPausedNetwork(st.chainId));
+      const noAccount: Gate | null =
+        found.length === 0 && !first.linked && first.available !== false && first.chainId != null && !isPausedNetwork(first.chainId)
+          ? { kind: "no-account", chainId: first.chainId, network: first.network ?? "Metis" }
+          : null;
+      return { doors: found, gate: noAccount };
     };
     (async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const found = await read();
-          if (live) setDoors(found);
+          const r = await read();
+          if (live) {
+            setDoors(r.doors);
+            setGate(r.gate);
+          }
           return;
         } catch {
-          await new Promise((r) => setTimeout(r, 1500)); // a dropped connection gets one more try
+          await new Promise((res) => setTimeout(res, 1500)); // a dropped connection gets one more try
         }
       }
       if (live) setDoors([]);
     })();
     return () => { live = false; };
-  }, []);
-
-  // "hasDoor" means a door that can LAUNCH this plan now: an account that is short of the budget or of
-  // gas still renders (with its own sentence), but it must not fold the wallet route away.
-  useEffect(() => {
-    const canLaunch = (doors ?? []).some((d) => (d.balanceUsd ?? 0) >= budgetUsd && d.enoughGas !== false);
-    onState?.({ loading: doors === null, hasDoor: canLaunch });
-  }, [doors, onState, budgetUsd]);
+  }, [reads]);
 
   if (doors === null) {
     return <p className="lx-sub tl-gap"><Loader2 size={14} className="sage-spin2" /> Checking your account…</p>;
   }
-  if (doors.length === 0) return null;
+
+  if (gate?.kind === "signed-out") {
+    return (
+      <div className="lxd-panel tl-gap">
+        <p className="lx-sub"><Landmark size={14} /> Jobs launch from the account Sage keeps for you on Metis. Sign in with your email or MetaMask to launch this plan.</p>
+        <div className="ws-nav">
+          <button className="lx-btn" onClick={() => window.location.assign(`/start?next=${encodeURIComponent(window.location.pathname)}`)}>Sign in to launch</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gate?.kind === "no-account") {
+    const open = async () => {
+      setOpening(true);
+      setErr(null);
+      try {
+        const r = await fetch("/api/treasury", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ perCampaignCapUsd: Number(cap) || 50, chainId: gate.chainId }) });
+        const j = (await r.json()) as { error?: string };
+        if (!r.ok) { setErr(j.error ?? "Could not open the account."); return; }
+        setDoors(null);
+        setReads((n) => n + 1);
+      } catch {
+        setErr("Could not reach Sage.");
+      } finally {
+        setOpening(false);
+      }
+    };
+    return (
+      <div className="lxd-panel tl-gap">
+        <p className="lx-sub"><Landmark size={14} /> Jobs launch from the account Sage keeps for you on {gate.network}. Open it, add this job&apos;s ${budgetUsd.toFixed(2)}, and Sage launches it in one step.</p>
+        <label className="tl-open-cap">
+          <span>The most Sage may put into one job. You can change it any time.</span>
+          <span className="tl-open-row"><input className="ws-input mono" type="number" min="1" max="10000" step="1" value={cap} onChange={(e) => setCap(e.target.value)} disabled={opening} aria-label="Most per job, in USDC" /><span className="tl-open-unit">USDC per job</span></span>
+        </label>
+        <div className="ws-nav">
+          <button className="lx-btn" onClick={() => void open()} disabled={opening}>
+            {opening ? <><Loader2 size={13} className="sage-spin2" /> Opening…</> : `Open your account on ${gate.network}`}
+          </button>
+        </div>
+        {err && <p className="ws-err">{err}</p>}
+      </div>
+    );
+  }
+
+  if (doors.length === 0) {
+    return (
+      <div className="lxd-panel tl-gap">
+        <p className="lx-sub"><Landmark size={14} /> Jobs launch from the account Sage keeps for you on Metis, and it isn&apos;t available on this deployment.</p>
+      </div>
+    );
+  }
 
   const launch = async (chainId: number | undefined) => {
     setBusy(chainId ?? 0);
@@ -112,6 +176,7 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
     <div className="lxd-panel tl-gap">
       {doors.map((st) => {
         const short = st.balanceUsd !== undefined && st.balanceUsd < budgetUsd;
+        const overCap = st.perCampaignCapUsd !== undefined && st.perCampaignCapUsd < budgetUsd;
         const needsFee = st.enoughGas === false;
         const network = st.network ?? "your account";
         const sym = st.nativeSymbol ?? "gas";
@@ -122,19 +187,22 @@ export function TreasuryLaunch({ jobId, budgetUsd, onState }: { jobId: string; b
             <p className="lx-sub">
               <Landmark size={14} /> Your account on {network} holds ${(st.balanceUsd ?? 0).toFixed(2)} {st.isMainnet === false ? "test " : ""}USDC. This job needs ${budgetUsd.toFixed(2)}.
               {short
-                ? ` Add $${(budgetUsd - (st.balanceUsd ?? 0)).toFixed(2)} or more, or fund it from your wallet below.`
-                : needsFee
-                  ? ` It also needs about ${native(st.launchFloorWei)} ${sym} for network fees, paid from the account.`
-                  : " Sage can launch it now, with no wallet steps."}
+                ? ` Add $${(budgetUsd - (st.balanceUsd ?? 0)).toFixed(2)} or more to your account.`
+                : overCap
+                  ? ` Your account puts at most $${st.perCampaignCapUsd?.toFixed(2)} into one job: raise that limit on the Account screen to launch this one.`
+                  : needsFee
+                    ? ` It also needs about ${native(st.launchFloorWei)} ${sym} for network fees, paid from the account.`
+                    : " Sage can launch it now, with no wallet steps."}
             </p>
-            {(short || needsFee) && (
+            {(short || needsFee || overCap) && (
               <div className="ws-nav">
-                <Link className="ws-chip accent" href={`${accountHref}add`}>Add money</Link>
+                {(short || needsFee) && <Link className="ws-chip accent" href={`${accountHref}add`}>Add money</Link>}
                 {needsFee && st.canSwap && hasSomeFee && <Link className="ws-chip" href={`${accountHref}swap`}>Swap USDC to {sym}</Link>}
+                {overCap && <Link className="ws-chip" href={st.chainId ? `/workspace/account?chain=${st.chainId}` : "/workspace/account"}>Change the limit</Link>}
               </div>
             )}
             <div className="ws-nav">
-              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || needsFee}>
+              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || needsFee || overCap}>
                 {busy === (st.chainId ?? 0) ? <><Loader2 size={13} className="sage-spin2" /> Sage is launching…</> : <><Sparkles size={13} /> Let Sage launch it from your account on {network}</>}
               </button>
               <span className="ws-note tl-flat">Up to ${st.perCampaignCapUsd?.toFixed(2)} per job · unspent returns to you</span>

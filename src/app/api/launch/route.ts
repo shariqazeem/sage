@@ -37,7 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const session = await getFounderAddress();
   if (!session) {
     return NextResponse.json(
-      { ok: false, error: "Connect your wallet to run an inspection — it's a free signature, no gas and nothing spent." },
+      { ok: false, error: "Sign in to run an inspection, with your email or MetaMask: nothing is spent." },
       { status: 401 },
     );
   }

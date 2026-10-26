@@ -94,23 +94,29 @@ export const METIS_SEPOLIA_CHAIN_ID = 59902;
  *
  * GOAT mainnet was the default from July, and every early payout ran there. It is PAUSED for new money
  * (see PAUSED_NETWORKS below): its USDC loses Stargate support on 23 October 2026. The founder chose
- * "pause GOAT, no Arc default": nothing new launches until Metis is live, and Arc stays an explicit
- * choice under "More networks". Until Metis's factory and operator are configured the default is not
- * launchable, and every launch door says so instead of falling back somewhere else. Nothing about a
- * campaign already on any chain changes with the default.
+ * "pause GOAT, no Arc default", and on 26 Oct 2026, with Metis live, one network: Arc and Starknet are
+ * closed (CLOSED_NETWORKS below). If Metis's factory and operator were ever unconfigured the default would
+ * not be launchable, and every launch door would say so instead of falling back somewhere else. Nothing
+ * about a campaign already on any chain changes with the default.
  */
 export const DEFAULT_EVM_LAUNCH_CHAIN = METIS_MAINNET_CHAIN_ID;
 
-/** The Arc rail a founder may pick explicitly: Arc mainnet. The testnet stays in the registry, so
- *  campaigns and accounts already on it keep working, but it is no longer offered to anyone new. */
-export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
+/**
+ * Registry key for Starknet mainnet. NOT an EVM chain id — Starknet has none, and its own
+ * identifier (SN_MAIN, 0x534e5f4d41494e) exceeds JavaScript's safe integer range, so it cannot be
+ * stored in the integer column this keys. It exists so a campaign settled on Starknet renders its
+ * real USDC as money rather than as valueless test tokens, which is what happened when such a
+ * campaign inherited the Metis Sepolia default.
+ */
+export const STARKNET_MAINNET_KEY = 900_001;
 
 /**
  * THE NETWORK POLICY (Sage the company, 19 Oct 2026; docs/strategy/2026-10-19-sage-the-company.md).
  *
  * PRIMARY networks are the ones everyone sees: onboarding, account tabs, launch doors. SECONDARY networks
- * stay fully working (their campaigns settle, their receipts and accounts stay reachable), but live
- * behind "More networks" and are never offered by default. Testnets are offered nowhere. Sage was
+ * stay fully working (their campaigns settle, their receipts and accounts stay reachable) and appear only
+ * where a founder already holds something. Since 26 Oct 2026 that is GOAT alone, and it is paused; Arc
+ * and Starknet are CLOSED (below). Testnets are offered nowhere. Sage was
  * spread over five networks for hackathons, and every surface invented its own subset, which is how
  * onboarding came to collide. Every surface reads these two lists, and network-policy.test.ts holds
  * them to it.
@@ -120,7 +126,9 @@ export const ARC_LAUNCH_CHAIN = ARC_MAINNET_CHAIN_ID;
  * accounts, jobs and receipts stay reachable there, and nothing new starts on it.
  */
 export const PRIMARY_NETWORKS: readonly number[] = [METIS_MAINNET_CHAIN_ID];
-export const SECONDARY_NETWORKS: readonly number[] = [ARC_MAINNET_CHAIN_ID, 900_001, GOAT_MAINNET_CHAIN_ID];
+/** GOAT alone, and paused: shown where a founder already holds something there, always labelled paused.
+ *  Arc and Starknet left this list on 26 Oct 2026 (CLOSED_NETWORKS below). */
+export const SECONDARY_NETWORKS: readonly number[] = [GOAT_MAINNET_CHAIN_ID];
 
 /**
  * NETWORKS PAUSED FOR NEW MONEY (21 Oct 2026, the founder's decision).
@@ -137,17 +145,42 @@ export const SECONDARY_NETWORKS: readonly number[] = [ARC_MAINNET_CHAIN_ID, 900_
  */
 export const PAUSED_NETWORKS: Readonly<Record<number, string>> = {
   [GOAT_MAINNET_CHAIN_ID]:
-    "New jobs on GOAT Network are paused: its USDC is bridged by Stargate, which ends support for GOAT on 23 October 2026. Everything already on GOAT keeps working, and you can withdraw at any time.",
+    "New jobs on GOAT Network are paused: its USDC is bridged by Stargate, which ended support for GOAT on 23 October 2026. Everything already on GOAT keeps working, and you can withdraw at any time.",
 };
 
-/** Whether nothing new may start on this network (see PAUSED_NETWORKS). */
-export function isPausedNetwork(chainId: number | null | undefined): boolean {
-  return chainId != null && Object.prototype.hasOwnProperty.call(PAUSED_NETWORKS, chainId);
+/**
+ * ONE NETWORK (26 Oct 2026, the founder's decision): "focus on one network, Metis, so the whole app works on
+ * Metis consistently; completely close Arc except its payouts; keep GOAT as paused so it shows we were on GOAT."
+ *
+ * A CLOSED network is paused AND offered nowhere: no sign-in, no account tab or "More networks", no launch
+ * choice, no copy that says Sage runs there. Everything that already happened there stays true and
+ * reachable: receipts, records, the ledger, claim links, and payouts from any job already funded. Closing
+ * is a pause plus invisibility, never a deletion. (On 26 Oct no Arc or Starknet job vault held money, and the
+ * two Arc chat wallets held cents.) GOAT stays PAUSED, not closed: shown, labelled paused, and it can resume.
+ */
+export const CLOSED_NETWORKS: Readonly<Record<number, string>> = {
+  [ARC_MAINNET_CHAIN_ID]:
+    "Sage runs on Metis now, and nothing new starts on Arc. Everything already there keeps its receipts, and you can withdraw at any time.",
+  [STARKNET_MAINNET_KEY]:
+    "Sage runs on Metis now, and nothing new starts on Starknet. Everything already there keeps its receipts, and claim links still pay.",
+};
+
+/** Whether a network is closed: paused, and offered on no surface (see CLOSED_NETWORKS). */
+export function isClosedNetwork(chainId: number | null | undefined): boolean {
+  return chainId != null && Object.prototype.hasOwnProperty.call(CLOSED_NETWORKS, chainId);
 }
 
-/** The sentence a person reads when a paused network refuses something new, or null when it isn't paused. */
+/** Whether nothing new may start on this network: paused (GOAT) or closed (Arc, Starknet). Every door that
+ *  starts something reads this one check, so a closed network is refused wherever a paused one is. */
+export function isPausedNetwork(chainId: number | null | undefined): boolean {
+  return chainId != null && (Object.prototype.hasOwnProperty.call(PAUSED_NETWORKS, chainId) || isClosedNetwork(chainId));
+}
+
+/** The sentence a person reads when a paused or closed network refuses something new, or null when it is open. */
 export function pausedNetworkReason(chainId: number | null | undefined): string | null {
-  return isPausedNetwork(chainId) ? PAUSED_NETWORKS[chainId as number] : null;
+  if (chainId == null) return null;
+  if (Object.prototype.hasOwnProperty.call(PAUSED_NETWORKS, chainId)) return PAUSED_NETWORKS[chainId];
+  return isClosedNetwork(chainId) ? CLOSED_NETWORKS[chainId] : null;
 }
 
 /** Where a network sits in the policy: shown to everyone, opt-in, or not offered at all. */
@@ -176,15 +209,6 @@ export function railEnvPrefix(chainId: number): "ARC_MAINNET" | "ARC" | "GOAT" |
           ? "METIS_MAINNET"
           : "METIS";
 }
-
-/**
- * Registry key for Starknet mainnet. NOT an EVM chain id — Starknet has none, and its own
- * identifier (SN_MAIN, 0x534e5f4d41494e) exceeds JavaScript's safe integer range, so it cannot be
- * stored in the integer column this keys. It exists so a campaign settled on Starknet renders its
- * real USDC as money rather than as valueless test tokens, which is what happened when such a
- * campaign inherited the Metis Sepolia default.
- */
-export const STARKNET_MAINNET_KEY = 900_001;
 
 export const CHAINS: Record<number, ChainConfig> = {
   [900_001]: {

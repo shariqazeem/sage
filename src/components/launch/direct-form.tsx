@@ -40,7 +40,7 @@ interface MilestoneDraft {
   effortMinutes: string;
 }
 
-const GOAT_CHAIN_ID = DEFAULT_EVM_LAUNCH_CHAIN; // the EVM launch default (Arc first); the name is historical
+const GOAT_CHAIN_ID = DEFAULT_EVM_LAUNCH_CHAIN; // the launch default (Metis); the name is historical
 
 function blankMilestone(): MilestoneDraft {
   return {
@@ -374,7 +374,7 @@ export function DirectCampaignForm() {
         {showSignIn && !founder.authed && (
           <div style={{ marginTop: 12 }}>
             <FounderSignIn
-              explainer={<>Sign in to create this campaign — <b>Ethereum or Starknet.</b> Nothing is funded here.</>}
+              explainer={<><b>MetaMask</b> or any Ethereum wallet. Nothing is funded here.</>}
               onSignedIn={() => {
                 setShowSignIn(false);
                 void founder.refresh();

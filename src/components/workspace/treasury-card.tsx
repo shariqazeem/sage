@@ -69,7 +69,7 @@ export function TreasuryCard() {
       ) : st.available === false ? (
         <p className="ac-empty">
           {st.reason === "starknet"
-            ? <>The account is a wallet Sage holds for you on {network}, so it opens with an email or an Ethereum wallet sign-in. Your Starknet work is unaffected: you fund each launch from your own wallet.</>
+            ? <>The account is a wallet Sage holds for you on {network}, so it opens with an email or MetaMask sign-in. Nothing new starts on Starknet; your Starknet jobs and receipts stay as they are.</>
             : <>Accounts aren&apos;t configured on this deployment.</>}
         </p>
       ) : (

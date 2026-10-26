@@ -55,10 +55,10 @@ export default async function AutopilotPage() {
             <section className="ws-card">
               <div className="ws-card-h"><h2><Landmark size={15} /> What this door needs</h2></div>
               <p className="ws-note" style={{ margin: 0 }}>
-                Sage runs work from an account it holds for you — a wallet on {home.name} under a mandate that caps what it may spend, with your own wallet as the only place unspent money can go. You signed in with a Starknet wallet, and a Starknet address cannot be that reclaim address, so this door opens with an <b>email or an Ethereum wallet sign-in</b>.
+                Sage runs work from an account it holds for you — a wallet on {home.name} under a mandate that caps what it may spend, with your own wallet as the only place unspent money can go. You signed in with a Starknet wallet, and a Starknet address cannot be that reclaim address, so this door opens with an <b>email or MetaMask sign-in</b>.
               </p>
               <p className="ws-note" style={{ margin: "10px 0 0" }}>
-                Nothing about your Starknet work changes: <Link href="/launch">post work</Link> and fund each campaign from your wallet, and every payout settles through the Cairo vault, privately when you ask. See <Link href="/workspace/account">your account</Link> for what you hold and what you have posted.
+                Sage runs on Metis now, and nothing new starts on Starknet; your Starknet jobs and receipts stay exactly as they are. See <Link href="/workspace/account">your account</Link> for what you hold and what you have posted.
               </p>
             </section>
           ) : (

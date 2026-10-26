@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import "../launch.css";
+// The launch door (TreasuryLaunch) is drawn with the workspace's chips and inputs; class-scoped, safe here.
+import "@/styles/workspace.css";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { feedbackAtForInspection } from "@/lib/db/feedback";
 import { jobToView } from "@/lib/launch/job";
-import { configuredLaunchChains } from "@/lib/launch/deployment-service";
 import { LaunchResults } from "@/components/launch/launch-results";
 import { TesterSupplyProof } from "@/components/launch/tester-supply-proof";
 import type { JobView as ClientJobView } from "@/components/launch/types";
@@ -53,7 +54,7 @@ export default async function InspectionPage({ params }: { params: Promise<{ ins
           </p>
         )}
 
-        <LaunchResults initial={view as unknown as ClientJobView} launchChains={configuredLaunchChains()} />
+        <LaunchResults initial={view as unknown as ClientJobView} />
 
         {/* The founder decides HERE. Answer "will anyone come?" on the page where they approve. */}
         {view.status === "ready" && <TesterSupplyProof />}

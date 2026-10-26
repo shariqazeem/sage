@@ -57,12 +57,14 @@ const walletRe = /^0x[0-9a-fA-F]{40}$/;
  * A RECIPIENT MAY BE ON EITHER RAIL.
  *
  * `walletRe` is an EVM address and stays that way — it also types `to` and `logEmitter` on an
- * on-chain_tx contract, which really are EVM-only. But the ALLOWLIST names people, and a Starknet
- * felt is up to 64 hex digits, so "pay my designer, her wallet is 0x04f1…f434" was refused as
- * malformed on the rail Sage just launched. Measured by P-DIRECT, pd-gig-named-recipient,
- * 2026-08-31.
+ * on-chain_tx contract, which really are EVM-only. The ALLOWLIST names people, and it accepted a
+ * Starknet felt (up to 64 hex digits) while Sage paid on Starknet (P-DIRECT, pd-gig-named-recipient,
+ * 2026-08-31). Starknet closed on 26 Oct 2026 and every new job pays on Metis, where a felt names
+ * nobody the vault can pay: a job naming one would launch with a person who could never submit. So
+ * a recipient is an Ethereum-style address again, and the refusal says why.
  */
-const recipientRe = /^0x[0-9a-fA-F]{1,64}$/;
+const recipientRe = /^0x[0-9a-fA-F]{40}$/;
+const RECIPIENT_MESSAGE = "A named recipient is an Ethereum-style address (0x and 40 characters): Sage pays on Metis.";
 const hex32Re = /^0x[0-9a-fA-F]{64}$/;
 const selectorRe = /^0x[0-9a-fA-F]{8}$/;
 const decimalRe = /^[0-9]{1,30}$/;
@@ -185,7 +187,7 @@ export const directCampaignSchema = z.object({
   whyItMatters: z.string().min(10).max(600).optional(),
   milestones: z.array(milestoneSchema).min(1).max(DIRECT_LIMITS.milestonesMax),
   /** optional recipient allowlist — named grantees. Enforced at the submit route (app-level). */
-  allowlist: z.array(z.string().regex(recipientRe)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
+  allowlist: z.array(z.string().regex(recipientRe, RECIPIENT_MESSAGE)).min(1).max(DIRECT_LIMITS.allowlistMax).optional(),
   /** `unlisted` keeps the campaign off every public board; the founder shares its door. */
   visibility: z.enum(["listed", "unlisted"]).optional(),
   /**

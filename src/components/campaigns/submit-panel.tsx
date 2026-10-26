@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { short } from "@/lib/format";
 import { useSiwe } from "@/lib/auth/use-siwe";
+import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { useStarknetSiwe } from "@/lib/auth/use-starknet-siwe";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import type { SettlementRail } from "@/lib/db/schema";
@@ -133,6 +134,12 @@ export function SubmitPanel({
   const evm = useSiwe();
   const starknet = useStarknetSiwe();
   const onStarknet = rail === "starknet";
+  /*
+   * THE SESSION IS THE PAYEE (26 Oct 2026). The submit route pays the address of the session it reads,
+   * and an email sign-in sets that session exactly as a MetaMask one does. This gate used to want a
+   * connected browser wallet MATCHING the session, so a person signed in by email (no browser wallet)
+   * was told to connect one and could not submit at all. Signed in is now: holding a session.
+   */
   const siwe = onStarknet
     ? {
         authed: starknet.authed,
@@ -140,7 +147,7 @@ export function SubmitPanel({
         signingIn: starknet.signingIn,
         signIn: () => Promise.resolve(false), // Starknet picks a wallet first — see the gate below.
       }
-    : evm;
+    : { authed: !!evm.authedAddress, address: evm.authedAddress, signingIn: evm.signingIn, signIn: () => evm.signIn() };
   const [evidence, setEvidence] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -273,67 +280,17 @@ export function SubmitPanel({
   }
 
   if (!siwe.authed) {
-    // Signed in as another wallet: signing in again SWITCHES accounts, so it is asked for by name.
-    const switchFrom = evm.authedAddress && evm.address && evm.authedAddress.toLowerCase() !== evm.address.toLowerCase() ? evm.authedAddress : null;
-    // The SAME component as the Starknet gate above. The browser injects one EVM provider and
-    // picks for us, so there is exactly one option — but it is presented in the same language,
-    // so which chain a campaign settles on is not something a person feels in the layout.
+    // Both doors, as every sign-in offers them: an email, or MetaMask. Either one is the account paid.
     return (
       <div className="sage-gate">
-        <WalletConnect
-          options={[
-            {
-              id: "injected",
-              name: siwe.address ? (switchFrom ? `Switch to ${short(siwe.address)}` : short(siwe.address)) : "your wallet",
-              onSelect: () => void evm.signIn(switchFrom ? { replace: true } : undefined),
-            },
-          ]}
+        <FounderSignIn
           explainer={
-            switchFrom ? (
-              <>
-                You&rsquo;re signed in as {short(switchFrom)}. <b>Work is paid to the wallet you sign in
-                with,</b> so signing in with this one switches accounts.
-              </>
-            ) : (
-              <>
-                Connect your wallet and sign a message to submit — <b>that is the address
-                you&rsquo;ll be paid at.</b>
-              </>
-            )
+            <>
+              <b>MetaMask</b> or any Ethereum wallet. Work is paid to the account you sign in with.
+            </>
           }
-          busy={siwe.signingIn}
-          busyLabel="Waiting for your wallet…"
-          emptyMessage="No wallet found in this browser."
-          installHints={[{ name: "MetaMask", url: "https://metamask.io/download" }]}
+          onSignedIn={() => void evm.refresh()}
         />
-      </div>
-    );
-  }
-
-  if (!siwe.authed) {
-    return (
-      <div className="sage-gate">
-        <p>
-          Connect your wallet and sign a message to submit. Signing proves you
-          control the wallet — it authorizes no transaction and moves no funds.
-        </p>
-        <button
-          className="sage-btn sage-btn-primary"
-          onClick={() => void siwe.signIn()}
-          disabled={siwe.signingIn}
-        >
-          {siwe.signingIn ? (
-            <>
-              <Loader2 size={15} className="sage-spin2" /> Signing…
-            </>
-          ) : siwe.address ? (
-            <>
-              <ShieldCheck size={15} /> Sign in as {short(siwe.address)}
-            </>
-          ) : (
-            "Connect wallet to submit"
-          )}
-        </button>
       </div>
     );
   }
