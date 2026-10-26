@@ -332,10 +332,11 @@ function MissionCard({
    * Signed in ON THE RAIL THAT PAYS — one expression, used by the sign-in gate, by this loader,
    * and by everything gated behind them, so they can never disagree about which wallet counts.
    */
-  const signedIn = rail === "starknet" ? starknet.authed : siwe.authed || emailSignedIn;
-  // Signed in as another wallet than the one connected: signing in again SWITCHES accounts, so the
-  // button says so and asks for it explicitly (a plain sign-in refuses to replace a session).
-  const switchFrom = siwe.authedAddress && siwe.address && siwe.authedAddress.toLowerCase() !== siwe.address.toLowerCase() ? siwe.authedAddress : null;
+  // SIGNED IN IS THE SESSION, whichever door made it (26 Oct 2026). This read "the connected MetaMask
+  // matches the session, or the email account's wallet has loaded and matches", so an email worker
+  // read as signed OUT until Privy finished loading, and a worker with some other MetaMask connected
+  // was offered "Switch to 0x…", which replaced their account. The signer is found at submit time.
+  const signedIn = rail === "starknet" ? starknet.authed : siwe.authed || !!sessionAddress || emailSignedIn;
   // the wallet that signed in is the wallet that gets paid — and the only one a proof may bind to
   const signedInWallet = (rail === "starknet" ? starknet.address : evmAddress) ?? "";
 
@@ -402,9 +403,11 @@ function MissionCard({
             : null;
       if (!account || (!onStarknet && !walletClient)) {
         setError(
-          sessionAddress
-            ? `Sign in again with ${short(sessionAddress)} — that is the wallet this campaign would pay, and it has to be the one that signs.`
-            : "Reconnect your wallet to sign.",
+          sessionAddress && emailDoor() && !embedded && !signerIsInjected
+            ? "Your email account's wallet is still opening. Try again in a moment; if this stays, sign out and continue with your email again."
+            : sessionAddress
+              ? `Sign in again with ${short(sessionAddress)} — that is the wallet this campaign would pay, and it has to be the one that signs.`
+              : "Reconnect your wallet to sign.",
         );
         return;
       }
@@ -744,7 +747,7 @@ function MissionCard({
               {mine.status === "paid" && mine.claim ? (
                 <ClaimHandoff reward={rewardLabel} url={mine.claim.url} />
               ) : mine.status === "paid" && mine.payoutTx ? (
-                <PaidShare reward={rewardLabel} tx={mine.payoutTx} wallet={rail === "starknet" ? starknet.address : wallet.address} />
+                <PaidShare reward={rewardLabel} tx={mine.payoutTx} wallet={rail === "starknet" ? starknet.address : evmAddress} />
               ) : null}
               {/* P23: a retryable hold reads as PROGRESS — the "Almost there" beat + the coaching block below
                   carry it; the verdict card (which shows a "HOLD" chip) is reserved for verified/final states. */}
@@ -821,41 +824,35 @@ function MissionCard({
               <StarknetSubmitGate starknet={starknet} />
             ) : (
               <>
+                {/* THE SAME TWO DOORS AS EVERY SIGN-IN (founder-sign-in.tsx): email, then MetaMask,
+                    both always offered, whichever extension this browser has connected. */}
+                {emailDoor() && (
+                  <>
+                    <EmailSignIn onSignedIn={() => void siwe.refresh()} />
+                    <p className="tb-sig">
+                      Continue with email — Sage keeps a wallet for you, and the payout lands in it.
+                    </p>
+                    <div className="es-or">
+                      <span>or use MetaMask</span>
+                    </div>
+                  </>
+                )}
                 <button
                   className="sage-btn sage-btn-primary"
                   disabled={siwe.signingIn}
-                  onClick={() => void siwe.signIn(switchFrom ? { replace: true } : undefined)}
+                  onClick={() => void siwe.signIn()}
                 >
                   {siwe.signingIn ? (
                     <>
                       <Loader2 size={15} className="sage-spin2" /> Signing…
                     </>
-                  ) : siwe.address && switchFrom ? (
-                    <>
-                      <ShieldCheck size={15} /> Switch to {short(siwe.address)} to submit
-                    </>
-                  ) : siwe.address ? (
-                    <>
-                      <ShieldCheck size={15} /> Sign in to submit
-                    </>
                   ) : (
-                    "Connect wallet to submit"
+                    <>
+                      <ShieldCheck size={15} /> {siwe.address ? `Sign in with ${short(siwe.address)} to submit` : "Sign in with MetaMask to submit"}
+                    </>
                   )}
                 </button>
-                <p className="tb-sig">
-                  {switchFrom
-                    ? <>You&rsquo;re signed in as {short(switchFrom)}. Work is paid to the wallet you sign in with, so this switches accounts.</>
-                    : <>A free signature — it just proves the wallet is yours. No gas, no transaction.</>}
-                </p>
-                {emailDoor() && !wallet.address && (
-                  <>
-                    <p className="sage-hint">or</p>
-                    <EmailSignIn onSignedIn={() => void siwe.refresh()} />
-                    <p className="tb-sig">
-                      Continue with email — Sage keeps a wallet for you, and the payout lands in it.
-                    </p>
-                  </>
-                )}
+                <p className="tb-sig">A free signature — it just proves the wallet is yours. No gas, no transaction.</p>
               </>
             )
           ) : lockedBy && !mine ? (

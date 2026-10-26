@@ -74,7 +74,8 @@ export function missionSlotStatus(
   let reserved = 0;
   let earliestExpiry: number | null = null;
   for (const c of claimants) {
-    if (c.status === "paid" || c.status === "settling") {
+    // approved = promised its payout, waiting out the finalization window: the slot is not free
+    if (c.status === "paid" || c.status === "settling" || c.status === "approved") {
       taken++;
       continue;
     }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { matured, revocationReason, windowSecondsFor } from "./finalization";
+import { matured, refusedOnChain, revocationReason, windowSecondsFor } from "./finalization";
 
 const cand = (note: string, fp: string | null = null) => ({ note, contentSha256: null, artifactFingerprint: fp });
 
@@ -28,3 +28,15 @@ describe("the finalization window", () => {
     expect(revocationReason({ me, others: [], linkedWallets: ["0x0999"], peerWallets: ["0x0270"] })).toBeNull();
   });
 });
+
+describe("what the sweep reads as a refusal (26 Oct 2026)", () => {
+  it("is a refusal only when the chain recorded one", () => {
+    // V2: a successful transaction that emitted the refusal, final for that intent
+    expect(refusedOnChain({ settled: false, txHash: "0xrefused", failedCheckIndex: 7 })).toBe(true);
+    // V1: "the recipient's approval is still inside its timelock window" — nothing was sent; it waits
+    expect(refusedOnChain({ settled: false, txHash: null, failedCheckIndex: 3 })).toBe(false);
+    expect(refusedOnChain({ settled: true, txHash: "0xpaid", failedCheckIndex: null })).toBe(false);
+    expect(refusedOnChain({ settled: false, txHash: null, failedCheckIndex: null })).toBe(false);
+  });
+});
+

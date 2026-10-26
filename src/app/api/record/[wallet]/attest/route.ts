@@ -8,6 +8,7 @@ import {
   DEFAULT_TTL_SECONDS,
 } from "@/lib/campaigns/attestation";
 import { walletCreditSignals } from "@/lib/campaigns/credit";
+import { getSessionAddress } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,22 +53,32 @@ export async function POST(
       : null;
   const issuedAt = typeof body.issuedAt === "number" ? body.issuedAt : NaN;
   const signature = typeof body.signature === "string" ? body.signature : "";
+  const now = Math.floor(Date.now() / 1000);
 
-  if (!Number.isFinite(issuedAt) || !signature.startsWith("0x")) {
+  /*
+    THE SIGNED-IN OWNER NEEDS NO SECOND SIGNATURE (26 Oct 2026). The signature exists to prove the
+    asker is the person whose income it is; a session bound to this wallet already proves exactly
+    that (email or MetaMask, the same session either way), as the privacy route accepts. An email
+    sign-in had no MetaMask to sign with, so the owner could never prove a floor. The oracle stays
+    closed: nobody but the record's own wallet can ask, by signature or by session.
+  */
+  const session = await getSessionAddress();
+  const sessionOwns = !!session && session.toLowerCase() === wallet.toLowerCase();
+
+  if (!sessionOwns && (!Number.isFinite(issuedAt) || !signature.startsWith("0x"))) {
     return NextResponse.json(
       { ok: false, error: "a signed challenge is required — see attestationChallenge()" },
       { status: 401 },
     );
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - issuedAt) > CHALLENGE_MAX_AGE_SEC) {
+  if (!sessionOwns && Math.abs(now - issuedAt) > CHALLENGE_MAX_AGE_SEC) {
     return NextResponse.json({ ok: false, error: "challenge expired" }, { status: 401 });
   }
 
   // The signature covers the floor, so it cannot be replayed at a different one.
-  let owns = false;
-  try {
+  let owns = sessionOwns;
+  if (!owns) try {
     owns = await verifyMessage({
       address: wallet.toLowerCase() as `0x${string}`,
       message: attestationChallenge(wallet, floor, issuedAt),

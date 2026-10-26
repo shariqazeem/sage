@@ -2,6 +2,7 @@ import "@/styles/checkout.css";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getFounderAddress } from "@/lib/auth/founder";
+import { declaredLinksOf } from "@/lib/campaigns/wallet-links";
 import { Checkout } from "@/components/billing/checkout";
 import { isPlanId, PERIOD_DAYS, PERIOD_SECONDS, PLANS, SELF_SERVE, type PlanId } from "@/lib/plans/catalog";
 import { planPriceUsd } from "@/lib/plans/billing-math";
@@ -51,6 +52,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       canManage={view.canManage}
       periodDays={PERIOD_DAYS}
       initialCode={code}
+      payers={[founder, ...declaredLinksOf(founder)].map((a) => a.toLowerCase())}
     />
   );
 }

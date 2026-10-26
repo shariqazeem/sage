@@ -50,6 +50,7 @@ function ticketFor(c: Campaign, s: Submission, nowSec: number): LaneTicket | nul
       linkedWallets: linkedWalletsOf(s.wallet),
       personWallets: sameNullifierWallets(s.wallet),
       peerWallets: listSubmissions(c.id).filter((x) => x.id !== s.id).map((x) => x.wallet),
+      selfWallet: s.wallet,
     });
     return {
       id: s.id, campaignId: c.id, campaignTitle: c.title, wallet: s.wallet, rewardBase: c.rewardAmount, rail: c.settlementRail, network: laneNetwork(c),

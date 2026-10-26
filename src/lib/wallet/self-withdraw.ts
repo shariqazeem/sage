@@ -1,6 +1,9 @@
 import "server-only";
 import { getAddress, verifyTypedData, type Address, type Hash, type Hex } from "viem";
-import { GOAT_USDC } from "@/lib/deputy/networks";
+import { chainConfig, GOAT_USDC } from "@/lib/deputy/networks";
+
+/** The network's OWN USDC. This read GOAT's on every chain, so a withdrawal anywhere else asked a token that is not there. */
+const usdcOn = (chainId: number) => getAddress(chainConfig(chainId).usdcAddress ?? GOAT_USDC);
 import {
   VALID_FOR_SECONDS,
   computeDomainSeparator,
@@ -13,7 +16,8 @@ import {
  * YOUR WALLET, INSIDE SAGE — deposit is the address; withdraw is gasless.
  *
  * A worker paid into an email-embedded wallet (or any wallet signed in here) holds USDC on GOAT and
- * no BTC for gas, so without this they could receive money and never move it — the same gap the
+ * no BTC for gas, so without this they could receive money and never move it. GOAT's USDC takes a
+ * signed transfer; Metis m.USDC does not, so on Metis the wallet sends its own (your-wallet.tsx) — the same gap the
  * Telegram cash-out closed for chat wallets. Two calls: `prepare` reads the token and hands back the
  * exact EIP-3009 typed data to sign; `submit` verifies that the signature is the wallet's own, that
  * the authorization is fresh and within balance, and hands it to the operator, who pays the gas.
@@ -52,11 +56,14 @@ export async function prepareSelfWithdrawal(
   deps: SelfWithdrawDeps = {},
 ): Promise<PreparedWithdrawal> {
   const chainId = input.chainId ?? 2345;
-  const token = getAddress(GOAT_USDC);
+  const token = usdcOn(chainId);
   const from = getAddress(input.from);
   const to = getAddress(input.to);
   checkShape(from, to, input.amountBase);
-  const state = await (deps.readToken ?? readTokenState)(chainId, token, from);
+  const state = await (deps.readToken ?? readTokenState)(chainId, token, from).catch(() => {
+    // Metis m.USDC has no signed transfer (EIP-3009): there the wallet sends its own (your-wallet.tsx).
+    throw new Error(`USDC on ${chainConfig(chainId).name} can't be moved by a signature alone; send it from your wallet instead`);
+  });
   if (state.balance < input.amountBase) throw new Error(`the balance is ${Number(state.balance) / 1e6} USDC, less than the ${Number(input.amountBase) / 1e6} asked`);
   // FAIL CLOSED before any signature exists: the domain we hand out must be the token's own.
   const expected = computeDomainSeparator(state.name, state.version, chainId, token);
@@ -85,7 +92,7 @@ export async function submitSelfWithdrawal(
   deps: SelfWithdrawDeps = {},
 ): Promise<{ txHash: Hash; amountBase: bigint; to: Address }> {
   const chainId = input.chainId ?? 2345;
-  const token = getAddress(GOAT_USDC);
+  const token = usdcOn(chainId);
   const from = getAddress(input.from);
   const to = getAddress(input.to);
   checkShape(from, to, input.amountBase);

@@ -2,13 +2,15 @@
 
 import { useCallback, useState } from "react";
 import { Banknote, Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
-import { erc20Abi, type Address, type WalletClient } from "viem";
+import { erc20Abi, publicActions, type Address, type WalletClient } from "viem";
 import { useWallet } from "@/lib/wallet/use-wallet";
 import { METIS_MAINNET_CHAIN_ID, viemChainFor } from "@/lib/deputy/networks";
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "@/components/campaigns/embedded-wallet-bridge";
 
 /** Whether the email door (and so an embedded wallet) exists on this deployment. */
 const EMAIL_DOOR = !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
+/** An ERC-20 approve on Metis measures ~46k gas; the pot's fee cover is sized for this ceiling (pot.ts). */
+const APPROVE_GAS = BigInt(60_000);
 
 /**
  * "TAKE AN ADVANCE", ON METIS (26 Oct 2026). Shown only to the record's owner, only when the pot can pay.
@@ -50,8 +52,8 @@ export function TakeAdvanceButton({
   const api = `/api/record/${encodeURIComponent(wallet)}/advance`;
 
   /** The wallet this record belongs to, ready to sign on Metis: MetaMask if it is the one here, else the email account's. */
-  const signer = useCallback(async (): Promise<WalletClient | null> => {
-    if (injected.address?.toLowerCase() === owner) {
+  const signer = useCallback(async (connected: string | null = injected.address): Promise<WalletClient | null> => {
+    if (connected?.toLowerCase() === owner) {
       await injected.switchToChain(METIS_MAINNET_CHAIN_ID).catch(() => undefined);
       return injected.getWalletClient(METIS_MAINNET_CHAIN_ID);
     }
@@ -72,17 +74,18 @@ export function TakeAdvanceButton({
       }
       setBusy("approve");
       let client = await signer();
-      if (!client && !injected.address && injected.available) {
-        await injected.connect();
-        client = await signer();
-      }
+      if (!client && !injected.address && injected.available) client = await signer(await injected.connect());
       if (!client) {
         setErr("Approve from the wallet this record belongs to: connect it here (MetaMask), or sign in with the email account that holds it.");
         return;
       }
       const principal = BigInt(Math.round(offerUsd * 100)) * BigInt(10_000);
       try {
-        await client.writeContract({ account: wallet as Address, address: token as Address, abi: erc20Abi, functionName: "approve", args: [pot as Address, principal], chain: viemChainFor(METIS_MAINNET_CHAIN_ID), type: "legacy" });
+        // FULLY SPECIFIED, so no wallet fills in fees of its own: Metis rejects EIP-1559 transactions, and
+        // an email sign-in's wallet (Privy) and MetaMask must both send exactly a legacy one. The gas price
+        // comes from the wallet's own Metis endpoint, +20% as every Sage write on Metis.
+        const gasPrice = ((await client.extend(publicActions).getGasPrice()) * BigInt(12)) / BigInt(10);
+        await client.writeContract({ account: wallet as Address, address: token as Address, abi: erc20Abi, functionName: "approve", args: [pot as Address, principal], chain: viemChainFor(METIS_MAINNET_CHAIN_ID), type: "legacy", gasPrice, gas: APPROVE_GAS });
       } catch {
         setErr("The approval was not signed. Nothing changed.");
         return;

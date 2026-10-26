@@ -17,7 +17,7 @@ import { verifyPlanForApproval } from "@/lib/launch/approve";
 import { checkRevisionPolicyForApproval } from "@/lib/launch/approve-policy";
 import { deserializePlan } from "@/lib/launch/serde";
 import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
-import { launchClosedReason, loadApprovedPlan } from "@/lib/launch/deployment-service";
+import { LAUNCH_ENABLED_CHAINS, launchClosedReason, loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { publicClient } from "@/lib/deputy/chain";
 import { ARC_MAINNET_CHAIN_ID, GOAT_MAINNET_CHAIN_ID, GOAT_USDC, chainConfig, isPausedNetwork, pausedNetworkReason } from "@/lib/deputy/networks";
@@ -428,7 +428,7 @@ export async function callAgentWalletTool(
         const home = treasuryChainId();
         const net = chainConfig(home);
         // An active wallet on a network that takes new money is the founder's account: say how to fund it.
-        if (existing && !isPausedNetwork(existing.chainId)) {
+        if (existing && LAUNCH_ENABLED_CHAINS.includes(existing.chainId) && !isPausedNetwork(existing.chainId)) {
           const c = chainConfig(existing.chainId);
           const balance = await usdcBalanceBase(existing.privyWalletAddress, existing.chainId);
           return ok({
@@ -526,8 +526,9 @@ export async function callAgentWalletTool(
       case "sage_fund_and_launch": {
         const b = founderBinding(chatId);
         if (!b) return err("The founder hasn't set up an agent wallet yet — call sage_setup_wallet.");
-        // A paused network takes no new money: refused before any check, stipend or call.
-        const paused = pausedNetworkReason(b.chainId);
+        // A network that isn't open takes no new money (paused, closed, or a retired testnet): refused
+        // before any check, stipend or call.
+        const paused = launchClosedReason(b.chainId);
         if (paused) {
           return ok({ ok: false, networkPaused: true, message: `${paused} Nothing was launched and nothing moved. New jobs open on Metis; the founder can post at ${appUrl()}/launch.` });
         }

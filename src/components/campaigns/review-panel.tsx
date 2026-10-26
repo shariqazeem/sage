@@ -1,5 +1,6 @@
 "use client";
 
+import { METIS_SEPOLIA_CHAIN_ID } from "@/lib/deputy/networks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -347,8 +348,10 @@ export function ReviewPanel({
 
   const ensureOwnerWallet = async () => {
     if (!wallet.address) await wallet.connect();
-    if (wallet.address && !wallet.onMetis) await wallet.switchToMetis();
-    const wc = wallet.getWalletClient();
+    // Only the legacy V1 console mounts this panel, and its vaults live on the retired Metis testnet:
+    // named, never the wallet hook's default (Metis mainnet since 26 Oct 2026).
+    if (wallet.address && !wallet.onChain(METIS_SEPOLIA_CHAIN_ID)) await wallet.switchToChain(METIS_SEPOLIA_CHAIN_ID);
+    const wc = wallet.getWalletClient(METIS_SEPOLIA_CHAIN_ID);
     return wc && wallet.address ? { wc, owner: wallet.address as Address } : null;
   };
 

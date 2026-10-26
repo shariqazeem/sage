@@ -109,7 +109,7 @@ describe("the submit control a Starknet tester is offered", () => {
     board("starknet");
     expect(screen.queryByRole("button", { name: /submit evidence/i })).toBeNull();
     // Ready is discovered; the EVM "Connect wallet" copy must not appear on this rail.
-    expect(screen.queryByText(/connect wallet to submit/i)).toBeNull();
+    expect(screen.queryByText(/sign in with metamask to submit/i)).toBeNull();
   });
 
   it("does not accept an EVM session as sign-in on the private rail", async () => {
@@ -130,7 +130,7 @@ describe("the submit control a Starknet tester is offered", () => {
 
   it("still shows the EVM sign-in on the EVM rail when signed out", async () => {
     board("evm");
-    expect(await screen.findByText(/connect wallet to submit|sign in to submit/i)).toBeTruthy();
+    expect(await screen.findByText(/sign in with metamask to submit/i)).toBeTruthy();
   });
 });
 
@@ -147,13 +147,27 @@ describe("a worker who signed in by email", () => {
     siweState.authedAddress = "0x3A60AF43C67DD9D552F180D30D9A042948078341";
     board("evm");
     expect(await screen.findByRole("button", { name: /submit evidence/i })).toBeTruthy();
-    expect(screen.queryByText(/connect wallet to submit/i)).toBeNull();
+    expect(screen.queryByText(/sign in with metamask to submit/i)).toBeNull();
   });
 
   it("is offered the email door beside the wallet one when signed out on the public rail", async () => {
     board("evm");
-    expect(await screen.findByText(/connect wallet to submit/i)).toBeTruthy();
+    expect(await screen.findByText(/sign in with metamask to submit/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /continue with email/i })).toBeTruthy();
+  });
+
+  it("is offered both doors even when some MetaMask is connected (26 Oct 2026), and never a 'switch'", async () => {
+    siweState.address = "0x00000000000000000000000000000000000000c1";
+    board("evm");
+    expect(await screen.findByText(/sign in with 0x0000…00c1 to submit|sign in with 0x0000.*00c1 to submit/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /continue with email/i })).toBeTruthy();
+    expect(screen.queryByText(/switch to/i)).toBeNull();
+  });
+
+  it("is signed in from the session alone, before the email account's wallet has loaded", async () => {
+    siweState.authedAddress = "0x3A60AF43C67DD9D552F180D30D9A042948078341"; // no embedded wallet yet
+    board("evm");
+    expect(await screen.findByRole("button", { name: /submit evidence/i })).toBeTruthy();
   });
 
   it("is not offered the email door on the private rail — an embedded wallet cannot be paid there", async () => {
@@ -161,12 +175,14 @@ describe("a worker who signed in by email", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /continue with email/i })).toBeNull());
   });
 
-  it("an embedded wallet that is not the session's own is not signed in", async () => {
+  it("an embedded wallet that is not the session's own is not who is signed in", async () => {
+    // Signed in as 0x…01 (say, MetaMask) with an older email wallet still in the browser: the board is
+    // signed in as the SESSION, which is the wallet that gets paid; the embedded wallet never signs for it.
     embeddedState.wallet = { address: "0x3a60af43c67dd9d552f180d30d9a042948078341", getWalletClient: async () => null };
     siweState.authedAddress = "0x0000000000000000000000000000000000000001";
     board("evm");
-    expect(await screen.findByText(/connect wallet to submit/i)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /submit evidence/i })).toBeNull();
+    expect(await screen.findByRole("button", { name: /submit evidence/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /continue with email/i })).toBeNull();
   });
 });
 

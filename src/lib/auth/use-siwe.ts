@@ -19,7 +19,8 @@ export interface SiweApi {
   onChain: (chainId: number) => boolean;
   connecting: boolean;
   signingIn: boolean;
-  connect: () => Promise<void>;
+  /** connect the browser wallet; resolves to its account. */
+  connect: () => Promise<string | null>;
   switchToMetis: () => Promise<void>;
   switchToChain: (chainId: number) => Promise<void>;
   /** Run the SIWE-lite flow (connect → nonce → sign → verify). `bind` joins the wallet to the
@@ -65,11 +66,15 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
   }, [refresh]);
 
   const signIn = useCallback(async (opts: { mode?: "signin" | "bind"; replace?: boolean } = {}): Promise<boolean> => {
-    if (!w.address) await w.connect();
-    // SIWE (personal_sign) is chain-independent — don't force a network switch here.
-    // The launch wizard switches to the founder's chosen chain only for the on-chain steps.
+    // Connecting resolves to the account, so one click connects AND signs (connecting moves the wallet to
+    // Metis). The signature itself is chain-independent, but the wallet shows the network it is on while
+    // asking for it, and Sage runs on Metis: a wallet already connected is moved there too (26 Oct 2026,
+    // the founder saw "GOAT Network" on this request). Declining still lets the sign-in go ahead.
+    let address = w.address;
+    if (!address) address = await w.connect();
+    else if (!w.onMetis) await w.switchToMetis().catch(() => undefined);
     const wallet = w.getWalletClient();
-    if (!w.address || !wallet) return false;
+    if (!address || !wallet) return false;
     /*
       NEVER SWAP WHO IS SIGNED IN BEHIND THEIR BACK (Demo Day, 10 Oct 2026). A founder signed in by
       email clicked a wallet button on the plan page; the plain sign-in here replaced the email session,
@@ -82,7 +87,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
       .then((r) => r.json() as Promise<{ address?: string | null }>)
       .then((j) => j.address ?? null)
       .catch(() => authedAddress);
-    if (mode === "signin" && !opts.replace && current && current.toLowerCase() !== w.address.toLowerCase()) {
+    if (mode === "signin" && !opts.replace && current && current.toLowerCase() !== address.toLowerCase()) {
       setConflict(current);
       return false;
     }
@@ -90,7 +95,7 @@ export function useSiwe(injectedWallet?: WalletApi): SiweApi {
     // Checksum the address so the message we sign is byte-identical to the one
     // the server rebuilds (it checksums via getAddress). A lowercase injected
     // address would sign a different message and verification would always fail.
-    const account = getAddress(w.address);
+    const account = getAddress(address);
 
     setSigningIn(true);
     try {

@@ -74,6 +74,7 @@ export function surfaceCriteria(
   return [`${where} Context — what the work is about: ${surface}`];
 }
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
+import { GOAT_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /** Rebuild the full brief (content + provenance) from a stored decision row. */
 export function briefFromRow(row: Decision): DecisionBrief {
@@ -440,7 +441,7 @@ export async function ensureDecision(
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
   const fetched = submission.evidenceUrl
-    ? await verifyEvidence(submission.evidenceUrl, { preferRender })
+    ? await verifyEvidence(submission.evidenceUrl, { preferRender, paid: campaign.chainId === GOAT_MAINNET_CHAIN_ID && campaign.settlementRail !== "starknet" })
     : {
         text: "",
         contentSha256: null,

@@ -12,7 +12,9 @@ const wallet = vi.hoisted(() => ({ chainId: 1088 }));
 vi.mock("@/lib/db/agent-wallets", () => ({
   getAgentWallet: () => ({ privyWalletId: "pw", privyWalletAddress: A("1"), founderAddress: A("2"), chainId: wallet.chainId }),
 }));
-vi.mock("@/lib/launch/deployment-service", () => ({
+vi.mock("@/lib/launch/deployment-service", async () => ({
+  // the real policy sentence: paused, closed and retired networks refuse; Metis is open here
+  launchClosedReason: (await vi.importActual<typeof import("@/lib/deputy/networks")>("@/lib/deputy/networks")).pausedNetworkReason,
   loadApprovedPlan: () => ({ plan: { publicCampaignId: "camp-1", totalBudgetBase: "10000000", missions: [] } }),
   buildSettings: () => ({ ok: true, settings: { chainId: 1088, token: A("7"), operator: A("8"), guardian: A("2"), factory: A("9") } }),
   defaultDailyCap: () => BigInt(1),

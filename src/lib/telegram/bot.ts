@@ -268,12 +268,19 @@ export async function announceCampaignSettledStarknet(
 }
 
 /** Announce a vault-blocked spend to a campaign's public chat, if one is set. */
+/** Refusals already announced, by their transaction: a refused payout is announced once, not on every retry. */
+const announcedRefusals = new Set<string>();
+
 export async function announceCampaignBlocked(
   campaign: Campaign,
   outcome: SettleOutcome,
 ): Promise<void> {
   const chatId = campaign.announceChatId;
   if (!chatId) return;
+  if (outcome.txHash) {
+    if (announcedRefusals.has(outcome.txHash)) return;
+    announcedRefusals.add(outcome.txHash);
+  }
   await sendTelegram(
     chatId,
     announceBlockedText({

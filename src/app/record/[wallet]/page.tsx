@@ -144,7 +144,7 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               below is anchored to a transaction anyone can verify, so each payment is provable
               without this page publishing what someone earns.
             </p>
-            <AttestCard wallet={record.wallet} />
+            <AttestCard wallet={record.wallet} sessionOwner={same(evmSession, record.wallet)} />
           </section>
         )}
 

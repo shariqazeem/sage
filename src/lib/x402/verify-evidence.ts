@@ -49,11 +49,15 @@ function noteRender(url: string, ev: { mode?: "static" | "rendered"; render?: Re
  */
 export async function verifyEvidence(
   url: string,
-  /** `preferRender`: the link is a page on the product under test — render it (see `fetchEvidence`). */
-  opts?: { preferRender?: boolean },
+  /**
+   * `preferRender`: the link is a page on the product under test — render it (see `fetchEvidence`).
+   * `paid: false`: this job is not on GOAT, where the x402 rail lives, so nothing is paid for it
+   * (26 Oct 2026: a Metis job's evidence was being bought with GOAT USDC). Fetched directly instead.
+   */
+  opts?: { preferRender?: boolean; paid?: boolean },
 ): Promise<VerifiedEvidence> {
   const preferRender = opts?.preferRender === true;
-  if (!isX402Live()) {
+  if (!isX402Live() || opts?.paid === false) {
     const ev = await fetchEvidence(url, { preferRender });
     noteRender(url, ev);
     return {
@@ -62,7 +66,7 @@ export async function verifyEvidence(
       ok: ev.ok,
       failReason: ev.failReason,
       x402PaymentTx: null,
-      x402Status: "not_configured",
+      x402Status: opts?.paid === false ? "not_required" : "not_configured",
       x402Reason: null,
       mode: ev.mode,
       render: ev.render,

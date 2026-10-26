@@ -39,7 +39,11 @@ function appUrl(): string {
  * fixing a founder who is currently missing messages.
  */
 function founderChatId(campaign: Campaign): string | null {
-  return getAgentWalletByAddress(founderStorageKey(campaign.posterWallet))?.chatId ?? null;
+  const key = getAgentWalletByAddress(founderStorageKey(campaign.posterWallet))?.chatId ?? null;
+  // A web account (`web:<founder>`) has no chat to message, and a chat wallet set aside when its
+  // network paused is keyed `<chat>@<chainId>` (chat-wallets.ts): the chat is the part before the @.
+  if (!key || key.startsWith("web:")) return null;
+  return key.split("@")[0] || null;
 }
 
 /** Send once, retry once on failure. Never throws. */

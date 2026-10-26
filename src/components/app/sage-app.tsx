@@ -1,5 +1,6 @@
 "use client";
 
+import { METIS_SEPOLIA_CHAIN_ID } from "@/lib/deputy/networks";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -391,8 +392,10 @@ export function SageApp(props: Props) {
                         ? "Connect wallet"
                         : "Install a wallet"}
                   </button>
-                ) : !wallet.onMetis ? (
-                  <button className="sage-onb-cta" onClick={wallet.switchToMetis}>
+                ) : !wallet.onChain(METIS_SEPOLIA_CHAIN_ID) ? (
+                  // The legacy V1 console's vaults live on the retired Metis testnet; named here, never
+                  // the wallet hook's default (Metis mainnet since 26 Oct 2026).
+                  <button className="sage-onb-cta" onClick={() => void wallet.switchToChain(METIS_SEPOLIA_CHAIN_ID)}>
                     Switch to Metis Sepolia
                   </button>
                 ) : (

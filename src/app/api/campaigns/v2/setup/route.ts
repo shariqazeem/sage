@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSessionAddress } from "@/lib/auth/session";
+import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
+import { launchClosedReason } from "@/lib/launch/deployment-service";
 import {
   attachV2Campaign,
   computeV2SetupPreview,
@@ -65,7 +67,7 @@ function parseInput(body: Record<string, unknown>): V2SetupInput | null {
     publicCampaignId: String(body.publicCampaignId ?? ""),
     title: String(body.title ?? ""),
     productUrl: String(body.productUrl ?? ""),
-    chainId: Number(body.chainId ?? 59902),
+    chainId: Number(body.chainId ?? METIS_MAINNET_CHAIN_ID),
     expectedToken: String(body.expectedToken ?? ""),
     founderAddress: String(body.founderAddress ?? ""),
     operatorAddress: String(body.operatorAddress ?? ""),
@@ -103,6 +105,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!auth.allowed) {
     return NextResponse.json({ ok: false, error: auth.reason }, { status: 403 });
   }
+
+  // Nothing new is attached on a network nothing new may start on (paused, closed, retired testnet).
+  const closed = launchClosedReason(input.chainId);
+  if (closed) return NextResponse.json({ ok: false, error: closed }, { status: 400 });
 
   const result = await attachV2Campaign(input);
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });

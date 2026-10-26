@@ -1,6 +1,6 @@
 import "server-only";
 
-import { chainConfig } from "./networks";
+import { chainConfig, METIS_MAINNET_CHAIN_ID } from "./networks";
 import type { BriefFraudSignal } from "./brain-core";
 
 /**
@@ -49,6 +49,11 @@ export async function firstFunderOf(wallet: string, chainId: number): Promise<st
   let funder: string | null = null;
   try {
     const base = chainConfig(chainId).explorerUrl.replace(/\/$/, "");
+    if (chainId === METIS_MAINNET_CHAIN_ID) {
+      funder = await firstFunderFromV2(base, wallet);
+      funderCache.set(key, funder);
+      return funder;
+    }
     const url = `${base}/api?module=account&action=txlist&address=${wallet}&sort=asc&page=1&offset=1`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (res.ok) {
@@ -65,6 +70,27 @@ export async function firstFunderOf(wallet: string, chainId: number): Promise<st
   }
   funderCache.set(key, funder);
   return funder;
+}
+
+/**
+ * METIS: THE EXPLORER'S v2 API (26 Oct 2026). Its legacy `module=account&action=txlist` endpoint did
+ * not answer within 40 seconds, twice, so on Metis this signal never fired at all. The v2 list answers
+ * at once, newest first: the wallet's first inbound transfer is the LAST item when its whole history
+ * fits one page. A wallet with more history than a page is not the fresh wallet this signal is about,
+ * which is an honest "unknown" (null). An address the explorer has never seen was never funded.
+ */
+async function firstFunderFromV2(base: string, wallet: string): Promise<string | null> {
+  const res = await fetch(`${base}/api/v2/addresses/${wallet}/transactions`, { signal: AbortSignal.timeout(8_000) });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`explorer ${res.status}`);
+  const body = (await res.json()) as { items?: Array<{ from?: { hash?: unknown } | null; to?: { hash?: unknown } | null }>; next_page_params?: unknown };
+  if (body.next_page_params) return null;
+  const items = Array.isArray(body.items) ? body.items : [];
+  const first = items[items.length - 1];
+  const from = typeof first?.from?.hash === "string" ? first.from.hash.toLowerCase() : null;
+  const to = typeof first?.to?.hash === "string" ? first.to.hash.toLowerCase() : null;
+  const me = wallet.toLowerCase();
+  return from && to === me && from !== me ? from : null;
 }
 
 /** Test seam: preload/clear the memo without touching the network. */

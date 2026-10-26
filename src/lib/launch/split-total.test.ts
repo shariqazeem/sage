@@ -307,8 +307,8 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
           { title: "Deploy the contract", instructions: "deploy it and send the tx", criteria: ["deployed"], evidence: { kind: "onchain_tx", chainId, to: "0x" + "a".repeat(40) }, slots: 1, rewardUsd: 10 },
         ],
       }) as { milestones: Array<{ evidence: { chainId: number } }> }).milestones[0].evidence.chainId;
-    expect(m(1)).toBe(2345);        // famous-chain invention → where Sage settles
-    expect(m(undefined)).toBe(2345); // absence → the default
+    expect(m(1)).toBe(1088);        // famous-chain invention → where Sage settles (Metis, 26 Oct 2026)
+    expect(m(undefined)).toBe(1088); // absence → the default
     expect(m(59902)).toBe(59902);    // a chain Sage KNOWS passes through untouched
   });
 

@@ -17,7 +17,7 @@ import { useWallet } from "@/lib/wallet/use-wallet";
  * earnings is refused without revealing the real figure. The output is a public, signed document:
  * safe to display, meant to be handed to a lender, verified at /lender or off-platform entirely.
  */
-export function AttestCard({ wallet }: { wallet: string }) {
+export function AttestCard({ wallet, sessionOwner = false }: { wallet: string; sessionOwner?: boolean }) {
   const { address, getWalletClient } = useWallet();
   const [floor, setFloor] = useState("");
   const [pending, setPending] = useState(false);
@@ -25,7 +25,9 @@ export function AttestCard({ wallet }: { wallet: string }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const isOwner = !!address && address.toLowerCase() === wallet.toLowerCase();
+  // Signed in as this record's wallet (email or MetaMask, one session either way) is owning it; a
+  // MetaMask that holds it but is not signed in still proves it by signing.
+  const isOwner = sessionOwner || (!!address && address.toLowerCase() === wallet.toLowerCase());
   // The challenge verifies with an EVM signature; a Starknet-felt record signs differently and is
   // not wired yet — said plainly rather than offering a button that cannot work.
   const isEvm = /^0x[0-9a-fA-F]{40}$/.test(wallet);
@@ -40,6 +42,13 @@ export function AttestCard({ wallet }: { wallet: string }) {
     }
     setPending(true);
     try {
+      if (sessionOwner) {
+        const res = await fetch(`/api/record/${wallet}/attest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ earnedAtLeastUsd: f }) });
+        const data = (await res.json()) as { ok?: boolean; error?: string; attestation?: unknown };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? "Sage declined to attest that.");
+        setDoc(JSON.stringify(data.attestation, null, 2));
+        return;
+      }
       const client = getWalletClient();
       if (!client || !address) throw new Error("Connect the wallet this record belongs to.");
       const issuedAt = Math.floor(Date.now() / 1000);
@@ -66,7 +75,7 @@ export function AttestCard({ wallet }: { wallet: string }) {
     } finally {
       setPending(false);
     }
-  }, [address, floor, getWalletClient, wallet]);
+  }, [address, floor, getWalletClient, wallet, sessionOwner]);
 
   const copy = useCallback(() => {
     if (!doc) return;
@@ -109,11 +118,11 @@ export function AttestCard({ wallet }: { wallet: string }) {
         />
         <button onClick={() => void issue()} disabled={pending || !floor.trim()}>
           {pending ? <Loader2 className="att-spin" size={14} aria-hidden /> : <FileSignature size={14} aria-hidden />}
-          {pending ? "Signing" : "Sign & issue"}
+          {pending ? "Signing" : sessionOwner ? "Issue" : "Sign & issue"}
         </button>
       </div>
       <p className="att-hint">
-        You sign the request; Sage signs the statement — only if your verified earnings actually
+        {sessionOwner ? "You ask; Sage signs the statement" : "You sign the request; Sage signs the statement"} — only if your verified earnings actually
         reach the floor. Valid 30 days. Hand it to a lender; they verify it at{" "}
         <a href="/lender">/lender</a> or with any EVM library.
       </p>

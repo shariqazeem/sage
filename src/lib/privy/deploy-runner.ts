@@ -4,6 +4,7 @@ import "server-only";
 import { getAddress, type Address, type Hex } from "viem";
 import { buildDeployBundle } from "@/lib/launch/deploy-plan";
 import {
+  launchClosedReason,
   buildSettings,
   defaultDailyCap,
   loadApprovedPlan,
@@ -13,7 +14,6 @@ import { getInspectionJob } from "@/lib/db/inspection";
 import { attachV2Campaign, computeV2SetupPreview, type V2MissionSetupInput, type V2SetupInput } from "@/lib/campaigns/v2-setup";
 import { attachApprovedPolicyToCampaign } from "@/lib/campaigns/attach-policy";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
-import { pausedNetworkReason } from "@/lib/deputy/networks";
 import type { AgentWallet } from "@/lib/db/schema";
 import type { LoadedPlan } from "@/lib/launch/deployment-service";
 import type { DeploymentSettings } from "@/lib/launch/deploy-plan";
@@ -54,9 +54,10 @@ function campaignTitle(productUrl: string): string {
 export async function deployCampaignViaPrivy(chatId: string, jobId: string): Promise<DeployRunResult> {
   const wallet = getAgentWallet(chatId);
   if (!wallet) throw new Error("no agent wallet is bound to this chat — onboard first");
-  // A PAUSED NETWORK TAKES NO NEW MONEY (networks.ts PAUSED_NETWORKS): refused before a call is built.
-  const paused = pausedNetworkReason(wallet.chainId);
-  if (paused) throw new Error(paused);
+  // NOTHING NEW ON A NETWORK THAT ISN'T OPEN: paused (GOAT), closed (Arc), or a retired testnet a chat
+  // wallet was once minted on. The same sentence every door says, before a call is built.
+  const closed = launchClosedReason(wallet.chainId);
+  if (closed) throw new Error(closed);
 
   const loaded = loadApprovedPlan(jobId);
   if (!loaded) throw new Error("this inspection has no approved plan to deploy");

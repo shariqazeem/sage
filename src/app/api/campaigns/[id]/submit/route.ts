@@ -95,7 +95,7 @@ export async function POST(
       {
         error: onStarknet
           ? "Connect and sign in with a Starknet wallet to submit — that is where you'll be paid."
-          : "Connect and sign in with your wallet to submit.",
+          : "Sign in (email or MetaMask) to submit — the wallet you sign in with is the one that gets paid.",
       },
       { status: 401 },
     );

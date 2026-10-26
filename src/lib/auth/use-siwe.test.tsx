@@ -24,7 +24,7 @@ function wallet(address: string): WalletApi {
   const client = { signMessage: vi.fn(async () => "0x5167") } as unknown as WalletClient;
   return {
     address: address as `0x${string}`, chainId: 2345, connecting: false, available: true, onMetis: false,
-    onChain: () => false, connect: vi.fn(async () => {}), disconnect: vi.fn(), switchToMetis: vi.fn(async () => {}),
+    onChain: () => false, connect: vi.fn(async () => address as `0x${string}`), disconnect: vi.fn(), switchToMetis: vi.fn(async () => {}),
     switchToChain: vi.fn(async () => {}), getWalletClient: () => client, getProvider: () => null,
   };
 }

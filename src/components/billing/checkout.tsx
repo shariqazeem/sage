@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getAddress, parseUnits } from "viem";
+import { getAddress, parseUnits, publicActions, type WalletClient } from "viem";
 import { ArrowLeft, Check, Copy, Gift, Loader2, Lock, Receipt, RefreshCw, ShieldCheck, Tag, Wallet, X } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { useWallet } from "@/lib/wallet/use-wallet";
-import { viemChainFor } from "@/lib/deputy/networks";
+import { chainConfig, viemChainFor } from "@/lib/deputy/networks";
+import { EmbeddedWalletBridge, type EmbeddedWallet } from "@/components/campaigns/embedded-wallet-bridge";
+
+/** Whether the email door (and so an email account's own wallet) exists on this deployment. */
+const EMAIL_DOOR = !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
 
 const TRANSFER_ABI = [
   { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }], outputs: [{ type: "bool" }] },
@@ -26,6 +30,12 @@ export interface CheckoutProps {
   periodDays: number;
   /** a promo code from the link that brought them here (?code=), checked once the page loads. */
   initialCode?: string | null;
+  /**
+   * The wallets a payment may come from and still count, lowercase: the account's own address and the
+   * wallets linked to it in Settings (the plan route reads the same list). The page refuses to send from
+   * any other wallet, because the chain would move the money and the plan route would then refuse it.
+   */
+  payers?: readonly string[];
 }
 
 type Promo =
@@ -47,6 +57,10 @@ const date = (sec: number) => new Date(sec * 1000).toLocaleDateString("en-GB", {
 export function Checkout(props: CheckoutProps) {
   const { plan, quote, billing, canManage } = props;
   const wallet = useWallet();
+  // An email sign-in's own wallet (Privy): the same account, so it pays exactly as MetaMask does.
+  const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
+  const payers = useMemo(() => (props.payers ?? []).map((a) => a.toLowerCase()), [props.payers]);
+  const isPayer = (a: string | null | undefined) => !!a && payers.includes(a.toLowerCase());
   const [balanceUsd, setBalanceUsd] = useState<number | null>(props.balance?.usd ?? null);
   const enoughFor = (usdDue: number) => balanceUsd != null && balanceUsd >= usdDue;
   const [method, setMethod] = useState<Method>(props.balance && enoughFor(plan.priceUsd) ? "balance" : "wallet");
@@ -103,7 +117,8 @@ export function Checkout(props: CheckoutProps) {
   }, [watching, refreshBalance]);
 
   const blocked = !canManage ? "Only the workspace owner or an admin can buy a plan." : !billing ? "Plan payments aren't open on this deployment yet." : !quote.ok ? quote.error : null;
-  const canPay = !blocked && phase === "idle" && (promo?.kind === "days" || (method === "wallet" ? wallet.available : !!props.balance && enough));
+  const walletReady = wallet.available || isPayer(embedded?.address);
+  const canPay = !blocked && phase === "idle" && (promo?.kind === "days" || (method === "wallet" ? walletReady : !!props.balance && enough));
   const renewsFrom = props.balance ? "your Sage balance" : null;
 
   const confirm = async (txHash: string): Promise<{ until: number; receiptUrl: string }> => {
@@ -132,11 +147,27 @@ export function Checkout(props: CheckoutProps) {
   const payFromWallet = async () => {
     if (!billing) throw new Error("Plan payments aren't open yet.");
     setPhase("sending");
-    if (!wallet.address) await wallet.connect();
-    if (!wallet.onChain(billing.chainId)) await wallet.switchToChain(billing.chainId);
-    const client = wallet.getWalletClient(billing.chainId);
-    const from = wallet.address;
+    // ONLY FROM A WALLET THAT IS THE ACCOUNT'S (26 Oct 2026). A payment from any other wallet moves the
+    // money and is then refused by the plan route, so the page decides first: MetaMask when it is one of
+    // the account's wallets, else the email account's own wallet, else nothing is sent.
+    let client: WalletClient | null = null;
+    let from: string | null = null;
+    let connected = wallet.address;
+    if (!isPayer(embedded?.address) && !connected && wallet.available) connected = await wallet.connect();
+    if (isPayer(connected)) {
+      if (!wallet.onChain(billing.chainId)) await wallet.switchToChain(billing.chainId);
+      client = wallet.getWalletClient(billing.chainId);
+      from = connected;
+    } else if (embedded && isPayer(embedded.address)) {
+      client = await embedded.getWalletClient(billing.chainId);
+      from = embedded.address;
+    } else if (connected) {
+      throw new Error(`The wallet connected here (${connected.slice(0, 6)}…${connected.slice(-4)}) isn't one of your account's wallets, so a payment from it couldn't be counted. Nothing was sent. Pay from your Sage balance, or add this wallet in Settings first.`);
+    }
     if (!client || !from) throw new Error(`Connect a wallet on ${billing.network} to pay from it.`);
+    // Metis prices legacy only (no EIP-1559): the transaction is fully specified, whichever wallet signs it.
+    const legacy = chainConfig(billing.chainId).gas === "legacy";
+    const gasPrice = legacy ? ((await client.extend(publicActions).getGasPrice()) * BigInt(12)) / BigInt(10) : undefined;
     const txHash = await client.writeContract({
       account: getAddress(from),
       chain: viemChainFor(billing.chainId),
@@ -146,6 +177,7 @@ export function Checkout(props: CheckoutProps) {
       args: [getAddress(billing.to), parseUnits(due.toFixed(2), 6)],
       // An ERC-20 transfer needs well under 100k; pinning it avoids a wallet's runaway estimate.
       gas: BigInt(120_000),
+      ...(legacy ? { type: "legacy" as const, gasPrice } : {}),
     });
     setPhase("confirming");
     return confirm(txHash);
@@ -404,7 +436,7 @@ export function Checkout(props: CheckoutProps) {
                   <span>
                     <span className="ck-method-t">Your wallet</span>
                     <span className="ck-method-s">
-                      MetaMask or any browser wallet, with USDC on {billing?.network ?? "Metis"}. It also needs a little {billing ? "METIS" : "gas"} for the network fee, less than a cent.
+                      Your account&apos;s own wallet (MetaMask, or the one your email sign-in holds), with USDC on {billing?.network ?? "Metis"}. It also needs a little {billing ? "METIS" : "gas"} for the network fee, less than a cent.
                     </span>
                   </span>
                 </button>
@@ -437,8 +469,9 @@ export function Checkout(props: CheckoutProps) {
                 <p className="ck-note">This plan runs for {props.periodDays} days. Sage reminds you before it ends, and renewing is one click.</p>
               )}
 
-              {method === "wallet" && !wallet.available && !blocked && (
-                <p className="ck-note">No browser wallet found here. Install MetaMask (or open this page in your wallet&apos;s browser){props.balance ? ", or pay from your Sage balance" : ""}.</p>
+              {EMAIL_DOOR && <EmbeddedWalletBridge onChange={setEmbedded} />}
+              {method === "wallet" && !walletReady && !blocked && (
+                <p className="ck-note">No wallet of yours found here. Install MetaMask (or open this page in your wallet&apos;s browser){props.balance ? ", or pay from your Sage balance" : ""}.</p>
               )}
               {(blocked || err) && <p className="ck-err" role="alert">{err ?? blocked}</p>}
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { short } from "@/lib/format";
 import {
+  getCampaign,
   listPendingFees,
   markFeeSettled,
   nextFeeAttempt,
@@ -12,6 +13,7 @@ import {
   recordPendingFee,
 } from "@/lib/db/campaigns";
 import { isX402Live, OPERATOR_FEE_USD } from "./facilitator";
+import { GOAT_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 import { usdToWei } from "./goat-pay";
 import { payOperatorFee } from "./payer";
 import { guardedFee } from "./payer-core";
@@ -29,6 +31,11 @@ export function chargeOperatorFee(
   meta: { campaignId?: string | null; submissionId?: string | null },
 ): void {
   try {
+    // THE FEE RAIL IS GOAT'S (26 Oct 2026). Its merchant, its payer and its USDC all live on GOAT, so a
+    // payout on any other network queued a fee that spent GOAT USDC, on a network paused for new money,
+    // for work that happened elsewhere. Only a GOAT job's payout owes one; the rest record nothing.
+    const campaign = meta.campaignId ? getCampaign(meta.campaignId) : null;
+    if (!campaign || campaign.chainId !== GOAT_MAINNET_CHAIN_ID || campaign.settlementRail === "starknet") return;
     const inserted = recordPendingFee({
       settleTx,
       campaignId: meta.campaignId,

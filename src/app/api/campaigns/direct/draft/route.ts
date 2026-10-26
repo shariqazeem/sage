@@ -19,7 +19,7 @@ const bodySchema = z.object({
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const session = await getFounderAddress();
-  if (!session) return NextResponse.json({ ok: false, error: "Sign in with your wallet to let Sage draft this." }, { status: 401 });
+  if (!session) return NextResponse.json({ ok: false, error: "Sign in (email or MetaMask) to let Sage draft this." }, { status: 401 });
   const rl = rateLimit("create", clientIp(req.headers));
   if (!rl.ok) return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
   let body: unknown;

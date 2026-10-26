@@ -8,7 +8,23 @@ import { Checkout, type CheckoutProps } from "./checkout";
  * founder sees before anything is paid: the price and the renewal line, the balance as the one-click
  * method, renewal on by default, and a promo code changing what is due (or making it free).
  */
-vi.mock("@/lib/wallet/use-wallet", () => ({ useWallet: () => ({ available: true, address: null, onChain: () => false, connect: vi.fn(), switchToChain: vi.fn(), getWalletClient: () => null }) }));
+const w = vi.hoisted(() => ({
+  address: null as string | null,
+  writeContract: null as null | ((args: unknown) => Promise<string>),
+}));
+vi.mock("@/lib/wallet/use-wallet", () => ({
+  useWallet: () => ({
+    available: true,
+    address: w.address,
+    onChain: () => true,
+    connect: vi.fn(async () => w.address),
+    switchToChain: vi.fn(),
+    getWalletClient: () =>
+      w.writeContract
+        ? { writeContract: w.writeContract, extend: () => ({ getGasPrice: async () => BigInt(10_000_000_000) }) }
+        : null,
+  }),
+}));
 
 const base: CheckoutProps = {
   plan: { id: "pro", name: "Pro", blurb: "For founders and small teams who pay people every week.", priceUsd: 29, highlights: ["Everything in Free", "Unlimited live jobs, up to $5,000 of work a month"] },
@@ -22,7 +38,11 @@ const base: CheckoutProps = {
   periodDays: 30,
 };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  w.address = null;
+  w.writeContract = null;
+});
 
 describe("the checkout", () => {
   it("shows the plan, the price due, the balance as the one-click method, and renewal on by default", () => {
@@ -67,4 +87,26 @@ describe("the checkout", () => {
     expect(screen.getByText(/Only the workspace owner or an admin/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Pay $29.00" }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("never sends from a wallet that isn't the account's: the chain would move it and Sage could not count it", async () => {
+    const write = vi.fn(async () => `0x${"ab".repeat(32)}`);
+    w.address = "0x9999999999999999999999999999999999999999";
+    w.writeContract = write;
+    render(<Checkout {...base} balance={null} payers={["0x1111111111111111111111111111111111111111"]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Pay $29.00" }));
+    expect(await screen.findByText(/isn't one of your account's wallets, so a payment from it couldn't be counted\. Nothing was sent/)).toBeTruthy();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("pays from the account's own MetaMask with a legacy-priced transfer (Metis rejects EIP-1559)", async () => {
+    const write = vi.fn<(...a: unknown[]) => Promise<string>>(async () => `0x${"cd".repeat(32)}`);
+    w.address = "0x1111111111111111111111111111111111111111";
+    w.writeContract = write;
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ planUntil: 1_900_000_000, receiptUrl: "/billing/receipt/x" }) })));
+    render(<Checkout {...base} balance={null} payers={["0x1111111111111111111111111111111111111111"]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Pay $29.00" }));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    expect(write.mock.calls[0][0]).toMatchObject({ type: "legacy", gasPrice: BigInt(12_000_000_000), functionName: "transfer" });
+  });
 });
+

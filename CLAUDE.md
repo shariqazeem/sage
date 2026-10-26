@@ -408,7 +408,8 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `DEPUTY_AUTOPILOT_MAINNET` | Arms real-money auto-pay on GOAT | Mainnet campaigns hold for manual approval |
 | `FIELD_TEST_ENABLED` | `"1"` arms the Playwright "Field Test" — Sage actually browses the inspected product in a real headless browser (screenshots, JS-rendered content, console errors) and feeds it to the Mission Brain | HTML-only inspection (default; behaves exactly as before). Needs chromium: `npx playwright install --with-deps chromium` |
 | `GOAT_AGENT_PRIVATE_KEY` | GOAT operator key (also holds ERC-8004 id + pays x402) | Cannot sign GOAT settlements |
-| `OPERATOR_PRIVATE_KEY` | Metis operator key | Cannot sign Metis settlements |
+| `METIS_MAINNET_OPERATOR_PRIVATE_KEY` † | Metis mainnet operator key (falls back to `GOAT_AGENT_PRIVATE_KEY`); must be the key of the operator address baked into the Metis vaults (`METIS_MAINNET_OPERATOR_ADDRESS`), or every payout holds with `operator_mismatch` | Falls back to the GOAT agent key |
+| `OPERATOR_PRIVATE_KEY` | The RETIRED Metis Sepolia operator key. Metis mainnet never reads it (`signer.ts`) | Cannot sign legacy Sepolia writes |
 | `GOAT_RPC_URL` | GOAT RPC | Defaults to `https://rpc.goat.network` |
 | `GOAT_CAMPAIGN_FACTORY_ADDRESS` † / `METIS_CAMPAIGN_FACTORY_ADDRESS` † | V2 vault factory per chain | Deploy cannot create vaults |
 | `GOAT_OPERATOR_ADDRESS` † / `NEXT_PUBLIC_OPERATOR_ADDRESS` | Operator baked into vault settings | Deploy validation fails |

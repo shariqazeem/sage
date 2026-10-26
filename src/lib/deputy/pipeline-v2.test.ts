@@ -269,7 +269,9 @@ describe("exactly-once side effects after recovery (Part 6)", () => {
     expect(getSubmission(f.submission.id)?.status).toBe("paid");
     expect(await countEvents(f.campaign.id, "settled")).toBe(1);
     expect(await countEvents(f.campaign.id, "autopay_settled")).toBe(1);
-    expect(await countFees(f.submission.id)).toBe(1);
+    // The operator fee rides GOAT's x402 rail only (fees.ts, 26 Oct 2026); this job is not on GOAT, so it
+    // owes none. That a GOAT payout records its fee exactly once is held in src/lib/x402/fees.test.ts.
+    expect(await countFees(f.submission.id)).toBe(0);
   });
 });
 

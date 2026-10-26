@@ -1,5 +1,6 @@
 "use client";
 
+import { METIS_SEPOLIA_CHAIN_ID } from "@/lib/deputy/networks";
 import { useState } from "react";
 import { getAddress } from "viem";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
@@ -63,8 +64,9 @@ export function CapControl({
 
   const sign = async () => {
     if (!wallet.address) await wallet.connect();
-    if (wallet.address && !wallet.onMetis) await wallet.switchToMetis();
-    const wc = wallet.getWalletClient();
+    // The legacy V1 vault lives on the retired Metis testnet: named, never the wallet hook's default.
+    if (wallet.address && !wallet.onChain(METIS_SEPOLIA_CHAIN_ID)) await wallet.switchToChain(METIS_SEPOLIA_CHAIN_ID);
+    const wc = wallet.getWalletClient(METIS_SEPOLIA_CHAIN_ID);
     if (!wc || !wallet.address) {
       setErr("Connect the vault owner wallet on Metis.");
       return;

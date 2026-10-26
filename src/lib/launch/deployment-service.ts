@@ -193,6 +193,8 @@ export function buildSettings(plan: DeploymentReadyPlan, limits: FounderLimits, 
   const cfg = launchChainConfig(chainId);
   const errors: string[] = [];
   if (!cfg.configured) errors.push(`chain_not_configured:${cfg.missing.join(",")}`);
+  // A vault is never built for a network nothing new may start on (paused, closed, retired testnet).
+  if (!LAUNCH_ENABLED_CHAINS.includes(chainId) || isPausedNetwork(chainId)) errors.push(`chain_closed:${chainId}`);
 
   const inputs = deriveDeploymentInputs(plan);
   const budget = inputs.totalBudgetBase;

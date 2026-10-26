@@ -5,13 +5,13 @@ import { treasuryChainId } from "@/lib/privy/onboarding";
 import { treasuryPreflight, type TreasuryPreflight } from "./preflight";
 import { autoApprove, nativeBalanceWei, usdcBalanceBase } from "@/lib/telegram/agent-wallet-tools";
 import { minLaunchGasWei, operatorCoversGas } from "./gas-policy";
-import { loadApprovedPlan } from "@/lib/launch/deployment-service";
+import { launchClosedReason, loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { deriveDeploymentInputs } from "@/lib/launch/deploy-plan";
 import { deployCampaignViaPrivy } from "@/lib/privy/deploy-runner";
 import { gasRefusalMessage, grantGasStipend } from "./gas-stipend";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { sameFounder } from "@/lib/auth/founder";
-import { chainConfig, pausedNetworkReason } from "@/lib/deputy/networks";
+import { chainConfig } from "@/lib/deputy/networks";
 import { publicClient } from "@/lib/deputy/chain";
 import { metisToUsd, swapsOn } from "./swap-venue";
 import { readMetisPriceUsdcBase } from "./swap";
@@ -86,8 +86,9 @@ export async function webTreasuryStatus(founderAddress: string, chainId: number 
 export async function launchFromTreasury(founderAddress: string, jobId: string, chainId?: number): Promise<TreasuryLaunch> {
   const t = chainId == null ? getWebTreasury(founderAddress) : getWebTreasuryOn(founderAddress, chainId);
   if (!t) return { ok: false, reason: "no_treasury", message: `Open your account on ${chainConfig(chainId ?? treasuryChainId()).name} first — Sage launches from it.` };
-  // A paused network takes no new money (networks.ts): refused before a stipend or a single call is sent.
-  const paused = pausedNetworkReason(t.chainId);
+  // A network that isn't open takes no new money (paused, closed, or not a launch network at all):
+  // refused before a stipend or a single call is sent.
+  const paused = launchClosedReason(t.chainId);
   if (paused) return { ok: false, reason: "network_paused", message: paused };
   const job = getInspectionJob(jobId);
   if (!job || !sameFounder(job.founderWallet, founderAddress)) return { ok: false, reason: "not_yours", message: "That plan isn't yours." };

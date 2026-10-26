@@ -4,6 +4,8 @@ import { NextResponse, after, type NextRequest } from "next/server";
 import {
   acquireLock,
   casSubmissionStatus,
+  countPaidByWalletsInCampaign,
+  countPaidForMission,
   getCampaign,
   getDecisionBySubmission,
   getMissionByHash,
@@ -13,12 +15,14 @@ import {
   listPendingAutopilotSubmissionIds,
   listUnresolvedSubmissionsOlderThan,
   recordEvent,
+  recordEventOnce,
   releaseLock,
   resetStaleSettling,
   updateSubmission,
 } from "@/lib/db/campaigns";
+import type { Campaign, Submission } from "@/lib/db/schema";
 import { nowSeconds } from "@/lib/db/keys";
-import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
+import { journalHeld, resolveApprovedTerminal, runDeputyOnSubmission } from "@/lib/deputy/pipeline";
 import { ensureDecision, OBSERVATION_ABSTAIN_MODEL } from "@/lib/deputy/decisions";
 import { notifyTelegram } from "@/lib/deputy/notify";
 import { hasLlm } from "@/lib/deputy/brain";
@@ -29,6 +33,11 @@ import { payPendingFees } from "@/lib/x402/fees";
 import { runCampaignHealthNudges } from "@/lib/campaigns/health-nudge";
 import { watchPayoutConsolidation } from "@/lib/deputy/consolidation";
 import { finalizationFor } from "@/lib/deputy/finalization-db";
+import { minutesLabel, refusedOnChain, windowSecondsFor } from "@/lib/deputy/finalization";
+import { personWallets } from "@/lib/identity/person";
+import { notifyRecipientPaid } from "@/lib/telegram/founder-notify";
+import { siteUrl } from "@/lib/site";
+import type { RailSettleOutcome } from "@/lib/campaigns/settle-dispatch";
 import { encodeDetail } from "@/lib/campaigns/journal";
 import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
@@ -78,7 +87,7 @@ async function runSweep() {
     /** one-time quiet-campaign founder nudges sent this tick (48h, zero submissions). */
     nudges: { nudged: 0 },
     consolidation: { scanned: 0, linked: 0 },
-    finalization: { waiting: 0, finalized: 0, revoked: 0 },
+    finalization: { waiting: 0, finalized: 0, revoked: 0, returned: 0 },
     /** the standing mandate's own turn: what the agent proposed, committed, launched and reclaimed. */
     operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
     /** new work the roster was told about, and how many people were reached. */
@@ -182,6 +191,21 @@ async function runSweep() {
       continue;
     }
     if (fin.state === "finalize") summary.finalization.finalized += 1;
+    // LAST LOOK BEFORE MONEY MOVES. The caps this was approved under may have filled in the half hour
+    // since (a payout that raced it, a founder's release): a mission whose every slot is paid, or a
+    // wallet already paid its limit on this job. Both are final, so the row is closed with the reason
+    // the worker reads, never sent to the vault to be refused for gas. A founder's own release may go
+    // past the per-wallet limit (the pipeline holds it for exactly that choice); past a full mission
+    // nothing can.
+    {
+      const mission = sub.missionIdHash ? getMissionByHash(campaign.id, sub.missionIdHash) : null;
+      const full = !!mission && countPaidForMission(mission.missionIdHash) >= mission.maxCompletions;
+      const capped = fin.state === "finalize" && countPaidByWalletsInCampaign(campaign.id, personWallets(sub.wallet)) >= campaign.perWalletPayoutCap;
+      if (full || capped) {
+        if (resolveApprovedTerminal(campaign, sub, full ? "missionFull" : "walletCap")) summary.finalization.returned += 1;
+        continue;
+      }
+    }
     if (payoutActionReplayMode() !== "off" && sub.missionIdHash) {
       const mission = getMissionByHash(campaign.id, sub.missionIdHash);
       if (mission) {
@@ -202,8 +226,23 @@ async function runSweep() {
        * submission is exactly what a founder approves by hand.
        */
       const { outcome } = await settleByRail(campaign, sub);
-      if (outcome.settled) summary.timelock.settled += 1;
-      else summary.timelock.other += 1;
+      if (outcome.settled) {
+        summary.timelock.settled += 1;
+        if (fin.state === "finalize") recordFinalizedAutopay(campaign, sub, outcome);
+      } else {
+        summary.timelock.other += 1;
+        // A VAULT'S REFUSAL IS AN ANSWER, NOT A WAIT. A refused intent is final (settlement-attempts),
+        // so leaving the row approved re-tried it on every tick forever and re-posted the refusal each
+        // time. It goes back to the pipeline, which answers it: a full mission or a spent limit in
+        // words the worker reads, anything else held for the founder. ONLY a refusal the chain
+        // recorded (a transaction): a V1 vault's "approval still inside its timelock" carries a check
+        // index and no transaction, and that row must stay approved until the timelock matures.
+        if (refusedOnChain(outcome) && casSubmissionStatus(sub.id, "approved", "pending")) {
+          updateSubmission(sub.id, { decidedAt: null });
+          journalHeld(campaign, sub, `the vault refused this payout (${outcome.reason ?? "a policy check failed"}) \u2014 nothing moved`);
+          summary.finalization.returned += 1;
+        }
+      }
     } catch {
       summary.timelock.other += 1;
     }
@@ -285,4 +324,28 @@ export async function POST(req: NextRequest) {
 // Vercel Cron invokes the path with GET — same handler, same auth.
 export async function GET(req: NextRequest) {
   return handle(req);
+}
+
+/**
+ * AN AUTOPAY THAT WAITED OUT ITS WINDOW IS STILL AN AUTOPAY. The pipeline records and announces the
+ * payouts it settles at once (members-only work); open work settles here, half an hour later, and
+ * got none of it: no `autopay_settled` row (so the hourly pace cap never saw open work), no "Paid by
+ * Sage" line, and no message to a person paid into a chat wallet. Idempotent by the payout tx.
+ */
+function recordFinalizedAutopay(campaign: Campaign, sub: Submission, outcome: RailSettleOutcome): void {
+  if (!outcome.txHash) return;
+  const recipient = outcome.recipient ?? sub.wallet;
+  const amountBase = outcome.amountBase ?? campaign.rewardAmount;
+  const window = minutesLabel(windowSecondsFor(campaign.visibility));
+  const dec = getDecisionBySubmission(sub.id);
+  recordEventOnce({
+    campaignId: campaign.id,
+    submissionId: sub.id,
+    kind: "autopay_settled",
+    detail: encodeDetail(`${short(recipient)} \u00b7 paid after the ${window} watch \u00b7 dec ${dec?.id ?? "\u2014"}`),
+    txHash: outcome.txHash,
+    amount: amountBase,
+  });
+  void notifyTelegram(`\u2705 <b>Paid by Sage</b>\n${campaign.title}\n$${(amountBase / 1_000_000).toFixed(2)} \u2192 ${short(recipient)} \u00b7 after the ${window} watch\n${siteUrl()}/proof/${outcome.txHash}`);
+  void notifyRecipientPaid(campaign, sub, { recipient, amountBase, txHash: outcome.txHash });
 }

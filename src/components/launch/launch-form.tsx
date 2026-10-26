@@ -356,7 +356,7 @@ export function LaunchForm() {
       const data = (await res.json()) as { ok?: boolean; error?: string; draft?: Draft; notes?: string[] };
       if (res.status === 401) {
         setShowSignIn(true);
-        setDraftErr("Sign in with your wallet to let Sage draft this — then press Draft again.");
+        setDraftErr("Sign in (email or MetaMask) to let Sage draft this — then press Draft again.");
         return;
       }
       if (!res.ok || !data.ok || !data.draft) throw new Error(data.error ?? "Sage couldn't draft this.");
@@ -466,7 +466,7 @@ export function LaunchForm() {
       const data = (await res.json()) as { ok?: boolean; error?: string; planUrl?: string };
       if (res.status === 401) {
         setShowSignIn(true);
-        setPayErr("Sign in with your wallet to create this — then press Continue again.");
+        setPayErr("Sign in (email or MetaMask) to create this — then press Continue again.");
         return;
       }
       if (!res.ok || !data.ok || !data.planUrl) {

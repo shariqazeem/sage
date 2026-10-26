@@ -34,6 +34,12 @@ export interface RevocationInput {
   /** the other submitters' wallets on this campaign */
   peerWallets: string[];
   /**
+   * This submission's own wallet. It is never its own "other submitter": `linkedWalletsOf` includes the
+   * wallet itself, and its earlier submissions on the campaign (a grant's milestone 1, another mission)
+   * put it among the peers, so without this a wallet's second payout was revoked for matching itself.
+   */
+  selfWallet?: string;
+  /**
    * wallets that are THIS PERSON by a personhood proof (same nullifier) — a subset of
    * `linkedWallets` in practice. Optional: a caller that does not know says nothing, and the
    * reason falls back to the on-chain wording.
@@ -54,7 +60,8 @@ export function watchReadings(input: RevocationInput): WatchReadings {
   const near = findNearDuplicate(input.me, input.others);
   const copied = findCopiedArtifact(input.me, input.others);
   const peers = new Set(input.peerWallets.map(bare));
-  const hit = input.linkedWallets.map(bare).filter((w) => peers.has(w));
+  const self = input.selfWallet ? bare(input.selfWallet) : null;
+  const hit = [...new Set(input.linkedWallets.map(bare))].filter((w) => w !== self && peers.has(w));
   // Say what the link IS. A personhood link means the provider stated these wallets are one human;
   // reading that as "a payout was forwarded on-chain" would accuse someone of a thing that did not
   // happen, on the one line they are shown.
@@ -78,6 +85,15 @@ export function revocationReason(input: RevocationInput): string | null {
   const r = watchReadings(input);
   const first = r.nearDup ?? r.copied ?? r.cluster;
   return first ? `revoked in the finalization window — ${first}` : null;
+}
+
+/**
+ * Whether a settle attempt on an approved row was REFUSED by the chain (final for that intent), as
+ * opposed to not attempted yet. A V1 vault's "approval still inside its timelock" carries a check index
+ * and no transaction: that row waits, approved, until the timelock matures. Pure.
+ */
+export function refusedOnChain(outcome: { settled: boolean; txHash: string | null; failedCheckIndex: number | null }): boolean {
+  return !outcome.settled && !!outcome.txHash && outcome.failedCheckIndex != null;
 }
 
 export const minutesLabel = (sec: number) => (sec % 3600 === 0 ? `${sec / 3600}h` : `${Math.round(sec / 60)}m`);

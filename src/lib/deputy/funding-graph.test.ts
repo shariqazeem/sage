@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fundingClusterSignal, __clearFunderCache, __setFunderForTest, firstFunderOf } from "./funding-graph";
 
@@ -97,3 +97,30 @@ describe("fundingClusterSignal — the wallet-rotation detector", () => {
     __clearFunderCache();
   });
 });
+
+/**
+ * ON METIS THE EXPLORER'S LEGACY API NEVER ANSWERED (measured 26 Oct 2026), so the signal never fired.
+ * The v2 list does, newest first: the first inbound transfer is the last item when the history fits.
+ */
+describe("the first funder on Metis", () => {
+  afterEach(() => { vi.unstubAllGlobals(); __clearFunderCache(); });
+  const w = "0x00000000000000000000000000000000000000f1";
+  const page = (items: unknown[], next: unknown = null) => vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    expect(url).toContain(`/api/v2/addresses/${w}/transactions`);
+    return new Response(JSON.stringify({ items, next_page_params: next }), { status: 200 });
+  }));
+
+  it("names whoever sent the wallet its first transfer", async () => {
+    page([{ from: { hash: w }, to: { hash: "0x0000000000000000000000000000000000000abc" } }, { from: { hash: ROOT }, to: { hash: w } }]);
+    expect(await firstFunderOf(w, 1088)).toBe(ROOT);
+  });
+
+  it("stays silent on a long history (not the fresh wallet this is about) and on a first transfer out", async () => {
+    page([{ from: { hash: ROOT }, to: { hash: w } }], { block_number: 1 });
+    expect(await firstFunderOf(w, 1088)).toBeNull();
+    __clearFunderCache();
+    page([{ from: { hash: w }, to: { hash: ROOT } }]);
+    expect(await firstFunderOf(w, 1088)).toBeNull();
+  });
+});
+

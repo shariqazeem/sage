@@ -2,8 +2,8 @@ import { mandateName } from "./mandate-name";
 import "server-only";
 
 import { getAddress, type Address } from "viem";
-import { chainConfig, isPausedNetwork } from "@/lib/deputy/networks";
-import { defaultLaunchChain, launchChainConfig } from "@/lib/launch/deployment-service";
+import { chainConfig } from "@/lib/deputy/networks";
+import { defaultLaunchChain, isLaunchChain, launchChainConfig } from "@/lib/launch/deployment-service";
 import { createServerWallet } from "./client";
 import { createMandatePolicy } from "./mandate";
 import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
@@ -22,7 +22,7 @@ import { getAgentWallet, saveAgentWallet } from "@/lib/db/agent-wallets";
  */
 export function treasuryChainId(): number {
   const raw = Number(process.env.TREASURY_CHAIN_ID);
-  if (Number.isFinite(raw) && raw > 0 && launchChainConfig(raw).configured && !isPausedNetwork(raw)) return raw;
+  if (Number.isFinite(raw) && raw > 0 && isLaunchChain(raw)) return raw;
   return defaultLaunchChain();
 }
 

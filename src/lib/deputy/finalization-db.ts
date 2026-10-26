@@ -30,6 +30,7 @@ export function finalizationFor(sub: Submission, visibility: "listed" | "unliste
     linkedWallets: linkedWalletsOf(sub.wallet),
     personWallets: sameNullifierWallets(sub.wallet),
     peerWallets: listSubmissions(sub.campaignId).filter((s) => s.id !== sub.id).map((s) => s.wallet),
+    selfWallet: sub.wallet,
   });
   return reason ? { state: "revoke", reason } : { state: "finalize" };
 }

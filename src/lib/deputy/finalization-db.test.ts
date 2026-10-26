@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { seedV2Campaign, payBrief } from "@/lib/campaigns/campaign-v2.fixture";
-import { createSubmission, insertDecision, recordEvent } from "@/lib/db/campaigns";
+import { createSubmission, insertDecision, recordEvent, updateSubmission } from "@/lib/db/campaigns";
+import { countCommittedByWalletsInCampaign, countCommittedForMission } from "@/lib/db/commitments";
+import { missionSlotStatus } from "@/lib/campaigns/slot-reservation";
 import { finalizationFor } from "./finalization-db";
+import { resolveApprovedTerminal } from "./pipeline";
+import { getSubmission } from "@/lib/db/campaigns";
 
 /**
  * The finalization window against a real (in-memory) ledger: an agent approval waits out its
@@ -60,4 +64,42 @@ describe("finalizationFor — the window on a real ledger", () => {
     expect(r.state).toBe("revoke");
     if (r.state === "revoke") expect(r.reason).toMatch(/revoked in the finalization window — .*near-identical/);
   });
+
+  it("a wallet's second submission on the job is not 'linked to another submitter' — it is the same wallet", () => {
+    // Measured 26 Oct 2026: linkedWalletsOf includes the wallet itself, and its own earlier submission put
+    // it among the peers, so a grant's milestone 2 (or a second mission) was revoked for matching itself.
+    const me = `0x${"9".repeat(40)}`;
+    const f = seedV2Campaign({ wallet: me, vaultAddress: `0x${"5".repeat(40)}` });
+    const second = createSubmission({ campaignId: f.campaign.id, wallet: me, note: "A second, different piece of work on the other mission, in my own words.", missionIdHash: f.missions[1].missionIdHash });
+    if (!second.ok) throw new Error(second.error);
+    decisionFor(second.submission.id, f.campaign.id);
+    const now = 1_800_000_000;
+    recordEvent({ campaignId: f.campaign.id, submissionId: second.submission.id, kind: "autopay_approved", detail: "approved", createdAt: now - 3600 });
+    expect(finalizationFor(second.submission, "listed", now)).toEqual({ state: "finalize" });
+  });
 });
+
+describe("work promised its payout holds what it was promised", () => {
+  it("an approved submission in its window holds a slot and counts toward its wallet's limit", () => {
+    const f = seedV2Campaign({ wallet: `0x${"6".repeat(40)}`, vaultAddress: `0x${"7".repeat(40)}` });
+    expect(countCommittedForMission(f.mission.missionIdHash)).toBe(0);
+    updateSubmission(f.submission.id, { status: "approved" });
+    expect(countCommittedForMission(f.mission.missionIdHash)).toBe(1);
+    expect(countCommittedForMission(f.mission.missionIdHash, f.submission.id)).toBe(0); // never counts itself
+    expect(countCommittedByWalletsInCampaign(f.campaign.id, [f.submission.wallet])).toBe(1);
+    // and the submit door reads it as taken, not open
+    expect(missionSlotStatus([{ status: "approved", lastHoldReason: null, lastHeldAt: null }], 1, 1_800_000_000).open).toBe(0);
+  });
+
+  it("an approval whose mission filled while it waited is closed with the reason the worker reads, once", () => {
+    const f = seedV2Campaign({ wallet: `0x${"2".repeat(40)}`, vaultAddress: `0x${"8".repeat(40)}` });
+    updateSubmission(f.submission.id, { status: "approved" });
+    expect(resolveApprovedTerminal(f.campaign, getSubmission(f.submission.id)!, "missionFull")).toBe(true);
+    const after = getSubmission(f.submission.id)!;
+    expect(after.status).toBe("rejected");
+    expect(after.rejectReason).toMatch(/mission filled up before your submission could be released/);
+    // a row that has moved on is never closed twice
+    expect(resolveApprovedTerminal(f.campaign, after, "missionFull")).toBe(false);
+  });
+});
+

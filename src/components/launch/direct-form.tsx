@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import "@/styles/wallet-connect.css";
@@ -103,7 +102,6 @@ function buildEvidence(m: MilestoneDraft): Record<string, unknown> {
 
 export function DirectCampaignForm() {
   const router = useRouter();
-  const siwe = useSiwe();
   const founder = useFounderSession();
   const [showSignIn, setShowSignIn] = useState(false);
 
@@ -369,7 +367,7 @@ export function DirectCampaignForm() {
         </p>
 
         <button className="lx-btn" style={{ marginTop: 14 }} onClick={submit} disabled={submitting}>
-          {submitting ? "Compiling…" : siwe.authed ? "Review the plan" : "Connect & review the plan"}
+          {submitting ? "Compiling…" : founder.authed ? "Review the plan" : "Sign in & review the plan"}
         </button>
         {showSignIn && !founder.authed && (
           <div style={{ marginTop: 12 }}>

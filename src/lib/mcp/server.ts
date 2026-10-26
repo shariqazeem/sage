@@ -22,6 +22,7 @@ import {
   type OpResult,
 } from "@/lib/agent-api/operations";
 import { sameFounder } from "@/lib/auth/founder";
+import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /**
  * Sage's MCP tool registry + dispatch — the SAME five verified agent operations, exposed so the
@@ -415,9 +416,10 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
                      * and the schema refuses them as unknown — measured, P-DIRECT round 5
                      * (pd-grant-mixed-evidence-kinds). Known ids pass through untouched, so a
                      * founder who really said "on Ethereum" still fails LOUDLY rather than
-                     * being silently rerouted; only absence and invention default to 2345.
+                     * being silently rerouted; only absence and invention default to Metis, the
+                     * one network Sage runs on (26 Oct 2026; it was GOAT before GOAT's pause).
                      */
-                    chainId: chainIdKnown(num(ev.chainId)) ? num(ev.chainId) : 2345,
+                    chainId: chainIdKnown(num(ev.chainId)) ? num(ev.chainId) : METIS_MAINNET_CHAIN_ID,
                     ...(typeof ev.to === "string" && ev.to ? { to: ev.to } : {}),
                     ...(typeof ev.methodSelector === "string" && ev.methodSelector ? { methodSelector: ev.methodSelector } : {}),
                     ...(typeof ev.minValueWei === "string" && ev.minValueWei ? { minValueWei: ev.minValueWei } : {}),

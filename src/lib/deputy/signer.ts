@@ -26,7 +26,9 @@ import {
 /* ─────────────────────────────────────────── operator key (per chain) ──────
  * The operator key is the ONLY key the vault lets call `requestSpend`. It is
  * resolved PER CHAIN so one Deputy can settle on both networks:
- *   - Metis (59902 / 1088): OPERATOR_PRIVATE_KEY (else contracts/.env PRIVATE_KEY)
+ *   - Metis mainnet (1088): METIS_MAINNET_OPERATOR_PRIVATE_KEY, else GOAT_AGENT_PRIVATE_KEY —
+ *     never OPERATOR_PRIVATE_KEY, which belongs to the retired Sepolia testnet
+ *   - Metis Sepolia (59902, retired): OPERATOR_PRIVATE_KEY (else contracts/.env PRIVATE_KEY)
  *   - GOAT mainnet (2345):  GOAT_AGENT_PRIVATE_KEY — the SAME wallet that holds
  *     the ERC-8004 identity and pays x402. On GOAT the Deputy's registered
  *     identity IS the wallet that pays, so its on-chain history becomes the

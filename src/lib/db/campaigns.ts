@@ -31,7 +31,7 @@ import type { DecisionBriefContent } from "../deputy/brain-core";
 import { missionSpecDigest, type MissionSpecInput } from "../campaigns/mission-spec";
 import { dedupeKey, missionDedupeKey, nowSeconds } from "./keys";
 import { sameFounder } from "@/lib/auth/founder";
-import { mainnetChainIds } from "@/lib/deputy/networks";
+import { isPausedNetwork, mainnetChainIds } from "@/lib/deputy/networks";
 
 /* ─────────────────────────────────────────────────────── campaigns ────── */
 
@@ -1389,7 +1389,8 @@ export function listSlotClaimantWallets(missionIdHash: string): { wallet: string
     .where(
       and(
         eq(submissions.missionIdHash, missionIdHash),
-        inArray(submissions.status, ["paid", "settling", "pending"]),
+        // `approved` is work promised its payout and waiting out the 30-minute window (commitments.ts)
+        inArray(submissions.status, ["paid", "settling", "approved", "pending"]),
       ),
     )
     .all();
@@ -1404,7 +1405,8 @@ export function listSlotClaimants(
     .where(
       and(
         eq(submissions.missionIdHash, missionIdHash),
-        inArray(submissions.status, ["paid", "settling", "pending"]),
+        // `approved` is work promised its payout and waiting out the 30-minute window (commitments.ts)
+        inArray(submissions.status, ["paid", "settling", "approved", "pending"]),
       ),
     )
     .all();
@@ -1675,16 +1677,20 @@ export function ensureFlagshipCampaign(): void {
       existing.rewardAmount !== reward ||
       existing.maxRecipients !== seats ||
       existing.autonomy !== autonomy ||
-      existing.announceChatId !== announceChatId ||
-      existing.status !== "live";
+      existing.announceChatId !== announceChatId;
+    // Its STATUS is never set here (26 Oct 2026). This runs on every campaign page render, and it used
+    // to put the row back to live on any difference, so stopping Sage's own job was undone by the next
+    // visitor. Whoever stops it stops it.
     if (drift) {
       db.update(campaigns)
-        .set({ ...fields, status: "live" })
+        .set({ ...fields })
         .where(eq(campaigns.id, FLAGSHIP_CAMPAIGN_ID))
         .run();
     }
     return;
   }
+  // Nothing new opens on a network that is paused for new money (GOAT, 21 Oct 2026).
+  if (isPausedNetwork(chainId)) return;
 
   db.insert(campaigns)
     .values({

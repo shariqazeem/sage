@@ -24,7 +24,8 @@ import {
 import { findCopiedArtifact, findDuplicate, findNearDuplicate, otherPeoplesWork } from "./dedup";
 import { autopayHourlyCap, paceCapHold } from "./pace-cap";
 import { minutesLabel, windowSecondsFor } from "./finalization";
-import { countAutopaySettledSince } from "@/lib/db/events-read";
+import { countAutopaysSince } from "@/lib/db/events-read";
+import { countCommittedByWalletsInCampaign, countCommittedForMission } from "@/lib/db/commitments";
 import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 
 /** CORPUS READINESS FLOOR — observation autopay requires at least this many distinct private-corpus
@@ -56,6 +57,7 @@ import {
 import { realCampaignVaultAdapter } from "@/lib/deputy/campaign-vault";
 import { getMissionByHash, listMissions } from "@/lib/db/campaigns";
 import { personWallets } from "@/lib/identity/person";
+import { CHAINS } from "@/lib/deputy/networks";
 import {
   identityMismatchSummary,
   missionToIdentity,
@@ -361,7 +363,18 @@ const TERMINAL_REASON = {
     `this campaign pays each wallet ${cap === 1 ? "once" : `${cap} times`}, and this wallet has already been paid \u2014 not a judgement on your work`,
 } as const;
 
-function journalHeld(
+/**
+ * Holds, not answers: what a slot or a wallet's limit is PROMISED to (approved work waiting out its
+ * 30-minute window, commitments.ts) can still be revoked, which frees it. Worded the same way.
+ */
+const PROMISED_REASON = {
+  missionFull:
+    "every slot on this mission is promised to work already approved and in its last check \u2014 if one of those doesn't go through, yours is next. This is not a judgement on your work",
+  walletCap: (cap: number) =>
+    `this campaign pays each wallet ${cap === 1 ? "once" : `${cap} times`}, and this wallet already has that much approved and in its last check \u2014 held until it settles. Not a judgement on your work`,
+} as const;
+
+export function journalHeld(
   campaign: Campaign,
   submission: Submission,
   reason: string,
@@ -418,6 +431,20 @@ function resolveTerminal(
   void notifyTelegram(
     `\u23f9\ufe0f <b>Closed by Sage</b>\n${campaign.title}\n${short(submission.wallet)}\n${reason}\n${appUrl()}/app`,
   );
+}
+
+/**
+ * The same honest close for an APPROVED row whose answer became terminal while it waited out its window
+ * (the sweep's last look before money moves): every slot on its mission is now paid, or its wallet has
+ * been paid its limit. One CAS from `approved`, so it can never close a row that has moved on.
+ */
+export function resolveApprovedTerminal(campaign: Campaign, submission: Submission, which: "missionFull" | "walletCap"): boolean {
+  const reason = which === "missionFull" ? TERMINAL_REASON.missionFull : TERMINAL_REASON.walletCap(campaign.perWalletPayoutCap);
+  if (!casSubmissionStatus(submission.id, "approved", "rejected")) return false;
+  updateSubmission(submission.id, { rejectReason: reason });
+  recordEvent({ campaignId: campaign.id, submissionId: submission.id, kind: "autopay_held", detail: encodeDetail(`${short(submission.wallet)} · ${reason}`) });
+  void notifyTelegram(`\u23f9\ufe0f <b>Closed by Sage</b>\n${campaign.title}\n${short(submission.wallet)}\n${reason}\n${appUrl()}/app`);
+  return true;
 }
 
 export async function runDeputyOnSubmission(
@@ -516,6 +543,13 @@ export async function runDeputyOnSubmission(
       resolveTerminal(campaign, submission, TERMINAL_REASON.missionFull, cid);
     }
     return { action: "held", reason: TERMINAL_REASON.missionFull, correlationId: cid };
+  }
+  // ...and a slot promised to approved work in its window is not free either (commitments.ts). A hold,
+  // since a revoke frees the slot; asked here for the same reason, before anything is judged or bought.
+  if (mission && countCommittedForMission(mission.missionIdHash, submission.id) >= mission.maxCompletions) {
+    agentLog(cid, "mission_promised", { missionKey: mission.missionKey });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") journalHeld(campaign, submission, PROMISED_REASON.missionFull, cid);
+    return { action: "held", reason: PROMISED_REASON.missionFull, correlationId: cid };
   }
 
   // WORK PROOF — an explicit operator contract outranks the inferred class: a direct grant/gig
@@ -626,7 +660,12 @@ export async function runDeputyOnSubmission(
      * campaign carries 6–11 sources (zero behavior change today); only near-empty corpuses gate.
      */
     const corpusReady = (campaign.privateCorpusSources ?? 0) >= OBSERVATION_READINESS_MIN_SOURCES;
-    const autopay = haveVerdict && observationAutopayEnabled() && barPass && corpusReady;
+    // The founder's own setting and the real-money switch hold here too, exactly as the gate below
+    // holds every other mission: "manual" means the founder releases each payout, and a mainnet job
+    // auto-pays only once DEPUTY_AUTOPILOT_MAINNET is armed. Subtractive: it can only hold more.
+    const realMoney = campaign.chainId != null && (CHAINS[campaign.chainId]?.isMainnet ?? true); // the gate's own rule
+    const founderAllows = campaign.autonomy === "autopilot" && (!realMoney || mainnetAutopilotEnabled());
+    const autopay = haveVerdict && observationAutopayEnabled() && barPass && corpusReady && founderAllows;
     const barReasonsOut = haveVerdict && barPass && !corpusReady ? [...barReasons, "corpus_below_readiness_floor"] : barReasons;
     if (decision) {
       const shadow = toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>;
@@ -808,7 +847,7 @@ export async function runDeputyOnSubmission(
   // A journal that cannot be read is logged, never silently treated as "no payouts this hour".
   let recentAutopays = 0;
   try {
-    recentAutopays = countAutopaySettledSince(campaign.id, Math.floor(Date.now() / 1000) - 3600);
+    recentAutopays = countAutopaysSince(campaign.id, Math.floor(Date.now() / 1000) - 3600);
   } catch (e) {
     agentLog(cid, "pace_cap", { error: e instanceof Error ? e.message : String(e) });
   }
@@ -861,6 +900,17 @@ export async function runDeputyOnSubmission(
     // decreases, so no sweep, top-up or manual release can change the answer. Close it honestly.
     if (campaign.autonomy === "autopilot" && submission.status === "pending") {
       resolveTerminal(campaign, submission, reason, cid);
+      return { action: "held", reason, correlationId: cid };
+    }
+    return { action: "skipped", reason, correlationId: cid };
+  }
+  // The same limit counts what is already approved and waiting out its window: two missions approved
+  // inside one half hour must not pay one wallet twice when it may be paid once.
+  if (countCommittedByWalletsInCampaign(campaign.id, personWallets(submission.wallet), submission.id) >= campaign.perWalletPayoutCap) {
+    const reason = PROMISED_REASON.walletCap(campaign.perWalletPayoutCap);
+    agentLog(cid, "wallet_promised", { cap: campaign.perWalletPayoutCap });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      journalHeld(campaign, submission, reason, cid);
       return { action: "held", reason, correlationId: cid };
     }
     return { action: "skipped", reason, correlationId: cid };

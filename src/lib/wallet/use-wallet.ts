@@ -8,8 +8,18 @@ import {
   type EIP1193Provider,
   type WalletClient,
 } from "viem";
-import { metisSepolia } from "./config";
-import { viemChainFor } from "@/lib/deputy/networks";
+import { METIS_MAINNET_CHAIN_ID, viemChainFor } from "@/lib/deputy/networks";
+
+/**
+ * THE NETWORK A WALLET IS ASKED TO BE ON (26 Oct 2026: one network). Connecting MetaMask to Sage moves it
+ * to Metis, adding the network when the wallet does not know it, because everything Sage does happens
+ * there. Before this a wallet stayed wherever it last was, so a sign-in on Metis showed "GOAT Network" in
+ * MetaMask, and every default here pointed at the retired Metis testnet.
+ */
+const HOME_CHAIN_ID = METIS_MAINNET_CHAIN_ID;
+
+/** A wallet's "no thanks" (4001) is an answer; "I don't know that network" (4902) means add it. */
+const declined = (e: unknown): boolean => (e as { code?: number } | null)?.code === 4001;
 
 declare global {
   interface Window {
@@ -70,17 +80,18 @@ export interface WalletApi {
   connecting: boolean;
   /** an injected wallet is present in the browser. */
   available: boolean;
-  /** connected AND on Metis Sepolia. */
+  /** connected AND on Metis (mainnet, the network Sage runs on). */
   onMetis: boolean;
   /** connected AND on the given chain. */
   onChain: (chainId: number) => boolean;
-  connect: () => Promise<void>;
+  /** connect (asking the wallet for its account) and resolve to that account, so the same click can go on to sign. */
+  connect: () => Promise<Address | null>;
   disconnect: () => void;
   switchToMetis: () => Promise<void>;
-  /** switch the wallet to any Deputy-supported chain (Metis Sepolia, GOAT, …). */
+  /** switch the wallet to a chain in the registry (adding it when the wallet does not know it). */
   switchToChain: (chainId: number) => Promise<void>;
   /** a viem WalletClient bound to the connected account (null if not connected).
-   *  Pass a chainId to bind it to that chain; defaults to Metis Sepolia. */
+   *  Pass a chainId to bind it to that chain; defaults to Metis. */
   getWalletClient: (chainId?: number) => WalletClient | null;
   /** the raw EIP-1193 provider this session is bound to — for SDKs that speak to the wallet directly (Circle's App Kit). */
   getProvider: () => EIP1193Provider | null;
@@ -89,9 +100,9 @@ export interface WalletApi {
 /**
  * Minimal, dependency-free wallet connection over the injected EIP-1193 provider
  * (MetaMask et al). Restores an existing connection on mount and tracks account /
- * chain changes. Chain-parametric: defaults to Metis Sepolia so every pre-existing
- * caller is untouched, and `switchToChain` / `getWalletClient(chainId)` let the
- * launch wizard deploy on GOAT mainnet too. Kept viem-native (no wagmi).
+ * chain changes. Defaults to Metis, and connecting moves the wallet there;
+ * `switchToChain` / `getWalletClient(chainId)` still reach any chain in the registry,
+ * for work that already lives on another one. Kept viem-native (no wagmi).
  */
 export function useWallet(): WalletApi {
   const [address, setAddress] = useState<Address | null>(null);
@@ -105,11 +116,18 @@ export function useWallet(): WalletApi {
   /** the provider discovery actually bound to — the one holding this site's account. Every signing
    *  path must use THIS one, not whoever happens to own `window.ethereum` at the moment of the call. */
   const providerRef = useRef<EIP1193Provider | null>(null);
+  /** the account as of NOW, beside the state: a click that has just connected signs within the same
+   *  handler, before React re-renders it with the new `address`. */
+  const addressRef = useRef<Address | null>(null);
+  const bindAddress = useCallback((a: Address | null) => {
+    addressRef.current = a;
+    setAddress(a);
+  }, []);
 
   useEffect(() => {
     let bound: EIP1193Provider | null = null;
     const onAccounts = (accs: unknown) =>
-      setAddress(((accs as string[])[0] as Address) ?? null);
+      bindAddress(((accs as string[])[0] as Address) ?? null);
     const onChain = (id: unknown) => setChainId(parseInt(id as string, 16));
 
     // Re-run discovery whenever a wallet announces itself, so a LATE injection is picked up
@@ -127,7 +145,7 @@ export function useWallet(): WalletApi {
       const found = await authorizedProvider();
       const p = found?.provider ?? getProvider();
       if (!p) return;
-      if (found) setAddress(found.address as Address);
+      if (found) bindAddress(found.address as Address);
       try {
         setChainId(parseInt((await p.request({ method: "eth_chainId" })) as string, 16));
       } catch {
@@ -156,34 +174,12 @@ export function useWallet(): WalletApi {
       bound?.removeListener("accountsChanged", onAccounts);
       bound?.removeListener("chainChanged", onChain);
     };
-  }, []);
-
-  const connect = useCallback(async () => {
-    if (connectingRef.current) return; // ignore a re-entrant click while connecting
-    const p = providerRef.current ?? getProvider();
-    if (!p) {
-      window.open("https://metamask.io/download/", "_blank", "noopener");
-      return;
-    }
-    connectingRef.current = true;
-    setConnecting(true);
-    try {
-      const accs = await p.request({ method: "eth_requestAccounts" });
-      setAddress(((accs as string[])[0] as Address) ?? null);
-      const id = await p.request({ method: "eth_chainId" });
-      setChainId(parseInt(id as string, 16));
-    } finally {
-      connectingRef.current = false;
-      setConnecting(false);
-    }
-  }, []);
-
-  const disconnect = useCallback(() => {
-    setAddress(null);
-  }, []);
+  }, [bindAddress]);
 
   const switchToChain = useCallback(async (targetChainId: number) => {
-    const p = getProvider();
+    // The provider discovery bound to: the one holding this site's account, not whoever owns
+    // `window.ethereum` right now.
+    const p = providerRef.current ?? getProvider();
     if (!p) return;
     const chain = viemChainFor(targetChainId);
     const hexId = `0x${targetChainId.toString(16)}`;
@@ -192,7 +188,8 @@ export function useWallet(): WalletApi {
         method: "wallet_switchEthereumChain",
         params: [{ chainId: hexId }],
       });
-    } catch {
+    } catch (e) {
+      if (declined(e)) throw e; // the person said no: do not follow it with a second prompt
       // 4902 (unknown chain) or similar — add it, then it becomes selected.
       await p.request({
         method: "wallet_addEthereumChain",
@@ -211,18 +208,49 @@ export function useWallet(): WalletApi {
     }
   }, []);
 
+  const connect = useCallback(async (): Promise<Address | null> => {
+    if (connectingRef.current) return addressRef.current; // ignore a re-entrant click while connecting
+    const p = providerRef.current ?? getProvider();
+    if (!p) {
+      window.open("https://metamask.io/download/", "_blank", "noopener");
+      return null;
+    }
+    connectingRef.current = true;
+    setConnecting(true);
+    try {
+      const accs = await p.request({ method: "eth_requestAccounts" });
+      const account = ((accs as string[])[0] as Address) ?? null;
+      bindAddress(account);
+      providerRef.current = p;
+      // Sage runs on Metis: a wallet that connects is asked to be there. Declining is allowed (a
+      // sign-in signature works on any network); a transaction later asks again, on its own chain.
+      await switchToChain(HOME_CHAIN_ID).catch(() => undefined);
+      const id = await p.request({ method: "eth_chainId" });
+      setChainId(parseInt(id as string, 16));
+      return account;
+    } finally {
+      connectingRef.current = false;
+      setConnecting(false);
+    }
+  }, [switchToChain, bindAddress]);
+
+  const disconnect = useCallback(() => {
+    bindAddress(null);
+  }, [bindAddress]);
+
   const switchToMetis = useCallback(
-    () => switchToChain(metisSepolia.id),
+    () => switchToChain(HOME_CHAIN_ID),
     [switchToChain],
   );
 
   const getWalletClient = useCallback(
     (targetChainId?: number): WalletClient | null => {
       const p = providerRef.current ?? getProvider();
-      if (!p || !address) return null;
+      const account = addressRef.current ?? address;
+      if (!p || !account) return null;
       return createWalletClient({
-        account: address,
-        chain: targetChainId ? viemChainFor(targetChainId) : metisSepolia,
+        account,
+        chain: viemChainFor(targetChainId ?? HOME_CHAIN_ID),
         transport: custom(p),
       });
     },
@@ -234,7 +262,7 @@ export function useWallet(): WalletApi {
     chainId,
     connecting,
     available,
-    onMetis: chainId === metisSepolia.id,
+    onMetis: chainId === HOME_CHAIN_ID,
     onChain: (id: number) => chainId === id,
     connect,
     disconnect,
