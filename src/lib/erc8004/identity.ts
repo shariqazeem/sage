@@ -13,6 +13,7 @@ export const ERC8004 = {
   chainId: 2345,
   network: "GOAT Network",
   scanUrl: "https://8004scan.io/agents?chain=2345",
+  scanLabel: "8004scan",
   explorer: "https://explorer.goat.network",
 } as const;
 
@@ -25,6 +26,8 @@ export interface AgentIdentity {
   chainId: number;
   network: string;
   scanUrl: string;
+  /** what the scan link is called: GOAT's goes to 8004scan, Metis's to the registry on its explorer */
+  scanLabel: string;
   explorer: string;
 }
 
@@ -34,6 +37,7 @@ export const ERC8004_METIS = {
   chainId: 1088,
   network: "Metis",
   scanUrl: "https://andromeda-explorer.metis.io/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+  scanLabel: "Registry",
   explorer: "https://andromeda-explorer.metis.io",
 } as const;
 
@@ -50,13 +54,24 @@ export function getMetisAgentIdentity(): AgentIdentity {
     chainId: ERC8004_METIS.chainId,
     network: ERC8004_METIS.network,
     scanUrl: ERC8004_METIS.scanUrl,
+    scanLabel: ERC8004_METIS.scanLabel,
     explorer: ERC8004_METIS.explorer,
   };
 }
 
-/** Every network Sage is (or will be) registered on, GOAT first. */
+/** Every network Sage is (or will be) registered on, Metis first: the one network it runs on. */
 export function getAgentIdentities(): AgentIdentity[] {
-  return [getAgentIdentity(), getMetisAgentIdentity()];
+  return [getMetisAgentIdentity(), getAgentIdentity()];
+}
+
+/**
+ * The identity Sage leads with: Metis, the one network it runs on since 26 Oct 2026, once it is
+ * registered there; GOAT, where it registered first, until then. Every page and card that shows
+ * "Sage's identity" reads this, so they can't name different networks.
+ */
+export function getPrimaryAgentIdentity(): AgentIdentity {
+  const metis = getMetisAgentIdentity();
+  return metis.registered ? metis : getAgentIdentity();
 }
 
 /** Read the agent identity from env (server-side). Empty → "pending" state. */
@@ -73,6 +88,7 @@ export function getAgentIdentity(): AgentIdentity {
     chainId: ERC8004.chainId,
     network: ERC8004.network,
     scanUrl: ERC8004.scanUrl,
+    scanLabel: ERC8004.scanLabel,
     explorer: ERC8004.explorer,
   };
 }

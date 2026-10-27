@@ -55,6 +55,7 @@ const dateOf = (s: number) => shortDateUTC(s, true);
  */
 export function AgentProfilePage({
   identity,
+  also = [],
   wallet,
   reputation: r,
   chainSplit,
@@ -64,6 +65,8 @@ export function AgentProfilePage({
   pnl,
 }: {
   identity: AgentIdentity;
+  /** the other networks Sage is registered on, named under the one it leads with */
+  also?: AgentIdentity[];
   wallet: string | null;
   reputation: AgentReputation;
   chainSplit: ChainRecord[];
@@ -138,7 +141,7 @@ export function AgentProfilePage({
             target="_blank"
             rel="noopener noreferrer"
           >
-            8004scan
+            {identity.scanLabel}
             <ArrowUpRight size={13} />
           </a>
         </div>
@@ -148,8 +151,13 @@ export function AgentProfilePage({
             <>
               Sage verifies submitted work, reasons about it, and pays real
               people in USDC — or gets blocked trying. Linked to ERC-8004 identity{" "}
-              <b className="mono">#{identity.agentId}</b> on {identity.network}; the
-              performance shown here is derived from Sage&apos;s verifiable
+              <b className="mono">#{identity.agentId}</b> on {identity.network}
+              {also.map((a) => (
+                <span key={a.chainId}>
+                  {" "}(and <b className="mono">#{a.agentId}</b> on {a.network}, where it registered first)
+                </span>
+              ))}
+              ; the performance shown here is derived from Sage&apos;s verifiable
               transaction journal — every row is a real settled payout or block you
               can check on-chain, not a score stored in a registry.
             </>

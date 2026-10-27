@@ -3,7 +3,7 @@ import "server-only";
 import type { Campaign } from "@/lib/db/schema";
 import type { SettleOutcome } from "@/lib/campaigns/settle";
 import { getCampaign, listCampaignEvents } from "@/lib/db/campaigns";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getPrimaryAgentIdentity } from "@/lib/erc8004/identity";
 import { getAgentReputation } from "@/lib/erc8004/reputation";
 import { agentPageUrl } from "@/lib/site";
 import { chainConfig } from "@/lib/deputy/networks";
@@ -184,7 +184,7 @@ export function buildReply(cmd: TgCommand): string | null {
       });
     }
     case "agent": {
-      const id = getAgentIdentity();
+      const id = getPrimaryAgentIdentity();
       const r = getAgentReputation();
       return agentSummaryText({
         name: id.name ?? "Sage",

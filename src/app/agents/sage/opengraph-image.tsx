@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getAgentReputation } from "@/lib/erc8004/reputation";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getPrimaryAgentIdentity } from "@/lib/erc8004/identity";
 
 // Reads the live track record on each scrape, so it runs on the Node runtime.
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ function Stat({ v, k }: { v: string; k: string }) {
 /** The real share card for /agents/sage — identity + the live headline stats. */
 export default function OG() {
   const r = getAgentReputation();
-  const id = getAgentIdentity();
+  const id = getPrimaryAgentIdentity();
   const settled = `$${(r.settledTotalBase / 1e6).toFixed(2)}`;
 
   return new ImageResponse(

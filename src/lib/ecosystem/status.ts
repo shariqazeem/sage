@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getEnv } from "@/lib/env";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getPrimaryAgentIdentity } from "@/lib/erc8004/identity";
 import { getCampaign, listAllDecisions, FLAGSHIP_CAMPAIGN_ID } from "@/lib/db/campaigns";
 import { networkLabel, tokenSymbol, isTestnetChain } from "@/lib/format";
 import { publicClient } from "@/lib/deputy/chain";
@@ -70,7 +70,7 @@ async function verifyErc8004OnChain(
  */
 export async function ecosystemStatus(): Promise<EcosystemStatus> {
   const e = getEnv();
-  const id = getAgentIdentity();
+  const id = getPrimaryAgentIdentity();
 
   // ClawUp: "configured" when the agent API key is set; "live" ONLY with an explicit,
   // human-set CLAWUP_LIVE flag (key presence is never enough to claim a working install).

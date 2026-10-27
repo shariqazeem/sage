@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgentIdentities, getAgentIdentity } from "@/lib/erc8004/identity";
+import { getAgentIdentities, getPrimaryAgentIdentity } from "@/lib/erc8004/identity";
 import { agentWallet, getAgentReputation } from "@/lib/erc8004/reputation";
 import { agentPageUrl, siteUrl } from "@/lib/site";
 
@@ -17,7 +17,7 @@ const DESCRIPTION =
  * derived from real rows; nothing is asserted. Cached 60s at the edge.
  */
 export function GET() {
-  const id = getAgentIdentity();
+  const id = getPrimaryAgentIdentity();
   const r = getAgentReputation();
 
   const body = {
@@ -32,7 +32,7 @@ export function GET() {
     chainId: id.chainId,
     registry: id.registry,
     registered: id.registered,
-    // ERC-8004 registration-file form: every network this agent is registered on (GOAT, then Metis).
+    // ERC-8004 registration-file form: every network this agent is registered on (Metis, then GOAT).
     registrations: getAgentIdentities()
       .filter((i) => i.registered && i.agentId)
       .map((i) => ({ agentId: Number(i.agentId), agentRegistry: `eip155:${i.chainId}:${i.registry}` })),

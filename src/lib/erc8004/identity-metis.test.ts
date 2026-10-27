@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ERC8004, ERC8004_METIS, getAgentIdentities, getMetisAgentIdentity } from "./identity";
+import { ERC8004, ERC8004_METIS, getAgentIdentities, getMetisAgentIdentity, getPrimaryAgentIdentity } from "./identity";
 import { chainConfig, METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /**
@@ -22,7 +22,7 @@ describe("the Metis identity", () => {
     vi.stubEnv("ERC8004_AGENT_ADDRESS", "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6");
     vi.stubEnv("ERC8004_METIS_AGENT_ID", "");
     vi.stubEnv("ERC8004_METIS_AGENT_ADDRESS", "");
-    const [goat, metis] = getAgentIdentities();
+    const [metis, goat] = getAgentIdentities();
     expect(goat.registered).toBe(true);
     expect(metis.registered).toBe(false);
     expect(metis.agentId).toBeNull();
@@ -32,5 +32,17 @@ describe("the Metis identity", () => {
     vi.stubEnv("ERC8004_METIS_AGENT_ID", "7");
     vi.stubEnv("ERC8004_METIS_AGENT_ADDRESS", "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6");
     expect(getMetisAgentIdentity()).toMatchObject({ registered: true, agentId: "7", chainId: 1088 });
+  });
+
+  it("leads with Metis once registered there, and with GOAT only until then", () => {
+    vi.stubEnv("ERC8004_AGENT_ID", "79");
+    vi.stubEnv("ERC8004_AGENT_ADDRESS", "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6");
+    vi.stubEnv("ERC8004_METIS_AGENT_ID", "");
+    vi.stubEnv("ERC8004_METIS_AGENT_ADDRESS", "");
+    expect(getPrimaryAgentIdentity()).toMatchObject({ agentId: "79", chainId: 2345 });
+    vi.stubEnv("ERC8004_METIS_AGENT_ID", "139");
+    vi.stubEnv("ERC8004_METIS_AGENT_ADDRESS", "0x0deF3D4124D0cD1708aEFFE6c1BC8182342a44D6");
+    expect(getPrimaryAgentIdentity()).toMatchObject({ agentId: "139", chainId: 1088, scanLabel: "Registry" });
+    expect(getAgentIdentities().map((i) => i.chainId)).toEqual([1088, 2345]);
   });
 });

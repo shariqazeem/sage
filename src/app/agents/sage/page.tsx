@@ -4,7 +4,7 @@ import { SiteFrame } from "@/components/site/site-frame";
 import "../../app/app.css";
 import "../../app/demo-moments.css";
 import type { Metadata } from "next";
-import { getAgentIdentity } from "@/lib/erc8004/identity";
+import { getAgentIdentities, getPrimaryAgentIdentity } from "@/lib/erc8004/identity";
 import {
   agentWallet,
   getAgentPnL,
@@ -21,7 +21,7 @@ import { ensureSandboxCampaign } from "@/lib/db/campaigns";
 export const dynamic = "force-dynamic";
 
 export function generateMetadata(): Metadata {
-  const id = getAgentIdentity();
+  const id = getPrimaryAgentIdentity();
   const r = getAgentReputation();
   const name = id.name ?? "Sage";
   const title = `${name} — Autonomous Payout Agent`;
@@ -50,7 +50,9 @@ export function generateMetadata(): Metadata {
 }
 
 export default function AgentPage() {
-  const identity = getAgentIdentity();
+  const identity = getPrimaryAgentIdentity();
+  // the other networks Sage is registered on, named under the one it leads with
+  const also = getAgentIdentities().filter((i) => i.registered && i.chainId !== identity.chainId);
   const { reputation, receipts, recentDecisions, chainSplit } =
     getAgentProfile();
   ensureSandboxCampaign(); // the "try to jailbreak" box runs against this sandbox
@@ -62,6 +64,7 @@ export default function AgentPage() {
     <SiteFrame active="/company">
       <AgentProfilePage
         identity={identity}
+        also={also}
         wallet={agentWallet(identity)}
         reputation={reputation}
         chainSplit={chainSplit}
