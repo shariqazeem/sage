@@ -1,5 +1,6 @@
 import "server-only";
-import { listPlanPayments, memberRole, walletMemberKey, getRenewal } from "@/lib/db/workspaces";
+import { listPlanPayments, getRenewal } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import type { PlanPaymentMethod, Workspace } from "@/lib/db/schema";
 import { canManage } from "@/lib/workspaces/context";
 import { getWebTreasuryOn } from "@/lib/treasury/web";
@@ -107,7 +108,7 @@ export async function billingView(founder: string, opts: { readBalance?: "always
     workspaceId: ws?.id ?? null,
     workspaceName: ws?.name ?? null,
     autoRenew: ws?.autoRenew ?? true,
-    canManage: ws ? canManage(memberRole(ws.id, walletMemberKey(founder))) : true,
+    canManage: ws ? canManage(personRole(ws, founder)) : true,
     billing: chainId != null && to && token ? { chainId, network: chainConfig(chainId).name, token, to } : null,
     balance: t ? { address: t.privyWalletAddress, usd } : null,
     balanceClosed: chainId != null && !t ? launchClosedReason(chainId) : null,

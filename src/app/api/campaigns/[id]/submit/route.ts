@@ -6,7 +6,8 @@ import { identityFor } from "@/lib/db/identity";
 import { worldIdConfig } from "@/lib/identity/worldid";
 import { isPublicWork } from "@/lib/campaigns/visibility";
 import { bareHexKey } from "@/lib/campaigns/chain-address";
-import { campaignWorkspace, isWorkspaceMemberAddress } from "@/lib/db/workspaces";
+import { campaignWorkspace } from "@/lib/db/workspaces";
+import { isWorkspacePerson } from "@/lib/workspaces/person-role";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
@@ -172,7 +173,7 @@ export async function POST(
 
   if (campaign.visibility === "unlisted") {
     const ws = campaignWorkspace(campaign);
-    if (ws && !isWorkspaceMemberAddress(ws.id, wallet)) {
+    if (ws && !isWorkspacePerson(ws.id, wallet)) {
       return NextResponse.json(
         { error: `This work is for members of "${ws.name}". Ask the workspace owner for an invite link, join with this wallet, and submit again.` },
         { status: 403 },

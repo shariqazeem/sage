@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { workspaceContext, canManage } from "@/lib/workspaces/context";
-import { getWorkspace, memberRole, removeMember, setMemberRole } from "@/lib/db/workspaces";
+import { getWorkspace, removeMember, setMemberRole } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import { effectiveWorkspacePlan } from "@/lib/plans/founder-plan";
 import { cheapestWith, hasFeature, PLANS } from "@/lib/plans/catalog";
 
@@ -19,7 +20,7 @@ export async function DELETE(req: NextRequest) {
   }
   const ws = typeof body.workspaceId === "string" ? getWorkspace(body.workspaceId) : null;
   if (!ws) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
-  if (!canManage(memberRole(ws.id, ctx.memberKey))) return NextResponse.json({ error: "Only the workspace owner or an admin can remove members." }, { status: 403 });
+  if (!canManage(personRole(ws, ctx.address))) return NextResponse.json({ error: "Only the workspace owner or an admin can remove members." }, { status: 403 });
   const key = typeof body.memberKey === "string" ? body.memberKey : "";
   const removed = removeMember(ws.id, key);
   return NextResponse.json({ ok: removed, error: removed ? undefined : "That member can't be removed." });
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest) {
   }
   const ws = typeof body.workspaceId === "string" ? getWorkspace(body.workspaceId) : null;
   if (!ws) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
-  if (memberRole(ws.id, ctx.memberKey) !== "owner") return NextResponse.json({ error: "Only the workspace owner can appoint admins." }, { status: 403 });
+  if (personRole(ws, ctx.address) !== "owner") return NextResponse.json({ error: "Only the workspace owner can appoint admins." }, { status: 403 });
   if (body.role !== "admin" && body.role !== "member") return NextResponse.json({ error: "A role is admin or member." }, { status: 400 });
   if (body.role === "admin" && !hasFeature(effectiveWorkspacePlan(ws), "roles")) {
     return NextResponse.json({ error: `Admins are on ${PLANS[cheapestWith("roles")].name} and above.`, upgrade: cheapestWith("roles") }, { status: 402 });

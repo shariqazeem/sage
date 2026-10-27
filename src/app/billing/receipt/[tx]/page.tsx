@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { SageMark } from "@/components/brand/sage-mark";
-import { getPlanPayment, memberRole, walletMemberKey } from "@/lib/db/workspaces";
+import { getPlanPayment } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import { db } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -36,7 +37,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ tx: st
   const payment = getPlanPayment(tx);
   if (!payment) notFound();
   const ws = db.select().from(workspaces).where(eq(workspaces.id, payment.workspaceId)).get();
-  if (!ws || !canManage(memberRole(ws.id, walletMemberKey(founder)))) notFound();
+  if (!ws || !canManage(personRole(ws, founder))) notFound();
   const plan = isPlanId(payment.plan) ? payment.plan : "pro";
   const promo = promoOnPayment(payment.txHash);
   const network = chainConfig(payment.chainId).name;

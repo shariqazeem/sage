@@ -1,5 +1,6 @@
 import "server-only";
-import { createWorkspace, memberRole, recordPlanPayment, walletMemberKey } from "@/lib/db/workspaces";
+import { createWorkspace, recordPlanPayment } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import type { PlanPaymentMethod, Workspace } from "@/lib/db/schema";
 import { founderStorageKey } from "@/lib/auth/founder";
 import { canManage } from "@/lib/workspaces/context";
@@ -38,7 +39,7 @@ export function quotePlan(founder: string, plan: PlanId, now = Math.floor(Date.n
   // A founder without a workspace gets one now: a plan has to live somewhere, and asking them to
   // set up a workspace before they can pay is a form between them and the thing they chose.
   const workspace = founderPlan(founder, now).workspace ?? createWorkspace({ name: "My workspace", ownerKey: founderStorageKey(founder), ownerAddress: founder });
-  if (!canManage(memberRole(workspace.id, walletMemberKey(founder)))) {
+  if (!canManage(personRole(workspace, founder))) {
     return { ok: false, status: 403, error: "Only the workspace owner or an admin can change the plan." };
   }
   return quoteWorkspacePlan(workspace, plan, now, promo);

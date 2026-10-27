@@ -7,6 +7,7 @@ import { workspaceContext } from "@/lib/workspaces/context";
 import { countMembers, listMembers } from "@/lib/db/workspaces";
 import { limitsOf, planOf } from "@/lib/workspaces/plan";
 import { PeoplePanel } from "@/components/workspace/people-panel";
+import { personRole } from "@/lib/workspaces/person-role";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function PeoplePage() {
       members={listMembers(ws.id).map((m) => ({ key: m.memberKey, address: m.address, role: m.role, displayName: m.displayName, joinedAt: m.joinedAt, viaTelegram: m.memberKey.startsWith("tg:") }))}
       memberCount={countMembers(ws.id)}
       me={ctx.memberKey}
+      myRole={personRole(ws, ctx.address)}
     />
   );
 }

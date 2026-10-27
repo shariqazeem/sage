@@ -23,6 +23,7 @@ function view(plan: PeopleView["workspace"]["plan"]): PeopleView {
     ],
     memberCount: 3,
     me: OWNER,
+    myRole: "owner",
   };
 }
 
@@ -44,5 +45,17 @@ describe("Team: records and statements", () => {
     render(<PeoplePanel {...view("free")} />);
     const locked = screen.getByRole("link", { name: /Every payout \(CSV\) · Pro/ });
     expect(locked.getAttribute("href")).toBe("/checkout?plan=pro");
+  });
+
+  it("the owner's controls follow the person: signed in with a wallet they bound, they still appoint admins", () => {
+    // The session wallet is not the owner row's key: the workspace came through a declared link.
+    const bound = `0x${"c".repeat(40)}`;
+    const { unmount } = render(<PeoplePanel {...view("team")} me={bound} myRole="owner" />);
+    const marcia = screen.getByText("Marcia").closest("li") as HTMLElement;
+    expect(within(marcia).getByRole("button", { name: "make admin" })).toBeTruthy();
+    unmount();
+    render(<PeoplePanel {...view("team")} me={bound} myRole="member" />);
+    const again = screen.getByText("Marcia").closest("li") as HTMLElement;
+    expect(within(again).queryByRole("button", { name: "make admin" })).toBeNull();
   });
 });

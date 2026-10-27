@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { declaredLinksOf } from "@/lib/campaigns/wallet-links";
-import { memberRole, setAutoRenew, walletMemberKey } from "@/lib/db/workspaces";
+import { setAutoRenew } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import { canManage } from "@/lib/workspaces/context";
 import { isPlanId, PERIOD_DAYS, PLANS, SELF_SERVE } from "@/lib/plans/catalog";
 import { planPriceUsd } from "@/lib/plans/billing-math";
@@ -86,7 +87,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.autoRenew !== "boolean") return NextResponse.json({ error: "Say whether the plan should renew." }, { status: 400 });
   const ws = founderPlan(founder).workspace;
   if (!ws) return NextResponse.json({ error: "There's no plan to renew yet." }, { status: 404 });
-  if (!canManage(memberRole(ws.id, walletMemberKey(founder)))) return NextResponse.json({ error: "Only the workspace owner or an admin can change how the plan renews." }, { status: 403 });
+  if (!canManage(personRole(ws, founder))) return NextResponse.json({ error: "Only the workspace owner or an admin can change how the plan renews." }, { status: 403 });
   setAutoRenew(ws.id, body.autoRenew);
   return NextResponse.json({ ok: true, autoRenew: body.autoRenew });
 }

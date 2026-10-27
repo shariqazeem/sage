@@ -2,7 +2,8 @@ import "server-only";
 import { and, eq, isNull, or, sql, gt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { promoCodes, promoRedemptions, workspaces, workspacePayments, type PromoCode, type Workspace } from "@/lib/db/schema";
-import { createWorkspace, memberRole, walletMemberKey } from "@/lib/db/workspaces";
+import { createWorkspace } from "@/lib/db/workspaces";
+import { personRole } from "@/lib/workspaces/person-role";
 import { founderStorageKey } from "@/lib/auth/founder";
 import { canManage } from "@/lib/workspaces/context";
 import { isPlanId, PLAN_ORDER, PLANS, planInForce, SELF_SERVE, type PlanId } from "./catalog";
@@ -121,7 +122,7 @@ export function redeemPromoDays(founder: string, rawCode: unknown, plan: PlanId,
   if (!check.ok) return { ok: false, status: 400, error: check.error };
   if (check.kind !== "days") return { ok: false, status: 400, error: "That code takes money off a payment: use it at checkout." };
   const workspace: Workspace = founderPlan(founder, now).workspace ?? createWorkspace({ name: "My workspace", ownerKey: founderStorageKey(founder), ownerAddress: founder });
-  if (!canManage(memberRole(workspace.id, walletMemberKey(founder)))) return { ok: false, status: 403, error: "Only the workspace owner or an admin can use a code." };
+  if (!canManage(personRole(workspace, founder))) return { ok: false, status: 403, error: "Only the workspace owner or an admin can use a code." };
   const period = promoPeriod({ current: planInForce(workspace, now), currentUntil: workspace.planUntil, next: check.plan, days: check.days, now });
   if (!period.ok) return { ok: false, status: 409, error: period.reason };
   const neverPaid = !everPaid(workspace.id);

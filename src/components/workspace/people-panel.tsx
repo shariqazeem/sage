@@ -15,6 +15,8 @@ export interface PeopleView {
   members: { key: string; address: string | null; role: WorkspaceRole; displayName: string | null; joinedAt: number; viaTelegram: boolean }[];
   memberCount: number;
   me: string;
+  /** the viewer's role here, across every wallet they declared as theirs (person-role.ts) */
+  myRole: WorkspaceRole | null;
 }
 
 const Avatar = ({ m }: { m: PeopleView["members"][number] }) =>
@@ -23,13 +25,13 @@ const Avatar = ({ m }: { m: PeopleView["members"][number] }) =>
   : <span className="ws-avatar"><Wallet size={14} /></span>;
 
 /** The team: who is in, how the next one gets in, and who can run things beside the owner. */
-export function PeoplePanel({ workspace: ws, members, memberCount, me }: PeopleView) {
+export function PeoplePanel({ workspace: ws, members, memberCount, me, myRole }: PeopleView) {
   const router = useRouter();
   // Members-only work (and the invite links into it) is a paid feature; say so before the click.
   const canInvite = hasFeature(ws.plan, "membersOnly");
   const canAppoint = hasFeature(ws.plan, "roles");
   const canExport = hasFeature(ws.plan, "exports");
-  const isOwner = members.some((m) => m.key === me && m.role === "owner");
+  const isOwner = myRole === "owner";
   const [invite, setInvite] = useState<{ url: string; telegram: string } | null>(null);
   // INVITE MANY — paste a list, get one single-use door per person, forward each on WhatsApp.
   const [manyOpen, setManyOpen] = useState(false);
