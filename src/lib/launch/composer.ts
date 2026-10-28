@@ -4,8 +4,8 @@ import { missionTitleFrom } from "@/lib/launch/mission-title";
 /**
  * THE PAY-FOR-WORK COMPOSER, AS DATA (28 Oct 2026). The composer's lines used to become the
  * direct-campaign body inside the component, where nothing but a click could exercise it. It lives here
- * now so the ready jobs (ready-jobs.ts) are tested through the exact body the composer sends, into the
- * same schema and compiler the server runs. Moved, not changed: the money rules below are the composer's.
+ * now so a job Sage drafted is tested through the exact body the composer sends, into the same schema
+ * and compiler the server runs. Moved, not changed: the money rules below are the composer's.
  */
 
 /** One payment line the founder composes — a tranche of a grant, or the whole of a gig. */
@@ -41,6 +41,8 @@ export interface ComposerState {
   inviteOnly: boolean;
   /** the drafted "why it matters", when Sage drafted the brief */
   why: string;
+  /** the job's own name, when Sage drafted it ("Fix the crash on PDF uploads"); else "Pay <who>" */
+  title?: string;
 }
 
 /**
@@ -56,7 +58,8 @@ export function composeDirectBody(s: ComposerState) {
   const isGrant = tranches.length > 1;
   const who = s.who.trim();
   const slots = isGrant ? 1 : Math.max(1, Math.min(50, Math.round(Number(s.slots) || 1)));
-  const title = `Pay ${who}`.slice(0, 80);
+  const named = (s.title ?? "").trim();
+  const title = (named.length >= 4 ? named : `Pay ${who}`).slice(0, 80);
   const milestones = tranches.map((t, i) => {
     const d = t.deliverable.trim().replace(/\.+$/, "");
     const cap = d.charAt(0).toUpperCase() + d.slice(1);

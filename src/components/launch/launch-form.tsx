@@ -8,15 +8,16 @@ import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { blankTranche, composeDirectBody, composerTotal, type Tranche } from "@/lib/launch/composer";
-import { FIRST_IMPRESSIONS_GOAL, readyJobs, type ReadyJob, type ReadyProduct } from "@/lib/launch/ready-jobs";
+import { firstUrl, labelFor, looksLikeProductHome, wordsOnly } from "@/lib/launch/hand-over-text";
+import { AmountChips, JobCard } from "./job-card";
 import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
 import { UpgradeLink } from "@/components/plans/upgrade-link";
 import type { PlanId } from "@/lib/plans/catalog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { CURRENCIES } from "@/lib/money/currency";
-import { X, HandCoins, Plus, ScanSearch, Sparkles, ArrowUpRight } from "lucide-react";
+import { X, HandCoins, Plus, ScanSearch, Sparkles, ArrowUpRight, Check, Loader2 } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -33,7 +34,7 @@ const GOAL_CHIPS: { label: string; goal: string }[] = [
   { label: "Let Sage decide", goal: "" },
   {
     label: "First impressions",
-    goal: FIRST_IMPRESSIONS_GOAL,
+    goal: "Can a first-time visitor understand what this product does and find where to start? Report what you actually saw on each screen.",
   },
   {
     label: "Signup & onboarding",
@@ -75,6 +76,9 @@ const VERIFY_OPTIONS = [
 
 type PayDraft = { who: string; slots: string };
 
+/** What the drafter says about a link it was handed: opened and read, or why not. */
+type HandedSource = { url: string; label: string; read: boolean; reason: string | null };
+
 /** A drafted milestone, as the draft route returns it. */
 type DraftMilestone = {
   title: string;
@@ -100,62 +104,18 @@ const SLOT_OPTIONS = ["1", "2", "3", "5", "10"];
 const clampSlots = (n: number): string => String(Math.min(50, Math.max(1, Math.round(Number.isFinite(n) ? n : 1))));
 const slotChoices = (current: string): string[] => (SLOT_OPTIONS.includes(current) ? SLOT_OPTIONS : [...SLOT_OPTIONS, current].sort((a, b) => Number(a) - Number(b)));
 
-/** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
- *  founder edits, the same way the goal chips write proven goal shapes. */
-const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: string; currency?: string; tranches: Partial<Tranche>[] }[] = [
-  { label: "Design gig", who: "my designer", slots: "1", tranches: [{ amount: "50", deliverable: "the new logo page is live", verify: "link" }] },
-  { label: "Translation job", who: "a translator", slots: "1", tranches: [{ amount: "20", deliverable: "my menu is published in English as a public page", verify: "link" }] },
-  { label: "Open bounty", who: "anyone", slots: "3", tranches: [{ amount: "5", deliverable: "they publish a working setup guide for my product", verify: "link" }] },
-  // TRADE FINANCE IN THE BRIEF'S OWN WORDS: a supplier is paid when the delivery verifies — the
-  // payment generates its own paperwork. Supplier credit shaped by delivery, on a real surface.
-  { label: "Pay a supplier", who: "my supplier", slots: "1", tranches: [{ amount: "60", deliverable: "the delivery confirmation for invoice INV-1042 is published on a public page", verify: "page", expectedText: "INV-1042 delivered" }] },
-  {
-    label: "Milestone grant",
-    who: "a market seller I know",
-    slots: "1",
-    splitTotal: "40",
-    tranches: [
-      { deliverable: "she publishes her catalogue as a public page", verify: "link" },
-      { deliverable: "she publishes her first customer review page", verify: "link" },
-    ],
-  },
-  {
-    label: "Grant in J$",
-    who: "a market seller in Kingston",
-    slots: "1",
-    currency: "JMD",
-    splitTotal: "10000",
-    tranches: [
-      { deliverable: "she publishes her catalogue as a public page", verify: "link" },
-      { deliverable: "she publishes her first customer review page", verify: "link" },
-    ],
-  },
-];
-
 /** The one-line trust hint under each door — everything longer was deleted, not moved. */
 const MODE_HINT = {
-  test: "Sage only reads your product. Approve the plan, fund once — payouts run themselves, each with a public receipt.",
-  pay: "Pick a ready job or describe your own, and Sage drafts the brief. You set the money, and no model ever sets an amount. Launching funds it from your account, and work that fails Sage's checks is never paid.",
+  test: "Sage only reads your product: it looks at it in a real browser, writes paid tasks from what it sees and shows you the plan. Nothing moves until you launch it, and every payout gets a public receipt.",
+  pay: "Sage reads what you hand it and writes the job. You set the money, and no model ever sets an amount. Launching funds it from your account, and work that fails Sage's checks is never paid.",
 } as const;
 
 /**
- * Step 1 — describe the launch as a GUIDED, cinematic sequence, kept deliberately short (P26): the
- * product + what to learn on one screen, then the budget. The optional GitHub repo hides behind an
- * "add repo" affordance so it never taxes the common path. On the final step it creates (or reuses) a
- * DURABLE inspection job and navigates to /launch/[inspectionId]; the id lives in the URL so refresh /
- * back-forward / reopen all resume the same state.
+ * Post, one screen per door (28 Oct 2026). Test my product takes the product's address and a budget on
+ * one step, then creates (or reuses) a DURABLE inspection job and navigates to /launch/[inspectionId];
+ * the id lives in the URL so refresh / back-forward / reopen all resume the same state. Pay for work
+ * takes what the founder hands over and returns the job as one card.
  */
-const STEPS = [
-  {
-    q: "What do you want done?",
-    hint: "", // step 0 renders MODE_HINT — the two doors carry the explanation structurally
-  },
-  {
-    q: "Set the testing budget.",
-    hint: "Sage allocates it precisely across the missions it designs. You fund it in the next step — nothing moves yet.",
-  },
-] as const;
-
 function isHttpUrl(u: string): boolean {
   try {
     const x = new URL(u.trim());
@@ -181,7 +141,6 @@ export function LaunchForm() {
   const siwe = useSiwe();
   const founder = useFounderSession();
   const [showSignIn, setShowSignIn] = useState(false);
-  const [step, setStep] = useState(0);
   // targetUsers is kept in state (the API still accepts it) but no longer asked — the goal carries intent.
   const [form, setForm] = useState({ productUrl: "", repoUrl: "", goal: "", targetUsers: "", budgetUsd: "5", testEmail: "", testPassword: "" });
   /** THE TWO DOORS (move 5): "test" = the bootcamp-winning inspection flow, byte-identical.
@@ -245,19 +204,20 @@ export function LaunchForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // READY TO GO (28 Oct 2026): whole jobs written for this founder's product, and the product a test starts from.
-  const [product, setProduct] = useState<ReadyProduct>({ name: null, url: null });
-  const ready = useMemo(() => readyJobs(product), [product]);
-  const [picked, setPicked] = useState<string | null>(null);
+  // What Post starts from: the product Sage last tested for this founder (a test starts there, and a job
+  // is drafted against it), and whether the workspace can admit invited people yet.
+  const [product, setProduct] = useState<{ name: string | null; url: string | null }>({ name: null, url: null });
+  const [canInvite, setCanInvite] = useState<boolean | null>(null);
   useEffect(() => {
     if (!founder.authed) return;
     let live = true;
     void (async () => {
       try {
         const r = await fetch("/api/launch/starters", { cache: "no-store" });
-        const j = (await r.json()) as { product?: ReadyProduct | null };
+        const j = (await r.json()) as { product?: { name: string | null; url: string | null } | null; canInvite?: boolean };
         if (!live || !j.product) return;
         setProduct(j.product);
+        setCanInvite(j.canInvite ?? null);
         const url = j.product.url;
         // testing again starts where the last test did; a URL already typed is never replaced
         if (url) setForm((f) => (f.productUrl.trim() ? f : { ...f, productUrl: url }));
@@ -301,43 +261,44 @@ export function LaunchForm() {
   const [planLink, setPlanLink] = useState<string | null>(null);
   // undefined: no plan refusal; null: no plan would help; a plan: the one that lifts it
   const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
+  // the hand-over: what Sage opened and how long the job took to write, the card's title, the full form
+  const [handed, setHanded] = useState<{ source: HandedSource | null; seconds: number | null } | null>(null);
+  const [jobTitle, setJobTitle] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
+  const [productChoice, setProductChoice] = useState(false);
+  // A LIVE CLOCK ON THE WORK, not a fake progress bar: the one thing genuinely happening is time passing.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!draftBusy) return;
+    const t0 = Date.now();
+    setElapsed(0);
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [draftBusy]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setP = (k: keyof PayDraft, v: string) => setPay((p) => ({ ...p, [k]: v }));
 
-  const stepValid = (i = step): boolean => {
+  const stepValid = (): boolean =>
     // The goal is OPTIONAL — measured founder behavior: a paragraph-sized "what do you want to
     // learn?" is where people stall or close the tab. An empty goal is a delegation, not a gap:
     // the pipeline forces full exploration and Sage infers the first-visit goal from what it sees.
-    if (i === 0) return isHttpUrl(form.productUrl) || describesWork();
-    return Number(form.budgetUsd) >= 0.5;
-  };
-
-  const back = () => {
-    setError(null);
-    setStep((s) => Math.max(0, s - 1));
-  };
-  const next = () => {
-    setError(null);
-    // Describing work skips the budget step entirely — the agent asks for the money in its own words.
-    if (describesWork()) return handOffToAgent();
-    if (stepValid()) setStep((s) => Math.min(STEPS.length - 1, s + 1));
-  };
+    isHttpUrl(form.productUrl) && Number(form.budgetUsd) >= 0.5;
 
   /**
-   * ONE FRONT DOOR (move 5). The founder answers ONE question. A URL is product testing — the path
-   * that won the bootcamp, byte-identical below. Anything else is work they are defining (a grant, a
-   * gig, a deliverable), which is the agent's job, not a second form: their own sentence is handed
-   * to Sage in chat, where it structures the milestones and compiles the campaign.
+   * ONE FRONT DOOR (move 5). A URL is product testing — the path that won the bootcamp. Anything else
+   * typed there is work they are defining (a grant, a gig, a deliverable), and it is handed to Sage
+   * under Pay for work, the same words in the hand-over box, rather than sent away to a chat.
    */
   const describesWork = (): boolean => {
     const t = form.productUrl.trim();
     return t.length >= 12 && !isHttpUrl(t) && /\s/.test(t);
   };
 
-  const handOffToAgent = (ask?: string) => {
-    const words = ask ?? [form.productUrl.trim(), form.goal.trim()].filter(Boolean).join(" — ");
-    router.push(`/agent?ask=${encodeURIComponent(words)}`);
+  const moveToPay = () => {
+    setDraftText([form.productUrl.trim(), form.goal.trim()].filter(Boolean).join(". "));
+    set("productUrl", "");
+    setMode("pay");
   };
 
   const setT = (i: number, key: keyof Tranche, v: string) =>
@@ -382,10 +343,35 @@ export function LaunchForm() {
   // A job priced in another currency is converted at compile, so its dollar total is known only on the plan page.
   const launchesHere = founder.authed && !isLocal && account.state === "open" && readiness?.ready === true;
 
+  const linkOnly = !!firstUrl(draftText) && !/\s/.test(draftText.trim());
+  const busyUrl = draftBusy ? firstUrl(draftText) : null;
+  const hasJob = tranches.some((t) => t.deliverable.trim().length > 0);
+  const cardTitle = jobTitle.trim() || (tranches[0]?.title ?? "").trim() || (tranches[0]?.deliverable.trim() ? missionTitleFrom(tranches[0].deliverable, 0) : "Your job");
+
+  const launchButton = (
+    <button type="button" className="lx-btn" onClick={() => (founder.authed ? void submitPay() : setShowSignIn(true))} disabled={payBusy || (founder.authed && !payValid())}>
+      {payBusy
+        ? payPhase === "launch"
+          ? "Sage is launching it…"
+          : "Writing the plan…"
+        : !founder.authed
+          ? "Sign in to launch"
+          : !payValid()
+            ? "Launch"
+            : launchesHere
+              ? `Launch · $${total.toFixed(2)} from your account`
+              : tranches.length > 1
+                ? "Create the grant"
+                : "Create the gig"}
+    </button>
+  );
+
   /** After a launch: a clean composer, and the account read again (the job took its budget). */
   const postAnother = () => {
     setLaunchedJob(null);
-    setPicked(null);
+    setHanded(null);
+    setJobTitle("");
+    setShowDetails(false);
     setPay({ who: "", slots: "1" });
     setTranches([blankTranche()]);
     setSplitTotal("");
@@ -396,27 +382,6 @@ export function LaunchForm() {
     setDraftNotes([]);
     setAccount({ state: "loading" });
     setAccountReads((n) => n + 1);
-  };
-
-  const pickReady = (j: ReadyJob) => {
-    setPayErr(null);
-    setPlanLink(null);
-    setUpgrade(undefined);
-    if (j.kind === "test") {
-      setMode("test");
-      setStep(0);
-      setForm((f) => ({ ...f, productUrl: f.productUrl.trim() || product.url || "", goal: j.goal }));
-      return;
-    }
-    setPicked(j.key);
-    setPay({ who: j.draft.who, slots: j.draft.slots });
-    setTranches(j.draft.tranches.map((t) => ({ ...t, criteria: t.criteria ? [...t.criteria] : undefined })));
-    setSplitTotal(j.draft.splitTotal);
-    setCurrency("USD");
-    setInviteOnly(j.draft.inviteOnly);
-    setDraftText("");
-    setDraftWhy("");
-    setDraftNotes([]);
   };
 
   /**
@@ -436,46 +401,56 @@ export function LaunchForm() {
   };
 
   /**
-   * THE SENTENCES COMPILE DIRECTLY — no chat, no model. The rows the founder composed become the
-   * exact `DirectCampaignInput` the deterministic compiler takes; multi-tranche is a grant, one
-   * line is a gig, and a stated total rides `splitTotalUsd` so Sage does the division in base
-   * units. Errors come back as the compiler's own words, under the form.
+   * HAND IT TO SAGE. What the founder pasted goes to the drafter, which opens a link in it and reads it
+   * first (handed-over.ts); a front page alone is offered as a product test instead. Each hand-over is
+   * a new job: the brief is Sage's, and the money and the headcount are the founder's own words (read
+   * without the links, so "issues/42" is never 42 people) or a tap on the card, never the model's.
    */
-  const draftWithSage = async () => {
-    if (draftText.trim().length < 10 || draftBusy) return;
+  const handOver = async (asWork = false) => {
+    const text = draftText.trim();
+    if (text.length < 10 || draftBusy) return;
+    if (!asWork && looksLikeProductHome(text)) {
+      setProductChoice(true);
+      return;
+    }
+    setProductChoice(false);
     setDraftErr(null);
     setDraftNotes([]);
+    setHanded(null);
+    setPayErr(null);
+    setPlanLink(null);
+    setUpgrade(undefined);
+    setLaunchedJob(null);
     setDraftBusy(true);
-    setPicked(null);
+    const started = Date.now();
     try {
+      const context = !firstUrl(text) && product.url?.startsWith("https://") ? { productUrl: product.url } : {};
       const res = await fetch("/api/campaigns/direct/draft", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ intent: draftText.trim(), ...(isHttpUrl(form.productUrl) ? { productUrl: form.productUrl.trim() } : {}) }),
+        body: JSON.stringify({ intent: text, ...context }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; draft?: Draft; notes?: string[] };
+      const data = (await res.json()) as { ok?: boolean; error?: string; draft?: Draft; notes?: string[]; source?: HandedSource | null };
       if (res.status === 401) {
         setShowSignIn(true);
-        setDraftErr("Sign in (email or MetaMask) to let Sage draft this — then press Draft again.");
+        setDraftErr("Sign in with your email or MetaMask, then hand it to Sage again.");
         return;
       }
-      if (!res.ok || !data.ok || !data.draft) throw new Error(data.error ?? "Sage couldn't draft this.");
+      if (!res.ok || !data.ok || !data.draft) {
+        if (data.source) setHanded({ source: data.source, seconds: null });
+        throw new Error(data.error ?? "Sage couldn't set this up.");
+      }
       const d = data.draft;
-      setP("who", d.who);
-      // the count is money: the founder's stated headcount, else one payment — never the model's guess
-      setP("slots", clampSlots(prefillSlots(draftText, d.milestones.length)));
+      const words = wordsOnly(text);
       // THE FOUNDER'S WORDS ARE THE MONEY: the currency, the total to split, or the price per person,
-      // read from the sentence deterministically — never from the model — and left editable.
-      const money = prefillMoneyFromWords(draftText, d.milestones.length);
-      if (money.currency) setCurrency(money.currency);
-      if (money.splitTotal != null) setSplitTotal(String(money.splitTotal));
-      else if (money.perUnit != null) setT(0, "amount", String(money.perUnit));
-      setDraftWhy(d.whyItMatters ?? "");
-      setDraftNotes(data.notes ?? []);
-      // Amounts the founder already typed survive the draft: money is theirs, words are Sage's.
-      setTranches((prev) =>
+      // read from their sentence deterministically — never from the model or the page — and editable.
+      const money = prefillMoneyFromWords(words, d.milestones.length);
+      setPay({ who: d.who, slots: clampSlots(prefillSlots(words, d.milestones.length)) });
+      setCurrency(money.currency ?? "USD");
+      setSplitTotal(money.splitTotal != null ? String(money.splitTotal) : "");
+      setTranches(
         d.milestones.map((m, i) => ({
-          amount: prev[i]?.amount ?? "",
+          amount: i === 0 && money.perUnit != null ? String(money.perUnit) : "",
           title: m.title,
           deliverable: m.deliverable,
           verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
@@ -488,11 +463,25 @@ export function LaunchForm() {
           ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
         })),
       );
+      setDraftWhy(d.whyItMatters ?? "");
+      setDraftNotes(data.notes ?? []);
+      setJobTitle(d.title);
+      // work for someone the founder names ("my designer", "our translator") is theirs to invite
+      setInviteOnly(/^(my|our)\b/i.test(d.who.trim()));
+      setHanded({ source: data.source ?? null, seconds: Math.max(1, Math.round((Date.now() - started) / 1000)) });
     } catch (e) {
       setDraftErr(e instanceof Error ? e.message : String(e));
     } finally {
       setDraftBusy(false);
     }
+  };
+
+  /** A product's front page, handed over: the product test starts from it. */
+  const tryProduct = () => {
+    const url = firstUrl(draftText);
+    if (url) setForm((f) => ({ ...f, productUrl: url }));
+    setProductChoice(false);
+    setMode("test");
   };
 
   const submitPay = async () => {
@@ -503,7 +492,7 @@ export function LaunchForm() {
     setPayPhase("plan");
     setPayBusy(true);
     try {
-      const body = composeDirectBody({ who: pay.who, slots: pay.slots, tranches, splitTotal, currency, inviteOnly, why: draftWhy });
+      const body = composeDirectBody({ who: pay.who, slots: pay.slots, tranches, splitTotal, currency, inviteOnly, why: draftWhy, title: jobTitle });
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -546,7 +535,7 @@ export function LaunchForm() {
   };
 
   const submit = async () => {
-    if (describesWork()) return handOffToAgent();
+    if (describesWork()) return moveToPay();
     if (!stepValid()) return;
     // A founder signed in on EITHER chain may start an inspection. Before this the check was
     // `siwe.authed`, which is specifically "an EVM session matching the connected EVM wallet" —
@@ -588,38 +577,91 @@ export function LaunchForm() {
     }
   };
 
+  /** Under the card's button: why it waits, what the account still needs, a refusal, or the job, live. */
+  const launchNote = (
+    <>
+      {payErr && (
+        <p className="lxs-err" role="alert">
+          {payErr}
+          {planLink && (
+            <>
+              {" "}The plan is saved: <Link href={planLink}>launch it from its page</Link>.
+            </>
+          )}
+        </p>
+      )}
+      {upgrade !== undefined && <UpgradeLink to={upgrade} className="lx-btn" />}
+      {launchedJob ? (
+        <div className="cmp-live" role="status">
+          <p>
+            <Sparkles size={15} /> <b>It&apos;s live.</b> Sage created the job&apos;s vault from your account, funded it and opened it. Every payout gets a receipt.
+          </p>
+          <div className="cmp-live-row">
+            <Link className="lx-btn" href={`/campaign/${launchedJob.campaignId}`}>
+              Open the job <ArrowUpRight size={14} />
+            </Link>
+            <a className="lxo-chip" href={launchedJob.url}>the board</a>
+            <button type="button" className="lxo-chip" onClick={postAnother}>Post another</button>
+          </div>
+        </div>
+      ) : (
+        founder.authed &&
+        !payBusy && (
+          <p className="cmp-wait">
+            {!payValid()
+              ? missing()
+              : isLocal
+                ? "Priced in another currency: Sage converts it when the plan is created, then you launch it from the plan's page."
+                : account.state === "none"
+                  ? "Your account isn't open yet. Create the plan, then open your account and launch it from the plan's page."
+                  : account.state === "open" && readiness && !readiness.ready
+                    ? readiness.short
+                      ? `Your account holds $${(account.read.balanceUsd ?? 0).toFixed(2)}. Add $${readiness.addUsd.toFixed(2)} to launch this, or create the plan now and launch it later.`
+                      : readiness.overCap
+                        ? `Your account puts at most $${(account.read.perCampaignCapUsd ?? 0).toFixed(2)} into one job. Raise that limit to launch this one.`
+                        : `Launching needs about ${nativeAmount(account.read.launchFloorWei)} ${account.read.nativeSymbol ?? "METIS"} for network fees, paid from your account.`
+                    : null}
+            {account.state === "open" && readiness && !readiness.ready && payValid() && !isLocal && (
+              <span className="cmp-wait-fix">
+                {(readiness.short || readiness.needsFee) && (
+                  <a className="lxo-chip" href="/workspace/account?do=add" target="_blank" rel="noopener noreferrer">Add money</a>
+                )}
+                {readiness.needsFee && account.read.canSwap && !!account.read.gasWei && BigInt(account.read.gasWei) > BigInt(0) && (
+                  <a className="lxo-chip" href="/workspace/account?do=swap" target="_blank" rel="noopener noreferrer">Swap USDC to {account.read.nativeSymbol ?? "METIS"}</a>
+                )}
+                {readiness.overCap && (
+                  <a className="lxo-chip" href="/workspace/account" target="_blank" rel="noopener noreferrer">Change the limit</a>
+                )}
+              </span>
+            )}
+          </p>
+        )
+      )}
+    </>
+  );
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Enter") return;
     if ((e.target as HTMLElement).tagName === "TEXTAREA" && !e.metaKey) return;
     e.preventDefault();
-    if (mode === "pay" && step === 0) {
-      if (payValid()) void submitPay();
+    if (mode === "pay") {
+      if (!hasJob) void handOver();
       return;
     }
-    if (step < STEPS.length - 1) next();
-    else void submit();
+    void submit();
   };
 
-  const s = STEPS[step];
-  const last = step === STEPS.length - 1;
 
   return (
     <div className="lxo" onKeyDown={onKeyDown}>
-      <div className="lxo-progress" aria-hidden>
-        {mode === "test" &&
-          STEPS.map((_, i) => (
-            <span key={i} className={`lxo-pip${i === step ? " on" : ""}${i < step ? " done" : ""}`} />
-          ))}
-      </div>
-
       {/* key remounts the panel so the entrance animation replays on each step AND door switch */}
-      <div className="lxo-step" key={`${step}-${mode}`}>
-        <h2 className="lxo-q">{s.q}</h2>
+      <div className="lxo-step" key={mode}>
+        <h2 className="lxo-q">What do you want done?</h2>
 
         {/* THE TWO DOORS (move 5). The paths are STRUCTURE, not prose: two tappable answers to the
             one question. Picking one reframes the card — the explainer paragraph this replaced was
             deleted, not moved. */}
-        {step === 0 && (
+        {(
           <div className="lxo-modes" role="tablist" aria-label="What kind of work">
             <button
               type="button"
@@ -646,7 +688,7 @@ export function LaunchForm() {
           </div>
         )}
 
-        {step === 0 && mode === "test" && (
+        {mode === "test" && (
           <>
             <input
               autoFocus
@@ -658,7 +700,7 @@ export function LaunchForm() {
             />
             {describesWork() && (
               <p className="lxo-handoff">
-                That&rsquo;s work you&rsquo;re defining, not a product to test — Sage will set it up with you in chat.
+                That&rsquo;s work you want done, not a product to test. <button type="button" className="lx-edit-link" onClick={moveToPay}>Hand it to Sage under Pay for work</button>
               </p>
             )}
             {/* ONE TAP INSTEAD OF ONE PARAGRAPH. Each chip writes a proven goal shape — the same
@@ -764,6 +806,11 @@ export function LaunchForm() {
                 <Plus size={14} /> Options <span className="muted">— steer what gets tested, add a GitHub repo, add a test login</span>
               </button>
             )}
+            {/* THE BUDGET, ON THE SAME STEP (28 Oct 2026): a second screen for one number was a step for nothing. */}
+            <div className="ho-budget" role="group" aria-label="Testing budget">
+              <span className="jc-k">Budget</span>
+              <AmountChips values={[5, 10, 20, 50]} value={form.budgetUsd} symbol="$" onChange={(v) => set("budgetUsd", v)} label="Testing budget" />
+            </div>
           </>
         )}
 
@@ -773,64 +820,118 @@ export function LaunchForm() {
         {/* PAY FOR WORK — sentences you finish, never a form to derive. One line is a gig; add a
             line and it is a milestone grant; type ONE total and watch Sage split it live. The rows
             compile DIRECTLY into the deterministic campaign compiler — no chat, no model. */}
-        {step === 0 && mode === "pay" && (
+        {mode === "pay" && (
           <div className="cmp">
-            {/* THE COMPOSER. The pay door used to be a fill-in-the-blanks sentence; founders,
-                companies and teams will use this every day, so it is now a real instrument:
-                the work on the left, and on the right the plan Sage will compile from it —
-                the exact split, each verification contract in plain words, the rail and the
-                door — updating as you type. The preview is the deterministic client mirror of
-                the compiler; no model runs here and no amount is ever computed by one. Same
-                POST body as before. */}
-            <div className="cmp-grid">
-              <div className="cmp-form">
-                {/* READY TO GO. Whole jobs for this founder's product: one tap fills everything below. */}
-                <div className="cmp-ready" role="group" aria-label="Ready to go">
-                  <div className="cmp-card-h">
-                    <span className="cmp-k mono">Ready to go</span>
-                    <span className="muted cmp-draft-hint">Pick one, change anything, launch</span>
-                  </div>
-                  <div className="cmp-ready-grid">
-                    {ready.map((j) => (
-                      <button key={j.key} type="button" className={`cmp-ready-card${picked === j.key ? " on" : ""}`} aria-pressed={picked === j.key} onClick={() => pickReady(j)}>
-                        <span className="cmp-ready-t">{j.title}</span>
-                        <span className="cmp-ready-l">{j.line}</span>
-                        <span className="cmp-ready-p mono">
-                          {j.price}
-                          {j.kind === "pay" && j.needs ? " · needs your contract" : ""}
-                          {j.kind === "test" ? " · product test" : ""}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* THE GIG BRAIN. One sentence — what, for whom, how many, what good looks like — and
-                    Sage drafts the steps, the acceptance criteria with an effort bar, and the evidence
-                    rule, for any kind of work. The founder edits and approves; the money stays theirs. */}
-                <div className="cmp-card cmp-draft">
-                  <div className="cmp-card-h">
-                    <span className="cmp-k mono">Describe the work</span>
-                    <span className="muted cmp-draft-hint">Sage drafts the brief; you set the pay</span>
-                  </div>
-                  <textarea
-                    className="lx-input cmp-input cmp-draft-ta"
-                    rows={3}
-                    placeholder="e.g. Pay 5 people to each publish a short guide to setting up my product, on their own blog, with a screenshot of it running…"
-                    value={draftText}
-                    onChange={(e) => setDraftText(e.target.value)}
-                    disabled={draftBusy}
-                  />
-                  <div className="cmp-draft-row">
-                    <button type="button" className="lx-btn" onClick={() => void draftWithSage()} disabled={draftBusy || draftText.trim().length < 10}>
-                      {draftBusy ? "Sage is drafting…" : "Draft with Sage"}
-                    </button>
-                    <span className="muted">Steps, acceptance criteria and the evidence rule — for software, writing, design, a catalogue, a delivery, anything.</span>
-                  </div>
-                  {draftErr && <p className="cmp-err">{draftErr}</p>}
-                  {draftNotes.map((n, i) => (
-                    <p className="muted cmp-draft-note" key={i}>{n}</p>
-                  ))}
-                </div>
+            {/* HAND IT TO SAGE (28 Oct 2026). The founder: "pay for work looks so packed", and of chat
+                boxes, "simple type to agent got too common that no one uses". The work is usually
+                written down already, so the founder hands it over: a link Sage opens and reads
+                itself, or the message they'd send someone. Sage writes the job, and what comes back
+                is one card whose two decisions (what it pays, who can do it) are taps. The full form
+                stays behind "Change the details" for the job that needs it. */}
+            <div className="ho">
+              <label className="ho-k" htmlFor="ho-in">Paste a link, or the message you&apos;d send someone</label>
+              <textarea
+                id="ho-in"
+                className={`ho-in${linkOnly ? " mono" : ""}`}
+                rows={2}
+                placeholder="https://github.com/you/app/issues/42, or: Pay my designer $50 when the new landing page is live"
+                value={draftText}
+                onChange={(e) => {
+                  setDraftText(e.target.value);
+                  setProductChoice(false);
+                }}
+                disabled={draftBusy}
+              />
+              <div className="ho-foot">
+                <span className="ho-hint">An issue, a doc, a page, or a few words</span>
+                <button type="button" className="lx-btn" onClick={() => void handOver()} disabled={draftBusy || draftText.trim().length < 10}>
+                  {draftBusy ? "Sage is on it…" : "Hand it to Sage"}
+                </button>
+              </div>
+            </div>
+
+            {productChoice && (
+              <div className="ho-choice" role="group" aria-label="What this link is for">
+                <span>That looks like a product. Do you want people to try it?</span>
+                <span className="ho-choice-do">
+                  <button type="button" className="lx-btn" onClick={tryProduct}>Have people try it</button>
+                  <button type="button" className="lxo-chip" onClick={() => void handOver(true)}>No, it&apos;s work I want done</button>
+                </span>
+              </div>
+            )}
+
+            {(draftBusy || handed) && (
+              <ul className="ho-steps" aria-live="polite">
+                {draftBusy ? (
+                  <li className="ho-step">
+                    <Loader2 size={14} className="sage-spin2" aria-hidden />
+                    <span>{busyUrl ? `Reading ${labelFor(busyUrl)} and writing the job` : "Writing the job and what it checks"}</span>
+                    <span className="mono ho-time">· {elapsed}s</span>
+                  </li>
+                ) : (
+                  handed && (
+                    <>
+                      {handed.source &&
+                        (handed.source.read ? (
+                          <li className="ho-step done">
+                            <Check size={14} aria-hidden /> <span>Opened {handed.source.label}</span>
+                          </li>
+                        ) : (
+                          <li className="ho-step miss">
+                            <X size={14} aria-hidden /> <span>Couldn&apos;t open {handed.source.label}: {handed.source.reason}.</span>
+                          </li>
+                        ))}
+                      {handed.seconds !== null && (
+                        <li className="ho-step done">
+                          <Check size={14} aria-hidden /> <span>Wrote the job and what it checks</span>
+                          <span className="mono ho-time">· {handed.seconds}s</span>
+                        </li>
+                      )}
+                    </>
+                  )
+                )}
+              </ul>
+            )}
+            {draftErr && <p className="cmp-err">{draftErr}</p>}
+            {draftNotes.map((n, i) => (
+              <p className="muted cmp-draft-note" key={i}>{n}</p>
+            ))}
+
+            {hasJob ? (
+              <JobCard
+                title={cardTitle}
+                from={handed?.source?.read ? handed.source.label : null}
+                slots={pay.slots}
+                tranches={tranches}
+                splitTotal={splitTotal}
+                shares={splitPreview()}
+                currencySymbol={curSymbol}
+                isLocal={isLocal}
+                inviteOnly={inviteOnly}
+                canInvite={canInvite}
+                chainName={(id) => chainConfig(id ?? DEFAULT_EVM_LAUNCH_CHAIN).name}
+                onChange={(patch) => {
+                  if (patch.slots !== undefined) setP("slots", patch.slots);
+                  if (patch.tranches) setTranches(patch.tranches);
+                  if (patch.splitTotal !== undefined) setSplitTotal(patch.splitTotal);
+                  if (patch.inviteOnly !== undefined) setInviteOnly(patch.inviteOnly);
+                }}
+                onDetails={() => setShowDetails((v) => !v)}
+                detailsOpen={showDetails}
+                action={launchedJob ? null : launchButton}
+                note={launchNote}
+              />
+            ) : (
+              !draftBusy &&
+              !showDetails && (
+                <button type="button" className="ho-manual" onClick={() => setShowDetails(true)}>
+                  Or fill it in yourself
+                </button>
+              )
+            )}
+
+            {showDetails && (
+              <div className="cmp-details">
                 <div className="cmp-card">
                   <div className="cmp-card-h">
                     <span className="cmp-k mono">{tranches.length > 1 ? "Milestone grant" : Number(pay.slots) > 1 ? "Open bounty" : "Gig"}</span>
@@ -958,170 +1059,13 @@ export function LaunchForm() {
                   )}
                 </div>
 
-                <div className="lxo-chips lxs-ex cmp-ex" role="group" aria-label="Start from an example">
-                  {PAY_EXAMPLES.map((ex) => (
-                    <button
-                      key={ex.label}
-                      type="button"
-                      className="lxo-chip"
-                      onClick={() => {
-                        setPay({ who: ex.who, slots: ex.slots });
-                        setTranches(ex.tranches.map((t) => ({ ...blankTranche(), ...t })));
-                        setSplitTotal(ex.splitTotal ?? "");
-                        setCurrency(ex.currency ?? "USD");
-                        setPayErr(null);
-                      }}
-                    >
-                      {ex.label}
-                    </button>
-                  ))}
-                </div>
               </div>
-
-              {/* ── the plan, forming ── */}
-              <aside className="cmp-preview" aria-label="What Sage will compile">
-                <div className="cmp-preview-h">
-                  <span className="cmp-k mono">What Sage will do</span>
-                  <span className="cmp-live mono">forms as you type</span>
-                </div>
-                <div className="cmp-pv-total">
-                  <span className="cmp-pv-amt mono">
-                    {curSymbol}
-                    {splitting
-                      ? Number(splitTotal || 0).toFixed(2)
-                      : (tranches.reduce((a, t) => a + (Number(t.amount) || 0), 0) * (tranches.length === 1 ? Number(pay.slots) || 1 : 1)).toFixed(2)}
-                  </span>
-                  <span className="cmp-pv-k">
-                    {tranches.length > 1
-                      ? `across ${tranches.length} milestones, released one by one`
-                      : Number(pay.slots) > 1
-                        ? `${pay.slots} people × ${curSymbol}${Number(tranches[0]?.amount || 0).toFixed(2)}`
-                        : "one deliverable, one payout"}
-                    {isLocal ? ` · converted once to USDC at a stamped rate` : ""}
-                  </span>
-                </div>
-                <ol className="cmp-pv-list">
-                  {tranches.map((t, i) => {
-                    const opt = VERIFY_OPTIONS.find((o) => o.value === t.verify);
-                    return (
-                      <li key={i}>
-                        <span className="cmp-pv-n mono">{String(i + 1).padStart(2, "0")}</span>
-                        <span className="cmp-pv-body">
-                          <b>{(t.title ?? "").trim().length >= 4 ? (t.title ?? "").trim() : t.deliverable.trim() ? missionTitleFrom(t.deliverable, i) : "…what must be true"}</b>
-                          {t.deliverable.trim() && <span className="cmp-pv-crit">{t.deliverable.trim()}</span>}
-                          {(t.criteria?.length ?? 0) > 0 && (
-                            <ul className="cmp-pv-criteria">
-                              {t.criteria!.map((c, k) => (
-                                <li key={k}>{c}</li>
-                              ))}
-                              {t.minWords ? <li>At least {t.minWords} words of the worker&rsquo;s own writing (checked before any model reads it)</li> : null}
-                            </ul>
-                          )}
-                          <span className="cmp-pv-verify">Sage verifies by {opt?.ask ?? "checking the evidence"}{t.verify === "page" && t.expectedText.trim() ? ` — it must show “${t.expectedText.trim()}”` : ""}.</span>
-                          <span className="cmp-pv-pay mono">{splitting ? `${curSymbol}${splitPreview()[i]}` : `${curSymbol}${Number(t.amount || 0).toFixed(2)}`} released on verification</span>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-                <ul className="cmp-pv-facts">
-                  <li><span className="mono">door</span>{inviteOnly ? "invite-only — off the public board" : "listed on the marketplace"}</li>
-                  <li><span className="mono">who</span>{pay.who.trim() || "anyone who can do it"}{tranches.length === 1 && Number(pay.slots) > 1 ? ` · up to ${pay.slots} people` : ""}</li>
-                  <li><span className="mono">refuses if</span>the evidence does not show the deliverable, is not theirs, or repeats another submission</li>
-                  <li><span className="mono">then</span>launching funds it from your account, and payouts run with receipts</li>
-                </ul>
-              </aside>
-            </div>
-
-            {payErr && (
-              <p className="lxs-err" role="alert">
-                {payErr}
-                {planLink && (
-                  <>
-                    {" "}The plan is saved: <Link href={planLink}>launch it from its page</Link>.
-                  </>
-                )}
-              </p>
-            )}
-            {upgrade !== undefined && <UpgradeLink to={upgrade} className="lx-btn" />}
-
-            {launchedJob ? (
-              <div className="cmp-live" role="status">
-                <p>
-                  <Sparkles size={15} /> <b>It&apos;s live.</b> Sage created the job&apos;s vault from your account, funded it and opened it. Every payout gets a receipt.
-                </p>
-                <div className="cmp-live-row">
-                  <Link className="lx-btn" href={`/campaign/${launchedJob.campaignId}`}>
-                    Open the job <ArrowUpRight size={14} />
-                  </Link>
-                  <a className="lxo-chip" href={launchedJob.url}>the board</a>
-                  <button type="button" className="lxo-chip" onClick={postAnother}>Post another</button>
-                </div>
-              </div>
-            ) : (
-              founder.authed &&
-              !payBusy && (
-                <p className="cmp-wait">
-                  {!payValid()
-                    ? missing()
-                    : isLocal
-                      ? "Priced in another currency: Sage converts it when the plan is created, then you launch it from the plan's page."
-                      : account.state === "none"
-                        ? "Your account isn't open yet. Create the plan, then open your account and launch it from the plan's page."
-                        : account.state === "open" && readiness && !readiness.ready
-                          ? readiness.short
-                            ? `Your account holds $${(account.read.balanceUsd ?? 0).toFixed(2)}. Add $${readiness.addUsd.toFixed(2)} to launch this, or create the plan now and launch it later.`
-                            : readiness.overCap
-                              ? `Your account puts at most $${(account.read.perCampaignCapUsd ?? 0).toFixed(2)} into one job. Raise that limit to launch this one.`
-                              : `Launching needs about ${nativeAmount(account.read.launchFloorWei)} ${account.read.nativeSymbol ?? "METIS"} for network fees, paid from your account.`
-                          : null}
-                  {account.state === "open" && readiness && !readiness.ready && payValid() && !isLocal && (
-                    <span className="cmp-wait-fix">
-                      {(readiness.short || readiness.needsFee) && (
-                        <a className="lxo-chip" href="/workspace/account?do=add" target="_blank" rel="noopener noreferrer">Add money</a>
-                      )}
-                      {readiness.needsFee && account.read.canSwap && !!account.read.gasWei && BigInt(account.read.gasWei) > BigInt(0) && (
-                        <a className="lxo-chip" href="/workspace/account?do=swap" target="_blank" rel="noopener noreferrer">Swap USDC to {account.read.nativeSymbol ?? "METIS"}</a>
-                      )}
-                      {readiness.overCap && (
-                        <a className="lxo-chip" href="/workspace/account" target="_blank" rel="noopener noreferrer">Change the limit</a>
-                      )}
-                    </span>
-                  )}
-                </p>
-              )
             )}
           </div>
         )}
 
-        {step === 1 && (
-          <div className="lxo-budget">
-            <input
-              autoFocus
-              className="lxo-budget-input"
-              type="number"
-              min="0.5"
-              step="0.5"
-              value={form.budgetUsd}
-              onChange={(e) => set("budgetUsd", e.target.value)}
-              aria-label="Testing budget"
-            />
-            <span className="lxo-budget-unit">USDC</span>
-          </div>
-        )}
-        {/* ONBOARDING — the founder's whole lifecycle in one line, on the last thing they type.
-            Two human moments (approve, fund); everything else Sage does and narrates after. */}
-        {mode === "test" && step === 1 && (
-          <ol className="lxo-next" aria-label="What happens next">
-            <li><b>Sage inspects</b> your product in a real browser — a few minutes</li>
-            <li><b>You approve</b> the missions it designed</li>
-            <li><b>You fund once</b> — a vault Sage cannot exceed</li>
-            <li><b>Payouts run themselves</b>, each with a public receipt</li>
-          </ol>
-        )}
-
-        <div className="lxo-hint">{step === 0 ? MODE_HINT[mode] : s.hint}</div>
-        {!founder.authed && last && !showSignIn && (
+        <div className="lxo-hint">{MODE_HINT[mode]}</div>
+        {!founder.authed && mode === "test" && !showSignIn && (
           <p className="lxo-hint" style={{ marginTop: 6, opacity: 0.85 }}>
             You&apos;ll sign in to start, with your email or MetaMask: no gas, no transaction, nothing spent.
             It just ties this inspection to you so your plan and any feedback stay yours.
@@ -1151,56 +1095,23 @@ export function LaunchForm() {
         </div>
       )}
 
-      <div className="lxo-nav">
-        {step > 0 ? (
-          <button type="button" className="lx-btn ghost" onClick={back}>
-            Back
-          </button>
-        ) : (
-          <span className="lxo-step-count">
-            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : launchesHere ? "The plan on the right is what launches" : "One step: the plan compiles when you continue"}
-          </span>
-        )}
-        {mode === "pay" && step === 0 ? (
-          launchedJob ? null : (
-            <button
-              type="button"
-              className="lx-btn"
-              onClick={() => (founder.authed ? void submitPay() : setShowSignIn(true))}
-              disabled={payBusy || (founder.authed && !payValid())}
-            >
-              {payBusy
-                ? payPhase === "launch"
-                  ? "Sage is launching it from your account…"
-                  : "Writing the plan…"
-                : !founder.authed
-                  ? "Sign in to launch"
-                  : launchesHere
-                    ? `Launch · $${total.toFixed(2)} from your account`
-                    : tranches.length > 1
-                      ? "Create the grant"
-                      : "Create the gig"}
-              <span aria-hidden>→</span>
-            </button>
-          )
-        ) : last ? (
-          <button type="button" className="lx-btn" onClick={submit} disabled={submitting || !stepValid() || siwe.connecting || siwe.signingIn}>
+      {mode === "test" && (
+        <div className="lxo-nav">
+          <span className="lxo-step-count">One step. You see the plan before anything moves</span>
+          <button type="button" className="lx-btn" onClick={submit} disabled={submitting || (!describesWork() && !stepValid()) || siwe.connecting || siwe.signingIn}>
             {submitting
               ? "Starting…"
-              : siwe.connecting || siwe.signingIn
-                ? "Connecting…"
-                : founder.authed
-                  ? "Let Sage inspect"
-                  : "Sign in & inspect"}
+              : describesWork()
+                ? "Set it up as work"
+                : siwe.connecting || siwe.signingIn
+                  ? "Connecting…"
+                  : founder.authed
+                    ? "Let Sage look at it"
+                    : "Sign in and let Sage look"}
             <span aria-hidden>→</span>
           </button>
-        ) : (
-          <button type="button" className="lx-btn" onClick={next} disabled={!stepValid()}>
-            Continue
-            <span aria-hidden>→</span>
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
