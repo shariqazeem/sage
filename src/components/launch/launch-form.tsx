@@ -1,5 +1,5 @@
 "use client";
-import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, isPausedNetwork, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 
 /** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
 const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).isMainnet);
@@ -7,10 +7,16 @@ const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS
 import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
+import { blankTranche, composeDirectBody, composerTotal, type Tranche } from "@/lib/launch/composer";
+import { FIRST_IMPRESSIONS_GOAL, readyJobs, type ReadyJob, type ReadyProduct } from "@/lib/launch/ready-jobs";
+import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
+import { UpgradeLink } from "@/components/plans/upgrade-link";
+import type { PlanId } from "@/lib/plans/catalog";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CURRENCIES } from "@/lib/money/currency";
-import { X, HandCoins, Plus, ScanSearch } from "lucide-react";
+import { X, HandCoins, Plus, ScanSearch, Sparkles, ArrowUpRight } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
@@ -27,7 +33,7 @@ const GOAL_CHIPS: { label: string; goal: string }[] = [
   { label: "Let Sage decide", goal: "" },
   {
     label: "First impressions",
-    goal: "Can a first-time visitor understand what this product does and find where to start? Report what you actually saw on each screen.",
+    goal: FIRST_IMPRESSIONS_GOAL,
   },
   {
     label: "Signup & onboarding",
@@ -69,25 +75,6 @@ const VERIFY_OPTIONS = [
 
 type PayDraft = { who: string; slots: string };
 
-/** One payment line the founder composes — a tranche of a grant, or the whole of a gig. */
-type Tranche = {
-  amount: string;
-  deliverable: string;
-  verify: string;
-  expectedText: string;
-  toAddr: string;
-  /** The network the worker's transaction is on (a contract deployed on Metis is checked on Metis). */
-  txChain?: number;
-  title?: string;
-  /** Drafted by Sage from the founder's sentence (the gig brain) — the steps, the acceptance
-   *  criteria with an effort bar, the word floor. Absent when the founder composed by hand. */
-  instructions?: string;
-  criteria?: string[];
-  minWords?: number;
-  effortMinutes?: number;
-};
-const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
-
 /** A drafted milestone, as the draft route returns it. */
 type DraftMilestone = {
   title: string;
@@ -112,7 +99,6 @@ const SLOT_OPTIONS = ["1", "2", "3", "5", "10"];
  */
 const clampSlots = (n: number): string => String(Math.min(50, Math.max(1, Math.round(Number.isFinite(n) ? n : 1))));
 const slotChoices = (current: string): string[] => (SLOT_OPTIONS.includes(current) ? SLOT_OPTIONS : [...SLOT_OPTIONS, current].sort((a, b) => Number(a) - Number(b)));
-const MARKER_CRITERION = "The page carries the submitting wallet address";
 
 /** Tap-to-fill examples — the blank-page killer. Each writes complete working sentences the
  *  founder edits, the same way the goal chips write proven goal shapes. */
@@ -149,7 +135,7 @@ const PAY_EXAMPLES: { label: string; who: string; slots: string; splitTotal?: st
 /** The one-line trust hint under each door — everything longer was deleted, not moved. */
 const MODE_HINT = {
   test: "Sage only reads your product. Approve the plan, fund once — payouts run themselves, each with a public receipt.",
-  pay: "Describe it and Sage drafts the brief — steps, criteria, evidence rule. You set the money; the plan compiles deterministically and no model ever sets an amount. Approve and fund once; work that fails verification is never paid.",
+  pay: "Pick a ready job or describe your own, and Sage drafts the brief. You set the money, and no model ever sets an amount. Launching funds it from your account, and work that fails Sage's checks is never paid.",
 } as const;
 
 /**
@@ -259,6 +245,63 @@ export function LaunchForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // READY TO GO (28 Oct 2026): whole jobs written for this founder's product, and the product a test starts from.
+  const [product, setProduct] = useState<ReadyProduct>({ name: null, url: null });
+  const ready = useMemo(() => readyJobs(product), [product]);
+  const [picked, setPicked] = useState<string | null>(null);
+  useEffect(() => {
+    if (!founder.authed) return;
+    let live = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/launch/starters", { cache: "no-store" });
+        const j = (await r.json()) as { product?: ReadyProduct | null };
+        if (!live || !j.product) return;
+        setProduct(j.product);
+        const url = j.product.url;
+        // testing again starts where the last test did; a URL already typed is never replaced
+        if (url) setForm((f) => (f.productUrl.trim() ? f : { ...f, productUrl: url }));
+      } catch {
+        /* the jobs read "your product" */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [founder.authed]);
+
+  /**
+   * ONE BUTTON (28 Oct 2026). "Create the gig" used to lead to a plan page, where a second button
+   * launched it. The account is read here once, so the composer's own button can launch the job from
+   * it, and say before the click what launching still needs. Readiness comes from the same helper the
+   * plan page's door uses.
+   */
+  type ComposerAccount = AccountRead & { linked?: boolean; chainId?: number; nativeSymbol?: string; launchFloorWei?: string; canSwap?: boolean; gasWei?: string | null };
+  const [account, setAccount] = useState<{ state: "loading" | "none" } | { state: "open"; read: ComposerAccount }>({ state: "loading" });
+  const [accountReads, setAccountReads] = useState(0);
+  useEffect(() => {
+    if (mode !== "pay" || !founder.authed) return;
+    let live = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/treasury", { cache: "no-store" });
+        const j = (await r.json()) as ComposerAccount;
+        if (!live) return;
+        setAccount(r.ok && j.linked && !(j.chainId != null && isPausedNetwork(j.chainId)) ? { state: "open", read: j } : { state: "none" });
+      } catch {
+        if (live) setAccount({ state: "none" });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [mode, founder.authed, accountReads]);
+  const [payPhase, setPayPhase] = useState<"plan" | "launch">("plan");
+  const [launchedJob, setLaunchedJob] = useState<{ campaignId: string; url: string } | null>(null);
+  const [planLink, setPlanLink] = useState<string | null>(null);
+  // undefined: no plan refusal; null: no plan would help; a plan: the one that lifts it
+  const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
+
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setP = (k: keyof PayDraft, v: string) => setPay((p) => ({ ...p, [k]: v }));
 
@@ -320,6 +363,62 @@ export function LaunchForm() {
     tranches.every(trancheValid) &&
     (!splitting || (isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length));
 
+  /** Why the button waits, in words: the first thing payValid is missing, so a grey button is never a riddle. */
+  const missing = (): string | null => {
+    if (pay.who.trim().length < 2) return "Say who this is for.";
+    for (const [i, t] of tranches.entries()) {
+      const which = tranches.length > 1 ? ` for milestone ${i + 1}` : "";
+      if (t.deliverable.trim().length < 8) return `Say what must be true${which}.`;
+      if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return `Set what it pays${which}.`;
+      if (t.verify === "page" && t.expectedText.trim().length < 3) return `Add the text that must appear${which}.`;
+      if (t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
+    }
+    if (splitting && !(isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length)) return "Set the total.";
+    return null;
+  };
+
+  const total = composerTotal({ tranches, slots: pay.slots, splitTotal });
+  const readiness = account.state === "open" ? launchReadiness(account.read, total) : null;
+  // A job priced in another currency is converted at compile, so its dollar total is known only on the plan page.
+  const launchesHere = founder.authed && !isLocal && account.state === "open" && readiness?.ready === true;
+
+  /** After a launch: a clean composer, and the account read again (the job took its budget). */
+  const postAnother = () => {
+    setLaunchedJob(null);
+    setPicked(null);
+    setPay({ who: "", slots: "1" });
+    setTranches([blankTranche()]);
+    setSplitTotal("");
+    setCurrency("USD");
+    setInviteOnly(false);
+    setDraftText("");
+    setDraftWhy("");
+    setDraftNotes([]);
+    setAccount({ state: "loading" });
+    setAccountReads((n) => n + 1);
+  };
+
+  const pickReady = (j: ReadyJob) => {
+    setPayErr(null);
+    setPlanLink(null);
+    setUpgrade(undefined);
+    if (j.kind === "test") {
+      setMode("test");
+      setStep(0);
+      setForm((f) => ({ ...f, productUrl: f.productUrl.trim() || product.url || "", goal: j.goal }));
+      return;
+    }
+    setPicked(j.key);
+    setPay({ who: j.draft.who, slots: j.draft.slots });
+    setTranches(j.draft.tranches.map((t) => ({ ...t, criteria: t.criteria ? [...t.criteria] : undefined })));
+    setSplitTotal(j.draft.splitTotal);
+    setCurrency("USD");
+    setInviteOnly(j.draft.inviteOnly);
+    setDraftText("");
+    setDraftWhy("");
+    setDraftNotes([]);
+  };
+
   /**
    * DISPLAY-ONLY mirror of the server's exact base-unit split (splitTotalBase): floor + remainder
    * one unit at a time. The server is the authority; this exists so the founder WATCHES the split
@@ -347,6 +446,7 @@ export function LaunchForm() {
     setDraftErr(null);
     setDraftNotes([]);
     setDraftBusy(true);
+    setPicked(null);
     try {
       const res = await fetch("/api/campaigns/direct/draft", {
         method: "POST",
@@ -398,72 +498,18 @@ export function LaunchForm() {
   const submitPay = async () => {
     if (!payValid() || payBusy) return;
     setPayErr(null);
+    setPlanLink(null);
+    setUpgrade(undefined);
+    setPayPhase("plan");
     setPayBusy(true);
     try {
-      const isGrant = tranches.length > 1;
-      const who = pay.who.trim();
-      const slots = isGrant ? 1 : Math.max(1, Math.min(50, Math.round(Number(pay.slots) || 1)));
-      const title = `Pay ${who}`.slice(0, 80);
-      const milestones = tranches.map((t, i) => {
-        const d = t.deliverable.trim().replace(/\.+$/, "");
-        const cap = d.charAt(0).toUpperCase() + d.slice(1);
-        const evidence =
-          t.verify === "page"
-            ? { kind: "public_url", expectedText: [t.expectedText.trim()] }
-            : t.verify === "onchain"
-              ? { kind: "onchain_tx", chainId: t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN, to: t.toAddr.trim() }
-              : { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" };
-        const proofLine =
-          t.verify === "page"
-            ? "Submit the public page showing the required text."
-            : t.verify === "onchain"
-              ? "Submit the transaction hash, sent from your own submitting wallet."
-              : "Submit the public link to what you made — it must visibly carry your own wallet address.";
-        // The founder's sentence is the CRITERION; the card title is its first clause (or the title they
-        // typed). "You are paid when …" only read for a state sentence ("the page is live") and broke
-        // for an instruction ("Read …, then write …") — "What must be true:" reads for both.
-        const typedTitle = (t.title ?? "").trim();
-        // Drafted criteria are the founder-approved brief; the automatic check is appended so the
-        // judge's rubric and the deterministic gate never disagree about the marker.
-        const drafted = (t.criteria ?? []).map((c) => c.trim()).filter((c) => c.length >= 4);
-        const autoCriterion =
-          t.verify === "link"
-            ? MARKER_CRITERION
-            : t.verify === "page"
-              ? `The page contains: "${t.expectedText.trim()}"`
-              : "The transaction was sent by the submitting wallet";
-        const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.includes(autoCriterion) ? [] : [autoCriterion])] : [cap, autoCriterion];
-        const draftedSteps = (t.instructions ?? "").trim();
-        return {
-          title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),
-          instructions: draftedSteps.length >= 10 ? draftedSteps.slice(0, 2000) : `What must be true: ${cap}. ${proofLine}`,
-          ...(splitting ? {} : isLocal ? { rewardLocal: Number(t.amount) } : {}),
-          criteria,
-          evidence: t.verify === "link" && t.minWords ? { ...evidence, minWords: t.minWords } : evidence,
-          slots,
-          ...(t.effortMinutes ? { effortMinutes: t.effortMinutes } : {}),
-          ...(splitting || isLocal ? {} : { rewardUsd: Number(t.amount) }),
-        };
-      });
-      const body = {
-        kind: isGrant ? "grant" : "gig",
-        title: title.length >= 4 ? title : "Pay for work",
-        milestones,
-        ...(draftWhy.trim().length >= 10 ? { whyItMatters: draftWhy.trim().slice(0, 600) } : {}),
-        ...(isLocal ? { currency } : {}),
-        ...(splitting
-          ? isLocal
-            ? { splitTotalLocal: Number(splitTotal) }
-            : { splitTotalUsd: Number(splitTotal) }
-          : {}),
-        ...(inviteOnly ? { visibility: "unlisted" as const } : {}),
-      };
+      const body = composeDirectBody({ who: pay.who, slots: pay.slots, tranches, splitTotal, currency, inviteOnly, why: draftWhy });
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; planUrl?: string };
+      const data = (await res.json()) as { ok?: boolean; error?: string; planUrl?: string; jobId?: string };
       if (res.status === 401) {
         setShowSignIn(true);
         setPayErr("Sign in (email or MetaMask) to create this — then press Continue again.");
@@ -472,7 +518,26 @@ export function LaunchForm() {
       if (!res.ok || !data.ok || !data.planUrl) {
         throw new Error(data.error ?? "The plan could not be compiled.");
       }
-      router.push(data.planUrl.replace(/^https?:\/\/[^/]+/, ""));
+      const planPath = data.planUrl.replace(/^https?:\/\/[^/]+/, "");
+      if (!launchesHere || !data.jobId || account.state !== "open") {
+        router.push(planPath);
+        return;
+      }
+      // the plan is saved and approved; the account deploys, funds and opens its vault
+      setPayPhase("launch");
+      const lr = await fetch(`/api/launch/${data.jobId}/treasury`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chainId: account.read.chainId }),
+      });
+      const lj = (await lr.json()) as { campaignId?: string; url?: string; error?: string; reason?: string; upgradeTo?: PlanId | null };
+      if (!lr.ok || !lj.campaignId) {
+        setPayErr(lj.error ?? "Sage could not launch it from your account.");
+        setPlanLink(planPath);
+        setUpgrade(lj.reason === "plan_limit" ? lj.upgradeTo ?? null : undefined);
+        return;
+      }
+      setLaunchedJob({ campaignId: lj.campaignId, url: lj.url ?? `/c/${lj.campaignId}` });
     } catch (e) {
       setPayErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -719,6 +784,26 @@ export function LaunchForm() {
                 POST body as before. */}
             <div className="cmp-grid">
               <div className="cmp-form">
+                {/* READY TO GO. Whole jobs for this founder's product: one tap fills everything below. */}
+                <div className="cmp-ready" role="group" aria-label="Ready to go">
+                  <div className="cmp-card-h">
+                    <span className="cmp-k mono">Ready to go</span>
+                    <span className="muted cmp-draft-hint">Pick one, change anything, launch</span>
+                  </div>
+                  <div className="cmp-ready-grid">
+                    {ready.map((j) => (
+                      <button key={j.key} type="button" className={`cmp-ready-card${picked === j.key ? " on" : ""}`} aria-pressed={picked === j.key} onClick={() => pickReady(j)}>
+                        <span className="cmp-ready-t">{j.title}</span>
+                        <span className="cmp-ready-l">{j.line}</span>
+                        <span className="cmp-ready-p mono">
+                          {j.price}
+                          {j.kind === "pay" && j.needs ? " · needs your contract" : ""}
+                          {j.kind === "test" ? " · product test" : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {/* THE GIG BRAIN. One sentence — what, for whom, how many, what good looks like — and
                     Sage drafts the steps, the acceptance criteria with an effort bar, and the evidence
                     rule, for any kind of work. The founder edits and approves; the money stays theirs. */}
@@ -943,7 +1028,7 @@ export function LaunchForm() {
                   <li><span className="mono">door</span>{inviteOnly ? "invite-only — off the public board" : "listed on the marketplace"}</li>
                   <li><span className="mono">who</span>{pay.who.trim() || "anyone who can do it"}{tranches.length === 1 && Number(pay.slots) > 1 ? ` · up to ${pay.slots} people` : ""}</li>
                   <li><span className="mono">refuses if</span>the evidence does not show the deliverable, is not theirs, or repeats another submission</li>
-                  <li><span className="mono">then</span>you approve the plan, fund once, and payouts run with receipts</li>
+                  <li><span className="mono">then</span>launching funds it from your account, and payouts run with receipts</li>
                 </ul>
               </aside>
             </div>
@@ -951,7 +1036,60 @@ export function LaunchForm() {
             {payErr && (
               <p className="lxs-err" role="alert">
                 {payErr}
+                {planLink && (
+                  <>
+                    {" "}The plan is saved: <Link href={planLink}>launch it from its page</Link>.
+                  </>
+                )}
               </p>
+            )}
+            {upgrade !== undefined && <UpgradeLink to={upgrade} className="lx-btn" />}
+
+            {launchedJob ? (
+              <div className="cmp-live" role="status">
+                <p>
+                  <Sparkles size={15} /> <b>It&apos;s live.</b> Sage created the job&apos;s vault from your account, funded it and opened it. Every payout gets a receipt.
+                </p>
+                <div className="cmp-live-row">
+                  <Link className="lx-btn" href={`/campaign/${launchedJob.campaignId}`}>
+                    Open the job <ArrowUpRight size={14} />
+                  </Link>
+                  <a className="lxo-chip" href={launchedJob.url}>the board</a>
+                  <button type="button" className="lxo-chip" onClick={postAnother}>Post another</button>
+                </div>
+              </div>
+            ) : (
+              founder.authed &&
+              !payBusy && (
+                <p className="cmp-wait">
+                  {!payValid()
+                    ? missing()
+                    : isLocal
+                      ? "Priced in another currency: Sage converts it when the plan is created, then you launch it from the plan's page."
+                      : account.state === "none"
+                        ? "Your account isn't open yet. Create the plan, then open your account and launch it from the plan's page."
+                        : account.state === "open" && readiness && !readiness.ready
+                          ? readiness.short
+                            ? `Your account holds $${(account.read.balanceUsd ?? 0).toFixed(2)}. Add $${readiness.addUsd.toFixed(2)} to launch this, or create the plan now and launch it later.`
+                            : readiness.overCap
+                              ? `Your account puts at most $${(account.read.perCampaignCapUsd ?? 0).toFixed(2)} into one job. Raise that limit to launch this one.`
+                              : `Launching needs about ${nativeAmount(account.read.launchFloorWei)} ${account.read.nativeSymbol ?? "METIS"} for network fees, paid from your account.`
+                          : null}
+                  {account.state === "open" && readiness && !readiness.ready && payValid() && !isLocal && (
+                    <span className="cmp-wait-fix">
+                      {(readiness.short || readiness.needsFee) && (
+                        <a className="lxo-chip" href="/workspace/account?do=add" target="_blank" rel="noopener noreferrer">Add money</a>
+                      )}
+                      {readiness.needsFee && account.read.canSwap && !!account.read.gasWei && BigInt(account.read.gasWei) > BigInt(0) && (
+                        <a className="lxo-chip" href="/workspace/account?do=swap" target="_blank" rel="noopener noreferrer">Swap USDC to {account.read.nativeSymbol ?? "METIS"}</a>
+                      )}
+                      {readiness.overCap && (
+                        <a className="lxo-chip" href="/workspace/account" target="_blank" rel="noopener noreferrer">Change the limit</a>
+                      )}
+                    </span>
+                  )}
+                </p>
+              )
             )}
           </div>
         )}
@@ -1020,19 +1158,31 @@ export function LaunchForm() {
           </button>
         ) : (
           <span className="lxo-step-count">
-            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : "One step — the plan compiles when you continue"}
+            {mode === "test" ? `Step ${step + 1} of ${STEPS.length}` : launchesHere ? "The plan on the right is what launches" : "One step: the plan compiles when you continue"}
           </span>
         )}
         {mode === "pay" && step === 0 ? (
-          <button
-            type="button"
-            className="lx-btn"
-            onClick={() => void submitPay()}
-            disabled={!payValid() || payBusy}
-          >
-            {payBusy ? "Compiling the plan…" : tranches.length > 1 ? "Create the grant" : "Create the gig"}
-            <span aria-hidden>→</span>
-          </button>
+          launchedJob ? null : (
+            <button
+              type="button"
+              className="lx-btn"
+              onClick={() => (founder.authed ? void submitPay() : setShowSignIn(true))}
+              disabled={payBusy || (founder.authed && !payValid())}
+            >
+              {payBusy
+                ? payPhase === "launch"
+                  ? "Sage is launching it from your account…"
+                  : "Writing the plan…"
+                : !founder.authed
+                  ? "Sign in to launch"
+                  : launchesHere
+                    ? `Launch · $${total.toFixed(2)} from your account`
+                    : tranches.length > 1
+                      ? "Create the grant"
+                      : "Create the gig"}
+              <span aria-hidden>→</span>
+            </button>
+          )
         ) : last ? (
           <button type="button" className="lx-btn" onClick={submit} disabled={submitting || !stepValid() || siwe.connecting || siwe.signingIn}>
             {submitting

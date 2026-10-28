@@ -163,3 +163,64 @@ describe("a plan's limit on the account launch", () => {
     expect(screen.getByRole("link", { name: "Upgrade to Pro" }).getAttribute("href")).toBe("/checkout?plan=pro");
   });
 });
+
+/**
+ * APPROVE AND LAUNCH, ONE CLICK (28 Oct 2026). A plan Sage designed took two buttons, approve and then
+ * launch, for one decision. The door now approves the revision on screen and launches it, in that order.
+ */
+describe("a plan not yet approved", () => {
+  function launchRoutes(opts: { approve?: unknown; approveStatus?: number; treasury?: unknown[] } = {}) {
+    const treasury = [...(opts.treasury ?? [{ campaignId: "gig-live", url: "/c/gig-live", steps: [] }])];
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u === "/api/treasury") return json(METIS);
+      if (u === "/api/launch/j/approve") return json(opts.approve ?? { ok: true }, opts.approveStatus ?? 200);
+      if (u === "/api/launch/j/treasury" && init?.method === "POST") {
+        const next = treasury.shift() ?? { error: "no more" };
+        return json(next, "campaignId" in (next as object) ? 200 : 409);
+      }
+      return json({ ok: false });
+    });
+  }
+  const posts = (f: ReturnType<typeof launchRoutes>) => f.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === "POST").map((c) => String(c[0]));
+
+  it("approves the revision on screen, then launches, with one click", async () => {
+    const f = launchRoutes();
+    vi.stubGlobal("fetch", f);
+    const onLaunched = vi.fn();
+    render(<TreasuryLaunch jobId="j" budgetUsd={1.01} approve={{ revision: 3 }} onLaunched={onLaunched} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Approve and launch from your account on Metis$/ }));
+    await screen.findByText(/The job is live/);
+    expect(posts(f)).toEqual(["/api/launch/j/approve", "/api/launch/j/treasury"]);
+    const approveCall = f.mock.calls.find((c) => String(c[0]) === "/api/launch/j/approve");
+    expect(JSON.parse(String((approveCall?.[1] as RequestInit).body))).toEqual({ expectedRevision: 3 });
+    expect(onLaunched).toHaveBeenCalledWith("gig-live");
+  });
+
+  it("launches nothing when the approval is refused, and says why", async () => {
+    const f = launchRoutes({ approve: { ok: false, error: "This plan changed — reload before approving." }, approveStatus: 409 });
+    vi.stubGlobal("fetch", f);
+    render(<TreasuryLaunch jobId="j" budgetUsd={1.01} approve={{ revision: 3 }} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Approve and launch/ }));
+    expect(await screen.findByText(/This plan changed/)).toBeTruthy();
+    expect(posts(f)).toEqual(["/api/launch/j/approve"]);
+  });
+
+  it("after an approval whose launch failed, a retry launches without approving twice", async () => {
+    const f = launchRoutes({ treasury: [{ error: "Couldn't reach Metis." }, { campaignId: "gig-live", url: "/c/gig-live", steps: [] }] });
+    vi.stubGlobal("fetch", f);
+    render(<TreasuryLaunch jobId="j" budgetUsd={1.01} approve={{ revision: 3 }} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Approve and launch/ }));
+    expect(await screen.findByText(/Couldn't reach Metis/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Let Sage launch it from your account on Metis$/ }));
+    await screen.findByText(/The job is live/);
+    expect(posts(f)).toEqual(["/api/launch/j/approve", "/api/launch/j/treasury", "/api/launch/j/treasury"]);
+  });
+
+  it("waits, and says why, while part of the budget is unallocated", async () => {
+    vi.stubGlobal("fetch", launchRoutes());
+    render(<TreasuryLaunch jobId="j" budgetUsd={1.01} approve={{ revision: 3 }} hold="Part of the budget is not allocated yet." />);
+    expect(await screen.findByRole("button", { name: /Approve and launch/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Part of the budget is not allocated yet.")).toBeTruthy();
+  });
+});

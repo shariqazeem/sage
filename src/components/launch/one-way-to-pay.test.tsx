@@ -12,22 +12,25 @@ const session = { address: null as string | null, chain: null as string | null, 
 vi.mock("@/lib/auth/use-founder-session", () => ({ useFounderSession: () => session }));
 
 // The deploy flow reaches for wallets and the network; this test is about which one is SHOWN.
-vi.mock("./deploy/deploy-flow", () => ({ DeployFlow: () => <div>metis-flow</div> }));
+vi.mock("./deploy/deploy-flow", () => ({
+  DeployFlow: (p: { approve?: { revision: number } }) => <div>{p.approve ? `metis-flow approving r${p.approve.revision}` : "metis-flow"}</div>,
+}));
 
 const plan = {
   totalBudgetBase: "1000000",
-  missions: [{ rewardBase: "500000", maxCompletions: 1, title: "m", missionKey: "m" }],
+  revision: 2,
+  missions: [{ rewardBase: "500000", maxCompletions: 2, title: "m", missionKey: "m" }],
 } as never;
 
-const renderBar = async (jobId: string, approved: boolean) => {
+const renderBar = async (jobId: string, approved: boolean, launched: { campaignId: string } | null = null) => {
   const { BudgetBar } = await import("./budget-bar");
   return render(
     <BudgetBar
       jobId={jobId}
       plan={plan}
       approval={approved ? { approvedAt: 1788000000, revision: 1, campaignIdHash: "0x1", missionPlanDigest: "0x2" } : null}
+      launched={launched}
       onRevised={() => {}}
-      onApproved={() => {}}
     />,
   );
 };
@@ -63,5 +66,29 @@ describe("how an approved plan is funded", () => {
     session.chain = "starknet";
     await renderBar("job4", true);
     expect(await screen.findByText("metis-flow")).toBeTruthy();
+  });
+});
+
+/**
+ * ONE BUTTON (28 Oct 2026): approving and launching were two buttons for one decision. A plan not yet
+ * approved launches through the door, which approves the revision on screen; a launched plan says so.
+ */
+describe("one decision, one button", () => {
+  it("a plan not yet approved has no separate approve button: launching approves the revision on screen", async () => {
+    await renderBar("job5", false);
+    expect(await screen.findByText("metis-flow approving r2")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Approve mission plan/ })).toBeNull();
+  });
+
+  it("an approved plan launches without approving again", async () => {
+    await renderBar("job6", true);
+    expect(await screen.findByText("metis-flow")).toBeTruthy();
+  });
+
+  it("a launched plan says it is live and offers no door", async () => {
+    await renderBar("job7", true, { campaignId: "gig-live" });
+    expect(screen.getAllByText(/This job is live/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/metis-flow/)).toBeNull();
+    expect(screen.getByRole("link", { name: /Open the job/ }).getAttribute("href")).toBe("/campaign/gig-live");
   });
 });

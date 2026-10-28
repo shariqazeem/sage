@@ -251,7 +251,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
       )}
 
       {plan && plan.missions.length > 0 && (
-        <BudgetBar plan={plan} jobId={job.id} approval={job.approval} onRevised={(j) => setJob(j)} onApproved={(j) => setJob(j)} />
+        <BudgetBar plan={plan} jobId={job.id} approval={job.approval} launched={job.launched} onRevised={(j) => setJob(j)} onLaunched={() => void refresh()} />
       )}
     </div>
   );

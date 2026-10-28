@@ -6,16 +6,11 @@ import { ArrowUpRight, Landmark, Loader2, Sparkles } from "lucide-react";
 import { UpgradeLink } from "@/components/plans/upgrade-link";
 import { isPausedNetwork } from "@/lib/deputy/networks";
 import type { PlanId } from "@/lib/plans/catalog";
+import { launchReadiness, nativeAmount } from "@/lib/treasury/launch-readiness";
 
 interface Account { chainId: number; network: string; address: string; isMainnet: boolean }
 interface Status { linked: boolean; address?: string; balanceUsd?: number; enoughGas?: boolean | null; perCampaignCapUsd?: number; chainId?: number; network?: string; isMainnet?: boolean; nativeSymbol?: string; gasWei?: string | null; launchFloorWei?: string; canSwap?: boolean; accounts?: Account[]; available?: boolean; reason?: string | null; error?: string }
 
-/** "0.05": a wei amount in plain digits for a sentence. */
-const native = (wei: string | undefined | null) => {
-  if (!wei) return "a little";
-  const n = Number(BigInt(wei)) / 1e18;
-  return n >= 0.01 ? n.toFixed(2).replace(/0$/, "") : n.toPrecision(2);
-};
 interface Launched { campaignId: string; url: string; steps: { step: string; explorerUrl: string }[] }
 
 /** What stands before a launch door, when no account can be shown yet. */
@@ -37,7 +32,26 @@ type Gate = { kind: "signed-out" } | { kind: "no-account"; chainId: number; netw
  * failed read, and when there is no account yet it opens one right here rather than sending the founder
  * somewhere else.
  */
-export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd: number }) {
+export function TreasuryLaunch({
+  jobId,
+  budgetUsd,
+  approve,
+  hold,
+  onLaunched,
+}: {
+  jobId: string;
+  budgetUsd: number;
+  /**
+   * APPROVE AND LAUNCH, ONE CLICK (28 Oct 2026). A plan Sage designed used to take two buttons: approve it,
+   * then launch it from the account. Launching now approves it, and only the revision on screen: a plan
+   * changed in another tab since is refused rather than launched.
+   */
+  approve?: { revision: number };
+  /** a reason the plan cannot launch yet (its budget is not fully allocated); the button waits */
+  hold?: string | null;
+  /** told once the job is live, so the page can say so instead of offering the door again */
+  onLaunched?: (campaignId: string) => void;
+}) {
   const [doors, setDoors] = useState<Status[] | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
   const [reads, setReads] = useState(0);
@@ -49,6 +63,8 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
   // The most Sage may put into one job, for an account opened from this page: at least this job's budget.
   const [cap, setCap] = useState(String(Math.max(50, Math.ceil(budgetUsd))));
   const [opening, setOpening] = useState(false);
+  // approved by an earlier click whose launch did not go through: a retry launches, it does not approve twice
+  const [approvedHere, setApprovedHere] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -144,6 +160,15 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
     setBusy(chainId ?? 0);
     setErr(null);
     try {
+      if (approve && !approvedHere) {
+        const a = await fetch(`/api/launch/${jobId}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision: approve.revision }) });
+        const aj = (await a.json()) as { ok?: boolean; error?: string };
+        if (!a.ok || !aj.ok) {
+          setErr(aj.error ?? "Could not approve the plan.");
+          return;
+        }
+        setApprovedHere(true);
+      }
       const r = await fetch(`/api/launch/${jobId}/treasury`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chainId }) });
       const j = (await r.json()) as Launched & { error?: string; reason?: string; upgradeTo?: PlanId | null };
       if (!r.ok) {
@@ -152,6 +177,7 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
         return;
       }
       setDone(j);
+      onLaunched?.(j.campaignId);
     } catch {
       setErr("Network error — try again.");
     } finally {
@@ -175,9 +201,7 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
   return (
     <div className="lxd-panel tl-gap">
       {doors.map((st) => {
-        const short = st.balanceUsd !== undefined && st.balanceUsd < budgetUsd;
-        const overCap = st.perCampaignCapUsd !== undefined && st.perCampaignCapUsd < budgetUsd;
-        const needsFee = st.enoughGas === false;
+        const { short, addUsd, overCap, needsFee } = launchReadiness(st, budgetUsd);
         const network = st.network ?? "your account";
         const sym = st.nativeSymbol ?? "gas";
         const hasSomeFee = !!st.gasWei && BigInt(st.gasWei) > BigInt(0);
@@ -187,11 +211,11 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
             <p className="lx-sub">
               <Landmark size={14} /> Your account on {network} holds ${(st.balanceUsd ?? 0).toFixed(2)} {st.isMainnet === false ? "test " : ""}USDC. This job needs ${budgetUsd.toFixed(2)}.
               {short
-                ? ` Add $${(budgetUsd - (st.balanceUsd ?? 0)).toFixed(2)} or more to your account.`
+                ? ` Add $${addUsd.toFixed(2)} or more to your account.`
                 : overCap
                   ? ` Your account puts at most $${st.perCampaignCapUsd?.toFixed(2)} into one job: raise that limit on the Account screen to launch this one.`
                   : needsFee
-                    ? ` It also needs about ${native(st.launchFloorWei)} ${sym} for network fees, paid from the account.`
+                    ? ` It also needs about ${nativeAmount(st.launchFloorWei)} ${sym} for network fees, paid from the account.`
                     : " Sage can launch it now, with no wallet steps."}
             </p>
             {(short || needsFee || overCap) && (
@@ -202,14 +226,21 @@ export function TreasuryLaunch({ jobId, budgetUsd }: { jobId: string; budgetUsd:
               </div>
             )}
             <div className="ws-nav">
-              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || needsFee || overCap}>
-                {busy === (st.chainId ?? 0) ? <><Loader2 size={13} className="sage-spin2" /> Sage is launching…</> : <><Sparkles size={13} /> Let Sage launch it from your account on {network}</>}
+              <button className="lx-btn" onClick={() => void launch(st.chainId)} disabled={busy !== null || short || needsFee || overCap || !!hold}>
+                {busy === (st.chainId ?? 0) ? (
+                  <><Loader2 size={13} className="sage-spin2" /> Sage is launching…</>
+                ) : approve && !approvedHere ? (
+                  <><Sparkles size={13} /> Approve and launch from your account on {network}</>
+                ) : (
+                  <><Sparkles size={13} /> Let Sage launch it from your account on {network}</>
+                )}
               </button>
               <span className="ws-note tl-flat">Up to ${st.perCampaignCapUsd?.toFixed(2)} per job · unspent returns to you</span>
             </div>
           </div>
         );
       })}
+      {hold && <p className="ws-note">{hold}</p>}
       {err && <p className="ws-err">{err}</p>}
       {upgrade !== undefined && <div className="ws-nav"><UpgradeLink to={upgrade} className="sage-btn sage-btn-sm" /></div>}
     </div>

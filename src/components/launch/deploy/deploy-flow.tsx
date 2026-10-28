@@ -72,7 +72,20 @@ const STEP_LABELS: Record<Step, string> = {
   activate: "Activating Sage",
 };
 
-export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
+export function DeployFlow({
+  jobId,
+  plan,
+  approve,
+  hold,
+  onLaunched,
+}: {
+  jobId: string;
+  plan: PlanView;
+  /** passed to the launch door: launching approves this revision (a plan not yet approved) */
+  approve?: { revision: number };
+  hold?: string | null;
+  onLaunched?: (campaignId: string) => void;
+}) {
   const wallet = useWallet();
   const storeKey = `sage.deploy.${jobId}`;
 
@@ -347,7 +360,7 @@ export function DeployFlow({ jobId, plan }: { jobId: string; plan: PlanView }) {
         </div>
       )}
       {/* FUND ONCE, THE AGENT LAUNCHES: the one door, for an email and a wallet sign-in alike. */}
-      {!dep && <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} />}
+      {!dep && <TreasuryLaunch jobId={jobId} budgetUsd={Number(plan.totalBudgetBase) / 10 ** plan.tokenDecimals} approve={approve} hold={hold} onLaunched={onLaunched} />}
 
       {error && (
         <div className="lx-err" role="alert" style={{ marginTop: 10 }}>

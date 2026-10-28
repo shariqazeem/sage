@@ -1,27 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 import { reward, type JobView, type PlanView } from "./types";
 import { DeployFlow } from "./deploy/deploy-flow";
 
 /**
- * The budget summary + durable approval. Budget arithmetic is exact (the server owns the
- * allocation); the founder can change the total and rebalance. Approval posts to
- * /api/launch/<id>/approve, where the server recomputes + verifies every canonical hash
- * before durably recording it — so approval survives refresh and is never a client flag.
+ * The budget summary, then the launch. Budget arithmetic is exact (the server owns the allocation); the
+ * founder can change the total and rebalance. Approval still posts to /api/launch/<id>/approve, where the
+ * server recomputes + verifies every canonical hash before durably recording it, so approval survives a
+ * refresh and is never a client flag.
+ *
+ * ONE BUTTON (28 Oct 2026, the founder: "the way it has steps to launch it, that whole flow feels boring
+ * and manual"). Approve, then launch, were two buttons for one decision. Launching now approves the plan on
+ * screen, and a launched plan says it is live instead of offering the door again.
  */
 export function BudgetBar({
   plan,
   jobId,
   approval,
+  launched,
   onRevised,
-  onApproved,
+  onLaunched,
 }: {
   plan: PlanView;
   jobId: string;
   approval: JobView["approval"];
+  launched?: JobView["launched"];
   onRevised: (job: JobView) => void;
-  onApproved: (job: JobView) => void;
+  onLaunched?: (campaignId: string) => void;
 }) {
   const [editingBudget, setEditingBudget] = useState(false);
 
@@ -53,23 +61,11 @@ export function BudgetBar({
     setBusy(false);
   };
 
-  const approve = async () => {
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch(`/api/launch/${jobId}/approve`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ expectedRevision: plan.revision }),
-      });
-      const data = await res.json();
-      if (!data.ok) { setError(data.error ?? "Could not approve — reload and try again."); setBusy(false); return; }
-      onApproved(data.job as JobView);
-    } catch { setError("Could not approve. Please try again."); }
-    setBusy(false);
-  };
-
   return (
     <section className="lx-card pad-lg" aria-label="Budget and approval" style={{ marginTop: 22 }}>
-      {locked ? (
+      {launched ? (
+        <div className="lx-ready-banner"><span aria-hidden>✓</span> This job is live</div>
+      ) : locked ? (
         <div className="lx-ready-banner"><span aria-hidden>✓</span> You approved this plan · ready to fund</div>
       ) : (
         <div className="lx-ready-banner lx-review-banner"><span aria-hidden>›</span> Sage&rsquo;s plan passed its checks · ready for your review</div>
@@ -83,7 +79,7 @@ export function BudgetBar({
         <div><div className="lx-sum-k">Missions · completions</div><div className="lx-sum-v">{plan.missions.length} · {completions}</div></div>
       </div>
 
-      {!locked && (
+      {!locked && !launched && (
         editingBudget ? (
           <div className="lx-next" style={{ marginTop: 14, alignItems: "flex-end" }}>
             <div className="lx-field" style={{ margin: 0, maxWidth: 180 }}>
@@ -98,17 +94,29 @@ export function BudgetBar({
         )
       )}
 
-      <div className="lx-kicker" style={{ margin: "22px 0 10px" }}>Approve</div>
+      <div className="lx-kicker" style={{ margin: "22px 0 10px" }}>Launch</div>
       <p className="lx-approve-note">
-        <b>Approve this plan once.</b> Sage can then coordinate, verify, and pay work inside these limits. The campaign
-        vault enforces the mission rewards, completion caps, total budget, velocity, and replay protection — Sage
-        cannot exceed them.
+        {!locked && !launched && <><b>Launching approves this plan.</b> </>}
+        Sage checks the work and pays only inside these limits: the job&apos;s vault enforces the mission rewards,
+        completion caps, total budget, velocity and replay protection, and Sage cannot exceed them.
       </p>
 
-      {!locked ? (
-        <button className="lx-btn" onClick={approve} disabled={busy || remaining !== 0}>{busy ? "Approving…" : "Approve mission plan"}</button>
+      {launched ? (
+        <div className="lxd-panel">
+          <p className="lx-sub"><Sparkles size={14} /> This job is live. Every payout gets a receipt, and every refusal its reason.</p>
+          <div className="ws-nav tl-top">
+            <Link className="sage-btn sage-btn-primary sage-btn-sm" href={`/campaign/${launched.campaignId}`}>Open the job <ArrowUpRight size={13} /></Link>
+            <a className="ws-chip" href={`/c/${launched.campaignId}`}>the board</a>
+          </div>
+        </div>
       ) : (
-        <DeployFlow jobId={jobId} plan={plan} />
+        <DeployFlow
+          jobId={jobId}
+          plan={plan}
+          approve={locked ? undefined : { revision: plan.revision }}
+          hold={!locked && remaining !== 0 ? "Part of the budget is not allocated yet. Rebalance it above, then launch." : null}
+          onLaunched={onLaunched}
+        />
       )}
       {error && <div className="lx-err" role="alert" style={{ marginTop: 10 }}>{error}</div>}
     </section>

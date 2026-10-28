@@ -59,6 +59,8 @@ export interface JobView {
   corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
   revision: number;
   approval: { approvedAt: number; revision: number; campaignIdHash: string; missionPlanDigest: string } | null;
+  /** the job this plan became, once launched — the page shows it live instead of the launch door */
+  launched?: { campaignId: string } | null;
   createdAt: number;
   updatedAt: number;
 }

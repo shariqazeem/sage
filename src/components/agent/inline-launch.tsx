@@ -54,6 +54,17 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
     };
   }, [inspectionId]);
 
+  // once launched, the job comes back approved and live, so the door gives way to the job
+  const reloadJob = async () => {
+    try {
+      const res = await fetch(`/api/launch/${inspectionId}`, { cache: "no-store" });
+      const data = (await res.json()) as { ok?: boolean; job?: JobView };
+      if (data.ok && data.job) setJob(data.job);
+    } catch {
+      /* the door already says the job is live */
+    }
+  };
+
   if (err) {
     return (
       <div className="lx ac-inline">
@@ -124,8 +135,9 @@ export function InlineLaunch({ inspectionId }: { inspectionId: string }) {
         plan={job.plan}
         jobId={inspectionId}
         approval={job.approval}
+        launched={job.launched}
         onRevised={(j) => setJob(j)}
-        onApproved={(j) => setJob(j)}
+        onLaunched={() => void reloadJob()}
       />
     </div>
   );

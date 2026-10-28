@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob, resetInspectionForRetry, failStalledInspection, listStalledInspections } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
+import { getCampaign } from "@/lib/db/campaigns";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
@@ -457,6 +458,11 @@ export interface JobView {
   revision: number;
   /** durable approval, when the current revision is approved. */
   approval: { approvedAt: number; revision: number; campaignIdHash: string; missionPlanDigest: string } | null;
+  /**
+   * The job this plan became, once its vault is recorded. A plan page used to offer the launch door again
+   * after a reload, for a job already live; it says the job is live instead.
+   */
+  launched: { campaignId: string } | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -489,6 +495,7 @@ export function jobToView(job: InspectionJob): JobView {
       approvedRow && approvedRow.approvedAt != null
         ? { approvedAt: approvedRow.approvedAt, revision: approvedRow.revisionNumber, campaignIdHash: approvedRow.campaignIdHash, missionPlanDigest: approvedRow.missionPlanDigest }
         : null,
+    launched: getCampaign(job.publicCampaignId) ? { campaignId: job.publicCampaignId } : null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
   };
