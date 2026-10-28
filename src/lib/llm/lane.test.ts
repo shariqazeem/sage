@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { laneProvider, resolveLlm } from "./complete";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { LANES, laneProvider, resolveLlm } from "./complete";
 
-const LANE_VARS = [
-  "PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION",
-].flatMap((l) => [`${l}_API_KEY`, `${l}_BASE_URL`, `${l}_MODEL`]);
+const LANE_VARS = LANES.flatMap((l) => [`${l}_API_KEY`, `${l}_BASE_URL`, `${l}_MODEL`]);
 const SHARED = ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "COMMONSTACK_API_KEY", "COMMONSTACK_BASE_URL", "DEPUTY_MODEL"];
 
 let saved: Record<string, string | undefined> = {};
@@ -86,5 +86,27 @@ describe("per-lane providers", () => {
     process.env.VISION_BASE_URL = "https://vision.example.com/v1/";
     process.env.VISION_MODEL = "vision-model";
     expect(laneProvider("VISION")?.endpoint).toBe("https://vision.example.com/v1/chat/completions");
+  });
+});
+
+/**
+ * TWO LISTS THAT DRIFT: the lane audit (scripts/lane-audit.mjs) cannot import this module, so it keeps
+ * its own list. A lane it does not print is a lane nobody can see is on the wrong provider.
+ */
+describe("the lane audit", () => {
+  it("prints every lane the app has", () => {
+    const script = readFileSync(join(process.cwd(), "scripts/lane-audit.mjs"), "utf8");
+    const listed = /const LANES = \[([^\]]*)\]/.exec(script)?.[1] ?? "";
+    for (const lane of LANES) expect(listed).toContain(`"${lane}"`);
+  });
+
+  it("drafts a handed-over job on its own lane, inheriting the shared chain until it is configured", () => {
+    expect(laneProvider("DRAFT")).toBeNull();
+    expect(resolveLlm(undefined, "DRAFT")).toMatchObject({ key: "shared-key", model: "shared-model" });
+    process.env.MISSION_API_KEY = "mission-key";
+    process.env.MISSION_BASE_URL = "https://mission.example.com/v1";
+    process.env.MISSION_MODEL = "minimax/minimax-m3";
+    // the mission lane's reasoning model is never borrowed for a draft the founder waits on
+    expect(resolveLlm(undefined, "DRAFT")?.model).toBe("shared-model");
   });
 });

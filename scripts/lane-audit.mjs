@@ -33,7 +33,7 @@ const loaded = loadEnvFile(envPath);
 console.log(loaded ? `env               loaded from ${envPath}` : `env               NO ${envPath} — reading the ambient environment only`);
 console.log("");
 
-const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION"];
+const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION", "DRAFT"];
 const host = (u) => { try { return new URL(u).host; } catch { return u || "(unset)"; } };
 const mask = (k) => (k ? `${k.slice(0, 8)}…` : "(unset)");
 

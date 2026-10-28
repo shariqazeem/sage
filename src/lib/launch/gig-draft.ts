@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { readStatedTerms } from "./stated-terms";
 import { llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
-import { missionModel } from "@/lib/llm/mission-model";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
 
 /**
@@ -43,7 +42,31 @@ const hostList = z.preprocess(
   z.array(z.preprocess((h) => (typeof h === "string" ? h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") : h), z.string().max(120).regex(hostRe))).max(5),
 );
 
-const evidenceSchema = z.discriminatedUnion("kind", [
+/**
+ * THE PROOF'S KIND, READ GENEROUSLY. Measured 28 Oct 2026 on a real GitHub issue: the drafter named the
+ * proof after the work ("github_pr", "pull_request") instead of one of the three kinds, in both rounds.
+ * The kind only says how the proof is SHAPED: a link to something the worker made, a page that shows a
+ * phrase, or a transaction. A near-miss name is read as the shape it describes, and strictness stays
+ * where it belongs, in the compiler and the judge. Words only: no amount is ever read here.
+ */
+const PROOF_KINDS = ["artifact_url", "public_url", "onchain_tx"];
+const KIND_ALIASES: [RegExp, string][] = [
+  [/\btx\b|transaction|on.?chain|contract|deploy|wallet/i, "onchain_tx"],
+  [/text|phrase|contains|public.?page/i, "public_url"],
+  [/url|link|\bpr\b|pull|github|gitlab|repo|commit|branch|artifact|page|doc|file|post|article|site|gist|blog|video|design|report/i, "artifact_url"],
+];
+export function normalizeProofKind(v: unknown): unknown {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+  const e = v as Record<string, unknown>;
+  const kind = typeof e.kind === "string" ? e.kind.trim() : "";
+  if (PROOF_KINDS.includes(kind)) return v;
+  const to = KIND_ALIASES.find(([re]) => re.test(kind))?.[1];
+  if (!to) return v;
+  // a page that must show a phrase needs the phrase; without one, the proof is the link itself
+  return { ...e, kind: to === "public_url" && e.expectedText == null ? "artifact_url" : to };
+}
+
+const evidenceKinds = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("artifact_url"),
     allowedHosts: hostList.default([]),
@@ -60,6 +83,7 @@ const evidenceSchema = z.discriminatedUnion("kind", [
     deploysContract: z.boolean().optional(),
   }),
 ]);
+const evidenceSchema = z.preprocess(normalizeProofKind, evidenceKinds);
 
 export const draftMilestoneSchema = z.object({
   title: z.string().min(4).max(80),
@@ -136,8 +160,14 @@ export function draftTokenBudget(milestones: number | null): number {
   return Math.min(1400 + 1200 * n, 8000);
 }
 
+/**
+ * THE DRAFT IS WRITTEN WHILE THE FOUNDER WAITS, so it runs on its own lane (complete.ts, DRAFT), which
+ * inherits the fast shared chain until it is configured. Measured 28 Oct 2026 on prod: on MISSION's
+ * reasoning model a real GitHub issue took two rounds of about a minute each (the first answer was not
+ * JSON at all) and still failed, and the founder was sent to the form after three minutes.
+ */
 const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
-  const r = await llmCompleteJson({ system, user, maxTokens, temperature: 0.3, model: missionModel(), lane: "MISSION", parsePolicy: "repair" });
+  const r = await llmCompleteJson({ system, user, maxTokens, temperature: 0.3, lane: "DRAFT", parsePolicy: "repair" });
   return { json: r.json, model: r.model ?? null };
 };
 
@@ -185,7 +215,7 @@ export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] 
 export async function draftDirectCampaign(input: DraftInput, deps: { complete?: Complete } = {}): Promise<DraftResult> {
   const intent = input.intent.trim();
   if (intent.length < 10) return { ok: false, error: "Describe the work in a sentence or two first." };
-  if (!deps.complete && !llmConfigured()) return { ok: false, error: "Sage's drafting model isn't configured on this server — compose the work by hand below." };
+  if (!deps.complete && !llmConfigured()) return { ok: false, error: "Sage can't write jobs on this server yet. Fill it in yourself below." };
   const complete = deps.complete ?? defaultComplete;
   let feedback: string | null = null;
   let model: string | null = null;
@@ -203,7 +233,8 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
         console.warn(`[gig-draft] round ${round + 1} unparseable answer`);
         continue;
       }
-      return { ok: false, error: `Sage couldn't draft this right now (${msg.slice(0, 120)}). Compose it by hand below, or try again.` };
+      console.warn(`[gig-draft] round ${round + 1} model error: ${msg.slice(0, 300)}`);
+      return { ok: false, error: "Sage couldn't reach its writer just now. Try again in a moment, or fill it in yourself." };
     }
     const parsed = gigDraftSchema.safeParse(raw);
     if (parsed.success) {
@@ -235,5 +266,6 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
     // Visible in the server log: a shape the model keeps missing is a prompt or schema defect, not weather.
     console.warn(`[gig-draft] round ${round + 1} schema miss:\n${feedback}`);
   }
-  return { ok: false, error: `Sage's draft didn't fit the brief shape twice — compose the work by hand below. (${(feedback ?? "").replace(/\n/g, " ").slice(0, 200)})` };
+  // the details are in the log above, round by round; the founder gets words they can act on
+  return { ok: false, error: "Sage couldn't turn this into a job this time. Try again, or fill it in yourself." };
 }

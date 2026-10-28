@@ -371,7 +371,8 @@ product). Never extend it; migrate off it.
 ### Lanes — routing a job to a provider
 
 A **lane** is one job Sage gives a model: `PAYOUT` (judgment), `CONCIERGE`, `MISSION`
-(design), `OBS_JUDGE`, `VISION`. Each lane may run on its own provider by setting
+(design), `OBS_JUDGE`, `VISION`, `DRAFT` (Post's hand-over: a job written from what a founder
+pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026). Each lane may run on its own provider by setting
 `<LANE>_API_KEY`, `<LANE>_BASE_URL` and `<LANE>_MODEL` — **all three together**. Set
 partially, a lane is treated as ABSENT and inherits the shared chain; it is never merged,
 because merging splices one provider's key onto another's endpoint (authenticates as

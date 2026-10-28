@@ -892,7 +892,16 @@ export function LaunchForm() {
                 )}
               </ul>
             )}
-            {draftErr && <p className="cmp-err">{draftErr}</p>}
+            {draftErr && (
+              <p className="cmp-err ho-err">
+                {draftErr}
+                {!draftBusy && draftText.trim().length >= 10 && (
+                  <button type="button" className="lxo-chip" onClick={() => void handOver(true)}>
+                    Try again
+                  </button>
+                )}
+              </p>
+            )}
             {draftNotes.map((n, i) => (
               <p className="muted cmp-draft-note" key={i}>{n}</p>
             ))}

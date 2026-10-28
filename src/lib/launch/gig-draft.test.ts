@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { cleanDraft, draftDirectCampaign, GIG_DRAFT_SYSTEM, gigDraftSchema } from "./gig-draft";
 
 const good = {
@@ -47,7 +47,8 @@ describe("gig draft — words from the model, money from the founder", () => {
     expect(seen[1]).toMatch(/milestones/);
     const twice = await draftDirectCampaign({ intent: "pay my designer for the new logo page" }, { complete: async () => ({ json: { nope: true }, model: "test" }) });
     expect(twice.ok).toBe(false);
-    expect(!twice.ok && twice.error).toMatch(/by hand/);
+    // the founder is told what to do next; the schema's own words stay in the server log
+    expect(!twice.ok && twice.error).toBe("Sage couldn't turn this into a job this time. Try again, or fill it in yourself.");
   });
 
   it("strips a host Sage cannot read from the evidence and tells the founder", () => {
@@ -63,7 +64,8 @@ describe("gig draft — words from the model, money from the founder", () => {
     expect(prompt).toMatch(/<<<UNTRUSTED_FOUNDER_TEXT>>>/);
     const down = await draftDirectCampaign({ intent: "pay someone for a guide" }, { complete: async () => { throw new Error("provider timeout"); } });
     expect(down.ok).toBe(false);
-    expect(!down.ok && down.error).toMatch(/provider timeout/);
+    expect(!down.ok && down.error).toMatch(/couldn't reach its writer just now\. Try again in a moment, or fill it in yourself/);
+    expect(!down.ok && down.error).not.toMatch(/provider timeout/);
   });
 
   it("the prompt forbids money and unreadable posts, and is product-agnostic", () => {
@@ -139,5 +141,54 @@ describe("a handed-over page in the drafter's prompt", () => {
   it("says nothing about a page when none was handed over", async () => {
     const { userMessage } = await import("./gig-draft");
     expect(userMessage({ intent: "Pay my designer $50 when the page is live" }, null)).not.toContain("HANDED_OVER");
+  });
+});
+
+/**
+ * THE PROOF'S KIND, READ GENEROUSLY (28 Oct 2026): a real GitHub issue was drafted twice with the proof
+ * named after the work ("github_pr") and the founder was sent to the form. A near-miss name is read as
+ * the shape it describes; anything that names no shape is still refused.
+ */
+describe("a near-miss proof kind", () => {
+  it("is read as the shape it describes", async () => {
+    const { normalizeProofKind } = await import("./gig-draft");
+    expect(normalizeProofKind({ kind: "github_pr", allowedHosts: ["github.com"] })).toEqual({ kind: "artifact_url", allowedHosts: ["github.com"] });
+    expect(normalizeProofKind({ kind: "pull_request" })).toEqual({ kind: "artifact_url" });
+    expect(normalizeProofKind({ kind: "transaction", chainId: 1088 })).toEqual({ kind: "onchain_tx", chainId: 1088 });
+    expect(normalizeProofKind({ kind: "page_text", expectedText: ["INV-1042"] })).toEqual({ kind: "public_url", expectedText: ["INV-1042"] });
+    expect(normalizeProofKind({ kind: "page_text" })).toEqual({ kind: "artifact_url" });
+  });
+
+  it("leaves the three real kinds alone, and refuses a kind that names no shape", async () => {
+    const { normalizeProofKind, draftMilestoneSchema } = await import("./gig-draft");
+    const real = { kind: "public_url", expectedText: ["x"] };
+    expect(normalizeProofKind(real)).toBe(real);
+    const m = { title: "Fix the crash", deliverable: "the crash is fixed in a public pull request", instructions: "1. Fix it. 2. Submit the link.", criteria: ["The fix stops the crash"] };
+    expect(draftMilestoneSchema.safeParse({ ...m, evidence: { kind: "github_pr" } }).success).toBe(true);
+    expect(draftMilestoneSchema.safeParse({ ...m, evidence: { kind: "vibes" } }).success).toBe(false);
+  });
+
+  it("a whole draft with the kind measured on prod now passes in one round", async () => {
+    const { draftDirectCampaign } = await import("./gig-draft");
+    const complete = vi.fn(async () => ({
+      json: {
+        kind: "gig",
+        title: "Sketch the budget-reservation ledger",
+        who: "the issue's author",
+        slots: 1,
+        milestones: [{ title: "A PR sketch", deliverable: "a pull request sketching the reservation ledger is open", instructions: "1. Write the sketch. 2. Open the PR. 3. Submit its link.", criteria: ["The PR reserves before it settles", "It stops when committed plus in-flight exceeds the budget"], evidence: { kind: "github_pr" } }],
+      },
+      model: "test",
+    }));
+    const r = await draftDirectCampaign({ intent: "https://github.com/shariqazeem/sage/issues/1" }, { complete });
+    expect(r.ok).toBe(true);
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(r.ok && r.draft.milestones[0].evidence.kind).toBe("artifact_url");
+  });
+
+  it("tells the founder what to do, never the schema's words", async () => {
+    const { draftDirectCampaign } = await import("./gig-draft");
+    const r = await draftDirectCampaign({ intent: "https://github.com/shariqazeem/sage/issues/1" }, { complete: async () => ({ json: { kind: "gig" }, model: "test" }) });
+    expect(r).toEqual({ ok: false, error: "Sage couldn't turn this into a job this time. Try again, or fill it in yourself." });
   });
 });

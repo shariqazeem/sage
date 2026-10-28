@@ -813,6 +813,7 @@
 .ho-step svg { flex-shrink: 0; color: var(--lx-ink); }
 .ho-step.miss svg { color: var(--warn); }
 .ho-time { color: var(--ink-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ho-err { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13.5px; }
 .ho-manual { margin-top: 12px; align-self: flex-start; border: 0; background: none; padding: 0; font: inherit; font-size: 13px; color: var(--lx-muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .ho-manual:hover { color: var(--lx-ink); }
 .ho-budget { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }

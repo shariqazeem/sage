@@ -69,8 +69,13 @@ interface ResolvedProvider {
  * own resolver. Every other lane could override the MODEL NAME but not the key, so it was pinned to
  * whatever provider the shared chain pointed at — which is how mission design and the observation
  * judge ended up stranded on a metered key while the rest of the app ran on a sponsored one.
+ *
+ * DRAFT (28 Oct 2026) is the hand-over: a job written from what a founder pasted, while they wait.
+ * It ran on MISSION, a reasoning model, until a real GitHub issue took two rounds of about a minute
+ * each and still failed, so it has its own lane and, unset, inherits the fast shared chain.
  */
-export type Lane = "PAYOUT" | "CONCIERGE" | "MISSION" | "OBS_JUDGE" | "VISION";
+export const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION", "DRAFT"] as const;
+export type Lane = (typeof LANES)[number];
 
 /**
  * A lane's own provider, or null when it is not FULLY configured.
