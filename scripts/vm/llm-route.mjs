@@ -4,6 +4,12 @@
  *   node scripts/vm/llm-route.mjs status      [--env .env]   which host and model each lane resolves to
  *   node scripts/vm/llm-route.mjs anthropic   [--env .env]   Claude on Anthropic's own endpoint
  *   node scripts/vm/llm-route.mjs commonstack [--env .env]   back to the routing saved before the first move
+ *   node scripts/vm/llm-route.mjs recommended [--env .env]   the saved CommonStack routing, with drafting on Sonnet 5.5
+ *
+ * RECOMMENDED (measured 6 Nov 2026, Sage Bench, same 60 jobs, same payability audit): drafting is where model
+ * quality decides whether a job can be paid at all. Sonnet 5.5 left 1 unpayable job, Haiku 5.5 left 13; at ~3.4
+ * cents a draft it is cheap in absolute terms. Every other lane stays on the cheap, already-validated models
+ * (MiniMax-M3 is an approved payout judge and passed P-GEN; Gemini Flash-Lite sees screenshots).
  *
  * Then restart the app: `pm2 restart sage --update-env` (Next reads .env at boot).
  *
@@ -142,16 +148,26 @@ if (route === "anthropic") {
   for (const l of LANES) Object.assign(next, { [`${l}_API_KEY`]: key, [`${l}_BASE_URL`]: ANTHROPIC_BASE, [`${l}_MODEL`]: ANTHROPIC_MODEL });
   console.log(`backup: ${backup()}`);
   writeFileSync(ENV, rewrite(text, next, "anthropic"), { mode: 0o600 });
-} else if (route === "commonstack") {
+} else if (route === "commonstack" || route === "recommended") {
   if (!existsSync(SAVED)) {
     console.error(`nothing saved at ${SAVED}: the env was never moved by this script`);
     process.exit(2);
   }
   const next = parse(readFileSync(SAVED, "utf8"));
+  if (route === "recommended") {
+    // drafting on the gateway's Sonnet 5.5, on the same key and door the saved lanes use
+    const key = next.PAYOUT_API_KEY || next.CONCIERGE_API_KEY || env.COMMONSTACK_API_KEY;
+    const base = next.PAYOUT_BASE_URL || next.CONCIERGE_BASE_URL || env.COMMONSTACK_BASE_URL || "https://api.commonstack.ai/v1";
+    if (!key) {
+      console.error("no CommonStack key in the saved routing or COMMONSTACK_API_KEY");
+      process.exit(2);
+    }
+    Object.assign(next, { DRAFT_API_KEY: key, DRAFT_BASE_URL: base, DRAFT_MODEL: "anthropic/claude-sonnet-5-5" });
+  }
   console.log(`backup: ${backup()}`);
-  writeFileSync(ENV, rewrite(text, next, "commonstack"), { mode: 0o600 });
+  writeFileSync(ENV, rewrite(text, next, route), { mode: 0o600 });
 } else {
-  console.error("usage: node scripts/vm/llm-route.mjs status|anthropic|commonstack [--env path]");
+  console.error("usage: node scripts/vm/llm-route.mjs status|anthropic|commonstack|recommended [--env path]");
   process.exit(2);
 }
 
