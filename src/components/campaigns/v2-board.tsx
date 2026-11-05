@@ -74,7 +74,7 @@ export interface MissionView {
   /** P16 — "observation-based" missions are founder-approved after Sage's assessment (never auto-paid). */
   verifiabilityClass?: "url-verifiable" | "observation-based";
   /** the operator's verification contract kind — keys the evidence coaching below. */
-  verificationKind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
+  verificationKind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "sage_record" | "observation";
 }
 
 interface MySubmission {
@@ -587,6 +587,8 @@ function MissionCard({
           <>
             Public link <span className="muted">(optional)</span>
           </>
+        ) : mission.verificationKind === "sage_record" ? (
+          "Your job's link on Sage (or your receipt)"
         ) : (
           "Public evidence link"
         )}
@@ -596,7 +598,9 @@ function MissionCard({
         placeholder={
           isObservation
             ? "https://… only if you have a public link to add"
-            : "https://… a public link to your proof"
+            : mission.verificationKind === "sage_record"
+              ? "https://sagepays.xyz/c/… or https://sagepays.xyz/proof/…"
+              : "https://… a public link to your proof"
         }
         value={evidence}
         onChange={(e) => setEvidence(e.target.value)}
@@ -895,7 +899,7 @@ function EvidenceCoaching({
   evidenceList: string[];
   observation?: boolean;
   requirementsShown?: boolean;
-  kind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
+  kind?: "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "sage_record" | "observation";
 }) {
   const list = requirementsShown ? [] : evidenceList;
   if (observation) {
@@ -965,6 +969,23 @@ function EvidenceCoaching({
               someone else&apos;s page, a copy of another submission with your address swapped in, a page
               without your wallet on it, screenshots, or anything behind a login. Sage fetches the link
               itself and checks the page carries your marker.
+            </span>
+          </div>
+        </>
+      ) : kind === "sage_record" ? (
+        <>
+          <div className="tb-coach-row">
+            <span className="ok">Works</span>
+            <span>
+              the link to the job you launched on Sage (<code>sagepays.xyz/c/…</code>), or your Sage receipt
+              (<code>sagepays.xyz/proof/…</code>), submitted from the same account. Sage checks its own records.
+            </span>
+          </div>
+          <div className="tb-coach-row">
+            <span className="no">Won&apos;t work</span>
+            <span>
+              someone else&apos;s job, a job launched before this one went live, a draft or a stopped job, or
+              anything on a test network.
             </span>
           </div>
         </>

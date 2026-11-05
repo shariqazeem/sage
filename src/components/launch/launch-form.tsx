@@ -7,7 +7,7 @@ import { verifyChain } from "@/lib/verify/chains";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, type Draft, type Need, type Tranche } from "@/lib/launch/composer";
 import { firstUrl, labelFor, looksLikeProductHome, wordsOnly } from "@/lib/launch/hand-over-text";
-import { AmountChips, JobCard } from "./job-card";
+import { AmountChips, JobCard, trancheFeasibility } from "./job-card";
 import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
 import { UpgradeLink } from "@/components/plans/upgrade-link";
 import type { PlanId } from "@/lib/plans/catalog";
@@ -70,6 +70,11 @@ const VERIFY_OPTIONS = [
     value: "onchain",
     label: "an on-chain transaction",
     ask: "reading the transaction they performed on-chain from the wallet they submit with",
+  },
+  {
+    value: "sage",
+    label: "Sage's own records",
+    ask: "checking Sage's own records for the job they launched on Sage, or the payout Sage made them",
   },
 ];
 
@@ -318,6 +323,8 @@ export function LaunchForm() {
     if (t.verify === "page" && t.expectedText.trim().length < 3) return false;
     // a deployment names no address: the contract doesn't exist until the worker deploys it
     if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return false;
+    // a proof that can never pass is never launched (proof-feasibility.ts)
+    if (!trancheFeasibility(t).ok) return false;
     return true;
   };
 
@@ -336,6 +343,8 @@ export function LaunchForm() {
       if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return `Set what it pays${which}.`;
       if (t.verify === "page" && t.expectedText.trim().length < 3) return `Add the text that must appear${which}.`;
       if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
+      const f = trancheFeasibility(t);
+      if (!f.ok) return `${f.fix ? `Tap “Check Sage's records instead”${which}: ` : `Change how Sage checks this${which}: `}${f.reason.charAt(0).toLowerCase()}${f.reason.slice(1)}`;
     }
     if (splitting && !(isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length)) return "Set the total.";
     // workers can't start without it, and only the founder has it (or knows it isn't needed: drop it)
@@ -1107,6 +1116,15 @@ export function LaunchForm() {
                       )}
                       {t.verify === "link" && (
                         <span className="cmp-help">Sage fetches the link they publish and checks it shows the finished work and carries their wallet address. Durable pages only — a blog, dev.to, Medium, GitHub, Notion, their own site; paste services are refused.</span>
+                      )}
+                      {t.verify === "sage" && (
+                        <label className="cmp-field cmp-grow">
+                          <span className="cmp-label">What they did on Sage</span>
+                          <select className="lx-input cmp-input" value={t.sageAction ?? "launched_job"} onChange={(e) => setTranches((prev) => prev.map((x, j) => (j === i ? { ...x, sageAction: e.target.value === "was_paid" ? "was_paid" : "launched_job" } : x)))}>
+                            <option value="launched_job">launched a job on Sage</option>
+                            <option value="was_paid">was paid by Sage for verified work</option>
+                          </select>
+                        </label>
                       )}
                     </div>
                   </div>

@@ -22,7 +22,7 @@ import {
   type OpResult,
 } from "@/lib/agent-api/operations";
 import { sameFounder } from "@/lib/auth/founder";
-import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
+import { isMainnetChain, METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
 
 /**
  * Sage's MCP tool registry + dispatch — the SAME five verified agent operations, exposed so the
@@ -404,6 +404,14 @@ export function mapDirectCampaignArgs(args: Record<string, unknown>): unknown {
                 allowedHosts: asArr(ev.allowedHosts).map(bareHost).filter((h) => /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(h)),
                 markerKind: "wallet",
               }
+            : ev.kind === "sage_record"
+              ? {
+                  // work done ON Sage, checked in Sage's own records (verify/sage-record.ts)
+                  kind: "sage_record",
+                  action: /paid|payout|earn|receipt/i.test(String(ev.action ?? "")) ? "was_paid" : "launched_job",
+                  ...(typeof ev.chainId === "number" && isMainnetChain(ev.chainId) ? { chainId: ev.chainId } : {}),
+                  ...(ev.first === true ? { first: true } : {}),
+                }
             : ev.kind === "public_url"
               ? { kind: "public_url", expectedText: asArr(ev.expectedText) }
               : ev.kind === "onchain_tx"

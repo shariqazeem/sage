@@ -27,7 +27,8 @@
  */
 
 /** Contracts whose evidence link is a thing the tester published — theirs alone, so it stays unique. */
-export const TESTER_MADE_CONTRACTS: ReadonlySet<string> = new Set(["artifact_url", "public_url"]);
+// sage_record: the link is the worker's own job or receipt on Sage (verify/sage-record.ts), theirs alone too
+export const TESTER_MADE_CONTRACTS: ReadonlySet<string> = new Set(["artifact_url", "public_url", "sage_record"]);
 
 export function isTesterMadeContract(kind: string | null | undefined): boolean {
   return !!kind && TESTER_MADE_CONTRACTS.has(kind);

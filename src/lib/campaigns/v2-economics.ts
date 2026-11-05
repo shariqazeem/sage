@@ -40,8 +40,8 @@ export interface V2MissionView {
   denominated?: string | null;
 }
 
-export type VerificationKindView = "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "observation";
-const KINDS: readonly VerificationKindView[] = ["artifact_url", "public_url", "onchain_tx", "onchain_state", "observation"];
+export type VerificationKindView = "artifact_url" | "public_url" | "onchain_tx" | "onchain_state" | "sage_record" | "observation";
+const KINDS: readonly VerificationKindView[] = ["artifact_url", "public_url", "onchain_tx", "onchain_state", "sage_record", "observation"];
 export function verificationKindOf(contract: unknown): VerificationKindView | undefined {
   const k = (contract as { kind?: unknown } | null)?.kind;
   return typeof k === "string" && (KINDS as readonly string[]).includes(k) ? (k as VerificationKindView) : undefined;

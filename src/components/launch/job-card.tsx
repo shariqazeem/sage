@@ -3,6 +3,13 @@
 import { useState, type ReactNode } from "react";
 import { CircleCheck, Minus, Plus, X } from "lucide-react";
 import type { Need, Tranche } from "@/lib/launch/composer";
+import { proofFeasibility, type Feasibility } from "@/lib/launch/proof-feasibility";
+
+/** Whether a line's proof can ever pass (proof-feasibility.ts): the card and the Launch button read the same rule. */
+export function trancheFeasibility(t: Tranche): Feasibility {
+  if (t.verify !== "link") return { ok: true };
+  return proofFeasibility({ kind: "artifact_url", allowedHosts: t.allowedHosts }, [t.title, t.deliverable, t.instructions, ...(t.criteria ?? [])]);
+}
 
 /**
  * THE JOB, AS ONE CARD (28 Oct 2026). Sage reads what the founder handed over and writes the job; this is
@@ -26,6 +33,13 @@ function checksLine(t: Tranche, chainName: (id?: number) => string): string {
 }
 
 function sageChecks(t: Tranche, chainName: (id?: number) => string): string {
+  if (t.verify === "sage") {
+    // Sage's own records, never a page (verify/sage-record.ts)
+    const where = t.sageChain ? ` on ${chainName(t.sageChain)}` : "";
+    return t.sageAction === "was_paid"
+      ? `Sage checks its own records that it paid them for verified work${where} after this job went live${t.sageFirst ? ", and that it was their first payout on Sage" : ""}, before it pays`
+      : `Sage checks its own records that they launched the job they link from their own account, funded${where}, after this job went live${t.sageFirst ? ", and that it is their first job on Sage" : ""}, before it pays`;
+  }
   if (t.verify === "page") return `Sage checks the page they submit shows “${t.expectedText.trim() || "…"}”, before it pays`;
   if (t.verify === "onchain" && t.deploysContract) return `Sage checks on ${chainName(t.txChain)} that their own wallet deployed the contract, after this job was posted, before it pays`;
   if (t.verify === "onchain") return `Sage checks the transaction on ${chainName(t.txChain)}, sent from their own wallet, before it pays`;
@@ -282,6 +296,21 @@ export function JobCard({
                 </label>
               )}
               <p className="jc-checks">{checksLine(t, chainName)}</p>
+              {(() => {
+                // a proof that can never pass gets no Launch button: say why, and offer the one that works
+                const f = trancheFeasibility(t);
+                if (f.ok) return null;
+                return (
+                  <p className="jc-cant">
+                    <span>{f.reason}</span>
+                    {f.fix && (
+                      <button type="button" className="jc-link" onClick={() => setTranche(i, { verify: "sage", sageAction: f.fix!.action })}>
+                        Check Sage&apos;s records instead
+                      </button>
+                    )}
+                  </p>
+                );
+              })()}
             </div>
           );
         })}

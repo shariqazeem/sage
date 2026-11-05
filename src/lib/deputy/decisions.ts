@@ -289,6 +289,8 @@ export async function ensureDecision(
   //                     term in front of the frozen gate, so payouts only get stricter.
   const workProofContract = parseWorkProofContract(mission?.verificationContract ?? null);
   let workProofReport: string | null = null;
+  /** material Sage looked up that its author wrote (a Sage's-records proof): untrusted, like a fetched page */
+  let workProofUntrusted: string | null = null;
   let workProofFingerprint: string | null = null;
   if (workProofContract) {
     const wp = await runWorkProof(workProofContract, {
@@ -297,6 +299,9 @@ export async function ensureDecision(
       note: submission.note,
       campaignCreatedAt: campaign.createdAt,
       sourceUrl: mission?.targetSurface ?? null,
+      campaignId: campaign.id,
+      submissionId,
+      founderWallet: campaign.posterWallet,
     });
     if (wp.outcome === "transient") return null; // pending — retried on the next sweep
     if (wp.outcome === "definitive") {
@@ -344,6 +349,7 @@ export async function ensureDecision(
         : { ...brief, engine: "heuristic", model: WORKPROOF_VERIFIER_MODEL, evidenceOk: false, contentSha256: null, latencyMs: null, costUsd: null, x402PaymentTx: null, x402Status: "not_required", x402Reason: null };
     }
     workProofReport = wp.report;
+    workProofUntrusted = wp.untrusted ?? null;
     workProofFingerprint = wp.result.artifactFingerprint ?? null;
   }
 
@@ -442,7 +448,7 @@ export async function ensureDecision(
 
   // RAIL 1 — the Deputy pays for verification when the x402 rail is live; a
   // direct (unpaid) fetch otherwise. `x402PaymentTx` is a real GOAT tx or null.
-  const fetched = submission.evidenceUrl
+  let fetched = submission.evidenceUrl
     ? await verifyEvidence(submission.evidenceUrl, { preferRender, paid: campaign.chainId === GOAT_MAINNET_CHAIN_ID && campaign.settlementRail !== "starknet" })
     : {
         text: "",
@@ -459,6 +465,8 @@ export async function ensureDecision(
   // established — by Sage's own check, which the submitter cannot forge. The brain still judges;
   // the frozen gate still gates. An onchain mission whose submitter pasted only a hash (no link)
   // would otherwise carry evidenceOk=false and be confidence-capped for the wrong reason.
+  // the record's own words (sage_record) join the fetched page, inside the untrusted markers
+  if (workProofUntrusted) fetched = { ...fetched, ok: true, text: [workProofUntrusted, fetched.ok ? (fetched.text ?? "") : ""].filter((x) => x.trim()).join("\n\n") };
   const merged = workProofReport
     ? mergeWorkProofEvidence(workProofReport, { text: fetched.text ?? "", ok: fetched.ok })
     : null;

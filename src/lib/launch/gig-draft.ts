@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isMainnetChain } from "@/lib/deputy/networks";
+import { proofFeasibility } from "./proof-feasibility";
 import { readStatedTerms } from "./stated-terms";
 import { refusedWork } from "./work-policy";
 import { cutAtBoundary } from "./text-cut";
@@ -82,8 +84,9 @@ const hostList = z.preprocess(
  * phrase, or a transaction. A near-miss name is read as the shape it describes, and strictness stays
  * where it belongs, in the compiler and the judge. Words only: no amount is ever read here.
  */
-const PROOF_KINDS = ["artifact_url", "public_url", "onchain_tx"];
+const PROOF_KINDS = ["artifact_url", "public_url", "onchain_tx", "sage_record"];
 const KIND_ALIASES: [RegExp, string][] = [
+  [/sage|record/i, "sage_record"],
   [/\btx\b|transaction|on.?chain|contract|deploy|wallet/i, "onchain_tx"],
   [/text|phrase|contains|public.?page/i, "public_url"],
   [/url|link|\bpr\b|pull|github|gitlab|repo|commit|branch|artifact|page|doc|file|post|article|site|gist|blog|video|design|report/i, "artifact_url"],
@@ -132,6 +135,20 @@ const evidenceKinds = z.discriminatedUnion("kind", [
     }, z.array(z.object({ chainId: z.number(), minTxs: z.number(), to: z.array(z.string()).optional() })).optional()),
   }),
   z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)), founderConfirms: opt(z.boolean()) }),
+  z.object({
+    kind: z.literal("sage_record"),
+    // what the worker did on Sage; a near spelling is read for its meaning, an unknown one is refused
+    action: z.preprocess((v) => {
+      const a = typeof v === "string" ? v.trim().toLowerCase() : "";
+      if (/paid|payout|earn|receipt/.test(a)) return "was_paid";
+      if (/launch|post|creat|job|bounty|gig|fund/.test(a)) return "launched_job";
+      return a;
+    }, z.enum(["launched_job", "was_paid"])),
+    // a test network never counts: a named one that isn't real is dropped (any real network then counts)
+    chainId: z.preprocess((v) => (typeof v === "number" && isMainnetChain(v) ? v : undefined), z.number().optional()),
+    first: opt(z.boolean()),
+    founderConfirms: opt(z.boolean()),
+  }),
   z.object({
     kind: z.literal("onchain_tx"),
     chainId: opt(count(1, 10_000_000)),
@@ -212,6 +229,10 @@ RULES
         · a social post → X or Bluesky (Sage can read those): postedAfterStart true.
         The worker puts their own wallet address where it shows (in the doc, the sheet, the video description, the post or the PR description); say so in the instructions. That is how Sage knows the work is theirs.
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
+      sage_record — the work is something done ON Sage itself (sagepays.xyz). Sage checks its own records, never a page: a Sage page never shows who made it, so NEVER use artifact_url or public_url for a Sage page.
+        · action "launched_job": the worker launches (posts and funds) a job on Sage. They submit the link to their job; Sage pays only if its records show they launched it from their own account, funded, on a real network, after this job went live.
+        · action "was_paid": the worker completes a job on Sage and is paid for it. They submit the link to their Sage receipt.
+        chainId only when the founder names a network. first: true when the founder pays only for someone's FIRST job or payout on Sage (Sage checks its records for earlier ones). Criteria for these jobs: what Sage's records and the job show (it is funded and live, its title, what kind of job it is, what its missions ask), never anything else about the worker.
       onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to". chainId is the network the transaction happens on (Sage pays on Metis but can check a transaction on any of: ${verifiableChainList().map((c) => `${c.name} ${c.chainId}`).join(", ")}).
     NEVER make a post on Instagram, Facebook, LinkedIn or Threads the evidence — Sage cannot open them. Ask for X, Bluesky or a page it can read instead.
   - effortMinutes: your honest estimate in minutes. Multi-day work is thousands of minutes; never cap it.
@@ -331,6 +352,12 @@ export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] 
   const notes: string[] = [];
   const milestones = draft.milestones.map((m) => {
     if (m.evidence.kind !== "artifact_url") return m;
+    // A link on Sage's own pages can never carry the worker's wallet (proof-feasibility.ts). When the milestone
+    // says what was done on Sage, Sage checks its own records instead; otherwise the compiler refuses it, in words.
+    const f = proofFeasibility(m.evidence, [m.title, m.deliverable, m.instructions, ...m.criteria]);
+    if (!f.ok && f.fix) {
+      return { ...m, evidence: { kind: "sage_record" as const, action: f.fix.action, ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}) } };
+    }
     const bad = m.evidence.allowedHosts.filter((h) => [...UNREADABLE_HOSTS, ...TEMPORARY_HOSTS].some((u) => h === u || h.endsWith(`.${u}`)));
     if (bad.length === 0) return m;
     notes.push(`"${m.title}": Sage can't verify work on ${bad.join(", ")} — the draft asks for a page it can open instead.`);

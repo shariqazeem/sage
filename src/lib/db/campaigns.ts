@@ -377,6 +377,17 @@ export function getCampaignByVault(vaultAddress: string): Campaign | null {
   return null;
 }
 
+/** Every payout Sage made this person (any spelling of the address), with the job's network. */
+export function listPaidSubmissionsFor(wallet: string): (Submission & { chainId: number })[] {
+  const paid = db.select().from(submissions).where(eq(submissions.status, "paid")).all().filter((s) => sameFounder(s.wallet, wallet));
+  return paid.map((s) => ({ ...s, chainId: getCampaign(s.campaignId)?.chainId ?? 0 }));
+}
+
+/** The submission a payout transaction paid (Sage's own record of whom it paid, for what), or null. */
+export function getSubmissionByPayoutTx(txHash: string): Submission | null {
+  return db.select().from(submissions).where(eq(submissions.payoutTx, txHash.toLowerCase())).get() ?? null;
+}
+
 export function getCampaignByPayoutTx(txHash: string): Campaign | null {
   const sub = db
     .select()

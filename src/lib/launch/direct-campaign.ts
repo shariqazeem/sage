@@ -9,6 +9,8 @@ import { siteUrl } from "@/lib/site";
 import { releasesOnThirdPartyDecision, THIRD_PARTY_DECISION_REFUSAL } from "./third-party-decision";
 import { refusedWork } from "./work-policy";
 import { verifyChain } from "@/lib/verify/chains";
+import { isMainnetChain } from "@/lib/deputy/networks";
+import { proofFeasibility } from "./proof-feasibility";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
@@ -172,6 +174,16 @@ const publicUrlSchema = z.object({
   founderConfirms: z.boolean().optional(),
 });
 
+/** sage_record — something the worker did ON Sage, checked in Sage's own records (verify/contract.ts). A test
+ *  network never counts, so a named network must be a real one. */
+const sageRecordSchema = z.object({
+  kind: z.literal("sage_record"),
+  action: z.enum(["launched_job", "was_paid"]),
+  chainId: z.number().int().refine(isMainnetChain, "a real network Sage runs on").optional(),
+  first: z.boolean().optional(),
+  founderConfirms: z.boolean().optional(),
+});
+
 /** `observation` is STRUCTURALLY absent: a direct campaign has no private corpus (Sage never
  *  browsed), so an observation-judged milestone could never be judged honestly. */
 const contractSchema = z.discriminatedUnion("kind", [
@@ -179,6 +191,7 @@ const contractSchema = z.discriminatedUnion("kind", [
   onchainStateSchema,
   artifactUrlSchema,
   publicUrlSchema,
+  sageRecordSchema,
 ]);
 
 const milestoneSchema = z.object({
@@ -256,6 +269,16 @@ export const directCampaignSchema = z.object({
    */
   splitTotalLocal: z.number().positive().max(10_000_000).optional(),
 }).superRefine((c, ctx) => {
+  // A PROOF THAT CAN NEVER PASS IS NEVER LAUNCHED (proof-feasibility.ts). First, before any money rule
+  // returns early: every door that creates a job (web, API, MCP, Telegram) is refused here.
+  c.milestones.forEach((m, i) => {
+    const f = proofFeasibility(m.evidence, [m.title, m.instructions, ...m.criteria]);
+    if (!f.ok) {
+      const which = c.milestones.length > 1 ? `Milestone ${i + 1}: ` : "";
+      const use = f.fix ? ` (evidence kind sage_record, action ${f.fix.action})` : "";
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["milestones", i, "evidence"], message: `${which}${f.reason}${use}` });
+    }
+  });
   // Priced means priced — in USD or in the founder's own currency. Counting only rewardUsd made
   // a J$-per-tranche gig read as unpriced and refused, which is the dollar hiding the track's own
   // denominations.
@@ -409,6 +432,10 @@ function evidenceRequirement(c: VerificationContract): string {
     }
     case "public_url":
       return "The public URL where the required result is visible.";
+    case "sage_record":
+      return c.action === "launched_job"
+        ? "The link to the job you launched on Sage (sagepays.xyz/c/…), submitted from the account you launched it with. Sage checks its own records: the job must be funded, on a real network, and launched after this job went live."
+        : "The link to your Sage receipt (sagepays.xyz/proof/…) for a payout Sage made you, submitted from the account you were paid in. Sage checks its own records: the payout must be after this job went live.";
     case "observation":
       // unreachable — the schema has no observation arm; kept for exhaustiveness.
       return "A written account of what you did.";
@@ -425,6 +452,8 @@ function verificationMethod(c: VerificationContract): string {
       return "The submitted artifact URL is fetched; it must live on the operator's allowed host and carry the submitter's own marker.";
     case "public_url":
       return "The submitted public URL is fetched and must contain the operator's required text.";
+    case "sage_record":
+      return "Deterministic check in Sage's own records: the job or payout the worker names is looked up by Sage itself, never read off a page.";
     case "observation":
       return "Judged against Sage's own observations.";
   }
@@ -437,6 +466,8 @@ function conditionsFor(c: VerificationContract): string[] {
       return ["Perform the on-chain action from the SAME wallet you submit with — the check is bound to your wallet."];
     case "artifact_url":
       return ["The artifact must be publicly reachable and carry your own marker."];
+    case "sage_record":
+      return ["Submit from the same account you launched the job from (or were paid in): Sage checks its own records for it."];
     default:
       return [];
   }

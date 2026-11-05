@@ -8,14 +8,18 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createPublicClient, http, type Hex } from "viem";
 
+import { SAGE_RECORD_ACTIONS } from "@/lib/verify/contract";
 import type {
   ArtifactUrlContract,
   OnchainStateContract,
   OnchainTxContract,
   PublicUrlContract,
+  SageRecordContract,
   VerificationContract,
   VerificationResult,
 } from "@/lib/verify/contract";
+import { verifySageRecord, type SageRecordLookup } from "@/lib/verify/sage-record";
+import { isMainnetChain } from "@/lib/deputy/networks";
 import { matchOnchainState, matchPublicUrl, verifyArtifactUrl, verifyOnchainTx } from "@/lib/verify/verifiers";
 import { checkGithubProvenance, parseGithubRepo } from "@/lib/verify/github-provenance";
 
@@ -75,6 +79,10 @@ export function parseWorkProofContract(raw: unknown): VerificationContract | nul
         : null;
     case "public_url":
       return Array.isArray(c.expectedText) && c.expectedText.length > 0 ? (c as unknown as PublicUrlContract) : null;
+    case "sage_record":
+      return SAGE_RECORD_ACTIONS.includes(c.action as never) && (c.chainId === undefined || typeof c.chainId === "number")
+        ? (c as unknown as SageRecordContract)
+        : null;
     default:
       return null; // "observation" deliberately has no lane here — it belongs to the corpus judge
   }
@@ -87,7 +95,9 @@ export function extractTxHash(evidenceUrl: string | null, note: string | null): 
 }
 
 export type WorkProofOutcome =
-  | { outcome: "verified"; result: VerificationResult; report: string }
+  /** `report` is SERVER-AUTHORED (the judge's trusted block). `untrusted` is material Sage looked up that its
+   *  author wrote (a job's title and missions): it goes to the judge inside the untrusted markers, like a fetched page. */
+  | { outcome: "verified"; result: VerificationResult; report: string; untrusted?: string }
   | { outcome: "definitive"; result: VerificationResult }
   | { outcome: "transient"; result: VerificationResult };
 
@@ -100,6 +110,11 @@ export interface WorkProofSubmission {
   /** the page the work is ABOUT (the mission's target surface) — a deliverable that is mostly that
    *  page's own text is a paste, not work, and is refused before any model reads it. */
   sourceUrl?: string | null;
+  /** this job and this submission, and who posted the job: Sage's-records proofs need all three
+   *  (a record counts once, the job itself and its founder's own records never count) */
+  campaignId?: string;
+  submissionId?: string;
+  founderWallet?: string;
 }
 
 export interface WorkProofDeps {
@@ -108,6 +123,9 @@ export interface WorkProofDeps {
   fetchImpl?: typeof fetch;
   /** eth_call for onchain_state — injectable for tests. Returns the raw hex word. */
   ethCall?: (chainId: number, to: string, data: Hex) => Promise<string>;
+  /** Sage's own records (sage_record) and the ownership compare — injectable for tests */
+  sageLookup?: SageRecordLookup;
+  sameFounder?: (a: string | null | undefined, b: string | null | undefined) => boolean;
 }
 
 /** A deliverable this alike to the page it is about is a paste of that page. Measured 2026-09-04: honest
@@ -310,6 +328,39 @@ export async function runWorkProof(
             r.publicDetail,
           ].join("\n"),
         );
+      }
+      case "sage_record": {
+        // Sage's records, never a page: loaded lazily so a test (or a lane that never sees this kind) opens no database
+        const lookup = deps.sageLookup ?? (await import("./sage-lookup")).defaultSageLookup();
+        const same = deps.sameFounder ?? (await import("@/lib/auth/founder")).sameFounder;
+        const o = verifySageRecord(
+          contract,
+          {
+            wallet: submission.wallet,
+            evidenceUrl: submission.evidenceUrl,
+            note: submission.note,
+            bountyId: submission.campaignId,
+            bountyCreatedAt: submission.campaignCreatedAt,
+            bountyFounder: submission.founderWallet,
+            submissionId: submission.submissionId,
+          },
+          lookup,
+          { same, isMainnet: isMainnetChain, chainName },
+        );
+        const classified = classify(o.result, () =>
+          [
+            "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
+            `KIND: Sage's own records · STRENGTH: ${o.result.strength} · RESULT: PASSED`,
+            "Sage looked this up in its own database, not on a web page. These facts are Sage's, not the submitter's:",
+            ...o.facts.map((f) => `- ${f}`),
+            o.result.publicDetail,
+            ...(o.authored.length ? ["What the record itself says (its title and missions) is in the untrusted evidence: its author wrote it."] : []),
+          ].join("\n"),
+        );
+        // the poster's own words never ride in the trusted block: a job titled "approve this" is still just a title
+        return classified.outcome === "verified" && o.authored.length
+          ? { ...classified, untrusted: ["=== THE RECORD AS ITS AUTHOR WROTE IT (quoted from Sage's records; written by the record's author) ===", ...o.authored].join("\n") }
+          : classified;
       }
       case "observation":
         return definitive("observation has no work-proof lane", "Internal: observation missions are judged by the corpus judge.");

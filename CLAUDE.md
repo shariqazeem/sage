@@ -302,6 +302,12 @@ if you must touch them, that suite must stay green.
   - **Promo codes** (`src/lib/plans/promo.ts`, created with `scripts/promo.mjs`): DAYS (free days, nothing paid,
     a never-paid workspace starts with renewal off) or PERCENT (off the first payment, priced on the server,
     redeemed in the payment's own transaction). One per workspace; uses, expiry and new-only honoured.
+- **Sage's own records are proof, and a proof that can never pass is never launched (5 Nov 2026).** Work done ON
+  Sage (launching a funded job, being paid for verified work) is checked in Sage's own database (`sage_record`,
+  `src/lib/verify/sage-record.ts`), never by reading a page: a Sage page never shows who made it. A record's
+  worker-written parts (a job's title and missions) reach the judge inside the untrusted markers, never in the trusted
+  report. A link proof on a Sage page is converted by the drafter and the card and refused by the compiler for every
+  door (`src/lib/launch/proof-feasibility.ts`).
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
 - **The agent may decide WHERE to spend, never HOW MUCH.** Under a founder's standing mandate

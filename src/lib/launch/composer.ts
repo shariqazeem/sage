@@ -4,6 +4,8 @@ import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { cutAtBoundary } from "@/lib/launch/text-cut";
+import type { SageRecordAction } from "@/lib/verify/contract";
+import { proofFeasibility } from "@/lib/launch/proof-feasibility";
 
 /**
  * THE PAY-FOR-WORK COMPOSER, AS DATA (28 Oct 2026). The composer's lines used to become the
@@ -49,11 +51,22 @@ export type Tranche = {
   founderConfirms?: boolean;
   /** transactions the work lists, each checked on its chain (verify/contract.ts txProof) */
   txProof?: { chainId: number; minTxs: number; to?: string[] }[];
+  /** verify "sage": what the worker did on Sage, checked in Sage's own records, and on which network (absent: any real one) */
+  sageAction?: SageRecordAction;
+  sageChain?: number;
+  /** only their first job (or payout) on Sage counts */
+  sageFirst?: boolean;
 };
 
 export const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
 
 export const MARKER_CRITERION = "The page carries the submitting wallet address";
+
+/** The automatic check of a Sage's-records proof, in the words the judge's rubric carries (verify/sage-record.ts). */
+export const SAGE_RECORD_CRITERION: Record<SageRecordAction, string> = {
+  launched_job: "Sage's records show they launched the job from their own account, funded, after this job went live",
+  was_paid: "Sage's records show it paid them for verified work after this job went live",
+};
 
 /** Everything the composer holds when the founder presses the button. */
 export interface ComposerState {
@@ -113,6 +126,14 @@ export function composeDirectBody(s: ComposerState) {
               ...(t.deploysContract ? { deploysContract: true } : {}),
               ...(t.founderConfirms ? { founderConfirms: true } : {}),
             }
+          : t.verify === "sage"
+            ? {
+                kind: "sage_record",
+                action: t.sageAction ?? "launched_job",
+                ...(t.sageChain ? { chainId: t.sageChain } : {}),
+                ...(t.sageFirst ? { first: true } : {}),
+                ...(t.founderConfirms ? { founderConfirms: true } : {}),
+              }
           : {
               kind: "artifact_url",
               allowedHosts: (t.allowedHosts ?? []).slice(0, 5),
@@ -131,7 +152,11 @@ export function composeDirectBody(s: ComposerState) {
         ? "Submit the public page showing the required text."
         : t.verify === "onchain"
           ? "Submit the transaction hash, sent from your own submitting wallet."
-          : "Submit the public link to what you made — it must visibly carry your own wallet address.";
+          : t.verify === "sage"
+            ? t.sageAction === "was_paid"
+              ? "Submit the link to your Sage receipt, from the account you were paid in."
+              : "Submit the link to the job you launched on Sage, from the account you launched it with."
+            : "Submit the public link to what you made — it must visibly carry your own wallet address.";
     // The founder's sentence is the CRITERION; the card title is its first clause (or the title they
     // typed). "You are paid when …" only read for a state sentence ("the page is live") and broke
     // for an instruction ("Read …, then write …") — "What must be true:" reads for both.
@@ -142,6 +167,8 @@ export function composeDirectBody(s: ComposerState) {
     const autoCriterion =
       t.verify === "link"
         ? MARKER_CRITERION
+        : t.verify === "sage"
+          ? SAGE_RECORD_CRITERION[t.sageAction ?? "launched_job"]
         : t.verify === "page"
           ? `The page contains: "${t.expectedText.trim()}"`
           : t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(to)
@@ -211,7 +238,8 @@ export type DraftMilestone = {
   evidence:
     | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean; txProof?: { chainId: number; minTxs: number; to?: string[] }[] }
     | { kind: "public_url"; expectedText: string[]; founderConfirms?: boolean }
-    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean; founderConfirms?: boolean };
+    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean; founderConfirms?: boolean }
+    | { kind: "sage_record"; action: SageRecordAction; chainId?: number; first?: boolean; founderConfirms?: boolean };
   effortMinutes?: number;
 };
 export type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; deadline?: string; needsFromFounder?: string[]; milestones: DraftMilestone[] };
@@ -249,15 +277,23 @@ export function restatesMarkerCheck(criterion: string): boolean {
 
 export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
   const money = prefillMoneyFromWords(words, d.milestones.length);
+  // A link on Sage's own pages can never carry the worker's wallet (proof-feasibility.ts): when the milestone says
+  // what was done on Sage, the proof becomes Sage's own records. The drafter does this too; the card is the backstop.
+  const milestones = d.milestones.map((m) => {
+    if (m.evidence.kind !== "artifact_url") return m;
+    const f = proofFeasibility(m.evidence, [m.title, m.deliverable, m.instructions, ...m.criteria]);
+    return !f.ok && f.fix ? { ...m, evidence: { kind: "sage_record" as const, action: f.fix.action, ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}) } } : m;
+  });
   return {
     pay: { who: d.who, slots: clampSlots(prefillSlots(words, d.milestones.length)) },
     currency: money.currency ?? "USD",
     splitTotal: money.splitTotal != null ? String(money.splitTotal) : "",
-    tranches: d.milestones.map((m, i) => ({
+    tranches: milestones.map((m, i) => ({
       amount: i === 0 && money.perUnit != null ? String(money.perUnit) : "",
       title: m.title,
       deliverable: m.deliverable,
-      verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
+      verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : m.evidence.kind === "sage_record" ? "sage" : "link",
+      ...(m.evidence.kind === "sage_record" ? { sageAction: m.evidence.action, ...(m.evidence.chainId ? { sageChain: m.evidence.chainId } : {}), ...(m.evidence.first ? { sageFirst: true } : {}) } : {}),
       expectedText: m.evidence.kind === "public_url" ? (m.evidence.expectedText[0] ?? "") : "",
       toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
       ...(m.evidence.kind === "onchain_tx" && m.evidence.chainId && TX_CHAINS.includes(m.evidence.chainId) ? { txChain: m.evidence.chainId } : {}),

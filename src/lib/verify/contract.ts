@@ -16,6 +16,7 @@ export type VerificationKind =
   | "onchain_state" // contract read / balance / ownership at or after a block
   | "artifact_url" // a URL of a created object; live AND carries a tester-specific marker
   | "public_url" // reach a public URL, quote specific expected text (the existing url-verifiable lane)
+  | "sage_record" // something the worker did ON Sage, looked up in Sage's own records (no page to read)
   | "observation"; // a written account matched against Sage's own private eyes (the existing P16 judge)
 
 /** How strongly a verified result was established — for the receipt and the autopay gate. */
@@ -151,11 +152,38 @@ export interface ObservationContract {
   kind: "observation";
 }
 
+/** What a worker can have done on Sage itself, read from Sage's own records. */
+export type SageRecordAction = "launched_job" | "was_paid";
+export const SAGE_RECORD_ACTIONS: readonly SageRecordAction[] = ["launched_job", "was_paid"];
+
+/**
+ * SAGE'S OWN RECORDS (5 Nov 2026). Work done ON Sage is checked in Sage's own database, never by reading a
+ * page. A founder asked to pay "whoever launches a job on sagepays.xyz", and the only proof that existed was
+ * a link that must show the worker's wallet. A Sage job page never shows who posted it, so every honest
+ * worker would have been refused. Sage knows who posted what, on which network, when, and whether it is
+ * funded; it knows whom it paid, for what, and when.
+ *   - launched_job: the worker posted a job on Sage from the account they submit with, it was funded (live,
+ *     paused or fully paid out; never a draft or a stopped job), on a real network, after this job went live.
+ *   - was_paid: Sage paid the worker, after this job went live, for verified work on another job.
+ * The worker submits the link to their job (or their receipt); one record counts once.
+ */
+export interface SageRecordContract {
+  kind: "sage_record";
+  action: SageRecordAction;
+  /** the network the record must be on; absent means any real network Sage runs on */
+  chainId?: number;
+  /** only their FIRST on Sage: no job launched (or payout received) before this one, on a real network */
+  first?: boolean;
+  /** the founder confirms each one before it pays (see OnchainTxContract.founderConfirms) */
+  founderConfirms?: boolean;
+}
+
 export type VerificationContract =
   | OnchainTxContract
   | OnchainStateContract
   | ArtifactUrlContract
   | PublicUrlContract
+  | SageRecordContract
   | ObservationContract;
 
 /** The outcome of checking one submission against one contract. */
@@ -177,6 +205,7 @@ export function strengthOf(kind: VerificationKind): VerificationStrength {
   switch (kind) {
     case "onchain_tx":
     case "onchain_state":
+    case "sage_record":
       return "deterministic";
     case "artifact_url":
     case "public_url":
