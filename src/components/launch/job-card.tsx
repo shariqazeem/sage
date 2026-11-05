@@ -212,7 +212,8 @@ export function JobCard({
 
         {deadline?.trim() && (
           <>
-            <span className="jc-k">By</span>
+            {/* "When", not "By": a deadline can be a date or a schedule ("shoot on a Friday; deliver in 7 days") */}
+            <span className="jc-k">When</span>
             <span className="jc-v">{deadline.trim()}</span>
           </>
         )}
