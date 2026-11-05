@@ -186,6 +186,31 @@ export function extractMissionArray(json: unknown): unknown[] {
 }
 
 /**
+ * AN EMPTY PLAN IS AN ANSWER, NOT A SHAPE FAILURE. The architect prompt tells the model to omit any
+ * mission it cannot anchor on observed text, and on a thin map that can be every mission. Measured
+ * on 5 Nov 2026 (P-GEN, Claude Sonnet 5.5 on a one-page site): `{"missions":[]}` in 10 tokens, five
+ * times, each counted as `schema_mismatch`, and the founder's launch FAILED where it should have asked
+ * them a question. True only for a deliberate empty list under a mission key (or a bare `[]`), never
+ * for a missing key or an unrecognised shape, which stay shape failures.
+ */
+export function isExplicitlyEmptyPlan(json: unknown): boolean {
+  if (Array.isArray(json)) return json.length === 0;
+  if (!json || typeof json !== "object") return false;
+  const o = json as Record<string, unknown>;
+  for (const k of MISSION_KEYS) {
+    const v = o[k];
+    if (Array.isArray(v)) return v.length === 0;
+    if (v && typeof v === "object") {
+      for (const k2 of MISSION_KEYS) {
+        const deep = (v as Record<string, unknown>)[k2];
+        if (Array.isArray(deep)) return deep.length === 0;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * The verification method Sage ACTUALLY applies, stated deterministically from the mission's own
  * evidence shape — used only when the model left the field empty. This is not a weakened gate: the
  * gate still refuses an empty method, but a reviewer-accepted mission no longer dies on a missing
@@ -430,6 +455,8 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
    * hour. Bounded at 2 so a single transient blip still gets its second chance.
    */
   let timeouts = 0;
+  /** deliberate empty plans so far: one more look is cheap; a second identical answer is the answer. */
+  let empties = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
     await jitter(attempt, lastThrown);
     try {
@@ -439,12 +466,20 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
         { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
       );
       // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).
-      const shapeNudge = attempt >= 1 ? `\n\nRespond with EXACTLY this shape and nothing else: {"missions":[ {...}, {...} ]}. The top-level key MUST be "missions" and its value MUST be a JSON array.` : "";
+      const shapeNudge = empties > 0
+        ? `\n\nYour previous answer was an EMPTY plan. That is right only if the map shows nothing a tester can actually do or reach. If it shows even one real flow you can anchor on observed text, design that mission; if it truly shows none, answer {"missions":[]} again.`
+        : attempt >= 1 ? `\n\nRespond with EXACTLY this shape and nothing else: {"missions":[ {...}, {...} ]}. The top-level key MUST be "missions" and its value MUST be a JSON array.` : "";
       const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
         : base) + shapeNudge;
       const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation });
       const arr = extractMissionArray(r.json);
+      if (arr.length === 0 && isExplicitlyEmptyPlan(r.json)) {
+        // the model looked and found nothing it can anchor a paid mission on: ask the founder, don't fail
+        if (++empties >= 2) return { ok: false, error: "insufficient_observation" };
+        lastError = "insufficient_observation";
+        continue;
+      }
       if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
       if (candidates.length === 0) { lastError = "schema_mismatch"; continue; }
@@ -752,7 +787,10 @@ export async function runMissionBrain(
 
   if (!arch.ok) {
     const gs = await computeShadow(0); // legacy architect failed → V2 shadow still measured
-    return { ...EMPTY(arch.error), needsInputQuestions, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
+    // an EMPTY plan is the architect saying the map is too thin: the same specific questions the
+    // sufficiency gate asks, so the pipeline's needs_input path (not `failed`) carries it to the founder
+    const asked = arch.error === "insufficient_observation" ? sufficiencyQuestions(map, founder.goal) : needsInputQuestions;
+    return { ...EMPTY(arch.error), needsInputQuestions: asked, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
   }
   let r = await run(arch);
 
