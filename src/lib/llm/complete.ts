@@ -132,6 +132,13 @@ export function fallbackLlm(modelOverride?: string): ResolvedProvider | null {
   return { endpoint: `${base}/chat/completions`, key, model: modelOverride?.trim() || model, host: hostOf(base) };
 }
 
+/** A lane's configured reasoning effort, when one is set and valid. */
+export function laneEffort(lane: Lane | undefined): "low" | "medium" | "high" | undefined {
+  if (!lane) return undefined;
+  const v = process.env[`${lane}_REASONING_EFFORT`]?.trim().toLowerCase();
+  return v === "low" || v === "medium" || v === "high" ? v : undefined;
+}
+
 export function llmModel(): string {
   return resolveLlm()?.model ?? DEFAULT_MODEL;
 }
@@ -498,6 +505,13 @@ export async function llmCompleteJson(opts: {
          * compiler is what actually decides the shape.
          */
         ...(responseFormat ? { response_format: responseFormat } : {}),
+        /**
+         * HOW HARD THIS LANE THINKS, by configuration (`<LANE>_REASONING_EFFORT`: low | medium | high).
+         * A founder waiting on a draft does not need a model's deepest deliberation, and current models
+         * think by default: measured 5 Nov 2026, Claude 5.5 drafts took 13-15 s at their default effort.
+         * Providers that don't take the parameter refuse it once and the wire drops it from then on.
+         */
+        ...(laneEffort(opts.lane) ? { reasoning_effort: laneEffort(opts.lane) } : {}),
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.user },

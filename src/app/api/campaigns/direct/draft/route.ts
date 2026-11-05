@@ -56,6 +56,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     productUrl: handed?.read ? null : (parsed.data.productUrl ?? null),
     source: handed?.read ? { url: handed.url, text: handed.text } : null,
   });
-  if (!r.ok) return NextResponse.json({ ok: false, error: r.error, source }, { status: 503 });
+  // A decline is Sage's answer about the work (it won't post it), not an outage: 422, and the page shows it
+  // as an answer rather than offering "try again".
+  if (!r.ok) return NextResponse.json({ ok: false, error: r.error, declined: r.declined === true, source }, { status: r.declined ? 422 : 503 });
   return NextResponse.json({ ok: true, draft: r.draft, notes: r.notes, model: r.model, source });
 }

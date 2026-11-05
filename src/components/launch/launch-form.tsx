@@ -1,13 +1,10 @@
 "use client";
-import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, isPausedNetwork, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, isPausedNetwork } from "@/lib/deputy/networks";
 
 /** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
-const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).isMainnet);
 
-import { prefillSlots } from "@/lib/launch/direct-fallback";
-import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
-import { blankTranche, composeDirectBody, composerTotal, type Tranche } from "@/lib/launch/composer";
+import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, type Draft, type Tranche } from "@/lib/launch/composer";
 import { firstUrl, labelFor, looksLikeProductHome, wordsOnly } from "@/lib/launch/hand-over-text";
 import { AmountChips, JobCard } from "./job-card";
 import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
@@ -79,29 +76,8 @@ type PayDraft = { who: string; slots: string };
 /** What the drafter says about a link it was handed: opened and read, or why not. */
 type HandedSource = { url: string; label: string; read: boolean; reason: string | null };
 
-/** A drafted milestone, as the draft route returns it. */
-type DraftMilestone = {
-  title: string;
-  deliverable: string;
-  instructions: string;
-  criteria: string[];
-  evidence:
-    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[] }
-    | { kind: "public_url"; expectedText: string[] }
-    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
-  effortMinutes?: number;
-};
-type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; milestones: DraftMilestone[] };
-
 /** The composer's slot select offers fixed counts; a drafted count snaps to the nearest one it offers. */
 const SLOT_OPTIONS = ["1", "2", "3", "5", "10"];
-/**
- * THE FOUNDER'S HEADCOUNT IS NEVER ROUNDED. "8 people" once snapped to the nearest preset (10) and the
- * bounty silently grew by a quarter — the same invented-number defect the direct door's stated-terms
- * check refuses. The number in the sentence wins; the model's guess is clamped, never snapped; and the
- * chooser always offers the number that is set, whether or not it is a preset.
- */
-const clampSlots = (n: number): string => String(Math.min(50, Math.max(1, Math.round(Number.isFinite(n) ? n : 1))));
 const slotChoices = (current: string): string[] => (SLOT_OPTIONS.includes(current) ? SLOT_OPTIONS : [...SLOT_OPTIONS, current].sort((a, b) => Number(a) - Number(b)));
 
 /** The one-line trust hint under each door — everything longer was deleted, not moved. */
@@ -178,6 +154,8 @@ export function LaunchForm() {
   const [draftText, setDraftText] = useState("");
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
+  /** Sage's own answer that it won't post this work (a decline is an answer, not an error to retry). */
+  const [declined, setDeclined] = useState<string | null>(null);
   const [draftNotes, setDraftNotes] = useState<string[]>([]);
   const [draftWhy, setDraftWhy] = useState("");
   const [showAuth, setShowAuth] = useState(false);
@@ -416,6 +394,7 @@ export function LaunchForm() {
     }
     setProductChoice(false);
     setDraftErr(null);
+    setDeclined(null);
     setDraftNotes([]);
     setHanded(null);
     setPayErr(null);
@@ -431,10 +410,15 @@ export function LaunchForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ intent: text, ...context }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; draft?: Draft; notes?: string[]; source?: HandedSource | null };
+      const data = (await res.json()) as { ok?: boolean; error?: string; declined?: boolean; draft?: Draft; notes?: string[]; source?: HandedSource | null };
       if (res.status === 401) {
         setShowSignIn(true);
         setDraftErr("Sign in with your email or MetaMask, then hand it to Sage again.");
+        return;
+      }
+      if (data.declined && data.error) {
+        if (data.source) setHanded({ source: data.source, seconds: null });
+        setDeclined(data.error);
         return;
       }
       if (!res.ok || !data.ok || !data.draft) {
@@ -442,38 +426,16 @@ export function LaunchForm() {
         throw new Error(data.error ?? "Sage couldn't set this up.");
       }
       const d = data.draft;
-      const words = wordsOnly(text);
-      // THE FOUNDER'S WORDS ARE THE MONEY: the currency, the total to split, or the price per person,
-      // read from their sentence deterministically — never from the model or the page — and editable.
-      const money = prefillMoneyFromWords(words, d.milestones.length);
-      setPay({ who: d.who, slots: clampSlots(prefillSlots(words, d.milestones.length)) });
-      setCurrency(money.currency ?? "USD");
-      setSplitTotal(money.splitTotal != null ? String(money.splitTotal) : "");
-      setTranches(
-        d.milestones.map((m, i) => ({
-          amount: i === 0 && money.perUnit != null ? String(money.perUnit) : "",
-          title: m.title,
-          deliverable: m.deliverable,
-          verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
-          expectedText: m.evidence.kind === "public_url" ? (m.evidence.expectedText[0] ?? "") : "",
-          toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
-          ...(m.evidence.kind === "onchain_tx" && m.evidence.chainId && TX_CHAINS.includes(m.evidence.chainId) ? { txChain: m.evidence.chainId } : {}),
-          instructions: m.instructions,
-          criteria: m.criteria,
-          ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
-          // everything else Sage drafted rides along, so the founder never re-types it (or can't)
-          ...(m.evidence.kind === "onchain_tx" && m.evidence.deploysContract ? { deploysContract: true } : {}),
-          ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0 ? { allowedHosts: m.evidence.allowedHosts } : {}),
-          ...(m.evidence.kind === "artifact_url" && m.evidence.mustContain?.length ? { mustContain: m.evidence.mustContain } : {}),
-          ...(m.evidence.kind === "public_url" && m.evidence.expectedText.length > 1 ? { extraExpected: m.evidence.expectedText.slice(1) } : {}),
-          ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
-        })),
-      );
-      setDraftWhy(d.whyItMatters ?? "");
+      // THE CARD, built by the one mapping the bench also measures (composer.ts → composerFromDraft)
+      const card = composerFromDraft(d, wordsOnly(text));
+      setPay(card.pay);
+      setCurrency(card.currency);
+      setSplitTotal(card.splitTotal);
+      setTranches(card.tranches);
+      setDraftWhy(card.why);
       setDraftNotes(data.notes ?? []);
-      setJobTitle(d.title);
-      // work for someone the founder names ("my designer", "our translator") is theirs to invite
-      setInviteOnly(/^(my|our)\b/i.test(d.who.trim()));
+      setJobTitle(card.title);
+      setInviteOnly(card.inviteOnly);
       setHanded({ source: data.source ?? null, seconds: Math.max(1, Math.round((Date.now() - started) / 1000)) });
     } catch (e) {
       setDraftErr(e instanceof Error ? e.message : String(e));
@@ -897,6 +859,11 @@ export function LaunchForm() {
                   )
                 )}
               </ul>
+            )}
+            {declined && (
+              <p className="ho-declined" role="status">
+                {declined}
+              </p>
             )}
             {draftErr && (
               <p className="cmp-err ho-err">

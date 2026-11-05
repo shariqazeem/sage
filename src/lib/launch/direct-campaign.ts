@@ -8,6 +8,7 @@ import { CHAINS } from "@/lib/deputy/networks";
 import { formatLocal, toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 import { releasesOnThirdPartyDecision, THIRD_PARTY_DECISION_REFUSAL } from "./third-party-decision";
+import { refusedWork } from "./work-policy";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
@@ -42,11 +43,23 @@ import type { LaunchResult } from "./pipeline";
 export const DIRECT_PLAN_VERSION = "direct-v1";
 export const DIRECT_MODEL_LABEL = "direct/operator";
 
+/**
+ * SANITY BOUNDS, NOT BUSINESS LIMITS (raised 5 Nov 2026).
+ *
+ * $500 per completion and $5,000 per job were set when every job was a test. Measured on Sage Bench: 19
+ * of 137 real company jobs (a $2,000 contract audit, an $800 docs set, every $6,000-$20,000 builder grant)
+ * were refused by these numbers alone. The founder never got to decide. The real limits already live where
+ * they belong:
+ * - the founder's plan (launchAllowed: Free $50, Pro $5,000, Team $50,000 a month, Programs open);
+ * - the account's own per-job cap, which the founder sets;
+ * - the vault, which enforces whatever was funded.
+ * These bounds only catch a typo with too many zeros.
+ */
 export const DIRECT_LIMITS = {
   milestonesMax: 12,
   rewardUsdMin: TANGIBLE_MIN_PER_REWARD_USD, // $0.50 — the same tangible floor as testing
-  rewardUsdMax: 500,
-  totalUsdMax: 5_000,
+  rewardUsdMax: 50_000,
+  totalUsdMax: 500_000,
   slotsMax: Number(MAX_COMPLETIONS), // 50 — the same cap the vault machinery already assumes
   allowlistMax: 100,
 } as const;
@@ -574,6 +587,10 @@ export function compileDirectCampaign(
       return { ok: false, error: `${noun} "${m.title}": ${THIRD_PARTY_DECISION_REFUSAL}` };
     }
   }
+  // Work Sage won't post (fake reviews, sybil farming, forgery…), refused on EVERY door: the composer,
+  // the concierge, MCP and the Agent API all reach this compiler (work-policy.ts).
+  const refused = refusedWork([input.title, input.whyItMatters ?? "", ...input.milestones.flatMap((m) => [m.title, m.instructions, ...m.criteria])].join(". "));
+  if (refused) return { ok: false, error: refused };
 
   const candidates: CandidateMission[] = input.milestones.map((m, i) => ({
     missionKey: slugify(m.title, i, taken),

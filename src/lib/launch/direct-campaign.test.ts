@@ -187,8 +187,8 @@ describe("compileDirectCampaign — deterministic, exact-sum, contract-carrying"
 
   it(`refuses a total above $${DIRECT_LIMITS.totalUsdMax}`, () => {
     const input = grantInput();
-    input.milestones[0].rewardUsd = 500;
-    input.milestones[0].slots = 50; // $25,000
+    input.milestones[0].rewardUsd = DIRECT_LIMITS.rewardUsdMax;
+    input.milestones[0].slots = 50; // 50 × the per-completion ceiling, far past the total ceiling
     const r = compileDirectCampaign(input, "grant-testplan5");
     expect(r.ok).toBe(false);
   });

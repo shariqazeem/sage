@@ -1,5 +1,7 @@
-import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
+import { prefillSlots } from "@/lib/launch/direct-fallback";
+import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 
 /**
  * THE PAY-FOR-WORK COMPOSER, AS DATA (28 Oct 2026). The composer's lines used to become the
@@ -147,4 +149,74 @@ export function composerTotal(s: Pick<ComposerState, "tranches" | "slots" | "spl
   const splitting = s.tranches.length > 1 && s.splitTotal.trim() !== "";
   if (splitting) return Number(s.splitTotal || 0);
   return s.tranches.reduce((a, t) => a + (Number(t.amount) || 0), 0) * (s.tranches.length === 1 ? Number(s.slots) || 1 : 1);
+}
+
+/** The mainnets a drafted on-chain check may name (paused ones stay listed so their history reads true). */
+export const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).isMainnet);
+
+/**
+ * THE FOUNDER'S HEADCOUNT IS NEVER ROUNDED. "8 people" once snapped to the nearest preset (10) and the
+ * bounty silently grew by a quarter — the same invented-number defect the direct door's stated-terms
+ * check refuses. The number in the sentence wins; the model's guess is clamped, never snapped.
+ */
+export const clampSlots = (n: number): string => String(Math.min(50, Math.max(1, Math.round(Number.isFinite(n) ? n : 1))));
+
+/** A drafted milestone, as the draft route returns it. */
+export type DraftMilestone = {
+  title: string;
+  deliverable: string;
+  instructions: string;
+  criteria: string[];
+  evidence:
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[] }
+    | { kind: "public_url"; expectedText: string[] }
+    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
+  effortMinutes?: number;
+};
+export type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; milestones: DraftMilestone[] };
+
+export interface ComposedFromDraft {
+  pay: { who: string; slots: string };
+  currency: string;
+  splitTotal: string;
+  tranches: Tranche[];
+  why: string;
+  title: string;
+  inviteOnly: boolean;
+}
+
+/**
+ * A DRAFT BECOMES THE CARD, ONE WAY ONLY (moved out of the launch form, 5 Nov 2026, so the bench measures
+ * the card a founder actually sees). The founder's words are the money: currency, the total to split, or
+ * the price per person, read from their sentence deterministically, never from the model or the page.
+ */
+export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
+  const money = prefillMoneyFromWords(words, d.milestones.length);
+  return {
+    pay: { who: d.who, slots: clampSlots(prefillSlots(words, d.milestones.length)) },
+    currency: money.currency ?? "USD",
+    splitTotal: money.splitTotal != null ? String(money.splitTotal) : "",
+    tranches: d.milestones.map((m, i) => ({
+      amount: i === 0 && money.perUnit != null ? String(money.perUnit) : "",
+      title: m.title,
+      deliverable: m.deliverable,
+      verify: m.evidence.kind === "public_url" ? "page" : m.evidence.kind === "onchain_tx" ? "onchain" : "link",
+      expectedText: m.evidence.kind === "public_url" ? (m.evidence.expectedText[0] ?? "") : "",
+      toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
+      ...(m.evidence.kind === "onchain_tx" && m.evidence.chainId && TX_CHAINS.includes(m.evidence.chainId) ? { txChain: m.evidence.chainId } : {}),
+      instructions: m.instructions,
+      criteria: m.criteria,
+      ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
+      ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
+      // everything else Sage drafted rides along, so the founder never re-types it (or can't)
+      ...(m.evidence.kind === "onchain_tx" && m.evidence.deploysContract ? { deploysContract: true } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0 ? { allowedHosts: m.evidence.allowedHosts } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.mustContain?.length ? { mustContain: m.evidence.mustContain } : {}),
+      ...(m.evidence.kind === "public_url" && m.evidence.expectedText.length > 1 ? { extraExpected: m.evidence.expectedText.slice(1) } : {}),
+    })),
+    why: d.whyItMatters ?? "",
+    title: d.title,
+    // work for someone the founder names ("my designer", "our translator") is theirs to invite
+    inviteOnly: /^(my|our)\b/i.test(d.who.trim()),
+  };
 }

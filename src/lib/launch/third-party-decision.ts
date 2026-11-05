@@ -21,7 +21,10 @@ export const THIRD_PARTY_DECISION_RE = new RegExp(
   `\\b${DECIDER}\\b[^.!?]{0,60}\\b${DECIDES}` +
     `|\\b(?:loan|visa|application|mortgage|claim|permit|licen[cs]e|scholarship|appeal|offer|tender|bid|funding|pr[eé]stamo|visado|solicitud)\\b[^.!?]{0,40}\\b(?:is|gets?|has\\s+been|was|are|sea|est[eé]|quede)\\s+(?:finally\\s+)?(?:approved|accepted|granted|awarded|cleared|confirmed|issued|aprobad[oa]|aceptad[oa]|concedid[oa])` +
     `|\\b(?:gets?|got|lands?|landed|wins?|won)\\s+(?:the|a|an|her|his|their)\\s+(?:job|loan|visa|permit|mortgage|scholarship|approval|contract|offer|promotion|grant)\\b` +
-    `|\\b(?:is|gets?|was)\\s+(?:hired|promoted|admitted|accepted|approved)\\b` +
+    // A PERSON (or their application) being hired, promoted, admitted, accepted or approved. Not any subject:
+    // "the code TESTDRIVE was accepted" at a checkout is a QA check the worker can show, and the bare passive
+    // refused a real QA job as "pays on a bank's decision" (Sage Bench, 5 Nov 2026).
+    `|\\b(?:i|we|you|he|she|they|him|her|them|my\\s+\\w+|our\\s+\\w+|his\\s+\\w+|their\\s+\\w+|(?:the\\s+)?(?:candidate|applicant|application|student|employee|worker|recipient|grantee))\\s+(?:is|gets?|was|has\\s+been)\\s+(?:hired|promoted|admitted|accepted|approved)\\b` +
     `|\\b(?:le\\s+)?(?:aprueben|apruebe|acepten|acepte|contraten|contrate|concedan|conceda)\\b` +
     `|\\bconsig(?:a|ue|an|uen)\\s+(?:el|un|la|una)\\s+(?:trabajo|pr[eé]stamo|visado|visa|beca)\\b`,
   "i",

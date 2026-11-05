@@ -16,6 +16,9 @@ describe("releasesOnThirdPartyDecision", () => {
       "$30 when the client accepts the design",
       "Dale $200 a mi prima cuando el banco apruebe el préstamo",
       "The bank has approved the loan",
+      "pay him when he is hired by the agency",
+      "release the grant once my sister is admitted",
+      "$50 when the application was accepted",
     ]) expect(releasesOnThirdPartyDecision(t), t).toBe(true);
   });
 
@@ -28,6 +31,9 @@ describe("releasesOnThirdPartyDecision", () => {
       "publish the confirmed order page",
       "when the new logo page is live on my site",
       "half when she publishes her catalogue online and half when she posts her first customer review",
+      // a QA check the worker can show: a promo code accepted at a checkout is not anyone's decision about them
+      "Confirms whether code TESTDRIVE was accepted and what the discount showed at checkout",
+      "note whether the card payment was approved in the test checkout",
     ]) expect(releasesOnThirdPartyDecision(t), t).toBe(false);
   });
 });

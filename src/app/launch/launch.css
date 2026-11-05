@@ -880,3 +880,15 @@
 .cmp-live-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .cmp-live-row .lx-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .cmp-live-row .lxo-chip { text-decoration: none; }
+
+/* Sage's answer that it won't post this work: a calm statement, not an error to retry. */
+.ho-declined {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}

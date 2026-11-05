@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { readStatedTerms } from "./stated-terms";
+import { refusedWork } from "./work-policy";
 import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { isTransientLlmError, withTransientRetry } from "@/lib/llm/retry";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
@@ -30,7 +31,7 @@ const hostRe = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
  * not rescue a picky reader; the schema reads a string or a list wherever either is honest, and
  * strictness stays where it belongs — in the compiler and the judge.
  */
-const stringList = (max: number, item: z.ZodString) =>
+const stringList = (max: number, item: z.ZodType<string>) =>
   z.preprocess(
     (v) => (typeof v === "string" ? v.split(/\r?\n|(?<=\.)\s+(?=\d+[.)]\s)/).map((t) => t.trim()).filter(Boolean) : v),
     z.array(item).max(max),
@@ -38,6 +39,35 @@ const stringList = (max: number, item: z.ZodString) =>
 const text = (min: number, max: number) =>
   z.preprocess((v) => (Array.isArray(v) ? v.map((t, i) => (typeof t === "string" && !/^\d+[.)]/.test(t.trim()) ? `${i + 1}. ${t.trim()}` : String(t).trim())).join("\n") : v), z.string().min(min).max(max));
 const count = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
+
+/**
+ * THE SHAPE IS THE MODEL'S, THE MEANING IS OURS (5 Nov 2026, Sage Bench).
+ * - A model that writes `null` for a field it is leaving out means "absent". Refusing it cost a whole
+ *   round: Claude Haiku 5.5 sent `mustContain: null` on a three-milestone grant.
+ * - A soft ceiling that only protects display is clamped, not refused. That same draft estimated a
+ *   prototype at more than 240 minutes, which is honest, and was refused for it.
+ * - Strictness stays where it carries meaning: an empty title, no criteria, no evidence kind, and money
+ *   are still refused, and the compiler still checks everything that reaches a vault.
+ */
+const absent = (v: unknown) => (v === null ? undefined : v);
+const opt = <T extends z.ZodTypeAny>(schema: T) => z.preprocess(absent, schema.optional());
+/** A whole number clamped into [min, max] (an estimate or a count the founder never sees as a promise). */
+const clampedInt = (min: number, max: number) =>
+  z.preprocess((v) => {
+    if (v === null || v === undefined || v === "") return undefined;
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : v;
+  }, z.number().int().min(min).max(max));
+/** Text trimmed to `max` characters at a word boundary instead of being refused for its length. */
+const trimmedText = (min: number, max: number) =>
+  z.preprocess((v) => {
+    if (typeof v !== "string") return v;
+    const t = v.trim();
+    if (t.length <= max) return t;
+    const cut = t.slice(0, max);
+    const space = cut.lastIndexOf(" ");
+    return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:–—-]+$/, "");
+  }, z.string().min(min).max(max));
 const hostList = z.preprocess(
   (v) => (typeof v === "string" ? [v] : v == null ? [] : v),
   z.array(z.preprocess((h) => (typeof h === "string" ? h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") : h), z.string().max(120).regex(hostRe))).max(5),
@@ -71,38 +101,47 @@ const evidenceKinds = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("artifact_url"),
     allowedHosts: hostList.default([]),
-    minWords: count(20, 5000).optional(),
-    mustContain: stringList(5, z.string().min(2).max(200)).optional(),
+    minWords: opt(clampedInt(20, 5000)),
+    mustContain: opt(stringList(5, z.string().min(2).max(200))),
   }),
   z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)) }),
   z.object({
     kind: z.literal("onchain_tx"),
-    chainId: count(1, 10_000_000).optional(),
-    to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+    chainId: opt(count(1, 10_000_000)),
+    // a malformed address is dropped, not fatal: the founder names the contract on the card when it's missing
+    to: z.preprocess((v) => (typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v.trim()) ? v.trim() : undefined), z.string().optional()),
     /** The deployment case: the address does not exist yet, so `to` cannot be named. See
      *  verify/contract.ts. Without it the compiler refuses the milestone as unconstrained. */
-    deploysContract: z.boolean().optional(),
+    deploysContract: opt(z.boolean()),
   }),
 ]);
 const evidenceSchema = z.preprocess(normalizeProofKind, evidenceKinds);
 
+/** Criteria: each trimmed to the compiler's 300 characters, and at most 8 (the first eight are kept). */
+const criteriaList = z.preprocess(
+  (v) => (Array.isArray(v) ? v.slice(0, 8) : v),
+  stringList(8, trimmedText(4, 300)).pipe(z.array(z.string()).min(1)),
+);
+
 export const draftMilestoneSchema = z.object({
-  title: z.string().min(4).max(80),
+  title: trimmedText(4, 80),
   /** one sentence: what must be TRUE when the work is done — a state, not an instruction. */
-  deliverable: z.string().min(8).max(300),
-  instructions: text(10, 2000),
-  criteria: stringList(8, z.string().min(4).max(300)).pipe(z.array(z.string()).min(1)),
+  deliverable: trimmedText(8, 300),
+  instructions: z.preprocess((v) => (typeof v === "string" && v.trim().length > 2000 ? v.trim().slice(0, 2000) : v), text(10, 2000)),
+  criteria: criteriaList,
   evidence: evidenceSchema,
-  effortMinutes: count(1, 240).optional(),
+  effortMinutes: opt(clampedInt(1, 240)),
 });
 
 export const gigDraftSchema = z.object({
   kind: z.enum(["grant", "gig"]),
-  title: z.string().min(4).max(80),
+  title: trimmedText(4, 80),
   /** the audience phrase the composer shows — "my designer", "anyone", "a translator". */
-  who: z.string().min(2).max(80),
-  slots: count(1, 50),
-  whyItMatters: z.string().min(10).max(600).optional(),
+  who: trimmedText(2, 80),
+  // the composer reads the founder's headcount, never this; a guess outside the range is clamped
+  slots: clampedInt(1, 50),
+  // a reason too short to say anything is left out, not fatal
+  whyItMatters: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 10 ? v : undefined), trimmedText(10, 600).optional()),
   milestones: z.array(draftMilestoneSchema).min(1).max(12),
 });
 export type GigDraft = z.infer<typeof gigDraftSchema>;
@@ -127,7 +166,14 @@ RULES
     NEVER make a post on x.com, twitter.com, instagram.com, facebook.com, linkedin.com or tiktok.com the evidence — Sage cannot open them. Ask for a page it can read.
   - effortMinutes: your honest estimate.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.
-Answer with ONE JSON object and nothing else: {"kind","title","who","slots","whyItMatters"?,"milestones":[{"title","deliverable","instructions","criteria":[...],"evidence":{...},"effortMinutes"?}]}`;
+WHEN SAGE WILL NOT POST IT
+- Decline when the work asks people to deceive or defraud (fake reviews or testimonials, paid endorsements hidden as organic, bought followers or votes, invented case studies or results presented as real), to game a system (many wallets for one person, sybil or airdrop farming, wash trading), to cheat (someone else's exam, thesis or coursework, plagiarism, rewording someone else's copyrighted or confidential work as one's own), to harm or surveil a person (doxxing, harassment, harvesting private personal data), to impersonate, to forge documents, or anything else illegal.
+- Also decline work that cannot be verified even in principle as stated ("make my startup go viral, whatever it takes"); say what concrete deliverable would make it payable.
+- NEVER silently turn the request into a different, cleaner job. If an honest version exists, offer it in the decline in one short clause ("if you want real reviews from people who used it, with the payment disclosed, ask for that").
+- Do NOT decline legitimate work that merely sounds similar: honest reviews from real users with the payment disclosed, growth through real content, security testing of the founder's own systems, translating real marketing, research from public sources.
+- To decline, answer ONLY {"decline": "<one or two sentences the founder reads: what Sage won't do and why, plus the honest version if there is one>"}.
+
+Answer with ONE JSON object and nothing else: {"kind","title","who","slots","whyItMatters"?,"milestones":[{"title","deliverable","instructions","criteria":[...],"evidence":{...},"effortMinutes"?}]} — or {"decline": "..."} as above.`;
 
 export interface DraftInput {
   /** the founder's own words — what, for whom, how many, what good looks like. */
@@ -141,7 +187,10 @@ export interface DraftInput {
   source?: { url: string; text: string } | null;
 }
 
-export type DraftResult = { ok: true; draft: GigDraft; notes: string[]; model: string | null } | { ok: false; error: string };
+export type DraftResult =
+  | { ok: true; draft: GigDraft; notes: string[]; model: string | null }
+  /** `declined`: Sage won't post this work and `error` says why, in words for the founder (not a failure to retry). */
+  | { ok: false; error: string; declined?: boolean };
 
 type Complete = (opts: { system: string; user: string; maxTokens: number }) => Promise<{ json: unknown; model?: string | null }>;
 
@@ -233,9 +282,21 @@ export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] 
   return { draft: { ...draft, milestones }, notes };
 }
 
+/** The drafter's decline, when it answered with one instead of a job. */
+function declineOf(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const d = typeof o.decline === "string" ? o.decline.trim() : "";
+  if (d.length < 10 || Array.isArray(o.milestones)) return null;
+  return d.slice(0, 600);
+}
+
 export async function draftDirectCampaign(input: DraftInput, deps: { complete?: Complete } = {}): Promise<DraftResult> {
   const intent = input.intent.trim();
   if (intent.length < 10) return { ok: false, error: "Describe the work in a sentence or two first." };
+  // The clearest cases need no model to recognise: refused before anything is drafted (work-policy.ts).
+  const policy = refusedWork(`${intent}\n${input.source?.text ?? ""}`);
+  if (policy) return { ok: false, declined: true, error: policy };
   // The DRAFT lane may be configured on its own provider with no shared chain at all; either can write.
   if (!deps.complete && !llmConfigured() && !laneProvider("DRAFT")) return { ok: false, error: "Sage can't write jobs on this server yet. Fill it in yourself below." };
   const complete = deps.complete ?? defaultComplete;
@@ -258,6 +319,10 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
       console.warn(`[gig-draft] round ${round + 1} model error: ${msg.slice(0, 300)}`);
       return { ok: false, error: "Sage couldn't reach its writer just now. Try again in a moment, or fill it in yourself." };
     }
+    // A DECLINE IS AN ANSWER, NOT A FAILURE: the founder reads why, instead of "try again" (which invited
+    // retrying the same request, or typing it into the form by hand).
+    const decline = declineOf(raw);
+    if (decline) return { ok: false, declined: true, error: decline };
     const parsed = gigDraftSchema.safeParse(raw);
     if (parsed.success) {
       /**
