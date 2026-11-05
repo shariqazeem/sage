@@ -100,6 +100,20 @@ const PRODUCTION_APPROVED: readonly ApprovalRecord[] = [
     approvedOn: "2026-10-06",
     evidence: "docs/deputy-promotions/2026-10-06-commonstack-minimax-m3.md",
   },
+  // CLAUDE ON ANTHROPIC'S OWN ENDPOINT. The CommonStack balance hit $0 on 2026-11-05 and the founder put a
+  // Claude credit into production until it is topped up. A new model and a new door, so its own battery:
+  // 57/57 valid, zero wrong-autopays, zero provenance violations, zero provider failures, falseHold 0,
+  // every adversarial fixture held 3/3. More careful than MiniMax on borderline genuine work (review, not
+  // autopay: honestAutopay 3/9 against 5/9), never wrong where MiniMax was never wrong.
+  {
+    provider: "api.anthropic.com",
+    model: "claude-sonnet-5-5",
+    promptVersion: "payout-v1",
+    parserVersion: "payout-parse-v4",
+    evalSuite: "P-JUDGE judge-eval.live · 19 fixtures × 3 runs (57 calls)",
+    approvedOn: "2026-11-05",
+    evidence: "docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md",
+  },
 ];
 
 /** Model-membership helper input: the canonical models that appear as candidates or approvals. Weaker

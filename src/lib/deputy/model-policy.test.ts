@@ -12,9 +12,10 @@ import {
 
 /**
  * The autopay policy-identity registry (Gate C item 3). CANDIDATE and APPROVED are separate. The
- * production registry holds exactly TWO promoted identities, one model through two doors (MiniMax-M3
- * direct, 2026-08-25; minimax/minimax-m3 via the CommonStack gateway, 2026-10-06 — see
- * docs/deputy-promotions/); every other combination, including the commonstack-haiku CANDIDATE
+ * production registry holds exactly THREE promoted identities: one model through two doors (MiniMax-M3
+ * direct, 2026-08-25; minimax/minimax-m3 via the CommonStack gateway, 2026-10-06) and Claude Sonnet 5.5
+ * on Anthropic's own endpoint (2026-11-05) — see docs/deputy-promotions/; every other combination,
+ * including the commonstack-haiku CANDIDATE
  * below, still cannot pay. Tests that need an approved identity inject one EXPLICITLY (a deliberate
  * registration), never relying on a shipped default.
  */
@@ -63,6 +64,22 @@ describe("candidate vs approved — nothing self-approves", () => {
     // gateway's model id on the direct host, and any prompt/parser drift all stay blocked.
     for (const over of [{ model: "MiniMax-M3" }, { provider: "api.minimax.io" }, { promptVersion: "payout-v2" }, { parserVersion: "payout-parse-v3" }]) {
       expect(judgeIdentityGate({ ...GATEWAY, ...over }, true).blocked, JSON.stringify(over)).toBe("judge_identity_unapproved");
+    }
+  });
+
+  it("CLAUDE DIRECT (2026-11-05): claude-sonnet-5-5 @ api.anthropic.com pays on its own promotion; the gateway's spelling does not", () => {
+    const DIRECT = { provider: "api.anthropic.com", model: "claude-sonnet-5-5", promptVersion: "payout-v1", parserVersion: "payout-parse-v4" };
+    expect(judgeIdentityGate(DIRECT, true)).toEqual({ pay: true, blocked: null, approvedIdentity: true, approvedModel: true });
+    // the same model through CommonStack (its own id), another Claude, and prompt/parser drift all stay blocked
+    for (const over of [
+      { provider: "api.commonstack.ai", model: "anthropic/claude-sonnet-5-5" },
+      { provider: "api.commonstack.ai" },
+      { model: "claude-haiku-5-5" },
+      { model: "claude-opus-5-5" },
+      { promptVersion: "payout-v2" },
+      { parserVersion: "payout-parse-v3" },
+    ]) {
+      expect(judgeIdentityGate({ ...DIRECT, ...over }, true).blocked, JSON.stringify(over)).toBe("judge_identity_unapproved");
     }
   });
 
