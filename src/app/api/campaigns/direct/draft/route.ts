@@ -4,13 +4,13 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { draftDirectCampaign } from "@/lib/launch/gig-draft";
 import { readHandedOver } from "@/lib/launch/handed-over";
-import { wordsOnly } from "@/lib/launch/hand-over-text";
+import { MAX_INTENT_CHARS, wordsOnly } from "@/lib/launch/hand-over-text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  intent: z.string().min(10).max(1200),
+  intent: z.string(),
   productUrl: z.string().url().max(400).refine((u) => u.startsWith("https://"), "https only").optional(),
 });
 
@@ -33,7 +33,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "Invalid JSON body." }, { status: 400 });
   }
   const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "Describe the work in a sentence or two first." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "Paste a link, or describe the work in a sentence or two." }, { status: 400 });
+  const intentLength = parsed.data.intent.trim().length;
+  if (intentLength < 10) return NextResponse.json({ ok: false, error: "Describe the work in a sentence or two first." }, { status: 400 });
+  if (intentLength > MAX_INTENT_CHARS) {
+    return NextResponse.json(
+      { ok: false, error: `That's more than Sage reads in one go (${MAX_INTENT_CHARS.toLocaleString("en-US")} characters). Paste the part that describes the work, or a link to the whole doc.` },
+      { status: 400 },
+    );
+  }
   const handed = await readHandedOver(parsed.data.intent);
   const source = handed ? { url: handed.url, label: handed.label, read: handed.read, reason: handed.reason } : null;
   // a link Sage could not open, with no words beside it, is nothing to draft from: ask for the words

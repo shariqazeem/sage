@@ -24,6 +24,17 @@ export type Tranche = {
   criteria?: string[];
   minWords?: number;
   effortMinutes?: number;
+  /**
+   * What Sage drafted that the founder never has to type (5 Nov 2026). The composer used to drop all of it,
+   * so "deploy a contract" work could not be posted at all: the deploy flag was lost and a target address
+   * was demanded for a contract that does not exist yet. Required phrases and allowed hosts were lost
+   * along with it.
+   */
+  deploysContract?: boolean;
+  allowedHosts?: string[];
+  mustContain?: string[];
+  /** expected texts after the first, for a page check that must show several things. */
+  extraExpected?: string[];
 };
 
 export const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
@@ -63,12 +74,24 @@ export function composeDirectBody(s: ComposerState) {
   const milestones = tranches.map((t, i) => {
     const d = t.deliverable.trim().replace(/\.+$/, "");
     const cap = d.charAt(0).toUpperCase() + d.slice(1);
+    const to = t.toAddr.trim();
     const evidence =
       t.verify === "page"
-        ? { kind: "public_url", expectedText: [t.expectedText.trim()] }
+        ? { kind: "public_url", expectedText: [t.expectedText.trim(), ...(t.extraExpected ?? []).map((x) => x.trim())].filter((x, k, all) => x.length >= 3 && all.indexOf(x) === k).slice(0, 5) }
         : t.verify === "onchain"
-          ? { kind: "onchain_tx", chainId: t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN, to: t.toAddr.trim() }
-          : { kind: "artifact_url", allowedHosts: [], markerKind: "wallet" };
+          ? {
+              kind: "onchain_tx",
+              chainId: t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN,
+              // a deployment names no address (the contract doesn't exist yet); a named one still binds it
+              ...(/^0x[0-9a-fA-F]{40}$/.test(to) ? { to } : {}),
+              ...(t.deploysContract ? { deploysContract: true } : {}),
+            }
+          : {
+              kind: "artifact_url",
+              allowedHosts: (t.allowedHosts ?? []).slice(0, 5),
+              markerKind: "wallet",
+              ...(t.mustContain && t.mustContain.length > 0 ? { mustContain: t.mustContain.slice(0, 5) } : {}),
+            };
     const proofLine =
       t.verify === "page"
         ? "Submit the public page showing the required text."
@@ -81,14 +104,17 @@ export function composeDirectBody(s: ComposerState) {
     const typedTitle = (t.title ?? "").trim();
     // Drafted criteria are the founder-approved brief; the automatic check is appended so the
     // judge's rubric and the deterministic gate never disagree about the marker.
-    const drafted = (t.criteria ?? []).map((c) => c.trim()).filter((c) => c.length >= 4);
+    const drafted = [...new Map((t.criteria ?? []).map((c) => c.trim()).filter((c) => c.length >= 4).map((c) => [c.replace(/\s+/g, " ").toLowerCase(), c] as const)).values()];
     const autoCriterion =
       t.verify === "link"
         ? MARKER_CRITERION
         : t.verify === "page"
           ? `The page contains: "${t.expectedText.trim()}"`
-          : "The transaction was sent by the submitting wallet";
-    const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.includes(autoCriterion) ? [] : [autoCriterion])] : [cap, autoCriterion];
+          : t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(to)
+            ? "The submitting wallet deployed the contract"
+            : "The transaction was sent by the submitting wallet";
+    const sameAs = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
+    const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.some((c) => sameAs(c, autoCriterion)) ? [] : [autoCriterion])] : [cap, autoCriterion];
     const draftedSteps = (t.instructions ?? "").trim();
     return {
       title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),

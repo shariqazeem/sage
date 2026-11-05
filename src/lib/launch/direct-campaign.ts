@@ -13,6 +13,7 @@ import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
 
 import { compilePlan } from "./plan";
+import { normalizeText } from "@/lib/campaigns/mission-spec";
 import { serialize } from "./job";
 import { verifyPlanForApproval } from "./approve";
 import { checkRevisionPolicyForApproval } from "./approve-policy";
@@ -542,6 +543,20 @@ export function resolveMilestoneUsd(
   return m.rewardUsd;
 }
 
+/**
+ * Each criterion once, first spelling kept. Compared at least as strictly as the mission spec compares
+ * them (NFC + trim), and also ignoring case and runs of spaces, which never change what a check means.
+ */
+export function uniqueCriteria(criteria: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return criteria.filter((c) => {
+    const k = normalizeText(c).replace(/\s+/g, " ").toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 export function compileDirectCampaign(
   input: DirectCampaignInput,
   publicCampaignId: string,
@@ -568,7 +583,11 @@ export function compileDirectCampaign(
     objective: `${input.kind === "grant" ? "Milestone" : "Deliverable"}: ${m.criteria[0] && m.criteria[0] !== m.title ? m.criteria[0] : m.title}`,
     instructions: m.instructions,
     targetSurface: surfaceFor(input, publicCampaignId),
-    criteria: m.criteria,
+    // One copy of each criterion: two that read the same after normalization made `missionSpecDigest`
+    // throw `duplicate_criterion` past every catch, and the founder's create died with a 500 because a
+    // drafted check repeated the automatic one (found 5 Nov 2026). The judge gains nothing from reading
+    // the same clause twice.
+    criteria: uniqueCriteria(m.criteria),
     evidenceRequirements: [evidenceRequirement(m.evidence)],
     whyItMatters:
       input.whyItMatters ??
@@ -642,16 +661,28 @@ export function compileDirectCampaign(
   const inputDigest = createHash("sha256").update(JSON.stringify({ v: DIRECT_PLAN_VERSION, input })).digest("hex");
   const mapDigest: Hex = keccak256(stringToHex(`SAGE_DIRECT_PLAN_V1:${inputDigest}`));
 
-  const compiled = compilePlan({
-    publicCampaignId,
-    productMapDigest: mapDigest,
-    missions: candidates,
-    allocation,
-    tokenDecimals: 6,
-    modelVersion: DIRECT_MODEL_LABEL,
-    promptVersion: DIRECT_PLAN_VERSION,
-    revision: 1,
-  });
+  /**
+   * The compiler hashes every mission spec, and the hash THROWS on a spec it would refuse (an empty or
+   * duplicate list item). A throw here used to escape every caller: the founder's create died with a
+   * 500 and no words. A refusal is a refusal, so it comes back as one, in plain language.
+   */
+  let compiled: ReturnType<typeof compilePlan>;
+  try {
+    compiled = compilePlan({
+      publicCampaignId,
+      productMapDigest: mapDigest,
+      missions: candidates,
+      allocation,
+      tokenDecimals: 6,
+      modelVersion: DIRECT_MODEL_LABEL,
+      promptVersion: DIRECT_PLAN_VERSION,
+      revision: 1,
+    });
+  } catch (e) {
+    const why = e instanceof Error ? e.message.replace(/^invalid mission spec:\s*/, "") : "invalid";
+    console.warn(`[direct-campaign] compile refused: ${why}`);
+    return { ok: false, error: `One of the checks couldn't be used as written (${why.replace(/_/g, " ")}). Edit the checks and try again.` };
+  }
   if (!compiled.ok) return { ok: false, error: compiled.error };
 
   // KEEP WHAT THE FOUNDER TYPED. The quote converted their number into the USD base above; before

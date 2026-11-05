@@ -57,3 +57,13 @@ export function looksLikeProductHome(text: string): boolean {
   if (TASK_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false;
   return (u.pathname === "/" || u.pathname === "" || /^\/index\.html?$/i.test(u.pathname)) && !u.search;
 }
+
+/**
+ * HOW MUCH A FOUNDER MAY HAND OVER AT ONCE.
+ *
+ * The box took 1,200 characters, and anything longer was refused with "Describe the work in a sentence
+ * or two first". That is the wrong instruction for the person who just pasted a whole brief: a team's
+ * spec, an issue with its acceptance list, a grant's milestone plan. A real brief is the BEST input Sage
+ * can get, so the box reads up to MAX_INTENT_CHARS and says plainly when something is longer still.
+ */
+export const MAX_INTENT_CHARS = 12_000;

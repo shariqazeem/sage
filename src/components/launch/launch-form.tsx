@@ -88,7 +88,7 @@ type DraftMilestone = {
   evidence:
     | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[] }
     | { kind: "public_url"; expectedText: string[] }
-    | { kind: "onchain_tx"; chainId?: number; to?: string };
+    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
   effortMinutes?: number;
 };
 type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; milestones: DraftMilestone[] };
@@ -315,7 +315,8 @@ export function LaunchForm() {
     // in the founder's own units); the client only insists the number is a number.
     if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return false;
     if (t.verify === "page" && t.expectedText.trim().length < 3) return false;
-    if (t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return false;
+    // a deployment names no address: the contract doesn't exist until the worker deploys it
+    if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return false;
     return true;
   };
 
@@ -332,7 +333,7 @@ export function LaunchForm() {
       if (t.deliverable.trim().length < 8) return `Say what must be true${which}.`;
       if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return `Set what it pays${which}.`;
       if (t.verify === "page" && t.expectedText.trim().length < 3) return `Add the text that must appear${which}.`;
-      if (t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
+      if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
     }
     if (splitting && !(isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length)) return "Set the total.";
     return null;
@@ -460,6 +461,11 @@ export function LaunchForm() {
           instructions: m.instructions,
           criteria: m.criteria,
           ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
+          // everything else Sage drafted rides along, so the founder never re-types it (or can't)
+          ...(m.evidence.kind === "onchain_tx" && m.evidence.deploysContract ? { deploysContract: true } : {}),
+          ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0 ? { allowedHosts: m.evidence.allowedHosts } : {}),
+          ...(m.evidence.kind === "artifact_url" && m.evidence.mustContain?.length ? { mustContain: m.evidence.mustContain } : {}),
+          ...(m.evidence.kind === "public_url" && m.evidence.expectedText.length > 1 ? { extraExpected: m.evidence.expectedText.slice(1) } : {}),
           ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
         })),
       );

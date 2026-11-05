@@ -21,6 +21,7 @@ const GRANT_TOTAL = [50, 100, 250, 500];
 /** How Sage checks a line of work, in the words the founder reads. */
 function checksLine(t: Tranche, chainName: (id?: number) => string): string {
   if (t.verify === "page") return `Sage checks the page they submit shows “${t.expectedText.trim() || "…"}”, before it pays`;
+  if (t.verify === "onchain" && t.deploysContract) return `Sage checks on ${chainName(t.txChain)} that their own wallet deployed the contract, after this job was posted, before it pays`;
   if (t.verify === "onchain") return `Sage checks the transaction on ${chainName(t.txChain)}, sent from their own wallet, before it pays`;
   return `Sage checks the link they submit${t.minWords ? `, at least ${t.minWords} words of their own,` : ""} and that it carries their wallet address, before it pays`;
 }
@@ -225,7 +226,7 @@ export function JobCard({
                   </li>
                 ))}
               </ul>
-              {t.verify === "onchain" && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim()) && (
+              {t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim()) && (
                 <label className="jc-addr">
                   <span>The contract the transaction must go to</span>
                   <input className="mono" type="text" placeholder="0x…" value={t.toAddr} onChange={(e) => setTranche(i, { toAddr: e.target.value })} />
