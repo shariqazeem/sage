@@ -1,4 +1,5 @@
 import { artifactFingerprint, stripMarkers } from "@/lib/deputy/fingerprint";
+import { PLATFORM_ONLY, readPage, readerKindFor } from "@/lib/read/page-reader";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
 import "server-only";
@@ -216,7 +217,9 @@ export function matchOnchainState(returnedWord: string, c: OnchainStateContract,
  * the page Sage fetched was an empty shell, the judge held it for "no wallet address", and the worker
  * was told nothing about why a post could never have worked. Named here so the refusal says so.
  */
-export const UNREADABLE_HOSTS = ["x.com", "twitter.com", "instagram.com", "facebook.com", "tiktok.com", "threads.net", "linkedin.com"];
+// x.com, twitter.com and tiktok.com left this list on 5 Nov 2026: X posts are read through X's embed data
+// and TikTok videos through oEmbed (read/page-reader.ts), so a post there is now a proof Sage can check.
+export const UNREADABLE_HOSTS = ["instagram.com", "facebook.com", "threads.net", "linkedin.com"];
 
 export const TEMPORARY_HOSTS = [
   "paste.rs", "pastebin.com", "hastebin.com", "ghostbin.co", "ghostbin.com", "rentry.co", "rentry.org", "justpaste.it",
@@ -289,15 +292,72 @@ async function defaultRenderer(url: string): Promise<{ text: string | null; fina
   return { text: r.text, finalUrl: r.finalUrl, contentText: r.contentText };
 }
 
+/**
+ * A PLATFORM PROOF: a link read through its platform's public door, then checked against the contract.
+ *
+ * A Google Doc's /edit page, a YouTube player, a tweet and a PR page carry none of the work's words to a
+ * plain fetch, so they could never verify, and the drafter was told never to ask for them. The ideal proof
+ * for most real jobs (Sage Bench: 56 docs or sheets, 17 merged PRs, 13 videos, 10 posts of 200) was out of
+ * reach. Read through the reader, the marker, the required phrases and the word floor apply to the work's
+ * own text, and the platform's facts (merged, rows, length, time) are checked before any model reads it.
+ */
+async function verifyPlatformArtifact(
+  c: ArtifactUrlContract,
+  url: string,
+  marker: string,
+  deps: { fetchImpl?: typeof fetch; notBefore?: number; readImpl?: typeof readPage },
+): Promise<VerificationResult> {
+  const fail = (detail: string, publicDetail: string): VerificationResult => ({ verified: false, strength: "strong", detail, publicDetail });
+  const r = await (deps.readImpl ?? readPage)(url, { fetchImpl: deps.fetchImpl, render: null, maxChars: 200_000 });
+  if (!r.read) {
+    // Our side or the platform's (timeout, rate limit) is retried later; a private or missing item is the worker's to fix.
+    if (/took too long|didn't answer|couldn't be reached|refused to show/i.test(r.reason ?? "")) {
+      return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — try again in a moment." };
+    }
+    return fail(`unreadable: ${r.reason ?? "unknown"}`, `Sage couldn't read that link: ${r.reason ?? "it couldn't be opened"}. Make it public (anyone with the link can view) and submit it again.`);
+  }
+  // The usual artifact rules, applied to the work's own text (host rules, paste services, the marker,
+  // required phrases, the word floor): one matcher for every kind of link.
+  const base = matchArtifact({ status: 200, finalUrl: r.url, bodyText: r.text, contentText: r.text }, c, marker);
+  if (!base.verified) return base;
+  const f = r.facts ?? {};
+  if (c.repo) {
+    const want = c.repo.trim().toLowerCase().replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "");
+    if ((f.repo ?? "").toLowerCase() !== want) return fail(`repo ${f.repo ?? "?"} ≠ ${want}`, `That link isn't in ${want}. Submit the pull request (or file) in that repository.`);
+  }
+  if (c.prMerged) {
+    if (r.kind !== "github_pull") return fail("not a pull request", "This job pays for a merged pull request. Submit the link to your pull request.");
+    if (f.merged !== "true") return fail("pr not merged", "That pull request isn't merged yet. Sage pays once the maintainers merge it; submit it again after that.");
+  }
+  if (c.minRows && r.kind === "google_sheet") {
+    const rows = Number(f.rows ?? 0);
+    if (rows < c.minRows) return fail(`rows ${rows} < ${c.minRows}`, `That sheet has ${rows} filled rows; this job asks for at least ${c.minRows}.`);
+  }
+  if (c.minDurationSeconds && f.durationSeconds) {
+    const secs = Number(f.durationSeconds);
+    if (Number.isFinite(secs) && secs < c.minDurationSeconds) return fail(`duration ${secs}s < ${c.minDurationSeconds}s`, `That video runs ${Math.round(secs)} seconds; this job asks for at least ${c.minDurationSeconds}.`);
+  }
+  if (c.postedAfterStart && deps.notBefore && f.createdAt) {
+    const at = Math.floor(Date.parse(f.createdAt) / 1000);
+    if (Number.isFinite(at) && at < deps.notBefore - TX_RECENCY_SLACK_SECONDS) return fail("posted before the job", "That was posted before this job went live. Post something new for this job and submit that link.");
+  }
+  return { ...base, detail: `${base.detail} (${r.kind})` };
+}
+
 export async function verifyArtifactUrl(
   c: ArtifactUrlContract,
   url: string,
   marker: string,
-  deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null } = {},
+  deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null; notBefore?: number; readImpl?: typeof readPage } = {},
 ): Promise<VerificationResult> {
   try {
     const u = new URL(url.trim()); // throws on garbage
     if (u.protocol !== "https:") return { verified: false, strength: "strong", detail: "non-https", publicDetail: "Artifact links must be https." };
+    // Platform links whose page is a shell are read through the platform; a GitHub link only when the
+    // check needs GitHub's facts (a merge, a repository), so the hourly API limit is spent where it counts.
+    const kind = readerKindFor(u.toString());
+    if (PLATFORM_ONLY.has(kind) || ((c.prMerged || c.repo) && kind !== "page")) return await verifyPlatformArtifact(c, u.toString(), marker, deps);
+    if (c.prMerged) return { verified: false, strength: "strong", detail: "not a pull request", publicDetail: "This job pays for a merged pull request. Submit the link to your pull request." };
     // THE GUARDED READ (net/guarded-fetch.ts): every hop checked, DNS answers public-only, a timeout and a
     // byte cap, and the same request identity as the judge's evidence fetch. This read decides a payout,
     // and it used to follow redirects blindly with no timeout, so a worker's link could point the server

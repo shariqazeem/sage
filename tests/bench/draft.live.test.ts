@@ -47,7 +47,6 @@ interface Scenario {
   };
 }
 
-const SUPPORTED = new Set(["artifact_url", "public_url", "onchain_tx"]);
 
 /** One scenario's outcome on one candidate. */
 interface Row {
@@ -69,14 +68,33 @@ interface Row {
   totalBase?: string;
 }
 
+/**
+ * The proof a drafted milestone really asks for: a platform proof (5 Nov 2026) is named by what it checks,
+ * so a merged-PR check counts as "github_pr_merged", a shared sheet as "document_or_sheet", and so on.
+ */
+function effectiveProof(m: Draft["milestones"][number]): string {
+  const e = m.evidence as Record<string, unknown> & { kind: string; allowedHosts?: string[] };
+  if (e.kind !== "artifact_url") return e.kind;
+  const hosts = (e.allowedHosts ?? []).join(" ");
+  if (e.prMerged) return "github_pr_merged";
+  if (/docs\.google\.com/.test(hosts) || e.minRows) return "document_or_sheet";
+  if (e.minDurationSeconds || /youtube|youtu\.be|vimeo|loom|tiktok/.test(hosts)) return "video_url";
+  if (/(^|\s)(x|twitter)\.com|bsky\.app/.test(hosts) || (e.postedAfterStart && !e.minDurationSeconds)) return "social_post";
+  return "artifact_url";
+}
+
+/** Proofs Sage can verify today (5 Nov 2026: the three base kinds plus the platform proofs). */
+const VERIFIABLE = new Set(["artifact_url", "public_url", "onchain_tx", "github_pr_merged", "document_or_sheet", "video_url", "social_post"]);
+
 /** How a drafted proof compares to the ideal one. */
 function proofVerdict(expected: string, drafted: string[]): "exact" | "supported_alternative" | "unsupported_ideal" | "mismatch" {
   if (drafted.length === 0) return "mismatch";
   if (drafted.every((d) => d === expected)) return "exact";
-  if (!SUPPORTED.has(expected)) return "unsupported_ideal"; // the ideal proof is a kind Sage cannot verify yet
-  // a page proof where a tx was ideal (or the reverse) is a real mismatch; page ↔ artifact is close
-  const pageish = (k: string) => k === "artifact_url" || k === "public_url";
-  return drafted.every((d) => pageish(d) && pageish(expected)) ? "supported_alternative" : "mismatch";
+  if (!VERIFIABLE.has(expected)) return "unsupported_ideal"; // the ideal proof is a kind Sage cannot verify yet
+  // any link-to-the-work proof where another link-to-the-work proof was ideal is close; a page proof where
+  // a tx was ideal (or the reverse) is a real mismatch
+  const linkish = (k: string) => k !== "onchain_tx";
+  return drafted.every((d) => linkish(d) && linkish(expected)) ? "supported_alternative" : "mismatch";
 }
 
 describe.skipIf(process.env.BENCH !== "1")("bench · draft", () => {
@@ -145,7 +163,7 @@ describe.skipIf(process.env.BENCH !== "1")("bench · draft", () => {
         };
         const body = composeDirectBody(state);
         const parsed = directCampaignSchema.safeParse(body);
-        const drafted = d.milestones.map((m) => m.evidence.kind);
+        const drafted = d.milestones.map(effectiveProof);
         const base = {
           ...row,
           ms,

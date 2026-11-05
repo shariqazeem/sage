@@ -34,6 +34,10 @@ describe("releasesOnThirdPartyDecision", () => {
       // a QA check the worker can show: a promo code accepted at a checkout is not anyone's decision about them
       "Confirms whether code TESTDRIVE was accepted and what the discount showed at checkout",
       "note whether the card payment was approved in the test checkout",
+      // Sage Bench, 5 Nov 2026: steps of real work, not anyone's decision about the worker
+      "either a short audit from a firm, or a public review by two reviewers the founder approves",
+      "1. Get the contract's source code and address from the founder, and confirm the exact version",
+      "The claim transaction is confirmed on Metis Sepolia and credits LUME test rewards to the wallet",
     ]) expect(releasesOnThirdPartyDecision(t), t).toBe(false);
   });
 });

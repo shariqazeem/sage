@@ -223,7 +223,8 @@ export async function runWorkProof(
         if (!marker) {
           return definitive("marker kind not issuable", "Internal: this mission's marker kind isn't supported yet — held for the operator.");
         }
-        const r = await (deps.verifyArtifact ?? verifyArtifactUrl)(contract, url, marker, { fetchImpl: deps.fetchImpl });
+        // notBefore: a post or video published before the job went live was not made for it
+        const r = await (deps.verifyArtifact ?? verifyArtifactUrl)(contract, url, marker, { fetchImpl: deps.fetchImpl, notBefore: submission.campaignCreatedAt });
         // THE SOURCE IS NOT THE WORK. A deliverable "about" a page that is mostly that page's own text is a
         // paste; refused here, deterministically, with the overlap named. Smaller overlaps are reported to
         // the judge, which is asked to weigh "in their own words".

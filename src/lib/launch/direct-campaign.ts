@@ -142,6 +142,12 @@ const artifactUrlSchema = z.object({
   markerKind: z.enum(["wallet", "handle", "nonce"]),
   mustContain: z.array(z.string().min(2).max(200)).max(5).optional(),
   minWords: z.number().int().min(20).max(5000).optional(),
+  /** PLATFORM PROOFS (verify/contract.ts), checked on the work's own platform before any model reads it. */
+  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "owner/name").optional(),
+  prMerged: z.boolean().optional(),
+  minRows: z.number().int().min(1).max(100_000).optional(),
+  minDurationSeconds: z.number().int().min(1).max(36_000).optional(),
+  postedAfterStart: z.boolean().optional(),
 });
 
 const publicUrlSchema = z.object({

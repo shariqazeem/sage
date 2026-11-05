@@ -52,10 +52,10 @@ describe("gig draft — words from the model, money from the founder", () => {
   });
 
   it("strips a host Sage cannot read from the evidence and tells the founder", () => {
-    const parsed = gigDraftSchema.parse({ ...good, milestones: [{ ...good.milestones[0], evidence: { kind: "artifact_url", allowedHosts: ["x.com", "dev.to"] } }] });
+    const parsed = gigDraftSchema.parse({ ...good, milestones: [{ ...good.milestones[0], evidence: { kind: "artifact_url", allowedHosts: ["linkedin.com", "dev.to"] } }] });
     const { draft, notes } = cleanDraft(parsed);
     expect(draft.milestones[0]!.evidence).toEqual({ kind: "artifact_url", allowedHosts: ["dev.to"] });
-    expect(notes[0]).toMatch(/can't verify work on x\.com/);
+    expect(notes[0]).toMatch(/can't verify work on linkedin\.com/);
   });
 
   it("the founder's words are wrapped as untrusted and a model outage degrades to the hand-composed path", async () => {
@@ -70,7 +70,9 @@ describe("gig draft — words from the model, money from the founder", () => {
 
   it("the prompt forbids money and unreadable posts, and is product-agnostic", () => {
     expect(GIG_DRAFT_SYSTEM).toMatch(/NEVER write an amount/);
-    expect(GIG_DRAFT_SYSTEM).toMatch(/x\.com/);
+    // posts Sage can't open are named, and the platforms it CAN read are offered instead
+    expect(GIG_DRAFT_SYSTEM).toMatch(/Instagram, Facebook, LinkedIn or Threads/);
+    expect(GIG_DRAFT_SYSTEM).toMatch(/prMerged true/);
     expect(GIG_DRAFT_SYSTEM).toMatch(/ANY kind of work/);
   });
 });

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { guardedFetchPage, type Lookup } from "@/lib/net/guarded-fetch";
-import { stripHtml } from "@/lib/deputy/evidence";
+import { stripHtml } from "./html-text";
 import { labelFor } from "@/lib/launch/hand-over-text";
 
 /**
@@ -400,6 +400,37 @@ async function renderOr(url: string, deps: ReaderDeps, reason: string, fallback:
   }
   return fallback ?? miss(url, "page", reason);
 }
+
+/**
+ * Which reader a link gets, without opening it. "page" means the guarded generic read; anything else is a
+ * platform with its own public door (GitHub, Google, X, video, forums). The judge's evidence fetch and the
+ * work-proof checker read platform links through the reader, because the plain page there is a sign-in
+ * wall, an editor shell or a player (a Google Doc's /edit page has none of the doc's words in it).
+ */
+export function readerKindFor(rawUrl: string): ReadKind {
+  const url = rawUrl.trim().replace(/^http:\/\//i, "https://");
+  if (GH_ITEM.test(url)) return /\/pull\//i.test(url) ? "github_pull" : "github_issue";
+  if (GH_BLOB.test(url)) return "github_file";
+  if (GIST.test(url)) return "gist";
+  const repo = GH_REPO.exec(url);
+  if (repo && !["orgs", "settings", "marketplace", "topics", "sponsors", "features", "about"].includes(repo[1].toLowerCase())) return "github_repo";
+  if (G_DOC.test(url)) return "google_doc";
+  if (G_SHEET.test(url)) return "google_sheet";
+  if (G_SLIDES.test(url)) return "google_slides";
+  if (X_POST.test(url) || BSKY.test(url)) return "social_post";
+  const o = OEMBED.find((e) => e.match.test(url));
+  if (o) return o.kind;
+  if (REDDIT.test(url) || HN.test(url)) return "forum_post";
+  return "page";
+}
+
+/**
+ * Kinds whose plain page carries none of the work: an editor shell, a player, a sign-in wall. These are
+ * ALWAYS read through their platform's door. GitHub pages are readable as they are, and GitHub's API
+ * allows 60 unauthenticated calls an hour per server, so GitHub goes through the API only when a check
+ * needs its facts (a merge, a repository).
+ */
+export const PLATFORM_ONLY: ReadonlySet<ReadKind> = new Set<ReadKind>(["google_doc", "google_sheet", "google_slides", "video", "social_post", "forum_post", "design"]);
 
 /**
  * Read one link. Never throws. An http:// link is read as https:// (the same page on every site that

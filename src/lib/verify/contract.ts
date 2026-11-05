@@ -83,6 +83,24 @@ export interface ArtifactUrlContract {
   /** the least number of words of CONTENT (chrome removed) the artifact must carry — the effort bar
    *  for "write / explain / document" work, checked before any model reads it. */
   minWords?: number;
+  /**
+   * PLATFORM PROOFS (5 Nov 2026). The link is read through its platform's public door (read/page-reader.ts),
+   * and these are checked deterministically, before any model reads it:
+   * - prMerged: the link is a GitHub pull request that has been MERGED. The maintainer's merge is the
+   *   strongest acceptance code work has;
+   * - repo: "owner/name". The pull request, issue or file must be in this repository;
+   * - minRows: a Google Sheet must have at least this many non-empty rows;
+   * - minDurationSeconds: a video must run at least this long, when the platform reports a length;
+   * - postedAfterStart: a post or video must be published after the job went live, when the platform
+   *   reports a time.
+   * The wallet marker still binds authorship. The worker puts their address where the platform shows it:
+   * the doc, the sheet, the video description, the post, or the PR description.
+   */
+  prMerged?: boolean;
+  repo?: string;
+  minRows?: number;
+  minDurationSeconds?: number;
+  postedAfterStart?: boolean;
 }
 
 export interface PublicUrlContract {

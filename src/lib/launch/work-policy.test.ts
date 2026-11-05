@@ -34,6 +34,7 @@ describe("refusedWork", () => {
       "Collect the public business phone numbers of 50 bakeries in Kingston from their Google listings into a sheet",
       "Translate our onboarding guide into Spanish and publish it as a page",
       "Run a security review of our own repository and report exploitable bugs privately to us",
+      "Run the 45-minute interview, then change the speaker labels in the transcript and send the cleaned transcript",
     ]) expect(refusedWork(t), t).toBeNull();
   });
 

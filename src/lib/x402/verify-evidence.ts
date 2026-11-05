@@ -23,7 +23,7 @@ export interface VerifiedEvidence {
   /** a sanitized reason code when the live payment fell back, else null. */
   x402Reason: X402Reason | null;
   /** which capture the judge reads — "static" or "rendered" (W2 enforce); absent on failure. */
-  mode?: "static" | "rendered";
+  mode?: "static" | "rendered" | "platform";
   /** rendered-capture provenance when a render was attempted: lengths, digests, outcome — never page text. */
   render?: RenderProvenance;
 }
@@ -32,7 +32,7 @@ export interface VerifiedEvidence {
  * One line per render attempt, so a payout can be traced to the capture it was judged on. The
  * provenance is lengths + digests + outcome by construction (evidence.ts), so it is safe to log.
  */
-function noteRender(url: string, ev: { mode?: "static" | "rendered"; render?: RenderProvenance }): void {
+function noteRender(url: string, ev: { mode?: "static" | "rendered" | "platform"; render?: RenderProvenance }): void {
   if (!ev.render) return;
   const r = ev.render;
   console.info(
@@ -78,7 +78,7 @@ export async function verifyEvidence(
       contentSha256: string | null;
       ok: boolean;
       failReason?: string | null;
-      mode?: "static" | "rendered" | null;
+      mode?: "static" | "rendered" | "platform" | null;
       render?: RenderProvenance | null;
     }>({
       url: `${internalBaseUrl()}/api/verify/evidence`,

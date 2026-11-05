@@ -12,6 +12,11 @@
  */
 import { createHash } from "node:crypto";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
+// The HTML-to-text helpers live in read/html-text.ts, shared with the page reader, so neither module
+// imports the other. Re-exported for existing callers.
+import { collapse, stripHtml } from "@/lib/read/html-text";
+import { PLATFORM_ONLY, readPage, readerKindFor } from "@/lib/read/page-reader";
+export { stripHtml };
 import { publicHost, realLookup, type Lookup } from "@/lib/net/guarded-fetch";
 
 /**
@@ -47,7 +52,7 @@ export interface EvidenceResult {
   /** which fetch produced the text the JUDGE saw — "static" (plain HTTP) or "rendered" (headless browser,
    *  W2 enforce). In shadow mode this stays "static" (rendered text never reaches the judge). Absent on
    *  failures. */
-  mode?: "static" | "rendered";
+  mode?: "static" | "rendered" | "platform";
   /** rendered-capture provenance when a render was triggered (shadow or enforce); never raw page text. */
   render?: RenderProvenance;
 }
@@ -132,30 +137,6 @@ function renderedEvidenceMode(): "off" | "shadow" | "enforce" {
   return "off";
 }
 
-function collapse(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
-
-/** Strip HTML to readable text without a parser dep (defensive, not perfect). */
-export function stripHtml(html: string): string {
-  return collapse(
-    html
-      .replace(/<(script|style|noscript|template|svg|head)[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<\/(p|div|li|h[1-6]|br|tr|section|article)>/gi, " ")
-      // Surface link targets as text BEFORE stripping tags — otherwise every href is lost and a
-      // criterion like "contains a functional link to a block explorer" can never be verified.
-      .replace(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi, " $1 ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&quot;/gi, '"')
-      .replace(/&#39;/gi, "'"),
-  );
-}
-
 /** Read a response body but stop (and signal) the moment it exceeds `max` bytes. */
 async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
   const body = res.body as ReadableStream<Uint8Array> | null;
@@ -220,6 +201,18 @@ export async function fetchEvidence(
   const entry = validateEvidenceUrl(rawUrl);
   if (!entry.ok) return fail(`blocked url: ${entry.error}`);
   let url = entry.value;
+
+  // A PLATFORM LINK is read through its platform's public door: a Google Doc as its text, a sheet as CSV,
+  // a PR with its description and merge state, a post with its words and time (read/page-reader.ts). The
+  // plain page there is an editor shell, a player or a sign-in wall, so the judge read nothing and held
+  // honest work. The work-proof checker reads the same way, so the judge and the checker see one text.
+  if (PLATFORM_ONLY.has(readerKindFor(url))) {
+    const r = await readPage(url, { fetchImpl: opts?.fetchImpl, lookup: opts?.lookup, render: null, maxChars: MAX_TEXT_CHARS });
+    if (!r.read) return fail(r.reason ?? "platform read failed");
+    const facts = r.facts ? Object.entries(r.facts).filter(([, v]) => v !== "").map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
+    const text = (facts ? `${r.text}\n\n[Platform facts read by Sage: ${facts}]` : r.text).slice(0, MAX_TEXT_CHARS);
+    return { text, contentSha256: createHash("sha256").update(text).digest("hex"), fetchedAt, ok: true, mode: "platform" };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

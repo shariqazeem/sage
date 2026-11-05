@@ -37,6 +37,12 @@ export type Tranche = {
   mustContain?: string[];
   /** expected texts after the first, for a page check that must show several things. */
   extraExpected?: string[];
+  /** platform proofs Sage drafted (verify/contract.ts): checked on the work's own platform before it pays. */
+  repo?: string;
+  prMerged?: boolean;
+  minRows?: number;
+  minDurationSeconds?: number;
+  postedAfterStart?: boolean;
 };
 
 export const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
@@ -93,6 +99,11 @@ export function composeDirectBody(s: ComposerState) {
               allowedHosts: (t.allowedHosts ?? []).slice(0, 5),
               markerKind: "wallet",
               ...(t.mustContain && t.mustContain.length > 0 ? { mustContain: t.mustContain.slice(0, 5) } : {}),
+              ...(t.repo ? { repo: t.repo } : {}),
+              ...(t.prMerged ? { prMerged: true } : {}),
+              ...(t.minRows ? { minRows: t.minRows } : {}),
+              ...(t.minDurationSeconds ? { minDurationSeconds: t.minDurationSeconds } : {}),
+              ...(t.postedAfterStart ? { postedAfterStart: true } : {}),
             };
     const proofLine =
       t.verify === "page"
@@ -168,7 +179,7 @@ export type DraftMilestone = {
   instructions: string;
   criteria: string[];
   evidence:
-    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[] }
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean }
     | { kind: "public_url"; expectedText: string[] }
     | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
   effortMinutes?: number;
@@ -213,6 +224,11 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
       ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0 ? { allowedHosts: m.evidence.allowedHosts } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.mustContain?.length ? { mustContain: m.evidence.mustContain } : {}),
       ...(m.evidence.kind === "public_url" && m.evidence.expectedText.length > 1 ? { extraExpected: m.evidence.expectedText.slice(1) } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.repo ? { repo: m.evidence.repo } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.prMerged ? { prMerged: true } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.minRows ? { minRows: m.evidence.minRows } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.minDurationSeconds ? { minDurationSeconds: m.evidence.minDurationSeconds } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.postedAfterStart ? { postedAfterStart: true } : {}),
     })),
     why: d.whyItMatters ?? "",
     title: d.title,

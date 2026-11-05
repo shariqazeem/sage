@@ -11,12 +11,14 @@ const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).joi
 
 describe("artifact strictness — checked before any model reads the page", () => {
   it("refuses a post on a host Sage cannot read, and says why", () => {
-    for (const host of ["x.com", "twitter.com", "www.linkedin.com"]) {
+    for (const host of ["www.linkedin.com", "instagram.com", "facebook.com"]) {
       const r = matchArtifact({ status: 200, finalUrl: `https://${host}/someone/status/1`, bodyText: `<p>${WALLET}</p>` }, anyHost, WALLET);
       expect(r.verified, host).toBe(false);
       expect(r.publicDetail, host).toMatch(/can't read posts on .*need a sign-in/);
     }
-    expect(UNREADABLE_HOSTS).toContain("x.com");
+    // X posts are read through X's embed data now (read/page-reader.ts), so they are proof Sage can check
+    expect(UNREADABLE_HOSTS).not.toContain("x.com");
+    expect(UNREADABLE_HOSTS).toContain("linkedin.com");
   });
 
   it("a named allow-list is the operator's call — an allowed x.com is not second-guessed", () => {

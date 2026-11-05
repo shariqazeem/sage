@@ -103,6 +103,16 @@ const evidenceKinds = z.discriminatedUnion("kind", [
     allowedHosts: hostList.default([]),
     minWords: opt(clampedInt(20, 5000)),
     mustContain: opt(stringList(5, z.string().min(2).max(200))),
+    // PLATFORM PROOFS (verify/contract.ts): checked deterministically on the work's own platform
+    repo: z.preprocess((v) => {
+      if (typeof v !== "string") return undefined;
+      const r = v.trim().replace(/^https?:\/\/(?:www\.)?github\.com\//i, "").replace(/\.git$|\/+$/g, "");
+      return /^[\w.-]+\/[\w.-]+$/.test(r) ? r : undefined;
+    }, z.string().optional()),
+    prMerged: opt(z.boolean()),
+    minRows: opt(clampedInt(1, 100_000)),
+    minDurationSeconds: opt(clampedInt(1, 36_000)),
+    postedAfterStart: opt(z.boolean()),
   }),
   z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)) }),
   z.object({
@@ -160,10 +170,16 @@ RULES
   - instructions: numbered steps in the founder's intent, ending with exactly what to submit and where it must live.
   - criteria: 3–6 clauses. Every clause must be VISIBLE on the submitted evidence and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name), an effort bar ("at least N words in the worker's own words", "at least three specific examples", "a screenshot of each step"), and — whenever the work is ABOUT something — "written in their own words, not copied from the source". Never restate the automatic checks (the host, the wallet address).
   - evidence: exactly one kind.
-      artifact_url — the worker CREATES something (a page, an article, a listing, a document, a repository, a design export). allowedHosts: [] unless the founder named where it must live. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
+      artifact_url — the worker CREATES something and links it (a page, an article, a document, a sheet, a repository, a pull request, a video, a design export, a post). allowedHosts: [] unless the work must live somewhere specific. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
+        Ask for the work where it naturally lives, and say where in the instructions:
+        · code for the founder's repository → a pull request into it: allowedHosts ["github.com"], repo "owner/name", prMerged true (Sage pays once the maintainers merge it).
+        · a document, research, a list or a dataset → a Google Doc or Sheet shared so anyone with the link can view: allowedHosts ["docs.google.com"]; for rows in a sheet, minRows = the count the founder asked for.
+        · a video → YouTube, Vimeo or Loom: minDurationSeconds when the founder states a length; postedAfterStart true.
+        · a social post → X or Bluesky (Sage can read those): postedAfterStart true.
+        The worker puts their own wallet address where it shows (in the doc, the sheet, the video description, the post or the PR description); say so in the instructions. That is how Sage knows the work is theirs.
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
       onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to".
-    NEVER make a post on x.com, twitter.com, instagram.com, facebook.com, linkedin.com or tiktok.com the evidence — Sage cannot open them. Ask for a page it can read.
+    NEVER make a post on Instagram, Facebook, LinkedIn or Threads the evidence — Sage cannot open them. Ask for X, Bluesky or a page it can read instead.
   - effortMinutes: your honest estimate.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.
 WHEN SAGE WILL NOT POST IT

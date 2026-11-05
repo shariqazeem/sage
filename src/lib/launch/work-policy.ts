@@ -31,7 +31,8 @@ const RULES: { re: RegExp; says: string }[] = [
     says: "Sage won't pay for a contract with hidden controls that trap buyers. That is a rug pull. An honest token with real, visible ownership is work Sage can post.",
   },
   {
-    re: /\b(?:edit|change|alter|forge|fake|doctor)\w*\b[^.!?\n]{0,60}\b(?:bank\s+statements?|pay\s?stubs?|passports?|diplomas?|transcripts?|tax\s+returns?)\b|\b(?:bank\s+statements?|pay\s?stubs?)\b[^.!?\n]{0,60}\b(?:so\s+the\s+balance|shows?\s+around|instead\s+of)\b/i,
+    // academic transcripts only: an interview transcript is everyday work (Sage Bench, 5 Nov 2026)
+    re: /\b(?:edit|change|alter|forge|fake)\w*\b[^.!?\n]{0,60}\b(?:bank\s+statements?|pay\s?stubs?|passports?|diplomas?|(?:academic|school|university|college)\s+transcripts?|tax\s+returns?)\b|\b(?:bank\s+statements?|pay\s?stubs?)\b[^.!?\n]{0,60}\b(?:so\s+the\s+balance|shows?\s+around|instead\s+of)\b/i,
     says: "Sage won't pay to alter financial or identity documents: that is forgery.",
   },
   {
