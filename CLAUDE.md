@@ -383,6 +383,14 @@ nobody, fails on a founder's launch instead of at boot). `laneProvider()` in
 
 This is what makes a model/provider switch a config change rather than a code audit.
 
+**Moving every lane at once is one command on the VM:** `node scripts/vm/llm-route.mjs status|anthropic|commonstack`
+(then `pm2 restart sage --update-env`). It saves the lines it changes the first time
+(`~/.config/sage/llm-route-commonstack.env`), keeps a timestamped `.env` copy, leaves `LLM_FALLBACK_*` on the
+other account, and never prints a key. **Since 5 Nov 2026 prod runs every lane on Claude Sonnet 5.5 on
+Anthropic's own endpoint** (the founder's credit, expiring 11 Nov) because the CommonStack balance hit $0;
+`commonstack` moves it back once that account is topped up. The payout judge there is its own approved
+identity (`docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md`).
+
 **Every model call goes through ONE wire** (`src/lib/llm/wire.ts`, 5 Nov 2026; a structural test refuses a
 direct `chat/completions` fetch anywhere else). It:
 - shapes each request for its provider: what the profile says, then what the provider itself refused at
@@ -420,7 +428,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `LLM_API_KEY` / `COMMONSTACK_API_KEY` | Auth for the OpenAI-compatible LLM gateway | Brain degrades to keyword heuristic (never auto-pays) |
 | `LLM_BASE_URL` / `COMMONSTACK_BASE_URL` | Gateway URL | Defaults to `https://api.commonstack.ai/v1` |
 | `LLM_MODEL` / `DEPUTY_MODEL` | Mission + payout model | Defaults to `deepseek/deepseek-v4-flash` |
-| `CONCIERGE_MODEL` † | Telegram concierge model (prod: `anthropic/claude-haiku-4-5`) | Falls back to `LLM_MODEL`→`DEPUTY_MODEL`→default (behavior silently changes) |
+| `CONCIERGE_MODEL` † | Telegram concierge model (prod: `llm-route.mjs status` says which) | Falls back to `LLM_MODEL`→`DEPUTY_MODEL`→default (behavior silently changes) |
 | `CONCIERGE_API_KEY` / `_BASE_URL` † | Reserved LLM budget for the public concierge — preferred over `LLM_API_KEY`/`_BASE_URL`, so public chat traffic can never exhaust the money-critical judgment path's quota | Falls back to the shared chain, unchanged |
 | `CONCIERGE_DAILY_CAP` / `INSPECTION_DAILY_CAP` † | Per-chat daily caps (over the per-minute limit) on concierge turns (default 60) and inspections started (default 3); slash commands are uncapped | Defaults apply |
 | `LLM_FALLBACK_API_KEY`/`_BASE_URL`/`_MODEL` | Secondary provider (all 3 arm failover) | No fallback — a primary outage drops to heuristic |
