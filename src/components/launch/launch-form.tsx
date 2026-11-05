@@ -238,6 +238,8 @@ export function LaunchForm() {
   }, [mode, founder.authed, accountReads]);
   const [payPhase, setPayPhase] = useState<"plan" | "launch">("plan");
   const [launchedJob, setLaunchedJob] = useState<{ campaignId: string; url: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  useEffect(() => setLinkCopied(false), [launchedJob]);
   const [planLink, setPlanLink] = useState<string | null>(null);
   // undefined: no plan refusal; null: no plan would help; a plan: the one that lifts it
   const [upgrade, setUpgrade] = useState<PlanId | null | undefined>(undefined);
@@ -638,6 +640,17 @@ export function LaunchForm() {
             <Link className="lx-btn" href={`/campaign/${launchedJob.campaignId}`}>
               Open the job <ArrowUpRight size={14} />
             </Link>
+            {/* the next move after launching is sending it to someone: the public page workers open */}
+            <button
+              type="button"
+              className="lxo-chip"
+              onClick={() => {
+                const link = launchedJob.url.startsWith("http") ? launchedJob.url : `${window.location.origin}${launchedJob.url}`;
+                void navigator.clipboard?.writeText(link).then(() => setLinkCopied(true)).catch(() => undefined);
+              }}
+            >
+              {linkCopied ? <><Check size={13} /> Copied</> : "Copy the link to send"}
+            </button>
             <a className="lxo-chip" href={launchedJob.url}>the board</a>
             <button type="button" className="lxo-chip" onClick={postAnother}>Post another</button>
           </div>
