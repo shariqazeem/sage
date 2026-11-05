@@ -25,7 +25,7 @@ export const THIRD_PARTY_DECISION_RE = new RegExp(
     `|\\b(?:loan|visa|application|mortgage|claim|permit|licen[cs]e|scholarship|appeal|offer|tender|bid|funding|pr[eé]stamo|visado|solicitud)\\b[^.!?]{0,40}\\b(?:is|gets?|has\\s+been|was|are|sea|est[eé]|quede)\\s+(?:finally\\s+)?(?:approved|accepted|granted|awarded|cleared|confirmed|issued|aprobad[oa]|aceptad[oa]|concedid[oa])` +
     // "contract" here is a client's contract won, never a smart contract fetched: "get the contract's source code"
     // and "get the contract address" are steps of on-chain work (Sage Bench, 5 Nov 2026).
-    `|\\b(?:gets?|got|lands?|landed|wins?|won)\\s+(?:the|a|an|her|his|their)\\s+(?:job|loan|visa|permit|mortgage|scholarship|approval|contract(?!'s|\\s+(?:address|source|code|abi|on|at|from|in|to))|offer|promotion|grant)\\b` +
+    `|\\b(?:gets?|got|lands?|landed|wins?|won)\\s+(?:the|a|an|her|his|their)\\s+(?:job|loan|visa|permit|mortgage|scholarship|approval|contract(?!'s|\\s+(?:address(?:es)?|source|code|abi|on|at|from|in|to|details?|info|information|name|link|url|repo|repository|files?|functions?|owner|deployer|interface|bytecode))|offer|promotion|grant)\\b` +
     // A PERSON (or their application) being hired, promoted, admitted, accepted or approved. Not any subject:
     // "the code TESTDRIVE was accepted" at a checkout is a QA check the worker can show, and the bare passive
     // refused a real QA job as "pays on a bank's decision" (Sage Bench, 5 Nov 2026).
@@ -38,12 +38,29 @@ export const THIRD_PARTY_DECISION_RE = new RegExp(
 /** A confirmation on a public chain is a fact anyone can check, the opposite of a private decision. */
 const PUBLIC_CHAIN_CONTEXT = /\b(?:transaction|tx|txs|on-?chain|block|blocks|hash|testnet|mainnet|sepolia|metis|ethereum|swap|deposit|stake|unstake|mint)\b/i;
 
+/**
+ * An approval BEFORE the work starts is coordination, not the payout condition: "ask the programme manager to
+ * approve them before you start" (Sage Bench r5, 5 Nov 2026, a grant refused for it).
+ */
+const BEFORE_THE_WORK = /^[^.!?]{0,50}\b(?:before\s+(?:you|they|work|the\s+work)?\s*(?:start|begin|starting|beginning|starts|begins)|antes\s+de\s+(?:empezar|comenzar|iniciar))/i;
+/**
+ * Maintainers merging a pull request is a public fact Sage reads on GitHub, not a private decision: "Sage paga
+ * cuando los mantenedores lo acepten (merge)" (Sage Bench r5, 5 Nov 2026, a translation PR refused for it).
+ * Never when the words name a lender, a court or a visa: those stay refused whatever surrounds them.
+ */
+const PUBLIC_MERGE_CONTEXT = /\b(?:maintainers?|mantenedor(?:es|as)?|merge[ds]?|merging|pull\s+request|PR)\b/i;
+const PRIVATE_DECIDER = /\b(?:bank|banco|lender|prestamista|court|tribunal|embassy|embajada|consulate|visa|visado|loan|pr[eé]stamo|mortgage|landlord|insurer|employer|empleador|government|gobierno)\b/i;
+
 /** True when the words release the money on a third party's private decision. */
 export function releasesOnThirdPartyDecision(text: string): boolean {
   const re = new RegExp(THIRD_PARTY_DECISION_RE.source, "gi");
   for (let m = re.exec(text); m; m = re.exec(text)) {
     // "the claim transaction is confirmed on Metis" is a public on-chain fact, not anyone's decision
     if (PUBLIC_CHAIN_CONTEXT.test(m[0])) continue;
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 60);
+    if (BEFORE_THE_WORK.test(after)) continue;
+    const around = text.slice(Math.max(0, m.index - 60), m.index + m[0].length + 30);
+    if (PUBLIC_MERGE_CONTEXT.test(around) && !PRIVATE_DECIDER.test(around)) continue;
     return true;
   }
   return false;

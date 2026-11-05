@@ -557,7 +557,9 @@ export async function llmCompleteJson(opts: {
       // DEFAULT "repair" — extract → JSON.parse → bounded structural repair.
       finishReason = data.choices?.[0]?.finish_reason ?? null;
       const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error("llm_empty");
+      // An empty answer the provider REFUSED (a safety classifier: finish_reason content_filter / refusal) is
+      // not an outage: callers say so, and may try another provider, instead of "couldn't reach" (Sage Bench r5).
+      if (!content) throw new Error(finishReason === "content_filter" || finishReason === "refusal" ? "llm_refused" : "llm_empty");
       // The reasoning block is framing, not answer, and it must go BEFORE extraction — MEASURED
       // 2026-08-27 on play2048: a 25,430-char <think> block contained its own ```json fence (the
       // model drafting), and extractJson takes the FIRST fence, so a COMPLETE answer

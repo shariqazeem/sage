@@ -276,6 +276,9 @@ const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
 /** What a founder reads when Sage's writer has no model to call: the honest state, and the way forward. */
 export const WRITER_OFFLINE = "Sage's writer is offline right now. Your words are kept: fill the job in yourself below, or try again later.";
 
+/** What a founder reads when the model's own safety filter declined to draft it. */
+export const WRITER_REFUSED = "Sage's writer wouldn't draft this one. If it's legitimate work, say plainly what gets delivered and how it can be checked, then hand it over again, or fill it in yourself below.";
+
 /** A page can't close the fence it is read inside: every run of angle brackets that could forge one is dropped. */
 export function unfenced(text: string): string {
   return text.replace(/<{3,}|>{3,}/g, "");
@@ -355,6 +358,8 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
       // An account out of credit will not answer in a moment: say so, and keep the founder moving. The operator
       // is told separately (credit-alert.ts).
       if (/status_402/.test(msg)) return { ok: false, error: WRITER_OFFLINE };
+      // The model's own safety filter declined (after the fallback provider, when there is one, also failed).
+      if (/llm_refused/.test(msg)) return { ok: false, declined: true, error: WRITER_REFUSED };
       return { ok: false, error: "Sage couldn't reach its writer just now. Try again in a moment, or fill it in yourself." };
     }
     // A DECLINE IS AN ANSWER, NOT A FAILURE: the founder reads why, instead of "try again" (which invited

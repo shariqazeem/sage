@@ -39,6 +39,19 @@ describe("releasesOnThirdPartyDecision", () => {
       "1. Get the contract's source code and address from the founder, and confirm the exact version",
       "The claim transaction is confirmed on Metis Sepolia and credits LUME test rewards to the wallet",
       "States explicitly whether shared-memory bank conflicts and suboptimal tiling are confirmed or ruled out",
+      // Sage Bench r5, 5 Nov 2026: a pre-work step, a public merge, and a smart contract's details
+      "Use two reviewers Northgate approves (ask Hana Sato, programme manager, to approve them before you start).",
+      "Abre un pull request. Sage paga cuando los mantenedores lo acepten (merge).",
+      "1. Get the contract details from the founder: the address and the network.",
     ]) expect(releasesOnThirdPartyDecision(t), t).toBe(false);
+  });
+
+  it("still refuses a private decision that sits next to a merge or a start", () => {
+    for (const t of [
+      "Pay her once the bank approves the loan, then open a pull request with the receipt",
+      "Dale $100 cuando el banco lo acepte; los mantenedores harán merge del PR",
+      "pay him when the client accepts the design",
+      "release it when my client signs off on the final logo",
+    ]) expect(releasesOnThirdPartyDecision(t), t).toBe(true);
   });
 });

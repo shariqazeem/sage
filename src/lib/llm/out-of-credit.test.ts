@@ -203,3 +203,21 @@ describe("each lane, facing an empty account", () => {
     expect(!r.ok && r.error).toBe(WRITER_OFFLINE);
   });
 });
+
+describe("a safety refusal is not an outage", () => {
+  it("Post says the writer wouldn't draft it, as a decline", async () => {
+    const { WRITER_REFUSED } = await import("@/lib/launch/gig-draft");
+    const r = await draftDirectCampaign(
+      { intent: "Pay people to post five-star reviews of my app from fresh accounts." },
+      { complete: async () => { throw new Error("llm_refused"); } },
+    );
+    expect(r.ok).toBe(false);
+    // the deterministic policy may decline it first; either way it is a decline, never "couldn't reach"
+    expect(!r.ok && r.declined).toBe(true);
+    const legit = await draftDirectCampaign(
+      { intent: "Write a 600-word guide to rotating API keys safely for our developer docs." },
+      { complete: async () => { throw new Error("llm_refused"); } },
+    );
+    expect(!legit.ok && legit.declined && legit.error).toBe(WRITER_REFUSED);
+  });
+});
