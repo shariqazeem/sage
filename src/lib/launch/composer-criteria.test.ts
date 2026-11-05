@@ -21,3 +21,36 @@ describe("a criterion that only restates Sage's automatic wallet check", () => {
     expect(restatesMarkerCheck(c)).toBe(false);
   });
 });
+
+describe("founder-confirms survives the card, the body and the compiler", () => {
+  it("a draft that says the founder confirms compiles into a job that holds for them", async () => {
+    const { composerFromDraft, composeDirectBody } = await import("./composer");
+    const { directCampaignSchema, compileDirectCampaign } = await import("./direct-campaign");
+    const card = composerFromDraft(
+      {
+        kind: "gig",
+        title: "Interview a café owner about ordering",
+        who: "anyone",
+        slots: 3,
+        milestones: [
+          {
+            title: "Interview a café owner",
+            deliverable: "A recap of a real 20-minute interview is shared, and the founder confirms the call happened",
+            instructions: "1. Find a café owner who orders supplies weekly.\n2. Talk for 20 minutes.\n3. Share a recap doc with your wallet address.",
+            criteria: ["The recap names the café and the owner's role", "It lists three ordering problems in the owner's words"],
+            evidence: { kind: "artifact_url", allowedHosts: ["docs.google.com"], founderConfirms: true },
+          },
+        ],
+      },
+      "Pay $20 each to three people who interview a café owner",
+    );
+    expect(card.tranches[0]!.founderConfirms).toBe(true);
+    const body = composeDirectBody({ who: card.pay.who, slots: "3", tranches: card.tranches.map((t) => ({ ...t, amount: "20" })), splitTotal: "", currency: "USD", inviteOnly: false, why: "", title: card.title });
+    const parsed = directCampaignSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+    const compiled = compileDirectCampaign(parsed.success ? parsed.data : (body as never), "gig-test-confirm", null);
+    expect(compiled.ok).toBe(true);
+    const contract = compiled.ok ? (compiled.plan.missions[0] as { verificationContract?: { founderConfirms?: boolean } }).verificationContract : undefined;
+    expect(contract?.founderConfirms).toBe(true);
+  });
+});

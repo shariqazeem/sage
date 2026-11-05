@@ -45,6 +45,8 @@ export type Tranche = {
   minRows?: number;
   minDurationSeconds?: number;
   postedAfterStart?: boolean;
+  /** the founder confirms each one before it pays (verify/contract.ts): Sage holds every submission for them */
+  founderConfirms?: boolean;
 };
 
 export const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
@@ -99,7 +101,7 @@ export function composeDirectBody(s: ComposerState) {
     const to = t.toAddr.trim();
     const evidence =
       t.verify === "page"
-        ? { kind: "public_url", expectedText: [t.expectedText.trim(), ...(t.extraExpected ?? []).map((x) => x.trim())].filter((x, k, all) => x.length >= 3 && all.indexOf(x) === k).slice(0, 5) }
+        ? { kind: "public_url", expectedText: [t.expectedText.trim(), ...(t.extraExpected ?? []).map((x) => x.trim())].filter((x, k, all) => x.length >= 3 && all.indexOf(x) === k).slice(0, 5), ...(t.founderConfirms ? { founderConfirms: true } : {}) }
         : t.verify === "onchain"
           ? {
               kind: "onchain_tx",
@@ -107,6 +109,7 @@ export function composeDirectBody(s: ComposerState) {
               // a deployment names no address (the contract doesn't exist yet); a named one still binds it
               ...(/^0x[0-9a-fA-F]{40}$/.test(to) ? { to } : {}),
               ...(t.deploysContract ? { deploysContract: true } : {}),
+              ...(t.founderConfirms ? { founderConfirms: true } : {}),
             }
           : {
               kind: "artifact_url",
@@ -118,6 +121,7 @@ export function composeDirectBody(s: ComposerState) {
               ...(t.minRows ? { minRows: t.minRows } : {}),
               ...(t.minDurationSeconds ? { minDurationSeconds: t.minDurationSeconds } : {}),
               ...(t.postedAfterStart ? { postedAfterStart: true } : {}),
+              ...(t.founderConfirms ? { founderConfirms: true } : {}),
             };
     const proofLine =
       t.verify === "page"
@@ -202,9 +206,9 @@ export type DraftMilestone = {
   instructions: string;
   criteria: string[];
   evidence:
-    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean }
-    | { kind: "public_url"; expectedText: string[] }
-    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean }
+    | { kind: "public_url"; expectedText: string[]; founderConfirms?: boolean }
+    | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean; founderConfirms?: boolean };
   effortMinutes?: number;
 };
 export type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; deadline?: string; needsFromFounder?: string[]; milestones: DraftMilestone[] };
@@ -272,6 +276,7 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
       ...(m.evidence.kind === "artifact_url" && m.evidence.minRows ? { minRows: m.evidence.minRows } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.minDurationSeconds ? { minDurationSeconds: m.evidence.minDurationSeconds } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.postedAfterStart ? { postedAfterStart: true } : {}),
+      ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}),
     })),
     why: d.whyItMatters ?? "",
     title: d.title,

@@ -96,6 +96,9 @@ import { isEvmCampaignVault } from "@/lib/campaigns/vault-kind";
 
 export type PipelineAction = "skipped" | "held" | "settled" | "approved";
 
+/** Why work the founder must confirm waits for them (the job said so when it was posted). */
+export const FOUNDER_CONFIRMS_REASON = "This job pays when the founder confirms the work: Sage checked what it can and holds it for them.";
+
 export interface PipelineResult {
   action: PipelineAction;
   reason: string;
@@ -729,6 +732,22 @@ export async function runDeputyOnSubmission(
   // b. gate — the exact autopilot conditions, for url-verifiable missions ONLY (observation missions
   // were fully decided above). mainnet real-money campaigns need DEPUTY_AUTOPILOT_MAINNET armed, else
   // they hold for manual approval.
+  /**
+   * THE FOUNDER CONFIRMS THIS KIND OF WORK (verify/contract.ts `founderConfirms`). When the only real proof is
+   * the founder's own judgment (a call happened, colours match the fabric), a plausible fake could pass any
+   * judge, so no submission on it pays without them: the brief above is their recommendation, and the work
+   * holds for them. Subtract-only: it can only turn a pay into a hold (Sage Bench r5, 5 Nov 2026).
+   */
+  const contract = parseWorkProofContract(mission?.verificationContract ?? null) as { founderConfirms?: boolean } | null;
+  if (!isObservation && contract?.founderConfirms === true) {
+    agentLog(cid, "founder_confirms", { missionKey: mission?.missionKey });
+    if (campaign.autonomy === "autopilot" && submission.status === "pending") {
+      if (journalHeld(campaign, submission, FOUNDER_CONFIRMS_REASON, cid)) void notifyFounderHeld(campaign, submission);
+      return { action: "held", reason: FOUNDER_CONFIRMS_REASON, correlationId: cid };
+    }
+    return { action: "skipped", reason: FOUNDER_CONFIRMS_REASON, correlationId: cid };
+  }
+
   if (!isObservation) {
     const gate = gateFromBrief(
       brief,

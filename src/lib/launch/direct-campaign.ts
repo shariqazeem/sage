@@ -112,6 +112,7 @@ const onchainTxSchema = z
      * two-tranche grant failed to compile at all because its on-chain half was inexpressible.
      */
     deploysContract: z.boolean().optional(),
+    founderConfirms: z.boolean().optional(),
   })
   .refine(
     (c) => !!(c.to || c.methodSelector || c.logTopic0 || c.minValueWei || c.deploysContract),
@@ -150,11 +151,14 @@ const artifactUrlSchema = z.object({
   minRows: z.number().int().min(1).max(100_000).optional(),
   minDurationSeconds: z.number().int().min(1).max(36_000).optional(),
   postedAfterStart: z.boolean().optional(),
+  /** the founder confirms each one before it pays (verify/contract.ts) */
+  founderConfirms: z.boolean().optional(),
 });
 
 const publicUrlSchema = z.object({
   kind: z.literal("public_url"),
   expectedText: z.array(z.string().min(3).max(300)).min(1).max(5),
+  founderConfirms: z.boolean().optional(),
 });
 
 /** `observation` is STRUCTURALLY absent: a direct campaign has no private corpus (Sage never

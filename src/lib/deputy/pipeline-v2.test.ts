@@ -354,3 +354,23 @@ async function getAttemptFor(submissionId: string): Promise<string | null> {
     .get();
   return row?.payoutIntentHash ?? null;
 }
+
+describe("work only the founder can judge holds for them", () => {
+  it("a job marked founderConfirms never pays on its own, even on a perfect brief from an approved judge", async () => {
+    const { db } = await import("@/lib/db");
+    const { missions } = await import("@/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { FOUNDER_CONFIRMS_REASON } = await import("./pipeline");
+    const f = seedV2Campaign();
+    db.update(missions)
+      .set({ verificationContract: { kind: "artifact_url", allowedHosts: ["docs.google.com"], markerKind: "wallet", founderConfirms: true } })
+      .where(eq(missions.id, f.mission.id))
+      .run();
+    const calls = { requestPayout: 0 };
+    const r = await runDeputyOnSubmission(f.submission.id, { campaignAdapter: makeFakeAdapter(f, { calls }), operatorAddress: () => V2_OPERATOR });
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe(FOUNDER_CONFIRMS_REASON);
+    expect(calls.requestPayout).toBe(0);
+    expect(getSubmission(f.submission.id)?.status).toBe("pending"); // the founder's to approve
+  });
+});

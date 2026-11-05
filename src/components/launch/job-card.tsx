@@ -20,6 +20,12 @@ const GRANT_TOTAL = [50, 100, 250, 500];
 
 /** How Sage checks a line of work, in the words the founder reads. */
 function checksLine(t: Tranche, chainName: (id?: number) => string): string {
+  const line = sageChecks(t, chainName);
+  // work only the founder can judge: Sage checks what it can and holds each one for them (verify/contract.ts)
+  return t.founderConfirms ? line.replace(/,? before it pays$/, ", and you confirm each one before it pays") : line;
+}
+
+function sageChecks(t: Tranche, chainName: (id?: number) => string): string {
   if (t.verify === "page") return `Sage checks the page they submit shows “${t.expectedText.trim() || "…"}”, before it pays`;
   if (t.verify === "onchain" && t.deploysContract) return `Sage checks on ${chainName(t.txChain)} that their own wallet deployed the contract, after this job was posted, before it pays`;
   if (t.verify === "onchain") return `Sage checks the transaction on ${chainName(t.txChain)}, sent from their own wallet, before it pays`;

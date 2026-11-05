@@ -25,6 +25,12 @@ export type VerificationStrength = "deterministic" | "strong" | "corpus";
  *  not checked. `from` is normally the tester's own wallet (bound at judge time, not stored here). */
 export interface OnchainTxContract {
   kind: "onchain_tx";
+  /**
+   * THE FOUNDER CONFIRMS EACH ONE (Sage Bench r5, 5 Nov 2026). When the only real proof is the founder's own
+   * judgment (a call happened, colours match the fabric, a delivery arrived), no submission pays without them:
+   * the judge still writes its recommendation, and the work holds for the founder. Subtract-only.
+   */
+  founderConfirms?: boolean;
   chainId: number;
   /** the tester's action must land at this address (a DEX router, a factory, a recipient). */
   to?: string;
@@ -72,6 +78,12 @@ export interface OnchainStateContract {
 /** A public, tester-specific object the action created (an agent page, a share link, an export). */
 export interface ArtifactUrlContract {
   kind: "artifact_url";
+  /**
+   * THE FOUNDER CONFIRMS EACH ONE (Sage Bench r5, 5 Nov 2026). When the only real proof is the founder's own
+   * judgment (a call happened, colours match the fabric, a delivery arrived), no submission pays without them:
+   * the judge still writes its recommendation, and the work holds for the founder. Subtract-only.
+   */
+  founderConfirms?: boolean;
   /** the artifact must live on one of these hosts (the product's domain / a known share host). */
   allowedHosts: string[];
   /** the artifact must carry a tester-specific marker so it is THEIRS, not a generic page:
@@ -105,6 +117,12 @@ export interface ArtifactUrlContract {
 
 export interface PublicUrlContract {
   kind: "public_url";
+  /**
+   * THE FOUNDER CONFIRMS EACH ONE (Sage Bench r5, 5 Nov 2026). When the only real proof is the founder's own
+   * judgment (a call happened, colours match the fabric, a delivery arrived), no submission pays without them:
+   * the judge still writes its recommendation, and the work holds for the founder. Subtract-only.
+   */
+  founderConfirms?: boolean;
   /** expected text, each a verbatim substring of the fetched page (the existing url lane's rule). */
   expectedText: string[];
 }
