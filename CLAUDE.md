@@ -59,7 +59,9 @@
 
 ## 1. Product
 
-**Sage — "Hire an AI worker. Give it a budget, not your keys."**
+**Sage — an AI agent that pays people onchain for verified work.** (On 5 Nov 2026 the founder retired
+"Hire an AI worker. Give it a budget, not your keys" as generic AI copy: never lead with it, or with any
+keys or allowance framing, in copy, posts or films. Current public line: "Proof of work, for people.")
 
 A founder points Sage at a product URL with a budget. Sage inspects the product, designs
 paid testing missions, deploys an on-chain `CampaignVault`, and then **autonomously pays
@@ -380,6 +382,22 @@ nobody, fails on a founder's launch instead of at boot). `laneProvider()` in
 `src/lib/llm/complete.ts` is the single implementation; `src/lib/llm/lane.test.ts` holds it.
 
 This is what makes a model/provider switch a config change rather than a code audit.
+
+**Every model call goes through ONE wire** (`src/lib/llm/wire.ts`, 5 Nov 2026; a structural test refuses a
+direct `chat/completions` fetch anywhere else). It:
+- shapes each request for its provider: what the profile says, then what the provider itself refused at
+  runtime (Anthropic's endpoint refuses `temperature` and `json_object`);
+- runs a bounded number of requests per key (`LLM_MAX_CONCURRENCY`, default 4), with a waiting person
+  first: draft and concierge, then judgment, then background design;
+- treats an account OUT OF CREDIT as closed, not busy. The provider's own words decide (CommonStack
+  answers `429 Insufficient available balance`). The wire then:
+  - answers it as 402, which no caller retries, and remembers it for 30 s;
+  - sends the judge and the mission designer straight to their fallback;
+  - tells the operator chat once (`src/lib/llm/credit-alert.ts`);
+  - lets the sweep ask the empty account each tick, so a top-up is noticed and the work held during it is
+    re-judged.
+
+  A fallback on the SAME account is no fallback: point `LLM_FALLBACK_*` at a different one.
 Before it existed, only PAYOUT and CONCIERGE could pick a provider — every other lane
 could override the model NAME but not the key, so it was pinned to whatever the shared
 chain pointed at.
@@ -442,6 +460,10 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `SAGE_BILLING_ADDRESS` † | Where plan payments go (the founder's own wallet), on Metis | Falls back to the operator's address |
 | `TREASURY_CHAIN_ID` † | The network a new account opens on, when set, configured and NOT paused | The launch default (Metis) |
 | `OPERATOR_COVERS_GAS` † | `"1"` brings back the operator's gas cover (the launch stipend, the fee on a plan paid from the balance) | Off: every account pays its own network fee |
+| `LLM_MAX_CONCURRENCY` † | Requests one provider key may have in flight (the wire). `1` restores the old single lane | 4 |
+| `<LANE>_REASONING_EFFORT` † | `low` / `medium` / `high`, sent as `reasoning_effort` on that lane's calls (a provider that refuses it is learned once) | Not sent |
+| `GITHUB_TOKEN` † | Read-only token for GitHub's API: the page reader (issues, PRs and their files, repos, gists), PR provenance, account age. Never logged | 60 calls an hour per server; past it, a merge check HOLDS rather than fails |
+| `VERIFY_RPC_<chainId>` † | RPC override for a verify-only chain (`src/lib/verify/chains.ts`: Ethereum, Base, Arbitrum, OP, Polygon, BNB, Avalanche, Linea, Scroll, testnets). Read-only; nothing is paid there | The public RPC in `chains.ts` |
 
 ---
 
