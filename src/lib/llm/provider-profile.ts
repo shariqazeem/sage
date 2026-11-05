@@ -31,8 +31,22 @@ export interface ProviderProfile {
    * which for a tool call means invalid JSON, not a shorter reply.
    */
   reasoningOverheadTokens: number;
-  /** Strictest structured-output mode the provider actually honours. */
-  jsonMode: "schema" | "object" | "none";
+  /**
+   * Strictest structured-output mode the provider actually honours:
+   *  - schema: json_schema when the caller has a schema, json_object otherwise;
+   *  - schema_only: json_schema when the caller has a schema, NOTHING otherwise (json_object is refused);
+   *  - object: json_object always (a schema is not honoured, so it is not asked for);
+   *  - none: no response_format at all.
+   */
+  jsonMode: "schema" | "schema_only" | "object" | "none";
+  /**
+   * Does this model accept a sampling `temperature`? Current Claude models refuse it outright (400
+   * "`temperature` is deprecated for this model", measured 5 Nov 2026 on Anthropic's endpoint), and
+   * OpenAI's reasoning models accept only the default. Sending it is how a provider switch becomes an
+   * outage, so it is sent only where it is known to be taken. The wire (wire.ts) also learns a refusal
+   * at runtime, so an unknown provider costs one extra round trip, never a failed call.
+   */
+  acceptsTemperature: boolean;
   /**
    * Does the provider actually SEE images, or does it accept them and quietly ignore them?
    *
@@ -59,9 +73,37 @@ const DEFAULT_PROFILE: ProviderProfile = {
   jsonMode: "object",
   timeoutMs: 180_000,
   multimodal: false, // unknown provider: never ASSUME sight — assuming it is how eyes go blind quietly
+  acceptsTemperature: true, // the wire learns a refusal at runtime and re-sends without it
 };
 
+/**
+ * Claude models that think before they answer (adaptive thinking, on by default): the 4.6+ Opus and
+ * Sonnet, and every 5.x model. Their thinking is billed as completion tokens and counts against
+ * max_tokens, and none of them accepts a temperature.
+ */
+const ADAPTIVE_CLAUDE = /claude-(?:opus|sonnet|haiku|fable|mythos)-(?:4-[6-9]|[5-9])/i;
+
 const PROFILES: { match: (model: string, base: string) => boolean; profile: ProviderProfile }[] = [
+  {
+    // Claude on Anthropic's OWN OpenAI-compatible endpoint. Measured 5 Nov 2026 on haiku/sonnet/opus 5.5:
+    // - `temperature` is refused with a 400;
+    // - response_format json_object is refused ("Input should be 'json_schema'");
+    // - strict json_schema is honoured;
+    // - with no response_format the answer is bare JSON (Opus at low effort fenced it once).
+    // The fence is read by the parser.
+    match: (_m, b) => /api\.anthropic\.com/i.test(b),
+    profile: {
+      id: "anthropic-direct",
+      emitsReasoningPrefix: false,
+      // Thinking is billed as completion tokens and fits inside max_tokens. A trivial JSON answer
+      // spent ~150 tokens thinking (measured); a drafted job far more. Over-budgeting costs nothing.
+      reasoningOverheadTokens: 4_000,
+      jsonMode: "schema_only",
+      timeoutMs: 120_000,
+      multimodal: true,
+      acceptsTemperature: false,
+    },
+  },
   {
     // MiniMax reasoning models — the current primary for both the concierge and the payout brain.
     match: (m, b) => /minimax/i.test(m) || /minimax\.io/i.test(b),
@@ -84,10 +126,26 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       // not the median of an older, smaller one; the ladder still stops after two aborts.
       timeoutMs: 300_000,
       multimodal: false, // MEASURED: accepts image_url, returns 200, and reports seeing no image
+      acceptsTemperature: true,
     },
   },
   {
-    // Anthropic models served through an OpenAI-compatible gateway (CommonStack today).
+    // Current Claude models (adaptive thinking) through an OpenAI-compatible gateway (CommonStack today).
+    // Measured 5 Nov 2026 via CommonStack: sonnet/opus 5.5 answer bare JSON in every response_format mode
+    // (the gateway translates json_object and strips temperature), in 2-5 s.
+    match: (m) => ADAPTIVE_CLAUDE.test(m),
+    profile: {
+      id: "anthropic-adaptive",
+      emitsReasoningPrefix: false,
+      reasoningOverheadTokens: 4_000,
+      jsonMode: "object",
+      timeoutMs: 120_000,
+      multimodal: true,
+      acceptsTemperature: false,
+    },
+  },
+  {
+    // Older Anthropic models served through an OpenAI-compatible gateway (CommonStack: claude-haiku-4-5).
     match: (m) => /claude|anthropic/i.test(m),
     profile: {
       id: "anthropic-compatible",
@@ -96,6 +154,38 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       jsonMode: "object",
       timeoutMs: 90_000,
       multimodal: true,
+      acceptsTemperature: true,
+    },
+  },
+  {
+    // OpenAI's reasoning generation (gpt-5+, o-series): accepts only the default temperature and reasons
+    // before it answers; json_schema is honoured.
+    match: (m) => /(?:^|\/)(?:gpt-[5-9]|o[1-9])/i.test(m),
+    profile: {
+      id: "openai-reasoning",
+      emitsReasoningPrefix: false,
+      reasoningOverheadTokens: 4_000,
+      jsonMode: "schema",
+      timeoutMs: 120_000,
+      multimodal: true,
+      acceptsTemperature: false,
+    },
+  },
+  {
+    // DeepSeek V4 through CommonStack. Measured 5 Nov 2026: bare JSON in every mode, but 435 completion
+    // tokens for a 204-character answer. It reasons where the answer cannot see it, and that is billed
+    // inside max_tokens.
+    match: (m) => /deepseek/i.test(m),
+    profile: {
+      id: "deepseek",
+      emitsReasoningPrefix: false,
+      reasoningOverheadTokens: 2_000,
+      // json_schema was honoured in the same probe, and this model reached schema mode before it had a
+      // profile of its own (it matched /flash/), so it keeps it.
+      jsonMode: "schema",
+      timeoutMs: 120_000,
+      multimodal: false,
+      acceptsTemperature: true,
     },
   },
   {
@@ -109,6 +199,7 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
       jsonMode: "schema",
       timeoutMs: 90_000,
       multimodal: true,
+      acceptsTemperature: true,
     },
   },
 ];

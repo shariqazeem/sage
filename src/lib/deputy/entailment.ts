@@ -1,4 +1,5 @@
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { postChat, responseFormatFor } from "@/lib/llm/wire";
 import "server-only";
 
 /**
@@ -254,25 +255,27 @@ export async function runEntailmentVeto(input: EntailmentInput, opts: Entailment
   const fetchImpl = opts.fetchImpl ?? fetch;
   const started = Date.now();
   const ids = input.criteria.map((c) => c.id);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ENTAILMENT_TIMEOUT_MS);
   try {
-    const res = await fetchImpl(provider.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
+    // THE WIRE (llm/wire.ts): shaped for the provider, queued per key at judgment priority.
+    const profile = profileFor(provider.model, provider.endpoint);
+    const res = await postChat(
+      provider,
+      {
         model: provider.model, temperature: 0,
-        max_tokens: outputBudget(MAX_TOKENS, profileFor(provider.model, provider.endpoint)),
-        response_format: { type: "json_object" },
+        max_tokens: outputBudget(MAX_TOKENS, profile),
+        ...(() => {
+          const rf = responseFormatFor(profile, undefined);
+          return rf ? { response_format: rf } : {};
+        })(),
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: buildUserContent(input) },
         ],
-      }),
-    });
+      },
+      { timeoutMs: ENTAILMENT_TIMEOUT_MS, priority: "judgment", profile, fetchImpl },
+    );
     if (!res.ok) return fail(input, "provider_error", `llm ${res.status}`, provider.model, provider.host, Date.now() - started);
-    const completion = readCompletion((await res.json()) as ChatCompletionResponse);
+    const completion = readCompletion(JSON.parse(res.text) as ChatCompletionResponse);
     // FAIL CLOSED (veto) unless the veto's own completion ended normally — an absent/abnormal finish or a
     // refusal means we can't trust the verdict to CLEAR the veto, so we veto (the safe direction).
     const reject = terminationRejectReason(completion);
@@ -296,7 +299,5 @@ export async function runEntailmentVeto(input: EntailmentInput, opts: Entailment
     };
   } catch (err) {
     return fail(input, "provider_error", errMsg(err), provider.model, provider.host, Date.now() - started);
-  } finally {
-    clearTimeout(timer);
   }
 }

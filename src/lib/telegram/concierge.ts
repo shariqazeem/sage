@@ -29,6 +29,7 @@ import {
 import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { postChat } from "@/lib/llm/wire";
 import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
 import { hasPageBasedEvidence, testimonyCondition, testimonyCorrection } from "@/lib/launch/testimony-condition";
@@ -542,6 +543,15 @@ function maybeNotifyOnInspection(
   });
 }
 
+/** The provider host of a base URL, the wire's queue identity alongside the key. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 /**
  * One LLM call, retried through the gateway's stalls.
  *
@@ -577,10 +587,14 @@ async function chatCompletion(
 ): Promise<ChatResponse> {
   return withTransientRetry(
     async () => {
-      const res = await fetch(`${base()}/chat/completions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // THE WIRE (llm/wire.ts) sends it, at INTERACTIVE priority: a founder is waiting on this turn, so it
+      // goes ahead of mission design and judgment on a busy key. It also shapes the request for the
+      // provider. A model that refuses a forced tool_choice (Claude 5.5) or a temperature is sent the
+      // request it accepts, instead of failing the founder's turn with a 400.
+      const b = base();
+      const res = await postChat(
+        { endpoint: `${b}/chat/completions`, key: key(), model: model(), host: hostOf(b) },
+        {
           model: model(),
           temperature: 0.3,
           /**
@@ -604,14 +618,13 @@ async function chatCompletion(
           messages,
           tools,
           tool_choice: forceTool ? "required" : "auto",
-        }),
-        signal: AbortSignal.timeout(callTimeoutMs(budgetMs)),
-      });
+        },
+        { timeoutMs: callTimeoutMs(budgetMs), priority: "interactive" },
+      );
       if (!res.ok) {
-        const detail = await res.text().catch(() => "");
-        throw new Error(`llm_status_${res.status}${detail ? ` ${detail.slice(0, 120)}` : ""}`);
+        throw new Error(`llm_status_${res.status}${res.text ? ` ${res.text.slice(0, 120)}` : ""}`);
       }
-      return (await res.json()) as ChatResponse;
+      return JSON.parse(res.text) as ChatResponse;
     },
     { attempts: LLM_ATTEMPTS, budgetMs: Math.max(1, budgetMs) },
   );

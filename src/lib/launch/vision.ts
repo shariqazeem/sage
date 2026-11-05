@@ -19,6 +19,7 @@ import type { FieldTestState, VisionObservation } from "./schemas";
 import { recordFieldTestStep } from "./field-test-progress";
 import { laneProvider } from "@/lib/llm/complete";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { postChat } from "@/lib/llm/wire";
 
 const DEFAULT_BASE = "https://api.commonstack.ai/v1";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -239,14 +240,12 @@ interface VisionCallResult {
 
 /** One vision completion for one base64 jpeg data URI. Returns null on any failure. */
 async function callVision(provider: VisionProvider, dataUri: string, trigger: string): Promise<VisionCallResult | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
   try {
-    const res = await fetch(provider.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
+    // THE WIRE (llm/wire.ts) shapes and queues it (judgment priority: Sage's eyes feed a waiting
+    // inspection) and drops a temperature the model refuses instead of losing every image to a 400.
+    const res = await postChat(
+      { endpoint: provider.endpoint, key: provider.key, model: provider.model, host: hostOfUrl(provider.endpoint) },
+      {
         model: provider.model,
         temperature: 0,
         // ANSWER size; the profile adds this provider's overhead (see provider-profile.ts).
@@ -261,17 +260,24 @@ async function callVision(provider: VisionProvider, dataUri: string, trigger: st
             ],
           },
         ],
-      }),
-    });
+      },
+      { timeoutMs: VISION_TIMEOUT_MS, priority: "judgment" },
+    );
     if (!res.ok) return null;
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number } };
+    const data = JSON.parse(res.text) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number } };
     const content = data.choices?.[0]?.message?.content;
     if (!content) return null;
     return { content, promptTokens: data.usage?.prompt_tokens ?? 0 };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
+  }
+}
+
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
   }
 }
 

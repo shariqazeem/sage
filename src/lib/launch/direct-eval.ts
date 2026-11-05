@@ -1,10 +1,12 @@
 import "server-only";
 
 import { BASE_PROMPT, DIRECT_BLOCK, DIRECT_CAMPAIGN_TOOL, asOpenAI } from "@/lib/telegram/concierge";
+import { MCP_TOOLS } from "@/lib/mcp/server";
 import { conciergeBase, conciergeKey, conciergeModel } from "@/lib/telegram/concierge-config";
 import { mapDirectCampaignArgs } from "@/lib/mcp/server";
 import { withTransientRetry } from "@/lib/llm/retry";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { postChat } from "@/lib/llm/wire";
 import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkNarration, missedMoneyAction } from "@/lib/telegram/narration-guard";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
@@ -169,10 +171,10 @@ async function askModel(
   const base = conciergeBase();
   if (!key) return { call: null, reply: "", failed: true, why: "no concierge api key in env" };
   try {
-    const res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+    // PRODUCTION'S OWN WIRE (llm/wire.ts): shaped for the provider exactly as production's turn is.
+    const res = await postChat(
+      { endpoint: `${base}/chat/completions`, key, model: conciergeModel(), host: new URL(base).host },
+      {
         model: conciergeModel(),
         temperature: 0.3,
         /**
@@ -200,32 +202,20 @@ async function askModel(
           ? [asOpenAI(DIRECT_CAMPAIGN_TOOL)]
           : [
           asOpenAI(DIRECT_CAMPAIGN_TOOL),
-          asOpenAI({
-            name: "sage_start_inspection",
-            description:
-              "Start a REAL Sage product-testing inspection for a founder's product URL. Use for 'test my product' / 'get feedback on my site'.",
-            inputSchema: {
-              type: "object",
-              properties: {
-                productUrl: { type: "string", description: "Public https URL of the product to test." },
-                goal: { type: "string", description: "What the founder wants testers to verify." },
-                budgetUsd: { type: "number", description: "Total testing budget in USDC." },
-              },
-              required: ["productUrl"],
-            },
-          }),
+          // PRODUCTION'S OWN DEFINITION — the battery once hand-wrote this tool and measured a schema
+          // production never offers (CLAUDE.md: a battery imports production's tools, never a copy).
+          asOpenAI(MCP_TOOLS.find((t) => t.name === "sage_start_inspection")!),
         ]),
         tool_choice: forceTool ? "required" : "auto",
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+      },
+      { timeoutMs, priority: "interactive" },
+    );
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
       // Throw the SAME shape production throws, so withTransientRetry classifies a 429 or 5xx as
       // transient and waits properly instead of hammering a concurrency-capped key.
-      throw new Error(`llm_status_${res.status} ${body.slice(0, 160)}`);
+      throw new Error(`llm_status_${res.status} ${res.text.slice(0, 160)}`);
     }
-    const data = (await res.json()) as {
+    const data = JSON.parse(res.text) as {
       choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null }; finish_reason?: string }[];
       usage?: { completion_tokens?: number };
     };

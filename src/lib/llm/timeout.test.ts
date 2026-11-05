@@ -28,12 +28,17 @@ afterEach(() => {
 
 describe("the abort timer and the token budget", () => {
   it("starts the timer inside the queue slot — structural, the only place the order is visible", () => {
-    const src = readFileSync(resolve(process.cwd(), "src/lib/llm/complete.ts"), "utf8");
-    const queued = src.indexOf("await oneAtATime(() => {");
-    const armed = src.indexOf("timer = setTimeout(() => controller.abort(), budgetMs);");
+    // The wire (wire.ts) owns the queue now: the abort timer must be armed INSIDE the slot callback,
+    // after a slot is taken, never when the call joins the queue.
+    const src = readFileSync(resolve(process.cwd(), "src/lib/llm/wire.ts"), "utf8");
+    const queued = src.indexOf('return withSlot(p, opts.priority ?? "background", async () => {');
+    const armed = src.indexOf("const timer = setTimeout(() => controller.abort(), opts.timeoutMs);");
     expect(queued).toBeGreaterThan(0);
     expect(armed).toBeGreaterThan(queued); // armed AFTER the slot is taken
-    expect(src).not.toMatch(/const timer = setTimeout\(\(\) => controller\.abort\(\), budgetMs\);\s*try \{\s*const res = await oneAtATime/);
+    // and complete.ts hands its budget to the wire rather than arming a timer of its own
+    const complete = readFileSync(resolve(process.cwd(), "src/lib/llm/complete.ts"), "utf8");
+    expect(complete).toMatch(/timeoutMs: budgetMs/);
+    expect(complete).not.toMatch(/setTimeout\(/);
   });
 
   it("sends the provider-aware budget as max_tokens, and the timeout formula covers producing it", async () => {

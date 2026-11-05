@@ -1,5 +1,6 @@
 import { withTransientRetry } from "@/lib/llm/retry";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { postChat } from "@/lib/llm/wire";
 import { systemPrompt, TG_TOOLS, WEB_TOOLS } from "./concierge";
 import { checkNarration } from "./narration-guard";
 import { stripReasoningPrefix as stripThink } from "@/lib/llm/reasoning";
@@ -71,10 +72,12 @@ type Msg = { role: string; content?: string | null; tool_calls?: ToolCall[]; too
 async function askOnce(f: RouteFixture, timeoutMs: number, history: Msg[] = []): Promise<{ call: ToolCall | null; reply: string; finish?: string; outTokens?: number }> {
   const k = key();
   if (!k) throw new Error("no concierge key in env");
-  const res = await fetch(`${base()}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  // PRODUCTION'S OWN WIRE (llm/wire.ts): the same request shaping production sends, so the battery runs on
+  // any provider production can.
+  const b = base();
+  const res = await postChat(
+    { endpoint: `${b}/chat/completions`, key: k, model: model(), host: new URL(b).host },
+    {
       model: model(),
       temperature: 0.3,
       max_tokens: outputBudget(5_000, profileFor(model(), base())), // production's budget rule
@@ -85,11 +88,11 @@ async function askOnce(f: RouteFixture, timeoutMs: number, history: Msg[] = []):
       ],
       tools: f.surface === "web" ? WEB_TOOLS : TG_TOOLS,
       tool_choice: "auto",
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) throw new Error(`llm_status_${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`);
-  const data = (await res.json()) as {
+    },
+    { timeoutMs, priority: "interactive" },
+  );
+  if (!res.ok) throw new Error(`llm_status_${res.status} ${res.text.slice(0, 160)}`);
+  const data = JSON.parse(res.text) as {
     choices?: { message?: { tool_calls?: ToolCall[]; content?: string | null }; finish_reason?: string }[];
     usage?: { completion_tokens?: number };
   };

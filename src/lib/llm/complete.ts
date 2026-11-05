@@ -42,6 +42,7 @@ export interface LlmComplete {
 
 import { outputBudget, profileFor } from "./provider-profile";
 import { stripReasoningPrefix } from "./reasoning";
+import { postChat, priorityForLane, responseFormatFor } from "./wire";
 
 export type ParsePolicy = "repair" | "strict";
 
@@ -254,12 +255,6 @@ export class LlmCompletionError extends Error implements LlmCompletionErrorField
   }
 }
 
-function parseRetryAfterMs(h: string | null): number | null {
-  if (!h) return null;
-  const secs = Number(h.trim());
-  return Number.isFinite(secs) ? Math.round(secs * 1000) : null;
-}
-
 /**
  * STRICT parse for the grounded-architect boundary — the same discipline the money path uses
  * (deputy/brain.ts), applied to a non-money generation path. The raw provider response must be a SINGLE,
@@ -420,34 +415,15 @@ function parseStrict(data: ChatResponse): { json: unknown; finishReason: string 
 /**
  * ONE JSON completion. Throws on any failure (bad status, empty, unparseable). The
  * caller owns retry / fallback / honest degradation — this never fabricates output.
+ *
+ * Every request goes through the wire (wire.ts), the one place a request is shaped for its provider
+ * and queued per provider key. Until 5 Nov 2026 every LLM call in the process ran one at a time,
+ * because the gateway key once answered a second concurrent request with 429 "(cap 1)" (23 Aug).
+ * The same key took six in parallel on 5 Nov, so the global queue now only made a founder's
+ * three-second draft wait behind a two-minute mission architect. The wire bounds requests per key
+ * (LLM_MAX_CONCURRENCY), lets the person who is waiting go first, and lowers its own limit when a
+ * 429 states a cap. So the collision that queue was built for still can't recur.
  */
-/**
- * ONE LLM REQUEST AT A TIME.
- *
- * The gateway key is capped at a single in-flight request — it answers a second one with
- * `429 {"code":"rate_limit_exceeded","message":"Access key quota exceeded (cap 1)"}`. Everything
- * shares that one key: the Telegram concierge, the mission architect and critic, the field test's
- * vision pass, and judging. `LLM_FALLBACK_API_KEY` is the SAME key on this deployment, so failover
- * lands on the identical quota and buys nothing.
- *
- * Measured 23 Aug: an inspection died `schema_mismatch` after 603s because a founder was chatting
- * with the bot while it ran. The same goal, run with nothing else in flight, produced four good
- * missions. The work was never wrong; two callers were fighting over one slot.
- *
- * Concurrency here was always an illusion, so queueing costs no throughput and removes the
- * collisions this process causes itself. It cannot help against a caller outside this process,
- * and it deliberately does not swallow errors — a failed call releases the slot and propagates.
- */
-let llmChain: Promise<unknown> = Promise.resolve();
-function oneAtATime<T>(fn: () => Promise<T>): Promise<T> {
-  const run = llmChain.then(fn, fn);
-  llmChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
 export async function llmCompleteJson(opts: {
   system: string;
   user: string;
@@ -476,7 +452,6 @@ export async function llmCompleteJson(opts: {
   const started = Date.now();
   const policy: ParsePolicy = opts.parsePolicy ?? "repair";
   const schemaName = opts.responseSchema?.name ?? null;
-  const controller = new AbortController();
   const maxOut = outputBudget(opts.maxTokens ?? 3500, profile, opts.escalation ?? 0);
   // A reasoning model costs more SECONDS, not just more tokens — the mission architect measured
   // 63-151s per call on MiniMax against a 90s default, so a correct token budget alone would still
@@ -485,23 +460,19 @@ export async function llmCompleteJson(opts: {
   // its budget (MiniMax does, measured) generates max_tokens at ~40-60 tok/s; a timeout below that
   // aborts a call for being exactly as long as we asked, which is how P-GEN 46-48 read as "the
   // provider's heavy tail" — the tail was ours.
+  const responseFormat = responseFormatFor(profile, opts.responseSchema);
   const budgetMs = process.env.LLM_TIMEOUT_MS
     ? TIMEOUT_MS
     : Math.max(TIMEOUT_MS, profile.timeoutMs, Math.ceil(maxOut / MIN_TOKENS_PER_SEC) * 1000 + QUEUE_GRACE_MS);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    // THE TIMER STARTS WHEN THE REQUEST DOES, not when it joins the queue. Every LLM call in this
-    // process is serialized (below); a call that waited behind two 130s generations used to have
-    // its whole timeout spent before it reached the provider, and was recorded as provider_timeout
-    // on a one-page site while the provider answered a trivial prompt in two seconds.
-    const res = await oneAtATime(() => {
-      timer = setTimeout(() => controller.abort(), budgetMs);
-      return fetch(p.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
+  {
+    // THE TIMER STARTS WHEN THE REQUEST DOES, not when it joins the queue (the wire starts it when a
+    // slot is free): a call that waited behind two 130s generations used to have its whole timeout
+    // spent before it reached the provider, and was recorded as provider_timeout on a one-page site.
+    const res = await postChat(
+      p,
+      {
         model: p.model,
+        // the wire drops it for a model that refuses it (profile, then the provider's own 400)
         temperature: opts.temperature ?? 0.2,
         /**
          * PROVIDER-AWARE BUDGET. `maxTokens` is what the ANSWER needs; the profile adds whatever
@@ -512,41 +483,42 @@ export async function llmCompleteJson(opts: {
          */
         max_tokens: maxOut,
         /**
-         * ASK FOR THE STRICTEST MODE THIS PROVIDER ACTUALLY IMPLEMENTS.
+         * ASK FOR THE STRICTEST MODE THIS PROVIDER ACTUALLY IMPLEMENTS (responseFormatFor).
          *
          * `responseSchema` was sent as strict `json_schema` unconditionally, to every provider —
          * which is how a declared capability became a live outage. MiniMax does not implement it
          * (measured: asked for {supported, reason} with strict:true, it returned a <think> block, a
          * markdown fence, and INVENTED field names), and the grounded architect's larger nested
          * schema drew `llm_status_400` — a NON-retryable error, so one rejection killed the whole
-         * grounded plan and the weaker legacy plan shipped.
+         * grounded plan and the weaker legacy plan shipped. Anthropic's own endpoint is the mirror
+         * image: it refuses json_object and honours only json_schema.
          *
-         * Falling back to `json_object` loses only a GENERATION-time constraint. It weakens no
-         * guarantee: the receiving parser, the strict policy and the deterministic compiler all
-         * still run, and the compiler is what actually decides the shape. Providers that do honour
-         * schema mode (the Gemini family — where json_object measurably BROKE strict parsing and
-         * json_schema fixed it) keep getting it.
+         * Falling back loses only a GENERATION-time constraint. It weakens no guarantee: the
+         * receiving parser, the strict policy and the deterministic compiler all still run, and the
+         * compiler is what actually decides the shape.
          */
-        response_format:
-          opts.responseSchema && profile.jsonMode === "schema"
-            ? { type: "json_schema", json_schema: { name: opts.responseSchema.name, strict: true, schema: opts.responseSchema.schema } }
-            : { type: "json_object" },
+        ...(responseFormat ? { response_format: responseFormat } : {}),
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.user },
         ],
-      }),
-      });
-    });
+      },
+      { timeoutMs: budgetMs, priority: priorityForLane(opts.lane), profile },
+    );
     if (!res.ok) {
       // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.
       throw new LlmCompletionError({
         code: `llm_status_${res.status}`, httpStatus: res.status, provider: p.host, requestedModel: p.model,
         responseModel: null, finishReason: null, latencyMs: Date.now() - started, promptTokens: null, completionTokens: null,
-        parsePolicy: policy, responseSchemaName: schemaName, contentShape: "unknown", retryAfterMs: parseRetryAfterMs(res.headers.get("retry-after")),
+        parsePolicy: policy, responseSchemaName: schemaName, contentShape: "unknown", retryAfterMs: res.retryAfterMs,
       });
     }
-    const data = (await res.json()) as ChatResponse;
+    let data: ChatResponse;
+    try {
+      data = JSON.parse(res.text) as ChatResponse;
+    } catch {
+      throw new Error("llm_bad_body");
+    }
     let json: unknown;
     let finishReason: string | null;
     let repaired = false;
@@ -599,7 +571,5 @@ export async function llmCompleteJson(opts: {
       repaired,
       responseModel: typeof data.model === "string" ? data.model : null,
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { profileFor } from "@/lib/llm/provider-profile";
+import { postChat, responseFormatFor } from "@/lib/llm/wire";
 
 import { stripReasoningPrefix as sharedStripReasoningPrefix } from "@/lib/llm/reasoning";
 import { laneProvider } from "@/lib/llm/complete";
@@ -277,36 +278,51 @@ async function callProvider(
   started: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DecisionBrief> {
-  const controller = new AbortController();
   // THE TIMEOUT COVERS THE TAIL OF THE PROVIDER IT GUARDS. 35 s was sized for a non-reasoning judge;
   // MiniMax-M3 measured 15, 24, 30 and 118 s on four real briefs (2026-09-11, under load) and every
   // abort fell to the heuristic, which cannot pay — so honest work sat held until a later sweep
   // re-judged it. The provider profile knows each model's tail; a hard ceiling still bounds a hang.
-  const timer = setTimeout(() => controller.abort(), Math.max(LLM_TIMEOUT_MS, Math.min(profileFor(p.model, p.endpoint).timeoutMs, LLM_TIMEOUT_CEILING_MS)));
-  try {
-    const res = await fetchImpl(p.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${p.key}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
+  const profile = profileFor(p.model, p.endpoint);
+  {
+    // THE WIRE (llm/wire.ts) sends it: the one place a request is shaped for its provider and queued per
+    // key, at JUDGMENT priority (a worker is waiting to be paid). For the providers the judge runs on
+    // today the body is byte-identical to before. A provider that refuses a parameter (Anthropic's endpoint
+    // refuses both `temperature` and json_object, measured 5 Nov 2026) gets the request it accepts,
+    // instead of failing every attempt and dropping each payout to the heuristic. The strict money parse
+    // below is untouched, so nothing a provider sends can earn more than it could before.
+    const res = await postChat(
+      p,
+      {
         model: p.model,
         temperature: 0,
         max_tokens: MAX_TOKENS,
-        // Force valid JSON — without this some models drop the outer braces. A provider that ignores it
-        // fails the STRICT money parse (parseMoneyBrief) and falls over; it is never repaired or salvaged.
-        response_format: { type: "json_object" },
+        // Force valid JSON where the provider takes it — without this some models drop the outer braces.
+        // A provider that ignores it fails the STRICT money parse (parseMoneyBrief) and falls over; it is
+        // never repaired or salvaged.
+        ...(() => {
+          const rf = responseFormatFor(profile, undefined);
+          return rf ? { response_format: rf } : {};
+        })(),
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: buildUserContent(input) },
         ],
-      }),
-    });
+      },
+      {
+        timeoutMs: Math.max(LLM_TIMEOUT_MS, Math.min(profile.timeoutMs, LLM_TIMEOUT_CEILING_MS)),
+        priority: "judgment",
+        profile,
+        fetchImpl,
+      },
+    );
     if (!res.ok) throw new Error(`llm ${res.status}`);
 
-    const data = (await res.json()) as ChatCompletionResponse;
+    let data: ChatCompletionResponse;
+    try {
+      data = JSON.parse(res.text) as ChatCompletionResponse;
+    } catch {
+      throw new Error("llm body was not JSON");
+    }
     const completion = readCompletion(data); // preserve the provider's actual termination metadata
     // FAIL CLOSED unless the provider EXPLICITLY signalled a normal completion. A refusal, an ABSENT
     // finish_reason, a truncation (length/max_tokens), a content filter, or any non-normal reason all mean
@@ -340,8 +356,6 @@ async function callProvider(
       },
       input,
     );
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -1,4 +1,6 @@
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
+import { laneProvider } from "@/lib/llm/complete";
+import { jsonObjectFormat, postChat } from "@/lib/llm/wire";
 import { createHash } from "node:crypto";
 
 /**
@@ -1024,6 +1026,12 @@ const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 function resolveController(
   deps: DecideDeps,
 ): { endpoint: string; key: string; model: string } | null {
+  // The controller looks at screenshots, so the VISION lane's own provider (when fully configured) is
+  // its provider too, exactly as for Sage's eyes (vision.ts). Explicit deps (tests) still win.
+  if (deps.key === undefined && deps.endpoint === undefined && deps.model === undefined) {
+    const vision = laneProvider("VISION");
+    if (vision) return { endpoint: vision.endpoint, key: vision.key, model: vision.model };
+  }
   const key =
     deps.key ??
     (process.env.LLM_API_KEY?.trim() ||
@@ -1035,10 +1043,14 @@ function resolveController(
       process.env.COMMONSTACK_BASE_URL?.trim() ||
       DEFAULT_BASE)
   ).replace(/\/+$/, "");
+  // MISSION_MODEL names a model on the MISSION lane's provider when that lane is configured on its own.
+  // Sent to the shared key it would name a model that provider may not serve (vision.ts skips it for the
+  // same reason).
+  const missionRung = laneProvider("MISSION") ? undefined : process.env.MISSION_MODEL?.trim();
   const model =
     deps.model ??
     (process.env.VISION_MODEL?.trim() ||
-      process.env.MISSION_MODEL?.trim() ||
+      missionRung ||
       process.env.LLM_MODEL?.trim() ||
       process.env.DEPUTY_MODEL?.trim() ||
       DEFAULT_MODEL);
@@ -1061,8 +1073,6 @@ async function callController(
   imageDataUri: string | null,
   log: (m: string) => void = () => {},
 ): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONTROLLER_TIMEOUT_MS);
   try {
     const userContent = imageDataUri
       ? [
@@ -1070,44 +1080,52 @@ async function callController(
           { type: "image_url", image_url: { url: imageDataUri } },
         ]
       : user;
-    const res = await fetch(provider.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${provider.key}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
+    const profile = profileFor(provider.model, provider.endpoint);
+    // THE WIRE (llm/wire.ts) shapes it for the provider and queues it per key, in the background tier.
+    const res = await postChat(
+      { endpoint: provider.endpoint, key: provider.key, model: provider.model, host: hostOfUrl(provider.endpoint) },
+      {
         model: provider.model,
         temperature: 0,
         // ANSWER size; the profile adds this provider's reasoning overhead. A flat 400 is entirely
         // consumed by a <think> block on a reasoning model, so the decision never gets written.
-        max_tokens: outputBudget(400, profileFor(provider.model, provider.endpoint)),
+        max_tokens: outputBudget(400, profile),
         // json_object (NOT strict json_schema): the Flash-Lite provider ignores strict json_schema for
         // multimodal calls (returns a bare enum value, not the object). json_object forces valid JSON; the
         // exact SHAPE is enforced deterministically by coerceDecision, so the model can smuggle nothing.
-        response_format: { type: "json_object" },
+        // Omitted for a provider that refuses json_object (Anthropic's own endpoint).
+        ...(() => {
+          const rf = jsonObjectFormat(profile);
+          return rf ? { response_format: rf } : {};
+        })(),
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },
         ],
-      }),
-    });
+      },
+      { timeoutMs: CONTROLLER_TIMEOUT_MS, priority: "background", profile },
+    );
     if (!res.ok) {
       // SILENT nulls made "browsing fails on product X" undiagnosable — a 400 (model can't take an
       // image), a 401 (bad key) and a 429 (quota) all looked identical. Status + model are leak-safe.
       log(`[controller] provider ${res.status} (model=${provider.model}${imageDataUri ? ", multimodal" : ""})`);
       return null;
     }
-    const data = (await res.json()) as {
+    const data = JSON.parse(res.text) as {
       choices?: { message?: { content?: string } }[];
     };
     return data.choices?.[0]?.message?.content ?? null;
   } catch (e) {
     log(`[controller] provider unreachable (${e instanceof Error ? e.name : "error"})`);
     return null;
-  } finally {
-    clearTimeout(timer);
+  }
+}
+
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
   }
 }
 

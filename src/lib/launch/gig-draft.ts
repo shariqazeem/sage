@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readStatedTerms } from "./stated-terms";
-import { llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
+import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
+import { isTransientLlmError, withTransientRetry } from "@/lib/llm/retry";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
 
 /**
@@ -167,8 +168,28 @@ export function draftTokenBudget(milestones: number | null): number {
  * JSON at all) and still failed, and the founder was sent to the form after three minutes.
  */
 const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
-  const r = await llmCompleteJson({ system, user, maxTokens, temperature: 0.3, lane: "DRAFT", parsePolicy: "repair" });
-  return { json: r.json, model: r.model ?? null };
+  const call = (useFallback: boolean) =>
+    llmCompleteJson({ system, user, maxTokens, temperature: 0.3, lane: "DRAFT", parsePolicy: "repair", useFallback });
+  try {
+    /**
+     * A FOUNDER IS WAITING, SO A HICCUP IS RETRIED AND AN OUTAGE IS ROUTED AROUND.
+     *
+     * The draft used to fail at the first model error, so a single 503 from the gateway showed the
+     * founder "Sage couldn't reach its writer". This was the same class of moment that stalled the live
+     * launch on demo day. Now a transient failure gets one quick retry, inside a budget a waiting person
+     * will sit through. Anything waiting can't fix goes to the fallback provider when one is configured.
+     */
+    const r = await withTransientRetry(() => call(false), { attempts: 2, budgetMs: 20_000 });
+    return { json: r.json, model: r.model ?? null };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // A shape miss is the drafting loop's to correct (it feeds the reason back for one more round), not
+    // a reason to change provider.
+    if (/unparseable/i.test(msg) || !fallbackLlm()) throw e;
+    console.warn(`[gig-draft] primary ${isTransientLlmError(e) ? "kept failing" : "failed"} (${msg.slice(0, 120)}); drafting on the fallback provider`);
+    const r = await call(true);
+    return { json: r.json, model: r.model ?? null };
+  }
 };
 
 /** A page can't close the fence it is read inside: every run of angle brackets that could forge one is dropped. */
@@ -215,7 +236,8 @@ export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] 
 export async function draftDirectCampaign(input: DraftInput, deps: { complete?: Complete } = {}): Promise<DraftResult> {
   const intent = input.intent.trim();
   if (intent.length < 10) return { ok: false, error: "Describe the work in a sentence or two first." };
-  if (!deps.complete && !llmConfigured()) return { ok: false, error: "Sage can't write jobs on this server yet. Fill it in yourself below." };
+  // The DRAFT lane may be configured on its own provider with no shared chain at all; either can write.
+  if (!deps.complete && !llmConfigured() && !laneProvider("DRAFT")) return { ok: false, error: "Sage can't write jobs on this server yet. Fill it in yourself below." };
   const complete = deps.complete ?? defaultComplete;
   let feedback: string | null = null;
   let model: string | null = null;
