@@ -4,6 +4,12 @@ import { textOf, visibleTextFromHtml } from "@/lib/deputy/content-text";
 
 /** Below this share of a stated word floor, work is refused here; between it and the floor, the judge decides. */
 export const WORD_FLOOR_TOLERANCE = 0.85;
+/**
+ * Word counters disagree by about this much on the same piece (a title, a byline, captions, code), so a count
+ * this close to the floor is the floor: the judge is not told the work is short (Sage Bench, 5 Nov 2026: an
+ * excellent 600-word tutorial counted 575 here and was held over 25 words).
+ */
+export const WORD_COUNT_NOISE = 0.95;
 import { verifyChain } from "./chains";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
@@ -305,7 +311,8 @@ export function matchArtifact(
     const words = Math.max(counted, Math.min(visible, Math.ceil(counted * 1.25)));
     if (words < Math.ceil(c.minWords * WORD_FLOOR_TOLERANCE))
       return fail(`too short: ${words} words < ${c.minWords}`, `Your page has about ${words} words; this mission asks for at least ${c.minWords} words of your own writing. Add the substance and resubmit.`);
-    if (words < c.minWords) wordsNote = ` It has about ${words} words against the ${c.minWords} asked for, so the reviewer weighs the length.`;
+    if (words < Math.ceil(c.minWords * WORD_COUNT_NOISE)) wordsNote = ` It has about ${words} words against the ${c.minWords} asked for, so the reviewer weighs the length.`;
+    else if (words < c.minWords) wordsNote = ` It has about ${words} words, which meets the ${c.minWords} asked for: word counters differ by about 5%.`;
   }
   return {
     verified: true,

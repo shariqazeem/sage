@@ -35,6 +35,21 @@ describe("artifact strictness — checked before any model reads the page", () =
     expect(enough.verified).toBe(true);
   });
 
+  it("a near miss on length is weighed, and a count within word-counter noise meets the floor", () => {
+    const c: ArtifactUrlContract = { ...anyHost, minWords: 600 };
+    const at = (n: number) => matchArtifact({ status: 200, finalUrl: "https://blog.example/p", bodyText: shell(`<p>${words(n)} ${WALLET}</p>`) }, c, WALLET);
+    // under 85%: thin work, refused before any model reads it
+    expect(at(500).verified).toBe(false);
+    // 85-95%: verified, and the judge is told to weigh the length
+    expect(at(540).verified).toBe(true);
+    expect(at(540).publicDetail).toMatch(/about 540 words against the 600 asked for, so the reviewer weighs the length/);
+    // within 5%: the length is met (Sage Bench, 5 Nov 2026: an excellent tutorial counted 575 was held over 25 words)
+    expect(at(575).publicDetail).toMatch(/about 575 words, which meets the 600 asked for/);
+    expect(at(575).publicDetail).not.toMatch(/weighs the length/);
+    // at or over the floor: nothing to say
+    expect(at(620).publicDetail).not.toMatch(/words/);
+  });
+
   it("the fingerprint is of the article: two different articles on one site do not collide", () => {
     const a = matchArtifact({ status: 200, finalUrl: "https://dev.to/a/1", bodyText: shell(`<p>Sage releases funds from a Cairo vault then hides them behind a Poseidon commitment; you collect with a one-time link. ${WALLET}</p>`) }, anyHost, WALLET);
     const b = matchArtifact({ status: 200, finalUrl: "https://dev.to/b/2", bodyText: shell(`<p>Regular blockchain payouts leave a permanent searchable record of who earned what and when, which Sage treats as a privacy problem to solve. ${WALLET}</p>`) }, anyHost, WALLET);
