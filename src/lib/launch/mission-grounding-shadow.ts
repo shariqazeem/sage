@@ -36,7 +36,7 @@ import {
   validateMissionPartition,
   singleMissionPartition,
   buildPartitionUser,
-  PARTITION_SYSTEM,
+  PARTITION_SYSTEM, PARTITION_TRANSPORT_SCHEMA,
 } from "./mission-partition";
 import {
   parseAndCompileArchitectDraft,
@@ -624,10 +624,33 @@ export type ObservationViewMeta = ReturnType<
   typeof buildArchitectObservationView
 >["meta"];
 
+/**
+ * The answer shape for the prose-only polish of a compiled mission: four strings and nothing else.
+ *
+ * The polish used to go through the architect, which sends the SEMANTIC-DRAFT schema. A provider that
+ * honours strict json_schema (Claude on Anthropic's own endpoint, measured 5 Nov 2026 in P-GEN) then
+ * had to answer a prose request in the draft's shape, the polish was discarded, and the compiler's
+ * fallback copy shipped: "Reach core experience and have a real exchange" as the title of a 2048
+ * game. MiniMax ignores schemas, which is why it never showed.
+ */
+export const PROSE_REFINEMENT_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: "sage_mission_prose_v1",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: { title: { type: "string" }, objective: { type: "string" }, whyItMatters: { type: "string" }, instructions: { type: "string" } },
+    required: ["title", "objective", "whyItMatters", "instructions"],
+  },
+};
+
 /** Provider seam — overridable in tests (a scripted fake). Returns parsed JSON or throws. */
 export interface ShadowDeps {
   architect?: (system: string, user: string) => Promise<unknown>;
   critic?: (system: string, user: string) => Promise<unknown>;
+  /** the prose-only polish; unset, an injected architect stands in (tests), else its own call and schema */
+  polish?: (system: string, user: string) => Promise<unknown>;
+  /** the journey partition; the same fallbacks as `polish` */
+  partition?: (system: string, user: string) => Promise<unknown>;
   replayReproduced?: ReadonlySet<string>;
   /** did the replay shadow actually RUN? false → an empty `replayReproduced` means "not attempted",
    *  which is a configuration fact, not evidence that a transition failed to reproduce. */
@@ -785,6 +808,31 @@ export async function runGroundedShadow(
       };
       return r.json;
     });
+  // SIDE QUESTIONS ON THE MISSION LANE, EACH WITH ITS OWN ANSWER SHAPE. The prose polish and the journey
+  // partition used to go through `architect`, which sends the semantic-draft schema; a provider that
+  // honours strict json_schema (Claude direct, measured in P-GEN on 5 Nov 2026) then answered both in the
+  // draft's shape, so the polish was thrown away (template titles shipped) and the partition always fell
+  // back to ONE mission. They never touch the architect's telemetry. An injected architect still stands
+  // in for both, so a test that scripts them through it keeps working.
+  const ask =
+    (schema: { name: string; schema: Record<string, unknown> }, maxTokens: number) =>
+    async (system: string, user: string): Promise<unknown> => {
+      const r = await withTransientRetry(() =>
+        llmCompleteJson({
+          system,
+          user,
+          maxTokens,
+          temperature: 0.2,
+          model: architectModelRequested ?? undefined,
+          lane: "MISSION",
+          parsePolicy: "repair",
+          responseSchema: schema,
+        }),
+      );
+      return r.json;
+    };
+  const polish = deps.polish ?? deps.architect ?? ask(PROSE_REFINEMENT_TRANSPORT_SCHEMA, 1500);
+  const partitioner = deps.partition ?? deps.architect ?? ask(PARTITION_TRANSPORT_SCHEMA, 800);
   const critic =
     deps.critic ??
     (async (system: string, user: string) => {
@@ -966,7 +1014,7 @@ export async function runGroundedShadow(
     const orderedIds = journeyForCompile.checkpoints.map((c) => c.checkpointId);
     let partition = singleMissionPartition(orderedIds);
     try {
-      const proposed = await architect(
+      const proposed = await partitioner(
         PARTITION_SYSTEM,
         buildPartitionUser(journeyForCompile),
       );
@@ -1001,7 +1049,7 @@ export async function runGroundedShadow(
               ? `\nThis is PART ${segIndex + 1} OF ${compiledGoal.compiled.length} of a split journey. It covers ONLY the steps below. Do NOT mention or promise anything from the other parts, and make the title clearly different from the other parts'.`
               : "";
           const proseUser = `Rewrite ONLY the human-readable copy for this testing mission so a first-time tester understands it. Keep every fact accurate; invent nothing.${partOf}\n\nFOUNDER GOAL: ${input.goal}\nWHAT THIS MISSION REQUIRES (the only things it is judged on):\n${mission.criteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}\n\nCURRENT TITLE: ${mission.title}\nCURRENT OBJECTIVE: ${mission.objective}\nCURRENT INSTRUCTIONS:\n${mission.instructions}\n\nReturn JSON ONLY: {"title":"...","objective":"...","whyItMatters":"...","instructions":"..."}`;
-          const prose = await architect(
+          const prose = await polish(
             "You improve the wording of a product-testing mission. You may ONLY rewrite title, objective, whyItMatters and instructions. Never change what is being tested, never add steps, never mention ids. JSON only.",
             proseUser,
           );

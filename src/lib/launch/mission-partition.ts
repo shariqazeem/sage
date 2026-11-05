@@ -135,6 +135,36 @@ export function singleMissionPartition(
   };
 }
 
+/**
+ * The partition's own answer shape. Sent as the call's schema so a provider that honours strict
+ * json_schema answers THIS question, not the semantic draft's (see mission-grounding-shadow.ts: on Claude
+ * the borrowed draft schema made every partition invalid, so every journey shipped as one mission).
+ * readGroups/readIds still read other shapes, for providers that ignore schemas.
+ */
+export const PARTITION_TRANSPORT_SCHEMA: { name: string; schema: Record<string, unknown> } = {
+  name: "sage_mission_partition_v1",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      groups: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            checkpointIds: { type: "array", items: { type: "string" } },
+            rewardWeight: { type: "integer" },
+            maxCompletions: { type: "integer" },
+          },
+          required: ["checkpointIds", "rewardWeight", "maxCompletions"],
+        },
+      },
+    },
+    required: ["groups"],
+  },
+};
+
 export const PARTITION_SYSTEM =
   "You split a product-testing journey into missions. You decide ONLY how the work divides and what each part is worth relative to the others. You never write test criteria, never cite evidence, and never state a money amount. JSON only.";
 
