@@ -80,3 +80,6 @@ docs/posts/videos/*.mp4
 docs/posts/videos/.frames-*/
 docs/fc/data-room/videos/
 public/videos/*.mp4
+
+# Sage Bench run outputs (corpus is committed; results are regenerated)
+/tests/bench/results/
