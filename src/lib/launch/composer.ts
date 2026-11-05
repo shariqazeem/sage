@@ -75,7 +75,8 @@ export interface ComposerState {
 }
 
 /** One thing the founder adds before launch: what it is, and what they typed. */
-export type Need = { label: string; value: string };
+/** What a worker needs from the founder. `remembered`: filled in from what the workspace told Sage before (remembered.ts). */
+export type Need = { label: string; value: string; remembered?: boolean };
 
 /**
  * THE SENTENCES COMPILE DIRECTLY — no chat, no model. The rows the founder composed become the
@@ -225,6 +226,20 @@ export interface ComposedFromDraft {
  * the card a founder actually sees). The founder's words are the money: currency, the total to split, or
  * the price per person, read from their sentence deterministically, never from the model or the page.
  */
+/**
+ * A drafted criterion that only restates Sage's own automatic check: the worker's wallet on the work. The card
+ * already says it on its own line ("Sage checks … carries their wallet address"), and the drafter is told not to
+ * write it, but models sometimes do (5 Nov walkthrough): the founder then reads the same rule twice.
+ */
+export function restatesMarkerCheck(criterion: string): boolean {
+  const c = criterion.trim();
+  if (c.split(/\s+/).length > 24) return false; // a long criterion is about more than the marker
+  return (
+    /\b(worker|submitter|tester|contributor|author|their|your)(['’]s)?\s+(own\s+)?(wallet|payout|usdc)(\s+address)?\b/i.test(c) &&
+    /\b(appears?|includ|contain|carr|shows?|visible|present|listed|mention|added|states?)/i.test(c)
+  );
+}
+
 export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
   const money = prefillMoneyFromWords(words, d.milestones.length);
   return {
@@ -240,7 +255,11 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
       toAddr: m.evidence.kind === "onchain_tx" ? (m.evidence.to ?? "") : "",
       ...(m.evidence.kind === "onchain_tx" && m.evidence.chainId && TX_CHAINS.includes(m.evidence.chainId) ? { txChain: m.evidence.chainId } : {}),
       instructions: m.instructions,
-      criteria: m.criteria,
+      criteria: (() => {
+        if (m.evidence.kind !== "artifact_url") return m.criteria;
+        const own = m.criteria.filter((c) => !restatesMarkerCheck(c));
+        return own.length > 0 ? own : m.criteria;
+      })(),
       ...(m.evidence.kind === "artifact_url" && m.evidence.minWords ? { minWords: m.evidence.minWords } : {}),
       ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
       // everything else Sage drafted rides along, so the founder never re-types it (or can't)

@@ -933,3 +933,9 @@
   font-size: 12px;
   color: var(--ink-muted);
 }
+
+/* a need filled in from what the workspace told Sage before (remembered.ts) */
+.jc-need-hint {
+  font-size: 12px;
+  color: var(--ink-muted);
+}

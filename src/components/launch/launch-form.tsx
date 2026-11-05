@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { CURRENCIES } from "@/lib/money/currency";
 import { X, HandCoins, Plus, ScanSearch, Sparkles, ArrowUpRight, Check, Loader2 } from "lucide-react";
 import { rememberInspection } from "@/lib/launch/recent-inspections";
+import { factKind, type FactKind } from "@/lib/launch/remembered";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
@@ -246,6 +247,22 @@ export function LaunchForm() {
   /** the founder's own deadline and what workers need from them (composer.ts: written into the steps) */
   const [deadline, setDeadline] = useState("");
   const [needs, setNeeds] = useState<Need[]>([]);
+  /**
+   * WHAT THIS WORKSPACE TOLD SAGE BEFORE (remembered.ts): a card that asks for the same repository or invite
+   * arrives filled in, marked as remembered. Read once when Post opens for a signed-in founder.
+   */
+  const [facts, setFacts] = useState<Partial<Record<FactKind, string>>>({});
+  useEffect(() => {
+    if (mode !== "pay" || !founder.authed) return;
+    let live = true;
+    void fetch("/api/workspaces/facts", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ facts?: Partial<Record<FactKind, string>> }>) : { facts: {} }))
+      .then((j) => live && setFacts(j.facts ?? {}))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [mode, founder.authed]);
   const [showDetails, setShowDetails] = useState(false);
   const [productChoice, setProductChoice] = useState(false);
   // A LIVE CLOCK ON THE WORK, not a fake progress bar: the one thing genuinely happening is time passing.
@@ -472,7 +489,13 @@ export function LaunchForm() {
       setDraftNotes(data.notes ?? []);
       setJobTitle(card.title);
       setDeadline(card.deadline);
-      setNeeds(card.needs);
+      setNeeds(
+        card.needs.map((n) => {
+          const kind = factKind(n.label);
+          const known = kind ? facts[kind] : undefined;
+          return known ? { ...n, value: known, remembered: true } : n;
+        }),
+      );
       setInviteOnly(card.inviteOnly);
       setHanded({ source: data.source ?? null, seconds: Math.max(1, Math.round((Date.now() - started) / 1000)) });
     } catch (e) {
@@ -512,6 +535,15 @@ export function LaunchForm() {
       }
       if (!res.ok || !data.ok || !data.planUrl) {
         throw new Error(data.error ?? "The plan could not be compiled.");
+      }
+      // what the founder typed into the card, remembered for the next one (best effort, never blocks)
+      const told = needs.flatMap((n) => {
+        const kind = factKind(n.label);
+        return kind && n.value.trim() ? [{ kind, value: n.value.trim() }] : [];
+      });
+      if (told.length > 0) {
+        setFacts((f) => ({ ...f, ...Object.fromEntries(told.map((t) => [t.kind, t.value])) }));
+        void fetch("/api/workspaces/facts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ facts: told }) }).catch(() => undefined);
       }
       const planPath = data.planUrl.replace(/^https?:\/\/[^/]+/, "");
       if (!launchesHere || !data.jobId || account.state !== "open") {

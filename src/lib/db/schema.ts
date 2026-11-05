@@ -444,6 +444,23 @@ export const promoCodes = sqliteTable("promo_codes", {
 });
 export type PromoCode = typeof promoCodes.$inferSelect;
 
+/**
+ * WHAT A FOUNDER TOLD SAGE ONCE (src/lib/launch/remembered.ts): one value per kind per workspace, the
+ * latest answer winning. Only stable, non-secret facts (a repository, an invite link, a product or docs
+ * URL); a contract address or anything secret is never stored.
+ */
+export const workspaceFacts = sqliteTable(
+  "workspace_facts",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    kind: text("kind").notNull(),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.kind] })],
+);
+export type WorkspaceFactRow = typeof workspaceFacts.$inferSelect;
+
 /** One redemption per code per workspace, ever (the primary key). */
 export const promoRedemptions = sqliteTable(
   "promo_redemptions",

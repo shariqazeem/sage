@@ -230,10 +230,11 @@ export function JobCard({
                   type="text"
                   value={n.value}
                   placeholder="Add it here"
-                  onChange={(e) => onChange({ needs: needs.map((x, j) => (j === k ? { ...x, value: e.target.value } : x)) })}
+                  onChange={(e) => onChange({ needs: needs.map((x, j) => (j === k ? { ...x, value: e.target.value, remembered: false } : x)) })}
                 />
                 <button type="button" className="jc-x" aria-label={`Workers won't need: ${n.label}`} onClick={() => onChange({ needs: needs.filter((_, j) => j !== k) })}><X size={12} /></button>
               </span>
+              {n.remembered && <span className="jc-need-hint">From your last job. Change it if this one is different.</span>}
             </label>
           ))}
         </div>
