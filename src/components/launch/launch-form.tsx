@@ -1,5 +1,6 @@
 "use client";
 import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, isPausedNetwork } from "@/lib/deputy/networks";
+import { verifyChain } from "@/lib/verify/chains";
 
 /** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
 
@@ -891,7 +892,7 @@ export function LaunchForm() {
                 isLocal={isLocal}
                 inviteOnly={inviteOnly}
                 canInvite={canInvite}
-                chainName={(id) => chainConfig(id ?? DEFAULT_EVM_LAUNCH_CHAIN).name}
+                chainName={(id) => verifyChain(id ?? DEFAULT_EVM_LAUNCH_CHAIN)?.name ?? chainConfig(id ?? DEFAULT_EVM_LAUNCH_CHAIN).name}
                 onChange={(patch) => {
                   if (patch.slots !== undefined) setP("slots", patch.slots);
                   if (patch.tranches) setTranches(patch.tranches);
@@ -1012,7 +1013,7 @@ export function LaunchForm() {
                             <span className="cmp-label">On</span>
                             <select className="lx-input cmp-input" value={t.txChain ?? DEFAULT_EVM_LAUNCH_CHAIN} onChange={(e) => setTranches((prev) => prev.map((x, j) => (j === i ? { ...x, txChain: Number(e.target.value) } : x)))}>
                               {TX_CHAINS.map((id) => (
-                                <option key={id} value={id}>{chainConfig(id).name}</option>
+                                <option key={id} value={id}>{verifyChain(id)?.name ?? chainConfig(id).name}</option>
                               ))}
                             </select>
                           </label>

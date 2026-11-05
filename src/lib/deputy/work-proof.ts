@@ -1,4 +1,5 @@
 import { artifactFingerprint, fingerprintSimilarity } from "./fingerprint";
+import { verifyChain } from "@/lib/verify/chains";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml } from "./content-text";
 import "server-only";
@@ -53,12 +54,12 @@ export function parseWorkProofContract(raw: unknown): VerificationContract | nul
   switch (c.kind) {
     case "onchain_tx":
       // `evm`, not merely "known": the registry also holds Starknet, which these checks cannot read.
-      return typeof c.chainId === "number" && !!CHAINS[c.chainId]?.evm
+      return typeof c.chainId === "number" && verifyChain(c.chainId) !== null
         ? (c as unknown as OnchainTxContract)
         : null;
     case "onchain_state":
       return typeof c.chainId === "number" &&
-        !!CHAINS[c.chainId]?.evm &&
+        verifyChain(c.chainId) !== null &&
         typeof c.contract === "string" &&
         typeof c.callData === "string" &&
         /^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{64})*$/.test(c.callData)
@@ -148,11 +149,10 @@ function classify(result: VerificationResult, report: () => string): WorkProofOu
 }
 
 async function defaultEthCall(chainId: number, to: string, data: Hex): Promise<string> {
-  const cfg = CHAINS[chainId];
-  if (!cfg) throw new Error("unknown chain");
-  // A viem client against a Starknet RPC fails as a timeout, which reads like a network fault
-  // rather than a check that could never run. Say the true thing instead.
-  if (!cfg.evm) throw new Error("chain is not EVM-readable");
+  // Sage's own EVM network or a verify-only chain. A viem client against a Starknet RPC fails as a timeout,
+  // which reads like a network fault rather than a check that could never run, so say the true thing.
+  const cfg = verifyChain(chainId);
+  if (!cfg) throw new Error("chain is not EVM-readable");
   const client = createPublicClient({ transport: http(cfg.rpcUrl) });
   const out = await client.call({ to: to as Hex, data });
   return (out.data ?? "0x") as string;
@@ -164,7 +164,7 @@ export async function runWorkProof(
   submission: WorkProofSubmission,
   deps: WorkProofDeps = {},
 ): Promise<WorkProofOutcome> {
-  const chainName = (id: number) => CHAINS[id]?.name ?? `chain ${id}`;
+  const chainName = (id: number) => verifyChain(id)?.name ?? `chain ${id}`;
   try {
     switch (contract.kind) {
       case "onchain_tx": {

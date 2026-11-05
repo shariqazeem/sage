@@ -9,6 +9,7 @@ import { formatLocal, toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 import { releasesOnThirdPartyDecision, THIRD_PARTY_DECISION_REFUSAL } from "./third-party-decision";
 import { refusedWork } from "./work-policy";
+import { verifyChain } from "@/lib/verify/chains";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { createInspectionJob, updateInspectionJob } from "@/lib/db/inspection";
 import { approveRevision, createRevision } from "@/lib/db/plan-revisions";
@@ -90,7 +91,9 @@ const hostRe = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+
  * truthful for campaigns settled on it — and accepting it here would compile a milestone whose
  * verification can never run: a contract that looks valid and refuses every submission.
  */
-export const chainIdKnown = (id: number) => !!CHAINS[id]?.evm;
+// a proof may be read on Sage's own EVM network or a verify-only chain (verify/chains.ts): pay on Metis,
+// verify work done on Base, Arbitrum, Ethereum or a testnet
+export const chainIdKnown = (id: number) => verifyChain(id) !== null;
 
 /** onchain_tx — at least one shape constraint beyond tester-binding, or the contract would verify
  *  ANY transaction the tester ever sent (too weak to gate money). */

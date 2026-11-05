@@ -38,6 +38,7 @@ describe("releasesOnThirdPartyDecision", () => {
       "either a short audit from a firm, or a public review by two reviewers the founder approves",
       "1. Get the contract's source code and address from the founder, and confirm the exact version",
       "The claim transaction is confirmed on Metis Sepolia and credits LUME test rewards to the wallet",
+      "States explicitly whether shared-memory bank conflicts and suboptimal tiling are confirmed or ruled out",
     ]) expect(releasesOnThirdPartyDecision(t), t).toBe(false);
   });
 });

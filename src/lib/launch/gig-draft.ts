@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readStatedTerms } from "./stated-terms";
 import { refusedWork } from "./work-policy";
+import { verifiableChainList } from "@/lib/verify/chains";
 import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { isTransientLlmError, withTransientRetry } from "@/lib/llm/retry";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
@@ -178,7 +179,7 @@ RULES
         · a social post → X or Bluesky (Sage can read those): postedAfterStart true.
         The worker puts their own wallet address where it shows (in the doc, the sheet, the video description, the post or the PR description); say so in the instructions. That is how Sage knows the work is theirs.
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
-      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to".
+      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to". chainId is the network the transaction happens on (Sage pays on Metis but can check a transaction on any of: ${verifiableChainList().map((c) => `${c.name} ${c.chainId}`).join(", ")}).
     NEVER make a post on Instagram, Facebook, LinkedIn or Threads the evidence — Sage cannot open them. Ask for X, Bluesky or a page it can read instead.
   - effortMinutes: your honest estimate.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.

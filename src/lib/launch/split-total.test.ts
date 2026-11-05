@@ -298,7 +298,7 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
     expect(mapped.currency).toBe("JMD");
   });
 
-  it("an INVENTED chain id defaults to the settlement chain; a KNOWN one passes untouched", async () => {
+  it("an INVENTED chain id defaults to the settlement chain; a KNOWN or verify-only one passes untouched", async () => {
     const { mapDirectCampaignArgs } = await import("@/lib/mcp/server");
     const m = (chainId: unknown) =>
       (mapDirectCampaignArgs({
@@ -307,9 +307,13 @@ describe("the mapper reads a currency campaign's total as LOCAL (the model's ver
           { title: "Deploy the contract", instructions: "deploy it and send the tx", criteria: ["deployed"], evidence: { kind: "onchain_tx", chainId, to: "0x" + "a".repeat(40) }, slots: 1, rewardUsd: 10 },
         ],
       }) as { milestones: Array<{ evidence: { chainId: number } }> }).milestones[0].evidence.chainId;
-    expect(m(1)).toBe(1088);        // famous-chain invention → where Sage settles (Metis, 26 Oct 2026)
+    expect(m(999_999)).toBe(1088);  // an invented chain → where Sage settles (Metis, 26 Oct 2026)
     expect(m(undefined)).toBe(1088); // absence → the default
     expect(m(59902)).toBe(59902);    // a chain Sage KNOWS passes through untouched
+    // a chain Sage can READ a proof on passes too (verify/chains.ts, 5 Nov 2026): work done on Ethereum or
+    // Base is checked there, and paid on Metis
+    expect(m(1)).toBe(1);
+    expect(m(8453)).toBe(8453);
   });
 
   it("a per-milestone LOCAL amount survives the mapper alongside its currency", async () => {

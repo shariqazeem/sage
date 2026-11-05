@@ -1,4 +1,5 @@
-import { chainConfig, DEFAULT_EVM_LAUNCH_CHAIN, PRIMARY_NETWORKS, SECONDARY_NETWORKS } from "@/lib/deputy/networks";
+import { DEFAULT_EVM_LAUNCH_CHAIN } from "@/lib/deputy/networks";
+import { verifiableChainList } from "@/lib/verify/chains";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
@@ -162,8 +163,11 @@ export function composerTotal(s: Pick<ComposerState, "tranches" | "slots" | "spl
   return s.tranches.reduce((a, t) => a + (Number(t.amount) || 0), 0) * (s.tranches.length === 1 ? Number(s.slots) || 1 : 1);
 }
 
-/** The mainnets a drafted on-chain check may name (paused ones stay listed so their history reads true). */
-export const TX_CHAINS: readonly number[] = [...PRIMARY_NETWORKS, ...SECONDARY_NETWORKS].filter((id) => chainConfig(id).evm && chainConfig(id).isMainnet);
+/**
+ * The chains a drafted on-chain check may name: Sage's own network, then every chain a proof can be READ
+ * on (verify/chains.ts). Sage pays on Metis; the work may happen on Base, Arbitrum, Ethereum or a testnet.
+ */
+export const TX_CHAINS: readonly number[] = verifiableChainList().map((c) => c.chainId);
 
 /**
  * THE FOUNDER'S HEADCOUNT IS NEVER ROUNDED. "8 people" once snapped to the nearest preset (10) and the

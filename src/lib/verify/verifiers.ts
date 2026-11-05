@@ -1,5 +1,6 @@
 import { artifactFingerprint, stripMarkers } from "@/lib/deputy/fingerprint";
 import { PLATFORM_ONLY, readPage, readerKindFor } from "@/lib/read/page-reader";
+import { verifyChain } from "./chains";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
 import "server-only";
@@ -146,14 +147,10 @@ export async function verifyOnchainTx(
 ): Promise<VerificationResult> {
   const hold = (publicDetail: string): VerificationResult => ({ verified: false, strength: "deterministic", detail: "rpc/parse hold", publicDetail });
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())) return hold("That doesn't look like a transaction hash.");
-  const cfg = CHAINS[c.chainId];
-  if (!cfg) return hold("Unknown chain for this mission.");
-  // The registry also holds Starknet, which viem cannot reach. The compiler already refuses to
-  // build an on-chain contract against a non-EVM chain, so this is unreachable through the normal
-  // path — but a stored mission predating that rule would otherwise construct a client against a
-  // Starknet RPC and fail as a timeout, which reads like a network problem rather than a
-  // mission that can never be verified. Hold with the true reason instead.
-  if (!cfg.evm) return hold("This mission's chain can't be checked this way.");
+  // Sage's own EVM network or a verify-only chain (verify/chains.ts). Starknet and anything unknown can't be
+  // read this way, and the compiler refuses such a contract; a stored one holds with the true reason.
+  const cfg = verifyChain(c.chainId);
+  if (!cfg) return hold("This mission's chain can't be checked this way.");
   try {
     const client = deps.client ?? createPublicClient({ transport: http(cfg.rpcUrl) });
     const [txRaw, rcRaw] = await Promise.all([
