@@ -5,7 +5,7 @@ import { verifyChain } from "@/lib/verify/chains";
 /** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
 
 import { missionTitleFrom } from "@/lib/launch/mission-title";
-import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, type Draft, type Need, type Tranche } from "@/lib/launch/composer";
+import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, withRepoFromNeeds, type Draft, type Need, type Tranche } from "@/lib/launch/composer";
 import { firstUrl, labelFor, looksLikeProductHome, wordsOnly } from "@/lib/launch/hand-over-text";
 import { AmountChips, JobCard, trancheFeasibility } from "./job-card";
 import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
@@ -315,6 +315,8 @@ export function LaunchForm() {
   const isLocal = currency !== "USD";
   const curSymbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$";
 
+  // the founder's answer to "the repository" binds a merged PR (composer.ts withRepoFromNeeds)
+  const bound = withRepoFromNeeds(tranches, needs);
   const trancheValid = (t: Tranche): boolean => {
     if (t.deliverable.trim().length < 8) return false;
     // In a local currency the tangible floor is enforced SERVER-side after conversion (it refuses
@@ -330,20 +332,21 @@ export function LaunchForm() {
 
   const payValid = (): boolean =>
     pay.who.trim().length >= 2 &&
-    tranches.every(trancheValid) &&
+    bound.every(trancheValid) &&
     needs.every((n) => n.value.trim().length > 0) &&
     (!splitting || (isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length));
 
   /** Why the button waits, in words: the first thing payValid is missing, so a grey button is never a riddle. */
   const missing = (): string | null => {
     if (pay.who.trim().length < 2) return "Say who this is for.";
-    for (const [i, t] of tranches.entries()) {
-      const which = tranches.length > 1 ? ` for milestone ${i + 1}` : "";
+    for (const [i, t] of bound.entries()) {
+      const which = bound.length > 1 ? ` for milestone ${i + 1}` : "";
       if (t.deliverable.trim().length < 8) return `Say what must be true${which}.`;
       if (!splitting && !(isLocal ? Number(t.amount) > 0 : Number(t.amount) >= 0.5)) return `Set what it pays${which}.`;
       if (t.verify === "page" && t.expectedText.trim().length < 3) return `Add the text that must appear${which}.`;
       if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
       const f = trancheFeasibility(t);
+      if (!f.ok && f.ask === "repo") return `Add the repository the pull request must be merged into${which} (owner/name).`;
       if (!f.ok) return `${f.fix ? `Tap “Check Sage's records instead”${which}: ` : `Change how Sage checks this${which}: `}${f.reason.charAt(0).toLowerCase()}${f.reason.slice(1)}`;
     }
     if (splitting && !(isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length)) return "Set the total.";
@@ -977,7 +980,7 @@ export function LaunchForm() {
                 title={cardTitle}
                 from={handed?.source?.read ? handed.source.label : null}
                 slots={pay.slots}
-                tranches={tranches}
+                tranches={bound}
                 splitTotal={splitTotal}
                 shares={splitPreview()}
                 currencySymbol={curSymbol}

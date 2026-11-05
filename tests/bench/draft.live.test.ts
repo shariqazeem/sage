@@ -158,6 +158,8 @@ describe.skipIf(process.env.BENCH !== "1")("bench · draft", () => {
             amount: grant ? "" : t.amount || (i === 0 ? String(s.founderTaps.amountUsd) : ""),
             // the founder pastes a contract address when the check needs one and Sage couldn't know it
             toAddr: t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr) ? `0x${"c".repeat(40)}` : t.toAddr,
+            // the founder names the repository when the card asks for it (it waits until they do)
+            ...(t.prMerged && !t.repo ? { repo: "founder-org/repo" } : {}),
             expectedText: t.verify === "page" && t.expectedText.trim().length < 3 ? "Sage bench proof" : t.expectedText,
           })),
           splitTotal: grant ? card.splitTotal || String(s.founderTaps.amountUsd) : "",

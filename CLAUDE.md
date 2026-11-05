@@ -308,6 +308,14 @@ if you must touch them, that suite must stay green.
   worker-written parts (a job's title and missions) reach the judge inside the untrusted markers, never in the trusted
   report. A link proof on a Sage page is converted by the drafter and the card and refused by the compiler for every
   door (`src/lib/launch/proof-feasibility.ts`).
+- **A job is payable by construction (6 Nov 2026).** What each platform shows Sage is written once
+  (`src/lib/verify/what-sage-sees.ts`: a video's metadata never its picture, ONE Sheet tab's cells, a PR's diff, a Figma
+  file's name) and the drafter's prompt, the composer's wallet line and criterion, the feasibility check and the bench's
+  payability auditor (`tests/bench/audit-payability.mts`) all read it. Proofs bind to the founder's target: a merged PR
+  names its repository (from the handed-over link, the steps, or the founder's answer on the card; refused without one),
+  folders and app views (`STORAGE_OR_APP_HOSTS`) become a readable listing, work spread across pages is ONE listing
+  whose links Sage opens (`linkProof`, each carrying the wallet; their text reaches the judge as untrusted evidence).
+  Measured on the same 60 bench jobs: payable 7 → 31 of the audited, unpayable 31 → 4.
 - **The feed never fabricates progress.** Emit a stage event only for real work — no fake
   timers, no simulated steps.
 - **The agent may decide WHERE to spend, never HOW MUCH.** Under a founder's standing mandate

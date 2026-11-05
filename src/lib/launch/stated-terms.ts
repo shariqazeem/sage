@@ -123,6 +123,35 @@ export function mentionsMoney(text: string): boolean {
   return /\d/.test(text) || /[$€£₹¥]/.test(text) || WORD_PRICE.test(text);
 }
 
+/**
+ * A BRIEF THAT PRICES ITS STAGES ONE BY ONE (6 Nov 2026). "$1,200 when Stage 1 is accepted, $600 when Stage 2 is
+ * accepted"; "$300 per stage" over a brief that lists Stage 1, 2 and 3. No sentence says "three stages", so the
+ * count reader missed it, and Sage Bench r11 drafted three such briefs as ONE milestone paying the whole budget
+ * for the first stage. The count is the highest stage number when every number below it appears too, and only
+ * when the text says the pay follows the stages. Null otherwise.
+ */
+export function paidStageCount(text: string): number | null {
+  const PAY_FOLLOWS = /\b(?:per|each)\s+(?:stage|phase|milestone|tranche|part)\b|\bpaid\s+(?:per|by|on|at)\s+(?:each\s+)?(?:stage|phase|milestone)|\b(?:when|once|after|on)\s+(?:stage|phase|milestone|tranche|part)\s*\d/i;
+  if (!PAY_FOLLOWS.test(text)) return null;
+  const seen = new Set<number>();
+  for (const m of text.matchAll(/\b(?:stage|phase|milestone|tranche|part)\s*(\d{1,2})\b/gi)) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 12) seen.add(n);
+  }
+  let k = 0;
+  while (seen.has(k + 1)) k++;
+  // a numbered list where each line carries its own price ("1. Methodology note … $400.")
+  const priced = new Set<number>();
+  for (const line of text.split(/\n/)) {
+    const m = /^\s*(\d{1,2})[.)]\s+.*?(?:[$€£₦₹]\s?\d|\b\d[\d,]*(?:\.\d+)?\s?(?:usd|usdc|kes|ngn|inr|eur|gbp|jmd)\b)/i.exec(line);
+    if (m) priced.add(Number(m[1]));
+  }
+  let p = 0;
+  while (priced.has(p + 1)) p++;
+  const n = Math.max(k, p);
+  return n >= 2 ? n : null;
+}
+
 export function readStatedTerms(text: string): StatedTerms {
   const amounts = statedAmounts(text);
 

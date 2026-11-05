@@ -5,7 +5,8 @@ import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
 import { cutAtBoundary } from "@/lib/launch/text-cut";
 import type { SageRecordAction } from "@/lib/verify/contract";
-import { proofFeasibility } from "@/lib/launch/proof-feasibility";
+import { proofFeasibility, repoIn } from "@/lib/launch/proof-feasibility";
+import { markerCriterion, onHost, STORAGE_OR_APP_HOSTS, walletLine } from "@/lib/verify/what-sage-sees";
 
 /**
  * THE PAY-FOR-WORK COMPOSER, AS DATA (28 Oct 2026). The composer's lines used to become the
@@ -51,6 +52,8 @@ export type Tranche = {
   founderConfirms?: boolean;
   /** transactions the work lists, each checked on its chain (verify/contract.ts txProof) */
   txProof?: { chainId: number; minTxs: number; to?: string[] }[];
+  /** links the work lists, each opened and checked (verify/contract.ts LinkRequirement) */
+  linkProof?: { minLinks: number; hosts?: string[] };
   /** verify "sage": what the worker did on Sage, checked in Sage's own records, and on which network (absent: any real one) */
   sageAction?: SageRecordAction;
   sageChain?: number;
@@ -95,6 +98,23 @@ export interface ComposerState {
 /** What a worker needs from the founder. `remembered`: filled in from what the workspace told Sage before (remembered.ts). */
 export type Need = { label: string; value: string; remembered?: boolean };
 
+/** A need that asks for the repository a pull request goes into. */
+export const asksForRepo = (n: Need) => /\brepo(?:sitory)?\b/i.test(n.label);
+
+/**
+ * THE FOUNDER'S ANSWER IS THE BINDING (6 Nov 2026). When Sage didn't know the repository, it asks for it on the
+ * card; the answer ("acme/web" or a github.com link) becomes the merged PR's `repo`, so the founder types it once
+ * and a merge in someone else's repository can never pay.
+ */
+export function withRepoFromNeeds(tranches: Tranche[], needs: Need[] | undefined): Tranche[] {
+  const said = (needs ?? []).filter(asksForRepo).map((n) => n.value.trim()).find((v) => v.length > 0);
+  if (!said) return tranches;
+  const bare = said.replace(/^https?:\/\/(?:www\.)?github\.com\//i, "").replace(/\.git$|\/+$/g, "").split(/[\s/]+/).slice(0, 2).join("/");
+  const repo = repoIn(said) ?? (/^[\w.-]+\/[\w.-]+$/.test(bare) ? bare.toLowerCase() : null);
+  if (!repo) return tranches;
+  return tranches.map((t) => (t.prMerged && !t.repo?.trim() ? { ...t, repo } : t));
+}
+
 /**
  * THE SENTENCES COMPILE DIRECTLY — no chat, no model. The rows the founder composed become the
  * exact `DirectCampaignInput` the deterministic compiler takes; multi-tranche is a grant, one
@@ -102,7 +122,8 @@ export type Need = { label: string; value: string; remembered?: boolean };
  * units. Errors come back as the compiler's own words, under the form.
  */
 export function composeDirectBody(s: ComposerState) {
-  const { tranches, splitTotal, currency } = s;
+  const { splitTotal, currency } = s;
+  const tranches = withRepoFromNeeds(s.tranches, s.needs);
   const splitting = tranches.length > 1 && splitTotal.trim() !== "";
   const isLocal = currency !== "USD";
   const isGrant = tranches.length > 1;
@@ -146,6 +167,7 @@ export function composeDirectBody(s: ComposerState) {
               ...(t.postedAfterStart ? { postedAfterStart: true } : {}),
               ...(t.founderConfirms ? { founderConfirms: true } : {}),
               ...(t.txProof && t.txProof.length > 0 ? { txProof: t.txProof } : {}),
+              ...(t.linkProof && t.linkProof.minLinks >= 1 ? { linkProof: t.linkProof } : {}),
             };
     const proofLine =
       t.verify === "page"
@@ -166,7 +188,7 @@ export function composeDirectBody(s: ComposerState) {
     const drafted = [...new Map((t.criteria ?? []).map((c) => c.trim()).filter((c) => c.length >= 4).map((c) => [c.replace(/\s+/g, " ").toLowerCase(), c] as const)).values()];
     const autoCriterion =
       t.verify === "link"
-        ? MARKER_CRITERION
+        ? markerCriterion(t)
         : t.verify === "sage"
           ? SAGE_RECORD_CRITERION[t.sageAction ?? "launched_job"]
         : t.verify === "page"
@@ -177,7 +199,9 @@ export function composeDirectBody(s: ComposerState) {
     const sameAs = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
     const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.some((c) => sameAs(c, autoCriterion)) ? [] : [autoCriterion])] : [cap, autoCriterion];
     const draftedSteps = (t.instructions ?? "").trim();
-    const baseSteps = draftedSteps.length >= 10 ? draftedSteps : `What must be true: ${cap}. ${proofLine}`;
+    const writtenSteps = draftedSteps.length >= 10 ? draftedSteps : `What must be true: ${cap}. ${proofLine}`;
+    // where the wallet goes, in the platform's own terms, when the steps forget to say (what-sage-sees.ts)
+    const baseSteps = t.verify === "link" && !/wallet/i.test(writtenSteps) ? `${writtenSteps}\n${walletLine(t)}` : writtenSteps;
     // the founder's own words for what workers need, and their deadline, reach every worker in the steps
     const given = (s.needs ?? []).filter((n) => n.value.trim().length > 0).map((n) => `From the founder, ${n.label.replace(/[.:\s]+$/, "")}: ${n.value.trim()}`);
     const deadline = s.deadline?.trim();
@@ -236,7 +260,7 @@ export type DraftMilestone = {
   instructions: string;
   criteria: string[];
   evidence:
-    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean; txProof?: { chainId: number; minTxs: number; to?: string[] }[] }
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean; txProof?: { chainId: number; minTxs: number; to?: string[] }[]; linkProof?: { minLinks: number; hosts?: string[] } }
     | { kind: "public_url"; expectedText: string[]; founderConfirms?: boolean }
     | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean; founderConfirms?: boolean }
     | { kind: "sage_record"; action: SageRecordAction; chainId?: number; first?: boolean; founderConfirms?: boolean };
@@ -307,16 +331,21 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
       ...(m.effortMinutes ? { effortMinutes: m.effortMinutes } : {}),
       // everything else Sage drafted rides along, so the founder never re-types it (or can't)
       ...(m.evidence.kind === "onchain_tx" && m.evidence.deploysContract ? { deploysContract: true } : {}),
-      ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0 ? { allowedHosts: m.evidence.allowedHosts } : {}),
+      // a folder or an app's view can't be read: the work is listed in a Google Doc or Sheet instead (what-sage-sees.ts)
+      ...(m.evidence.kind === "artifact_url" && m.evidence.allowedHosts.length > 0
+        ? { allowedHosts: m.evidence.allowedHosts.some((h) => onHost(h, STORAGE_OR_APP_HOSTS)) ? [...new Set([...m.evidence.allowedHosts.filter((h) => !onHost(h, STORAGE_OR_APP_HOSTS)), "docs.google.com"])] : m.evidence.allowedHosts }
+        : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.mustContain?.length ? { mustContain: m.evidence.mustContain } : {}),
       ...(m.evidence.kind === "public_url" && m.evidence.expectedText.length > 1 ? { extraExpected: m.evidence.expectedText.slice(1) } : {}),
-      ...(m.evidence.kind === "artifact_url" && m.evidence.repo ? { repo: m.evidence.repo } : {}),
+      // a merged PR binds to the founder's repository: drafted, or the one the job itself names
+      ...(m.evidence.kind === "artifact_url" && (m.evidence.repo || (m.evidence.prMerged && repoIn(m.instructions, ...m.criteria, words))) ? { repo: m.evidence.repo || repoIn(m.instructions, ...m.criteria, words)! } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.prMerged ? { prMerged: true } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.minRows ? { minRows: m.evidence.minRows } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.minDurationSeconds ? { minDurationSeconds: m.evidence.minDurationSeconds } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.postedAfterStart ? { postedAfterStart: true } : {}),
       ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.txProof?.length ? { txProof: m.evidence.txProof } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.linkProof ? { linkProof: m.evidence.linkProof } : {}),
     })),
     why: d.whyItMatters ?? "",
     title: d.title,

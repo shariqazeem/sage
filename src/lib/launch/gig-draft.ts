@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { isMainnetChain } from "@/lib/deputy/networks";
-import { proofFeasibility } from "./proof-feasibility";
-import { readStatedTerms } from "./stated-terms";
+import { proofFeasibility, repoIn } from "./proof-feasibility";
+import { onHost, STORAGE_OR_APP_HOSTS, whatSageSeesText } from "@/lib/verify/what-sage-sees";
+import { paidStageCount, readStatedTerms } from "./stated-terms";
 import { refusedWork } from "./work-policy";
 import { cutAtBoundary } from "./text-cut";
 import { verifiableChainList } from "@/lib/verify/chains";
@@ -133,6 +134,17 @@ const evidenceKinds = z.discriminatedUnion("kind", [
       const list = (Array.isArray(v) ? v : [v]).map(one).filter((r): r is NonNullable<ReturnType<typeof one>> => r !== null).slice(0, 3);
       return list.length > 0 ? list : undefined;
     }, z.array(z.object({ chainId: z.number(), minTxs: z.number(), to: z.array(z.string()).optional() })).optional()),
+    // links listed in the work, each opened and checked; dropped whole when malformed
+    linkProof: z.preprocess((v) => {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+      const o = v as { minLinks?: unknown; hosts?: unknown };
+      const minLinks = Math.round(Number(o.minLinks));
+      if (!Number.isFinite(minLinks) || minLinks < 1) return undefined;
+      const hosts = Array.isArray(o.hosts)
+        ? o.hosts.filter((h): h is string => typeof h === "string").map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")).filter((h) => /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(h)).slice(0, 5)
+        : [];
+      return { minLinks: Math.min(minLinks, 10), ...(hosts.length ? { hosts } : {}) };
+    }, z.object({ minLinks: z.number(), hosts: z.array(z.string()).optional() }).optional()),
   }),
   z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)), founderConfirms: opt(z.boolean()) }),
   z.object({
@@ -216,24 +228,36 @@ RULES
   - title: 4–80 characters, the work in the founder's words.
   - deliverable: ONE sentence stating what must be TRUE when it is done (a state, not a command).
   - instructions: numbered steps in the founder's intent, with everything a capable stranger needs to start, ending with exactly what to submit and where it must live.
-  - criteria: 3–6 clauses, each VISIBLE in the submitted proof and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name) and the founder's own bar (their counts, length, quality words). Say "in their own words, not copied from the source" only when the work is based on a source Sage can compare it with. Never write a criterion the proof can't show (an attestation like "no bots", someone's private intent, an off-platform event), and never restate the automatic checks (the host, the wallet address).
-  - founderConfirms is RARE (most jobs never need it): set evidence.founderConfirms true ONLY when the fact that earns the money cannot be seen in anything the worker submits: a call or meeting that happened, something physical (a delivery, a print, a colour matched to real fabric), an outcome only the founder's private systems show. Then say in the deliverable that the founder confirms each one; Sage holds every submission for them. NEVER for quality, tone, voice, accuracy or taste in work that is itself the proof (a post, a page, a doc, a translation, a design file, a video, a pull request, transactions): Sage's judge reads that work against the criteria, so write the founder's bar into the criteria instead. When in doubt, leave it off.
-  - When the founder pays ONCE (on final delivery or sign-off), the job is ONE milestone even if the work has stages: put the stages in the steps, and every deliverable the founder named in the criteria.
+  - criteria: 3–6 clauses, each VISIBLE in WHAT SAGE SEES of the submitted proof (below) and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name) and the founder's own bar (their counts, length, quality words). Something that only shows in a picture, a sound, a private place or another page is not checkable there: have the worker write it into the proof as text (a table with links, a log with times, the IDs), or set founderConfirms. Say "in their own words, not copied from the source" only when the work is based on a source Sage can compare it with. Never write a criterion the proof can't show (an attestation like "no bots", someone's private intent, an off-platform event), and never restate the automatic checks (the host, the wallet address).
+  - founderConfirms: set evidence.founderConfirms true when Sage's judge could NOT tell real work from a convincing fake by reading WHAT SAGE SEES of the proof: a call or meeting that happened; something physical or in person; work inside the founder's private systems or an app Sage can't open; what a video or a design shows (Sage never sees the picture); expert correctness only the founder can vouch for (whether an audit's findings are real, whether a translation is faithful to a source Sage cannot read). Then say in the deliverable that the founder confirms each one; Sage holds every submission for them. NEVER when the proof itself shows the work (a post's text, a doc's sections and length, a merged pull request, a sheet's rows, transactions, a translation of a public page Sage can read): write the founder's bar into the criteria instead.
+  - Work that happens where Sage can't see (the founder's inbox or accounts, WhatsApp, calls, an app, in person) is still payable: put the access the worker needs in needsFromFounder, state the end state in the criteria, ask for a short report in a Google Doc or Sheet that records what was done in checkable text (links, times, counts, IDs), and set founderConfirms. Decline only work with no end state anyone could ever confirm.
+  - When the founder pays ONCE (on final delivery or sign-off), the job is ONE milestone even if the work has stages: put the stages in the steps, and every deliverable the founder named in the criteria. When the founder pays PER STAGE (an amount for each), each paid stage is its own milestone with its own deliverable and proof.
+  - When the founder pays PER UNIT (per answer, per listing, per referral, per review, "$8 each, up to 25"), one submission is ONE unit: the deliverable and the proof are a single unit, and slots is the cap they named. Never one submission for all the units at the per-unit price.
+  - Every criterion is something the steps tell the worker to do or include; a criterion the steps never ask for fails honest work.
+  - An approximate count ("about 45 items", "roughly 200") is not a hard range: require every item in the source, or "at least" a floor clearly below it, never a band the true number can miss.
+  - A merged pull request into the founder's repository is the maintainers' acceptance: write criteria about what its diff and description show, and for very large changes (datasets, generated files) keep them to the description and the files changed.
+  - Everything the judge holds the work to must be in WHAT SAGE SEES of the one submitted link, or in pages it lists that Sage opens (linkProof). A summary in a second doc, a comparison against the founder's own doc, the founder's list of allowed items: put it in the submitted work, or write the phrases that must appear into the job (mustContain or the criteria), because the judge never opens a page nobody submitted.
   - Several on-chain actions (a pilot of N payments, a list of testnet transactions, a bridge plus a swap): ask for ONE transaction proof when one action is the point. Otherwise ask for a doc or sheet that lists each transaction hash with what it did, and set evidence.txProof to a list with one entry per network the transactions happen on: [{chainId, minTxs: how many the founder asked for on that network, to: [the contract addresses the founder named there, if any]}] (a bridge from Arbitrum to Metis is two entries). Sage reads every listed hash on its chain: sent from the worker's own wallet, succeeded, after the job went live.
+  - The proof is the work ITSELF wherever Sage can read it (the post, the page, the pull request), never a summary the worker writes about it. When the work is many pages or posts, ask for ONE Google Doc or Sheet that lists every link and set evidence.linkProof {minLinks: how many the founder asked for, hosts: [where they live, when known]}: Sage opens each link, and each must carry the worker's wallet.
+  - Bind every proof to the founder's own target: a merged pull request names repo "owner/name" (ask for it in needsFromFounder when unknown); transactions that use a specific app name its contracts in "to" (ask for the addresses when unknown), so a self-transfer can never pass; tell workers to use a regular wallet, not a smart wallet, because Sage reads who SENT each transaction. Admin changes only an owner can send (transferring ownership, a Safe's settings) are proven by the resulting state or by the founder, never by who sent them.
+  - Tell the worker exactly where their wallet goes, in the platform's own terms (WHAT SAGE SEES).
   - evidence: exactly one kind.
+    WHAT SAGE SEES of a link (the check and the judge read exactly this, nothing more):
+${whatSageSeesText()}
       artifact_url — the worker CREATES something and links it (a page, an article, a document, a sheet, a repository, a pull request, a video, a design export, a post). allowedHosts: [] unless the work must live somewhere specific. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
         Ask for the work where it naturally lives, and say where in the instructions:
         · code for the founder's repository → a pull request into it: allowedHosts ["github.com"], repo "owner/name", prMerged true (Sage pays once the maintainers merge it).
-        · a document, research, a list or a dataset → a Google Doc or Sheet shared so anyone with the link can view: allowedHosts ["docs.google.com"]; for rows in a sheet, minRows = the count the founder asked for.
-        · a video → YouTube, Vimeo or Loom: minDurationSeconds when the founder states a length; postedAfterStart true.
-        · a social post → X or Bluesky (Sage can read those): postedAfterStart true.
+        · a document, research, a list or a dataset → a Google Doc or Sheet shared so anyone with the link can view: allowedHosts ["docs.google.com"]; for rows in a sheet, minRows = the count the founder asked for, all on ONE tab with the wallet typed in a cell on that tab.
+        · files (photos, a design, a PDF) → never a Drive folder, Dropbox or an app's view (Sage can't open them): a Google Sheet or Doc listing each file's public link.
+        · a video → YouTube (unlisted is fine), Vimeo or Loom: minDurationSeconds when the founder states a length; postedAfterStart true. Loom's free plan stops at 5 minutes, so anything longer goes on YouTube or Vimeo. What the video shows is never seen: put the spoken or shown facts the criteria need into the description (chapters, commands, links), or set founderConfirms.
+        · a social post → X or Bluesky (Sage can read those): postedAfterStart true. A thread is several posts: number each one in its text ("1/9") and list their links with linkProof.
         The worker puts their own wallet address where it shows (in the doc, the sheet, the video description, the post or the PR description); say so in the instructions. That is how Sage knows the work is theirs.
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
       sage_record — the work is something done ON Sage itself (sagepays.xyz). Sage checks its own records, never a page: a Sage page never shows who made it, so NEVER use artifact_url or public_url for a Sage page.
         · action "launched_job": the worker launches (posts and funds) a job on Sage. They submit the link to their job; Sage pays only if its records show they launched it from their own account, funded, on a real network, after this job went live.
         · action "was_paid": the worker completes a job on Sage and is paid for it. They submit the link to their Sage receipt.
         chainId only when the founder names a network. first: true when the founder pays only for someone's FIRST job or payout on Sage (Sage checks its records for earlier ones). Criteria for these jobs: what Sage's records and the job show (it is funded and live, its title, what kind of job it is, what its missions ask), never anything else about the worker.
-      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to". chainId is the network the transaction happens on (Sage pays on Metis but can check a transaction on any of: ${verifiableChainList().map((c) => `${c.name} ${c.chainId}`).join(", ")}).
+      onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. Its criteria are only what that transaction shows (who sent it, what it called or deployed, that it succeeded); anything else (a verified source on an explorer, who owns the contract now, an amount in dollars) is a doc with txProof, or founderConfirms. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to". chainId is the network the transaction happens on (Sage pays on Metis but can check a transaction on any of: ${verifiableChainList().map((c) => `${c.name} ${c.chainId}`).join(", ")}).
     NEVER make a post on Instagram, Facebook, LinkedIn or Threads the evidence — Sage cannot open them. Ask for X, Bluesky or a page it can read instead.
   - effortMinutes: your honest estimate in minutes. Multi-day work is thousands of minutes; never cap it.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.
@@ -306,10 +330,27 @@ const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
     const msg = e instanceof Error ? e.message : String(e);
     // A shape miss is the drafting loop's to correct (it feeds the reason back for one more round), not
     // a reason to change provider.
-    if (/unparseable/i.test(msg) || !fallbackLlm()) throw e;
+    if (/unparseable/i.test(msg)) throw e;
+    // A SAFETY REFUSAL IS OFTEN CHANCE. Sage Bench r9: a pentest of the founder's own staging was refused once
+    // and drafted 6/6 when asked again. The same writer gets one more try before anyone else does.
+    if (/llm_refused/.test(msg)) {
+      try {
+        const again = await call(false);
+        return { json: again.json, model: again.model ?? null };
+      } catch {
+        /* still refused: the fallback, when there is one */
+      }
+    }
+    if (!fallbackLlm()) throw e;
     console.warn(`[gig-draft] primary ${isTransientLlmError(e) ? "kept failing" : "failed"} (${msg.slice(0, 120)}); drafting on the fallback provider`);
-    const r = await call(true);
-    return { json: r.json, model: r.model ?? null };
+    try {
+      const r = await call(true);
+      return { json: r.json, model: r.model ?? null };
+    } catch (fe) {
+      // the founder hears what the WRITER did: an empty fallback account must not turn a refusal into "offline"
+      if (/llm_refused/.test(msg)) throw e;
+      throw fe;
+    }
   }
 };
 
@@ -338,7 +379,7 @@ export function userMessage(input: DraftInput, feedback: string | null): string 
   }
   // The count the founder said out loud, read deterministically (stated-terms.ts) — the same fact the
   // money prefill reads from the same sentence. Handed to the model as a requirement, then verified.
-  const stated = readStatedTerms(input.intent).milestoneCount;
+  const stated = statedMilestones(input);
   if (stated != null && stated > 1) {
     lines.push(`THE FOUNDER NAMED ${stated} MILESTONES. Answer with exactly ${stated} milestones, in the order they described, each with its own deliverable and its own evidence. kind must be "grant".`);
   }
@@ -346,9 +387,15 @@ export function userMessage(input: DraftInput, feedback: string | null): string 
   return lines.join("\n\n");
 }
 
+/** How many paid milestones the founder stated: a count in their words, else stages priced one by one in their
+ *  words or the brief they handed over (stated-terms.ts paidStageCount). */
+function statedMilestones(input: DraftInput): number | null {
+  return readStatedTerms(input.intent).milestoneCount ?? paidStageCount(`${input.intent}\n${input.source?.text ?? ""}`);
+}
+
 /** Post-parse hygiene the schema can't express: an unreadable or temporary host named as the place
  *  the work must live is removed (the worker would be refused at submit), and the founder is told. */
-export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] } {
+export function cleanDraft(draft: GigDraft, hints: { repo?: string | null } = {}): { draft: GigDraft; notes: string[] } {
   const notes: string[] = [];
   const milestones = draft.milestones.map((m) => {
     if (m.evidence.kind !== "artifact_url") return m;
@@ -358,10 +405,25 @@ export function cleanDraft(draft: GigDraft): { draft: GigDraft; notes: string[] 
     if (!f.ok && f.fix) {
       return { ...m, evidence: { kind: "sage_record" as const, action: f.fix.action, ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}) } };
     }
-    const bad = m.evidence.allowedHosts.filter((h) => [...UNREADABLE_HOSTS, ...TEMPORARY_HOSTS].some((u) => h === u || h.endsWith(`.${u}`)));
-    if (bad.length === 0) return m;
-    notes.push(`"${m.title}": Sage can't verify work on ${bad.join(", ")} — the draft asks for a page it can open instead.`);
-    return { ...m, evidence: { ...m.evidence, allowedHosts: m.evidence.allowedHosts.filter((h) => !bad.includes(h)) } };
+    let ev = m.evidence;
+    // a merged PR binds to the founder's repository: the one its own steps name, else the one the founder handed
+    // over (the GitHub link they pasted, or their words), when exactly one is named
+    if (ev.prMerged && !ev.repo) {
+      const repo = repoIn(m.instructions, ...m.criteria) ?? hints.repo ?? null;
+      if (repo) ev = { ...ev, repo };
+    }
+    // a folder or an app's view can't be read (what-sage-sees.ts): the work is listed in a Google Doc or Sheet
+    const kept = ev.allowedHosts.filter((h) => onHost(h, STORAGE_OR_APP_HOSTS));
+    if (kept.length > 0) {
+      notes.push(`"${m.title}": Sage can't open ${kept.join(", ")}, so the work is listed in a Google Doc or Sheet with a link to each file.`);
+      ev = { ...ev, allowedHosts: [...new Set([...ev.allowedHosts.filter((h) => !kept.includes(h)), "docs.google.com"])] };
+    }
+    const bad = ev.allowedHosts.filter((h) => [...UNREADABLE_HOSTS, ...TEMPORARY_HOSTS].some((u) => h === u || h.endsWith(`.${u}`)));
+    if (bad.length > 0) {
+      notes.push(`"${m.title}": Sage can't verify work on ${bad.join(", ")} — the draft asks for a page it can open instead.`);
+      ev = { ...ev, allowedHosts: ev.allowedHosts.filter((h) => !bad.includes(h)) };
+    }
+    return ev === m.evidence ? m : { ...m, evidence: ev };
   });
   return { draft: { ...draft, milestones }, notes };
 }
@@ -389,7 +451,7 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
   for (let round = 0; round < 2; round++) {
     let raw: unknown;
     try {
-      const r = await complete({ system: GIG_DRAFT_SYSTEM, user: userMessage(input, feedback), maxTokens: draftTokenBudget(readStatedTerms(intent).milestoneCount) });
+      const r = await complete({ system: GIG_DRAFT_SYSTEM, user: userMessage(input, feedback), maxTokens: draftTokenBudget(statedMilestones(input)) });
       raw = r.json;
       model = r.model ?? model;
     } catch (e) {
@@ -425,14 +487,14 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
        * CHECK the answer against it. One corrective round; if the model still will not comply, the
        * founder is TOLD rather than quietly given the wrong plan — they add the missing stage by hand.
        */
-      const want = readStatedTerms(intent).milestoneCount;
+      const want = statedMilestones(input);
       const got = parsed.data.milestones.length;
       if (want != null && want > 1 && got !== want && round === 0) {
         feedback = `- milestones: the founder named ${want} milestones and your draft has ${got}. Answer again with exactly ${want}, in the order they described, each with its own deliverable and evidence, and kind "grant".`;
         console.warn(`[gig-draft] round 1 milestone-count miss: wanted ${want}, got ${got}`);
         continue;
       }
-      const cleaned = cleanDraft(parsed.data);
+      const cleaned = cleanDraft(parsed.data, { repo: repoIn(input.source?.url, intent) });
       const notes = want != null && want > 1 && got !== want
         ? [...cleaned.notes, `You asked for ${want} milestones and Sage drafted ${got}. Add the missing one below before you fund — money is split across the milestones you keep.`]
         : cleaned.notes;

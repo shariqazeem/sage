@@ -84,6 +84,18 @@ export interface TxRequirement {
   to?: string[];
 }
 
+/**
+ * LINKS LISTED IN THE WORK (6 Nov 2026). Work spread across many pages (posts on several platforms, listings,
+ * pull requests in several repositories) is submitted as ONE doc or sheet that lists their links. Sage opens
+ * each (up to MAX_LISTED_LINKS), on `hosts` when named: each must be readable and carry the worker's wallet,
+ * and be posted after the job went live when it shows a time. At least `minLinks` must pass, and what they say
+ * goes to the judge, so a criterion about the linked work is one the judge can check.
+ */
+export interface LinkRequirement {
+  minLinks: number;
+  hosts?: string[];
+}
+
 /** Every requirement a txProof states, whichever shape it was written in. */
 export function txRequirements(p: TxRequirement | TxRequirement[] | undefined): TxRequirement[] {
   if (!p) return [];
@@ -99,6 +111,8 @@ export interface ArtifactUrlContract {
    * payments or a list of testnet actions becomes proof Sage checks itself, instead of hashes typed into a doc.
    */
   txProof?: TxRequirement | TxRequirement[];
+  /** links listed in the work, each opened and checked (see LinkRequirement) */
+  linkProof?: LinkRequirement;
   /**
    * THE FOUNDER CONFIRMS EACH ONE (Sage Bench r5, 5 Nov 2026). When the only real proof is the founder's own
    * judgment (a call happened, colours match the fabric, a delivery arrived), no submission pays without them:
@@ -198,6 +212,8 @@ export interface VerificationResult {
    *  marker stripped — lets the dedup layer recognise a COPIED deliverable across wallets without
    *  storing the page. Absent for other kinds and for bodies too short to fingerprint. */
   artifactFingerprint?: string | null;
+  /** artifact_url with linkProof: what the listed pages say, for the judge's UNTRUSTED evidence (never its trusted report) */
+  linkedEvidence?: string;
 }
 
 /** The verification strength a contract kind establishes when it verifies. */

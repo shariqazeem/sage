@@ -8,7 +8,7 @@ import { proofFeasibility, type Feasibility } from "@/lib/launch/proof-feasibili
 /** Whether a line's proof can ever pass (proof-feasibility.ts): the card and the Launch button read the same rule. */
 export function trancheFeasibility(t: Tranche): Feasibility {
   if (t.verify !== "link") return { ok: true };
-  return proofFeasibility({ kind: "artifact_url", allowedHosts: t.allowedHosts }, [t.title, t.deliverable, t.instructions, ...(t.criteria ?? [])]);
+  return proofFeasibility({ kind: "artifact_url", allowedHosts: t.allowedHosts, prMerged: t.prMerged, repo: t.repo }, [t.title, t.deliverable, t.instructions, ...(t.criteria ?? [])]);
 }
 
 /**
@@ -48,6 +48,10 @@ function sageChecks(t: Tranche, chainName: (id?: number) => string): string {
   if (t.txProof?.length) {
     const parts = t.txProof.map((r) => `${r.minTxs} on ${chainName(r.chainId)}${r.to?.length ? " to the named contract" : ""}`);
     return `Sage checks the transactions listed in their work (at least ${parts.join(" and ")}), each sent from their own wallet after the job went live, before it pays`;
+  }
+  if (t.linkProof?.minLinks) {
+    const on = t.linkProof.hosts?.length ? ` on ${t.linkProof.hosts.join(" or ")}` : "";
+    return `Sage opens every link their work lists (at least ${t.linkProof.minLinks}${on}), each public and carrying their wallet${t.postedAfterStart ? ", posted after the job went live" : ""}, before it pays`;
   }
   const after = t.postedAfterStart ? ", posted after the job went live," : "";
   if (where) return `Sage checks ${where}${after} and that it carries their wallet address, before it pays`;
@@ -289,6 +293,12 @@ export function JobCard({
                   </li>
                 ))}
               </ul>
+              {t.verify === "link" && t.prMerged && !t.repo?.trim() && !needs.some((n) => /\brepo(?:sitory)?\b/i.test(n.label)) && (
+                <label className="jc-addr">
+                  <span>The repository it must be merged into</span>
+                  <input className="mono" type="text" placeholder="owner/name" value={t.repo ?? ""} onChange={(e) => setTranche(i, { repo: e.target.value.trim().replace(/^https?:\/\/(?:www\.)?github\.com\//i, "").replace(/\.git$|\/+$/g, "") })} />
+                </label>
+              )}
               {t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim()) && (
                 <label className="jc-addr">
                   <span>The contract the transaction must go to</span>
@@ -296,10 +306,14 @@ export function JobCard({
                 </label>
               )}
               <p className="jc-checks">{checksLine(t, chainName)}</p>
+              {t.prMerged && !grant && people > 1 && (
+                <p className="jc-hint">A pull request is merged once: with {people} people, the others may build the same thing and not be paid.</p>
+              )}
               {(() => {
                 // a proof that can never pass gets no Launch button: say why, and offer the one that works
                 const f = trancheFeasibility(t);
-                if (f.ok) return null;
+                // the repository is asked for in place, just above: no second message for it
+                if (f.ok || f.ask === "repo") return null;
                 return (
                   <p className="jc-cant">
                     <span>{f.reason}</span>

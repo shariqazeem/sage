@@ -12,6 +12,7 @@
  */
 import type { SageRecordAction } from "@/lib/verify/contract";
 import { isSageHost } from "@/lib/verify/sage-record";
+import { onHost, STORAGE_OR_APP_HOSTS } from "@/lib/verify/what-sage-sees";
 
 const SAGE_PAGE_IN_WORDS = [
   // "the submitted link opens a live job page on sagepays.xyz", "a page at sagepays.xyz"
@@ -40,16 +41,50 @@ export function sageActionIn(text: string): SageRecordAction | null {
 
 export type Feasibility =
   | { ok: true }
-  | { ok: false; reason: string; /** the proof that works instead, when the job says what was done on Sage */ fix: { action: SageRecordAction } | null };
+  | {
+      ok: false;
+      reason: string;
+      /** the proof that works instead, when the job says what was done on Sage */
+      fix: { action: SageRecordAction } | null;
+      /** what the founder adds on the card to make it payable */
+      ask?: "repo";
+    };
+
+export const ANY_REPO_REASON =
+  "A merged pull request in any repository proves nothing: anyone can open and merge one in their own. Name the repository it must be merged into.";
+export const storageReason = (host: string) =>
+  `Sage can't open ${host}: a folder or an app's own view shows nothing readable without signing in. Ask for a Google Sheet or Doc that lists the files or rows (with links) instead.`;
 
 export const SAGE_PAGE_REASON =
   "A Sage page never shows who made it, so checking the link for the worker's wallet can never pass. For work done on Sage, Sage checks its own records instead.";
 
-/** Can this proof ever pass? `texts` are the milestone's own words: title, deliverable, steps, criteria. */
-export function proofFeasibility(evidence: { kind: string; allowedHosts?: readonly string[] }, texts: readonly (string | undefined)[]): Feasibility {
-  if (evidence.kind === "artifact_url" && linkLivesOnSage(evidence.allowedHosts, texts)) {
+/** Can this proof ever pass, and only for the person who did the work? `texts` are the milestone's own words. */
+export function proofFeasibility(
+  evidence: { kind: string; allowedHosts?: readonly string[]; prMerged?: boolean; repo?: string },
+  texts: readonly (string | undefined)[],
+): Feasibility {
+  if (evidence.kind !== "artifact_url") return { ok: true };
+  if (linkLivesOnSage(evidence.allowedHosts, texts)) {
     const action = sageActionIn(texts.filter((x): x is string => !!x).join("\n"));
     return { ok: false, reason: SAGE_PAGE_REASON, fix: action ? { action } : null };
   }
+  // where work is KEPT but cannot be read (what-sage-sees.ts): a folder, an app's view
+  const kept = (evidence.allowedHosts ?? []).find((h) => onHost(h, STORAGE_OR_APP_HOSTS));
+  if (kept) return { ok: false, reason: storageReason(kept), fix: null };
+  // a merge anyone can make in their own repository is not the founder's acceptance
+  if (evidence.prMerged && !evidence.repo?.trim()) return { ok: false, reason: ANY_REPO_REASON, fix: null, ask: "repo" };
   return { ok: true };
+}
+
+/** The repository a job names (github.com/owner/name), from its own words, when it names exactly one. */
+export function repoIn(...texts: (string | undefined)[]): string | null {
+  const found = new Set<string>();
+  for (const t of texts) for (const m of (t ?? "").matchAll(/github\.com\/([\w.-]+)\/([\w.-]+)/gi)) {
+    const owner = m[1]!.toLowerCase();
+    if (["orgs", "settings", "marketplace", "topics", "sponsors", "features", "about", "apps", "login"].includes(owner)) continue;
+    // "next.js" is a name; ".git" and a sentence's full stop are not
+    const name = m[2]!.replace(/\.git$/i, "").replace(/\.+$/, "").toLowerCase();
+    if (name) found.add(`${owner}/${name}`);
+  }
+  return found.size === 1 ? [...found][0]! : null;
 }

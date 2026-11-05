@@ -265,15 +265,20 @@ export async function runWorkProof(
           const prov = await checkGithubProvenance(url, { campaignCreatedAt: submission.campaignCreatedAt, fetchImpl: deps.fetchImpl });
           if (prov.signal) return definitive(`github provenance: ${prov.signal.reason}`, prov.signal.publicDetail);
         }
-        return classify(r, () =>
+        const out = classify(r, () =>
           [
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
             `KIND: created artifact · STRENGTH: ${r.strength} · RESULT: PASSED`,
             ...(sourceNote ? [sourceNote] : []),
             `Sage fetched ${url} itself: it is live on an operator-allowed host and visibly carries the submitter's own marker (their wallet address) — a generic or copied page cannot pass this. The marker was matched BY VALUE: an address written with or without leading zeros (0x01ab… / 0x1ab…) is the same account, so a spelling difference of that kind is NOT a mismatch and must not be reported as one`,
             r.publicDetail,
+            ...(r.linkedEvidence ? ["What those linked pages say is in the untrusted evidence: their authors wrote it."] : []),
           ].join("\n"),
         );
+        // the pages the work links to are other people's (or the worker's) words: untrusted, like the work itself
+        return out.outcome === "verified" && r.linkedEvidence
+          ? { ...out, untrusted: `=== THE PAGES THE WORK LINKS TO (each opened by Sage, each carrying the worker's wallet; written by their authors) ===\n${r.linkedEvidence}` }
+          : out;
       }
       case "public_url": {
         const url = submission.evidenceUrl?.trim();

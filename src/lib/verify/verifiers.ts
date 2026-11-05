@@ -421,6 +421,108 @@ export async function withListedTxs(
   return { ...result, detail: `${result.detail} + listed tx verified (${lines.join(", ")})`, publicDetail: `${result.publicDetail} Sage also checked the listed transactions (${lines.join(", ")}): sent from your wallet, after the job went live.` };
 }
 
+/** At most this many links are opened from one piece of work. */
+export const MAX_LISTED_LINKS = 12;
+const ASSET_PATH = /\.(?:css|js|mjs|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf|map|json|xml|zip)$/i;
+const sameHost = (h: string, list: readonly string[]) => list.some((x) => h === x || h.endsWith(`.${x}`));
+
+/** The links a piece of work lists: anchors and typed URLs, never its own address, assets, or hosts Sage won't read. */
+export function listedLinks(text: string, own: string | null, hosts?: readonly string[]): string[] {
+  const found = new Set<string>();
+  const ownKey = own ? own.replace(/[#?].*$/, "").replace(/\/+$/, "") : null;
+  const add = (raw: string) => {
+    try {
+      const u = new URL(raw.replace(/&amp;/g, "&").replace(/[.,;:!?)\]]+$/, ""));
+      if (u.protocol !== "https:") return;
+      u.hash = "";
+      const key = u.toString().replace(/[#?].*$/, "").replace(/\/+$/, "");
+      if (ownKey && key === ownKey) return;
+      if (ASSET_PATH.test(u.pathname)) return;
+      const h = u.host.toLowerCase().replace(/^www\./, "");
+      if (sameHost(h, UNREADABLE_HOSTS) || sameHost(h, TEMPORARY_HOSTS)) return;
+      if (hosts && hosts.length > 0 && !sameHost(h, hosts.map((x) => x.toLowerCase().replace(/^www\./, "")))) return;
+      found.add(u.toString());
+    } catch {
+      /* not a link */
+    }
+  };
+  for (const m of text.matchAll(/<a\b[^>]*\bhref\s*=\s*["'](https?:\/\/[^"']+)["']/gi)) add(m[1]!);
+  for (const m of text.replace(/<[^>]+>/g, " ").matchAll(/https?:\/\/[^\s<>"'()\]]+/gi)) add(m[0]);
+  return [...found];
+}
+
+/**
+ * The links a doc or sheet lists, each opened (ArtifactUrlContract.linkProof). Runs only after the work itself
+ * passed. A link counts when it is readable, carries the worker's wallet, and (when the job asks and the
+ * platform shows a time) was posted after the job went live. A read that can't complete holds rather than
+ * fails, so a slow site never refuses honest work. What the counted pages say goes to the judge.
+ */
+export async function withListedLinks(
+  result: VerificationResult,
+  text: string,
+  c: ArtifactUrlContract,
+  marker: string,
+  deps: { fetchImpl?: typeof fetch; notBefore?: number; readImpl?: typeof readPage; ownUrl?: string },
+): Promise<VerificationResult> {
+  const req = c.linkProof;
+  if (!result.verified || !req || !(req.minLinks >= 1)) return result;
+  const urls = listedLinks(text, deps.ownUrl ?? null, req.hosts).slice(0, MAX_LISTED_LINKS);
+  const variants = markerVariants(marker);
+  const read = deps.readImpl ?? readPage;
+  let passed = 0;
+  let unreadable = 0;
+  const evidence: string[] = [];
+  for (const u of urls) {
+    if (passed >= req.minLinks + 3) break; // the floor, and a little more for the judge to read
+    let r: Awaited<ReturnType<typeof readPage>>;
+    try {
+      r = await read(u, { fetchImpl: deps.fetchImpl, render: null, maxChars: 20_000 });
+    } catch {
+      unreadable++;
+      continue;
+    }
+    if (!r.read) {
+      if (/took too long|didn't answer|couldn't be reached|refused to show/i.test(r.reason ?? "")) unreadable++;
+      continue;
+    }
+    if (!variants.some((v) => norm(r.text).includes(v))) continue; // not theirs
+    const f = (r.facts ?? {}) as Record<string, string | undefined>;
+    const at = f.createdAt ? Math.floor(Date.parse(f.createdAt) / 1000) : NaN;
+    if (c.postedAfterStart && deps.notBefore && Number.isFinite(at) && at < deps.notBefore - TX_RECENCY_SLACK_SECONDS) continue;
+    passed++;
+    evidence.push(`--- ${u} (${r.kind}${Number.isFinite(at) ? `, posted ${new Date(at * 1000).toISOString()}` : ""})\n${r.text.slice(0, 2500)}`);
+  }
+  const where = req.hosts?.length ? ` on ${req.hosts.join(" or ")}` : "";
+  if (passed >= req.minLinks) {
+    return {
+      ...result,
+      detail: `${result.detail} + listed links verified (${passed})`,
+      publicDetail: `${result.publicDetail} Sage also opened the links your work lists: ${passed} carry your wallet${c.postedAfterStart ? " and were posted after the job went live" : ""}.`,
+      linkedEvidence: evidence.join("\n\n").slice(0, 14_000),
+    };
+  }
+  if (unreadable > 0 && passed + unreadable >= req.minLinks) {
+    return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Sage couldn't open every link your work lists just now. It will check again shortly." };
+  }
+  return {
+    verified: false,
+    strength: "strong",
+    detail: `listed links short: ${passed} of ${req.minLinks}`,
+    publicDetail: `Sage opened the links your work lists and found ${passed} of the ${req.minLinks} asked for that are public${where} and carry your wallet address${c.postedAfterStart ? ", posted after the job went live" : ""}. Put your wallet in each, list every link in your work, and submit it again.`,
+  };
+}
+
+/** Everything the work lists, checked in turn: its transactions, then its links. */
+async function withListed(
+  result: VerificationResult,
+  text: string,
+  c: ArtifactUrlContract,
+  marker: string,
+  deps: { fetchImpl?: typeof fetch; notBefore?: number; readImpl?: typeof readPage; wallet?: string; txClient?: TxClient | ((chainId: number) => TxClient); ownUrl?: string },
+): Promise<VerificationResult> {
+  return withListedLinks(await withListedTxs(result, text, c, deps.wallet ?? marker, deps), text, c, marker, deps);
+}
+
 async function verifyPlatformArtifact(
   c: ArtifactUrlContract,
   url: string,
@@ -463,7 +565,7 @@ async function verifyPlatformArtifact(
     const at = Math.floor(Date.parse(f.createdAt) / 1000);
     if (Number.isFinite(at) && at < deps.notBefore - TX_RECENCY_SLACK_SECONDS) return fail("posted before the job", "That was posted before this job went live. Post something new for this job and submit that link.");
   }
-  return withListedTxs({ ...base, detail: `${base.detail} (${r.kind})` }, r.text, c, deps.wallet ?? marker, deps);
+  return withListed({ ...base, detail: `${base.detail} (${r.kind})` }, r.text, c, marker, { ...deps, ownUrl: url });
 }
 
 export async function verifyArtifactUrl(
@@ -492,7 +594,7 @@ export async function verifyArtifactUrl(
     const body = page.body.slice(0, 200_000);
     const finalUrl = page.finalUrl || u.toString();
     const staticResult = matchArtifact({ status: page.status, finalUrl, bodyText: body }, c, marker);
-    if (staticResult.verified) return withListedTxs(staticResult, body, c, deps.wallet ?? marker, deps);
+    if (staticResult.verified) return withListed(staticResult, body, c, marker, { ...deps, ownUrl: u.toString() });
     if (page.status >= 400) return staticResult;
     /**
      * CLIENT-RENDERED PAGES. A Notion page, and most modern blogs, return a scaffold to a plain fetch —
@@ -509,7 +611,7 @@ export async function verifyArtifactUrl(
       const r = await render(u.toString());
       if (r.text && r.text.trim().length > 0) {
         const rendered = matchArtifact({ status: 200, finalUrl: r.finalUrl || finalUrl, bodyText: r.text, contentText: r.contentText ?? null }, c, marker);
-        if (rendered.verified) return withListedTxs({ ...rendered, detail: `${rendered.detail} (browser-rendered)` }, r.text, c, deps.wallet ?? marker, deps);
+        if (rendered.verified) return withListed({ ...rendered, detail: `${rendered.detail} (browser-rendered)` }, r.text, c, marker, { ...deps, ownUrl: u.toString() });
       }
     } catch {
       /* the static verdict stands */

@@ -166,6 +166,13 @@ const artifactUrlSchema = z.object({
   txProof: z
     .union([txRequirementSchema, z.array(txRequirementSchema).min(1).max(3)])
     .optional(),
+  /** links the work lists, each opened and checked (verify/contract.ts LinkRequirement) */
+  linkProof: z
+    .object({
+      minLinks: z.number().int().min(1).max(10),
+      hosts: z.array(z.string().max(120).regex(hostRe, "bare hostname, e.g. x.com")).max(5).optional(),
+    })
+    .optional(),
 });
 
 const publicUrlSchema = z.object({
@@ -275,7 +282,7 @@ export const directCampaignSchema = z.object({
     const f = proofFeasibility(m.evidence, [m.title, m.instructions, ...m.criteria]);
     if (!f.ok) {
       const which = c.milestones.length > 1 ? `Milestone ${i + 1}: ` : "";
-      const use = f.fix ? ` (evidence kind sage_record, action ${f.fix.action})` : "";
+      const use = f.fix ? ` (evidence kind sage_record, action ${f.fix.action})` : f.ask === "repo" ? " (evidence.repo: owner/name)" : "";
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["milestones", i, "evidence"], message: `${which}${f.reason}${use}` });
     }
   });
@@ -637,7 +644,10 @@ export function compileDirectCampaign(
   // wording releases money on a third party's private decision is refused here, whichever door
   // wrote it — measured on Haiku 4.5 calling the tool for "when the bank approves her loan".
   for (const m of input.milestones) {
-    if (releasesOnThirdPartyDecision([m.title, m.instructions, ...m.criteria].join(". "))) {
+    // what the money is RELEASED on: the title and the criteria the judge holds the work to. The steps carry
+    // background ("accepted in the proposal thread", "the committee approved it last week") that is history,
+    // not a condition (Sage Bench r9: a grant refused for one such sentence in its steps).
+    if (releasesOnThirdPartyDecision([m.title, ...m.criteria].join(". "))) {
       return { ok: false, error: `${noun} "${m.title}": ${THIRD_PARTY_DECISION_REFUSAL}` };
     }
   }
