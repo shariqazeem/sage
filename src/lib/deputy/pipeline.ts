@@ -67,6 +67,7 @@ import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { parseWorkProofContract } from "./work-proof";
 import { gateFromBrief } from "./autopilot";
+import { effectiveThreshold } from "@/lib/campaigns/validate";
 import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payoutReplaySchemaReady } from "./canary-preflight";
@@ -730,7 +731,9 @@ export async function runDeputyOnSubmission(
   if (!isObservation) {
     const gate = gateFromBrief(
       brief,
-      campaign,
+      // A job stored before the 0.85 floor (validate.ts) is read at the floor: the gate never acts on a
+      // looser bar than the autopay invariant, whatever an older PATCH wrote.
+      { ...campaign, autopilotThreshold: effectiveThreshold(campaign.autopilotThreshold) },
       submission.status,
       mainnetAutopilotEnabled(),
     );

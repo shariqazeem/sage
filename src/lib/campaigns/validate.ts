@@ -129,14 +129,30 @@ export function validateAutonomy(raw: unknown): "manual" | "autopilot" {
 }
 
 /**
- * Autopilot confidence threshold, clamped to a safe band [0.5, 0.99]. Below 0.5
- * the Deputy would be auto-paying coin-flips; 1.0 is unreachable, so 0.99 caps.
- * Defaults to 0.85 on anything unparseable.
+ * The lowest autopay threshold any job may carry: the 0.85 bar CLAUDE.md states as the autopay invariant
+ * (brain-core's AUTOPAY_THRESHOLD, restated here so this module stays free of the judgment layer).
+ *
+ * The band used to start at 0.5. That is exactly the cap `hardenBrief` puts on a brief whose evidence
+ * could not be fetched, and the gate compares with `<`, so at 0.5 that cap stopped blocking a payout.
+ * A PATCH that omitted the threshold stored 0.5, because `Number("")` is 0, not NaN. A founder may RAISE
+ * the bar; nothing may lower it below the invariant.
+ */
+export const AUTOPAY_THRESHOLD_FLOOR = 0.85;
+
+/**
+ * Autopilot confidence threshold, clamped to [AUTOPAY_THRESHOLD_FLOOR, 0.99] (1.0 is unreachable, so
+ * 0.99 caps). Missing, empty or unparseable input reads as the floor, never as zero.
  */
 export function validateThreshold(raw: unknown): number {
-  const n = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
-  if (!Number.isFinite(n)) return 0.85;
-  return Math.max(0.5, Math.min(0.99, n));
+  if (raw == null || (typeof raw === "string" && raw.trim() === "")) return AUTOPAY_THRESHOLD_FLOOR;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (!Number.isFinite(n)) return AUTOPAY_THRESHOLD_FLOOR;
+  return Math.max(AUTOPAY_THRESHOLD_FLOOR, Math.min(0.99, n));
+}
+
+/** The threshold the gate may act on: a stored value from before the floor can only read stricter. */
+export function effectiveThreshold(stored: number | null | undefined): number {
+  return validateThreshold(stored);
 }
 
 /* ───────────────────────────────────────────────── whole campaign ───── */

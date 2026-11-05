@@ -5,7 +5,8 @@ import { Check, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { HoldButton } from "@/components/app/hold-button";
 
 const pct = (n: number) => `${Math.round(Math.max(0, Math.min(1, n)) * 100)}%`;
-const clamp = (n: number) => Math.max(0.5, Math.min(0.99, n));
+// The same band the server enforces (validate.ts): a founder may raise the bar, never below 0.85.
+const clamp = (n: number) => Math.max(0.85, Math.min(0.99, n));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**

@@ -1,4 +1,5 @@
 import { notifyWorkspaceNewWork } from "@/lib/telegram/workspace-notify";
+import { validateThreshold } from "./validate";
 import "server-only";
 
 import { getAddress, isAddress, type Address, type Hex } from "viem";
@@ -439,7 +440,7 @@ export async function attachV2Campaign(
           autonomy: input.autonomy ?? "autopilot",
           autopilotThreshold:
             (input.autonomy ?? "autopilot") === "autopilot"
-              ? (input.autopilotThreshold ?? 0.85)
+              ? validateThreshold(input.autopilotThreshold) // never below the 0.85 autopay floor
               : undefined,
           vaultKind: input.vaultKind ?? "campaign_v2",
           /**
