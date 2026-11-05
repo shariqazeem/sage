@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readStatedTerms } from "./stated-terms";
 import { refusedWork } from "./work-policy";
+import { cutAtBoundary } from "./text-cut";
 import { verifiableChainList } from "@/lib/verify/chains";
 import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
 import { isTransientLlmError, withTransientRetry } from "@/lib/llm/retry";
@@ -138,10 +139,12 @@ export const draftMilestoneSchema = z.object({
   title: trimmedText(4, 80),
   /** one sentence: what must be TRUE when the work is done — a state, not an instruction. */
   deliverable: trimmedText(8, 300),
-  instructions: z.preprocess((v) => (typeof v === "string" && v.trim().length > 2000 ? v.trim().slice(0, 2000) : v), text(10, 2000)),
+  // up to the mission spec's own 6,000 (SPEC_LIMITS.instructions), and never cut mid-sentence
+  instructions: z.preprocess((v) => (typeof v === "string" && v.trim().length > 6000 ? cutAtBoundary(v.trim(), 6000) : v), text(10, 6000)),
   criteria: criteriaList,
   evidence: evidenceSchema,
-  effortMinutes: opt(clampedInt(1, 240)),
+  // a week of minutes at most: multi-day work is honest, and capping it at 240 made a grant look like an afternoon
+  effortMinutes: opt(clampedInt(1, 10_080)),
 });
 
 export const gigDraftSchema = z.object({
@@ -153,6 +156,10 @@ export const gigDraftSchema = z.object({
   slots: clampedInt(1, 50),
   // a reason too short to say anything is left out, not fatal
   whyItMatters: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 10 ? v : undefined), trimmedText(10, 600).optional()),
+  /** the founder's own deadline, verbatim ("by Friday 14 Nov"); shown on the card, never invented */
+  deadline: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 3 ? v : undefined), trimmedText(3, 80).optional()),
+  /** what a stranger needs that only the founder can add (an invite link, access, an address): the card asks for it */
+  needsFromFounder: opt(stringList(6, trimmedText(3, 160))),
   milestones: z.array(draftMilestoneSchema).min(1).max(12),
 });
 export type GigDraft = z.infer<typeof gigDraftSchema>;
@@ -165,11 +172,17 @@ RULES
 - MILESTONE COUNT IS THE FOUNDER'S, NOT YOURS. When the founder names a number of milestones, tranches or stages, or describes them one by one ("first X, then Y"), your draft must contain exactly that many milestones, in that order, each with its own deliverable. Never merge two stated stages into one deliverable, and never invent a stage they did not describe.
 - who: the audience in at most six words, in the founder's terms ("my designer", "anyone", "a translator in Kingston").
 - slots: how many people can be paid, from the founder's words. A named person → 1. "anyone" with no number → 3.
+- FAITHFUL, NOT CREATIVE. The job is what the founder asked for, no more and no less:
+  - Keep every number and constraint they stated: counts, ranges with BOTH ends ("about 1,500 words" → 1,300–1,800, not just a floor), versions, names, platforms, languages, audiences, dates.
+  - Never invent sections, quotas, extra deliverables or "nice to have" requirements they didn't ask for. The only things you may add are what Sage needs to verify the work: where it lives, the wallet address, and the link to submit.
+  - When a stranger needs something the founder didn't give and you can't know (an invite link, repository or build access, a contract or Safe address, test accounts or credit, the product's name or URL), don't guess. List it in needsFromFounder and refer to it in the steps ("the founder adds the Discord invite here").
+- deadline: when the founder states one ("by Friday", "before the 14th", "end of month"), copy it exactly, put it in the instructions too, and add a criterion only if the proof shows the time (a post or a video carries one). Never invent a deadline.
 - Each milestone:
   - title: 4–80 characters, the work in the founder's words.
   - deliverable: ONE sentence stating what must be TRUE when it is done (a state, not a command).
-  - instructions: numbered steps in the founder's intent, ending with exactly what to submit and where it must live.
-  - criteria: 3–6 clauses. Every clause must be VISIBLE on the submitted evidence and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name), an effort bar ("at least N words in the worker's own words", "at least three specific examples", "a screenshot of each step"), and — whenever the work is ABOUT something — "written in their own words, not copied from the source". Never restate the automatic checks (the host, the wallet address).
+  - instructions: numbered steps in the founder's intent, with everything a capable stranger needs to start, ending with exactly what to submit and where it must live.
+  - criteria: 3–6 clauses, each VISIBLE in the submitted proof and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name) and the founder's own bar (their counts, length, quality words). Say "in their own words, not copied from the source" only when the work is based on a source Sage can compare it with. Never write a criterion the proof can't show (an attestation like "no bots", someone's private intent, an off-platform event), and never restate the automatic checks (the host, the wallet address).
+  - If the only real proof is the founder's own judgment (an interview happened, a call was useful, a physical delivery arrived, taste in a design), still choose the best proof the worker can submit, and say plainly in the deliverable that the founder approves each one ("the founder confirms the call happened").
   - evidence: exactly one kind.
       artifact_url — the worker CREATES something and links it (a page, an article, a document, a sheet, a repository, a pull request, a video, a design export, a post). allowedHosts: [] unless the work must live somewhere specific. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
         Ask for the work where it naturally lives, and say where in the instructions:
@@ -181,8 +194,9 @@ RULES
       public_url — the proof is text that the work ADDS to a page the founder controls; expectedText is that verbatim text.
       onchain_tx — the deliverable IS a transaction; include "to" only if the founder named the contract. If the work is DEPLOYING a contract, its address cannot exist yet: set deploysContract:true and no "to". chainId is the network the transaction happens on (Sage pays on Metis but can check a transaction on any of: ${verifiableChainList().map((c) => `${c.name} ${c.chainId}`).join(", ")}).
     NEVER make a post on Instagram, Facebook, LinkedIn or Threads the evidence — Sage cannot open them. Ask for X, Bluesky or a page it can read instead.
-  - effortMinutes: your honest estimate.
+  - effortMinutes: your honest estimate in minutes. Multi-day work is thousands of minutes; never cap it.
 - whyItMatters: one or two sentences the worker sees, in the founder's voice, if the founder gave a reason.
+- needsFromFounder: 0–6 short items the founder must add before launch so a stranger can actually do it (empty when nothing is missing). Never list money.
 WHEN SAGE WILL NOT POST IT
 - Decline when the work asks people to deceive or defraud (fake reviews or testimonials, paid endorsements hidden as organic, bought followers or votes, invented case studies or results presented as real), to game a system (many wallets for one person, sybil or airdrop farming, wash trading), to cheat (someone else's exam, thesis or coursework, plagiarism, rewording someone else's copyrighted or confidential work as one's own), to harm or surveil a person (doxxing, harassment, harvesting private personal data), to impersonate, to forge documents, or anything else illegal.
 - Also decline work that cannot be verified even in principle as stated ("make my startup go viral, whatever it takes"); say what concrete deliverable would make it payable.
@@ -190,7 +204,7 @@ WHEN SAGE WILL NOT POST IT
 - Do NOT decline legitimate work that merely sounds similar: honest reviews from real users with the payment disclosed, growth through real content, security testing of the founder's own systems, translating real marketing, research from public sources.
 - To decline, answer ONLY {"decline": "<one or two sentences the founder reads: what Sage won't do and why, plus the honest version if there is one>"}.
 
-Answer with ONE JSON object and nothing else: {"kind","title","who","slots","whyItMatters"?,"milestones":[{"title","deliverable","instructions","criteria":[...],"evidence":{...},"effortMinutes"?}]} — or {"decline": "..."} as above.`;
+Answer with ONE JSON object and nothing else: {"kind","title","who","slots","whyItMatters"?,"deadline"?,"needsFromFounder"?:[...],"milestones":[{"title","deliverable","instructions","criteria":[...],"evidence":{...},"effortMinutes"?}]} — or {"decline": "..."} as above.`;
 
 export interface DraftInput {
   /** the founder's own words — what, for whom, how many, what good looks like. */

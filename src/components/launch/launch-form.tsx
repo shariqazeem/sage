@@ -5,7 +5,7 @@ import { verifyChain } from "@/lib/verify/chains";
 /** Networks a worker's transaction can be checked on: real-money EVM networks, primary first. */
 
 import { missionTitleFrom } from "@/lib/launch/mission-title";
-import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, type Draft, type Tranche } from "@/lib/launch/composer";
+import { blankTranche, composeDirectBody, composerFromDraft, composerTotal, TX_CHAINS, type Draft, type Need, type Tranche } from "@/lib/launch/composer";
 import { firstUrl, labelFor, looksLikeProductHome, wordsOnly } from "@/lib/launch/hand-over-text";
 import { AmountChips, JobCard } from "./job-card";
 import { launchReadiness, nativeAmount, type AccountRead } from "@/lib/treasury/launch-readiness";
@@ -243,6 +243,9 @@ export function LaunchForm() {
   // the hand-over: what Sage opened and how long the job took to write, the card's title, the full form
   const [handed, setHanded] = useState<{ source: HandedSource | null; seconds: number | null } | null>(null);
   const [jobTitle, setJobTitle] = useState("");
+  /** the founder's own deadline and what workers need from them (composer.ts: written into the steps) */
+  const [deadline, setDeadline] = useState("");
+  const [needs, setNeeds] = useState<Need[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [productChoice, setProductChoice] = useState(false);
   // A LIVE CLOCK ON THE WORK, not a fake progress bar: the one thing genuinely happening is time passing.
@@ -302,6 +305,7 @@ export function LaunchForm() {
   const payValid = (): boolean =>
     pay.who.trim().length >= 2 &&
     tranches.every(trancheValid) &&
+    needs.every((n) => n.value.trim().length > 0) &&
     (!splitting || (isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length));
 
   /** Why the button waits, in words: the first thing payValid is missing, so a grey button is never a riddle. */
@@ -315,17 +319,48 @@ export function LaunchForm() {
       if (t.verify === "onchain" && !t.deploysContract && !/^0x[0-9a-fA-F]{40}$/.test(t.toAddr.trim())) return `Add the contract address the transaction must go to${which}.`;
     }
     if (splitting && !(isLocal ? Number(splitTotal) > 0 : Number(splitTotal) >= 0.5 * tranches.length)) return "Set the total.";
+    // workers can't start without it, and only the founder has it (or knows it isn't needed: drop it)
+    const gap = needs.find((n) => n.value.trim().length === 0);
+    if (gap) return `Add ${gap.label.replace(/[.:\s]+$/, "").replace(/^the /i, "the ")}, or drop it if workers won't need it.`;
     return null;
   };
 
   const total = composerTotal({ tranches, slots: pay.slots, splitTotal });
   const readiness = account.state === "open" ? launchReadiness(account.read, total) : null;
+
   // A job priced in another currency is converted at compile, so its dollar total is known only on the plan page.
   const launchesHere = founder.authed && !isLocal && account.state === "open" && readiness?.ready === true;
 
   const linkOnly = !!firstUrl(draftText) && !/\s/.test(draftText.trim());
   const busyUrl = draftBusy ? firstUrl(draftText) : null;
   const hasJob = tranches.some((t) => t.deliverable.trim().length > 0);
+
+  /**
+   * THE CARD WATCHES THE ACCOUNT WHILE IT WAITS ON IT (5 Nov 2026).
+   *
+   * "Add money", "Swap USDC to METIS" and "Change the limit" open the account in another tab. The card
+   * read the account once, so a founder who did exactly what it asked came back to the same grey button,
+   * and reloading to fix it threw the drafted job away. That is the demo-day stall in another form. While
+   * a launch waits on the account, the card reads it again when the founder comes back to this tab and
+   * every 15 seconds, so the button lights up the moment the money lands. Nothing is guessed: each read is
+   * the chain's.
+   */
+  const waitingOnAccount = mode === "pay" && hasJob && !launchedJob && founder.authed && account.state === "open" && !!readiness && !readiness.ready;
+  useEffect(() => {
+    if (!waitingOnAccount) return;
+    const again = () => setAccountReads((n) => n + 1);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") again();
+    };
+    window.addEventListener("focus", again);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(again, 15_000);
+    return () => {
+      window.removeEventListener("focus", again);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [waitingOnAccount]);
   const cardTitle = jobTitle.trim() || (tranches[0]?.title ?? "").trim() || (tranches[0]?.deliverable.trim() ? missionTitleFrom(tranches[0].deliverable, 0) : "Your job");
 
   const launchButton = (
@@ -436,6 +471,8 @@ export function LaunchForm() {
       setDraftWhy(card.why);
       setDraftNotes(data.notes ?? []);
       setJobTitle(card.title);
+      setDeadline(card.deadline);
+      setNeeds(card.needs);
       setInviteOnly(card.inviteOnly);
       setHanded({ source: data.source ?? null, seconds: Math.max(1, Math.round((Date.now() - started) / 1000)) });
     } catch (e) {
@@ -461,7 +498,7 @@ export function LaunchForm() {
     setPayPhase("plan");
     setPayBusy(true);
     try {
-      const body = composeDirectBody({ who: pay.who, slots: pay.slots, tranches, splitTotal, currency, inviteOnly, why: draftWhy, title: jobTitle });
+      const body = composeDirectBody({ who: pay.who, slots: pay.slots, tranches, splitTotal, currency, inviteOnly, why: draftWhy, title: jobTitle, deadline, needs });
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -601,6 +638,7 @@ export function LaunchForm() {
                 {readiness.overCap && (
                   <a className="lxo-chip" href="/workspace/account" target="_blank" rel="noopener noreferrer">Change the limit</a>
                 )}
+                <span className="cmp-watching">Sage is watching your account: this button lights up when it&apos;s ready.</span>
               </span>
             )}
           </p>
@@ -898,7 +936,10 @@ export function LaunchForm() {
                   if (patch.tranches) setTranches(patch.tranches);
                   if (patch.splitTotal !== undefined) setSplitTotal(patch.splitTotal);
                   if (patch.inviteOnly !== undefined) setInviteOnly(patch.inviteOnly);
+                  if (patch.needs) setNeeds(patch.needs);
                 }}
+                deadline={deadline}
+                needs={needs}
                 onDetails={() => setShowDetails((v) => !v)}
                 detailsOpen={showDetails}
                 action={launchedJob ? null : launchButton}

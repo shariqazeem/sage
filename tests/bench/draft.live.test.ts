@@ -60,6 +60,9 @@ interface Row {
   usage?: { prompt: number; completion: number; calls: number; finish: (string | null)[]; repaired: number };
   cost?: number;
   draft?: Draft;
+  launched?: unknown;
+  needs?: string[];
+  deadline?: string | null;
   notes?: string[];
   kindMatch?: boolean;
   milestoneMatch?: boolean;
@@ -160,6 +163,10 @@ describe.skipIf(process.env.BENCH !== "1")("bench · draft", () => {
           inviteOnly: card.inviteOnly || s.founderTaps.inviteOnly,
           why: card.why,
           title: card.title,
+          deadline: card.deadline,
+          // what only the founder has (an invite link, an address) is left for the grader to see as ASKED FOR:
+          // a placeholder value read as a defect in the card, which it is not (r4, 5 Nov 2026)
+          needs: card.needs.map((n) => ({ ...n, value: "" })),
         };
         const body = composeDirectBody(state);
         const parsed = directCampaignSchema.safeParse(body);
@@ -170,6 +177,10 @@ describe.skipIf(process.env.BENCH !== "1")("bench · draft", () => {
           usage,
           cost,
           draft: d,
+          // what the founder actually launches (the card, with their taps): what the grader reads
+          launched: body,
+          needs: card.needs.map((n) => n.label),
+          deadline: card.deadline || null,
           notes: r.notes,
           kindMatch: d.kind === s.expect.kind,
           milestoneMatch: d.milestones.length === (s.expect.kind === "grant" ? s.expect.milestones : 1) || (s.expect.kind === "gig" && d.kind === "gig"),

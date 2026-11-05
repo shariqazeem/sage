@@ -123,9 +123,17 @@ async function readGithubItem(url: string, m: RegExpExecArray, deps: ReaderDeps)
     ghHeaders(),
   );
   if (issue.status === 404) return miss(url, kindOf, "the issue wasn't found, or the repository is private");
+  // GitHub's API allows 60 unauthenticated calls an hour per server (GITHUB_TOKEN lifts it to 5,000). Rate-limited,
+  // the page itself is still public and readable, so read that instead of failing the founder or the worker.
+  if (issue.status === 403 || issue.status === 429) {
+    const page = await readGeneric(url, { ...deps, render: null });
+    // still a PR or an issue, read from its page; its facts (a merge) are unknown until the API answers again
+    return { ...page, kind: kindOf, facts: { repo: `${owner}/${repo}`, number: num, rateLimited: "true" } };
+  }
   if (!issue.json) return miss(url, kindOf, issue.status === 0 ? "GitHub took too long to answer" : "GitHub didn't answer just now");
   const j = issue.json;
   const facts: Record<string, string> = { repo: `${owner}/${repo}`, number: num, state: j.state ?? "" };
+  let changes = "";
   // The acceptance details often live in the comments ("also handle X", "we decided Y"): read the first few.
   const comments = (j.comments ?? 0) > 0
     ? (await getJson<{ body?: string; user?: { login?: string } }[]>(`https://api.github.com/repos/${owner}/${repo}/issues/${num}/comments?per_page=8`, deps, ghHeaders())).json ?? []
@@ -136,6 +144,21 @@ async function readGithubItem(url: string, m: RegExpExecArray, deps: ReaderDeps)
       deps,
       ghHeaders(),
     );
+    // The change itself: which files, how much, and the start of each diff. A PR's description alone left the
+    // judge unable to see the fix it was paying for (Sage Bench, 5 Nov 2026).
+    const files = (await getJson<{ filename?: string; additions?: number; deletions?: number; patch?: string }[]>(`https://api.github.com/repos/${owner}/${repo}/pulls/${num}/files?per_page=30`, deps, ghHeaders())).json ?? [];
+    if (files.length) {
+      let budget = 6000;
+      facts.files = files.map((f) => f.filename).filter(Boolean).slice(0, 30).join(", ");
+      const patches = files
+        .map((f) => {
+          const p = (f.patch ?? "").slice(0, Math.max(0, budget));
+          budget -= p.length;
+          return `--- ${f.filename} (+${f.additions ?? 0} −${f.deletions ?? 0})${p ? `\n${p}` : ""}`;
+        })
+        .join("\n");
+      changes = `\n\nFiles changed:\n${patches}`;
+    }
     if (pr.json) {
       facts.merged = String(!!pr.json.merged);
       if (pr.json.merged_at) facts.mergedAt = pr.json.merged_at;
@@ -155,7 +178,7 @@ async function readGithubItem(url: string, m: RegExpExecArray, deps: ReaderDeps)
     "",
     j.body ?? "",
     ...(comments.length ? ["", "Comments:", ...comments.map((c) => `- ${c.user?.login ?? "someone"}: ${(c.body ?? "").replace(/\s+/g, " ").slice(0, 600)}`)] : []),
-  ].join("\n");
+  ].join("\n") + changes;
   return ok(url, kindOf, text, { title: j.title, author: j.user?.login, facts }, deps.maxChars);
 }
 
@@ -436,7 +459,30 @@ export const PLATFORM_ONLY: ReadonlySet<ReadKind> = new Set<ReadKind>(["google_d
  * Read one link. Never throws. An http:// link is read as https:// (the same page on every site that
  * matters), because refusing "http" sent a founder back to retype a link that was fine.
  */
+/**
+ * One read serves the checker and the judge: the same link is read twice per submission (the deterministic
+ * check, then the judge's evidence), and on GitHub each read is several API calls against an hourly limit.
+ * A successful read is kept for a few minutes, keyed by URL and the shape asked for. An injected fetch
+ * (tests) never touches the cache.
+ */
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 300;
+const cache = new Map<string, { at: number; read: PageRead }>();
+
 export async function readPage(rawUrl: string, deps: ReaderDeps = {}): Promise<PageRead> {
+  const key = `${rawUrl.trim()}|${deps.maxChars ?? DEFAULT_MAX_CHARS}`;
+  const cacheable = !deps.fetchImpl && !deps.lookup;
+  const hit = cacheable ? cache.get(key) : undefined;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.read;
+  const read = await readPageUncached(rawUrl, deps);
+  if (cacheable && read.read) {
+    if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
+    cache.set(key, { at: Date.now(), read });
+  }
+  return read;
+}
+
+async function readPageUncached(rawUrl: string, deps: ReaderDeps): Promise<PageRead> {
   let url = rawUrl.trim().replace(/[)\].,;!?]+$/, "");
   if (/^http:\/\//i.test(url)) url = `https://${url.slice(7)}`;
   try {

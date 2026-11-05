@@ -892,3 +892,44 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* What workers will need that only the founder can add (an invite link, access, an address). */
+.jc-needs {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.jc-need {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.jc-need-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.jc-need-row input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.jc-need-row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The card re-reads the account while a launch waits on it; this says so, quietly. */
+.cmp-watching {
+  flex-basis: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}

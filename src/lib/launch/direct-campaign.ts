@@ -4,7 +4,6 @@ import { z } from "zod";
 import { keccak256, stringToHex, type Hex } from "viem";
 import { nanoid } from "nanoid";
 
-import { CHAINS } from "@/lib/deputy/networks";
 import { formatLocal, toUsdBase, type RateQuote } from "@/lib/money/currency";
 import { siteUrl } from "@/lib/site";
 import { releasesOnThirdPartyDecision, THIRD_PARTY_DECISION_REFUSAL } from "./third-party-decision";
@@ -169,7 +168,7 @@ const contractSchema = z.discriminatedUnion("kind", [
 
 const milestoneSchema = z.object({
   title: z.string().min(4).max(120),
-  instructions: z.string().min(10).max(2000),
+  instructions: z.string().min(10).max(6000), // the mission spec's own limit (SPEC_LIMITS.instructions)
   criteria: z.array(z.string().min(4).max(300)).min(1).max(8),
   evidence: contractSchema,
   /** operator-priced tranche, USD, at most 2 decimals. */
@@ -193,7 +192,7 @@ const milestoneSchema = z.object({
     .refine((v) => v >= DIRECT_LIMITS.rewardUsdMin, `at least $${DIRECT_LIMITS.rewardUsdMin} per completion`)
     .refine((v) => v <= DIRECT_LIMITS.rewardUsdMax, `at most $${DIRECT_LIMITS.rewardUsdMax} per completion`)),
   slots: z.number().int().min(1).max(DIRECT_LIMITS.slotsMax),
-  effortMinutes: z.number().int().min(1).max(240).optional(),
+  effortMinutes: z.number().int().min(1).max(10_080).optional(),
 });
 
 export const directCampaignSchema = z.object({

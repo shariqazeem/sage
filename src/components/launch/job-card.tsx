@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { CircleCheck, Minus, Plus, X } from "lucide-react";
-import type { Tranche } from "@/lib/launch/composer";
+import type { Need, Tranche } from "@/lib/launch/composer";
 
 /**
  * THE JOB, AS ONE CARD (28 Oct 2026). Sage reads what the founder handed over and writes the job; this is
@@ -13,7 +13,7 @@ import type { Tranche } from "@/lib/launch/composer";
  *
  * The money rule holds: an amount is the founder's tap or the founder's words, never the model's.
  */
-export type CardPatch = { slots?: string; tranches?: Tranche[]; splitTotal?: string; inviteOnly?: boolean };
+export type CardPatch = { slots?: string; tranches?: Tranche[]; splitTotal?: string; inviteOnly?: boolean; needs?: Need[] };
 
 const PER_PERSON = [5, 20, 50, 100];
 const GRANT_TOTAL = [50, 100, 250, 500];
@@ -114,7 +114,13 @@ export function JobCard({
   detailsOpen,
   action,
   note,
+  deadline,
+  needs = [],
 }: {
+  /** the founder's own deadline, when they gave one */
+  deadline?: string;
+  /** what workers need that only the founder can add: asked for here, written into the steps */
+  needs?: Need[];
   title: string;
   /** "github.com/acme/app/issues/42" when Sage read a link; null when it worked from words */
   from: string | null;
@@ -194,6 +200,13 @@ export function JobCard({
           )}
         </span>
 
+        {deadline?.trim() && (
+          <>
+            <span className="jc-k">By</span>
+            <span className="jc-v">{deadline.trim()}</span>
+          </>
+        )}
+
         <span className="jc-k">Who</span>
         <span className="jc-v">
           <button type="button" className={`jc-chip${!inviteOnly ? " on" : ""}`} aria-pressed={!inviteOnly} onClick={() => onChange({ inviteOnly: false })}>Anyone, verified</button>
@@ -205,6 +218,26 @@ export function JobCard({
           )}
         </span>
       </div>
+
+      {needs.length > 0 && (
+        <div className="jc-needs">
+          <p className="jc-k">Workers will need</p>
+          {needs.map((n, k) => (
+            <label key={k} className="jc-need">
+              <span>{n.label}</span>
+              <span className="jc-need-row">
+                <input
+                  type="text"
+                  value={n.value}
+                  placeholder="Add it here"
+                  onChange={(e) => onChange({ needs: needs.map((x, j) => (j === k ? { ...x, value: e.target.value } : x)) })}
+                />
+                <button type="button" className="jc-x" aria-label={`Workers won't need: ${n.label}`} onClick={() => onChange({ needs: needs.filter((_, j) => j !== k) })}><X size={12} /></button>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
 
       <div className="jc-sec">
         {tranches.map((t, i) => {

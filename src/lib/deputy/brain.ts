@@ -15,6 +15,7 @@ import {
   hardenBrief,
   heuristicBrief,
   estimateCostUsd,
+  REASON_CODES,
   type BrainInput,
   type DecisionBrief,
   type DecisionBriefContent,
@@ -104,6 +105,44 @@ const LLM_ATTEMPTS = 3;
  * answer arrives at ~19-28 s, so a second call usually starts and is discarded — about a cent.
  */
 const HEDGE_AFTER_MS = 15_000;
+
+/**
+ * The brief's shape as a strict JSON schema: the same fields SYSTEM_PROMPT asks for and parseBriefContent
+ * reads. It only CONSTRAINS GENERATION on a provider that honours it; the strict money parse and the
+ * hardener are unchanged, so nothing a provider sends can earn more than before.
+ */
+const JUDGE_RESPONSE_SCHEMA = {
+  name: "payout_brief",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["criteria", "fraudSignals", "recommendation", "reasonCode", "confidence", "summary"],
+    properties: {
+      criteria: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["criterion", "met", "confidence", "quote"],
+          properties: { criterion: { type: "string" }, met: { type: "boolean" }, confidence: { type: "number" }, quote: { type: ["string", "null"] } },
+        },
+      },
+      fraudSignals: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["signal", "severity", "reason"],
+          properties: { signal: { type: "string" }, severity: { type: "string", enum: ["low", "med", "high"] }, reason: { type: "string" } },
+        },
+      },
+      recommendation: { type: "string", enum: ["pay", "review", "hold"] },
+      reasonCode: { type: "string", enum: [...REASON_CODES] },
+      confidence: { type: "number" },
+      summary: { type: "string" },
+    },
+  } as Record<string, unknown>,
+};
 
 /** A resolved LLM endpoint the brain can call. */
 export interface LlmProvider {
@@ -299,8 +338,13 @@ async function callProvider(
         // Force valid JSON where the provider takes it — without this some models drop the outer braces.
         // A provider that ignores it fails the STRICT money parse (parseMoneyBrief) and falls over; it is
         // never repaired or salvaged.
+        // A provider that refuses json_object (Anthropic's endpoint: schema_only) is given the brief's exact
+        // schema, which constrains generation to one bare object. Measured on Sage Bench (5 Nov 2026): with no
+        // format at all, Claude fenced its answer often enough that the strict money parse, which never strips
+        // a fence, failed an attempt, and three in a row would have held a payout. Every provider the judge runs
+        // on today keeps its byte-identical request.
         ...(() => {
-          const rf = responseFormatFor(profile, undefined);
+          const rf = responseFormatFor(profile, profile.jsonMode === "schema_only" ? JUDGE_RESPONSE_SCHEMA : undefined);
           return rf ? { response_format: rf } : {};
         })(),
         messages: [

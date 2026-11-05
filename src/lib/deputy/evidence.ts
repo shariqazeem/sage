@@ -206,7 +206,10 @@ export async function fetchEvidence(
   // a PR with its description and merge state, a post with its words and time (read/page-reader.ts). The
   // plain page there is an editor shell, a player or a sign-in wall, so the judge read nothing and held
   // honest work. The work-proof checker reads the same way, so the judge and the checker see one text.
-  if (PLATFORM_ONLY.has(readerKindFor(url))) {
+  // GitHub pull requests and issues too: the judge then reads the merge state and the change itself, the same
+  // reading the checker used (one cached read serves both).
+  const kind = readerKindFor(url);
+  if (PLATFORM_ONLY.has(kind) || kind === "github_pull" || kind === "github_issue") {
     const r = await readPage(url, { fetchImpl: opts?.fetchImpl, lookup: opts?.lookup, render: null, maxChars: MAX_TEXT_CHARS });
     if (!r.read) return fail(r.reason ?? "platform read failed");
     const facts = r.facts ? Object.entries(r.facts).filter(([, v]) => v !== "").map(([k, v]) => `${k}: ${v}`).join(" · ") : "";

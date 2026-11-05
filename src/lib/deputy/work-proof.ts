@@ -1,5 +1,6 @@
 import { artifactFingerprint, fingerprintSimilarity } from "./fingerprint";
 import { verifyChain } from "@/lib/verify/chains";
+import { PLATFORM_ONLY, readPage, readerKindFor } from "@/lib/read/page-reader";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml } from "./content-text";
 import "server-only";
@@ -7,7 +8,6 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createPublicClient, http, type Hex } from "viem";
 
-import { CHAINS } from "@/lib/deputy/networks";
 import type {
   ArtifactUrlContract,
   OnchainStateContract,
@@ -267,6 +267,28 @@ export async function runWorkProof(
         try {
           const u = new URL(url);
           if (u.protocol !== "https:") return definitive("non-https", "Evidence links must be https.");
+          // A post on X or a video can't be read as a page (it's a sign-in wall or a player), so a required
+          // phrase there could never be found. Read it through its platform, as the judge does.
+          if (PLATFORM_ONLY.has(readerKindFor(u.toString()))) {
+            const r = await readPage(u.toString(), { fetchImpl: deps.fetchImpl, render: null, maxChars: 200_000 });
+            if (!r.read) {
+              if (/took too long|didn't answer|couldn't be reached|refused to show/i.test(r.reason ?? "")) {
+                return { outcome: "transient", result: { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — Sage will retry shortly." } };
+              }
+              return definitive(`unreadable: ${r.reason ?? "unknown"}`, `Sage couldn't read that link: ${r.reason ?? "it couldn't be opened"}. Make it public and submit it again.`);
+            }
+            body = r.text;
+            status = 200;
+            const pr = matchPublicUrl(body, contract);
+            return classify(pr, () =>
+              [
+                "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
+                `KIND: public post (${r.kind}) · STRENGTH: ${pr.strength} · RESULT: PASSED`,
+                `Sage read ${url} through its platform and found every text the operator required in it.`,
+                pr.publicDetail,
+              ].join("\n"),
+            );
+          }
           // the guarded read (net/guarded-fetch.ts): checked hops, public DNS only, timeout, byte cap
           const page = await guardedFetchPage(u.toString(), { fetchImpl: deps.fetchImpl, maxBytes: 5 * 1024 * 1024, truncate: true });
           if (page.status === 0) {

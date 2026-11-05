@@ -55,6 +55,12 @@ export function contentTextFromHtml(html: string): string {
   return textOf(stripped);
 }
 
+/** All the visible text of a page with its chrome removed (nav, header, footer, aside, scripts): what a
+ *  reader counts as "the words on the page", including text built from bare divs. */
+export function visibleTextFromHtml(html: string): string {
+  return textOf(html.replace(/<!--[\s\S]*?-->/g, " ").replace(DROP_REGIONS, " "));
+}
+
 /** The DOM-side twin of `contentTextFromHtml`, for the headless renderer: same regions, same elements. */
 export const CONTENT_TEXT_IN_PAGE = `(() => {
   const drop = ["nav","header","footer","aside","script","style","noscript","template","svg","form","button","select"];

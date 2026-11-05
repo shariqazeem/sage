@@ -38,7 +38,17 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You are the most demanding reviewer of Sage, an AI agent that turns what a team hands it into a paid job: Sage drafts the job card (title, steps, criteria, proof), the founder sets the pay and launches, people do the work, and Sage verifies each submission against the card before paying in USDC. A bad card means the founder fixes it by hand (Sage failed) or a worker does the wrong thing (Sage failed). Grade strictly and concretely; a 5 means you would not change a word. Money is never on the card: never penalize its absence.`;
+const SYSTEM = `You are the most demanding reviewer of Sage, an AI agent that turns what a team hands it into a paid job: Sage drafts the job card (title, steps, criteria, proof), the founder sets the pay and launches, people do the work, and Sage verifies each submission against the card before paying in USDC. A bad card means the founder fixes it by hand (Sage failed) or a worker does the wrong thing (Sage failed). Grade strictly and concretely; a 5 means you would not change a word. Money is never on the card: never penalize its absence.
+
+What Sage checks by itself, so you can judge verifiability fairly:
+- the worker's wallet address must appear in the work (page, doc, sheet, post, video description, PR description): authorship;
+- the link must live on the named hosts; temporary paste sites are refused;
+- a word floor counted on the content;
+- a copy check against the page the work is about (a near-paste is refused, overlap is reported to the judge);
+- for platform proofs it reads the platform itself: a PR's merge state and repository, a sheet's rows, a video's length, a post's time;
+- for on-chain proofs it reads the transaction on its chain (sender, target, success, after the job went live);
+- an AI judge then reads the work against the criteria, quoting the evidence, and a person holds anything doubtful.
+"People", the deadline and what the founder adds (needs) are set on the card by the founder.`;
 
 function prompt(s: Record<string, unknown>, row: Record<string, unknown>): string {
   const expect = s.expect as Record<string, unknown>;
@@ -49,7 +59,7 @@ function prompt(s: Record<string, unknown>, row: Record<string, unknown>): strin
     `\nTHE FOUNDER WILL TAP: ${JSON.stringify(s.founderTaps)}`,
     `\nEXPECTED (from the scenario author): ${JSON.stringify({ shouldRefuse: expect.shouldRefuse, refuseWhy: expect.refuseWhy, kind: expect.kind, milestones: expect.milestones, idealProof: expect.proofKind, mustCarry: expect.mustCarry, pitfalls: expect.pitfalls })}`,
     row.draft
-      ? `\nSAGE'S DRAFT (proof kinds Sage supports today: artifact_url = a page or link the worker made, carrying their wallet; public_url = a page that must show given text; onchain_tx = a transaction):\n${JSON.stringify(row.draft, null, 1)}`
+      ? `\nTHE JOB AS LAUNCHED (the card after the founder's taps: pay and people are theirs):\n${JSON.stringify(row.launched ?? row.draft, null, 1)}${row.needs && (row.needs as string[]).length ? `\nSAGE ASKED THE FOUNDER FOR (the card will not launch until they fill these in; each becomes a "From the founder" line at the top of the steps, so do not count them as missing): ${JSON.stringify(row.needs)}` : ""}`
       : `\nSAGE DID NOT DRAFT A JOB. It answered: ${JSON.stringify(row.error ?? null)}`,
     row.notes && (row.notes as string[]).length ? `\nNotes Sage showed the founder: ${JSON.stringify(row.notes)}` : "",
   ].join("\n");

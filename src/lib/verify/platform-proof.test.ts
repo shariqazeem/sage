@@ -105,8 +105,22 @@ describe("the judge reads platform links through the same door", () => {
     expect(r.text).toContain("Bienvenido a Acme");
   });
 
-  it("a GitHub page stays on the plain read for the judge (GitHub's API is spent only where a check needs it)", async () => {
-    const r = await fetchEvidence("https://github.com/acme/app/pull/77", { fetchImpl: (async () => text(`<html><p>Fixes #42 by streaming the upload. ${W}</p></html>`, "text/html")) as unknown as typeof fetch, lookup });
+  it("a pull request reaches the judge with its merge state and the change itself", async () => {
+    const fetchImpl = vi.fn(async (u: string) => {
+      if (u.includes("/pulls/77/files")) return json([{ filename: "src/upload.ts", additions: 12, deletions: 3, patch: "@@ -1 +1 @@\n-read whole file\n+stream the upload" }]);
+      if (u.includes("/pulls/")) return json({ merged: true, merged_at: "2026-11-06T10:00:00Z", base: { ref: "main" } });
+      if (u.endsWith("/comments?per_page=8")) return json([]);
+      return json({ title: "Stream PDF uploads", body: `Fixes #42. ${W}`, state: "closed", user: { login: "worker" }, comments: 0 });
+    }) as unknown as typeof fetch;
+    const r = await fetchEvidence("https://github.com/acme/app/pull/77", { fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.mode).toBe("platform");
+    expect(r.text).toMatch(/merged: true/);
+    expect(r.text).toContain("stream the upload");
+  });
+
+  it("a GitHub repository or file page stays on the plain read (GitHub's API is spent where a check needs it)", async () => {
+    const r = await fetchEvidence("https://github.com/acme/app/blob/main/README.md", { fetchImpl: (async () => text(`<html><p>Acme app readme, wallet ${W}</p></html>`, "text/html")) as unknown as typeof fetch, lookup });
     expect(r.ok).toBe(true);
     expect(r.mode).toBe("static");
   });

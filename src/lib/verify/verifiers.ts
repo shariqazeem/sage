@@ -1,12 +1,15 @@
 import { artifactFingerprint, stripMarkers } from "@/lib/deputy/fingerprint";
 import { PLATFORM_ONLY, readPage, readerKindFor } from "@/lib/read/page-reader";
+import { textOf, visibleTextFromHtml } from "@/lib/deputy/content-text";
+
+/** Below this share of a stated word floor, work is refused here; between it and the floor, the judge decides. */
+export const WORD_FLOOR_TOLERANCE = 0.85;
 import { verifyChain } from "./chains";
 import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
 import "server-only";
 
 import { createPublicClient, http, type Hex } from "viem";
-import { CHAINS } from "@/lib/deputy/networks";
 import type {
   ArtifactUrlContract,
   OnchainStateContract,
@@ -28,6 +31,27 @@ import type {
  */
 
 const norm = (s: string) => s.trim().toLowerCase();
+
+/**
+ * Text a person would SEE, comparable: entities decoded (`Fruit &amp; Veg` is "Fruit & Veg"), curly quotes
+ * and apostrophes straightened, spaces collapsed. A required phrase was matched against raw HTML, so
+ * "Miss Ivy's Fruit & Veg" never matched a page that showed exactly that (Sage Bench, 5 Nov 2026).
+ */
+export function seeable(s: string): string {
+  return textOf(s)
+    .normalize("NFKC")
+    .replace(/[\u2018\u2019\u201B\u2032\u00B4`]/g, "'")
+    .replace(/[\u201C\u201D\u201F\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Is the phrase on the page, whether it is read as markup or as what a person sees? */
+function pageHas(body: string, phrase: string): boolean {
+  return norm(body).includes(norm(phrase)) || seeable(body).includes(seeable(phrase));
+}
 const hexEq = (a?: string | null, b?: string | null) => !!a && !!b && norm(a) === norm(b);
 
 /**
@@ -259,22 +283,35 @@ export function matchArtifact(
   if (!marker || !markerVariants(marker).some((v) => hay.includes(v)))
     return fail("marker absent", "That page doesn't carry your unique marker, so I can't confirm it's yours.");
   for (const t of c.mustContain ?? []) {
-    if (!hay.includes(norm(t))) return fail(`missing "${t}"`, "That page is missing something the mission required.");
+    if (!pageHas(input.bodyText, t)) return fail(`missing "${t}"`, "That page is missing something the mission required.");
   }
   // THE WORK, NOT THE SITE. The fingerprint and the word floor read the page's content elements only
   // (see content-text.ts): fingerprinting whole pages held an honest dev.to article as a 92% "copy"
   // of a different dev.to article, because both were mostly dev.to.
   const content = input.contentText ?? contentTextFromHtml(input.bodyText);
+  let wordsNote: string | null = null;
   if (c.minWords) {
-    const words = wordCount(stripMarkers(content, markerVariants(marker)));
-    if (words < c.minWords)
+    /**
+     * THE FLOOR CATCHES THIN WORK, NOT A NEAR MISS (Sage Bench, 5 Nov 2026). Counting only content elements
+     * undercounts pages built from bare divs, and honest pieces that "just clear 400 words" read as 340-380
+     * here. Every one was held as a deterministic fail. Text outside the content elements now earns up to a
+     * quarter more credit, and only work clearly under the floor (below WORD_FLOOR_TOLERANCE of it) is
+     * refused here. A near miss reaches the judge with the count, and the judge weighs it against the
+     * criterion that states the floor.
+     */
+    const markers = markerVariants(marker);
+    const counted = wordCount(stripMarkers(content, markers));
+    const visible = counted < c.minWords ? wordCount(stripMarkers(visibleTextFromHtml(input.bodyText), markers)) : counted;
+    const words = Math.max(counted, Math.min(visible, Math.ceil(counted * 1.25)));
+    if (words < Math.ceil(c.minWords * WORD_FLOOR_TOLERANCE))
       return fail(`too short: ${words} words < ${c.minWords}`, `Your page has about ${words} words; this mission asks for at least ${c.minWords} words of your own writing. Add the substance and resubmit.`);
+    if (words < c.minWords) wordsNote = ` It has about ${words} words against the ${c.minWords} asked for, so the reviewer weighs the length.`;
   }
   return {
     verified: true,
     strength: "strong",
-    detail: "artifact live + tester-marked",
-    publicDetail: "Verified: the object you created is live and carries your marker.",
+    detail: wordsNote ? "artifact live + tester-marked (near the word floor)" : "artifact live + tester-marked",
+    publicDetail: `Verified: the object you created is live and carries your marker.${wordsNote ?? ""}`,
     artifactFingerprint: artifactFingerprint(content, markerVariants(marker)),
   };
 }
@@ -324,6 +361,8 @@ async function verifyPlatformArtifact(
   }
   if (c.prMerged) {
     if (r.kind !== "github_pull") return fail("not a pull request", "This job pays for a merged pull request. Submit the link to your pull request.");
+    // GitHub rate-limited the read: the merge is unknown, not missing. Wait and read again.
+    if (f.rateLimited === "true") return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "GitHub is busy; Sage will check the merge again shortly." };
     if (f.merged !== "true") return fail("pr not merged", "That pull request isn't merged yet. Sage pays once the maintainers merge it; submit it again after that.");
   }
   if (c.minRows && r.kind === "google_sheet") {
@@ -398,8 +437,7 @@ export async function verifyArtifactUrl(
 
 /** PURE: are all expected texts verbatim substrings of the fetched page? (mirrors the url lane's rule) */
 export function matchPublicUrl(bodyText: string, c: PublicUrlContract): VerificationResult {
-  const hay = norm(bodyText);
-  const missing = c.expectedText.filter((t) => !hay.includes(norm(t)));
+  const missing = c.expectedText.filter((t) => !pageHas(bodyText, t));
   if (missing.length === 0) return { verified: true, strength: "strong", detail: "all expected text present", publicDetail: "Verified: the page shows what the mission required." };
   return { verified: false, strength: "strong", detail: `missing ${missing.length}`, publicDetail: "The page didn't show everything the mission required." };
 }

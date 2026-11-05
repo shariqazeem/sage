@@ -3,6 +3,7 @@ import { verifiableChainList } from "@/lib/verify/chains";
 import { missionTitleFrom } from "@/lib/launch/mission-title";
 import { prefillSlots } from "@/lib/launch/direct-fallback";
 import { prefillMoneyFromWords } from "@/lib/launch/prefill-money";
+import { cutAtBoundary } from "@/lib/launch/text-cut";
 
 /**
  * THE PAY-FOR-WORK COMPOSER, AS DATA (28 Oct 2026). The composer's lines used to become the
@@ -63,7 +64,18 @@ export interface ComposerState {
   why: string;
   /** the job's own name, when Sage drafted it ("Fix the crash on PDF uploads"); else "Pay <who>" */
   title?: string;
+  /** the founder's own deadline, verbatim; written into the steps so every worker reads it */
+  deadline?: string;
+  /**
+   * What a stranger needs that only the founder can give (an invite link, repository access, a contract
+   * address). Sage asks for it on the card instead of guessing, and the answers go into the steps.
+   * Opus's review of Sage Bench drafts (5 Nov 2026) found this the most common reason a job couldn't start.
+   */
+  needs?: Need[];
 }
+
+/** One thing the founder adds before launch: what it is, and what they typed. */
+export type Need = { label: string; value: string };
 
 /**
  * THE SENTENCES COMPILE DIRECTLY — no chat, no model. The rows the founder composed become the
@@ -130,9 +142,15 @@ export function composeDirectBody(s: ComposerState) {
     const sameAs = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
     const criteria = drafted.length > 0 ? [...drafted.slice(0, 7), ...(drafted.some((c) => sameAs(c, autoCriterion)) ? [] : [autoCriterion])] : [cap, autoCriterion];
     const draftedSteps = (t.instructions ?? "").trim();
+    const baseSteps = draftedSteps.length >= 10 ? draftedSteps : `What must be true: ${cap}. ${proofLine}`;
+    // the founder's own words for what workers need, and their deadline, reach every worker in the steps
+    const given = (s.needs ?? []).filter((n) => n.value.trim().length > 0).map((n) => `From the founder, ${n.label.replace(/[.:\s]+$/, "")}: ${n.value.trim()}`);
+    const deadline = s.deadline?.trim();
+    const deadlineLine = deadline && !baseSteps.toLowerCase().includes(deadline.toLowerCase()) ? [`Deadline: ${deadline}.`] : [];
+    const instructions = [...given, ...deadlineLine].length > 0 ? `${[...given, ...deadlineLine].join("\n")}\n\n${baseSteps}` : baseSteps;
     return {
       title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),
-      instructions: draftedSteps.length >= 10 ? draftedSteps.slice(0, 2000) : `What must be true: ${cap}. ${proofLine}`,
+      instructions: cutAtBoundary(instructions, 6000),
       ...(splitting ? {} : isLocal ? { rewardLocal: Number(t.amount) } : {}),
       criteria,
       evidence: t.verify === "link" && t.minWords ? { ...evidence, minWords: t.minWords } : evidence,
@@ -188,7 +206,7 @@ export type DraftMilestone = {
     | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean };
   effortMinutes?: number;
 };
-export type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; milestones: DraftMilestone[] };
+export type Draft = { kind: "grant" | "gig"; title: string; who: string; slots: number; whyItMatters?: string; deadline?: string; needsFromFounder?: string[]; milestones: DraftMilestone[] };
 
 export interface ComposedFromDraft {
   pay: { who: string; slots: string };
@@ -198,6 +216,8 @@ export interface ComposedFromDraft {
   why: string;
   title: string;
   inviteOnly: boolean;
+  deadline: string;
+  needs: Need[];
 }
 
 /**
@@ -238,5 +258,7 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
     title: d.title,
     // work for someone the founder names ("my designer", "our translator") is theirs to invite
     inviteOnly: /^(my|our)\b/i.test(d.who.trim()),
+    deadline: d.deadline ?? "",
+    needs: (d.needsFromFounder ?? []).map((label) => ({ label, value: "" })),
   };
 }
