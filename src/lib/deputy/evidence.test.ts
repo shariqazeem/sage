@@ -45,13 +45,21 @@ describe("stripHtml", () => {
 });
 
 describe("fetchEvidence — size cap", () => {
-  it("flags an oversized body as a signal (ok:false), not an exception", async () => {
-    const big = new Uint8Array(300 * 1024); // > 250KB
+  it("reads a heavy page instead of refusing it for its weight (a 300 KB article is ordinary)", async () => {
+    const big = new TextEncoder().encode(`<p>real work</p>${" ".repeat(300 * 1024)}`);
     const { fetchImpl } = queuedFetch([res({ status: 200, bytes: big })]);
     const r = await fetchEvidence("https://example.org/huge", { fetchImpl });
-    expect(r.ok).toBe(false);
-    expect(r.failReason).toBe("oversized");
-    expect(r.text).toBe("");
+    expect(r.ok).toBe(true);
+    expect(r.text).toContain("real work");
+  });
+
+  it("keeps the head of a body past the cap, so memory and time stay bounded", async () => {
+    const head = "<p>the article starts here</p>";
+    const huge = new TextEncoder().encode(head + "x".repeat(5 * 1024 * 1024));
+    const { fetchImpl } = queuedFetch([res({ status: 200, bytes: huge })]);
+    const r = await fetchEvidence("https://example.org/huge", { fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.text).toContain("the article starts here");
   });
 
   it("returns readable text under the cap", async () => {

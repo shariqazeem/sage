@@ -52,8 +52,18 @@ export interface EvidenceResult {
   render?: RenderProvenance;
 }
 
-const TIMEOUT_MS = 5000;
-const MAX_BYTES = 250 * 1024; // 250KB cap
+const TIMEOUT_MS = 10_000;
+/**
+ * HOW MUCH OF A PAGE IS READ.
+ *
+ * Measured 5 Nov 2026 (Sage Bench · reader): a 250 KB cap refused most modern pages outright. A docs
+ * page, a GitHub view, a YouTube page and a Medium article are each well past it, and "oversized" held a
+ * worker's honest article for no reason but its weight. Now the head of the page is kept, up to
+ * MAX_BYTES, and the judge reads the text of that, which it caps far lower anyway. Only a body DECLARED
+ * beyond HARD_MAX_BYTES is refused unread, so a hostile link can't make the server stream a gigabyte.
+ */
+const MAX_BYTES = 4 * 1024 * 1024;
+const HARD_MAX_BYTES = 64 * 1024 * 1024;
 const MAX_REDIRECTS = 2;
 const MAX_TEXT_CHARS = 40_000;
 /** Below this, a static fetch's text is "thin" — the SPA-shell signature that warrants a rendered retry. */
@@ -157,11 +167,14 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array | null
       const { done, value } = await reader.read();
       if (done) break;
       if (!value) continue;
-      total += value.byteLength;
-      if (total > max) {
+      if (total + value.byteLength > max) {
+        // keep the head of the page: the words a person reads first are the ones that matter
+        chunks.push(value.subarray(0, max - total));
+        total = max;
         await reader.cancel().catch(() => {});
-        return null; // oversized
+        break;
       }
+      total += value.byteLength;
       chunks.push(value);
     }
     const out = new Uint8Array(total);
@@ -172,10 +185,10 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array | null
     }
     return out;
   }
-  // No stream (e.g. a mocked Response): buffer, then enforce the cap.
+  // No stream (e.g. a mocked Response): buffer, then keep the head, as above.
   const ab = await res.arrayBuffer();
   const u8 = new Uint8Array(ab);
-  return u8.byteLength > max ? null : u8;
+  return u8.byteLength > max ? u8.subarray(0, max) : u8;
 }
 
 /**
@@ -258,9 +271,9 @@ export async function fetchEvidence(
 
     if (res.status < 200 || res.status >= 300) return fail(`http ${res.status}`);
 
-    // Fast reject on a declared oversized length before streaming.
+    // Fast reject only on an absurd declared length; anything else is read up to the cap and kept.
     const declared = Number(res.headers.get("content-length") ?? "");
-    if (Number.isFinite(declared) && declared > MAX_BYTES) return fail("oversized");
+    if (Number.isFinite(declared) && declared > HARD_MAX_BYTES) return fail("oversized");
 
     const buf = await readCapped(res, MAX_BYTES);
     if (buf === null) return fail("oversized");
