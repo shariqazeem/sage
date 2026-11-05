@@ -29,6 +29,8 @@ import { profileFor, type ProviderProfile } from "./provider-profile";
  *     architect. A 429 that states its cap lowers the limit to that cap.
  *  3. PRIORITY: when a key is busy, the person who is WAITING goes first: the draft and the concierge,
  *     then judgment (a worker waiting to be paid), then background design.
+ *  4. CREDIT: an account that says it is out of credit is closed, not busy. It fails fast, is never
+ *     retried as a rate limit, and the operator hears it once (credit-alert.ts).
  *
  * It never logs a key, a prompt or a provider's response body. It reads a 400's body only to classify
  * which parameter was refused, and throws the text away.
@@ -58,7 +60,22 @@ interface Refused {
   /** the largest max_tokens this model accepts, read from its own refusal ("… must be <= 8192"). */
   maxTokensCap?: number;
 }
-const refused = new Map<string, Refused>();
+/**
+ * Everything the wire learns lives in ONE process-wide store. Next compiles routes into separate bundles,
+ * and a module-level Map would give each bundle its own memory: its own concurrency limit (more requests in
+ * flight than configured) and its own idea of which provider is out of credit.
+ */
+interface WireStore {
+  refused: Map<string, Refused>;
+  gates: Map<string, Gate>;
+  closed: Map<string, Closed>;
+  listeners: Set<(e: CreditEvent) => void>;
+  /** when each key last came back after being out of credit (ms). Read by the sweep's re-judge window. */
+  reopenedAt: Map<string, number>;
+}
+const g0 = globalThis as typeof globalThis & { __sageWire?: WireStore };
+const store: WireStore = (g0.__sageWire ??= { refused: new Map(), gates: new Map(), closed: new Map(), listeners: new Set(), reopenedAt: new Map() });
+const refused = store.refused;
 const shapeKey = (p: Pick<WireProvider, "host" | "model">) => `${p.host}|${p.model}`;
 
 /**
@@ -162,6 +179,8 @@ function learnMaxTokens(p: Pick<WireProvider, "host" | "model">, cap: number): v
 export function resetWireMemory(): void {
   refused.clear();
   gates.clear();
+  store.closed.clear();
+  store.reopenedAt.clear();
 }
 
 // ─────────────────────────── 2 + 3. CONCURRENCY + PRIORITY ───────────────────────────
@@ -177,7 +196,7 @@ interface Gate {
   learnedCap: number | null;
   waiters: Waiter[];
 }
-const gates = new Map<string, Gate>();
+const gates = store.gates;
 let seq = 0;
 
 /** A key's identity for queueing, never the key itself. */
@@ -237,6 +256,146 @@ export function statedCap(bodyText: string): number | null {
   return Number.isFinite(n) && n >= 1 ? n : null;
 }
 
+// ───────────────────────────── 4. AN ACCOUNT OUT OF CREDIT ─────────────────────────────
+
+/**
+ * A PROVIDER OUT OF CREDIT IS CLOSED, NOT BUSY.
+ *
+ * Measured 5 Nov 2026: CommonStack answered every call with HTTP 429 "Insufficient available balance: 0".
+ * Every lane sat on that one account (the judge, the drafter, the concierge, missions, and the fallback),
+ * and each read the 429 as a rate limit:
+ * - the judge retried after 0.6 s and 1.2 s, then fell to a fallback on the same empty account;
+ * - the drafter waited about 12 s on a "rate limit" before telling the founder anything;
+ * - nobody was told. The operator would have learned it from a customer.
+ *
+ * So the wire reads the provider's own words. An empty account is answered as HTTP 402 (out of credit),
+ * which no caller retries, and is remembered for CLOSED_FOR_MS: calls on that key fail at once, while the
+ * next provider in a chain may still answer. Whoever listens (credit-alert.ts) hears once. The first call
+ * that is answered again clears it.
+ */
+const CREDIT_WORDS = [
+  /insufficient[\s_-]*(available[\s_-]*)?(balance|credits?|funds|quota)/i,
+  /credit balance is too low/i,
+  /\binsufficient_quota\b/i,
+  /exceeded your current quota/i,
+  /out of credits?/i,
+  /\bbalance\b[^.\n]{0,30}\b(too low|exhausted|insufficient|depleted)/i,
+  /payment required/i,
+  /billing[\s_-]*(hard[\s_-]*)?limit/i,
+];
+
+/** Is this refusal the account, not the request: no credit, no balance, no quota left to bill? */
+export function outOfCredit(status: number, bodyText: string): boolean {
+  if (status === 402) return true;
+  if (status !== 400 && status !== 403 && status !== 429) return false;
+  const t = bodyText.slice(0, 2000);
+  return CREDIT_WORDS.some((re) => re.test(t));
+}
+
+/** The provider's own short message, safe to show an operator: no token-like strings, at most 160 chars. */
+export function providerMessage(bodyText: string): string {
+  let m = bodyText.slice(0, 2000);
+  try {
+    const j = JSON.parse(m) as { error?: { message?: unknown } | string; message?: unknown };
+    const inner = typeof j.error === "string" ? j.error : j.error?.message ?? j.message;
+    if (typeof inner === "string" && inner.trim()) m = inner;
+  } catch {
+    /* not JSON: the text itself */
+  }
+  return m
+    .replace(/\b(sk|pk|rk|key|token)[-_][A-Za-z0-9_-]{6,}/gi, "[redacted]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+/** How long an empty account is answered from memory before the wire asks the provider again. */
+export const CLOSED_FOR_MS = 30_000;
+
+interface Closed {
+  host: string;
+  keyId: string;
+  since: number;
+  checkedAt: number;
+  message: string;
+}
+
+export interface CreditEvent {
+  kind: "closed" | "reopened";
+  host: string;
+  /** a hash of the key, never the key. */
+  keyId: string;
+  message: string;
+  since: number;
+}
+
+/** Hear when a provider key runs out of credit, and when it answers again. Returns an unsubscribe. */
+export function onCreditChange(fn: (e: CreditEvent) => void): () => void {
+  store.listeners.add(fn);
+  return () => store.listeners.delete(fn);
+}
+
+function emit(e: CreditEvent): void {
+  for (const fn of store.listeners) {
+    try {
+      fn(e);
+    } catch {
+      /* a listener's failure never touches a model call */
+    }
+  }
+}
+
+/** Every provider key the wire currently knows to be out of credit. */
+export function closedProviders(): { host: string; keyId: string; since: number; message: string }[] {
+  return [...store.closed.values()].map(({ host, keyId, since, message }) => ({ host, keyId, since, message }));
+}
+
+/** The latest moment any provider key came back from being out of credit (ms), or null. */
+export function lastReopenedAt(): number | null {
+  const all = [...store.reopenedAt.values()];
+  return all.length ? Math.max(...all) : null;
+}
+
+function keyIdOf(p: Pick<WireProvider, "key">): string {
+  return createHash("sha256").update(p.key).digest("hex").slice(0, 12);
+}
+
+function noteOutOfCredit(p: Pick<WireProvider, "host" | "key">, bodyText: string, now: number): void {
+  const k = gateKey(p);
+  const known = store.closed.get(k);
+  if (known) {
+    known.checkedAt = now;
+    return;
+  }
+  const c: Closed = { host: p.host, keyId: keyIdOf(p), since: now, checkedAt: now, message: providerMessage(bodyText) };
+  store.closed.set(k, c);
+  console.error(`[llm-wire] ${p.host} is out of credit (${c.message}); calls on this key fail at once until it answers again`);
+  emit({ kind: "closed", host: c.host, keyId: c.keyId, message: c.message, since: c.since });
+}
+
+function noteAnswered(p: Pick<WireProvider, "host" | "key">, now: number): void {
+  const k = gateKey(p);
+  const c = store.closed.get(k);
+  if (!c) return;
+  store.closed.delete(k);
+  store.reopenedAt.set(k, now);
+  console.warn(`[llm-wire] ${p.host} answers again after ${Math.round((now - c.since) / 1000)}s out of credit`);
+  emit({ kind: "reopened", host: c.host, keyId: c.keyId, message: c.message, since: c.since });
+}
+
+/** The answer a remembered empty account gets, without a network call. */
+function closedResponse(c: Closed): WireResponse {
+  return {
+    ok: false,
+    status: 402,
+    text: JSON.stringify({ error: { code: "out_of_credit", message: c.message } }),
+    retryAfterMs: null,
+    sent: {},
+    outOfCredit: true,
+  };
+}
+
 // ───────────────────────────── THE SEND ─────────────────────────────
 
 export interface WireResponse {
@@ -247,6 +406,11 @@ export interface WireResponse {
   retryAfterMs: number | null;
   /** the body that was actually sent, after shaping (never logged; for tests and telemetry shape only). */
   sent: Record<string, unknown>;
+  /**
+   * The account is out of credit (section 4). `status` is then 402 whatever the provider sent (CommonStack
+   * says 429), so no caller retries a closed account as if it were busy.
+   */
+  outOfCredit: boolean;
 }
 
 /**
@@ -292,6 +456,9 @@ export async function postChat(
   },
 ): Promise<WireResponse> {
   const profile = opts.profile ?? profileFor(p.model, p.endpoint);
+  // an account known to be empty is answered from memory: no slot, no network, no wait
+  const shut = store.closed.get(gateKey(p));
+  if (shut && Date.now() - shut.checkedAt < CLOSED_FOR_MS) return closedResponse(shut);
   return withSlot(p, opts.priority ?? "background", async () => {
     const controller = new AbortController();
     const onOuterAbort = () => controller.abort();
@@ -329,7 +496,12 @@ export async function postChat(
             }
           }
         }
-        return { ok: res.ok, status: res.status, text, retryAfterMs: parseRetryAfterMs(headerOf(res, "retry-after")), sent };
+        if (!res.ok && outOfCredit(res.status, text)) {
+          noteOutOfCredit(p, text, Date.now());
+          return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
+        }
+        if (res.ok) noteAnswered(p, Date.now());
+        return { ok: res.ok, status: res.status, text, retryAfterMs: parseRetryAfterMs(headerOf(res, "retry-after")), sent, outOfCredit: false };
       }
     } finally {
       clearTimeout(timer);

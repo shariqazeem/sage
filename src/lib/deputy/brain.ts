@@ -449,6 +449,9 @@ function hedgedPrimary(
           console.error(`[deputy/brain] primary ${primary.host} attempt ${attempt}/${LLM_ATTEMPTS} failed:`, errMsg(err));
           failed++;
           if (failed >= LLM_ATTEMPTS) return finish(null);
+          // An account OUT OF CREDIT (the wire answers it as 402) is closed, not busy: another attempt on it
+          // cannot succeed, so go straight to the fallback provider (5 Nov 2026, CommonStack at $0).
+          if (/^llm 402\b/.test(errMsg(err))) return finish(null);
           // a failure starts the next attempt now, after the same short backoff as before — unless the
           // hedge already started it
           if (launched === attempt && launched < LLM_ATTEMPTS) after(600 * attempt, () => { if (launched === attempt) launch(); });

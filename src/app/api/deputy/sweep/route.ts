@@ -43,6 +43,8 @@ import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
 import { renewDuePlans } from "@/lib/plans/renewal";
 import { collectAdvanceRepayments } from "@/lib/advance/collect";
+import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders } from "@/lib/llm/credit-alert";
+import { lastReopenedAt } from "@/lib/llm/wire";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,7 +98,19 @@ async function runSweep() {
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
     advances: { advances: 0, collected: 0, collectedBase: 0, missed: 0, paused: null as string | null },
+    /** model accounts out of credit (credit-alert.ts): which, asked again this tick, and how many came back. */
+    llm: { closed: [] as ReturnType<typeof creditStatus>, probed: 0, reopened: 0 },
+    /** heuristic receipts waiting for the judge's account to be topped up (no upgrade bought while it is empty). */
+    waitingOnModel: 0,
   };
+
+  // (00) AN EMPTY MODEL ACCOUNT, ASKED AGAIN. Only while one is known to be empty, so a healthy system makes
+  // no call here. A top-up is noticed within a tick, the operator hears it, and the re-judging below opens.
+  armCreditAlerts();
+  const probe = await probeClosedProviders().catch(() => ({ probed: 0, reopened: 0 }));
+  summary.llm = { closed: creditStatus(), ...probe };
+  const judgeDown = judgeOutOfCredit();
+  const reopenedAt = lastReopenedAt();
 
   // (0) recover crashed 'settling' rows so they can be re-processed.
   summary.staleReset = resetStaleSettling(nowSeconds() - STALE_SETTLING_SEC);
@@ -156,9 +170,20 @@ async function runSweep() {
     // upgrade to buy. Without this exclusion the sweep would delete + reinsert it every tick.
     const wantsUpgrade =
       !!dec && dec.engine === "heuristic" && dec.model !== OBSERVATION_ABSTAIN_MODEL && hasLlm();
+    const createdAt = getSubmission(id)?.createdAt ?? 0;
+    /**
+     * WORK HELD WHILE THE JUDGE'S ACCOUNT WAS EMPTY IS RE-JUDGED WHEN IT COMES BACK. The two-hour bound is
+     * for a heuristic receipt the model keeps failing on. An outage is different: nothing was spent, and the
+     * worker did nothing wrong. So a receipt written before the account came back gets its two hours from
+     * that moment (5 Nov 2026: CommonStack sat at $0 for hours, longer than the bound).
+     */
     const withinBound =
-      nowSeconds() - (getSubmission(id)?.createdAt ?? 0) < LLM_UPGRADE_MAX_AGE_SEC;
-    if (wantsUpgrade && withinBound) {
+      nowSeconds() - createdAt < LLM_UPGRADE_MAX_AGE_SEC ||
+      (reopenedAt !== null && createdAt * 1000 <= reopenedAt && Date.now() - reopenedAt < LLM_UPGRADE_MAX_AGE_SEC * 1000);
+    if (wantsUpgrade && judgeDown) {
+      // nothing to buy: the account answers nobody. It is asked again next tick (above).
+      summary.waitingOnModel += 1;
+    } else if (wantsUpgrade && withinBound) {
       await ensureDecision(id, { force: true }).catch(() => null);
       summary.retried += 1;
     } else if (wantsUpgrade) {

@@ -11,4 +11,12 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { logBootSummary } = await import("@/lib/env");
   logBootSummary();
+  // An empty model account is reported to the operator from the first refused call (credit-alert.ts).
+  // Best effort: the sweep arms it again every tick, so a failure here costs minutes, never the boot.
+  try {
+    const { armCreditAlerts } = await import("@/lib/llm/credit-alert");
+    armCreditAlerts();
+  } catch (e) {
+    console.warn("[boot] credit alerts not armed at boot:", e instanceof Error ? e.message : String(e));
+  }
 }

@@ -52,8 +52,10 @@ describe("batchForCritic — every candidate reviewed whole, in order, exactly o
     // the ladder: second timeout → one fallback attempt → stop (never a third primary attempt)
     expect(src).toMatch(/if \(lastError === "provider_timeout" && \+\+timeouts >= 2\) \{\s*const fb = await architectOnFallback\(/);
     expect(src).toMatch(/useFallback: true \}\);\s*const arr = extractMissionArray/);
-    // the critic: only a provider_timeout, only once, only when a fallback exists
-    expect(src).toMatch(/if \(!useFallback && classifyBrainError\(e\) === "provider_timeout" && fallbackLlm\(\)\) return criticBatch\(candidates, mapJson, true\)/);
+    // the critic: only a provider_timeout or an account out of credit, only once, only when a fallback exists
+    expect(src).toMatch(/if \(!useFallback && \["provider_timeout", "provider_out_of_credit"\]\.includes\(classifyBrainError\(e\)\) && fallbackLlm\(\)\) return criticBatch\(candidates, mapJson, true\)/);
+    // an empty account goes to the fallback at once: no attempt on it can succeed
+    expect(src).toMatch(/if \(lastError === "provider_out_of_credit"\) \{\s*const fb = await architectOnFallback\(/);
   });
 
   it("the batch cap stays under the prompt builder's own cut, so a batch is never truncated", () => {

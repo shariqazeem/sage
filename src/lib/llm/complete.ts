@@ -54,7 +54,7 @@ function hostOf(url: string): string {
   }
 }
 
-interface ResolvedProvider {
+export interface ResolvedProvider {
   endpoint: string;
   key: string;
   model: string;

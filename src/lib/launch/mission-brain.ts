@@ -387,6 +387,8 @@ function classifyBrainError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (/unparseable/.test(m)) return "invalid_json";
   if (/empty/.test(m)) return "truncated_output";
+  // the wire answers an account out of credit as 402 (wire.ts, section 4): no retry can help it
+  if (/status_402/.test(m)) return "provider_out_of_credit";
   if (/status_(408|429|5\d\d)/.test(m)) return "provider_transient";
   if (/status_/.test(m)) return "provider_error";
   if (/abort|timeout/i.test(m)) return "provider_timeout";
@@ -451,6 +453,12 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       lastError = classifyBrainError(e);
       lastThrown = e;
       if (lastError === "llm_not_configured") break;
+      // An empty account will refuse every attempt: the secondary provider gets the one try that can help.
+      if (lastError === "provider_out_of_credit") {
+        const fb = await architectOnFallback(mapJson, founder, map, correction);
+        if (fb) return fb;
+        break;
+      }
       // Only a real truncation buys more room — never a shape failure, which more tokens cannot fix.
       if (wasTruncated(e)) escalation++;
       // ...and a TIMEOUT buys nothing: re-issuing the identical request just spends the clock again.
@@ -563,7 +571,7 @@ async function criticBatch(candidates: CandidateMission[], mapJson: string, useF
   } catch (e) {
     // The primary's heavy tail again: a timed-out review gets ONE attempt on the secondary provider.
     // Any other failure stays an empty verdict list — the deterministic gate still judges every mission.
-    if (!useFallback && classifyBrainError(e) === "provider_timeout" && fallbackLlm()) return criticBatch(candidates, mapJson, true);
+    if (!useFallback && ["provider_timeout", "provider_out_of_credit"].includes(classifyBrainError(e)) && fallbackLlm()) return criticBatch(candidates, mapJson, true);
     return [];
   }
 }

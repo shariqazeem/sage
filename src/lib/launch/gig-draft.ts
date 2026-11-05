@@ -272,6 +272,9 @@ const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
   }
 };
 
+/** What a founder reads when Sage's writer has no model to call: the honest state, and the way forward. */
+export const WRITER_OFFLINE = "Sage's writer is offline right now. Your words are kept: fill the job in yourself below, or try again later.";
+
 /** A page can't close the fence it is read inside: every run of angle brackets that could forge one is dropped. */
 export function unfenced(text: string): string {
   return text.replace(/<{3,}|>{3,}/g, "");
@@ -348,6 +351,9 @@ export async function draftDirectCampaign(input: DraftInput, deps: { complete?: 
         continue;
       }
       console.warn(`[gig-draft] round ${round + 1} model error: ${msg.slice(0, 300)}`);
+      // An account out of credit will not answer in a moment: say so, and keep the founder moving. The operator
+      // is told separately (credit-alert.ts).
+      if (/status_402/.test(msg)) return { ok: false, error: WRITER_OFFLINE };
       return { ok: false, error: "Sage couldn't reach its writer just now. Try again in a moment, or fill it in yourself." };
     }
     // A DECLINE IS AN ANSWER, NOT A FAILURE: the founder reads why, instead of "try again" (which invited
