@@ -23,6 +23,7 @@ import type {
   PublicUrlContract,
   VerificationResult,
 } from "./contract";
+import { txRequirements } from "./contract";
 
 /**
  * THE DETERMINISTIC VERIFIERS — the core of the verification system.
@@ -342,11 +343,89 @@ async function defaultRenderer(url: string): Promise<{ text: string | null; fina
  * reach. Read through the reader, the marker, the required phrases and the word floor apply to the work's
  * own text, and the platform's facts (merged, rows, length, time) are checked before any model reads it.
  */
+/** At most this many hashes are read from one piece of work (each is two RPC calls). */
+export const MAX_LISTED_TXS = 25;
+
+type TxClient = NonNullable<Parameters<typeof verifyOnchainTx>[3]>["client"];
+
+/**
+ * The transactions a doc or sheet lists, each checked on its chain (ArtifactUrlContract.txProof). Runs only
+ * after the work itself passed. A hash that fails any check simply doesn't count: someone else's transaction,
+ * a reverted one, one from before the job, one to another contract. A read that can't complete holds rather
+ * than fails, so an RPC hiccup never refuses honest work.
+ */
+export async function withListedTxs(
+  result: VerificationResult,
+  text: string,
+  c: ArtifactUrlContract,
+  wallet: string,
+  deps: { notBefore?: number; txClient?: TxClient | ((chainId: number) => TxClient) },
+): Promise<VerificationResult> {
+  const reqs = txRequirements(c.txProof);
+  if (!result.verified || reqs.length === 0) return result;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return { verified: false, strength: "deterministic", detail: "txProof needs the wallet", publicDetail: "Sage couldn't tell which wallet sent these transactions." };
+  const hashes = [...new Set((text.match(/0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/g) ?? []).map((h) => h.toLowerCase()))].slice(0, MAX_LISTED_TXS);
+  const lines: string[] = [];
+  const shortfalls: string[] = [];
+  let hold = false;
+  // each network is checked on its own: a bridge lists one hash on each side
+  for (const p of reqs) {
+    const cfg = verifyChain(p.chainId);
+    if (!cfg) return { verified: false, strength: "deterministic", detail: "txProof chain unknown", publicDetail: "This job's chain can't be checked this way." };
+    const targets = (p.to ?? []).filter((a) => /^0x[0-9a-fA-F]{40}$/.test(a));
+    const client = (typeof deps.txClient === "function" ? deps.txClient(p.chainId) : deps.txClient) ?? createPublicClient({ transport: http(cfg.rpcUrl) });
+    let passed = 0;
+    let unreadable = 0;
+    for (const h of hashes) {
+      const tries: OnchainTxContract[] = targets.length > 0 ? targets.map((to) => ({ kind: "onchain_tx", chainId: p.chainId, to })) : [{ kind: "onchain_tx", chainId: p.chainId }];
+      let ok = false;
+      for (const tc of tries) {
+        const r = await verifyOnchainTx(tc, h, wallet, { client, notBefore: deps.notBefore });
+        if (r.verified) {
+          ok = true;
+          break;
+        }
+        if (r.detail === "rpc/parse hold") {
+          // "not found" is an answer (a made-up hash, or one from the other network of a bridge): it doesn't
+          // count here. Anything else is a read that didn't complete, asked again later, never held against the worker.
+          const missing = await client.getTransaction({ hash: h as Hex }).then(
+            () => false,
+            (e: unknown) => /not\s*found|could not be found/i.test(`${(e as Error)?.name ?? ""} ${(e as Error)?.message ?? ""}`),
+          );
+          if (!missing) unreadable++;
+          break;
+        }
+      }
+      if (ok) passed++;
+      if (passed >= p.minTxs) break;
+    }
+    if (passed >= p.minTxs) {
+      lines.push(`${passed} on ${cfg.name}`);
+      continue;
+    }
+    if (unreadable > 0 && passed + unreadable >= p.minTxs) {
+      hold = true;
+      continue;
+    }
+    shortfalls.push(`${passed} of the ${p.minTxs} asked for on ${cfg.name}${targets.length ? " (to the named contract)" : ""}`);
+  }
+  if (shortfalls.length > 0) {
+    return {
+      verified: false,
+      strength: "deterministic",
+      detail: `listed tx short: ${shortfalls.join("; ")}`,
+      publicDetail: `Sage checked the transactions your work lists, keeping only those sent from your wallet that succeeded after the job went live: ${shortfalls.join("; ")}. List each transaction hash in the work and submit it again.`,
+    };
+  }
+  if (hold) return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Sage couldn't read every listed transaction just now. It will check again shortly." };
+  return { ...result, detail: `${result.detail} + listed tx verified (${lines.join(", ")})`, publicDetail: `${result.publicDetail} Sage also checked the listed transactions (${lines.join(", ")}): sent from your wallet, after the job went live.` };
+}
+
 async function verifyPlatformArtifact(
   c: ArtifactUrlContract,
   url: string,
   marker: string,
-  deps: { fetchImpl?: typeof fetch; notBefore?: number; readImpl?: typeof readPage },
+  deps: { fetchImpl?: typeof fetch; notBefore?: number; readImpl?: typeof readPage; wallet?: string; txClient?: TxClient | ((chainId: number) => TxClient) },
 ): Promise<VerificationResult> {
   const fail = (detail: string, publicDetail: string): VerificationResult => ({ verified: false, strength: "strong", detail, publicDetail });
   const r = await (deps.readImpl ?? readPage)(url, { fetchImpl: deps.fetchImpl, render: null, maxChars: 200_000 });
@@ -384,14 +463,14 @@ async function verifyPlatformArtifact(
     const at = Math.floor(Date.parse(f.createdAt) / 1000);
     if (Number.isFinite(at) && at < deps.notBefore - TX_RECENCY_SLACK_SECONDS) return fail("posted before the job", "That was posted before this job went live. Post something new for this job and submit that link.");
   }
-  return { ...base, detail: `${base.detail} (${r.kind})` };
+  return withListedTxs({ ...base, detail: `${base.detail} (${r.kind})` }, r.text, c, deps.wallet ?? marker, deps);
 }
 
 export async function verifyArtifactUrl(
   c: ArtifactUrlContract,
   url: string,
   marker: string,
-  deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null; notBefore?: number; readImpl?: typeof readPage } = {},
+  deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null; notBefore?: number; readImpl?: typeof readPage; wallet?: string; txClient?: TxClient | ((chainId: number) => TxClient) } = {},
 ): Promise<VerificationResult> {
   try {
     const u = new URL(url.trim()); // throws on garbage
@@ -413,7 +492,8 @@ export async function verifyArtifactUrl(
     const body = page.body.slice(0, 200_000);
     const finalUrl = page.finalUrl || u.toString();
     const staticResult = matchArtifact({ status: page.status, finalUrl, bodyText: body }, c, marker);
-    if (staticResult.verified || page.status >= 400) return staticResult;
+    if (staticResult.verified) return withListedTxs(staticResult, body, c, deps.wallet ?? marker, deps);
+    if (page.status >= 400) return staticResult;
     /**
      * CLIENT-RENDERED PAGES. A Notion page, and most modern blogs, return a scaffold to a plain fetch —
      * the wallet the worker put on the page is only there once the browser has run. The first public
@@ -429,7 +509,7 @@ export async function verifyArtifactUrl(
       const r = await render(u.toString());
       if (r.text && r.text.trim().length > 0) {
         const rendered = matchArtifact({ status: 200, finalUrl: r.finalUrl || finalUrl, bodyText: r.text, contentText: r.contentText ?? null }, c, marker);
-        if (rendered.verified) return { ...rendered, detail: `${rendered.detail} (browser-rendered)` };
+        if (rendered.verified) return withListedTxs({ ...rendered, detail: `${rendered.detail} (browser-rendered)` }, r.text, c, deps.wallet ?? marker, deps);
       }
     } catch {
       /* the static verdict stands */

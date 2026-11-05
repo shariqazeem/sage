@@ -131,6 +131,13 @@ const onchainStateSchema = z
   })
   .refine((c) => !!(c.minUint || c.expectTesterAddress), "an on-chain state contract needs minUint or expectTesterAddress");
 
+/** one network's share of the transactions a piece of work lists (verify/contract.ts) */
+const txRequirementSchema = z.object({
+  chainId: z.number().int().refine(chainIdKnown, "unknown chain"),
+  minTxs: z.number().int().min(1).max(25),
+  to: z.array(z.string().regex(walletRe)).max(5).optional(),
+});
+
 const artifactUrlSchema = z.object({
   kind: z.literal("artifact_url"),
   /**
@@ -153,6 +160,10 @@ const artifactUrlSchema = z.object({
   postedAfterStart: z.boolean().optional(),
   /** the founder confirms each one before it pays (verify/contract.ts) */
   founderConfirms: z.boolean().optional(),
+  /** transactions the work lists, each checked on its chain (verify/contract.ts txProof) */
+  txProof: z
+    .union([txRequirementSchema, z.array(txRequirementSchema).min(1).max(3)])
+    .optional(),
 });
 
 const publicUrlSchema = z.object({

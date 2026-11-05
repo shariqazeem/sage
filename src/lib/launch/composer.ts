@@ -47,6 +47,8 @@ export type Tranche = {
   postedAfterStart?: boolean;
   /** the founder confirms each one before it pays (verify/contract.ts): Sage holds every submission for them */
   founderConfirms?: boolean;
+  /** transactions the work lists, each checked on its chain (verify/contract.ts txProof) */
+  txProof?: { chainId: number; minTxs: number; to?: string[] }[];
 };
 
 export const blankTranche = (verify = "link"): Tranche => ({ amount: "", deliverable: "", verify, expectedText: "", toAddr: "", title: "" });
@@ -122,6 +124,7 @@ export function composeDirectBody(s: ComposerState) {
               ...(t.minDurationSeconds ? { minDurationSeconds: t.minDurationSeconds } : {}),
               ...(t.postedAfterStart ? { postedAfterStart: true } : {}),
               ...(t.founderConfirms ? { founderConfirms: true } : {}),
+              ...(t.txProof && t.txProof.length > 0 ? { txProof: t.txProof } : {}),
             };
     const proofLine =
       t.verify === "page"
@@ -206,7 +209,7 @@ export type DraftMilestone = {
   instructions: string;
   criteria: string[];
   evidence:
-    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean }
+    | { kind: "artifact_url"; allowedHosts: string[]; minWords?: number; mustContain?: string[]; repo?: string; prMerged?: boolean; minRows?: number; minDurationSeconds?: number; postedAfterStart?: boolean; founderConfirms?: boolean; txProof?: { chainId: number; minTxs: number; to?: string[] }[] }
     | { kind: "public_url"; expectedText: string[]; founderConfirms?: boolean }
     | { kind: "onchain_tx"; chainId?: number; to?: string; deploysContract?: boolean; founderConfirms?: boolean };
   effortMinutes?: number;
@@ -277,6 +280,7 @@ export function composerFromDraft(d: Draft, words: string): ComposedFromDraft {
       ...(m.evidence.kind === "artifact_url" && m.evidence.minDurationSeconds ? { minDurationSeconds: m.evidence.minDurationSeconds } : {}),
       ...(m.evidence.kind === "artifact_url" && m.evidence.postedAfterStart ? { postedAfterStart: true } : {}),
       ...(m.evidence.founderConfirms ? { founderConfirms: true } : {}),
+      ...(m.evidence.kind === "artifact_url" && m.evidence.txProof?.length ? { txProof: m.evidence.txProof } : {}),
     })),
     why: d.whyItMatters ?? "",
     title: d.title,

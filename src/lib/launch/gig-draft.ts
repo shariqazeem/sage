@@ -116,6 +116,20 @@ const evidenceKinds = z.discriminatedUnion("kind", [
     minDurationSeconds: opt(clampedInt(1, 36_000)),
     postedAfterStart: opt(z.boolean()),
     founderConfirms: opt(z.boolean()),
+    // transactions listed in the work, each checked on its chain; dropped whole when malformed
+    txProof: z.preprocess((v) => {
+      const one = (x: unknown) => {
+        if (!x || typeof x !== "object") return null;
+        const o = x as { chainId?: unknown; minTxs?: unknown; to?: unknown };
+        const chainId = Number(o.chainId);
+        const minTxs = Math.round(Number(o.minTxs));
+        if (!Number.isInteger(chainId) || !Number.isFinite(minTxs) || minTxs < 1) return null;
+        const to = Array.isArray(o.to) ? o.to.filter((a): a is string => typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a.trim())).map((a) => a.trim()).slice(0, 5) : [];
+        return { chainId, minTxs: Math.min(minTxs, 25), ...(to.length ? { to } : {}) };
+      };
+      const list = (Array.isArray(v) ? v : [v]).map(one).filter((r): r is NonNullable<ReturnType<typeof one>> => r !== null).slice(0, 3);
+      return list.length > 0 ? list : undefined;
+    }, z.array(z.object({ chainId: z.number(), minTxs: z.number(), to: z.array(z.string()).optional() })).optional()),
   }),
   z.object({ kind: z.literal("public_url"), expectedText: stringList(5, z.string().min(3).max(300)).pipe(z.array(z.string()).min(1)), founderConfirms: opt(z.boolean()) }),
   z.object({
@@ -187,7 +201,7 @@ RULES
   - criteria: 3–6 clauses, each VISIBLE in the submitted proof and checkable by reading it: what must appear (named sections, specifics, the founder's product or business by name) and the founder's own bar (their counts, length, quality words). Say "in their own words, not copied from the source" only when the work is based on a source Sage can compare it with. Never write a criterion the proof can't show (an attestation like "no bots", someone's private intent, an off-platform event), and never restate the automatic checks (the host, the wallet address).
   - If the only real proof is the founder's own judgment (an interview happened, a call was useful, a physical delivery arrived, taste in a design, a match with something physical), still choose the best proof the worker can submit, say plainly in the deliverable that the founder approves each one ("the founder confirms the call happened"), and set evidence.founderConfirms true: Sage then holds every submission for the founder instead of paying on its own.
   - When the founder pays ONCE (on final delivery or sign-off), the job is ONE milestone even if the work has stages: put the stages in the steps, and every deliverable the founder named in the criteria.
-  - Several on-chain actions (a pilot of N payments, a list of testnet transactions): ask for ONE transaction proof when one action is the point; otherwise ask for a doc that lists each transaction hash with what it did, and set founderConfirms true, because Sage cannot yet check every hash in a doc on chain.
+  - Several on-chain actions (a pilot of N payments, a list of testnet transactions, a bridge plus a swap): ask for ONE transaction proof when one action is the point. Otherwise ask for a doc or sheet that lists each transaction hash with what it did, and set evidence.txProof to a list with one entry per network the transactions happen on: [{chainId, minTxs: how many the founder asked for on that network, to: [the contract addresses the founder named there, if any]}] (a bridge from Arbitrum to Metis is two entries). Sage reads every listed hash on its chain: sent from the worker's own wallet, succeeded, after the job went live.
   - evidence: exactly one kind.
       artifact_url — the worker CREATES something and links it (a page, an article, a document, a sheet, a repository, a pull request, a video, a design export, a post). allowedHosts: [] unless the work must live somewhere specific. minWords for written work: a short post 150, an article 300, a guide or documentation 500. mustContain only for a phrase the founder requires verbatim.
         Ask for the work where it naturally lives, and say where in the instructions:

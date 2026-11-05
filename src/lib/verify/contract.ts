@@ -76,8 +76,28 @@ export interface OnchainStateContract {
 }
 
 /** A public, tester-specific object the action created (an agent page, a share link, an export). */
+/** One network's share of the transactions a piece of work lists (a bridge has one per side). */
+export interface TxRequirement {
+  chainId: number;
+  minTxs: number;
+  to?: string[];
+}
+
+/** Every requirement a txProof states, whichever shape it was written in. */
+export function txRequirements(p: TxRequirement | TxRequirement[] | undefined): TxRequirement[] {
+  if (!p) return [];
+  return (Array.isArray(p) ? p : [p]).filter((r) => r && Number.isInteger(r.chainId) && Number.isInteger(r.minTxs) && r.minTxs >= 1);
+}
+
 export interface ArtifactUrlContract {
   kind: "artifact_url";
+  /**
+   * TRANSACTIONS LISTED IN THE WORK (Sage Bench r5, 5 Nov 2026): a doc or sheet that lists transaction hashes,
+   * each read on `chainId`. It must be sent from the worker's own wallet, have succeeded, have happened after
+   * the job went live, and have gone to one of `to` when named. At least `minTxs` must pass. A pilot of N
+   * payments or a list of testnet actions becomes proof Sage checks itself, instead of hashes typed into a doc.
+   */
+  txProof?: TxRequirement | TxRequirement[];
   /**
    * THE FOUNDER CONFIRMS EACH ONE (Sage Bench r5, 5 Nov 2026). When the only real proof is the founder's own
    * judgment (a call happened, colours match the fabric, a delivery arrived), no submission pays without them:

@@ -31,6 +31,10 @@ function sageChecks(t: Tranche, chainName: (id?: number) => string): string {
   if (t.verify === "onchain") return `Sage checks the transaction on ${chainName(t.txChain)}, sent from their own wallet, before it pays`;
   if (t.prMerged) return `Sage checks their pull request${t.repo ? ` into ${t.repo}` : ""} is merged and carries their wallet address, before it pays`;
   const where = t.minRows ? `the sheet they share has at least ${t.minRows} filled rows` : t.minDurationSeconds ? `the video they post runs at least ${Math.round(t.minDurationSeconds / 60) >= 1 ? `${Math.round(t.minDurationSeconds / 60)} min` : `${t.minDurationSeconds} s`}` : null;
+  if (t.txProof?.length) {
+    const parts = t.txProof.map((r) => `${r.minTxs} on ${chainName(r.chainId)}${r.to?.length ? " to the named contract" : ""}`);
+    return `Sage checks the transactions listed in their work (at least ${parts.join(" and ")}), each sent from their own wallet after the job went live, before it pays`;
+  }
   const after = t.postedAfterStart ? ", posted after the job went live," : "";
   if (where) return `Sage checks ${where}${after} and that it carries their wallet address, before it pays`;
   return `Sage checks the link they submit${t.minWords ? `, at least ${t.minWords} words of their own,` : ""}${after} and that it carries their wallet address, before it pays`;
