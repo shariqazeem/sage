@@ -31,7 +31,7 @@ import { payoutActionReplayMode, runPayoutActionReplay } from "@/lib/deputy/payo
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
 import { payPendingFees } from "@/lib/x402/fees";
 import { runCampaignHealthNudges } from "@/lib/campaigns/health-nudge";
-import { watchPayoutConsolidation } from "@/lib/deputy/consolidation";
+import { watchPayoutConsolidation, watchPayoutConsolidationEvm } from "@/lib/deputy/consolidation";
 import { finalizationFor } from "@/lib/deputy/finalization-db";
 import { minutesLabel, refusedOnChain, windowSecondsFor } from "@/lib/deputy/finalization";
 import { personWallets } from "@/lib/identity/person";
@@ -87,6 +87,7 @@ async function runSweep() {
     /** one-time quiet-campaign founder nudges sent this tick (48h, zero submissions). */
     nudges: { nudged: 0 },
     consolidation: { scanned: 0, linked: 0 },
+    consolidationEvm: { scanned: 0, linked: 0 },
     finalization: { waiting: 0, finalized: 0, revoked: 0, returned: 0 },
     /** the standing mandate's own turn: what the agent proposed, committed, launched and reclaimed. */
     operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
@@ -263,6 +264,8 @@ async function runSweep() {
 
   // Where the paid money went: forwards between submitters link their wallets for every future judgment.
   summary.consolidation = await watchPayoutConsolidation().catch(() => ({ scanned: 0, linked: 0 }));
+  // the same watch on Metis and every EVM rail: the farm signal must not depend on which network paid
+  summary.consolidationEvm = await watchPayoutConsolidationEvm().catch(() => ({ scanned: 0, linked: 0 }));
 
   // SUPPLY. Tell the people who asked that new work exists — once per campaign, ever, and never more
   // than one message per person per cooldown. Without it the agent launches into an empty room: a

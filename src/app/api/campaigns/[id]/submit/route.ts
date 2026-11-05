@@ -1,13 +1,8 @@
-import { meetsTier, openTierCeilingBase, requiredTier, tierRefusal } from "@/lib/identity/tier";
-import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
-import { PERSONHOOD_DOOR_COPY, alreadyClaimedCopy, identityDoorArmed } from "@/lib/identity/door";
+import { alreadyClaimedCopy } from "@/lib/identity/door";
 import { personWallets } from "@/lib/identity/person";
-import { identityFor } from "@/lib/db/identity";
-import { worldIdConfig } from "@/lib/identity/worldid";
 import { isPublicWork } from "@/lib/campaigns/visibility";
+import { checkSubmitDoor } from "@/lib/campaigns/submit-door";
 import { bareHexKey } from "@/lib/campaigns/chain-address";
-import { campaignWorkspace } from "@/lib/db/workspaces";
-import { isWorkspacePerson } from "@/lib/workspaces/person-role";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
@@ -28,7 +23,6 @@ import {
   reviseSubmission,
   listSlotClaimants,
   listSlotClaimantWallets,
-  countPaidByWalletsInCampaign,
   countRecentSubmissionsByWallet,
   listSubmissions,
   recordEvent,
@@ -48,7 +42,6 @@ import { missionSlotStatus, slotsHeldMessage } from "@/lib/campaigns/slot-reserv
 import { nowSeconds } from "@/lib/db/keys";
 import { hasMissionPlan } from "@/lib/campaigns/vault-kind";
 import { milestoneLockedCopy, priorMilestoneUnpaid } from "@/lib/campaigns/milestone-order";
-import { sameChainAddress } from "@/lib/campaigns/chain-address";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,68 +111,19 @@ export async function POST(
   if (campaign.status !== "live") {
     return NextResponse.json({ error: "This campaign isn't accepting submissions." }, { status: 409 });
   }
-  // WORK PROOF — recipient allowlist (direct grant/gig campaigns). An application-level gate,
-  // stated honestly as such: the vault still enforces caps/budget/replay for whoever gets through.
-  if (Array.isArray(campaign.allowlist) && campaign.allowlist.length > 0) {
-    // Chain-aware membership: a felt's spelling varies by padding, and a raw match would refuse
-    // an invited recipient from their own grant.
-    if (!campaign.allowlist.some((a) => sameChainAddress(a, wallet))) {
-      return NextResponse.json(
-        { error: "This campaign pays a named recipient list, and your wallet isn't on it. Contact the operator." },
-        { status: 403 },
-      );
-    }
-  }
-
-  // SAGE FOR TEAMS — an unlisted campaign launched from a workspace is that workspace's own work:
-  // only its members can submit. A stranger with the link is told whose door it is, not refused
-  // in silence. Listed workspace campaigns stay open, as the founder chose.
-  /*
-    THE DOOR — one person, one slot, on public work.
-
-    The first gate keyed on what the mission PAYS, so every slot at or under a ceiling was open to
-    any fresh wallet and "$50 with 50 slots" was as farmable as before. This one keys on the person:
-    public work asks for a one-time personhood proof (no name, no document, no country), and the
-    caps below count people rather than wallets. Members-only work is untouched — the organisation
-    chose its people. See src/lib/identity/door.ts.
-
-    Refused with `needsVerification`, so the board opens the widget instead of printing a wall.
-  */
-  const publicWork = isPublicWork(campaign);
-  if (identityDoorArmed() && publicWork && worldIdConfig() && !identityFor(wallet)) {
+  // THE DOOR (submit-door.ts): the recipient list, one person one slot on public work, a person's cap
+  // across their wallets, the reward-tier rule, and members-only work. It is the same policy the chat door
+  // runs, so a check added for one door now reaches every door. Refused with `needsVerification` when a
+  // personhood proof is missing, so the board opens the widget instead of printing a wall.
+  const door = checkSubmitDoor(campaign, wallet, { surface: "web" });
+  if (!door.ok) {
     return NextResponse.json(
-      { error: PERSONHOOD_DOOR_COPY, needsVerification: true, action: worldIdConfig()?.action ?? null },
-      { status: 403 },
+      { error: door.error, ...(door.needsVerification ? { needsVerification: true, action: door.action ?? null } : {}) },
+      { status: door.status },
     );
   }
-  // ONE PERSON, PAID AT MOST `perWalletPayoutCap` TIMES ON THIS CAMPAIGN — across every wallet that is
-  // them. Checked at the door so nobody does work the pipeline will only hold; the pipeline re-checks.
+  const publicWork = isPublicWork(campaign);
   const person = personWallets(wallet);
-  if (publicWork && countPaidByWalletsInCampaign(campaign.id, person) >= campaign.perWalletPayoutCap) {
-    return NextResponse.json({ error: alreadyClaimedCopy("campaign") }, { status: 409 });
-  }
-  // The older reward-tier rule stays only while the door is unarmed; two gates with different
-  // theories of who may pass must never both speak.
-  if (!identityDoorArmed() && identityTiersArmed()) {
-    const need = requiredTier(campaign.rewardAmount);
-    const standing = standingOf(wallet);
-    if (!meetsTier(standing.tier, need)) {
-      return NextResponse.json(
-        { error: tierRefusal(standing, need, campaign.rewardAmount, openTierCeilingBase()) },
-        { status: 403 },
-      );
-    }
-  }
-
-  if (campaign.visibility === "unlisted") {
-    const ws = campaignWorkspace(campaign);
-    if (ws && !isWorkspacePerson(ws.id, wallet)) {
-      return NextResponse.json(
-        { error: `This work is for members of "${ws.name}". Ask the workspace owner for an invite link, join with this wallet, and submit again.` },
-        { status: 403 },
-      );
-    }
-  }
 
   let body: { evidence?: unknown; note?: unknown; missionKey?: unknown; claim?: EvidenceClaim; signature?: unknown };
   try {

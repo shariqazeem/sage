@@ -36,6 +36,8 @@ import {
 } from "./work-proof";
 import type { VerificationContract } from "@/lib/verify/contract";
 import { walletFreshnessSignal } from "./wallet-signals";
+import { linkedClusterSignal } from "./cluster-signal";
+import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { fundingClusterSignal } from "./funding-graph";
 import { starknetClusterSignals, starknetFreshnessSignal } from "./wallet-signals-starknet";
 import { authorAgeSignal } from "@/lib/verify/author-age";
@@ -569,9 +571,20 @@ export async function ensureDecision(
     : await walletFreshnessSignal(submission.wallet, campaign.chainId);
   const clusterSignals = onStarknet
     ? await starknetClusterSignals({ wallet: submission.wallet, peerWallets }).catch(() => [])
-    : await fundingClusterSignal({ wallet: submission.wallet, peerWallets, chainId: campaign.chainId ?? 2345 })
-        .then((s) => (s ? [s] : []))
-        .catch(() => []);
+    : [
+        ...(await fundingClusterSignal({ wallet: submission.wallet, peerWallets, chainId: campaign.chainId ?? 2345 })
+          .then((s) => (s ? [s] : []))
+          .catch(() => [])),
+        // the linked cluster the payout watch proved on chain: HIGH on EVM exactly as on Starknet
+        ...(() => {
+          try {
+            const s = linkedClusterSignal(submission.wallet, peerWallets, linkedWalletsOf, (w) => w.trim().toLowerCase());
+            return s ? [s] : [];
+          } catch {
+            return [];
+          }
+        })(),
+      ];
   // The account that published the page: created for this campaign, or older than it.
   const authorAge = await authorAgeSignal(submission.evidenceUrl, campaign.createdAt).catch(() => null);
 

@@ -1,4 +1,5 @@
 import { artifactFingerprint, fingerprintSimilarity } from "./fingerprint";
+import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml } from "./content-text";
 import "server-only";
 
@@ -120,10 +121,10 @@ const hostOf = (u: string) => { try { return new URL(u).host; } catch { return u
  *  the source can't be read — an unreadable source must never hold a worker. */
 async function sourceOverlap(sourceUrl: string, artifactFp: string, fetchImpl?: typeof fetch): Promise<number | null> {
   try {
-    const f = fetchImpl ?? fetch;
-    const res = await f(sourceUrl, { redirect: "follow" });
-    if (res.status >= 400) return null;
-    const html = (await res.text()).slice(0, 400_000);
+    // the guarded read: the source is the founder's page, but its redirects are not ours to trust either
+    const page = await guardedFetchPage(sourceUrl, { fetchImpl, maxBytes: 5 * 1024 * 1024, truncate: true });
+    if (!page.ok) return null;
+    const html = page.body.slice(0, 400_000);
     const fp = artifactFingerprint(contentTextFromHtml(html));
     if (!fp) return null;
     return fingerprintSimilarity(artifactFp, fp);
@@ -174,7 +175,8 @@ export async function runWorkProof(
             "Your submission doesn't include a transaction hash (0x… + 64 hex characters). Paste the hash of your transaction, or a block-explorer link to it.",
           );
         }
-        const r = await (deps.verifyTx ?? verifyOnchainTx)(contract, hash, submission.wallet);
+        // notBefore: a transaction from before the job existed was not done for it
+        const r = await (deps.verifyTx ?? verifyOnchainTx)(contract, hash, submission.wallet, { notBefore: submission.campaignCreatedAt });
         return classify(r, () =>
           [
             "=== SAGE WORK-PROOF VERIFICATION (server-side deterministic check — not submitter-authored) ===",
@@ -264,10 +266,14 @@ export async function runWorkProof(
         try {
           const u = new URL(url);
           if (u.protocol !== "https:") return definitive("non-https", "Evidence links must be https.");
-          const f = deps.fetchImpl ?? fetch;
-          const res = await f(u.toString(), { redirect: "follow" });
-          status = res.status;
-          body = (await res.text()).slice(0, 200_000);
+          // the guarded read (net/guarded-fetch.ts): checked hops, public DNS only, timeout, byte cap
+          const page = await guardedFetchPage(u.toString(), { fetchImpl: deps.fetchImpl, maxBytes: 5 * 1024 * 1024, truncate: true });
+          if (page.status === 0) {
+            if (page.transient) return { outcome: "transient", result: { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — Sage will retry shortly." } };
+            return definitive(`blocked link (${page.failReason ?? "refused"})`, "Sage won't open that link. Submit the public https page where the result is visible.");
+          }
+          status = page.status;
+          body = page.body.slice(0, 200_000);
         } catch {
           return { outcome: "transient", result: { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — Sage will retry shortly." } };
         }

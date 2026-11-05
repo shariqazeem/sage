@@ -67,6 +67,7 @@ import { operatorAddress } from "@/lib/deputy/signer";
 import { ensureDecision } from "./decisions";
 import { parseWorkProofContract } from "./work-proof";
 import { gateFromBrief } from "./autopilot";
+import { honestHoldReason } from "./hold-reason";
 import { effectiveThreshold } from "@/lib/campaigns/validate";
 import { payoutActionReplayMode, runPayoutActionReplay } from "./payout-replay";
 import { dbReplayJournal } from "@/lib/db/payout-replay-journal";
@@ -739,15 +740,18 @@ export async function runDeputyOnSubmission(
     );
     agentLog(cid, "gate", { pay: gate.pay, reason: gate.reason });
     if (!gate.pay) {
+      // The hold's TRUE reason: a deterministic "no" (the proof didn't match, a copy, an unbound mission)
+      // is said as itself, not as the gate's "LLM pending" (hold-reason.ts).
+      const heldWhy = honestHoldReason(gate.reason, brief);
       // Only journal a hold for an autopilot campaign on a still-pending item;
       // a manual campaign (or an already-handled item) is just a silent skip.
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
         // DM the founder who launched from Telegram — only when the hold is NEW or its reason
         // changed (journalHeld's dedup), never a repeat of an unchanged state every sweep tick.
-        if (journalHeld(campaign, submission, gate.reason, cid)) void notifyFounderHeld(campaign, submission);
-        return { action: "held", reason: gate.reason, correlationId: cid };
+        if (journalHeld(campaign, submission, heldWhy, cid)) void notifyFounderHeld(campaign, submission);
+        return { action: "held", reason: heldWhy, correlationId: cid };
       }
-      return { action: "skipped", reason: gate.reason, correlationId: cid };
+      return { action: "skipped", reason: heldWhy, correlationId: cid };
     }
 
     // b2. UNAPPROVED JUDGE IDENTITY — deterministic, subtract-only. gate.pay is true here; a payout may be

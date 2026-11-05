@@ -4,6 +4,7 @@ import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { canDecide, type SubmissionStatus } from "@/lib/campaigns/status";
 import { settleByRail } from "@/lib/campaigns/settle-dispatch";
 import { nowSeconds } from "@/lib/db/keys";
+import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { short } from "@/lib/format";
 import {
   getCampaign,
@@ -99,6 +100,15 @@ export async function POST(
   }
 
   /* ── approve → settle cascade ───────────────────────────────────────── */
+  // SANCTIONS SCREEN — the same one the admin release and the chat release run (review-actions.ts), and the
+  // one the pipeline's own comment promised the manual path re-checks. This button paid without it, so a
+  // founder approving held work could pay a listed address (found 5 Nov 2026 reading the money path).
+  if (isSanctionedWallet(submission.wallet)) {
+    return NextResponse.json(
+      { error: `Refused: the recipient wallet is on the ${SANCTIONS_LIST_LABEL}. Nothing was paid.` },
+      { status: 403 },
+    );
+  }
   updateSubmission(sid, { status: "approved", decidedAt: nowSeconds() });
   recordEvent({
     campaignId: id,

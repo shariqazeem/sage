@@ -533,12 +533,28 @@ export async function callAgentWalletTool(
           return ok({ ok: false, networkPaused: true, message: `${paused} Nothing was launched and nothing moved. New jobs open on Metis; the founder can post at ${appUrl()}/launch.` });
         }
         const askedFor = typeof args.inspectionId === "string" ? args.inspectionId.trim() : "";
-        // Resolve the plan SERVER-SIDE when the model didn't carry an id, or carried one that is no
-        // longer launchable — the founder's own most recent ready, un-launched plan.
-        const resolved =
-          askedFor && autoApprove(askedFor, b.founderAddress)
-            ? askedFor
-            : latestLaunchablePlan(b.founderAddress);
+        /**
+         * A NAMED PLAN IS LAUNCHED OR REFUSED, NEVER SWAPPED.
+         *
+         * When the model carried an id that was no longer launchable, this used to launch the founder's
+         * most recent ready plan instead: different work, possibly a different amount, funded from their
+         * money because a model had the wrong id (found 5 Nov 2026 reading the launch doors). Now:
+         * - a named plan that can't launch is refused, nothing moves, and the reply says which plan IS
+         *   ready, so the founder confirms it in their own words;
+         * - with no id at all, the founder's newest ready plan is still the one meant ("launch it").
+         */
+        if (askedFor && !autoApprove(askedFor, b.founderAddress)) {
+          const ready = latestLaunchablePlan(b.founderAddress);
+          return ok({
+            ok: false,
+            planNotLaunchable: true,
+            message: ready && ready !== askedFor
+              ? `That plan can't launch as it stands (it may have changed or already launched). Nothing was launched and nothing moved. The plan that is ready is ${ready}: ask the founder to confirm it is the one they mean before launching it.`
+              : "That plan can't launch as it stands (it may have changed or already launched). Nothing was launched and nothing moved; plan it again.",
+            readyPlanId: ready && ready !== askedFor ? ready : null,
+          });
+        }
+        const resolved = askedFor || latestLaunchablePlan(b.founderAddress);
         if (!resolved) {
           return err(
             "There's no ready plan waiting to launch for this founder — plan one first (a product inspection, or a grant/gig campaign), then launch.",

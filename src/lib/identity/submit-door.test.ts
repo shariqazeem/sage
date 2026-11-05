@@ -100,29 +100,37 @@ describe("the door itself", () => {
   });
 
   it("the web route asks the door BEFORE the slot math, and answers with the widget's key", () => {
-    const src = readFileSync(resolve(process.cwd(), "src/app/api/campaigns/[id]/submit/route.ts"), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    const door = src.indexOf("identityDoorArmed() && publicWork");
-    const tier = src.indexOf("identityTiersArmed()");
+    // The door's rules live in one module now (submit-door.ts), shared by every door (5 Nov 2026).
+    const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const src = strip(readFileSync(resolve(process.cwd(), "src/app/api/campaigns/[id]/submit/route.ts"), "utf8"));
+    const policy = strip(readFileSync(resolve(process.cwd(), "src/lib/campaigns/submit-door.ts"), "utf8"));
+    const door = src.indexOf("checkSubmitDoor(campaign, wallet");
     const personSlot = src.indexOf("listSlotClaimantWallets(mission.missionIdHash)");
     const slots = src.indexOf("missionSlotStatus(");
     expect(door).toBeGreaterThan(-1);
-    expect(door).toBeLessThan(tier);            // the person rule speaks before the money rule
+    expect(door).toBeLessThan(personSlot);       // the door speaks before any slot is counted
     expect(personSlot).toBeGreaterThan(-1);
     expect(personSlot).toBeLessThan(slots);     // one-per-person before the global count
     expect(src).toMatch(/needsVerification: true/);
-    expect(src).toMatch(/countPaidByWalletsInCampaign\(campaign\.id, person\)/);
+    // inside the door: the person rule speaks before the money rule, and the person is counted
+    const personRule = policy.indexOf("identityDoorArmed() && publicWork");
+    const tier = policy.indexOf("identityTiersArmed()");
+    expect(personRule).toBeGreaterThan(-1);
+    expect(personRule).toBeLessThan(tier);
+    expect(policy).toMatch(/countPaidByWalletsInCampaign\(campaign\.id, personWallets\(wallet\)\)/);
     // the reward-tier rule can never speak while the door is armed
-    expect(src).toMatch(/!identityDoorArmed\(\) && identityTiersArmed\(\)/);
+    expect(policy).toMatch(/!identityDoorArmed\(\) && identityTiersArmed\(\)/);
   });
 
-  it("the Telegram door screens sanctions and counts the person — it had neither", () => {
-    const src = readFileSync(resolve(process.cwd(), "src/lib/campaigns/recipient-submit.ts"), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    expect(src).toMatch(/isSanctionedWallet\(wallet\)/);
+  it("the Telegram door runs the same door (sanctions, the person) and counts the person's slot", () => {
+    const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const src = strip(readFileSync(resolve(process.cwd(), "src/lib/campaigns/recipient-submit.ts"), "utf8"));
+    const policy = strip(readFileSync(resolve(process.cwd(), "src/lib/campaigns/submit-door.ts"), "utf8"));
+    expect(src).toMatch(/checkSubmitDoor\(campaign, wallet, \{ surface: "telegram" \}\)/);
+    expect(policy).toMatch(/isSanctionedWallet\(wallet\)/);
     expect(src).toMatch(/listSlotClaimantWallets\(mission\.missionIdHash\)/);
-    // and no personhood proof is demanded there: an invited recipient is members-only work
-    expect(src).not.toMatch(/identityFor\(/);
+    // a personhood proof is asked only on PUBLIC work; an invited recipient (a named list) never is
+    expect(policy).toMatch(/identityDoorArmed\(\) && publicWork/);
     // the durable anchor on the vendored list (Ronin bridge / Lazarus)
     expect(isSanctionedWallet("0x098B716B8Aaf21512996dC57EB0615e2383E2f96")).toBe(true);
   });

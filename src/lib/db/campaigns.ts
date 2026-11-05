@@ -1715,6 +1715,18 @@ export function listRecentPaidStarknetSubmissions(sinceUnix: number): Submission
     .map((r) => r.submission);
 }
 
+/** Paid submissions on EVM rails since `sinceUnix`, with the chain each one was paid on: what the payout
+ *  consolidation watch reads on Metis (consolidation.ts). */
+export function listRecentPaidEvmSubmissions(sinceUnix: number): { submissionId: string; campaignId: string; wallet: string; chainId: number }[] {
+  return db
+    .select({ submissionId: submissions.id, campaignId: submissions.campaignId, wallet: submissions.wallet, chainId: campaigns.chainId })
+    .from(submissions)
+    .innerJoin(campaigns, eq(campaigns.id, submissions.campaignId))
+    .where(and(sql`coalesce(${campaigns.settlementRail}, 'evm') <> 'starknet'`, eq(submissions.status, "paid"), gte(submissions.decidedAt, sinceUnix)))
+    .all()
+    .filter((r): r is { submissionId: string; campaignId: string; wallet: string; chainId: number } => typeof r.chainId === "number");
+}
+
 /** Has this wallet ever submitted to ANY campaign, in any status? Felt-tolerant: `0x01d9…` and `0x1d9…`
  *  are one account, and prod stores whichever spelling the wallet signed with. */
 export function isKnownSubmitterWallet(wallet: string): boolean {

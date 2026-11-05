@@ -12,6 +12,7 @@
  */
 import { createHash } from "node:crypto";
 import { validateEvidenceUrl } from "@/lib/campaigns/validate";
+import { publicHost, realLookup, type Lookup } from "@/lib/net/guarded-fetch";
 
 /**
  * Structured, NON-SENSITIVE provenance for a rendered-evidence attempt (W2). Carries lengths + digests +
@@ -190,7 +191,7 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array | null
  */
 export async function fetchEvidence(
   rawUrl: string,
-  opts?: { fetchImpl?: typeof fetch; preferRender?: boolean },
+  opts?: { fetchImpl?: typeof fetch; preferRender?: boolean; lookup?: Lookup },
 ): Promise<EvidenceResult> {
   const fetchImpl = opts?.fetchImpl ?? fetch;
   const fetchedAt = Math.floor(Date.now() / 1000);
@@ -213,6 +214,14 @@ export async function fetchEvidence(
     let redirects = 0;
     let res: Response;
     for (;;) {
+      // DNS, per hop: a public name that resolves to a private address (127.0.0.1.nip.io, a rebinding
+      // answer) passes the string check above, so the answers themselves must all be public. An injected
+      // fetch opens no socket, so the suites skip it unless they inject a lookup.
+      const dns = opts?.lookup ?? (opts?.fetchImpl ? null : realLookup);
+      if (dns) {
+        const host = await publicHost(new URL(url).hostname, dns);
+        if (!host.ok) return fail(host.transient ? `dns: ${host.reason}` : `blocked url: ${host.reason}`);
+      }
       res = await fetchImpl(url, {
         redirect: "manual",
         signal: controller.signal,

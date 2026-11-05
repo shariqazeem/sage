@@ -1,4 +1,5 @@
 import { artifactFingerprint, stripMarkers } from "@/lib/deputy/fingerprint";
+import { guardedFetchPage } from "@/lib/net/guarded-fetch";
 import { contentTextFromHtml, wordCount } from "@/lib/deputy/content-text";
 import "server-only";
 
@@ -121,11 +122,26 @@ export function matchTxShape(
 }
 
 /** ASYNC: read the tx + receipt on the named chain and match. Any RPC/parse failure → HOLD. */
+/** Clock slack between the chain and the server when comparing a transaction's block time to the job's age. */
+export const TX_RECENCY_SLACK_SECONDS = 600;
+
 export async function verifyOnchainTx(
   c: OnchainTxContract,
   txHash: string,
   testerWallet: string,
-  deps: { client?: { getTransaction: (a: { hash: Hex }) => Promise<unknown>; getTransactionReceipt: (a: { hash: Hex }) => Promise<unknown> } } = {},
+  deps: {
+    client?: {
+      getTransaction: (a: { hash: Hex }) => Promise<unknown>;
+      getTransactionReceipt: (a: { hash: Hex }) => Promise<unknown>;
+      getBlock?: (a: { blockNumber: bigint }) => Promise<unknown>;
+    };
+    /**
+     * The job's creation time (unix seconds). A transaction confirmed before the job existed was not done
+     * for it: an old swap, an old deployment, someone else's history. It is refused instead of paid
+     * (there was no recency bound at all until 5 Nov 2026).
+     */
+    notBefore?: number;
+  } = {},
 ): Promise<VerificationResult> {
   const hold = (publicDetail: string): VerificationResult => ({ verified: false, strength: "deterministic", detail: "rpc/parse hold", publicDetail });
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())) return hold("That doesn't look like a transaction hash.");
@@ -144,7 +160,21 @@ export async function verifyOnchainTx(
       client.getTransactionReceipt({ hash: txHash.trim() as Hex }),
     ]);
     const tx = txRaw as { from: string; to: string | null; value: bigint; input: string };
-    const rc = rcRaw as { status: "success" | "reverted"; logs: { address: string; topics: string[] }[]; contractAddress?: string | null };
+    const rc = rcRaw as { status: "success" | "reverted"; logs: { address: string; topics: string[] }[]; contractAddress?: string | null; blockNumber?: bigint };
+    if (typeof deps.notBefore === "number" && deps.notBefore > 0) {
+      if (typeof client.getBlock !== "function" || rc.blockNumber == null) return hold("Couldn't read when that transaction happened yet — Sage will retry shortly.");
+      const block = (await client.getBlock({ blockNumber: BigInt(rc.blockNumber) })) as { timestamp?: bigint | number };
+      const at = Number(block?.timestamp ?? NaN);
+      if (!Number.isFinite(at)) return hold("Couldn't read when that transaction happened yet — Sage will retry shortly.");
+      if (at < deps.notBefore - TX_RECENCY_SLACK_SECONDS) {
+        return {
+          verified: false,
+          strength: "deterministic",
+          detail: "tx predates the job",
+          publicDetail: "That transaction happened before this job was posted. Do the work for this job and submit the new transaction.",
+        };
+      }
+    }
     return matchTxShape(
       { from: tx.from, to: tx.to, value: BigInt(tx.value ?? 0), input: tx.input ?? "0x" },
       { status: rc.status, logs: (rc.logs ?? []).map((l) => ({ address: l.address, topics: l.topics })), contractAddress: rc.contractAddress ?? null },
@@ -265,15 +295,22 @@ export async function verifyArtifactUrl(
   marker: string,
   deps: { fetchImpl?: typeof fetch; render?: ArtifactRenderer | null } = {},
 ): Promise<VerificationResult> {
-  const f = deps.fetchImpl ?? fetch;
   try {
     const u = new URL(url.trim()); // throws on garbage
     if (u.protocol !== "https:") return { verified: false, strength: "strong", detail: "non-https", publicDetail: "Artifact links must be https." };
-    const res = await f(u.toString(), { redirect: "follow" });
-    const body = (await res.text()).slice(0, 200_000);
-    const finalUrl = res.url || u.toString();
-    const staticResult = matchArtifact({ status: res.status, finalUrl, bodyText: body }, c, marker);
-    if (staticResult.verified || res.status >= 400) return staticResult;
+    // THE GUARDED READ (net/guarded-fetch.ts): every hop checked, DNS answers public-only, a timeout and a
+    // byte cap, and the same request identity as the judge's evidence fetch. This read decides a payout,
+    // and it used to follow redirects blindly with no timeout, so a worker's link could point the server
+    // anywhere and a page could show it something different from what the judge saw.
+    const page = await guardedFetchPage(u.toString(), { fetchImpl: deps.fetchImpl, maxBytes: 5 * 1024 * 1024, truncate: true });
+    if (page.status === 0) {
+      if (page.transient) return { verified: false, strength: "strong", detail: "fetch hold", publicDetail: "Couldn't load that link — try again in a moment." };
+      return { verified: false, strength: "strong", detail: `blocked link (${page.failReason ?? "refused"})`, publicDetail: "Sage won't open that link. Submit the public https page where the work lives." };
+    }
+    const body = page.body.slice(0, 200_000);
+    const finalUrl = page.finalUrl || u.toString();
+    const staticResult = matchArtifact({ status: page.status, finalUrl, bodyText: body }, c, marker);
+    if (staticResult.verified || page.status >= 400) return staticResult;
     /**
      * CLIENT-RENDERED PAGES. A Notion page, and most modern blogs, return a scaffold to a plain fetch —
      * the wallet the worker put on the page is only there once the browser has run. The first public

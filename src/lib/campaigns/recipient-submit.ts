@@ -1,5 +1,6 @@
 import "server-only";
 
+import { checkSubmitDoor } from "./submit-door";
 import { getAddress } from "viem";
 
 import { MAX_ACCOUNT_CHARS } from "@/lib/campaigns/evidence-answers";
@@ -24,7 +25,6 @@ import {
   type EvidenceClaim,
 } from "@/lib/campaigns/evidence-claim";
 import { missionSlotStatus } from "@/lib/campaigns/slot-reservation";
-import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions";
 import { personWallets } from "@/lib/identity/person";
 import { alreadyClaimedCopy } from "@/lib/identity/door";
 import { bareHexKey } from "./chain-address";
@@ -34,7 +34,7 @@ import { short } from "@/lib/format";
 import { milestoneLockedCopy, priorMilestoneUnpaid } from "./milestone-order";
 import type { Mission } from "@/lib/db/schema";
 import { hasMissionPlan } from "./vault-kind";
-import { normalizeForChain, sameChainAddress } from "./chain-address";
+import { normalizeForChain } from "./chain-address";
 
 /**
  * WALLETLESS RECIPIENT submission — proof sent IN CHAT (move 2 of the pivot).
@@ -120,32 +120,20 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   if (!campaign) return { ok: false, error: "That campaign doesn't exist." };
   if (campaign.status !== "live") return { ok: false, error: "That campaign isn't accepting submissions right now." };
   /*
-    THE SAME SANCTIONS SCREEN AS THE WEB DOOR. This door had none — measured 2026-09-05 while the
-    compliance statement said "three doors". A recipient's Privy wallet is an EVM address, so the
-    vendored SDN snapshot applies here exactly as it does on the web.
+    THE SAME DOOR AS THE WEB (submit-door.ts): the sanctions screen, the named recipient list, one person
+    one slot on public work (a World ID proof), a person's cap across their wallets, the reward-tier rule,
+    and members-only work. This door used to copy only the sanctions screen and the recipient list, so a
+    farmer refused at the web door for want of a personhood proof could submit here instead (found
+    5 Nov 2026 by reading both doors side by side).
   */
-  if (isSanctionedWallet(wallet)) {
-    return { ok: false, error: `This wallet appears on the ${SANCTIONS_LIST_LABEL} and cannot participate.` };
+  {
+    const door = checkSubmitDoor(campaign, wallet, { surface: "telegram" });
+    if (!door.ok) return { ok: false, error: door.error };
   }
   // An invited recipient submits against a mission plan; which chain pays is settled later.
   if (!hasMissionPlan(campaign.vaultKind) || !campaign.campaignIdHash) {
     return { ok: false, error: "That campaign can't take chat submissions." };
   }
-  /**
-   * The SAME allowlist gate the web submit route enforces.
-   *
-   * Membership was a raw string match. A Starknet address has many spellings differing only in
-   * leading zeros, so an invited recipient would be refused from the very grant they were named
-   * on — the failure landing on the person who did the work, not on the founder who set it up.
-   */
-  if (
-    Array.isArray(campaign.allowlist) &&
-    campaign.allowlist.length > 0 &&
-    !campaign.allowlist.some((a) => sameChainAddress(a, wallet))
-  ) {
-    return { ok: false, error: "Your wallet isn't on this campaign's recipient list — open your invite link first." };
-  }
-
   // ── which mission ─────────────────────────────────────────────────────────
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const active = listMissions(campaignId).filter((m: Mission) => m.status === "active");

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/campaigns", () => ({ isKnownSubmitterWallet: () => false, listRecentPaidStarknetSubmissions: () => [], recordEvent: () => {} }));
+vi.mock("@/lib/db/campaigns", () => ({ isKnownSubmitterWallet: () => false, listRecentPaidStarknetSubmissions: () => [], listRecentPaidEvmSubmissions: () => [], recordEvent: () => {} }));
 vi.mock("@/lib/campaigns/wallet-links", () => ({ linkWallets: () => ({ linked: false }) }));
 vi.mock("./notify", () => ({ notifyTelegram: async () => {} }));
 import { consolidationLinks } from "./consolidation";
