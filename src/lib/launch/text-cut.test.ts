@@ -28,3 +28,16 @@ describe("cutAtBoundary: a worker never reads a step cut mid-word", () => {
     expect(out.endsWith("word")).toBe(true);
   });
 });
+
+describe("a drafted deadline keeps both parts of a schedule", () => {
+  it("is not cut at 80 characters mid-phrase", async () => {
+    const { gigDraftSchema } = await import("./gig-draft");
+    const deadline = "Shoot on any Friday or Saturday this month, between 10am and 3pm. Deliver the edited photos within 7 days.";
+    const parsed = gigDraftSchema.safeParse({
+      kind: "gig", title: "Photograph sixty sarees", who: "a photographer", slots: 1, deadline,
+      milestones: [{ title: "Photograph the sarees", deliverable: "Sixty edited photos are shared in a Drive folder", instructions: "1. Photograph each saree.\n2. Share the folder.", criteria: ["Sixty photos, one per saree", "Each file is named by its tag"], evidence: { kind: "artifact_url", allowedHosts: ["drive.google.com"] } }],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.deadline).toBe(deadline);
+  });
+});

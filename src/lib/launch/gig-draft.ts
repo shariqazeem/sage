@@ -173,7 +173,8 @@ export const gigDraftSchema = z.object({
   // a reason too short to say anything is left out, not fatal
   whyItMatters: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 10 ? v : undefined), trimmedText(10, 600).optional()),
   /** the founder's own deadline, verbatim ("by Friday 14 Nov"); shown on the card, never invented */
-  deadline: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 3 ? v : undefined), trimmedText(3, 80).optional()),
+  // a schedule can have two parts ("shoot on a Friday this month; deliver within 7 days"): never cut mid-phrase
+  deadline: z.preprocess((v) => (typeof v === "string" && v.trim().length >= 3 ? cutAtBoundary(v.trim(), 160) : undefined), trimmedText(3, 160).optional()),
   /** what a stranger needs that only the founder can add (an invite link, access, an address): the card asks for it */
   needsFromFounder: opt(stringList(6, trimmedText(3, 160))),
   milestones: z.array(draftMilestoneSchema).min(1).max(12),

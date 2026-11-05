@@ -154,7 +154,7 @@ export function composeDirectBody(s: ComposerState) {
     // the founder's own words for what workers need, and their deadline, reach every worker in the steps
     const given = (s.needs ?? []).filter((n) => n.value.trim().length > 0).map((n) => `From the founder, ${n.label.replace(/[.:\s]+$/, "")}: ${n.value.trim()}`);
     const deadline = s.deadline?.trim();
-    const deadlineLine = deadline && !baseSteps.toLowerCase().includes(deadline.toLowerCase()) ? [`Deadline: ${deadline}.`] : [];
+    const deadlineLine = deadline && !baseSteps.toLowerCase().includes(deadline.toLowerCase()) ? [`Deadline: ${deadline.replace(/[.\s]+$/, "")}.`] : [];
     const instructions = [...given, ...deadlineLine].length > 0 ? `${[...given, ...deadlineLine].join("\n")}\n\n${baseSteps}` : baseSteps;
     return {
       title: (typedTitle.length >= 4 ? typedTitle : missionTitleFrom(d, i)).slice(0, 80),
