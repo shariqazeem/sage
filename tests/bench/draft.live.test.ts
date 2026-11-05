@@ -79,6 +79,8 @@ function effectiveProof(m: Draft["milestones"][number]): string {
   const e = m.evidence as Record<string, unknown> & { kind: string; allowedHosts?: string[] };
   if (e.kind !== "artifact_url") return e.kind;
   const hosts = (e.allowedHosts ?? []).join(" ");
+  // transactions listed in the work, each read on its chain: on-chain proof (verify/contract.ts txProof)
+  if (e.txProof) return "onchain_tx";
   if (e.prMerged) return "github_pr_merged";
   if (/docs\.google\.com/.test(hosts) || e.minRows) return "document_or_sheet";
   if (e.minDurationSeconds || /youtube|youtu\.be|vimeo|loom|tiktok/.test(hosts)) return "video_url";
