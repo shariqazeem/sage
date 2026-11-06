@@ -272,7 +272,7 @@ export async function runEntailmentVeto(input: EntailmentInput, opts: Entailment
           { role: "user", content: buildUserContent(input) },
         ],
       },
-      { timeoutMs: ENTAILMENT_TIMEOUT_MS, priority: "judgment", profile, fetchImpl },
+      { timeoutMs: ENTAILMENT_TIMEOUT_MS, priority: "judgment", profile, fetchImpl, lane: "ENTAILMENT" },
     );
     if (!res.ok) return fail(input, "provider_error", `llm ${res.status}`, provider.model, provider.host, Date.now() - started);
     const completion = readCompletion(JSON.parse(res.text) as ChatCompletionResponse);

@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { notifyTelegram } from "@/lib/deputy/notify";
 import { fallbackLlm, LANES, resolveLlm, type ResolvedProvider } from "./complete";
+import { budgetAlertText, onBudgetTrip } from "./spend";
 import { closedProviders, onCreditChange, postChat, type CreditEvent } from "./wire";
 
 /**
@@ -26,6 +27,8 @@ export const OUTAGE_REPEAT_MS = 6 * 3600_000;
 interface AlertState {
   /** the wire subscription, once armed (one per process, whichever bundle armed it). */
   off: (() => void) | null;
+  /** the daily-budget subscription (spend.ts): each ceiling is announced once per day. */
+  offBudget?: (() => void) | null;
   /** where alerts go: the operator chat in production, a list in the suite. */
   send: (text: string) => Promise<void>;
   /** last "out of credit" alert per key id (ms). */
@@ -60,6 +63,7 @@ export function creditAlertText(e: CreditEvent, nowMs: number): string {
 export function armCreditAlerts(send: (text: string) => Promise<void> = notifyTelegram): void {
   state.send = send;
   if (!state.off) state.off = onCreditChange(heard);
+  if (!state.offBudget) state.offBudget = onBudgetTrip((e) => void state.send(budgetAlertText(e)).catch(() => undefined));
   for (const c of closedProviders()) heard({ kind: "closed", ...c });
 }
 
@@ -119,7 +123,7 @@ export async function probeClosedProviders(opts: { fetchImpl?: typeof fetch } = 
         p,
         // a few tokens, not one: a reasoning model may refuse a budget too small to start in
         { model: p.model, max_tokens: 16, messages: [{ role: "user", content: "ok" }] },
-        { timeoutMs: 15_000, priority: "background", fetchImpl: opts.fetchImpl },
+        { timeoutMs: 15_000, priority: "judgment", lane: "PROBE", fetchImpl: opts.fetchImpl },
       );
       if (res.ok) reopened++;
     } catch {
@@ -143,6 +147,8 @@ export function creditStatus(nowMs = Date.now()): { host: string; since: string;
 export function resetCreditAlerts(): void {
   state.off?.();
   state.off = null;
+  state.offBudget?.();
+  state.offBudget = null;
   state.send = notifyTelegram;
   state.alerted.clear();
 }

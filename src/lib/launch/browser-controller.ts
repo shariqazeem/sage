@@ -1103,7 +1103,7 @@ async function callController(
           { role: "user", content: userContent },
         ],
       },
-      { timeoutMs: CONTROLLER_TIMEOUT_MS, priority: "background", profile },
+      { timeoutMs: CONTROLLER_TIMEOUT_MS, priority: "background", profile, lane: "FIELD_TEST" },
     );
     if (!res.ok) {
       // SILENT nulls made "browsing fails on product X" undiagnosable — a 400 (model can't take an

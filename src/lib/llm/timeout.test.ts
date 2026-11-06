@@ -31,7 +31,7 @@ describe("the abort timer and the token budget", () => {
     // The wire (wire.ts) owns the queue now: the abort timer must be armed INSIDE the slot callback,
     // after a slot is taken, never when the call joins the queue.
     const src = readFileSync(resolve(process.cwd(), "src/lib/llm/wire.ts"), "utf8");
-    const queued = src.indexOf('return withSlot(p, opts.priority ?? "background", async () => {');
+    const queued = src.indexOf("return withSlot(p, priority, async () => {");
     const armed = src.indexOf("const timer = setTimeout(() => controller.abort(), opts.timeoutMs);");
     expect(queued).toBeGreaterThan(0);
     expect(armed).toBeGreaterThan(queued); // armed AFTER the slot is taken

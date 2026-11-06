@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { profileFor, type ProviderProfile } from "./provider-profile";
+import { overBudget, recordSpend, usd, type BudgetEvent } from "./spend";
 
 /**
  * ONE WIRE FOR EVERY MODEL CALL.
@@ -31,6 +32,9 @@ import { profileFor, type ProviderProfile } from "./provider-profile";
  *     then judgment (a worker waiting to be paid), then background design.
  *  4. CREDIT: an account that says it is out of credit is closed, not busy. It fails fast, is never
  *     retried as a rate limit, and the operator hears it once (credit-alert.ts).
+ *  5. SPEND: every answer's own `usage` is priced and booked per account per day (spend.ts). With
+ *     LLM_DAILY_BUDGET_USD set, a day's ceiling refuses background design first and judgment last, and is
+ *     answered like an empty account (402, never retried).
  *
  * It never logs a key, a prompt or a provider's response body. It reads a 400's body only to classify
  * which parameter was refused, and throws the text away.
@@ -396,6 +400,20 @@ function closedResponse(c: Closed): WireResponse {
   };
 }
 
+/** The answer a call gets once its kind of work has reached today's ceiling (spend.ts), without a network call. */
+function budgetResponse(e: BudgetEvent): WireResponse {
+  return {
+    ok: false,
+    status: 402,
+    text: JSON.stringify({
+      error: { code: "daily_budget", message: `today's model budget on ${e.host} is reached (${usd(e.spentMicro)} of ${usd(e.budgetMicro)}); resets 00:00 UTC` },
+    }),
+    retryAfterMs: null,
+    sent: {},
+    outOfCredit: true,
+  };
+}
+
 // ───────────────────────────── THE SEND ─────────────────────────────
 
 export interface WireResponse {
@@ -453,13 +471,20 @@ export async function postChat(
     headers?: Record<string, string>;
     /** fault-injection seam for the suites (the payout judge's own tests drive refusals through it). */
     fetchImpl?: typeof fetch;
+    /** which lane the spend is booked to (PAYOUT, DRAFT, …); the priority when a caller names none. */
+    lane?: string;
   },
 ): Promise<WireResponse> {
   const profile = opts.profile ?? profileFor(p.model, p.endpoint);
+  const priority = opts.priority ?? "background";
+  const account = gateKey(p);
   // an account known to be empty is answered from memory: no slot, no network, no wait
-  const shut = store.closed.get(gateKey(p));
+  const shut = store.closed.get(account);
   if (shut && Date.now() - shut.checkedAt < CLOSED_FOR_MS) return closedResponse(shut);
-  return withSlot(p, opts.priority ?? "background", async () => {
+  // so is a kind of work that has reached today's ceiling on this account (spend.ts)
+  const over = overBudget(account, p.host, priority);
+  if (over) return budgetResponse(over);
+  return withSlot(p, priority, async () => {
     const controller = new AbortController();
     const onOuterAbort = () => controller.abort();
     opts.signal?.addEventListener("abort", onOuterAbort, { once: true });
@@ -500,7 +525,10 @@ export async function postChat(
           noteOutOfCredit(p, text, Date.now());
           return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
         }
-        if (res.ok) noteAnswered(p, Date.now());
+        if (res.ok) {
+          noteAnswered(p, Date.now());
+          recordSpend({ account, host: p.host, model: p.model, lane: opts.lane ?? priority, responseText: text, sentChars: JSON.stringify(sent).length });
+        }
         return { ok: res.ok, status: res.status, text, retryAfterMs: parseRetryAfterMs(headerOf(res, "retry-after")), sent, outOfCredit: false };
       }
     } finally {

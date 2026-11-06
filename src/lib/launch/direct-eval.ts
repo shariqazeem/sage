@@ -208,7 +208,7 @@ async function askModel(
         ]),
         tool_choice: forceTool ? "required" : "auto",
       },
-      { timeoutMs, priority: "interactive" },
+      { timeoutMs, priority: "interactive", lane: "EVAL" },
     );
     if (!res.ok) {
       // Throw the SAME shape production throws, so withTransientRetry classifies a 429 or 5xx as

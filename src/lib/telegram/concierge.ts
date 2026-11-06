@@ -620,7 +620,7 @@ async function chatCompletion(
           tools,
           tool_choice: forceTool ? "required" : "auto",
         },
-        { timeoutMs: callTimeoutMs(budgetMs), priority: "interactive" },
+        { timeoutMs: callTimeoutMs(budgetMs), priority: "interactive", lane: "CONCIERGE" },
       );
       if (!res.ok) {
         throw new Error(`llm_status_${res.status}${res.text ? ` ${res.text.slice(0, 120)}` : ""}`);

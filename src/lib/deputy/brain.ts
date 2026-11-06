@@ -355,6 +355,7 @@ async function callProvider(
       {
         timeoutMs: Math.max(LLM_TIMEOUT_MS, Math.min(profile.timeoutMs, LLM_TIMEOUT_CEILING_MS)),
         priority: "judgment",
+        lane: "PAYOUT",
         profile,
         fetchImpl,
       },

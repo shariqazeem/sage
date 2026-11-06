@@ -89,7 +89,7 @@ async function askOnce(f: RouteFixture, timeoutMs: number, history: Msg[] = []):
       tools: f.surface === "web" ? WEB_TOOLS : TG_TOOLS,
       tool_choice: "auto",
     },
-    { timeoutMs, priority: "interactive" },
+    { timeoutMs, priority: "interactive", lane: "EVAL" },
   );
   if (!res.ok) throw new Error(`llm_status_${res.status} ${res.text.slice(0, 160)}`);
   const data = JSON.parse(res.text) as {

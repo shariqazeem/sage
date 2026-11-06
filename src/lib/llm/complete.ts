@@ -517,7 +517,7 @@ export async function llmCompleteJson(opts: {
           { role: "user", content: opts.user },
         ],
       },
-      { timeoutMs: budgetMs, priority: priorityForLane(opts.lane), profile },
+      { timeoutMs: budgetMs, priority: priorityForLane(opts.lane), profile, lane: opts.lane },
     );
     if (!res.ok) {
       // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.

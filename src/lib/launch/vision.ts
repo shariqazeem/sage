@@ -261,7 +261,7 @@ async function callVision(provider: VisionProvider, dataUri: string, trigger: st
           },
         ],
       },
-      { timeoutMs: VISION_TIMEOUT_MS, priority: "judgment" },
+      { timeoutMs: VISION_TIMEOUT_MS, priority: "judgment", lane: "VISION" },
     );
     if (!res.ok) return null;
     const data = JSON.parse(res.text) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number } };
