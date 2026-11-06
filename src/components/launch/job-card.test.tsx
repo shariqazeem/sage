@@ -11,7 +11,7 @@ import { blankTranche, type Tranche } from "@/lib/launch/composer";
  */
 const gig = (over: Partial<Tranche> = {}): Tranche => ({ ...blankTranche(), title: "Fix the crash", deliverable: "the crash on PDFs over 10 MB is fixed", criteria: ["The fix stops the crash", "It adds a test with a 12 MB file"], ...over });
 
-function Harness(props: { tranches: Tranche[]; splitTotal?: string; canInvite?: boolean | null; spy?: (p: CardPatch) => void }) {
+function Harness(props: { tranches: Tranche[]; splitTotal?: string; spy?: (p: CardPatch) => void }) {
   const [st, setSt] = useState({ slots: "1", tranches: props.tranches, splitTotal: props.splitTotal ?? "", inviteOnly: false });
   return (
     <>
@@ -25,7 +25,6 @@ function Harness(props: { tranches: Tranche[]; splitTotal?: string; canInvite?: 
         currencySymbol="$"
         isLocal={false}
         inviteOnly={st.inviteOnly}
-        canInvite={props.canInvite ?? true}
         chainName={() => "Metis"}
         onChange={(p) => { props.spy?.(p); setSt((s) => ({ ...s, ...p })); }}
         onDetails={() => {}}
@@ -63,11 +62,12 @@ describe("the job card", () => {
     expect(screen.getByText(/A bounty for 3 people/)).toBeTruthy();
   });
 
-  it("chooses who with a tap, and is honest when invites need a plan", async () => {
-    render(<Harness tranches={[gig()]} canInvite={false} />);
+  it("chooses who with a tap, and promises the link on every plan (6 Nov 2026)", async () => {
+    render(<Harness tranches={[gig()]} />);
     await userEvent.click(screen.getByRole("button", { name: "People I invite" }));
     expect(state().invite).toBe(true);
-    expect(screen.getByText(/Invite links come with Pro/)).toBeTruthy();
+    expect(screen.getByText(/Sage gives you one link to send them/)).toBeTruthy();
+    expect(screen.queryByText(/come with Pro/)).toBeNull();
   });
 
   it("drops one of Sage's checks with a tap, and always keeps one", async () => {

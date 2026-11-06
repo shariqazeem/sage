@@ -5,6 +5,7 @@ import { isLaunchChain, launchClosedReason } from "@/lib/launch/deployment-servi
 import { treasuryChainId } from "@/lib/privy/onboarding";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { siteUrl } from "@/lib/site";
+import { activateRoundOne } from "@/lib/programmes/activate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,5 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!isLaunchChain(chainId)) return NextResponse.json({ error: launchClosedReason(chainId) ?? "That chain is not one Sage launches on here." }, { status: 400 });
   const r = await launchFromTreasury(founder, id, chainId);
   if (!r.ok) return NextResponse.json({ ok: false, reason: r.reason, error: r.message, upgradeTo: r.upgradeTo ?? null }, { status: r.reason === "not_yours" ? 403 : r.reason === "failed" ? 500 : r.reason === "plan_limit" ? 402 : 409 });
-  return NextResponse.json({ ok: true, campaignId: r.campaignId, vault: r.vault, url: `${siteUrl()}/c/${r.campaignId}`, steps: r.steps });
+  // A programme's first round: the season starts now, and the sweep opens each next round from the account.
+  const programme = activateRoundOne(id, r.campaignId, chainId);
+  return NextResponse.json({ ok: true, campaignId: r.campaignId, vault: r.vault, url: `${siteUrl()}/c/${r.campaignId}`, steps: r.steps, programme });
 }

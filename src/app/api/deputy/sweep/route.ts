@@ -42,6 +42,7 @@ import { encodeDetail } from "@/lib/campaigns/journal";
 import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
 import { renewDuePlans } from "@/lib/plans/renewal";
+import { openDueRounds } from "@/lib/programmes/rounds";
 import { collectAdvanceRepayments } from "@/lib/advance/collect";
 import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders } from "@/lib/llm/credit-alert";
 import { lastReopenedAt } from "@/lib/llm/wire";
@@ -97,6 +98,7 @@ async function runSweep() {
     roster: { campaigns: 0, sent: 0 },
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
+    programmes: { due: 0, opened: 0, waiting: 0, failed: 0, skipped: 0, closed: 0 },
     advances: { advances: 0, collected: 0, collectedBase: 0, missed: 0, paused: null as string | null },
     /** model accounts out of credit (credit-alert.ts): which, asked again this tick, and how many came back. */
     llm: { closed: [] as ReturnType<typeof creditStatus>, probed: 0, reopened: 0 },
@@ -298,6 +300,14 @@ async function runSweep() {
   summary.roster = await announceNewWork().catch((e) => {
     console.error("[sweep] roster announce failed:", e instanceof Error ? e.message : e);
     return { campaigns: 0, sent: 0 };
+  });
+
+  // PROGRAMMES (6 Nov 2026): each season's next round, from the founder's account, with the same approved
+  // job, amounts and people. After every payout path on purpose: a round closes only once nothing in it is
+  // moving, and a launch failure is recorded on its round row and can never cost a settlement.
+  summary.programmes = await openDueRounds(nowSeconds()).catch((e) => {
+    console.error("[sweep] programme rounds failed:", e instanceof Error ? e.message : e);
+    return { due: 0, opened: 0, waiting: 0, failed: 0, skipped: 0, closed: 0 };
   });
 
   // THE STANDING MANDATE. Founders who armed one get the agent's own turn here: reclaim dead boards,

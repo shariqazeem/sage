@@ -391,3 +391,7 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .acct-limit-input { max-width: 140px; }
 .tc-sum { display: grid; gap: 10px; justify-items: start; }
 .tc-note { margin: 0; }
+
+/* PEOPLE (6 Nov 2026): /join/seat_… — a person's door to a job someone sent them (seat-card.tsx). */
+.seat-title { margin-top: 8px; }
+.seat-left { margin-top: 10px; font-size: 13px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }

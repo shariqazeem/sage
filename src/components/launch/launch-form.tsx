@@ -21,6 +21,8 @@ import { factKind, type FactKind } from "@/lib/launch/remembered";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
+import { SeatLinkPanel } from "@/components/people/seat-link-panel";
+import { repeatFromWords } from "@/lib/programmes/words";
 
 /** The mailbox Sage owns and reads sign-in codes from. A founder registers their TEST account with
  *  this address when their product has no password, so nobody ever hands Sage an inbox credential. */
@@ -156,6 +158,8 @@ export function LaunchForm() {
   const [payBusy, setPayBusy] = useState(false);
   // SAGE FOR TEAMS — off the public board; the campaign's own door is what the founder shares.
   const [inviteOnly, setInviteOnly] = useState(false);
+  // TIME (6 Nov 2026): weekly rounds Sage runs from the account; 0 = once. Read from the founder's words.
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
   const [payErr, setPayErr] = useState<string | null>(null);
   // THE GIG BRAIN: one sentence in, a complete brief out — Sage drafts the words, the founder keeps the money.
   const [draftText, setDraftText] = useState("");
@@ -190,19 +194,17 @@ export function LaunchForm() {
   const [submitting, setSubmitting] = useState(false);
 
   // What Post starts from: the product Sage last tested for this founder (a test starts there, and a job
-  // is drafted against it), and whether the workspace can admit invited people yet.
+  // is drafted against it).
   const [product, setProduct] = useState<{ name: string | null; url: string | null }>({ name: null, url: null });
-  const [canInvite, setCanInvite] = useState<boolean | null>(null);
   useEffect(() => {
     if (!founder.authed) return;
     let live = true;
     void (async () => {
       try {
         const r = await fetch("/api/launch/starters", { cache: "no-store" });
-        const j = (await r.json()) as { product?: { name: string | null; url: string | null } | null; canInvite?: boolean };
+        const j = (await r.json()) as { product?: { name: string | null; url: string | null } | null };
         if (!live || !j.product) return;
         setProduct(j.product);
-        setCanInvite(j.canInvite ?? null);
         const url = j.product.url;
         // testing again starts where the last test did; a URL already typed is never replaced
         if (url) setForm((f) => (f.productUrl.trim() ? f : { ...f, productUrl: url }));
@@ -242,7 +244,7 @@ export function LaunchForm() {
     };
   }, [mode, founder.authed, accountReads]);
   const [payPhase, setPayPhase] = useState<"plan" | "launch">("plan");
-  const [launchedJob, setLaunchedJob] = useState<{ campaignId: string; url: string } | null>(null);
+  const [launchedJob, setLaunchedJob] = useState<{ campaignId: string; url: string; season?: { roundsTotal: number; nextRoundAt: number | null } | null } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   useEffect(() => setLinkCopied(false), [launchedJob]);
   const [planLink, setPlanLink] = useState<string | null>(null);
@@ -405,7 +407,9 @@ export function LaunchForm() {
           : !payValid()
             ? "Launch"
             : launchesHere
-              ? `Launch · $${total.toFixed(2)} from your account`
+              ? repeatWeeks > 1 && !isLocal
+                ? `Launch week 1 of ${repeatWeeks} · $${total.toFixed(2)} from your account`
+                : `Launch · $${total.toFixed(2)} from your account`
               : tranches.length > 1
                 ? "Create the grant"
                 : "Create the gig"}
@@ -423,6 +427,7 @@ export function LaunchForm() {
     setSplitTotal("");
     setCurrency("USD");
     setInviteOnly(false);
+    setRepeatWeeks(0);
     setDraftText("");
     setDraftWhy("");
     setDraftNotes([]);
@@ -511,6 +516,7 @@ export function LaunchForm() {
         }),
       );
       setInviteOnly(card.inviteOnly);
+      setRepeatWeeks(repeatFromWords(text));
       setHanded({ source: data.source ?? null, seconds: Math.max(1, Math.round((Date.now() - started) / 1000)) });
     } catch (e) {
       setDraftErr(e instanceof Error ? e.message : String(e));
@@ -539,7 +545,8 @@ export function LaunchForm() {
       const res = await fetch("/api/campaigns/direct", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        // a season: the server keeps this exact spec and replays it each week (src/lib/programmes/)
+        body: JSON.stringify(repeatWeeks > 1 && !isLocal ? { ...body, repeat: { everyDays: 7, rounds: repeatWeeks } } : body),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; planUrl?: string; jobId?: string };
       if (res.status === 401) {
@@ -571,14 +578,14 @@ export function LaunchForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ chainId: account.read.chainId }),
       });
-      const lj = (await lr.json()) as { campaignId?: string; url?: string; error?: string; reason?: string; upgradeTo?: PlanId | null };
+      const lj = (await lr.json()) as { campaignId?: string; url?: string; error?: string; reason?: string; upgradeTo?: PlanId | null; programme?: { roundsTotal: number; nextRoundAt: number | null } | null };
       if (!lr.ok || !lj.campaignId) {
         setPayErr(lj.error ?? "Sage could not launch it from your account.");
         setPlanLink(planPath);
         setUpgrade(lj.reason === "plan_limit" ? lj.upgradeTo ?? null : undefined);
         return;
       }
-      setLaunchedJob({ campaignId: lj.campaignId, url: lj.url ?? `/c/${lj.campaignId}` });
+      setLaunchedJob({ campaignId: lj.campaignId, url: lj.url ?? `/c/${lj.campaignId}`, season: lj.programme ?? null });
     } catch (e) {
       setPayErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -648,24 +655,37 @@ export function LaunchForm() {
           <p>
             <Sparkles size={15} /> <b>It&apos;s live.</b> Sage created the job&apos;s vault from your account, funded it and opened it. Every payout gets a receipt.
           </p>
+          {launchedJob.season && (
+            <p className="cmp-season">
+              Week 1 of {launchedJob.season.roundsTotal}.{" "}
+              {launchedJob.season.nextRoundAt
+                ? `Sage opens week 2 on ${new Date(launchedJob.season.nextRoundAt * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })} from your account, after closing this one. Keep a week's amount in it.`
+                : null}
+            </p>
+          )}
           <div className="cmp-live-row">
             <Link className="lx-btn" href={`/campaign/${launchedJob.campaignId}`}>
               Open the job <ArrowUpRight size={14} />
             </Link>
-            {/* the next move after launching is sending it to someone: the public page workers open */}
-            <button
-              type="button"
-              className="lxo-chip"
-              onClick={() => {
-                const link = launchedJob.url.startsWith("http") ? launchedJob.url : `${window.location.origin}${launchedJob.url}`;
-                void navigator.clipboard?.writeText(link).then(() => setLinkCopied(true)).catch(() => undefined);
-              }}
-            >
-              {linkCopied ? <><Check size={13} /> Copied</> : "Copy the link to send"}
-            </button>
-            <a className="lxo-chip" href={launchedJob.url}>the board</a>
+            {/* the next move after launching is sending it to someone: the public page workers open. Work for the
+                founder's own people is sent with its own link, below: the page's address would not admit them. */}
+            {!inviteOnly && (
+              <button
+                type="button"
+                className="lxo-chip"
+                onClick={() => {
+                  const link = launchedJob.url.startsWith("http") ? launchedJob.url : `${window.location.origin}${launchedJob.url}`;
+                  void navigator.clipboard?.writeText(link).then(() => setLinkCopied(true)).catch(() => undefined);
+                }}
+              >
+                {linkCopied ? <><Check size={13} /> Copied</> : "Copy the link to send"}
+              </button>
+            )}
+            {!inviteOnly && <a className="lxo-chip" href={launchedJob.url}>the board</a>}
             <button type="button" className="lxo-chip" onClick={postAnother}>Post another</button>
           </div>
+          {/* work for the founder's own people: the one link that brings them, on every plan */}
+          {inviteOnly && <SeatLinkPanel campaignId={launchedJob.campaignId} />}
         </div>
       ) : (
         founder.authed &&
@@ -986,7 +1006,7 @@ export function LaunchForm() {
                 currencySymbol={curSymbol}
                 isLocal={isLocal}
                 inviteOnly={inviteOnly}
-                canInvite={canInvite}
+                repeatWeeks={repeatWeeks}
                 chainName={(id) => verifyChain(id ?? DEFAULT_EVM_LAUNCH_CHAIN)?.name ?? chainConfig(id ?? DEFAULT_EVM_LAUNCH_CHAIN).name}
                 onChange={(patch) => {
                   if (patch.slots !== undefined) setP("slots", patch.slots);
@@ -994,6 +1014,7 @@ export function LaunchForm() {
                   if (patch.splitTotal !== undefined) setSplitTotal(patch.splitTotal);
                   if (patch.inviteOnly !== undefined) setInviteOnly(patch.inviteOnly);
                   if (patch.needs) setNeeds(patch.needs);
+                  if (patch.repeatWeeks !== undefined) setRepeatWeeks(patch.repeatWeeks);
                 }}
                 deadline={deadline}
                 needs={needs}

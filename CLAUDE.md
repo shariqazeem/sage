@@ -54,6 +54,24 @@
 > - The `/record` advance moved to Metis too: its own pot wallet, offered only when the pot can pay, repaid
 >   automatically from later verified payouts under an approval the borrower signs once (the pot covers that
 >   fee once if they hold no METIS). The Starknet pot was emptied to the founder's wallet.
+>
+> **6 Nov 2026 (the founder's direction): build the core so the numbers can only happen on Sage.** Users come
+> later; first the end-ready product. 10,000 payouts across 700 people is about 14 each, so the core gained
+> **people** and **time**:
+> - **People.** Every job has one link for N people, on every plan (`src/lib/people/seats.ts`, `/join/seat_…`).
+>   Taking a place puts the person's wallet on the job's named list: no World ID (the founder vouches), no
+>   workspace membership (the lasting team is still Pro). Never on public work: a name on an empty list would
+>   lock everyone else out.
+> - **Time.** "Every week for N weeks" on the card (`src/lib/programmes/`). Round 1 launches from the card. The
+>   sweep then closes the last round (once nothing in it is moving; its leftover returns to the account) and
+>   opens the next from the account. Each round uses the SAME approved spec through `launchFromTreasury`'s
+>   checks, is compiled once, retries every 6 h, and is skipped after 3 days. No round carries an amount the
+>   founder didn't set.
+> - **The brain's spend.** The wire prices every answer (`src/lib/llm/spend.ts`). `LLM_DAILY_BUDGET_USD` (prod
+>   0.8 while the last Claude credit lasts) stops background design at 1×, a waiting person at 1.5× and
+>   judgment at 2×. `node scripts/vm/llm-spend.mjs` prints each day.
+>
+> Plan and order: `docs/strategy/2026-11-06-the-core.md` (internal).
 
 ---
 
@@ -483,6 +501,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `TREASURY_CHAIN_ID` † | The network a new account opens on, when set, configured and NOT paused | The launch default (Metis) |
 | `OPERATOR_COVERS_GAS` † | `"1"` brings back the operator's gas cover (the launch stipend, the fee on a plan paid from the balance) | Off: every account pays its own network fee |
 | `LLM_MAX_CONCURRENCY` † | Requests one provider key may have in flight (the wire). `1` restores the old single lane | 4 |
+| `LLM_DAILY_BUDGET_USD` † | A day's model spend per provider account (`spend.ts`): background design stops at 1×, drafting and the concierge at 1.5×, judgment at 2×; a refused call reads as an empty account (402) | No ceiling; the meter still books every answer to `var/llm-spend.json` (`LLM_SPEND_PATH`) |
 | `<LANE>_REASONING_EFFORT` † | `low` / `medium` / `high`, sent as `reasoning_effort` on that lane's calls (a provider that refuses it is learned once) | Not sent |
 | `GITHUB_TOKEN` † | Read-only token for GitHub's API: the page reader (issues, PRs and their files, repos, gists), PR provenance, account age. Never logged | 60 calls an hour per server; past it, a merge check HOLDS rather than fails |
 | `VERIFY_RPC_<chainId>` † | RPC override for a verify-only chain (`src/lib/verify/chains.ts`: Ethereum, Base, Arbitrum, OP, Polygon, BNB, Avalanche, Linea, Scroll, testnets). Read-only; nothing is paid there | The public RPC in `chains.ts` |

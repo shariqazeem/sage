@@ -881,6 +881,20 @@
 .cmp-live-row .lx-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .cmp-live-row .lxo-chip { text-decoration: none; }
 
+/* PEOPLE (6 Nov 2026): the one link a founder sends their own people, and the message to send with it. */
+/* green belongs to the money outcome above ("It's live"); sending a link is an action: ink and terracotta */
+.seat-panel { border-top: 1px solid var(--lx-line); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; color: var(--ink); }
+.cmp-live .seat-panel p, .cmp-live .seat-panel .lxo-chip { color: var(--ink); }
+.cmp-live .seat-panel-head svg { color: var(--accent); }
+.cmp-live .seat-panel-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.seat-panel-count { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.cmp-live .seat-panel-msg { display: block; font-size: 13px; line-height: 1.55; color: var(--ink); background: var(--bg); border: 1px solid var(--lx-line); border-radius: var(--r-sm); padding: 10px 12px; word-break: break-word; }
+.seat-panel-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.seat-panel-row .lxo-chip { text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+.cmp-live .seat-panel-wait, .cmp-live .seat-panel-err { font-size: 13px; color: var(--ink-muted); }
+/* TIME (6 Nov 2026): the season's next step, said once under "It's live". */
+.cmp-live .cmp-season { font-size: 13px; color: var(--ink-muted); }
+
 /* Sage's answer that it won't post this work: a calm statement, not an error to retry. */
 .ho-declined {
   margin: 12px 0 0;

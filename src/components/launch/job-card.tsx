@@ -20,7 +20,7 @@ export function trancheFeasibility(t: Tranche): Feasibility {
  *
  * The money rule holds: an amount is the founder's tap or the founder's words, never the model's.
  */
-export type CardPatch = { slots?: string; tranches?: Tranche[]; splitTotal?: string; inviteOnly?: boolean; needs?: Need[] };
+export type CardPatch = { slots?: string; tranches?: Tranche[]; splitTotal?: string; inviteOnly?: boolean; needs?: Need[]; repeatWeeks?: number };
 
 const PER_PERSON = [5, 20, 50, 100];
 const GRANT_TOTAL = [50, 100, 250, 500];
@@ -135,7 +135,7 @@ export function JobCard({
   currencySymbol,
   isLocal,
   inviteOnly,
-  canInvite,
+  repeatWeeks = 0,
   chainName,
   onChange,
   onDetails,
@@ -161,8 +161,8 @@ export function JobCard({
   /** priced in another currency: the amount is typed in it, and the dollar chips stand aside */
   isLocal: boolean;
   inviteOnly: boolean;
-  /** whether this workspace can admit invited people yet; null while unknown */
-  canInvite: boolean | null;
+  /** weekly rounds Sage runs from the account (0 = once). The founder's words set it; a tap changes it. */
+  repeatWeeks?: number;
   chainName: (id?: number) => string;
   onChange: (patch: CardPatch) => void;
   onDetails: () => void;
@@ -187,6 +187,14 @@ export function JobCard({
     setTranche(i, { criteria: list });
   };
 
+  // what one week costs, from the founder's own amounts, and the season in all (shown, never decided here)
+  const weekTotal = grant
+    ? Number(splitTotal) || tranches.reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
+    : (Number(tranches[0]?.amount) || 0) * people;
+  const seasonLine =
+    repeatWeeks > 0 && weekTotal > 0
+      ? `${currencySymbol}${money(weekTotal)} a week from your account, ${currencySymbol}${money(weekTotal * repeatWeeks)} over ${repeatWeeks} weeks. Each week Sage closes the last round and opens the next.`
+      : null;
   const kindLine = grant
     ? `A grant in ${tranches.length} milestones, each paid when it's done`
     : people > 1
@@ -236,15 +244,35 @@ export function JobCard({
           </>
         )}
 
+        <span className="jc-k">Repeats</span>
+        <span className="jc-v">
+          <button type="button" className={`jc-chip${repeatWeeks === 0 ? " on" : ""}`} aria-pressed={repeatWeeks === 0} onClick={() => onChange({ repeatWeeks: 0 })}>Once</button>
+          <button
+            type="button"
+            className={`jc-chip${repeatWeeks > 0 ? " on" : ""}`}
+            aria-pressed={repeatWeeks > 0}
+            disabled={isLocal}
+            onClick={() => onChange({ repeatWeeks: repeatWeeks > 0 ? repeatWeeks : 4 })}
+          >
+            Every week
+          </button>
+          {repeatWeeks > 0 && (
+            <span className="jc-people">
+              <button type="button" className="jc-step" aria-label="One week fewer" disabled={repeatWeeks <= 2} onClick={() => onChange({ repeatWeeks: repeatWeeks - 1 })}><Minus size={13} /></button>
+              <span className="mono">{repeatWeeks}</span>
+              <button type="button" className="jc-step" aria-label="One week more" disabled={repeatWeeks >= 26} onClick={() => onChange({ repeatWeeks: repeatWeeks + 1 })}><Plus size={13} /></button>
+              <span className="jc-times">weeks</span>
+            </span>
+          )}
+          {repeatWeeks > 0 && seasonLine && <span className="jc-hint">{seasonLine}</span>}
+          {isLocal && <span className="jc-hint">A job that repeats is priced in dollars, so every week pays the same.</span>}
+        </span>
+
         <span className="jc-k">Who</span>
         <span className="jc-v">
           <button type="button" className={`jc-chip${!inviteOnly ? " on" : ""}`} aria-pressed={!inviteOnly} onClick={() => onChange({ inviteOnly: false })}>Anyone, verified</button>
           <button type="button" className={`jc-chip${inviteOnly ? " on" : ""}`} aria-pressed={inviteOnly} onClick={() => onChange({ inviteOnly: true })}>People I invite</button>
-          {inviteOnly && canInvite === false && (
-            <span className="jc-hint">
-              Invite links come with Pro. <a href="/checkout?plan=pro">Upgrade</a>
-            </span>
-          )}
+          {inviteOnly && <span className="jc-hint">Once it&rsquo;s live, Sage gives you one link to send them.</span>}
         </span>
       </div>
 

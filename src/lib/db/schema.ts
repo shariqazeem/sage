@@ -304,6 +304,97 @@ export const recipientInvites = sqliteTable(
 export type RecipientInvite = typeof recipientInvites.$inferSelect;
 
 /**
+ * PEOPLE (6 Nov 2026): a job's own link for N people, on every plan (src/lib/people/seats.ts).
+ *
+ * The founder sends one link; each person who opens it and signs in (email or MetaMask) takes a seat, and
+ * their wallet joins the job's named list, the same `allowlist` a founder can type by hand. No World ID,
+ * because the founder vouches for their own people. No workspace membership, because the lasting team
+ * (invites, roles) is still Pro. A link belongs to one job, or to a programme, whose every round admits
+ * the same seat holders.
+ */
+export const jobLinks = sqliteTable(
+  "job_links",
+  {
+    code: text("code").primaryKey(),
+    campaignId: text("campaign_id"),
+    programmeId: text("programme_id"),
+    seats: integer("seats").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at").notNull(),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [index("job_links_campaign_idx").on(t.campaignId), index("job_links_programme_idx").on(t.programmeId)],
+);
+export type JobLink = typeof jobLinks.$inferSelect;
+
+/** One seat = one person's wallet in one job or programme. The primary key is what makes a second seat
+ *  for the same wallet impossible, whatever double taps or racing requests do. */
+export const jobSeats = sqliteTable(
+  "job_seats",
+  {
+    /** the campaign id, or the programme id, the seat admits to. */
+    scopeId: text("scope_id").notNull(),
+    wallet: text("wallet").notNull(),
+    linkCode: text("link_code").notNull(),
+    claimedAt: integer("claimed_at").notNull(),
+    removedAt: integer("removed_at"),
+  },
+  (t) => [primaryKey({ columns: [t.scopeId, t.wallet] }), index("job_seats_link_idx").on(t.linkCode)],
+);
+export type JobSeat = typeof jobSeats.$inferSelect;
+
+/**
+ * TIME (6 Nov 2026): a programme is one approved job that Sage runs again every `everyDays`, for
+ * `roundsTotal` rounds, for the same people (src/lib/programmes/). `spec` is the exact direct-campaign
+ * input the founder approved; each round replays it, so no round ever carries an amount the founder did
+ * not set. Every round launches from the founder's account through the same checks as the card.
+ */
+export const programmes = sqliteTable(
+  "programmes",
+  {
+    id: text("id").primaryKey(),
+    founderWallet: text("founder_wallet").notNull(),
+    chainId: integer("chain_id").notNull(),
+    title: text("title").notNull(),
+    spec: text("spec", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    roundBudgetBase: integer("round_budget_base").notNull(),
+    everyDays: integer("every_days").notNull(),
+    roundsTotal: integer("rounds_total").notNull(),
+    /** when the next round opens (unix seconds); null once every round has opened, or it stopped. */
+    nextRoundAt: integer("next_round_at"),
+    /** draft until round 1 is live; active while rounds remain; ended / stopped after. */
+    status: text("status").notNull().$type<"draft" | "active" | "ended" | "stopped">(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("programmes_due_idx").on(t.status, t.nextRoundAt)],
+);
+export type Programme = typeof programmes.$inferSelect;
+
+/** One row per round, written BEFORE the round's money moves: the primary key is what makes opening the
+ *  same round twice impossible, whatever retries, restarts or overlapping sweeps do. */
+export const programmeRounds = sqliteTable(
+  "programme_rounds",
+  {
+    programmeId: text("programme_id").notNull(),
+    round: integer("round").notNull(),
+    status: text("status").notNull().$type<"opening" | "live" | "failed" | "skipped">(),
+    jobId: text("job_id"),
+    campaignId: text("campaign_id"),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: integer("last_attempt_at"),
+    /** why the last attempt did not open the round, in words the founder can act on. */
+    error: text("error"),
+    openedAt: integer("opened_at"),
+    closedAt: integer("closed_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.programmeId, t.round] }), index("programme_rounds_campaign_idx").on(t.campaignId)],
+);
+export type ProgrammeRound = typeof programmeRounds.$inferSelect;
+
+/**
  * SAGE FOR TEAMS — the closed loop. An organization (a team, a program, a company) owns a workspace,
  * invites its people, launches work into it, and Sage verifies and pays inside limits. Membership is
  * chain-agnostic: a member key is a founder storage key (a wallet) or `tg:<chatId>` for someone who

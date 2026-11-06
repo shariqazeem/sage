@@ -98,6 +98,7 @@ interface LimiterStore {
   swapQuote: RateLimiter;
   /** money moves from an account (swap, send) / min / founder: a person confirms each one. */
   accountMove: RateLimiter;
+  seatClaim: RateLimiter;
 }
 
 const g = globalThis as typeof globalThis & { __sageLimiters?: LimiterStore };
@@ -147,11 +148,13 @@ function limiters(): LimiterStore {
       promo: new RateLimiter(10, 60_000), // 10 promo code checks / min / founder
       swapQuote: new RateLimiter(40, 60_000), // 40 swap quotes / min / founder
       accountMove: new RateLimiter(6, 60_000), // 6 account moves / min / founder
+      seatClaim: new RateLimiter(20, 60_000), // 20 seat claims / min / IP (a group opening one link at once)
     };
   }
   // a store memoized by an older build (dev HMR) lacks kinds added since: add them, never crash
   g.__sageLimiters.swapQuote ??= new RateLimiter(40, 60_000);
   g.__sageLimiters.accountMove ??= new RateLimiter(6, 60_000);
+  g.__sageLimiters.seatClaim ??= new RateLimiter(20, 60_000);
   return g.__sageLimiters;
 }
 
