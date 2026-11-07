@@ -84,10 +84,33 @@ async function rpc(url, method, params, tries = 3) {
   throw last;
 }
 
+const ASK_AGAIN = 6;
+
+/**
+ * A receipt, asked for again before it is called missing. Public nodes sit behind load balancers, and
+ * measured on Arc (7 Nov 2026) one of them answered "no such transaction" three times in a row for a
+ * payout the next request found settled. A node that has never heard of a transaction answers the same
+ * way as one that is behind, so only a transaction no answer finds is reported missing.
+ */
+async function receiptOf(url, method, params) {
+  for (let i = 0; i < ASK_AGAIN; i++) {
+    let receipt = null;
+    try {
+      receipt = await rpc(url, method, params, 2);
+    } catch (e) {
+      // Starknet answers an unknown hash with an error rather than null
+      if (!/not found/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    }
+    if (receipt) return receipt;
+    await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+  }
+  return null;
+}
+
 /** One EVM payout: the transaction succeeded and a USDC Transfer left the vault for the exact amount. */
 async function checkEvm(net, url, p) {
-  const receipt = await rpc(url, "eth_getTransactionReceipt", [p.txHash]);
-  if (!receipt) return { ok: false, why: "no such transaction" };
+  const receipt = await receiptOf(url, "eth_getTransactionReceipt", [p.txHash]);
+  if (!receipt) return { ok: false, why: `no such transaction (asked ${ASK_AGAIN} times; try another node with --rpc)` };
   if (receipt.status !== "0x1") return { ok: false, why: "the transaction failed" };
   const want = BigInt(p.amountBase);
   const transfers = (receipt.logs ?? []).filter(
@@ -105,8 +128,8 @@ async function checkEvm(net, url, p) {
  * vault releasing the reward but not who it is for: the check is the vault and the exact amount.
  */
 async function checkStarknet(net, url, p) {
-  const receipt = await rpc(url, "starknet_getTransactionReceipt", { transaction_hash: p.txHash });
-  if (!receipt) return { ok: false, why: "no such transaction" };
+  const receipt = await receiptOf(url, "starknet_getTransactionReceipt", { transaction_hash: p.txHash });
+  if (!receipt) return { ok: false, why: `no such transaction (asked ${ASK_AGAIN} times; try another node with --rpc)` };
   if (receipt.execution_status && receipt.execution_status !== "SUCCEEDED") return { ok: false, why: "the transaction failed" };
   const want = BigInt(p.amountBase);
   const tokens = net.tokens.map(felt);

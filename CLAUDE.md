@@ -633,6 +633,12 @@ Where the writing brief for this file disagreed with the code, the code is recor
    - **Not wired:** `chargeOperatorFee` is EVM-only, so a Starknet payout accrues no operator
      fee. That is Sage's own revenue, not founder money, and the x402 fee rail is GOAT-based —
      a decision to make, not a bug to fix silently.
+   - **The recorded amount is the campaign's, not the vault's** (found by the public recount, 7 Nov
+     2026). `settle-starknet.ts` (frozen) journals `campaign.rewardAmount`, while the Cairo vault
+     pays the MISSION's reward; on a grant whose milestones differ they can disagree. One payout
+     (`grant-DPJrhHEmdB`, tx `0x2337…b54`) was journalled 5054779 for a vault release of 5054778;
+     its row was corrected from the chain the same day. The rail is closed, so no new row can drift;
+     the EVM flow journals the amount from the vault's own event.
 
 8. **`missedMoneyAction` judges the FOUNDER'S words, not the model's draft** — an amount plus
    either a payment verb or an offer of work to a person ("I need someone to…"). It is the

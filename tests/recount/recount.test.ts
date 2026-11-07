@@ -26,6 +26,8 @@ const hex = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
 
 /** what the node knows: tx hash → receipt */
 const receipts: Record<string, unknown> = {};
+/** a load-balanced public node: how many more times it answers "no such transaction" before it finds one */
+const flaky: Record<string, number> = {};
 let ledger: unknown = null;
 let server: Server;
 let base = "";
@@ -66,6 +68,10 @@ beforeAll(async () => {
       if (req.url === "/api/ledger") return void res.end(JSON.stringify(ledger));
       const call = JSON.parse(body || "{}") as { method: string; params: unknown };
       const hash = call.method === "eth_getTransactionReceipt" ? (call.params as string[])[0] : (call.params as { transaction_hash: string }).transaction_hash;
+      if ((flaky[hash] ?? 0) > 0) {
+        flaky[hash] -= 1;
+        return void res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: null }));
+      }
       res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: receipts[hash as string] ?? null }));
     });
   });
@@ -103,6 +109,14 @@ describe("recount.mjs", () => {
     expect(r.out.agrees).toBe(true);
     expect(r.code).toBe(0);
   });
+
+  it("asks a load-balanced node again before calling a settled payout missing", async () => {
+    truth();
+    flaky["0x1"] = 2;
+    const r = await run([]);
+    expect(r.out.failures).toEqual([]);
+    expect(r.code).toBe(0);
+  }, 30_000);
 
   it("fails a payout whose amount is not what left the vault", async () => {
     truth();
