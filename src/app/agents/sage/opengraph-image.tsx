@@ -83,10 +83,10 @@ export default function OG() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 60, fontWeight: 800, letterSpacing: -2, lineHeight: 1.05 }}>
-            Give an AI agent an allowance,
+            Proof of work,
           </div>
           <div style={{ fontSize: 60, fontWeight: 800, letterSpacing: -2, lineHeight: 1.05, color: MUTED }}>
-            not your keys.
+            for people.
           </div>
         </div>
 

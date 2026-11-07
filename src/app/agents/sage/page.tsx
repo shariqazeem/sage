@@ -31,7 +31,7 @@ export function generateMetadata(): Metadata {
       } to ${r.distinctRecipients} recipient${r.distinctRecipients === 1 ? "" : "s"}, ${
         r.blockedCount
       } blocked by policy. ERC-8004 identity on ${id.network} — every payout verifiable and graded.`
-    : `Sage — an ERC-8004 payout agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.`;
+    : `Sage — an ERC-8004 agent that pays people onchain for work it has verified, from a policy-capped vault it cannot exceed. Every payout is verifiable and graded on-chain.`;
 
   return {
     metadataBase: new URL(siteUrl()),

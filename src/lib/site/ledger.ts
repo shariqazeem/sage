@@ -62,6 +62,8 @@ export interface LedgerEntry {
   recipient: string | null;
   /** paid to one of Sage's own wallets: real money that moved, never a person paid. */
   ownWallet: boolean;
+  /** paid only: whether Sage decided the payout on its own or a person released it (`SettledRow.decidedBy`). */
+  decidedBy: "agent" | "person" | null;
 }
 
 export interface Ledger {
@@ -148,6 +150,7 @@ export function readLedger(query: LedgerQuery, pageSize = LEDGER_PAGE_SIZE): Led
       amountBase: r.amountBase,
       recipient: r.wallet,
       ownWallet: r.operator,
+      decidedBy: r.decidedBy,
     })),
     ...refused.map((r): Line => ({
       id: `refused:${r.submissionId}`,
@@ -159,6 +162,7 @@ export function readLedger(query: LedgerQuery, pageSize = LEDGER_PAGE_SIZE): Led
       amountBase: null,
       recipient: null,
       ownWallet: false,
+      decidedBy: null,
     })),
   ].sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
 

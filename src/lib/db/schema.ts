@@ -395,6 +395,24 @@ export const programmeRounds = sqliteTable(
 export type ProgrammeRound = typeof programmeRounds.$inferSelect;
 
 /**
+ * MILESTONES (7 Nov 2026): the first moment one of Sage's numbers (`src/lib/numbers/sage-numbers.ts`)
+ * reached a round figure — 100 payouts decided by the agent, the first team other than Sage — written
+ * once, so the operator is told once. `key` is `<series>:<threshold>`; the `seeded` row marks the
+ * figures already passed when this table arrived, recorded without a message.
+ */
+export const milestones = sqliteTable("milestones", {
+  key: text("key").primaryKey(),
+  series: text("series").notNull(),
+  threshold: integer("threshold").notNull(),
+  /** the count when Sage noticed it (a sweep can see a figure a little past the threshold). */
+  value: integer("value").notNull(),
+  reachedAt: integer("reached_at").notNull(),
+  /** false for figures recorded silently when the table was first filled. */
+  announced: integer("announced", { mode: "boolean" }).notNull().default(false),
+});
+export type Milestone = typeof milestones.$inferSelect;
+
+/**
  * SAGE FOR TEAMS — the closed loop. An organization (a team, a program, a company) owns a workspace,
  * invites its people, launches work into it, and Sage verifies and pays inside limits. Membership is
  * chain-agnostic: a member key is a founder storage key (a wallet) or `tg:<chatId>` for someone who

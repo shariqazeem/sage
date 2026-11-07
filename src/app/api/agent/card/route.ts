@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTION =
-  "Sage, an autonomous ERC-8004 agent that releases USDC from a policy-capped on-chain vault. Give it a budget, not your keys. Every payout is verifiable and graded on-chain.";
+  "Sage, an autonomous ERC-8004 agent that pays people onchain for verified work, from a policy-capped vault it cannot exceed. Every payout is verifiable and graded on-chain.";
 
 /**
  * GET /api/agent/card — the canonical machine-readable agent URI. Matches the

@@ -47,14 +47,14 @@ const SITE = siteUrl();
  * spent the rest of the tag on a metaphor nobody searches: people type "paid beta testers for my
  * app", never "hire an AI worker".
  *
- * So the tag now opens on the CATEGORY, which has no incumbent, and closes on the brand. The
- * "hire an AI worker, give it a budget, not your keys" line is still the hero headline, where it is
- * strong — it just should not be the string we ask to be indexed on.
+ * So the tag now opens on the CATEGORY, which has no incumbent, and closes on the brand. (The old
+ * "hire an AI worker" headline and any keys or allowance framing were retired on 5 Nov 2026; the public
+ * line is "Proof of work, for people.")
  */
 const TITLE =
   "Sage — an AI agent that moves money on verified work";
 const DESCRIPTION =
-  "Sage is autonomous payments infrastructure: an AI agent that takes a budget and an outcome, inspects products, designs paid work, verifies every deliverable, detects fraud, and pays in USDC from an on-chain vault it cannot exceed — on Metis, with public receipts, private payouts on Starknet, a verified work record for every recipient, and working capital against it.";
+  "Sage is autonomous payments infrastructure: an AI agent that takes a budget and an outcome, inspects products, designs paid work, verifies every deliverable, detects fraud, and pays in USDC from an on-chain vault it cannot exceed, on Metis, with a public receipt for every payout, a verified work record for every recipient, and working capital against it.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

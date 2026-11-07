@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, CircleAlert, CircleSlash, EyeOff, Layers, Receipt, Scale, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleAlert, CircleSlash, EyeOff, Layers, Receipt, Scale, Terminal, Wallet } from "lucide-react";
 import { SiteFrame } from "@/components/site/site-frame";
 import { ago } from "@/components/site/receipt-card";
 import { humanWait } from "@/components/marketplace/wait-strip";
@@ -17,6 +17,7 @@ import {
   type LedgerNetwork,
   type LedgerShow,
 } from "@/lib/site/ledger";
+import { sageNumbers, type SageNumbers } from "@/lib/numbers/sage-numbers";
 import "@/styles/ledger.css";
 
 // Read on every request: the totals and every line are the ledger as it is now, never a build-time copy.
@@ -48,7 +49,9 @@ function when(at: number, nowSec: number): string {
 
 function Line({ e, nowSec }: { e: LedgerEntry; nowSec: number }) {
   const paid = e.kind === "paid";
-  const to = !paid ? null : e.ownWallet ? "to Sage's own wallet" : e.recipient ? `to ${short(e.recipient)}` : null;
+  const who = !paid ? null : e.ownWallet ? "to Sage's own wallet" : e.recipient ? `to ${short(e.recipient)}` : null;
+  const how = !paid ? null : e.decidedBy === "agent" ? "by the agent" : "released by hand";
+  const to = who && how ? `${who} · ${how}` : (who ?? how);
   const body = (
     <>
       <span className={`lg-dot${paid ? "" : " is-refused"}`} aria-hidden />
@@ -102,6 +105,18 @@ function NetworkRow({ n, current }: { n: LedgerNetwork; current: boolean }) {
   );
 }
 
+const RECOUNT_SCRIPT = "https://github.com/shariqazeem/sage/blob/main/scripts/recount.mjs";
+
+/** The counts that only show once they are more than nothing: a new kind of work has no history to show yet. */
+function laterCounts(n: SageNumbers): string | null {
+  const parts = [
+    n.teams > 0 ? `${n.teams} ${n.teams === 1 ? "team" : "teams"} other than Sage paid people through it` : null,
+    n.grants.completed > 0 ? `${n.grants.completed} ${n.grants.completed === 1 ? "grant" : "grants"} completed, every milestone paid` : null,
+    n.rounds > 0 ? `${n.rounds} weekly ${n.rounds === 1 ? "round" : "rounds"} paid` : null,
+  ].filter((p): p is string => !!p);
+  return parts.length === 0 ? null : `${parts.join(". ")}.`;
+}
+
 /** What an empty view says: the plain truth for this filter, and the way back to everything. */
 function emptyLine(show: LedgerShow, network: LedgerNetwork | null): string {
   const what = show === "paid" ? "No payouts" : show === "refused" ? "No refusals" : "Nothing";
@@ -123,6 +138,8 @@ export default async function LedgerPage({
 
   const ledger = readLedger(parseLedgerQuery(params));
   const outcomes = ledgerOutcomes();
+  const numbers = sageNumbers();
+  const later = laterCounts(numbers);
   const nowSec = Math.floor(Date.now() / 1000);
   const { query, totals, counts, entries, page, pages } = ledger;
   const primary = ledger.networks.filter((n) => n.tier === "primary");
@@ -278,12 +295,28 @@ export default async function LedgerPage({
         <div className="site-wrap">
           <div className="sec-head">
             <h2 className="h2">What the jobs got.</h2>
-            <p className="lead">Real people, paid for work that checked out. Counted from the same records.</p>
+            <p className="lead">Real people, paid for work that checked out. Counted from the same records, and anyone can recount them from the chain.</p>
           </div>
           <div className="stats">
             <div className="stat">
-              <div className="stat-v">{outcomes.people}</div>
-              <div className="stat-l">{outcomes.people === 1 ? "person paid" : "people paid"}</div>
+              <div className="stat-v">{numbers.byAgent}</div>
+              <div className="stat-l">
+                of {numbers.payouts} {numbers.payouts === 1 ? "payout" : "payouts"} decided by the agent
+              </div>
+            </div>
+            <div className="stat">
+              <div className="stat-v">{numbers.people}</div>
+              <div className="stat-l">{numbers.people === 1 ? "person paid" : "people paid"}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-v">{numbers.jobs}</div>
+              <div className="stat-l">{numbers.jobs === 1 ? "job that paid someone" : "jobs that paid someone"}</div>
+            </div>
+          </div>
+          <div className="stats lg-stats-more">
+            <div className="stat">
+              <div className="stat-v">{numbers.paidAgain}</div>
+              <div className="stat-l">{numbers.paidAgain === 1 ? "person paid more than once" : "people paid more than once"}</div>
             </div>
             <div className="stat">
               <div className="stat-v">{outcomes.medianWaitSeconds === null ? "Not yet" : humanWait(outcomes.medianWaitSeconds)}</div>
@@ -297,6 +330,9 @@ export default async function LedgerPage({
           <p className="lg-note">
             People, not wallets: wallets that belong to one person count once.
             {outcomes.measured > 1 && ` The wait is measured over ${outcomes.measured} payouts, and includes the checking.`}
+            {numbers.ownWallets.payouts > 0 &&
+              ` ${numbers.ownWallets.payouts} more ${numbers.ownWallets.payouts === 1 ? "payout" : "payouts"} went to Sage\u2019s own wallets while it tested itself: counted in the totals above, left out here.`}
+            {later && ` ${later}`}
           </p>
         </div>
       </section>
@@ -329,9 +365,19 @@ export default async function LedgerPage({
               {ledger.hasOwnWallet && (
                 <li>
                   <Wallet size={18} strokeWidth={1.75} aria-hidden />
-                  <span>A few payouts went to Sage&apos;s own wallets while it tested itself. They moved real money, so they are counted.</span>
+                  <span>
+                    A few payouts went to Sage&apos;s own wallets while it tested itself. They moved real money, so the totals count them; the
+                    people and jobs above leave them out, and the list of those wallets is public.
+                  </span>
                 </li>
               )}
+              <li>
+                <Terminal size={18} strokeWidth={1.75} aria-hidden />
+                <span>
+                  Recount it yourself: <a href={RECOUNT_SCRIPT}>one script</a> reads <a href="/api/ledger">every payout</a>, opens each one on its own
+                  network, and counts again. It needs nothing but Node.
+                </span>
+              </li>
             </ul>
           </div>
           <form className="lg-lookup" action="/ledger#check" method="get">

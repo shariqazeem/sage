@@ -43,6 +43,7 @@ import { short } from "@/lib/format";
 import { reapStalledInspections } from "@/lib/launch/job";
 import { renewDuePlans } from "@/lib/plans/renewal";
 import { openDueRounds } from "@/lib/programmes/rounds";
+import { checkMilestones } from "@/lib/numbers/milestones";
 import { collectAdvanceRepayments } from "@/lib/advance/collect";
 import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders } from "@/lib/llm/credit-alert";
 import { lastReopenedAt } from "@/lib/llm/wire";
@@ -99,6 +100,8 @@ async function runSweep() {
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
     programmes: { due: 0, opened: 0, waiting: 0, failed: 0, skipped: 0, closed: 0 },
+    /** round figures reached this tick (100 payouts by the agent, the first other team), told to the operator once. */
+    milestones: { seeded: 0, reached: [] as string[] },
     advances: { advances: 0, collected: 0, collectedBase: 0, missed: 0, paused: null as string | null },
     /** model accounts out of credit (credit-alert.ts): which, asked again this tick, and how many came back. */
     llm: { closed: [] as ReturnType<typeof creditStatus>, probed: 0, reopened: 0 },
@@ -334,6 +337,16 @@ async function runSweep() {
     console.error("[sweep] plan renewals failed:", e instanceof Error ? e.message : e);
     return { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 };
   });
+
+  // MILESTONES (7 Nov 2026): the moment a number first reaches a round figure, read from the same ledger
+  // every public page reads, the operator is told once with a post drafted from the real numbers. Last:
+  // it only reads what the steps above already settled.
+  try {
+    const m = checkMilestones(nowSeconds());
+    summary.milestones = { seeded: m.seeded, reached: m.reached.map((r) => `${r.series}:${r.threshold}`) };
+  } catch (e) {
+    console.error("[sweep] milestones failed:", e instanceof Error ? e.message : e);
+  }
 
   return summary;
 }

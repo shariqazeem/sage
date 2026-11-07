@@ -43,14 +43,14 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
     ? isTestnet
       ? `${proof.human.amountUsd.toFixed(2)} ${tokenSymbol(proof.chain.chainId)}`
       : `$${proof.human.amountUsd.toFixed(2)}`
-    : "Give an agent an allowance";
+    : "Proof of work,";
   const sub = proof
     ? mismatch
       ? `on-chain payment · decision commitment mismatch`
       : settled
         ? `paid on ${proof.human.network}${proof.legacy ? " · legacy" : ", inside an on-chain policy"}`
         : `refused on ${proof.human.network} — no funds moved`
-    : "not your keys.";
+    : "for people.";
 
   return new ImageResponse(
     (

@@ -8,7 +8,7 @@ import { advances, campaigns, missions, submissions } from "@/lib/db/schema";
 import { CURRENCIES, corridorCost, type CorridorCost } from "@/lib/money/currency";
 import { allCorridorReadings, PUBLIC_CORRIDOR_SOURCE, type CorridorReading } from "@/lib/money/public-corridors";
 import { isTestnetChain } from "@/lib/format";
-import { OPERATOR_WALLETS, decidedOnMainnet, settledLedger } from "@/lib/campaigns/settled-ledger";
+import { decidedOnMainnet, isOwnWallet, settledLedger } from "@/lib/campaigns/settled-ledger";
 
 /**
  * THE BRIEF'S BAR, AS READINGS — "does your system change outcomes?" answered from the ledger.
@@ -208,7 +208,7 @@ export function readOutcomes(): OutcomeReadings {
       wallet: r.wallet ?? "",
       rewardBase:
         (r.payoutTx ? amountByTx.get(r.payoutTx) : undefined) ?? r.missionReward ?? r.campaignReward ?? 0,
-      operator: OPERATOR_WALLETS.has((r.wallet ?? "").toLowerCase()),
+      operator: isOwnWallet(r.wallet),
       createdAt: r.createdAt,
       decidedAt: r.decidedAt,
       posterWallet: r.posterWallet ?? "",

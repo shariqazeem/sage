@@ -72,6 +72,21 @@
 >   judgment at 2×. `node scripts/vm/llm-spend.mjs` prints each day.
 >
 > Plan and order: `docs/strategy/2026-11-06-the-core.md` (internal).
+>
+> **7 Nov 2026 (the founder's decisions): numbers that hold up, and no fee handouts.**
+> - **Numbers.** Every settled payout says who decided it (`decidedBy` on `settledLedger`: the agent, or a person
+>   releasing it by hand). `sageNumbers()` (`src/lib/numbers/`) counts, one way, payouts to people, the agent's
+>   share, people (clusters, the board's count), people paid again, jobs, teams (funders other than Sage), completed
+>   grants and weekly rounds; it equals the job board's own counts (tested). Sage's own wallets (`OWN_WALLETS` in
+>   `settled-ledger.ts`, each with the evidence it is ours) are left out of every people and team count and
+>   published at `GET /api/ledger`. `scripts/recount.mjs` re-checks every payout on its own network with nothing
+>   but Node: USDC left the job's vault, in the exact amount, to the listed person (EVM; Starknet's private rail
+>   pays a claim, so the vault and amount only). The first time a number reaches a round figure (100 payouts by
+>   the agent, the first other team), the operator chat gets one message with a drafted post (`milestones`, the
+>   sweep's last step).
+> - **No METIS drip.** The founder won't fund people's network fees. Metis m.USDC has neither permit nor EIP-3009
+>   (checked on chain), so nothing can take a worker's fee from their USDC either; the worker's wallet names the
+>   METIS needed and where to get it (`needsFeeMessage`), as every founder door does.
 
 ---
 
@@ -548,7 +563,7 @@ key the API ignores, and several rounds of "defects" turned out to be the harnes
 read tool before acting, and self-corrects once when a turn claims an action it did not take.
 A one-shot battery scores both as failures a founder never experiences.
 
-Scripts in `scripts/`: `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
+Scripts in `scripts/`: `recount.mjs` (PUBLIC: recounts Sage's numbers from the chain; dependency-free), `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
 lane config is silently ignored, which is how two lanes sat on a metered key for weeks),
 `redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
 the regex layer can't catch), `deputy-watch.mjs` (sweep watcher), `mcp-conformance.mjs`,

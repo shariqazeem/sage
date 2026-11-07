@@ -299,6 +299,10 @@
 }
 
 /* ── what the jobs got ──────────────────────────────────────────────── */
+/* a second row of numbers shares the first row's bottom rule rather than drawing its own */
+.site .lg-stats-more {
+  border-top: 0;
+}
 .site .lg-note {
   max-width: var(--site-narrow);
   margin: var(--s-5) auto 0;

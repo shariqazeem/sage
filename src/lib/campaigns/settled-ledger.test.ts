@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { campaigns, events, submissions } from "@/lib/db/schema";
 import { createCampaign, createSubmission, recordEvent } from "@/lib/db/campaigns";
 import { eq } from "drizzle-orm";
-import { mainnetSettled, mainnetSettledToTesters, settledLedger } from "./settled-ledger";
+import { isOwnWallet, mainnetSettled, mainnetSettledToTesters, settledLedger, walletKey } from "./settled-ledger";
 import { getTesterSupply } from "./tester-supply";
 
 /**
@@ -136,5 +136,50 @@ describe("the surfaces agree because they read the same rows", () => {
     expect(supply.testersPaid).toBe(t.people);
     expect(supply.usdcSettled).toBe(5.24);
     expect(supply.testersPaid).toBe(2);
+  });
+});
+
+describe("who decided each payout (7 Nov 2026)", () => {
+  it("the agent, when Sage paid it on its own; a person, when it was released by hand", () => {
+    seedCampaign("m1", 2345);
+    const agentSub = seedPaid("m1", TESTER, "0xagent", 500_000, "settled");
+    // the vault flow journals `settled`; the agent's own row arrives after it, for the same transaction
+    recordEvent({ campaignId: "m1", submissionId: agentSub, kind: "autopay_settled", txHash: "0xagent", amount: 500_000 });
+    seedPaid("m1", TESTER2, "0xhand", 500_000, "settled");
+    const by = new Map(settledLedger().map((r) => [r.txHash, r.decidedBy]));
+    expect(by.get("0xagent")).toBe("agent");
+    expect(by.get("0xhand")).toBe("person");
+  });
+
+  it("open work the agent approved, settled after its watch window, is the agent's decision", () => {
+    seedCampaign("m1", 2345);
+    const sub = seedPaid("m1", TESTER, "0xwindow", 500_000, "settled");
+    recordEvent({ campaignId: "m1", submissionId: sub, kind: "autopay_approved", txHash: null, amount: null });
+    expect(settledLedger()[0]?.decidedBy).toBe("agent");
+  });
+
+  it("the agent's row alone (the Starknet pipeline journals only that) is the agent's decision", () => {
+    seedCampaign("s1", 900_001);
+    seedPaid("s1", TESTER, "0xstark", 500_000, "autopay_settled");
+    expect(settledLedger()[0]?.decidedBy).toBe("agent");
+  });
+});
+
+describe("Sage's own wallets, in any spelling", () => {
+  it("a Starknet wallet matches with or without its leading zero, and case never matters", () => {
+    expect(isOwnWallet("0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048")).toBe(true);
+    expect(isOwnWallet("0x5DB1A00FA6AD44E82DE90CAE46D82CD5CE052394320D60946EF661DB68E3048")).toBe(true);
+    expect(isOwnWallet("0xDF70F6E8E656E5BB714FF0E8CA176D76F26890E3")).toBe(true);
+    expect(isOwnWallet(TESTER)).toBe(false);
+    expect(isOwnWallet(null)).toBe(false);
+    expect(walletKey("0x0000abc")).toBe("0xabc");
+  });
+
+  it("a payout to the founder's Starknet wallet is real money, never a person paid", () => {
+    seedCampaign("s1", 900_001);
+    seedPaid("s1", "0x05db1a00fa6ad44e82de90cae46d82cd5ce052394320d60946ef661db68e3048", "0xown", 500_000, "autopay_settled");
+    seedPaid("s1", TESTER, "0xperson", 500_000, "autopay_settled");
+    expect(mainnetSettled().payouts).toBe(2);
+    expect(mainnetSettledToTesters().payouts).toBe(1);
   });
 });
