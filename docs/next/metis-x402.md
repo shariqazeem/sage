@@ -159,3 +159,27 @@ what is missing. Until the proxy at the configured address is a known build that
 - **One instance.** Transaction nonces are serialized per process, so run one Sage instance (as pm2 does
   today) or give each instance its own key.
 - `exact` only (no `upto`), m.USDC (m.USDT opt-in). Native METIS is not offered.
+
+## Verified on the explorer (12 Nov 2026)
+
+Metis Rise asked for the agent's contracts to be verified on Andromeda's explorer. The proxy is verified at
+https://andromeda-explorer.metis.io/address/0xC5Df359394de02F8E04bfb650E250b20a33BEe6a?tab=contract as a **partial
+match**. That is the most any build of it can get: x402 compiles it with `cbor_metadata = false` and
+`bytecode_hash = "none"`, so there is no metadata hash for an explorer to confirm. The executable code matches.
+
+How it was verified, to repeat it:
+1. **Sources**, from x402 at `0e6e8c55d86b4f14234fb6e49a4052074fb93e57`: `contracts/evm/src/x402BasePermit2Proxy.sol`,
+   `x402ExactPermit2Proxy.sol` and `interfaces/ISignatureTransfer.sol`. From OpenZeppelin at
+   `fcbae5394ae8ad52d8e580a3477db99814b9d565`: `utils/ReentrancyGuard.sol`, `utils/StorageSlot.sol` and
+   `token/ERC20/extensions/IERC20Permit.sol`.
+2. **Build settings** in a Foundry project:
+   - `solc = "0.8.28"`, `evm_version = "paris"`;
+   - `optimizer = true`, `optimizer_runs = 200`, `via_ir = false`;
+   - `cbor_metadata = false`, `bytecode_hash = "none"`;
+   - remapping `@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/`.
+3. **Check the build first.** The creation code plus `abi.encode(PERMIT2)` must hash to the pinned paris
+   `initCodeHash`, `0x8ae99ed2…f6c9`. It did.
+4. **Submit:** `forge verify-contract 0xC5Df…Ee6a src/x402ExactPermit2Proxy.sol:x402ExactPermit2Proxy --chain-id 1088
+   --verifier blockscout --verifier-url https://andromeda-explorer.metis.io/api/ --compiler-version 0.8.28
+   --constructor-args $(cast abi-encode "constructor(address)" 0x000000000022D473030F116dDEE9F6B43aC78BA3)`.
+

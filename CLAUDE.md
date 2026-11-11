@@ -124,7 +124,11 @@ launchable only when its factory, operator and token are configured (fails close
   runbook `docs/next/metis-go-live.md`): V2 factory `0xdD9a45c181dD95e48CDdC0149C8b821D604C45C9`, ERC-8004
   agent **139** (its URI is `https://sagepays.xyz/api/agent/card`), and Sage's x402 facilitator (proxy
   `0xC5Df…Ee6a`, signer `0x86D7…7ABB`, key only on the VM) selling Sage's tools at `/mcp/metis/<tool>`,
-  paid to `SAGE_BILLING_ADDRESS`. No real payout on Metis yet.
+  paid to `SAGE_BILLING_ADDRESS`. No real payout on Metis yet. **Both contracts are verified on
+  andromeda-explorer.metis.io (12 Nov 2026, asked for by Metis Rise):** the factory as an exact match (its 12
+  sources include `CampaignVault.sol`), the proxy as a partial match by design (x402 compiles it without
+  metadata; the bytecode matches). Each job vault the factory creates is verified once it exists:
+  `contracts/script/verify-vault-metis.sh 0x<vault>` (it refuses anything not built from this repo).
 - **Arc** (USDC is the native gas and an ERC-20 at `0x3600…0000`) and **Starknet** (the private rail, below)
   are CLOSED since 26 Oct 2026: nothing new starts there and no surface offers them; what is already there keeps
   working (receipts, records, claim links, payouts from jobs already funded). Hidden, never deleted.
