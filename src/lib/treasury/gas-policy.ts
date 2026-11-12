@@ -10,6 +10,9 @@ import { METIS_MAINNET_CHAIN_ID } from "@/lib/deputy/networks";
  *   (~60–76k) and activate (~55k), about 1.9M gas in all;
  * - Metis Andromeda prices gas at ~13.4 gwei (eth_gasPrice, 19 Oct), so ~0.026 METIS a launch;
  * - a payout (requestPayout) is ~150k gas, ~0.002 METIS.
+ * Re-measured 12 Nov 2026 on a fork of the live chain (`tests/live/metis-launch-fork.live.test.ts`), priced as
+ * the executor sends it (15.8 gwei +20%): create 1.57M, approve 46k, fund 66k, activate 55k gas, 0.033 METIS
+ * a launch; a vault's FIRST payout is ~224k gas, ~0.0042 METIS (later ones are cheaper: the slots are warm).
  * Arc is not listed: USDC is its gas, so the USDC balance check covers it.
  */
 const FALLBACK_LAUNCH_GAS_WEI = BigInt("3000000000000"); // 0.000003 BTC: GOAT's 4-tx launch with headroom
@@ -25,7 +28,7 @@ export function minLaunchGasWei(chainId: number): bigint {
 
 /**
  * What the operator keeps for settlements before it covers anyone's launch gas (the stipend). GOAT's
- * floor is 0.000005 BTC (~170 payouts); Metis keeps 0.2 METIS (~100 payouts at ~0.002 METIS each).
+ * floor is 0.000005 BTC (~170 payouts); Metis keeps 0.2 METIS (~50 first payouts at ~0.004 METIS each, 12 Nov).
  */
 export function operatorGasFloorWei(chainId: number): bigint {
   if (chainId === METIS_MAINNET_CHAIN_ID) return BigInt(process.env.METIS_MAINNET_OPERATOR_GAS_FLOOR_WEI?.trim() || "200000000000000000");

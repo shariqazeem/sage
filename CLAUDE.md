@@ -558,6 +558,7 @@ died of contention is indistinguishable in the grid from a row that died of a de
 | **P-VERIFY** | the deterministic verification contracts | `VERIFY_LIVE=1 npx vitest run verify-contracts.live` |
 | **Starknet dry-run** | whether the Cairo rail would actually PAY — runs the real `request_payout` against the live vault and commits nothing | `STARKNET_DRYRUN=1 npx vitest run payout-dryrun.live` (VM: needs the operator key) |
 | **P-OPERATOR** | the standing mandate's one model decision — WHERE to buy the next work: in-set only, never prices it, does not buy the same silence twice, escalates past a filled read | `OPERATOR_EVAL=1 OPERATOR_RUNS=3 npx vitest run decide-eval.live` (VM: the MISSION lane's key) |
+| **Metis launch fork** | whether an account launch on Metis would go through and pay, before real money tries: production's own bundle (create → approve → fund → activate) from the account's REAL balances on a local anvil fork, then the real operator pays the mission and a second person is refused (code 7). No model, nothing broadcast; prints each step's gas and METIS at today's price | `METIS_FORK=1 npx vitest run metis-launch-fork.live` (anywhere with Foundry's `anvil`; `METIS_FORK_ACCOUNT` for another account) |
 
 **A battery must import production's own prompt/tools, never a copy** (`systemPrompt`, `TG_TOOLS`,
 `asOpenAI`, `DIRECT_BLOCK`). P-DIRECT once hand-rolled its tool encoding, the schema landed under a
