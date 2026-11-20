@@ -333,7 +333,7 @@ export async function describeStatesWithVision(
   const cap = deps.maxImages ?? MAX_IMAGES;
   const provider = deps.describeImage ? null : resolveVisionProvider();
   if (!deps.describeImage && !provider) {
-    log("[field-test] vision: skipped (no LLM key configured)");
+    log("[field-test] vision: skipped (no key, or no configured model that can see images)");
     return [];
   }
 
