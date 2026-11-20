@@ -69,7 +69,7 @@ type Prepared =
 
 const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const idleSteps = (): StepView[] => OWN_WALLET_STEPS.map((step) => ({ step, label: STEP_LABELS[step], status: "waiting", txHash: null, explorerUrl: null }));
-const refusedSend = async (_tx: LegacyTx): Promise<`0x${string}`> => {
+const refusedSend = async (): Promise<`0x${string}`> => {
   throw new Error("read-only");
 };
 

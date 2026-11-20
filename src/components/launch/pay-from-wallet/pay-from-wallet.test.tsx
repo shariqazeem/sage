@@ -36,7 +36,7 @@ describe("PayFromWallet", () => {
     const state = base();
     api.mockReturnValue(state);
     render(<PayFromWallet jobId="job1" />);
-    expect(screen.getByText(/Your wallet on Metis holds \$25\.00 m\.USDC and 0\.08 METIS\./)).toBeTruthy();
+    expect(screen.getByText(/Your wallet on Metis holds/).textContent).toMatch(/holds \$25\.00 m\.USDC and 0\.08 METIS\. This test needs \$20\.00\./);
     fireEvent.click(screen.getByRole("button", { name: "Pay $20.00 from your wallet" }));
     expect(state.pay).toHaveBeenCalledTimes(1);
   });
@@ -47,7 +47,7 @@ describe("PayFromWallet", () => {
     render(<PayFromWallet jobId="job1" />);
     expect(screen.getByText(/Add 7\.50 m\.USDC/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Pay/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /check again/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Check my wallet again" }));
     expect(state.refresh).toHaveBeenCalledTimes(1);
     expect(state.pay).not.toHaveBeenCalled();
   });
@@ -64,8 +64,8 @@ describe("PayFromWallet", () => {
       }),
     );
     render(<PayFromWallet jobId="job1" />);
-    expect(screen.getByText(/Approve the exact budget: confirming on Metis/)).toBeTruthy();
-    expect(screen.getAllByRole("link", { name: "tx" }).map((a) => a.getAttribute("href"))).toEqual(["https://andromeda-explorer.metis.io/tx/0xaa", "https://andromeda-explorer.metis.io/tx/0xbb"]);
+    expect(screen.getByRole("link", { name: "Approve the exact budget: Confirming on Metis, view transaction" })).toBeTruthy();
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://andromeda-explorer.metis.io/tx/0xaa", "https://andromeda-explorer.metis.io/tx/0xbb"]);
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
   });
 
@@ -84,7 +84,7 @@ describe("PayFromWallet", () => {
     api.mockReturnValue(base({ phase: "live", campaignId: "c1" }));
     render(<PayFromWallet jobId="job1" />);
     expect(screen.getByText(/Paid from your wallet\./)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Open it/ }).getAttribute("href")).toBe("/campaign/c1");
+    expect(screen.getByRole("link", { name: "Open the test" }).getAttribute("href")).toBe("/t/c1");
     expect(screen.queryByRole("button")).toBeNull();
   });
 });

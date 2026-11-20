@@ -1,19 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowUpRight, Check, Loader2, Wallet } from "lucide-react";
+import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "@/components/campaigns/embedded-wallet-bridge";
-import { UpgradeLink } from "@/components/plans/upgrade-link";
+import { Button, ButtonLink } from "@/components/sage/button";
 import { usePayFromWallet } from "./use-pay-from-wallet";
+import type { StepView } from "@/lib/own-wallet/run";
 
 const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
 
+const STATUS_WORDS: Record<StepView["status"], string> = {
+  waiting: "Next",
+  sign: "Confirm in your wallet",
+  confirming: "Confirming on Metis",
+  done: "Done",
+  failed: "Not sent",
+};
+
 /**
  * PAY FROM YOUR WALLET: the plain face of `usePayFromWallet`. One sentence, the four steps with their
- * transaction links, what the wallet is short of (if anything), and one button. Existing classes only
- * (the launch and workspace sheets), so a page can restyle it by drawing the hook's state itself.
+ * transaction links, what the wallet is short of (if anything), and one button. It is drawn with the
+ * interface kit only (`Button`, `ButtonLink` and the classes in `sage.css`); a page that wants another
+ * look draws the hook's state itself.
  */
 export function PayFromWallet({
   jobId,
@@ -36,96 +45,88 @@ export function PayFromWallet({
 
   if (pay.phase === "loading") {
     return (
-      <p className="lx-sub tl-gap">
+      <div className="sg-stack sg-gap-3">
         {bridge}
-        <Loader2 size={14} className="sage-spin2" /> Checking your wallet…
-      </p>
+        <p className="sg-small"><Loader2 size={14} className="sg-spin" aria-hidden /> Checking your wallet…</p>
+      </div>
     );
   }
 
   if (pay.phase === "signed-out") {
     return (
-      <div className="lxd-panel tl-gap">
+      <div className="sg-stack sg-gap-3">
         {bridge}
-        <p className="lx-sub"><Wallet size={14} /> Sign in with your email or MetaMask to pay for this test from your own wallet on Metis.</p>
-        <div className="ws-nav">
-          <button className="lx-btn" onClick={() => window.location.assign(`/start?next=${encodeURIComponent(window.location.pathname)}`)}>Sign in to pay</button>
-        </div>
+        <p className="sg-text">Sign in with your email or MetaMask to pay for this test from your own wallet on Metis.</p>
+        <Button onClick={() => window.location.assign(`/start?next=${encodeURIComponent(window.location.pathname)}`)}>Sign in to pay</Button>
       </div>
     );
   }
 
+  const steps = (
+    <div className="sg-sum" role="list" aria-label="Launch steps">
+      {pay.steps.map((s) => (
+        <div key={s.step} className="sg-sum-row" role="listitem">
+          <span>
+            {s.status === "done" && <Check size={13} aria-hidden />} {s.label}
+          </span>
+          {s.explorerUrl ? (
+            <a className="sg-link sg-small" href={s.explorerUrl} target="_blank" rel="noreferrer" aria-label={`${s.label}: ${STATUS_WORDS[s.status]}, view transaction`}>
+              {STATUS_WORDS[s.status]} <ArrowUpRight size={13} aria-hidden />
+            </a>
+          ) : (
+            <span className="sg-small">{STATUS_WORDS[s.status]}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   if (pay.phase === "live") {
     return (
-      <div className="lxd-panel tl-gap">
+      <div className="sg-stack sg-gap-3">
         {bridge}
-        <p className="lx-sub"><Check size={14} /> Paid from your wallet. The vault is funded and active on Metis, and the test is live.</p>
-        <div className="ws-nav tl-top">
-          {pay.campaignId && <Link className="sage-btn sage-btn-primary sage-btn-sm" href={`/campaign/${pay.campaignId}`}>Open it <ArrowUpRight size={13} /></Link>}
-          {pay.steps.filter((s) => s.explorerUrl).map((s) => (
-            <a key={s.step} className="ws-chip" href={s.explorerUrl ?? undefined} target="_blank" rel="noopener noreferrer">{s.step} tx</a>
-          ))}
-        </div>
+        <p className="sg-text sg-ink">Paid from your wallet. The vault is funded and active on Metis, and the test is live.</p>
+        {pay.steps.some((s) => s.explorerUrl) && steps}
+        {pay.campaignId && <ButtonLink href={`/t/${pay.campaignId}`}>Open the test</ButtonLink>}
       </div>
     );
   }
 
   return (
-    <div className="lxd-panel tl-gap" aria-label="Pay from your wallet">
+    <div className="sg-stack sg-gap-3" aria-label="Pay from your wallet">
       {bridge}
-      <p className="lx-sub">
-        <Wallet size={14} />{" "}
-        {pay.balances
-          ? `Your wallet on Metis holds $${pay.balances.usdc.toFixed(2)} m.USDC and ${pay.balances.metis} METIS.`
-          : "Pay for this test from your own wallet on Metis."}
-        {usd && pay.phase !== "refused" ? ` This test needs ${usd}, which goes into its own vault; what it doesn't spend comes back to your wallet.` : ""}
+      <p className="sg-text">
+        {pay.balances ? (
+          <>Your wallet on Metis holds <span className="sg-n">${pay.balances.usdc.toFixed(2)} m.USDC</span> and <span className="sg-n">{pay.balances.metis} METIS</span>.</>
+        ) : (
+          "Pay for this test from your own wallet on Metis."
+        )}
+        {usd && pay.phase !== "refused" ? ` This test needs ${usd}. It goes into the test's own vault, and what isn't spent comes back to your wallet.` : ""}
       </p>
 
-      {(started || pay.busy) && (
-        <ol className="lxd-steps" aria-label="Launch steps">
-          {pay.steps.map((s, i) => (
-            <li key={s.step} className={`lxd-step ${s.status === "done" ? "done" : ""} ${s.status === "sign" || s.status === "confirming" ? "active" : ""}`}>
-              <span className="lxd-step-dot" aria-hidden>{s.status === "done" ? <Check size={11} /> : i + 1}</span>
-              <span className="lxd-step-label">
-                {s.label}
-                {s.status === "sign" ? ": confirm in your wallet" : s.status === "confirming" ? ": confirming on Metis" : s.status === "failed" ? ": not sent" : ""}
-              </span>
-              {s.explorerUrl && <a className="ws-chip" href={s.explorerUrl} target="_blank" rel="noopener noreferrer">tx</a>}
-            </li>
-          ))}
-        </ol>
-      )}
+      {(started || pay.busy) && steps}
 
       {pay.phase === "recording" && (
-        <p className="lxd-note" role="status"><span className="lxd-spin" aria-hidden /> Sage is checking the vault on Metis…</p>
+        <p className="sg-small" role="status"><Loader2 size={14} className="sg-spin" aria-hidden /> Sage is checking the vault on Metis…</p>
       )}
 
       {pay.shortfalls.map((s) => (
-        <p key={s.what} className="ws-note">{s.message}</p>
+        <p key={s.what} className="sg-small sg-note-problem">{s.message}</p>
       ))}
 
-      {pay.phase !== "refused" && pay.phase !== "stopped" && (
-        <div className="ws-nav">
-          {pay.phase === "short" ? (
-            <button className="lx-btn" onClick={() => void pay.refresh()} disabled={pay.busy}>I&apos;ve added it, check again</button>
-          ) : (
-            <button className="lx-btn" onClick={() => void pay.pay()} disabled={pay.busy || !!hold}>
-              {pay.busy ? (
-                <><Loader2 size={13} className="sage-spin2" /> Working…</>
-              ) : started ? (
-                "Continue"
-              ) : (
-                `Pay ${usd ?? ""} from your wallet`.replace("  ", " ")
-              )}
-            </button>
-          )}
-          {pay.owner && <span className="ws-note tl-flat mono">{pay.owner.slice(0, 6)}…{pay.owner.slice(-4)} · Metis</span>}
-        </div>
-      )}
+      {pay.phase !== "refused" && pay.phase !== "stopped" &&
+        (pay.phase === "short" ? (
+          <Button variant="quiet" onClick={() => void pay.refresh()} disabled={pay.busy}>Check my wallet again</Button>
+        ) : (
+          <Button onClick={() => void pay.pay()} disabled={pay.busy || !!hold}>
+            {pay.busy ? "Working…" : started ? "Continue" : usd ? `Pay ${usd} from your wallet` : "Pay from your wallet"}
+          </Button>
+        ))}
 
-      {hold && <p className="ws-note">{hold}</p>}
-      {pay.error && <p className="ws-err" role="alert">{pay.error}</p>}
-      {pay.upgradeTo !== undefined && <div className="ws-nav"><UpgradeLink to={pay.upgradeTo} className="sage-btn sage-btn-sm" /></div>}
+      {pay.owner && pay.phase !== "refused" && <p className="sg-small sg-mono">{pay.owner.slice(0, 6)}…{pay.owner.slice(-4)} on Metis</p>}
+      {hold && <p className="sg-small">{hold}</p>}
+      {pay.error && <p className="sg-small sg-note-problem" role="alert">{pay.error}</p>}
+      {pay.upgradeTo !== undefined && <ButtonLink href={pay.upgradeTo ? `/pricing?plan=${pay.upgradeTo}` : "/pricing"} variant="quiet" size="sm">See plans</ButtonLink>}
     </div>
   );
 }
