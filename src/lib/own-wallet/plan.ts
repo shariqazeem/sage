@@ -85,7 +85,7 @@ export interface LegacyTx {
  * network's own price and the node's own estimate, each with the 20% headroom the account launch uses.
  * Refuses any other chain rather than guessing how it prices.
  */
-export function legacyTx(input: { chainId: number; from: `0x${string}`; call: Pick<OwnWalletCall, "to" | "data">; gasEstimate: bigint; gasPriceWei: bigint }): LegacyTx {
+export function legacyTx(input: { chainId: number; from: `0x${string}`; call: Pick<OwnWalletCall, "to" | "data"> & { value?: bigint }; gasEstimate: bigint; gasPriceWei: bigint }): LegacyTx {
   if (input.chainId !== OWN_WALLET_CHAIN_ID || chainConfig(input.chainId).gas !== "legacy") {
     throw new Error(`paying from your own wallet runs on Metis only (asked for chain ${input.chainId})`);
   }
@@ -96,7 +96,8 @@ export function legacyTx(input: { chainId: number; from: `0x${string}`; call: Pi
     from: input.from,
     to: input.call.to,
     data: input.call.data,
-    value: BigInt(0),
+    // a launch call moves no native token; a METIS-to-USDC swap sends its METIS as the value
+    value: input.call.value ?? BigInt(0),
     gas: withHeadroom(input.gasEstimate),
     gasPrice: withHeadroom(input.gasPriceWei),
   };
