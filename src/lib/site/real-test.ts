@@ -8,6 +8,8 @@ import { getCampaign, listMissions, listSubmissions } from "@/lib/db/campaigns";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { inspectionJobs, type InspectionJob } from "@/lib/db/schema";
 import { short } from "@/lib/format";
+import { isOwnWallet } from "@/lib/campaigns/settled-ledger";
+import { sharingFor } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "./real-test-frames";
 import { hostOf } from "./when";
 
@@ -20,8 +22,10 @@ import { hostOf } from "./when";
  *
  * WHICH RUN MAY BE SHOWN TO A STRANGER. A finished run of a public address only: never one where
  * the builder gave Sage a test account (those frames can show a signed-in screen), and never a
- * frame whose file is not on disk. `SAGE_HOME_TEST_ID` pins one run by its id, for when the founder
- * wants a particular product on the front door.
+ * frame whose file is not on disk. And only with consent: a builder's product reaches Sage's front
+ * door when that builder made the test's findings public (`campaign_sharing.findings_public`), or the
+ * test is Sage's own. `SAGE_HOME_TEST_ID` pins one run by its id, for when the founder wants a
+ * particular product on the front door.
  */
 export interface RealTestPerson {
   handle: string;
@@ -57,8 +61,15 @@ function onDisk(inspectionId: string, n: number): boolean {
   return existsSync(path.join(process.cwd(), "public", "field-tests", inspectionId, `${n}.png`));
 }
 
-function fromJob(job: InspectionJob): RealTest | null {
+/** A builder's product is shown to strangers only with their yes, or when the test is Sage's own. */
+export function consented(job: Pick<InspectionJob, "founderWallet" | "publicCampaignId">): boolean {
+  if (isOwnWallet(job.founderWallet)) return true;
+  return !!job.publicCampaignId && sharingFor(job.publicCampaignId).findingsPublic;
+}
+
+function fromJob(job: InspectionJob, pinned = false): RealTest | null {
   if (job.status !== "ready" || job.testAccountSealed) return null;
+  if (!pinned && !consented(job)) return null;
   const host = hostOf(job.productUrl);
   const result = job.result as StoredResult | null;
   if (!host || !result?.map?.fieldTest) return null;
@@ -101,7 +112,7 @@ export function realTest(): RealTest | null {
     const pinned = process.env.SAGE_HOME_TEST_ID?.trim();
     if (pinned) {
       const job = getInspectionJob(pinned);
-      const shown = job ? fromJob(job) : null;
+      const shown = job ? fromJob(job, true) : null;
       if (shown) return shown;
     }
     const jobs = db
