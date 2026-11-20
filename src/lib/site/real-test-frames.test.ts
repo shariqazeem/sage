@@ -51,6 +51,7 @@ describe("the frames of a real run", () => {
   it("writes a step in plain words, from the run's own", () => {
     expect(noteOf("initial load", "a.com")).toBe("Opened a.com");
     expect(noteOf("clicked at 49%,84%", "a.com")).toBe("Clicked on the page");
+    expect(noteOf('clicked ""', "a.com")).toBe("Clicked a button with no label");
     expect(noteOf('clicked "or just step inside →"', "a.com")).toBe("Clicked “or just step inside”");
     expect(noteOf("opened /agent", "a.com")).toBe("Opened /agent");
   });

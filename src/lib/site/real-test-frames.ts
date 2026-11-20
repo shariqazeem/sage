@@ -37,6 +37,8 @@ export function noteOf(trigger: string, host: string): string {
   const t = trigger.trim();
   if (!t || /^initial load$/i.test(t)) return `Opened ${host}`;
   if (/^clicked at \d/i.test(t)) return "Clicked on the page";
+  // an icon button has no words on it: say what happened, never `Clicked “”`
+  if (/^clicked\s*""\s*$/i.test(t)) return "Clicked a button with no label";
   const quoted = t.replace(/"([^"]*)"/g, "“$1”").replace(/\s*→\s*”/g, "”");
   return quoted[0].toUpperCase() + quoted.slice(1);
 }
