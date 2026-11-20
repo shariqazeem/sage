@@ -46,3 +46,16 @@ describe("provider profiles", () => {
     expect(outputBudget(-100, profileFor("anthropic/claude-haiku-4-5", ""))).toBeGreaterThan(0);
   });
 });
+
+describe("Qwen's vision-language models (20 Nov 2026)", () => {
+  it("are known to see, so the VISION lane may use them", () => {
+    const p = profileFor("qwen/qwen3-vl-235b-a22b-instruct", "https://api.commonstack.ai/v1");
+    expect(p.id).toBe("qwen-vl");
+    expect(p.multimodal).toBe(true);
+    expect(p.reasoningOverheadTokens).toBe(0);
+  });
+
+  it("a Qwen text model is not taken for one that sees", () => {
+    expect(profileFor("qwen/qwen3.8-max", "https://api.commonstack.ai/v1").multimodal).toBe(false);
+  });
+});

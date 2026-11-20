@@ -189,6 +189,22 @@ const PROFILES: { match: (model: string, base: string) => boolean; profile: Prov
     },
   },
   {
+    // Qwen's vision-language models through CommonStack (qwen3-vl-235b-a22b-instruct). MEASURED 20 Nov 2026 on
+    // the VM: shown a real field-test screenshot (umanity.gives), it described what was on it, correctly, in
+    // 3.2 s. It SEES, so the VISION lane may use it (the default profile assumes it can't). An instruct model:
+    // it answers without a reasoning block.
+    match: (m) => /qwen[^/]*-vl|qwen\/qwen3-vl/i.test(m),
+    profile: {
+      id: "qwen-vl",
+      emitsReasoningPrefix: false,
+      reasoningOverheadTokens: 0,
+      jsonMode: "object",
+      timeoutMs: 90_000,
+      multimodal: true,
+      acceptsTemperature: true,
+    },
+  },
+  {
     match: (m) => /gemini|flash/i.test(m),
     profile: {
       id: "gemini-compatible",
