@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { Agent } from "undici";
 import { profileFor, type ProviderProfile } from "./provider-profile";
 import { overBudget, recordSpend, usd, type BudgetEvent } from "./spend";
 
@@ -454,6 +455,21 @@ function parseRetryAfterMs(h: string | null): number | null {
 }
 
 /**
+ * NODE'S OWN FIVE-MINUTE CUT-OFF, LIFTED (20 Nov 2026). Node's fetch gives up on any response whose headers
+ * take longer than 300 s (undici's `headersTimeout`) and on any body that pauses for 300 s (`bodyTimeout`),
+ * whatever the caller's own timer says. A provider answering a long reasoning call (the mission architect on
+ * MiniMax) sends nothing until the whole answer is ready, so a call our budget allowed seven minutes died at
+ * five as "fetch failed" (`UND_ERR_HEADERS_TIMEOUT`, measured on the VM): a founder's test sat in "writing the
+ * missions" for twenty minutes and then failed. Every chat call goes through this dispatcher instead, whose
+ * limits sit above any budget a call can be given, so the caller's own AbortController is the only clock.
+ */
+const CALL_CEILING_MS = 20 * 60_000;
+let longCalls: Agent | null = null;
+function longCallDispatcher(): Agent {
+  return (longCalls ??= new Agent({ headersTimeout: CALL_CEILING_MS, bodyTimeout: CALL_CEILING_MS }));
+}
+
+/**
  * POST one chat completion. The timeout starts when the request does, not when it joins the queue. A
  * call that waited behind two long generations used to have its whole budget spent before it reached
  * the provider. The body is read inside the timeout, so a stalled stream can't hang a founder either.
@@ -500,7 +516,9 @@ export async function postChat(
           headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json", ...(opts.headers ?? {}) },
           signal: controller.signal,
           body: JSON.stringify(sent),
-        });
+          // Node's fetch takes undici's `dispatcher` (not in the DOM's RequestInit): the long-call limits above
+          dispatcher: longCallDispatcher(),
+        } as RequestInit);
         const text = await readBody(res);
         if (!res.ok && heal < 4) {
           const what = refusedParameter(res.status, text, sent);
