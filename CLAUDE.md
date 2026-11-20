@@ -339,7 +339,10 @@ if you must touch them, that suite must stay green.
   campaign the autopilot approves at once and the sweep settles after `AUTOPAY_FINALIZE_MINUTES`
   (default 30), re-running the near-duplicate, copied-artifact and wallet-cluster watch against
   everything that arrived since; a hit revokes with the reason. Members-only work pays at once. A
-  founder's explicit release carries no window. `src/lib/deputy/finalization.ts`.
+  founder's explicit release carries no window. `src/lib/deputy/finalization.ts`. Since 20 Nov 2026 the
+  builder may also flag an agent-approved answer inside that window as not a real try, with a reason the
+  tester reads (`src/lib/campaigns/builder-flag.ts`): the payout is revoked, the place reopens, nothing is
+  refunded, and at most one in five places can be flagged.
 - **Plans gate LAUNCHES and features, never payouts (19 Oct 2026).** One catalog
   (`src/lib/plans/catalog.ts`): the pricing page and the server read the same list. `launchAllowed`
   (`src/lib/plans/founder-plan.ts`) runs at EVERY door that starts a job, before money moves:
