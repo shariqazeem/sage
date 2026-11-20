@@ -498,6 +498,13 @@
       "when": 1794096000000,
       "tag": "0070_campaign_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1794182400000,
+      "tag": "0071_findings",
+      "breakpoints": true
     }
   ]
 }
