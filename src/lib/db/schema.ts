@@ -620,7 +620,9 @@ export type EventKind =
   /** the agent launched this campaign itself, under a founder's standing mandate. */
   | "operator_launched"
   /** the roster was told about this work — recorded once per campaign, whether or not anyone was eligible. */
-  | "work_announced";
+  | "work_announced"
+  /** the builder flagged an approved answer inside the finalization window: not paid, the place reopens. */
+  | "builder_flagged";
 
 /**
  * An append-only log of things that actually happened. Every row is emitted at

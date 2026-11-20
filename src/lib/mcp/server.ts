@@ -1,4 +1,7 @@
 import "server-only";
+import { dailyTestLimit } from "@/lib/launch/daily-cap";
+import { getInspectionJobByIdem } from "@/lib/db/inspection";
+import { nowSeconds } from "@/lib/db/keys";
 
 import { runInspectionJob } from "@/lib/launch/job";
 import { mintApiRequestId } from "@/lib/launch/planning-request";
@@ -570,6 +573,17 @@ export async function callSageTool(
 ): Promise<ToolResult | null> {
   switch (name) {
     case "sage_start_inspection": {
+      // A FAIR SHARE OF SAGE'S DAY (src/lib/launch/daily-cap.ts): a person's agent, the web's Agent mode
+      // and a Telegram founder start new tests under the same daily cap as the web's front door. A retry
+      // of the same request is the same test and never counts.
+      {
+        const person = typeof args.founderOverride === "string" ? args.founderOverride : null;
+        const requestId = ctx.planningRequestId ?? null;
+        if (person && !(requestId && getInspectionJobByIdem(requestId))) {
+          const limit = dailyTestLimit(person, nowSeconds());
+          if (!limit.ok) return toolResult({ ok: false, error: limit.message, status: 429 });
+        }
+      }
       const r = await opStartInspection(
         {
           productUrl: args.productUrl,

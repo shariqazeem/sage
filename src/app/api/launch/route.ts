@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest, after } from "next/server";
 
 import { startInspection } from "@/lib/launch/start";
+import { dailyTestLimit } from "@/lib/launch/daily-cap";
+import { getInspectionJobByIdem } from "@/lib/db/inspection";
+import { nowSeconds } from "@/lib/db/keys";
 import { webRequestIdFrom } from "@/lib/launch/planning-request";
 import { runInspectionJob, jobToView } from "@/lib/launch/job";
 import { getFounderAddress } from "@/lib/auth/founder";
@@ -44,6 +47,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Request-scoped identity: the browser mints one UUID per launch form (a double-submit reuses
   // it → one job; a fresh form is a fresh turn). Junk/absent → a server-minted id. Never LLM-sourced.
   const planningRequestId = webRequestIdFrom(body.requestId);
+  // A FAIR SHARE OF SAGE'S DAY: at most a few new tests per person a day (src/lib/launch/daily-cap.ts).
+  // A retry of the same form returns the same test, so it is never counted as a new one.
+  if (!getInspectionJobByIdem(planningRequestId)) {
+    const limit = dailyTestLimit(session, nowSeconds());
+    if (!limit.ok) return NextResponse.json({ ok: false, error: limit.message, code: "daily_limit" }, { status: 429 });
+  }
   const result = startInspection({
     productUrl: body.productUrl,
     repoUrl: body.repoUrl,
