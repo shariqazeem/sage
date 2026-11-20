@@ -1,6 +1,6 @@
 import "server-only";
 import { nullifierFor, walletsForNullifier } from "@/lib/db/identity";
-import { linkedWalletsOf } from "@/lib/campaigns/wallet-links";
+import { linkedWalletsOf, personhoodLinksOf } from "@/lib/campaigns/wallet-links";
 
 /**
  * EVERY WALLET THAT IS THIS PERSON.
@@ -27,8 +27,19 @@ export function personWallets(wallet: string): string[] {
   return [...out.values()];
 }
 
-/** Only the wallets a PERSONHOOD PROOF says are this person — the subset a reason may name as such. */
+/**
+ * Only the wallets a PROVIDER says are this person, the subset a reason may name as such: the same
+ * World ID nullifier, or the same sign-in account (Google, X, Telegram) presented from a second wallet.
+ * Both are recorded as `personhood` links, so one read covers them.
+ */
 export function sameNullifierWallets(wallet: string): string[] {
+  const out = new Map<string, string>();
+  const add = (w: string) => {
+    const k = w.trim().toLowerCase().replace(/^0x0*/, "0x");
+    if (!out.has(k)) out.set(k, w);
+  };
   const id = nullifierFor(wallet);
-  return id ? walletsForNullifier(id.provider, id.nullifier) : [];
+  if (id) for (const w of walletsForNullifier(id.provider, id.nullifier)) add(w);
+  for (const w of personhoodLinksOf(wallet)) add(w);
+  return [...out.values()];
 }

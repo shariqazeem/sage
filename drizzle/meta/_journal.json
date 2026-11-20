@@ -519,6 +519,13 @@
       "when": 1794355200000,
       "tag": "0073_channel_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1794441600000,
+      "tag": "0074_person_identities",
+      "breakpoints": true
     }
   ]
 }

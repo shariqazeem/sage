@@ -60,6 +60,14 @@ export const OWN_WALLETS: readonly string[] = [
   "0x948a583ccd63d396f3a1318355d02fa2cb935c7a",
   // the wallet of Sage's own operator chat on GOAT: Sage's walkthroughs of its own product
   "0x3a60af43c67dd9d552f180d30d9a042948078341",
+  // 20 Nov 2026, Sage's own wallets on Metis (from `agent_wallets` and the VM's settings):
+  // the founder's Sage account on Metis: a Privy server wallet under the founder's mandate, reclaimable only
+  // to the founder's MetaMask above; it funded Sage's first Metis job (vault 0x2ef4…6a9c)
+  "0xf280d83968419f944360d836a9f6a9cb7ba22ce9",
+  // the advance pot on Metis (its key lives only on the VM); the advance was retired on 20 Nov 2026
+  "0xfc6395f1cb3e4c9370d291b1d777df112c77dcc5",
+  // the server wallet that submits x402 payments on Metis for Sage's facilitator
+  "0x86d73af562b59c89b56f57c469e61c681ae67abb",
 ];
 
 /** The same wallets as comparison keys (`walletKey`). */

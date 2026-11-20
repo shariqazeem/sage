@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSessionForVerifiedAddress } from "@/lib/auth/session";
 import { resolvePrivyLogin } from "@/lib/auth/privy-login";
+import { recordPersonIdentity } from "@/lib/db/person-identities";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -26,5 +27,13 @@ export async function POST(req: NextRequest) {
   }
   const address = await createSessionForVerifiedAddress(r.address);
   if (!address) return NextResponse.json({ error: "That wallet address is not valid." }, { status: 400 });
+  // THE TESTER DOOR: the Google and X accounts Privy verified for this user are the person behind this
+  // wallet. They come from `resolvePrivyLogin` alone; nothing in the request body is read for them. A
+  // failure here never costs the person their sign-in.
+  try {
+    for (const account of r.social) recordPersonIdentity(address, account);
+  } catch (e) {
+    console.warn("[privy-login] recording the sign-in account failed:", e instanceof Error ? e.message : String(e));
+  }
   return NextResponse.json({ ok: true, address });
 }

@@ -16,6 +16,7 @@ import {
   recordEvent,
 } from "@/lib/db/campaigns";
 import { getRecipientWallet, listInvitedCampaignIds } from "@/lib/db/recipient-wallets";
+import { recordTelegramPerson } from "@/lib/db/person-identities";
 import {
   buildEvidenceClaimTypedData,
   computeEvidenceDigest,
@@ -103,6 +104,9 @@ export async function submitAsRecipient(input: RecipientSubmitInput, deps: Deps 
   const rw = getRecipientWallet(input.chatId);
   if (!rw) return { ok: false, error: "This chat has no Sage wallet yet — open your invite link first." };
   const wallet = rw.address;
+  // A chat's own wallet is a person for the tester door: a Telegram account needs a phone number. The
+  // chat id comes from Telegram's webhook, never from the model or the message.
+  recordTelegramPerson(input.chatId, wallet);
 
   // ── which campaign ────────────────────────────────────────────────────────
   const invited = listInvitedCampaignIds(wallet);

@@ -107,6 +107,29 @@ export function declaredLinksOf(wallet: string): string[] {
   return [...out.values()].sort();
 }
 
+/**
+ * The OTHER wallets a provider says are this same person: reachable through `personhood` links only
+ * (a repeated World ID nullifier, or the same Google, X or Telegram account on a second wallet).
+ * A reason shown to a person may call these "the same person"; it may not say so of a `discovered` link.
+ */
+export function personhoodLinksOf(wallet: string): string[] {
+  const me = key(wallet);
+  const seen = new Map<string, string>([[me, norm(wallet)]]);
+  const queue = [norm(wallet)];
+  while (queue.length > 0) {
+    const w = queue.shift() as string;
+    const rows = db.select().from(walletLinks).where(or(inArray(walletLinks.walletA, forms(w)), inArray(walletLinks.walletB, forms(w)))).all();
+    for (const r of rows) {
+      if (r.origin !== "personhood") continue;
+      for (const other of [r.walletA, r.walletB]) {
+        if (!seen.has(key(other))) { seen.set(key(other), other); queue.push(other); }
+      }
+    }
+  }
+  seen.delete(me);
+  return [...seen.values()].sort();
+}
+
 /** Every wallet reachable from `wallet` through links, including itself — the business. */
 /** The wallets linked DIRECTLY to this one — the rows the watch recorded, not their closure. */
 export function directLinksOf(wallet: string): string[] {

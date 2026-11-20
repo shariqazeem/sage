@@ -117,23 +117,26 @@ export function decideSwap(input: {
   metisWei: bigint;
   pool: PoolRead;
   slippageBps?: number;
+  /** whose money it is, for the words only: the Sage account (default), or the person's own wallet */
+  holder?: "account" | "wallet";
 }): SwapCheck {
   const c = chainConfig(input.chainId);
   if (!swapsOn(input.chainId)) return { ok: false, code: "not_here", message: `Swapping inside Sage is on Metis only. On ${c.name}, ${c.nativeSymbol === "USDC" ? "USDC is the network fee, so there is nothing to swap." : "send the token you need to the account."}` };
   const usdcSide = input.side === "usdc_to_metis";
+  const holds = input.holder === "wallet" ? "Your wallet holds" : "The account holds";
   if (input.amountIn < (usdcSide ? MIN_SWAP_USDC_BASE : MIN_SWAP_METIS_WEI)) {
     return { ok: false, code: "too_small", message: usdcSide ? "Swap at least 0.10 USDC: below that, the network fee is most of it." : `Swap at least ${formatNative(MIN_SWAP_METIS_WEI)} METIS: below that, the network fee is most of it.` };
   }
   const feeWei = (SWAP_GAS_UNITS * input.pool.gasPrice * BigInt(12)) / BigInt(10);
   if (usdcSide && input.amountIn > input.usdcBase) {
-    return { ok: false, code: "insufficient", message: `The account holds ${usd(input.usdcBase)} USDC, less than the ${usd(input.amountIn)} you asked to swap.` };
+    return { ok: false, code: "insufficient", message: `${holds} ${usd(input.usdcBase)} USDC, less than the ${usd(input.amountIn)} you asked to swap.` };
   }
   if (!usdcSide && input.amountIn + feeWei > input.metisWei) {
     const most = input.metisWei > feeWei ? input.metisWei - feeWei : BigInt(0);
-    return { ok: false, code: "insufficient", message: `The account holds ${formatNative(input.metisWei)} METIS. After the network fee, the most you can swap is ${formatNative(most)}.` };
+    return { ok: false, code: "insufficient", message: `${holds} ${formatNative(input.metisWei)} METIS. After the network fee, the most you can swap is ${formatNative(most)}.` };
   }
   if (input.metisWei < feeWei) {
-    return { ok: false, code: "gas", message: needsFeeMessage({ chainId: input.chainId, action: "swap", needWei: feeWei, haveWei: input.metisWei, nativeSymbol: c.nativeSymbol, network: c.name }) };
+    return { ok: false, code: "gas", message: needsFeeMessage({ chainId: input.chainId, action: "swap", needWei: feeWei, haveWei: input.metisWei, nativeSymbol: c.nativeSymbol, network: c.name, holder: input.holder ?? "account" }) };
   }
   if (input.pool.amountOut <= BigInt(0)) return { ok: false, code: "quote_failed", message: "The pool returned no quote for that amount. Try a smaller swap." };
   const impact = priceImpactBps({ amountIn: input.amountIn, amountOut: input.pool.amountOut, reserveIn: input.pool.reserveIn, reserveOut: input.pool.reserveOut });
@@ -170,11 +173,27 @@ async function balances(address: Address, chainId: number): Promise<{ usdcBase: 
 
 /** Quote a swap for this account, with every check the swap itself will run. Read-only. */
 export async function quoteAccountSwap(wallet: AgentWallet, side: SwapSide, amountIn: bigint, slippageBps?: number): Promise<SwapCheck> {
-  if (!swapsOn(wallet.chainId)) return decideSwap({ chainId: wallet.chainId, side, amountIn, usdcBase: BigInt(0), metisWei: BigInt(0), pool: { amountOut: BigInt(0), reserveIn: BigInt(0), reserveOut: BigInt(0), metisPrice: BigInt(0), gasPrice: BigInt(0) } });
+  return quoteSwapFor(wallet.privyWalletAddress, wallet.chainId, side, amountIn, { slippageBps, holder: "account" });
+}
+
+/**
+ * The same quote for any address: the Sage account above, or a person's own wallet (relaunch, 20 Nov
+ * 2026: a builder who withdrew METIS from an exchange swaps part of it to m.USDC from their own wallet,
+ * which signs the router call itself; `src/lib/own-wallet/swap.ts`). Read-only, never throws.
+ */
+export async function quoteSwapFor(
+  address: string,
+  chainId: number,
+  side: SwapSide,
+  amountIn: bigint,
+  opts: { slippageBps?: number; holder?: "account" | "wallet" } = {},
+): Promise<SwapCheck> {
+  const holder = opts.holder ?? "account";
+  if (!swapsOn(chainId)) return decideSwap({ chainId, side, amountIn, usdcBase: BigInt(0), metisWei: BigInt(0), pool: { amountOut: BigInt(0), reserveIn: BigInt(0), reserveOut: BigInt(0), metisPrice: BigInt(0), gasPrice: BigInt(0) }, holder });
   try {
-    const account = getAddress(wallet.privyWalletAddress);
-    const [pool, bal] = await Promise.all([readPool(side, amountIn), balances(account, wallet.chainId)]);
-    return decideSwap({ chainId: wallet.chainId, side, amountIn, usdcBase: bal.usdcBase, metisWei: bal.metisWei, pool, slippageBps });
+    const owner = getAddress(address);
+    const [pool, bal] = await Promise.all([readPool(side, amountIn), balances(owner, chainId)]);
+    return decideSwap({ chainId, side, amountIn, usdcBase: bal.usdcBase, metisWei: bal.metisWei, pool, slippageBps: opts.slippageBps, holder });
   } catch (e) {
     console.warn("[swap] quote failed:", e instanceof Error ? e.message : e);
     return { ok: false, code: "quote_failed", message: "Sage couldn't read the pool just now. Try again in a moment." };

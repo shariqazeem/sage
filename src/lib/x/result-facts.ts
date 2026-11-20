@@ -1,20 +1,16 @@
 import "server-only";
 import { listSubmissions } from "@/lib/db/campaigns";
+import { storedFindings } from "@/lib/report";
+import { OTHER_NOTES } from "@/lib/report/core";
 import { isVerbatim, pickQuote, plainWords } from "./compose";
 
 /**
  * WHAT A RESULT POST MAY SAY ABOUT A TEST: its top finding and one thing a person wrote.
  *
- * ┌─ SEAM FOR THE FINDINGS WORKSTREAM (WS4) ───────────────────────────────────────────────────────┐
- * │ `topFindingFor` is where the findings report plugs in. When the report exists, return its      │
- * │ first grouped finding here (a few plain words, and a quote the report already holds). Nothing  │
- * │ else in `src/lib/x/` needs to change: `resultFactsFor` below re-checks whatever comes back.    │
- * └────────────────────────────────────────────────────────────────────────────────────────────────┘
- *
- * Until then there is no finding, and the quote is one whole sentence taken from a paid person's own
- * answer. Either way the quote is checked against stored evidence here, last, so a summary that
- * paraphrased can never put words in a tester's mouth: a quote that is not an exact substring of a
- * paid answer is dropped.
+ * The finding comes from the builder's findings report (`topFindingFor`). With no report yet there is
+ * no finding, and the quote is one whole sentence taken from a paid person's own answer. Either way the
+ * quote is checked against stored evidence here, last, so a summary that paraphrased can never put words
+ * in a tester's mouth: a quote that is not an exact substring of a paid answer is dropped.
  */
 export type ResultFacts = {
   /** the top finding in a few plain words (no handle, no link), or null when there is no report */
@@ -23,10 +19,19 @@ export type ResultFacts = {
   quote: string | null;
 };
 
-/** WS4 replaces this body. `null` means "no findings report for this test". */
+/**
+ * The findings report's top finding (`src/lib/report/`): the group the most people ran into, counted from
+ * distinct answers (never a stored number), and "Other notes" only when there is nothing else. `null`
+ * means there is no report for this test yet. Whatever comes back is re-checked by `resultFactsFor`.
+ */
 export function topFindingFor(campaignId: string): ResultFacts | null {
-  void campaignId;
-  return null;
+  const findings = storedFindings(campaignId)?.json?.findings ?? [];
+  if (findings.length === 0) return null;
+  const people = (f: (typeof findings)[number]) => new Set(f.submissionIds).size;
+  const named = findings.filter((f) => f.title !== OTHER_NOTES);
+  const top = [...(named.length > 0 ? named : findings)].sort((a, b) => people(b) - people(a))[0];
+  if (!top) return null;
+  return { finding: top.title, quote: top.quotes[0]?.text ?? null };
 }
 
 /** The answers of people who were paid for this test, newest first: the only evidence a quote may come from. */
