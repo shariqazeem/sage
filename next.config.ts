@@ -32,9 +32,6 @@ const nextConfig: NextConfig = {
       // The flagship campaign's legacy slug → its production slug. Permanent (308)
       // so every previously-shared /c/demo link survives the production rename.
       { source: "/c/demo", destination: "/c/founding-testers", permanent: true },
-      // The public board shipped briefly as /missions before being renamed. Permanent (308) so any
-      // link already shared — including the browseUrl the MCP tool handed to other agents — survives.
-      { source: "/missions", destination: "/marketplace", permanent: true },
       ...SITE_REDIRECTS,
       ...DOCS_REDIRECTS,
       ...LEDGER_REDIRECTS,

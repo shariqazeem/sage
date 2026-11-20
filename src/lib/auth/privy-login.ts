@@ -67,3 +67,47 @@ export async function resolvePrivyLogin(token: string): Promise<PrivyLoginResult
     return { ok: false, reason: "error", detail: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/** Every Ethereum address Privy holds or has linked for this user. */
+function ethereumAddressesOf(user: User): string[] {
+  const out = new Set<string>();
+  const first = ethereumAddressOf(user);
+  if (first) out.add(first);
+  for (const acct of user.linkedAccounts ?? []) {
+    const a = acct as { type?: string; chainType?: string; address?: string };
+    if (a.type === "wallet" && (a.chainType === "ethereum" || !a.chainType) && a.address && /^0x[0-9a-fA-F]{40}$/.test(a.address)) out.add(a.address);
+  }
+  return [...out];
+}
+
+export type PrivyContacts =
+  | { ok: true; wallets: string[]; email: string | null; x: string | null }
+  | { ok: false; reason: "not_configured" | "invalid_token" | "error" };
+
+/**
+ * The contacts a person's own sign-in carries: their email (email or Google sign-in) and their X
+ * handle, read from Privy for a verified access token, never from what a browser typed. `wallets`
+ * lets the caller check the token belongs to the session it arrived with. Never throws.
+ */
+export async function resolvePrivyContacts(token: string): Promise<PrivyContacts> {
+  const c = client();
+  if (!c) return { ok: false, reason: "not_configured" };
+  let userId: string;
+  try {
+    userId = (await c.verifyAuthToken(token)).userId;
+  } catch {
+    return { ok: false, reason: "invalid_token" };
+  }
+  try {
+    const user = await c.getUserById(userId);
+    return {
+      ok: true,
+      wallets: ethereumAddressesOf(user),
+      email: user.email?.address?.trim().toLowerCase() || user.google?.email?.trim().toLowerCase() || null,
+      x: user.twitter?.username?.trim().replace(/^@+/, "") || null,
+    };
+  } catch (e) {
+    console.warn("[privy-login] contact lookup failed:", e instanceof Error ? e.message : String(e));
+    return { ok: false, reason: "error" };
+  }
+}

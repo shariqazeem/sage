@@ -1752,3 +1752,157 @@ export const agentKeys = sqliteTable(
   (t) => [uniqueIndex("agent_keys_hash_idx").on(t.keyHash), index("agent_keys_workspace_idx").on(t.workspaceId)],
 );
 export type AgentKey = typeof agentKeys.$inferSelect;
+
+/**
+ * HOW A TEST IS SHARED (relaunch, 20 Nov 2026). The builder's own answers on the offer card: whether
+ * Sage's X account posts the mission and the result, and whether the findings are public. No row means
+ * nothing is posted and the findings stay private: sharing is opt-in, always. `src/lib/sharing/`.
+ */
+export const campaignSharing = sqliteTable("campaign_sharing", {
+  campaignId: text("campaign_id").primaryKey(),
+  postMission: integer("post_mission", { mode: "boolean" }).notNull().default(false),
+  postResult: integer("post_result", { mode: "boolean" }).notNull().default(false),
+  findingsPublic: integer("findings_public", { mode: "boolean" }).notNull().default(false),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type CampaignSharingRow = typeof campaignSharing.$inferSelect;
+
+/**
+ * WHAT PEOPLE FOUND (relaunch, 20 Nov 2026). One row per test: the findings grouped from its PAID
+ * answers, kept so a reader never waits on a model. `paidAnswers` is how many paid answers the build
+ * read, which is what decides a rebuild; `engine` is the model id that grouped them, or `plain` when
+ * no model was available and each answer stands as its own finding. `src/lib/report/`.
+ */
+export const campaignFindings = sqliteTable("campaign_findings", {
+  campaignId: text("campaign_id").primaryKey(),
+  json: text("json", { mode: "json" }).$type<StoredFindings>().notNull(),
+  paidAnswers: integer("paid_answers").notNull(),
+  engine: text("engine").notNull(),
+  builtAt: integer("built_at").notNull(),
+});
+export type CampaignFindingsRow = typeof campaignFindings.$inferSelect;
+
+/** One stored finding. A count is never stored: it is the number of distinct ids, every time. */
+export interface StoredFinding {
+  title: string;
+  kind: "stuck" | "bug" | "liked" | "idea" | "other";
+  submissionIds: string[];
+  /** each `text` is an exact substring of that submission's own answer, checked in code. */
+  quotes: { submissionId: string; text: string }[];
+}
+export interface StoredFindings {
+  findings: StoredFinding[];
+}
+
+/**
+ * KEEP ME POSTED. A tester's consent to hear from the builder whose product they tried, with the one
+ * contact they chose to share. Deleting the row withdraws it. `contact` is read by the test's owner
+ * and nobody else.
+ */
+export const keepPosted = sqliteTable(
+  "keep_posted",
+  {
+    submissionId: text("submission_id").primaryKey(),
+    campaignId: text("campaign_id").notNull(),
+    /** 'x' | 'email' | 'wallet'. */
+    contactKind: text("contact_kind").$type<"x" | "email" | "wallet">().notNull(),
+    contact: text("contact").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("keep_posted_campaign_idx").on(t.campaignId)],
+);
+export type KeepPostedRow = typeof keepPosted.$inferSelect;
+
+/**
+ * SAGE ON X (relaunch, 20 Nov 2026). Sage's own X account is the agent's public hands: it posts a
+ * test's mission and its result when the builder said yes, and replies when someone tags it with a
+ * product link. `src/lib/x/`.
+ *
+ * `x_posts` is written BEFORE anything is sent (`drafted`), so a post is on the record whether X took
+ * it or not, and the unique `subject_key` (`mission:<campaignId>`, `result:<campaignId>`,
+ * `reply:<tweetId>`) is what makes it one post per subject, ever.
+ */
+export type XPostKind = "mission" | "result" | "reply";
+export type XPostStatus = "drafted" | "posted" | "skipped" | "failed";
+export const xPosts = sqliteTable(
+  "x_posts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind").$type<XPostKind>().notNull(),
+    subjectKey: text("subject_key").notNull(),
+    text: text("text").notNull(),
+    /** a post that carries a link is priced differently by X */
+    hasUrl: integer("has_url", { mode: "boolean" }).notNull().default(false),
+    /** the post this one answers (replies only): always a post that tagged Sage */
+    inReplyTo: text("in_reply_to"),
+    status: text("status").$type<XPostStatus>().notNull().default("drafted"),
+    reason: text("reason"),
+    tweetId: text("tweet_id"),
+    /** what X charged for it, in millionths of a dollar */
+    costMicros: integer("cost_micros").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    postedAt: integer("posted_at"),
+  },
+  (t) => [uniqueIndex("x_posts_subject_unq").on(t.subjectKey), index("x_posts_created_idx").on(t.createdAt)],
+);
+export type XPost = typeof xPosts.$inferSelect;
+
+/** A post that tagged Sage. `started_id` is the inspection it started, when it started one. */
+export type XMentionState = "new" | "trying" | "replied" | "ignored";
+export const xMentions = sqliteTable(
+  "x_mentions",
+  {
+    tweetId: text("tweet_id").primaryKey(),
+    authorId: text("author_id").notNull(),
+    authorUsername: text("author_username"),
+    /** when the author's X account was made (epoch seconds); a young account is not answered */
+    authorCreatedAt: integer("author_created_at"),
+    text: text("text").notNull(),
+    /** the product link the post carried */
+    url: text("url"),
+    state: text("state").$type<XMentionState>().notNull().default("new"),
+    reason: text("reason"),
+    /** the inspection job this mention started */
+    startedId: text("started_id"),
+    createdAt: integer("created_at").notNull(),
+    handledAt: integer("handled_at"),
+  },
+  (t) => [
+    index("x_mentions_state_idx").on(t.state),
+    index("x_mentions_author_idx").on(t.authorId, t.createdAt),
+    index("x_mentions_started_idx").on(t.startedId),
+  ],
+);
+export type XMention = typeof xMentions.$inferSelect;
+
+/** Small facts the X agent keeps between ticks: the mentions `since_id`, its own user id, a rate-limit reset. */
+export const xCursor = sqliteTable("x_cursor", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** What X was paid, per UTC day (`YYYY-MM-DD`), reads included. The daily ceiling reads this. */
+export const xSpend = sqliteTable("x_spend", {
+  day: text("day").primaryKey(),
+  costMicros: integer("cost_micros").notNull().default(0),
+  calls: integer("calls").notNull().default(0),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/**
+ * SAGE'S TELEGRAM CHANNEL OF OPEN TESTS (relaunch, 20 Nov 2026). Each test the builder agreed to share
+ * (`campaign_sharing.post_mission`) is posted once to the public channel testers follow. Written before
+ * it is sent, one row per test ever. `src/lib/telegram/missions-channel.ts`.
+ */
+export const channelPosts = sqliteTable("channel_posts", {
+  /** `mission:<campaignId>` */
+  subjectKey: text("subject_key").primaryKey(),
+  chatId: text("chat_id").notNull(),
+  status: text("status").$type<"drafted" | "posted" | "failed">().notNull(),
+  messageId: integer("message_id"),
+  reason: text("reason"),
+  createdAt: integer("created_at").notNull(),
+  postedAt: integer("posted_at"),
+});
+export type ChannelPostRow = typeof channelPosts.$inferSelect;

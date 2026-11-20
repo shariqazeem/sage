@@ -74,8 +74,12 @@ export interface ResolvedProvider {
  * DRAFT (28 Oct 2026) is the hand-over: a job written from what a founder pasted, while they wait.
  * It ran on MISSION, a reasoning model, until a real GitHub issue took two rounds of about a minute
  * each and still failed, so it has its own lane and, unset, inherits the fast shared chain.
+ *
+ * REPORT (20 Nov 2026) groups what people said after trying a product into the builder's findings. It
+ * is background work: nobody is paid on it and nobody waits on it, so it is the first to stop under the
+ * daily budget, and the report is then built without a model (src/lib/report/).
  */
-export const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION", "DRAFT"] as const;
+export const LANES = ["PAYOUT", "CONCIERGE", "MISSION", "OBS_JUDGE", "VISION", "DRAFT", "REPORT"] as const;
 export type Lane = (typeof LANES)[number];
 
 /**

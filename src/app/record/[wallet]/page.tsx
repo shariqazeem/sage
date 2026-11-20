@@ -24,8 +24,6 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
 import { buildLinkedRecord, linkedWalletsOf } from "@/lib/campaigns/wallet-links";
 import { LinkWalletsButton } from "./link-wallets";
-import { TakeAdvanceButton } from "./take-advance";
-import { offerWithPot, POT_PAUSED } from "@/lib/advance/self-serve";
 import { SiteFrame } from "@/components/site/site-frame";
 
 export const runtime = "nodejs";
@@ -85,11 +83,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
   const viewerOwnsThis = same(evmSession, record.wallet) || same(starknetSession, record.wallet);
   const alreadyLinked = evmSession && starknetSession ? linkedWalletsOf(evmSession).some((w) => same(w, starknetSession)) : true;
   const canLink = !!evmSession && !!starknetSession && viewerOwnsThis && !alreadyLinked;
-  // WORKING CAPITAL, SELF-SERVE — the owner sees what the published formula allows right now, capped by
-  // what the pot holds (on Metis since 26 Oct 2026), and takes it in two steps; when the pot cannot pay, a
-  // calm sentence instead of a button. Everyone else sees the facility's terms on the lender view.
-  const offer = viewerOwnsThis ? await offerWithPot(record.wallet) : null;
-  const showCapital = !!offer && offer.terms.armed && !offer.active && offer.capacityUsd >= 0.1;
+  // The advance was retired at the relaunch (20 Nov 2026): no record offers working capital any more.
+  // One advance was ever drawn and it was repaid; its history still shows below, because it happened.
   const otherLabel = same(evmSession, record.wallet) ? "Starknet" : "Ethereum";
 
   return (
@@ -217,11 +212,10 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
                 <dd>{signals.daysSinceLastVerified === null ? "—" : signals.daysSinceLastVerified === 0 ? "today" : `${signals.daysSinceLastVerified}d ago`}</dd>
               </div>
             </dl>
-            {/* The file a credit officer opens. Sage states the inputs; the lender applies their
-                own multiple, which is why it is a parameter and not a number on this page. */}
+            {/* The record as a file: every row carries the transaction that settled it. */}
             <p className="rec-export">
               <a href={`/api/record/${record.wallet}/export?multiple=2`}>
-                Download this record for a lender (CSV)
+                Download this record (CSV)
               </a>
               {" · "}
               <a href={`/record/${record.wallet}/statement`}>Print a verified income statement</a>
@@ -233,8 +227,8 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
               </span>
             </p>
             <p className="rec-sig-note">
-              Published deterministic formulas over the receipt-anchored entries below — inputs a
-              lender can underwrite on, never a score. Sage computes no creditworthiness verdict.
+              Published formulas over the receipt-backed entries below, which anyone can check. Never a
+              score.
             </p>
           </section>
         )}
@@ -264,31 +258,6 @@ export default async function RecordPage({ params }: { params: Promise<{ wallet:
           </section>
         )}
 
-        {showCapital && offer && (
-          <section className="rec-adv spp-reveal" aria-label="Working capital">
-            <div className="rec-sig-head">
-              <span className="rec-sig-title">Working capital</span>
-              <span className="rec-sig-sub mono">capacity ${offer.capacityUsd.toFixed(2)} · = {offer.terms.multiple}× monthly verified inflow</span>
-            </div>
-            {offer.pot.open && offer.approval && offer.offerUsd >= 0.1 ? (
-              <TakeAdvanceButton
-                wallet={record.wallet}
-                offerUsd={offer.offerUsd}
-                multiple={offer.terms.multiple}
-                waterfallBps={offer.terms.waterfallBps}
-                pot={offer.pot.address}
-                token={offer.pot.token}
-                approved={offer.approval.approved}
-                needsFee={offer.approval.needsFee}
-              />
-            ) : (
-              <p className="rec-link-hint">{offer.pot.open ? POT_PAUSED : offer.pot.message}</p>
-            )}
-          </section>
-        )}
-        {offer?.active && (
-          <p className="rec-link-hint">Advance outstanding: ${offer.active.outstandingUsd.toFixed(2)} of ${offer.active.principalUsd.toFixed(2)}, repaid automatically from your next verified payouts under your approval.</p>
-        )}
         {/* THE ADVANCE FACILITY (capital in). Rendered only when a facility has actually run for
             this wallet — an empty promise box would be marketing, and this page is receipts.
             Repayment history leads because it is the one credit signal collateral-based lending

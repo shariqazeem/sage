@@ -25,6 +25,7 @@ import { formatNative, minLaunchGasWei, needsFeeMessage, operatorCoversGas, SWAP
 import { quoteAccountSwap, swapFromAccount } from "@/lib/treasury/swap";
 import { isSwapSide, swapsOn, type SwapSide } from "@/lib/treasury/swap-venue";
 import { chatWalletOn, chatWallets, setAsideActiveWallet } from "./chat-wallets";
+import { testUrl } from "@/lib/site/test-url";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listLaunchablePlans } from "@/lib/campaigns/launchable";
@@ -524,6 +525,25 @@ export async function callAgentWalletTool(
         });
       }
       case "sage_fund_and_launch": {
+        // PAY ON THE WEB, FROM YOUR OWN WALLET (relaunch, 20 Nov 2026). From 1 Dec 2026 Metis counts only
+        // people who pay from wallets they control, and asked Telegram bots for a web login. With
+        // TELEGRAM_LAUNCH_ON_WEB=1 the chat hands the founder the test's own page instead of spending
+        // from the chat's server wallet: they sign in there (email, Google or MetaMask) and pay from
+        // their own wallet. Checked before anything else, so nothing moves from the chat wallet.
+        if (process.env.TELEGRAM_LAUNCH_ON_WEB?.trim() === "1") {
+          const named = typeof args.inspectionId === "string" ? args.inspectionId.trim() : "";
+          const bound = founderBinding(chatId);
+          const planId = named || (bound ? latestLaunchablePlan(bound.founderAddress) : null);
+          if (!planId) {
+            return ok({ ok: false, payOnWeb: true, message: `There's no ready plan to launch yet. Plan one first; when it's ready, the founder pays for it at ${appUrl()}/launch from their own wallet.` });
+          }
+          return ok({
+            ok: false,
+            payOnWeb: true,
+            url: testUrl(planId),
+            message: `Nothing has moved. The founder pays for this test from their own wallet at ${testUrl(planId)} (MetaMask, or sign in with email or Google), and Sage takes it live the moment it's paid. Relay this link.`,
+          });
+        }
         const b = founderBinding(chatId);
         if (!b) return err("The founder hasn't set up an agent wallet yet — call sage_setup_wallet.");
         // A network that isn't open takes no new money (paused, closed, or a retired testnet): refused

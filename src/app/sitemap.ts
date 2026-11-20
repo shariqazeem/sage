@@ -18,7 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const statics: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/marketplace`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
+    { url: `${base}/earn`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${base}/launch`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/agents/sage`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     // The company site: what Sage costs, who builds it, its second product, and the public ledger.

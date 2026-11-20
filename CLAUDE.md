@@ -377,18 +377,29 @@ if you must touch them, that suite must stay green.
 standard all UI converges to; new UI must follow it. (Current reality is fragmented — see
 Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.)
 
-**Two worlds since 19 Oct 2026, and `src/components/shell/routes.ts` decides which a route is:**
+**One bar, no rail (the relaunch, 20 Nov 2026).** The hover rail and the company header are gone. Every page
+wears ONE top bar (`src/components/sage/top-bar.tsx`: the mark, Tests `/`, Earn `/earn`, New test, and the
+avatar or "Sign in"), mounted once in the root layout; `hasTopBar` in `src/components/shell/routes.ts` names
+the three pages that stay bare (`/proof/<tx>`, `/start`, `/join/<code>`), and `bar-routes.test.ts` holds the
+bar's list. The six screens below are all still pages, reached from the account sheet that opens from the
+avatar. New UI is built from the kit in `src/components/sage` and `src/styles/sage.css` (classes prefixed
+`sg-`): the paste box, the test card, the tester ticket with its green Paid stamp (it lands once per real
+payout and is never replayed), the frame, the sheet. `/` is the paste box (signed out) or your tests (signed
+in); `/pricing` is one screen with no tiers; `/marketplace` and `/missions` redirect to `/earn`; a test's
+address is `/t/<id>` (`testPath`).
+
+**Two worlds since 19 Oct 2026 (they now share that one bar):**
 - **The company site:**
   - Pages: home, pricing, company, ParallaxPay, ledger, docs.
   - Reading pages (restored 20 Oct 2026 after being folded the day before): outcomes, records (`/record`, above
     every `/record/<wallet>`), the Caribbean, the FAQ, the two comparisons (`/vs/*`) and the case study. They use
     `ReadPage` (`src/components/site/read-page.tsx`) and `src/styles/read.css`; their numbers come from
     `src/lib/site/readings.ts`, which reads the same derivations as the home page and the ledger (tested).
-  - Every page is wrapped in `SiteFrame` (`src/components/site/`) and styled by `src/styles/site.css`:
-    Apple-like restraint, one idea per section, large type, real product imagery. The footer links every
-    public page.
+  - Every page is wrapped in `SiteFrame` (`src/components/site/`: the page and the footer; the header is the
+    one bar) and styled by `src/styles/site.css`: Apple-like restraint, one idea per section, large type,
+    real product imagery. The footer links every public page except the advance and the lenders' page.
   - The hero's product shot is the latest real receipt, and every number comes from `src/lib/site/live-proof.ts`.
-- **The app** is six screens, and the rail lists exactly these (tested):
+- **The app** is six screens (no rail lists them any more; the account sheet links four, tested):
   - Home `/workspace`, Post `/launch`, Jobs `/workspace/jobs`, Account `/workspace/account`,
     Team `/workspace/people`, Settings `/workspace/settings`.
   - Everything else is reached from the screen it belongs to.
@@ -425,7 +436,9 @@ product). Never extend it; migrate off it.
 
 A **lane** is one job Sage gives a model: `PAYOUT` (judgment), `CONCIERGE`, `MISSION`
 (design), `OBS_JUDGE`, `VISION`, `DRAFT` (Post's hand-over: a job written from what a founder
-pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026). Each lane may run on its own provider by setting
+pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026), `REPORT`
+(groups a test's paid answers into the builder's findings, `src/lib/report/`; background work, so the first
+to stop under the daily budget, and the report is then built without a model; 20 Nov 2026). Each lane may run on its own provider by setting
 `<LANE>_API_KEY`, `<LANE>_BASE_URL` and `<LANE>_MODEL` — **all three together**. Set
 partially, a lane is treated as ABSENT and inherits the shared chain; it is never merged,
 because merging splices one provider's key onto another's endpoint (authenticates as

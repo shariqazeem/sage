@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Braces, Landmark, Users, Wallet } from "lucide-react";
+import { Braces, Users, Wallet } from "lucide-react";
 import { ReadHead, ReadPage } from "@/components/site/read-page";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getStarknetSessionAddress } from "@/lib/auth/starknet-session";
@@ -11,9 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Verified work records: income anyone can check",
+  title: "Verified work records: proof of work anyone can check",
   description:
-    "Every payout Sage makes adds a line to the person's own record of verified work: what they were paid for, when and by whom, each line anchored to an on-chain receipt. Open any record, print a statement, or read it as a lender.",
+    "Every payout Sage makes adds a line to the person's own record of verified work: what they were paid for, when and by whom, each line anchored to an on-chain receipt. Open any record, share it, or print a statement.",
   alternates: { canonical: "/record" },
 };
 
@@ -21,10 +21,10 @@ export const metadata: Metadata = {
 const WALLET = /^0x[0-9a-f]{1,64}$/;
 
 /**
- * THE RECORDS, AS ONE PLACE (20 Oct 2026). A record lives at /record/<wallet>; this is the page above
- * it: what a record holds, who reads it (the person, their team, a lender, a program) and a lookup that
- * works without JavaScript. The credit story the old landing told lives here now, so it is one link
- * from the home page, the footer, Team and the lender's view instead of nowhere.
+ * THE RECORDS, AS ONE PLACE (20 Oct 2026; reframed at the relaunch, 20 Nov 2026). A record lives at
+ * /record/<wallet>; this is the page above it: what a record holds, who reads it and a lookup that works
+ * without JavaScript. The advance was retired at the relaunch, so a record is proof of work, not a
+ * credit file: the person's own history of paid, checked work.
  */
 export default async function RecordsPage({
   searchParams,
@@ -45,11 +45,10 @@ export default async function RecordsPage({
 
   return (
     <ReadPage>
-      <ReadHead eyebrow="Records" title="Every payout leaves a record a lender can read.">
+      <ReadHead eyebrow="Records" title="Every payout leaves a record that is yours.">
         <p className="lead">
-          For many people the work is real and the paperwork doesn&apos;t exist: no payslip, no filings, no credit file.
-          Sage checks the work before it pays, so each payout adds a verified line to the person&apos;s own record,
-          anchored to a receipt anyone can check.
+          For many people the work is real and nothing proves it. Sage checks the work before it pays, so each payout
+          adds a verified line to the person&apos;s own record, anchored to a receipt anyone can check.
         </p>
       </ReadHead>
 
@@ -107,9 +106,6 @@ export default async function RecordsPage({
               <strong>Linked wallets</strong>: a person or a business paid on more than one network can join their wallets
               into one record.
             </li>
-            <li>
-              <strong>Advances</strong> drawn against the record, and how each was repaid.
-            </li>
           </ul>
           <p>The person decides whether the amounts are public. Sage never makes that choice for them.</p>
         </section>
@@ -122,29 +118,19 @@ export default async function RecordsPage({
                 <Wallet size={18} strokeWidth={1.75} />
               </span>
               <h3>The person paid</h3>
-              <p>The record is theirs: share the link, print the statement, and keep it from one team to the next. Working through Sage is free, always.</p>
-              <Link href="/marketplace" className="more">
-                Find paid work
+              <p>The record is theirs: share the link, print the statement, and take it from one job to the next. Working through Sage is free, always.</p>
+              <Link href="/earn" className="more">
+                Find a paid test
               </Link>
             </div>
             <div className="read-card">
               <span className="card-icon">
                 <Users size={18} strokeWidth={1.75} />
               </span>
-              <h3>Teams</h3>
-              <p>On Team, every member&apos;s record and statement are one click away. From Pro, export every payout your team has made as a spreadsheet.</p>
-              <Link href="/workspace/people" className="more">
-                Open Team
-              </Link>
-            </div>
-            <div className="read-card">
-              <span className="card-icon">
-                <Landmark size={18} strokeWidth={1.75} />
-              </span>
-              <h3>Lenders and programs</h3>
-              <p>Paste a wallet to see its verified income and the published arithmetic for what can be advanced against it. The lender sets the multiple.</p>
-              <Link href="/lender" className="more">
-                The lender&apos;s view
+              <h3>Anyone they show it to</h3>
+              <p>A builder choosing testers, a team, a programme or an employer: every line checks against the chain without taking Sage&apos;s word for it.</p>
+              <Link href="/ledger" className="more">
+                Open the ledger
               </Link>
             </div>
             <div className="read-card">
@@ -168,17 +154,8 @@ export default async function RecordsPage({
           <p>
             Every record prints as a verified income statement: the period, each verified payment with its payer and
             transaction, total and 90-day income, the pass rate and months active. A digest at the bottom matches a
-            printed copy to the live record, so a bank can check that nothing was edited. It opens from any record, at{" "}
+            printed copy to the live record, so anyone can check that nothing was edited. It opens from any record, at{" "}
             <code>/record/&lt;wallet&gt;/statement</code>.
-          </p>
-        </section>
-
-        <section className="read-sec" id="advance">
-          <h2>The advance</h2>
-          <p>
-            A lender supplies the multiple; Sage applies it to verified 90-day income and publishes the arithmetic. An
-            advance drawn against the record is repaid from the person&apos;s next verified payouts, so the money can move
-            before the next job clears, under the same limits that release every other dollar.
           </p>
         </section>
 
