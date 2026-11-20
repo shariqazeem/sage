@@ -1,13 +1,15 @@
 import "@/styles/site.css";
 import type { ReactNode } from "react";
 import { SiteFooter } from "./site-footer";
-import { SiteHeader } from "./site-header";
 
-/** Every public company page: the header, the page, the footer. */
-export function SiteFrame({ active, children }: { active?: string; children: ReactNode }) {
+/**
+ * Every public company page: the page, then the footer. The header is the one top bar now, mounted
+ * in the root layout for every page (relaunch, 20 Nov 2026), so a company page no longer draws its
+ * own. `active` is still accepted so the pages that pass it need no edit; the bar marks its own place.
+ */
+export function SiteFrame({ children }: { active?: string; children: ReactNode }) {
   return (
     <div className="site">
-      <SiteHeader active={active} />
       <main>{children}</main>
       <SiteFooter />
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { EmailSignIn } from "@/components/auth/email-sign-in";
+import { LOGIN_WITH_X } from "@/components/auth/privy-provider";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { short } from "@/lib/format";
 import { WalletConnect, type WalletOption } from "./wallet-connect";
@@ -100,7 +101,10 @@ export function FounderSignIn({
     <>
       {emailDoor && (
         <>
-          <EmailSignIn onSignedIn={() => onSignedIn?.()} />
+          {/* X, once the founder has switched it on in Privy (NEXT_PUBLIC_LOGIN_X=1). The same account
+              either way: Privy makes the wallet, and the server mints the same session. */}
+          {LOGIN_WITH_X && <EmailSignIn onSignedIn={() => onSignedIn?.()} label="Continue with X" methods={["twitter"]} icon={false} />}
+          <EmailSignIn onSignedIn={() => onSignedIn?.()} label={LOGIN_WITH_X ? "Continue with email or Google" : undefined} methods={LOGIN_WITH_X ? ["email", "google"] : undefined} />
           <div className="es-or">
             <span>or use MetaMask</span>
           </div>

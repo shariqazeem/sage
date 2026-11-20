@@ -126,6 +126,29 @@
   --dur-3: 640ms; /* expressive: hero stagger, count-up */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* firm deceleration */
   --ease-spring: cubic-bezier(0.34, 1.42, 0.5, 1); /* gentle overshoot */
+
+  /* ── THE RELAUNCH (20 Nov 2026): "an instrument, not a dashboard" ─────────────────────────
+   * New tokens only, used by src/styles/sage.css and the kit in src/components/sage. Nothing
+   * above is redeclared: the material (paper, ink, terracotta, the money colours) is unchanged. */
+  --w-col: 720px;    /* one centred column, for flows */
+  --w-wrap: 1080px;  /* the frame card grids sit in */
+  --gutter: clamp(16px, 4vw, 32px); /* 16 px on a phone, never less */
+  --bar-h: 56px;     /* the one top bar, on every page */
+
+  /* one display line per screen: 40 px on a phone, 68 px on a desktop */
+  --fs-hero: clamp(2.5rem, 1.85rem + 2.667vw, 4.25rem);
+  --lh-hero: 1.03;
+  --fs-title: clamp(1.5rem, 1.31rem + 0.76vw, 2rem); /* a section's one sentence: 24 → 32 */
+  --lh-title: 1.2;
+  --fs-text: 1.0625rem; /* body, 17/26 */
+  --lh-text: 1.53;
+  --fs-label: 0.6875rem; /* the small mono label: 11 px, uppercase */
+  --tracking-label: 0.07em;
+
+  --dur-press: 120ms; /* a tap answering */
+  --dur-move: 240ms;  /* a sheet arriving */
+  --dur-stamp: 280ms; /* the Paid stamp landing: once per real payout */
+  --scrim-sheet: rgba(26, 29, 33, 0.28); /* the page behind an open sheet (the --ink channel) */
 }
 
 /* prefers-reduced-motion COLLAPSES everything: every motion built on the vocabulary
@@ -136,6 +159,9 @@
     --dur-1: 0.01ms;
     --dur-2: 0.01ms;
     --dur-3: 0.01ms;
+    --dur-press: 0.01ms;
+    --dur-move: 0.01ms;
+    --dur-stamp: 0.01ms;
   }
 }
 

@@ -14,7 +14,22 @@ import { Loader2, Mail } from "lucide-react";
  * the wallet is created client-side before the exchange, the exchange itself retries briefly,
  * every path resets the button, and a failed attempt logs Privy out so the next click starts clean.
  */
-export function EmailSignIn({ onSignedIn }: { onSignedIn: () => void }) {
+/**
+ * `methods` narrows Privy's window to those ways in (the X button passes ["twitter"]); left out, the
+ * window offers everything the provider allows. `label` is the button's words, and `icon={false}`
+ * drops the envelope for a door that is not an email.
+ */
+export function EmailSignIn({
+  onSignedIn,
+  label = "Continue with email",
+  methods,
+  icon = true,
+}: {
+  onSignedIn: () => void;
+  label?: string;
+  methods?: ("email" | "google" | "twitter")[];
+  icon?: boolean;
+}) {
   const { ready, authenticated, user, login, logout, getAccessToken, createWallet } = usePrivy();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -89,13 +104,13 @@ export function EmailSignIn({ onSignedIn }: { onSignedIn: () => void }) {
     }
     startedHere.current = true;
     armed.current = true;
-    login();
+    login(methods ? { loginMethods: methods } : undefined);
   };
 
   return (
     <div className="es-wrap">
       <button className="sage-btn sage-btn-primary es-btn" onClick={() => void start()} disabled={!ready || busy}>
-        {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing you in…</> : <><Mail size={15} /> Continue with email</>}
+        {busy ? <><Loader2 size={15} className="sage-spin2" /> Signing you in…</> : <>{icon ? <Mail size={15} /> : null} {label}</>}
       </button>
       {err && <p className="ws-err es-err">{err}</p>}
     </div>

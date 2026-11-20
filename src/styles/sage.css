@@ -1,0 +1,1608 @@
+/**
+ * sage.css: the relaunch kit (20 Nov 2026). "An instrument, not a dashboard."
+ *
+ * One stylesheet for the new shell and the objects in src/components/sage. It aliases the tokens in
+ * tokens.css and never declares a palette value. Loaded once, in the root layout, because the top
+ * bar and the footer are on every page.
+ *
+ * The rules of the kit:
+ *   - terracotta is everything you can press, and the mark; green is "Paid" and nothing else;
+ *     red is "Not paid" and nothing else;
+ *   - Inter for words, JetBrains Mono (tabular) for money, addresses, times, counts and domains;
+ *   - radii 6 / 10 / 16, pills only for a status chip; flat cards with a hairline; a shadow only on
+ *     what floats (a sheet);
+ *   - motion only for a real change of state, under 300 ms, never looping, and every duration is a
+ *     token so prefers-reduced-motion collapses it.
+ *
+ * Every class is prefixed `sg-`. Old pages keep their own stylesheets.
+ */
+
+/* ── the page ───────────────────────────────────────────────────────────────── */
+.sg {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--bar-h));
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-text);
+  line-height: var(--lh-text);
+}
+.sg-main {
+  flex: 1;
+}
+/* the frame for card grids, and the one centred column for flows */
+.sg-wrap,
+.sg-col {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.sg-wrap {
+  max-width: calc(var(--w-wrap) + 2 * var(--gutter));
+}
+.sg-col {
+  max-width: calc(var(--w-col) + 2 * var(--gutter));
+}
+/* vertical rhythm: a screen opens, then sections follow at one distance */
+.sg-open {
+  padding-top: clamp(var(--s-7), 9vw, var(--s-10));
+}
+.sg-section {
+  margin-top: clamp(var(--s-8), 10vw, var(--s-11));
+}
+.sg-stack {
+  display: flex;
+  flex-direction: column;
+}
+.sg-gap-2 { gap: var(--s-2); }
+.sg-gap-3 { gap: var(--s-3); }
+.sg-gap-4 { gap: var(--s-4); }
+.sg-gap-5 { gap: var(--s-5); }
+.sg-gap-6 { gap: var(--s-6); }
+
+/* ── type ───────────────────────────────────────────────────────────────────── */
+.sg-display {
+  margin: 0;
+  font-size: var(--fs-hero);
+  line-height: var(--lh-hero);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.sg-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.sg-lead {
+  margin: 0;
+  max-width: 36em;
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.1875rem);
+  line-height: 1.5;
+  letter-spacing: -0.008em;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.sg-text {
+  margin: 0;
+  font-size: var(--fs-text);
+  line-height: var(--lh-text);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.sg-small {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.sg-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.sg-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.sg-ink {
+  color: var(--ink);
+}
+/* a number inside a sentence: in ink and tabular, set in the sentence's own face so the line reads
+   as one line. Mono is for a value standing on an object (an amount, an address, a domain). */
+.sg-n {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.sg-title .sg-n {
+  font-weight: inherit;
+}
+/* a domain inside a headline: mono, a touch smaller so its x-height sits with the words */
+.sg-title .sg-mono {
+  font-size: 0.92em;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.sg-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+.sg-link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+.sg a:focus-visible,
+.sg button:focus-visible,
+.sg-bar a:focus-visible,
+.sg-bar button:focus-visible,
+.sg-foot a:focus-visible,
+.sg-sheet a:focus-visible,
+.sg-sheet button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ── the top bar: one, on every page ────────────────────────────────────────── */
+.sg-bar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  height: var(--bar-h);
+  background: var(--scrim-header);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+.sg-bar-in {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  max-width: calc(var(--w-wrap) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  white-space: nowrap; /* a bar never wraps */
+}
+.sg-bar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin-right: var(--s-4);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.sg-bar-nav {
+  display: flex;
+  align-items: center;
+}
+.sg-bar-nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding-inline: 12px;
+  font-size: 15px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.sg-bar-nav a:hover {
+  color: var(--ink);
+}
+.sg-bar-nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+.sg-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.sg-bar-new .sg-bar-new-icon {
+  display: none;
+}
+/* who is signed in: the last four of their wallet, like the stub of a ticket */
+.sg-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 52px;
+  padding-inline: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+.sg-avatar::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+.sg-avatar:hover {
+  border-color: var(--ink);
+}
+.sg-avatar:active {
+  transform: scale(0.97);
+}
+.sg-avatar[data-waiting] {
+  color: transparent;
+  cursor: default;
+}
+@media (max-width: 560px) {
+  .sg-bar-brand {
+    margin-right: var(--s-1);
+  }
+  .sg-bar-word {
+    display: none;
+  }
+  .sg-bar-nav a {
+    padding-inline: 10px;
+  }
+  /* "New test" becomes its icon where the words don't fit */
+  .sg-bar-new {
+    width: 40px;
+    padding: 0;
+  }
+  .sg-bar-new .sg-bar-new-icon {
+    display: block;
+    flex: none;
+    width: 20px;
+    height: 20px;
+  }
+  .sg-bar-new .sg-bar-new-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* ── button ─────────────────────────────────────────────────────────────────── */
+.sg-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+.sg-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.sg-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.sg-btn[data-variant="primary"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.sg-btn[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+.sg-btn[data-variant="quiet"] {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.sg-btn[data-variant="quiet"]:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.sg-btn[data-variant="plain"] {
+  background: transparent;
+  color: var(--ink);
+}
+.sg-btn[data-variant="plain"]:hover:not(:disabled) {
+  background: var(--border);
+}
+.sg-btn[data-size="sm"] {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+/* a small button still answers a 44 px touch */
+.sg-btn[data-size="sm"]::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+.sg-btn[data-wide] {
+  width: 100%;
+}
+.sg-spin {
+  animation: sg-spin 0.9s linear infinite;
+}
+@keyframes sg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-spin {
+    animation: none;
+  }
+}
+
+/* ── pill: a status chip, the only pill there is ────────────────────────────── */
+.sg-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+.sg-pill[data-tone="ink"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+.sg-pill[data-tone="accent"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sg-pill[data-tone="ok"] {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.sg-pill[data-tone="err"] {
+  border-color: var(--err-border);
+  background: var(--err-soft);
+  color: var(--err);
+}
+
+/* ── the paste box: the centrepiece ─────────────────────────────────────────── */
+.sg-paste-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  scroll-margin-top: calc(var(--bar-h) + var(--s-5));
+}
+.sg-paste {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 64px;
+  padding: 0 8px 0 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+.sg-paste:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.sg-paste-icon {
+  flex: none;
+  color: var(--ink-faint);
+}
+.sg-paste:focus-within .sg-paste-icon {
+  color: var(--accent);
+}
+.sg-paste input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 16px; /* never under 16: a phone would zoom the page */
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.sg-paste input::placeholder {
+  color: var(--ink-faint);
+}
+.sg-paste .sg-btn {
+  flex: none;
+  height: 48px;
+}
+.sg-paste[data-compact] {
+  height: 56px;
+  padding-left: 16px;
+  border-radius: var(--r-md);
+}
+.sg-paste[data-compact] .sg-btn {
+  height: 40px;
+}
+.sg-paste-note {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.sg-paste-note[data-kind="problem"] {
+  color: var(--warn);
+}
+@media (max-width: 420px) {
+  .sg-paste {
+    gap: var(--s-2);
+    padding-left: 14px;
+  }
+  .sg-paste .sg-btn {
+    padding-inline: 14px;
+  }
+}
+
+/* ── the test card ──────────────────────────────────────────────────────────── */
+.sg-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--s-4);
+}
+.sg-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+a.sg-card:hover {
+  border-color: var(--ink);
+}
+a.sg-card:active {
+  transform: scale(0.985);
+}
+.sg-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* the product's initial, set like a type sort: no third-party icon is ever fetched */
+.sg-sort {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.sg-card-domain {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+/* a job with no address is named by its title, and a title is words, not data */
+.sg-card-domain[data-words] {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.sg-card-line {
+  margin: 0;
+  font-size: var(--fs-text);
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  text-wrap: pretty;
+}
+.sg-card-sub {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* places, as ticks on an instrument: green is a person paid, ink is a place taken */
+.sg-rail {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+.sg-rail i {
+  flex: 1;
+  min-width: 2px;
+  background: var(--border);
+}
+.sg-rail i[data-s="paid"] {
+  background: var(--ok);
+}
+.sg-rail i[data-s="taken"] {
+  background: var(--ink);
+}
+.sg-card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: auto;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.sg-card-foot > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-card-foot .sg-mono {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.sg-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+.sg-card-facts b {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* ── the tester ticket ──────────────────────────────────────────────────────── */
+.sg-ticket {
+  --sg-cut: var(--bg); /* the surface the ticket lies on, for the tear's notches */
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 76px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+a.sg-ticket:hover {
+  border-color: var(--ink);
+}
+a.sg-ticket:active {
+  transform: scale(0.985);
+}
+.sg-ticket-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+.sg-ticket-handle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.sg-ticket-state {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.sg-ticket[data-state="not-paid"] .sg-ticket-state b {
+  font-weight: 500;
+  color: var(--err);
+}
+.sg-ticket-handle[data-words] {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.sg-ticket-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+/* the stub, past a dashed tear line with a notch at each end */
+.sg-ticket-stub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  min-width: 108px;
+  padding: 12px 16px;
+  border-left: 1px dashed var(--border-strong);
+}
+.sg-ticket-stub::before,
+.sg-ticket-stub::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--sg-cut);
+}
+.sg-ticket-stub::before {
+  top: -6px;
+  clip-path: inset(calc(50% - 1px) 0 0 0);
+}
+.sg-ticket-stub::after {
+  bottom: -6px;
+  clip-path: inset(0 0 calc(50% - 1px) 0);
+}
+a.sg-ticket:hover .sg-ticket-stub::before,
+a.sg-ticket:hover .sg-ticket-stub::after {
+  border-color: var(--ink);
+}
+.sg-ticket-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+.sg-ticket[data-state="not-paid"] .sg-ticket-amount,
+.sg-ticket[data-state="took-a-place"] .sg-ticket-amount,
+.sg-ticket[data-state="answered"] .sg-ticket-amount,
+.sg-ticket[data-state="checking"] .sg-ticket-amount {
+  color: var(--ink-faint);
+}
+.sg-ticket[data-state="not-paid"] .sg-ticket-amount {
+  text-decoration: line-through;
+}
+.sg-tickets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--s-3);
+}
+
+/* ── the Paid stamp: the signature moment ───────────────────────────────────── */
+.sg-stamp {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px 2px 9px;
+  border: 1.5px solid var(--ok);
+  border-radius: var(--r-sm);
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 1.5px var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ok);
+  transform: rotate(-5deg);
+  transform-origin: 60% 50%;
+  user-select: none;
+}
+.sg-ticket-stub .sg-stamp {
+  margin-left: -14px; /* it lands across the tear */
+}
+/* It lands once, when a real settlement arrives. The landed state is the default, so a stamp that
+   was already there (or a tab that was in the background) is simply stamped. */
+.sg-stamp[data-land] {
+  animation: sg-stamp-land var(--dur-stamp) var(--ease-spring) both;
+}
+@keyframes sg-stamp-land {
+  from {
+    opacity: 0;
+    transform: rotate(-13deg) scale(1.7);
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-5deg) scale(1);
+  }
+}
+
+/* ── the frame: what Sage's own browser saw ─────────────────────────────────── */
+.sg-shot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+.sg-shot-win {
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.sg-shot-chrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0;
+  color: var(--ink-faint);
+}
+.sg-shot-n {
+  flex: none;
+  font-weight: 500;
+  color: var(--ink);
+}
+.sg-shot-url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--bg);
+}
+.sg-shot-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--ink);
+}
+.sg-shot-saw {
+  margin-top: 2px;
+  font-weight: 400;
+  color: var(--ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* frames in a row you can swipe: the same on a phone and a desktop */
+.sg-shots {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(82%, 344px);
+  gap: var(--s-4);
+  margin-inline: calc(-1 * var(--gutter));
+  padding-inline: var(--gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+}
+.sg-shots::-webkit-scrollbar {
+  display: none;
+}
+.sg-shots > * {
+  scroll-snap-align: start;
+}
+@media (min-width: 1144px) {
+  .sg-shots[data-count="3"] {
+    grid-auto-columns: 1fr;
+  }
+  .sg-shots[data-count="4"] {
+    grid-auto-columns: 1fr;
+  }
+}
+
+/* ── sheet: the only thing that floats ──────────────────────────────────────── */
+.sg-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--scrim-sheet);
+  animation: sg-scrim-in var(--dur-move) var(--ease-out);
+}
+@keyframes sg-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+.sg-sheet {
+  position: fixed;
+  z-index: 81;
+  inset: 0 0 0 auto;
+  width: min(440px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  animation: sg-sheet-side var(--dur-move) var(--ease-out);
+}
+.sg-sheet:focus {
+  outline: 0;
+}
+.sg-sheet[data-side="center"] {
+  inset: 0;
+  width: min(420px, calc(100vw - 2 * var(--gutter)));
+  height: fit-content;
+  max-height: calc(100dvh - 2 * var(--gutter));
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.sg-sheet[data-side="center"] {
+  animation-name: sg-sheet-rise;
+}
+@keyframes sg-sheet-side {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes sg-sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.sg-sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  height: 56px;
+  padding: 0 8px 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.sg-sheet-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.sg-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.sg-sheet-close:hover {
+  color: var(--ink);
+}
+.sg-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+}
+@media (max-width: 640px) {
+  /* on a phone every sheet rises from the bottom */
+  .sg-sheet,
+  .sg-sheet[data-side="center"] {
+    inset: auto 0 0 0;
+    width: 100vw;
+    height: fit-content;
+    max-height: 92dvh;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    animation-name: sg-sheet-rise;
+  }
+}
+
+/* signing in, inside a sheet: the two doors the product already has, set quietly */
+.sg-signin .es-btn {
+  box-shadow: none;
+  font-weight: 500;
+  font-size: 15px;
+}
+.sg-signin .es-wrap + .es-wrap {
+  margin-top: var(--s-2);
+}
+.sg-signin .wc-explain,
+.sg-signin .wc-assure {
+  font-size: 13px;
+}
+.sg-signin .wc-single {
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  padding: 0 18px;
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+.sg-signin .wc-single:hover {
+  filter: none;
+  border-color: var(--ink);
+}
+
+/* ── the account sheet ──────────────────────────────────────────────────────── */
+.sg-acct-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.sg-acct-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.sg-acct-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: 10px 16px;
+  font-size: 15px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.sg-acct-row + .sg-acct-row,
+.sg-acct-card > * + .sg-acct-row,
+.sg-acct-card > .sg-acct-row + * {
+  border-top: 1px solid var(--border);
+}
+a.sg-acct-row:hover,
+button.sg-acct-row:hover {
+  background: var(--bg);
+}
+button.sg-acct-row {
+  width: 100%;
+  border-inline: 0;
+  border-bottom: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.sg-acct-row > :last-child {
+  flex: none;
+  color: var(--ink-faint);
+}
+.sg-acct-row .sg-mono {
+  font-size: 14px;
+  color: var(--ink);
+}
+.sg-acct-k {
+  color: var(--ink-muted);
+}
+.sg-acct-addr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 16px;
+}
+.sg-acct-addr code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+@media (max-width: 420px) {
+  .sg-acct-addr code {
+    font-size: 11.5px;
+    letter-spacing: -0.03em;
+  }
+}
+.sg-acct-wait {
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+.sg-acct-qr {
+  width: 132px;
+  height: 132px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.sg-acct-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.sg-acct-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.sg-acct-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: 16px;
+}
+.sg-field {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.sg-field::placeholder {
+  color: var(--ink-faint);
+}
+.sg-field:focus {
+  outline: 0;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.sg-acct-send-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+}
+.sg-note-ok {
+  color: var(--ok);
+}
+.sg-note-problem {
+  color: var(--warn);
+}
+
+/* ── empty state: it invites the first action ───────────────────────────────── */
+.sg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-6) var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.sg-empty-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.sg-empty-actions {
+  width: 100%;
+  margin-top: var(--s-3);
+}
+
+/* ── the footer: an index, set like the fine print of a receipt ─────────────── */
+.sg-foot {
+  margin-top: clamp(var(--s-8), 10vw, var(--s-11));
+  padding-block: var(--s-7) calc(var(--s-6) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+.sg-foot-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin-bottom: var(--s-6);
+}
+.sg-foot-line {
+  margin: 0;
+  max-width: 34em;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.sg-foot-rows {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+}
+.sg-foot-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-4);
+  padding-block: 10px;
+  border-top: 1px solid var(--border);
+}
+.sg-foot-row dt {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.sg-foot-row dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 22px;
+  margin: 0;
+}
+.sg-foot .sg-foot-row a {
+  display: inline-block;
+  padding-block: 5px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.sg-foot .sg-foot-row a:hover {
+  color: var(--accent);
+}
+.sg-foot-base {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-5);
+  margin-top: var(--s-5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+@media (max-width: 560px) {
+  .sg-foot-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* ── Home ───────────────────────────────────────────────────────────────────── */
+.sg-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.sg-hero .sg-paste-form {
+  margin-top: var(--s-3);
+}
+.sg-real-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+.sg-real-after {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+}
+/* a sentence beside the object that proves it: side by side on a desktop, stacked on a phone */
+.sg-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: center;
+}
+@media (min-width: 860px) {
+  .sg-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+    gap: var(--s-9);
+  }
+}
+.sg-split[data-top] {
+  align-items: start;
+}
+.sg-split-words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+.sg-rule {
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.sg-home-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: clamp(var(--s-6), 6vw, var(--s-8));
+}
+.sg-home-top .sg-paste-form {
+  max-width: var(--w-col);
+}
+.sg-home-list {
+  margin-top: var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.sg-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+/* ── Pricing: one honest screen ─────────────────────────────────────────────── */
+.sg-sum {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 15px;
+}
+.sg-sum-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: 14px 18px;
+  color: var(--ink-muted);
+}
+.sg-sum-row + .sg-sum-row {
+  border-top: 1px dashed var(--border-strong);
+}
+.sg-sum-row b {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.sg-sum-row[data-total] {
+  border-top-style: solid;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+/* ── the account sheet, continued: add money, and the product's own send form ── */
+.sg-acct-add {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+.sg-acct-card > button.sg-acct-row:only-child {
+  border: 0;
+  border-radius: var(--r-md);
+}
+/* `YourWallet` is the component that moves the money, reused as it is. Inside a sheet its own
+   heading, address and balance are already shown above, so only its send form remains, set in the
+   kit's field and button. */
+.sg-wallet .yw {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.sg-wallet .yw-h h2,
+.sg-wallet .yw-net,
+.sg-wallet .yw-grid {
+  display: none;
+}
+.sg-wallet .yw-h {
+  margin: 0;
+}
+.sg-wallet .yw-rails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--s-3);
+}
+.sg-wallet .yw-rail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.sg-wallet .yw-rail.on {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.sg-wallet .yw-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sg-wallet .yw-k {
+  margin: 0 0 var(--s-3);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.sg-wallet .yw-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--s-2);
+}
+.sg-wallet .sage-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.sg-wallet .sage-input:first-child {
+  grid-column: 1 / -1;
+}
+.sg-wallet .sage-input:focus {
+  outline: 0;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.sg-wallet .sage-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sg-wallet .sage-btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.sg-wallet .sage-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.sg-wallet .yw-err {
+  margin: var(--s-3) 0 0;
+  font-size: 14px;
+  color: var(--warn);
+}
+.sg-wallet .yw-ok {
+  margin: var(--s-3) 0 0;
+  font-size: 14px;
+  color: var(--ok);
+}
+
+/* ── screens, continued ─────────────────────────────────────────────────────── */
+/* the front door's one column is centred: a headline, a sentence, the box */
+.sg-hero {
+  align-items: center;
+  text-align: center;
+}
+.sg-hero .sg-paste-form {
+  width: 100%;
+  max-width: 620px;
+  text-align: left;
+}
+.sg-hero .sg-paste-note {
+  text-align: center;
+  text-wrap: balance;
+}
+.sg-measure {
+  max-width: 44em;
+}
+/* a section that belongs to the one before it */
+.sg-section-near {
+  margin-top: clamp(var(--s-7), 6vw, var(--s-8));
+}
+.sg-earn-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.sg-earn-head .sg-display {
+  max-width: 12em;
+}
+.sg-earn-invite {
+  padding-top: var(--s-7);
+}
+@media (min-width: 860px) {
+  .sg-earn-invite {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+.sg-row-head-list {
+  margin-bottom: var(--s-4);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+.sg-card-each {
+  flex: none;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.sg-card-each b {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+/* the product's own alert opt-in (WorkAlerts), set in the kit inside an empty state */
+.sg-empty .wa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: 0;
+  padding: var(--s-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.sg-empty .wa-main {
+  flex: 1 1 260px;
+}
+.sg-empty .wa-t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.sg-empty .wa-s {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.sg-empty .wa-e {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--warn);
+}
+.sg-empty .nm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--accent-ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* a mono space is a whole character wide, which is too wide between the words of a time */
+.sg-card-foot .sg-mono,
+.sg-ticket-meta {
+  word-spacing: -0.25em;
+}

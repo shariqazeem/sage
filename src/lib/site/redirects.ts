@@ -28,4 +28,9 @@ export const SITE_REDIRECTS: SiteRedirect[] = [
   // The second product was called Called for a few days (19-24 Oct 2026); the founder took its original
   // name, ParallaxPay, back before mainnet. Its page moved; a link someone holds lands on it.
   { source: "/called", destination: "/parallaxpay", permanent: true },
+  // The public board is Earn since the relaunch (20 Nov 2026): the same listing, drawn as cards. It
+  // was /missions for a few days, then /marketplace; every link already shared (and the browseUrl
+  // Sage's MCP tool hands other agents) lands on the page that now holds the open tests.
+  { source: "/marketplace", destination: "/earn", permanent: true },
+  { source: "/missions", destination: "/earn", permanent: true },
 ];

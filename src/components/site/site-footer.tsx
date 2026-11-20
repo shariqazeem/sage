@@ -5,20 +5,20 @@ export const SAGE_X_URL = "https://x.com/sagepaysai";
 export const SAGE_TELEGRAM_URL = "https://t.me/sagedeputybot";
 
 /**
- * Where everything lives. Every public page is one click from every other: the pages folded on 19 Oct
- * 2026 came back on the 20th (outcomes, the Caribbean, the comparisons, the case study, the FAQ), the
- * records got a page of their own at /record, and a page nobody can reach is a page that was folded in
- * all but name.
+ * Where everything lives. Every public page is one click from every other (the founder's rule,
+ * 20 Oct 2026: no address is ever removed, and a page nobody can reach is a page that was removed in
+ * all but name). Since the relaunch it is set as an index, like the fine print of a receipt, not as
+ * a wall of columns. The advance and the lenders' page are retired from the front: their routes
+ * stay alive, and nothing here links them.
  */
-const COLUMNS = [
+const ROWS = [
   {
     title: "Product",
     links: [
-      { href: "/", label: "Sage" },
+      { href: "/", label: "Test your product" },
+      { href: "/earn", label: "Earn" },
       { href: "/pricing", label: "Pricing" },
-      { href: "/marketplace", label: "Find work" },
       { href: "/record", label: "Records" },
-      { href: "/lender", label: "For lenders" },
     ],
   },
   {
@@ -52,41 +52,41 @@ const COLUMNS = [
   },
 ] as const;
 
-/** The company footer: who Sage is, where everything lives, and the networks money moves on. */
+/** The footer, on the new screens and the company pages alike. Styled by sage.css (`sg-foot`). */
 export function SiteFooter() {
   return (
-    <footer className="site-foot">
-      <div className="site-wrap">
-        <div className="site-foot-grid">
-          <div className="site-foot-about">
-            <Link href="/" className="site-brand" aria-label="Sage home">
-              <SageMark size={22} />
-              <span>Sage</span>
-            </Link>
-            <p>Sage builds AI agents you can trust with money: limits enforced in code, and a public receipt for everything they do.</p>
-          </div>
-          {COLUMNS.map((c) => (
-            <div key={c.title}>
-              <h4>{c.title}</h4>
-              <ul>
-                {c.links.map((l) => (
-                  <li key={l.href}>
-                    {l.href.startsWith("http") ? (
-                      <a href={l.href} target="_blank" rel="noreferrer">
-                        {l.label}
-                      </a>
-                    ) : (
-                      <Link href={l.href}>{l.label}</Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
+    <footer className="sg-foot">
+      <div className="sg-wrap">
+        <div className="sg-foot-top">
+          <Link href="/" className="sg-bar-brand" aria-label="Sage, home">
+            <SageMark size={22} />
+            <span>Sage</span>
+          </Link>
+          <p className="sg-foot-line">Real people try what you built, and each is paid in USDC only for an honest try Sage can check.</p>
+        </div>
+        <dl className="sg-foot-rows">
+          {ROWS.map((r) => (
+            <div key={r.title} className="sg-foot-row">
+              <dt>{r.title}</dt>
+              <dd>
+                {r.links.map((l) =>
+                  l.href.startsWith("http") ? (
+                    <a key={l.href} href={l.href} target="_blank" rel="noreferrer">
+                      {l.label}
+                    </a>
+                  ) : (
+                    <Link key={l.href} href={l.href}>
+                      {l.label}
+                    </Link>
+                  ),
+                )}
+              </dd>
             </div>
           ))}
-        </div>
-        <div className="site-foot-base">
+        </dl>
+        <div className="sg-foot-base">
           <span>© {new Date().getUTCFullYear()} Sage</span>
-          <span>Payments in USDC on Metis.</span>
+          <span>Paid in USDC on Metis</span>
         </div>
       </div>
     </footer>

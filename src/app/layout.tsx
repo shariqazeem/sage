@@ -9,6 +9,9 @@ import "../styles/tokens.css";
 // global so every page draws them the same. Both are class-scoped (es-*, wc-*).
 import "../styles/email-sign-in.css";
 import "../styles/wallet-connect.css";
+// The relaunch kit (20 Nov 2026): the one top bar and the footer are on every page, so its sheet is global.
+// Every class is prefixed sg-.
+import "../styles/sage.css";
 import { AppShell } from "@/components/shell/app-shell";
 import { FeedbackWidget } from "@/components/shell/feedback-widget";
 import { geist } from "@/components/landing/fonts";
@@ -106,8 +109,8 @@ export default function RootLayout({
       <body>
         <StructuredData />
         <SagePrivyProvider appId={process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim() || null}>
-          {children}
           <AppShell />
+          {children}
         </SagePrivyProvider>
         <FeedbackWidget />
       </body>
