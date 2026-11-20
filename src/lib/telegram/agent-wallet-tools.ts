@@ -26,6 +26,7 @@ import { quoteAccountSwap, swapFromAccount } from "@/lib/treasury/swap";
 import { isSwapSide, swapsOn, type SwapSide } from "@/lib/treasury/swap-venue";
 import { chatWalletOn, chatWallets, setAsideActiveWallet } from "./chat-wallets";
 import { testUrl } from "@/lib/site/test-url";
+import { handedOverOwner, handoverClaimCode } from "./handover-claim";
 import { getCampaign, getSubmission, setCampaignStatus } from "@/lib/db/campaigns";
 import { getDeputyOverview } from "@/lib/campaigns/overview";
 import { listLaunchablePlans } from "@/lib/campaigns/launchable";
@@ -537,11 +538,20 @@ export async function callAgentWalletTool(
           if (!planId) {
             return ok({ ok: false, payOnWeb: true, message: `There's no ready plan to launch yet. Plan one first; when it's ready, the founder pays for it at ${appUrl()}/launch from their own wallet.` });
           }
+          // A plan this chat started without a wallet belongs to the chat's namespace; its link carries a
+          // one-time claim code so the builder can take it on the web (handover-claim.ts). The chat is
+          // private, so only they hold it.
+          const owner = getInspectionJob(planId)?.founderWallet ?? "";
+          const code = handedOverOwner(owner) ? handoverClaimCode(planId, owner) : null;
+          if (handedOverOwner(owner) && !code) {
+            return ok({ ok: false, payOnWeb: true, message: `Nothing has moved. Plan this test on the web at ${appUrl()}/ instead: sign in, paste the link, and pay from your own wallet there.` });
+          }
+          const url = code ? `${testUrl(planId)}?claim=${encodeURIComponent(code)}` : testUrl(planId);
           return ok({
             ok: false,
             payOnWeb: true,
-            url: testUrl(planId),
-            message: `Nothing has moved. The founder pays for this test from their own wallet at ${testUrl(planId)} (MetaMask, or sign in with email or Google), and Sage takes it live the moment it's paid. Relay this link.`,
+            url,
+            message: `Nothing has moved. The founder pays for this test from their own wallet at ${url} (MetaMask, or sign in with email or Google), and Sage takes it live the moment it's paid. The link is theirs alone: relay it only to them.`,
           });
         }
         const b = founderBinding(chatId);
