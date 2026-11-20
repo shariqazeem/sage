@@ -1889,3 +1889,20 @@ export const xSpend = sqliteTable("x_spend", {
   calls: integer("calls").notNull().default(0),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/**
+ * SAGE'S TELEGRAM CHANNEL OF OPEN TESTS (relaunch, 20 Nov 2026). Each test the builder agreed to share
+ * (`campaign_sharing.post_mission`) is posted once to the public channel testers follow. Written before
+ * it is sent, one row per test ever. `src/lib/telegram/missions-channel.ts`.
+ */
+export const channelPosts = sqliteTable("channel_posts", {
+  /** `mission:<campaignId>` */
+  subjectKey: text("subject_key").primaryKey(),
+  chatId: text("chat_id").notNull(),
+  status: text("status").$type<"drafted" | "posted" | "failed">().notNull(),
+  messageId: integer("message_id"),
+  reason: text("reason"),
+  createdAt: integer("created_at").notNull(),
+  postedAt: integer("posted_at"),
+});
+export type ChannelPostRow = typeof channelPosts.$inferSelect;

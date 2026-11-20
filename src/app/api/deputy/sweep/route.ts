@@ -49,6 +49,7 @@ import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders }
 import { lastReopenedAt } from "@/lib/llm/wire";
 import { queueDueFindings } from "@/lib/report";
 import { runXAgent } from "@/lib/x/agent";
+import { postMissionsToChannel } from "@/lib/telegram/missions-channel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +114,8 @@ async function runSweep() {
     findings: { due: 0, queued: 0 },
     /** Sage on X this tick: what was posted, drafted, skipped, and the day's spend. Null while it could not run. */
     x: null as Awaited<ReturnType<typeof runXAgent>> | null,
+    /** Sage's Telegram channel of open tests this tick. Null while it could not run. */
+    channel: null as Awaited<ReturnType<typeof postMissionsToChannel>> | null,
   };
 
   // (00) AN EMPTY MODEL ACCOUNT, ASKED AGAIN. Only while one is known to be empty, so a healthy system makes
@@ -369,6 +372,13 @@ async function runSweep() {
   // the steps above settled, and X being slow or down can never cost a payout.
   summary.x = await runXAgent(nowSeconds(), { schedule: (fn) => after(fn) }).catch((e) => {
     console.error("[sweep] X agent failed:", e instanceof Error ? e.message : e);
+    return null;
+  });
+
+  // THE CHANNEL OF OPEN TESTS (relaunch, 20 Nov 2026): the same yes, posted once to Sage's public Telegram
+  // channel testers follow. Off until TELEGRAM_MISSIONS_CHAT_ID is set; guarded like the X step.
+  summary.channel = await postMissionsToChannel(nowSeconds()).catch((e) => {
+    console.error("[sweep] channel failed:", e instanceof Error ? e.message : e);
     return null;
   });
 

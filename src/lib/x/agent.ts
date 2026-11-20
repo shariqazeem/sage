@@ -450,12 +450,12 @@ export async function runXAgent(nowSec: number = nowSeconds(), deps: XAgentDeps 
 /* ───────────────────────────────────────────────── facts from the database ─── */
 
 /** What a test is called in public: its product's domain, or its title when that is plain words. */
-function productName(c: Campaign): string | null {
+export function productName(c: Campaign): string | null {
   return domainOf(productUrlForCampaign(c.id)) ?? plainWords(c.title, 60);
 }
 
 /** Places still open, and the smallest and largest reward among them. Read from paid submissions. */
-function openPlaces(c: Campaign): { places: number; total: number; rewardMinBase: number; rewardMaxBase: number } {
+export function openPlaces(c: Campaign): { places: number; total: number; rewardMinBase: number; rewardMaxBase: number } {
   const missions = listMissions(c.id).filter((m) => m.status === "active");
   if (missions.length === 0) {
     const paid = listSubmissions(c.id).filter((s) => s.status === "paid").length;
