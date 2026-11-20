@@ -96,6 +96,10 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
   const [mine, setMine] = useState<Mine | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [revising, setRevising] = useState(false);
+  // The tester door (one place per person): a public test asks for a Google or X sign-in behind the
+  // wallet. Asked BEFORE the work, from the same answer the submit route refuses with.
+  const [needsSocial, setNeedsSocial] = useState(false);
+  const [why, setWhy] = useState<string | null>(null);
   // the stamp lands once, on the render where this person's answer BECOMES paid
   const wasPaid = useRef<boolean | null>(null);
   const [land, setLand] = useState(false);
@@ -133,6 +137,20 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
   useEffect(() => {
     void loadMine();
   }, [loadMine]);
+
+  const readDoor = useCallback(async () => {
+    if (!address) return;
+    try {
+      const res = await fetch(`/api/identity?wallet=${address}&campaign=${encodeURIComponent(view.id)}&reward=${mission.rewardBase}`, { cache: "no-store" });
+      const d = (await res.json()) as { requiresSocialSignIn?: boolean };
+      setNeedsSocial(!!d.requiresSocialSignIn);
+    } catch {
+      /* the submit route is still the gate */
+    }
+  }, [address, view.id, mission.rewardBase]);
+  useEffect(() => {
+    void readDoor();
+  }, [readDoor]);
 
   const polling = !!mine && workerShouldPoll(mine.status);
   useEffect(() => {
@@ -187,6 +205,13 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
       const sent = await postEvidence(input, claim, signed.signature);
       if (!sent.ok) {
         if (sent.needsVerification) setDoorDemanded(true);
+        if (sent.needsSocialSignIn) {
+          // the door asked for a Google or X sign-in: open it right here, with the answer kept
+          setNeedsSocial(true);
+          setWhy(sent.error);
+          setAsk(true);
+          return;
+        }
         setError(sent.error);
         return;
       }
@@ -279,14 +304,19 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
             wide
             disabled={signedIn && !loaded}
             onClick={() => {
-              if (signedIn) setStarted(true);
-              else setAsk(true);
+              if (signedIn && !needsSocial) setStarted(true);
+              else {
+                setWhy(needsSocial ? "Sign in with Google or X to take a place in this test. It keeps one person to one place." : null);
+                setAsk(true);
+              }
             }}
           >
             Take a place
           </Button>
           <p className="sg-small">
-            {signedIn
+            {signedIn && needsSocial
+              ? "This test gives one place per person, so it asks for a Google or X sign-in first."
+              : signedIn
               ? `You'll be paid to ${short(address!)} on ${view.network} once Sage has checked your answer.`
               : "You sign in first, so Sage knows where to pay you. Then you try the product and answer here."}
           </p>
@@ -377,12 +407,13 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
 
       <SignInSheet
         open={ask}
-        why="Sign in so Sage knows where to pay you. The wallet you sign in with is the one that gets paid."
+        why={why ?? "Sign in so Sage knows where to pay you. The wallet you sign in with is the one that gets paid."}
         onClose={() => setAsk(false)}
         onSignedIn={() => {
           setAsk(false);
           setStarted(true);
-          void refreshFounderSession();
+          setNeedsSocial(false);
+          void refreshFounderSession().then(() => readDoor());
         }}
       />
     </div>

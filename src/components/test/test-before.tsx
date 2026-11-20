@@ -67,6 +67,9 @@ function useTrail(inspectionId: string, active: boolean): TrailStep[] {
   return steps;
 }
 
+/** Sage's own line for a step, to its first clause: the rest is its working detail. */
+const lineOf = (label: string, host: string): string => noteOf(label.split(" — ")[0], host);
+
 const clock = (step: TrailStep, first: TrailStep): string => {
   if (!step.at || !first.at) return "";
   const s = Math.max(0, Math.round((step.at - first.at) / 1000));
@@ -124,7 +127,8 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const framed = trail.filter((s) => s.screenshot);
   useEffect(() => {
     const el = shots.current;
-    if (el && framed.length > 1) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    const last = el?.lastElementChild as HTMLElement | null;
+    if (el && last && framed.length > 1) el.scrollTo({ left: last.offsetLeft - el.offsetLeft, behavior: "smooth" });
   }, [framed.length]);
 
   const onLive = useCallback((campaignId: string) => router.replace(testPath(campaignId)), [router]);
@@ -163,7 +167,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   if (status === "failed" || status === "superseded") pill = { label: "Stopped", tone: "neutral" };
 
   const pages = new Set(trail.map((s) => s.url).filter(Boolean)).size;
-  const runMeta = initial.run ? [count(initial.run.steps, "step", "steps"), initial.run.seconds ? howLong(initial.run.seconds) : ""].filter(Boolean).join(" · ") : framed.length > 0 ? count(trail.length, "step", "steps") : null;
+  const runMeta = running ? (trail.length > 0 ? count(trail.length, "step", "steps") : null) : initial.run ? [count(initial.run.steps, "step", "steps"), initial.run.seconds ? howLong(initial.run.seconds) : ""].filter(Boolean).join(" · ") : framed.length > 0 ? count(trail.length, "step", "steps") : null;
 
   return (
     <div className="sg-col sg-t">
@@ -224,7 +228,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
               {latest ? (
                 <p className="sg-t-now" role="status" aria-live="polite">
                   <span className="sg-t-now-n">{String(latest.n + 1).padStart(2, "0")}</span>
-                  <span>{noteOf(latest.label, host)}</span>
+                  <span>{lineOf(latest.label, host)}</span>
                 </p>
               ) : (
                 <p className="sg-t-now" role="status">
@@ -240,7 +244,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
                     .map((s) => (
                       <li key={s.n}>
                         <span>{String(s.n + 1).padStart(2, "0")}</span>
-                        <span>{noteOf(s.label, host)}</span>
+                        <span>{lineOf(s.label, host)}</span>
                         <span>{clock(s, trail[0])}</span>
                       </li>
                     ))}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { ArrowUpRight, Check, CircleAlert, Loader2 } from "lucide-react";
 
 import { LOGIN_WITH_X } from "@/components/auth/privy-provider";
@@ -12,7 +11,7 @@ import { Button, ButtonLink } from "@/components/sage/button";
 import { SignInSheet } from "@/components/sage/sign-in-sheet";
 import { refreshFounderSession } from "@/lib/auth/use-founder-session";
 import type { StepView } from "@/lib/own-wallet/run";
-import type { Sharing } from "@/lib/sharing";
+import { SwapToUsdc } from "./swap-to-usdc";
 import type { Whose } from "@/lib/test-page/before";
 import {
   EACH_PRESETS_USD,
@@ -40,7 +39,6 @@ const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.t
 export function OfferCard({
   job,
   whose,
-  sharing,
   inviteOnly,
   xDraft,
   locked,
@@ -50,8 +48,6 @@ export function OfferCard({
 }: {
   job: JobView;
   whose: Whose;
-  /** the stored answers, or null when the builder has not answered: both switches start on */
-  sharing: Sharing | null;
   inviteOnly: boolean;
   xDraft: { username: string | null } | null;
   /** why the people and reward cannot change, or null */
@@ -64,7 +60,6 @@ export function OfferCard({
   const plan = job.plan!;
   const shape = offerOf(plan.missions);
   const mayChange = (whose === "yours" || whose === "nobody") && !locked;
-  const canSave = whose === "yours";
 
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -72,8 +67,10 @@ export function OfferCard({
   const [customEach, setCustomEach] = useState(shape.eachBase !== null && !EACH_PRESETS_USD.some((u) => u * 1_000_000 === shape.eachBase));
   const [peopleText, setPeopleText] = useState(String(shape.people));
   const [eachText, setEachText] = useState(shape.eachBase !== null ? (shape.eachBase / 1_000_000).toFixed(2) : "");
-  const [share, setShare] = useState(sharing ? sharing.postMission : true);
-  const [findingsPublic, setFindingsPublic] = useState(sharing ? sharing.findingsPublic : true);
+  // The two switches start on and live on this page until the test is paid for: sharing belongs to
+  // the live test, which exists only once its vault is recorded. They are saved the moment it is.
+  const [share, setShare] = useState(() => remembered(job.id)?.share ?? true);
+  const [findingsPublic, setFindingsPublic] = useState(() => remembered(job.id)?.findingsPublic ?? true);
   const [invite, setInvite] = useState(inviteOnly);
   const sent = useRef(0);
 
@@ -108,12 +105,19 @@ export function OfferCard({
   );
 
   const eachNow = shape.eachBase ?? shape.maxEachBase;
-  const saveSharing = useCallback(
-    async (patch: Partial<Sharing>) => {
-      if (!canSave) return;
-      await fetch(`/api/t/${job.id}/sharing`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) }).catch(() => null);
+  useEffect(() => remember(job.id, { share, findingsPublic }), [job.id, share, findingsPublic]);
+
+  /** The launch made here is live: record the builder's two answers on the test itself, then open it. */
+  const live = useCallback(
+    async (campaignId: string) => {
+      await fetch(`/api/campaigns/${campaignId}/sharing`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ postMission: share && !invite, findingsPublic }),
+      }).catch(() => null);
+      onLive(campaignId);
     },
-    [canSave, job.id],
+    [share, invite, findingsPublic, onLive],
   );
 
   const total = baseToUsd(shape.totalBase);
@@ -244,19 +248,13 @@ export function OfferCard({
             sub={invite ? "Not shared while only people you invite can take a place." : "Sage posts the test on its X account and its Telegram channel, so testers find it."}
             checked={share && !invite}
             disabled={invite}
-            onChange={(v) => {
-              setShare(v);
-              void saveSharing({ postMission: v });
-            }}
+            onChange={setShare}
           />
           <Switch
             title="Findings are public"
             sub="Anyone with this link can read what people found. Off: only you."
             checked={findingsPublic}
-            onChange={(v) => {
-              setFindingsPublic(v);
-              void saveSharing({ findingsPublic: v });
-            }}
+            onChange={setFindingsPublic}
           />
           <Switch
             title="Only people I invite"
@@ -265,8 +263,6 @@ export function OfferCard({
             disabled={!mayChange}
             onChange={(v) => {
               setInvite(v);
-              if (v) void saveSharing({ postMission: false });
-              else if (share) void saveSharing({ postMission: true });
               void offer(shape.people, eachNow, v);
             }}
           />
@@ -284,8 +280,8 @@ export function OfferCard({
             job={job}
             total={total}
             hold={saving}
-            beforePay={() => saveSharing({ postMission: share && !invite, findingsPublic })}
-            onLive={onLive}
+            onLive={live}
+            onAlreadyLive={onLive}
           />
         ) : (
           <ClaimArea jobId={job.id} whose={whose} total={total} xDraft={xDraft} onMine={onMine} />
@@ -302,7 +298,7 @@ function Switch({ title, sub, checked, disabled, onChange }: { title: string; su
         <b>{title}</b>
         <span>{sub}</span>
       </span>
-      <span>
+      <span className="sg-t-switch-ctl">
         <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
         <span className="sg-t-switch-track" aria-hidden />
       </span>
@@ -310,37 +306,52 @@ function Switch({ title, sub, checked, disabled, onChange }: { title: string; su
   );
 }
 
-/** Privy's sign-in token for the person signed in, when the email door exists. Mounted only then. */
-function PrivyToken({ onReady }: { onReady: (get: () => Promise<string | null>) => void }) {
-  const { getAccessToken } = usePrivy();
-  useEffect(() => {
-    onReady(() => getAccessToken().catch(() => null));
-  }, [getAccessToken, onReady]);
-  return null;
+/** The two switches, kept for this browser tab so a reload before paying doesn't forget them. */
+type Kept = { share: boolean; findingsPublic: boolean };
+const keptKey = (jobId: string) => `sage:offer:${jobId}`;
+function remembered(jobId: string): Kept | null {
+  try {
+    const raw = typeof window === "undefined" ? null : window.sessionStorage.getItem(keptKey(jobId));
+    const v = raw ? (JSON.parse(raw) as Partial<Kept>) : null;
+    return v && typeof v.share === "boolean" && typeof v.findingsPublic === "boolean" ? { share: v.share, findingsPublic: v.findingsPublic } : null;
+  } catch {
+    return null;
+  }
+}
+function remember(jobId: string, kept: Kept): void {
+  try {
+    window.sessionStorage.setItem(keptKey(jobId), JSON.stringify(kept));
+  } catch {
+    /* a browser that keeps nothing still pays: the switches are sent from state */
+  }
 }
 
 /**
  * THE BUTTON, BEFORE THE TEST IS YOURS. One tap: sign in if you haven't, then the test becomes yours
  * (the server decides whether it may), and the card turns into the pay button with your wallet read.
+ *
+ * A test nobody owns goes through POST /api/t/<id>/claim. One a tag on X started goes through
+ * /api/launch/<id>/claim-x, where the server compares the X account IT verified at sign-in with the
+ * one that tagged Sage; this page sends no id and no handle, only the session.
  */
 function ClaimArea({ jobId, whose, total, xDraft, onMine }: { jobId: string; whose: Whose; total: string; xDraft: { username: string | null } | null; onMine: () => void }) {
   const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const token = useRef<(() => Promise<string | null>) | null>(null);
-  const takeToken = useCallback((get: () => Promise<string | null>) => {
-    token.current = get;
-  }, []);
+  const isX = whose === "x";
 
   const claim = useCallback(async (): Promise<"mine" | "signin" | "no"> => {
     setBusy(true);
     setError(null);
     try {
-      const privyToken = whose === "x" && token.current ? await token.current() : null;
-      const res = await fetch(`/api/t/${jobId}/claim`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(privyToken ? { privyToken } : {}) });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; needsX?: boolean };
+      const res = await fetch(isX ? `/api/launch/${jobId}/claim-x` : `/api/t/${jobId}/claim`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) return "mine";
-      if (res.status === 401 || (data.needsX && !privyToken)) return "signin";
+      // not signed in, or (for an X draft) signed in without that X account: signing in is the next step
+      if (res.status === 401 || (isX && res.status === 403)) {
+        if (res.status === 403) setError(data.error ?? null);
+        return "signin";
+      }
       setError(data.error ?? "This test couldn't be made yours. Try again.");
       return "no";
     } catch {
@@ -349,21 +360,32 @@ function ClaimArea({ jobId, whose, total, xDraft, onMine }: { jobId: string; who
     } finally {
       setBusy(false);
     }
-  }, [jobId, whose]);
+  }, [jobId, isX]);
+
+  // someone already signed in with the X account that tagged Sage: the test is theirs without a tap
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!isX || tried.current) return;
+    tried.current = true;
+    void fetch(`/api/launch/${jobId}/claim-x`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(async (d: { yours?: boolean; unclaimed?: boolean }) => {
+        if (d.yours && d.unclaimed && (await claim()) === "mine") onMine();
+      })
+      .catch(() => null);
+  }, [isX, jobId, claim, onMine]);
 
   if (whose === "other") {
     return <p className="sg-small">This test belongs to the person who started it. When they pay for it, the places open here.</p>;
   }
 
   const who = xDraft?.username ? `@${xDraft.username}` : "the account that tagged Sage";
-  const xOff = whose === "x" && !LOGIN_WITH_X;
+  const xOff = isX && !LOGIN_WITH_X;
   return (
     <>
-      {emailDoor() ? <PrivyToken onReady={takeToken} /> : null}
-      {whose === "x" ? (
+      {isX ? (
         <p className="sg-small">
-          A tag on X started this test, so only {who} can pay for it. Sign in with that X account.
-          {xOff ? " Signing in with X isn't switched on here yet." : ""}
+          Drafted for {who}. Sign in with X to claim it.{xOff ? " Signing in with X isn't switched on here yet." : ""}
         </p>
       ) : null}
       <Button
@@ -376,8 +398,8 @@ function ClaimArea({ jobId, whose, total, xDraft, onMine }: { jobId: string; who
         }}
       >
         {busy ? <Loader2 size={16} className="sg-spin" aria-hidden /> : null}
-        {whose === "x" ? (
-          "Sign in with X to pay"
+        {isX ? (
+          "Sign in with X to claim it"
         ) : (
           <>
             Pay <span className="sg-n">{total}</span> from your wallet
@@ -389,10 +411,10 @@ function ClaimArea({ jobId, whose, total, xDraft, onMine }: { jobId: string; who
           {error}
         </p>
       ) : null}
-      <p className="sg-small">You sign in first. Nothing is paid until you confirm it in your own wallet.</p>
+      {!isX ? <p className="sg-small">You sign in first. Nothing is paid until you confirm it in your own wallet.</p> : null}
       <SignInSheet
         open={ask}
-        why={whose === "x" ? `Sign in with X as ${who} to pay for this test.` : "Sign in to pay for this test from your own wallet on Metis."}
+        why={isX ? `Sign in with X as ${who} to claim this test.` : "Sign in to pay for this test from your own wallet on Metis."}
         onClose={() => setAsk(false)}
         onSignedIn={() => {
           setAsk(false);
@@ -419,7 +441,7 @@ const STEP_WORDS: Record<StepView["status"], string> = {
  * only once the chain shows it. This draws its state: the wallet, what it is short of (with the
  * amount and where to get it), each step as a line with its transaction, and one button.
  */
-function PayArea({ job, total, hold, beforePay, onLive }: { job: JobView; total: string; hold: boolean; beforePay: () => Promise<void>; onLive: (campaignId: string) => void }) {
+function PayArea({ job, total, hold, onLive, onAlreadyLive }: { job: JobView; total: string; hold: boolean; onLive: (campaignId: string) => void; onAlreadyLive: (campaignId: string) => void }) {
   const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
   const [ask, setAsk] = useState(false);
   const pay = usePayFromWallet({ jobId: job.id, revision: job.revision, embedded, onLive });
@@ -434,10 +456,12 @@ function PayArea({ job, total, hold, beforePay, onLive }: { job: JobView; total:
     void refresh();
   }, [job.revision, refresh]);
 
-  // a test that was already paid for (in another tab, or before a reload) opens as itself
+  // A test that was already paid for (in another tab, or before a reload) opens as itself. The launch
+  // made in THIS visit is told through the hook's own `onLive`, which also records the sharing answers.
+  const paidHere = useRef(false);
   useEffect(() => {
-    if (phase === "live" && campaignId) onLive(campaignId);
-  }, [phase, campaignId, onLive]);
+    if (phase === "live" && campaignId && !paidHere.current) onAlreadyLive(campaignId);
+  }, [phase, campaignId, onAlreadyLive]);
 
   const bridge = emailDoor() ? <EmbeddedWalletBridge onChange={setEmbedded} /> : null;
   const emailWalletOff = pay.walletKind === "embedded" && !embeddedPayEnabled();
@@ -533,6 +557,7 @@ function PayArea({ job, total, hold, beforePay, onLive }: { job: JobView; total:
           {pay.shortfalls.map((s) => (
             <p key={s.what}>{s.message}</p>
           ))}
+          {pay.owner && pay.shortfalls.some((s) => s.what === "usdc") ? <SwapToUsdc owner={pay.owner} embedded={pay.walletKind === "embedded"} onDone={() => void refresh()} /> : null}
           <div className="sg-t-notice-actions">
             <Button variant="quiet" size="sm" onClick={() => void refresh()} disabled={pay.busy}>
               Check my wallet again
@@ -554,9 +579,9 @@ function PayArea({ job, total, hold, beforePay, onLive }: { job: JobView; total:
         <Button
           wide
           disabled={running || hold || phase === "loading" || phase === "short"}
-          onClick={async () => {
-            await beforePay();
-            await pay.pay();
+          onClick={() => {
+            paidHere.current = true;
+            void pay.pay();
           }}
         >
           {running ? <Loader2 size={16} className="sg-spin" aria-hidden /> : null}

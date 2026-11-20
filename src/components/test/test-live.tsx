@@ -146,7 +146,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
           ) : null}
         </Stage>
 
-        <Stage state={done ? "done" : "now"} title="People" meta={done ? `${places.paid} paid` : null} id="people">
+        <Stage state={done || !owner ? "done" : "now"} title="People" meta={done ? `${places.paid} paid` : null} id="people">
           <div className="sg-t-places">
             <div className="sg-t-places-row">
               <span className="sg-t-places-left" aria-live="polite">
@@ -176,11 +176,11 @@ export function TestLive({ initial }: { initial: LiveView }) {
           {owner && view.owner && view.owner.held > 0 ? (
             <div className="sg-t-notice">
               <p>
-                {count(view.owner.held, "answer is", "answers are")} waiting for your yes or no. Sage checked {view.owner.held === 1 ? "it" : "them"} and wasn&apos;t sure enough to pay by itself.
+                {count(view.owner.held, "answer is", "answers are")} not decided yet. Sage pays what it is sure of by itself; anything it holds is yours to read and decide.
               </p>
               <div className="sg-t-notice-actions">
                 <ButtonLink href={`/campaign/${view.id}`} size="sm">
-                  Review {view.owner.held === 1 ? "it" : "them"}
+                  Read {view.owner.held === 1 ? "it" : "them"}
                 </ButtonLink>
               </div>
             </div>
@@ -199,7 +199,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
                 <Findings view={view.findings} />
                 {view.findings.notPaid.total > 0 ? (
                   <p className="sg-small">
-                    {count(view.findings.notPaid.total, "answer was", "answers were")} not paid: {view.findings.notPaid.byReason.map((r) => `${r.reason.toLowerCase()} (${r.count})`).join(", ")}.
+                    {count(view.findings.notPaid.total, "answer was", "answers were")} not paid: {view.findings.notPaid.byReason.map((r) => (view.findings!.notPaid.byReason.length > 1 ? `${r.reason.toLowerCase()} (${r.count})` : r.reason.toLowerCase())).join(", ")}.
                   </p>
                 ) : null}
               </>
@@ -265,7 +265,7 @@ function Switch({ title, sub, checked, onChange }: { title: string; sub: string;
         <b>{title}</b>
         <span>{sub}</span>
       </span>
-      <span>
+      <span className="sg-t-switch-ctl">
         <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span className="sg-t-switch-track" aria-hidden />
       </span>
@@ -309,7 +309,7 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
 
   return (
     <>
-      <Stage state={contacts.length > 0 ? "done" : "next"} title={`${f.keepPosted.count} want to hear from you`}>
+      <Stage state={contacts.length > 0 ? "done" : "next"} title={f.keepPosted.count > 0 ? `${count(f.keepPosted.count, "person wants", "people want")} to hear from you` : "Who wants to hear from you"}>
         {contacts.length > 0 ? (
           <>
             <ul className="sg-t-contacts">

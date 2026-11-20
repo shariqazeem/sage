@@ -239,6 +239,12 @@ a.sg-t-domain:hover {
   overflow-wrap: anywhere;
 }
 @media (max-width: 479px) {
+  .sg-t-mission > summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .sg-t-mission-econ {
+    grid-column: 2;
+  }
   .sg-t-fact {
     grid-template-columns: 1fr;
     gap: 2px;
@@ -484,8 +490,17 @@ a.sg-t-domain:hover {
   line-height: 1.4;
   color: var(--ink-muted);
 }
+.sg-t-switch-ctl {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 44px;
+  height: 26px;
+}
 .sg-t-switch input {
   position: absolute;
+  inset: 0;
+  z-index: 1;
   opacity: 0;
   width: 44px;
   height: 26px;
@@ -494,6 +509,8 @@ a.sg-t-domain:hover {
 }
 .sg-t-switch-track {
   position: relative;
+  display: block;
+  box-sizing: border-box;
   width: 44px;
   height: 26px;
   border: 1px solid var(--border-strong);
@@ -506,10 +523,10 @@ a.sg-t-domain:hover {
 .sg-t-switch-track::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--ink-faint);
   transition:

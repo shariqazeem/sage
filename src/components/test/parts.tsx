@@ -137,6 +137,8 @@ export function Findings({ view }: { view: Pick<FindingsView, "findings"> }) {
       {view.findings.map((f, i) => {
         const [first, ...rest] = f.quotes;
         const receipts = f.people.filter((p) => p.receipt);
+        // an answer laid out by itself is named by its own first words: the quote says it once
+        const named = !first || !first.text.startsWith(f.title.replace(/…$/, "").trim());
         return (
           <article className="sg-t-finding" key={`${f.title}:${i}`}>
             <div className="sg-t-finding-count" aria-label={`${f.count} ${f.count === 1 ? "person" : "people"}`}>
@@ -144,10 +146,12 @@ export function Findings({ view }: { view: Pick<FindingsView, "findings"> }) {
               <small>{f.count === 1 ? "person" : "people"}</small>
             </div>
             <div className="sg-t-finding-main">
-              <h3 className="sg-t-finding-title">
-                {f.title}
-                {KIND_WORDS[f.kind] ? <Pill>{KIND_WORDS[f.kind]}</Pill> : null}
-              </h3>
+              {named ? (
+                <h3 className="sg-t-finding-title">
+                  {f.title}
+                  {KIND_WORDS[f.kind] ? <Pill>{KIND_WORDS[f.kind]}</Pill> : null}
+                </h3>
+              ) : null}
               {first ? <blockquote className="sg-t-quote">{first.text}</blockquote> : null}
               {rest.length > 0 ? (
                 <details className="sg-t-quote-more">
