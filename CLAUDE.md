@@ -425,7 +425,9 @@ product). Never extend it; migrate off it.
 
 A **lane** is one job Sage gives a model: `PAYOUT` (judgment), `CONCIERGE`, `MISSION`
 (design), `OBS_JUDGE`, `VISION`, `DRAFT` (Post's hand-over: a job written from what a founder
-pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026). Each lane may run on its own provider by setting
+pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026), `REPORT`
+(groups a test's paid answers into the builder's findings, `src/lib/report/`; background work, so the first
+to stop under the daily budget, and the report is then built without a model; 20 Nov 2026). Each lane may run on its own provider by setting
 `<LANE>_API_KEY`, `<LANE>_BASE_URL` and `<LANE>_MODEL` — **all three together**. Set
 partially, a lane is treated as ABSENT and inherits the shared chain; it is never merged,
 because merging splices one provider's key onto another's endpoint (authenticates as

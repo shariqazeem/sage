@@ -1766,3 +1766,49 @@ export const campaignSharing = sqliteTable("campaign_sharing", {
   updatedAt: integer("updated_at").notNull(),
 });
 export type CampaignSharingRow = typeof campaignSharing.$inferSelect;
+
+/**
+ * WHAT PEOPLE FOUND (relaunch, 20 Nov 2026). One row per test: the findings grouped from its PAID
+ * answers, kept so a reader never waits on a model. `paidAnswers` is how many paid answers the build
+ * read, which is what decides a rebuild; `engine` is the model id that grouped them, or `plain` when
+ * no model was available and each answer stands as its own finding. `src/lib/report/`.
+ */
+export const campaignFindings = sqliteTable("campaign_findings", {
+  campaignId: text("campaign_id").primaryKey(),
+  json: text("json", { mode: "json" }).$type<StoredFindings>().notNull(),
+  paidAnswers: integer("paid_answers").notNull(),
+  engine: text("engine").notNull(),
+  builtAt: integer("built_at").notNull(),
+});
+export type CampaignFindingsRow = typeof campaignFindings.$inferSelect;
+
+/** One stored finding. A count is never stored: it is the number of distinct ids, every time. */
+export interface StoredFinding {
+  title: string;
+  kind: "stuck" | "bug" | "liked" | "idea" | "other";
+  submissionIds: string[];
+  /** each `text` is an exact substring of that submission's own answer, checked in code. */
+  quotes: { submissionId: string; text: string }[];
+}
+export interface StoredFindings {
+  findings: StoredFinding[];
+}
+
+/**
+ * KEEP ME POSTED. A tester's consent to hear from the builder whose product they tried, with the one
+ * contact they chose to share. Deleting the row withdraws it. `contact` is read by the test's owner
+ * and nobody else.
+ */
+export const keepPosted = sqliteTable(
+  "keep_posted",
+  {
+    submissionId: text("submission_id").primaryKey(),
+    campaignId: text("campaign_id").notNull(),
+    /** 'x' | 'email' | 'wallet'. */
+    contactKind: text("contact_kind").$type<"x" | "email" | "wallet">().notNull(),
+    contact: text("contact").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("keep_posted_campaign_idx").on(t.campaignId)],
+);
+export type KeepPostedRow = typeof keepPosted.$inferSelect;

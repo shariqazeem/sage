@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LANES, laneProvider, resolveLlm } from "./complete";
+import { priorityForLane } from "./wire";
+import { CEILING } from "./spend";
 
 const LANE_VARS = LANES.flatMap((l) => [`${l}_API_KEY`, `${l}_BASE_URL`, `${l}_MODEL`]);
 const SHARED = ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "COMMONSTACK_API_KEY", "COMMONSTACK_BASE_URL", "DEPUTY_MODEL"];
@@ -108,5 +110,39 @@ describe("the lane audit", () => {
     process.env.MISSION_MODEL = "minimax/minimax-m3";
     // the mission lane's reasoning model is never borrowed for a draft the founder waits on
     expect(resolveLlm(undefined, "DRAFT")?.model).toBe("shared-model");
+  });
+});
+
+/**
+ * REPORT groups what people found into the builder's findings. It resolves like every other lane,
+ * and it is background work: the first to stop under the day's budget, never ahead of a judgment.
+ */
+describe("the REPORT lane", () => {
+  it("is a lane, and inherits the shared chain until all three of its settings are present", () => {
+    expect(LANES).toContain("REPORT");
+    expect(laneProvider("REPORT")).toBeNull();
+    expect(resolveLlm(undefined, "REPORT")).toMatchObject({ key: "shared-key", model: "shared-model" });
+    process.env.REPORT_API_KEY = "report-key";
+    process.env.REPORT_MODEL = "small-model";
+    expect(laneProvider("REPORT")).toBeNull(); // two of three is absent, never spliced
+    expect(resolveLlm(undefined, "REPORT")?.key).toBe("shared-key");
+    process.env.REPORT_BASE_URL = "https://report.example.com/v1/";
+    expect(resolveLlm(undefined, "REPORT")).toMatchObject({ key: "report-key", model: "small-model", endpoint: "https://report.example.com/v1/chat/completions" });
+    // its own provider is its own: no other lane borrows it
+    expect(resolveLlm(undefined, "PAYOUT")?.key).toBe("shared-key");
+  });
+
+  it("waits as background work, so it is the first to stop under the daily budget", () => {
+    expect(priorityForLane("REPORT")).toBe("background");
+    expect(CEILING.background).toBeLessThan(CEILING.interactive);
+    expect(CEILING.background).toBeLessThan(CEILING.judgment);
+  });
+
+  it("only ever reaches a model through llmCompleteJson on its lane", () => {
+    const src = readFileSync(join(process.cwd(), "src/lib/report/index.ts"), "utf8");
+    expect(src).toContain('lane: "REPORT"');
+    for (const f of ["index.ts", "core.ts", "keep-posted.ts"]) {
+      expect(readFileSync(join(process.cwd(), "src/lib/report", f), "utf8")).not.toMatch(/\bfetch\(/);
+    }
   });
 });
