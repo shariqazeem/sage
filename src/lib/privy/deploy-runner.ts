@@ -128,7 +128,8 @@ export async function attachDeployedVault(chatId: string, jobId: string, vaultAd
   return { campaignId, vault };
 }
 
-function settingsFor(wallet: AgentWallet, loaded: LoadedPlan): DeploymentSettings {
+/** Exported so the own-wallet door's parity test compares against THIS builder, never a copy of it. */
+export function settingsFor(wallet: Pick<AgentWallet, "privyWalletAddress" | "founderAddress" | "chainId">, loaded: Pick<LoadedPlan, "plan">): DeploymentSettings {
   const settingsRes = buildSettings(
     loaded.plan,
     {
@@ -143,7 +144,8 @@ function settingsFor(wallet: AgentWallet, loaded: LoadedPlan): DeploymentSetting
   return settingsRes.settings;
 }
 
-async function recordDeployedVault(setup: V2SetupInput, jobId: string, vault: Address, chainId: number): Promise<string> {
+/** Shared with the own-wallet door (`src/lib/own-wallet/server.ts`): one way a deployed vault becomes a live campaign. */
+export async function recordDeployedVault(setup: V2SetupInput, jobId: string, vault: Address, chainId: number): Promise<string> {
   const attach = await attachV2Campaign(setup, {});
   if (!attach.ok) {
     // Say WHERE the money is: the vault address is what recovery needs, and it must never be lost.
@@ -165,7 +167,15 @@ async function recordDeployedVault(setup: V2SetupInput, jobId: string, vault: Ad
 
 /** Everything the campaign record needs, built from the approved plan exactly as the web attach route builds it. */
 function setupInputFor(wallet: AgentWallet, loaded: LoadedPlan, jobId: string, settings: DeploymentSettings, vault: Address): V2SetupInput {
-  const owner = getAddress(wallet.privyWalletAddress);
+  return campaignSetupInput(getAddress(wallet.privyWalletAddress), loaded, jobId, settings, vault);
+}
+
+/**
+ * The same record, for whichever wallet owns the vault: the founder's account here, or the builder's own
+ * wallet when they pay from it (`src/lib/own-wallet/server.ts`). One builder, so the two doors can never
+ * record different campaigns from the same approved plan.
+ */
+export function campaignSetupInput(owner: Address, loaded: LoadedPlan, jobId: string, settings: DeploymentSettings, vault: Address): V2SetupInput {
   const job = getInspectionJob(jobId);
   // THE PAYOUT GATE'S CONTRACT — byte-for-byte with the web attach route: the grounding shadow's
   // criterion evidence translated into pinned-key source ids. Direct plans have no shadow → empty,
