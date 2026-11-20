@@ -38,13 +38,7 @@ import {
   evidencePrompts,
   hasAnyAnswer,
 } from "@/lib/campaigns/evidence-answers";
-import {
-  buildEvidenceClaimTypedData,
-  computeEvidenceDigest,
-  EVIDENCE_CLAIM_SCHEMA_VERSION,
-  EVIDENCE_CLAIM_TTL_SECONDS,
-  type EvidenceClaim,
-} from "@/lib/campaigns/evidence-claim";
+import { buildEvidenceClaim, postEvidence, signEvmEvidenceClaim, type EvidenceInput } from "@/lib/campaigns/submit-evidence";
 import type { DecisionBrief } from "@/lib/deputy/brain-core";
 import {
   DeputyAssessmentCard,
@@ -426,29 +420,20 @@ function MissionCard({
           return;
         }
       }
-      // ONE string, used for both the signed digest and the request body — they must never diverge.
-      const submittedNote = composedNote;
-      const evidenceDigest = computeEvidenceDigest({
-        evidenceUrl: evidence.trim(),
-        note: submittedNote,
-      });
-      const now = Math.floor(Date.now() / 1000);
-      const claim: EvidenceClaim = {
-        schemaVersion: EVIDENCE_CLAIM_SCHEMA_VERSION,
-        publicCampaignId: campaignId,
-        campaignIdHash: campaignIdHash as `0x${string}`,
-        missionKey: mission.missionKey,
-        missionIdHash: mission.missionIdHash as `0x${string}`,
-        missionSpecDigest: (mission.specDigest ??
-          `0x${"0".repeat(64)}`) as `0x${string}`,
-        evidenceDigest,
-        // A Starknet account is a felt, not a checksummed EVM address — `getAddress` throws on one.
-        tester: (onStarknet ? account : getAddress(account)) as `0x${string}`,
+      // ONE input, used for both the signed digest and the request body — they must never diverge.
+      // The claim, the signature and the POST are the shared path (submit-evidence.ts), the same one
+      // the test page at /t/<id> sends through.
+      const input: EvidenceInput = {
+        campaignId,
+        campaignIdHash,
         chainId,
-        nonce: `n_${Math.floor(now).toString(16)}_${mission.missionKey}`,
-        issuedAt: now,
-        expiry: now + EVIDENCE_CLAIM_TTL_SECONDS,
+        mission,
+        evidenceUrl: evidence.trim(),
+        note: composedNote,
+        // A Starknet account is a felt, not a checksummed EVM address — `getAddress` throws on one.
+        tester: onStarknet ? account : getAddress(account),
       };
+      const claim = buildEvidenceClaim(input);
       let signature: string | string[];
       if (onStarknet) {
         // An account CONTRACT signs, so the answer is an array of felts and there is no address to
@@ -462,43 +447,18 @@ function MissionCard({
         }
         signature = sig;
       } else {
-        const typed = buildEvidenceClaimTypedData(claim);
-        try {
-          signature = await walletClient!.signTypedData({
-            account: getAddress(account),
-            domain: typed.domain,
-            types: typed.types,
-            primaryType: typed.primaryType,
-            message: typed.message,
-          });
-        } catch (e) {
-          // Only 4001 is a decline. Everything else has a real reason and the person deserves it.
-          const code = (e as { code?: number })?.code;
-          const raw = e instanceof Error ? e.message.split("\n")[0] : String(e);
-          setError(
-            code === 4001 || /user rejected|denied/i.test(raw)
-              ? "You declined the signature. Nothing was submitted."
-              : `Your wallet could not sign this: ${raw.slice(0, 140)}`,
-          );
+        const signed = await signEvmEvidenceClaim(walletClient!, getAddress(account), claim);
+        if (!signed.ok) {
+          setError(signed.error);
           return;
         }
+        signature = signed.signature;
       }
-      const res = await fetch(`/api/campaigns/${campaignId}/submit`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          missionKey: mission.missionKey,
-          evidence: evidence.trim(),
-          note: submittedNote,
-          claim,
-          signature,
-        }),
-      });
-      const json = (await res.json()) as { error?: string; needsVerification?: boolean };
-      if (!res.ok) {
+      const sent = await postEvidence(input, claim, signature);
+      if (!sent.ok) {
         // The door answered: open the widget instead of printing a wall. The route stays the gate.
-        if (json.needsVerification) setDoorDemanded(true);
-        setError(json.error ?? "Could not submit.");
+        if (sent.needsVerification) setDoorDemanded(true);
+        setError(sent.error);
         return;
       }
       setOpen(false);
