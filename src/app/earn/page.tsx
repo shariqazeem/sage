@@ -10,6 +10,7 @@ import { Ticket } from "@/components/sage/ticket";
 import { SiteFooter } from "@/components/site/site-footer";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { marketplace, type MarketplaceRow } from "@/lib/campaigns/marketplace";
+import { openTests } from "@/lib/campaigns/open-tests";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { short } from "@/lib/format";
 import { testPath } from "@/lib/site/test-path";
@@ -39,7 +40,8 @@ const ABOUT: Record<MarketplaceRow["effort"], string> = {
  */
 export default async function EarnPage() {
   const me = await getFounderAddress();
-  const { rows, speed } = marketplace();
+  const { rows: all, speed } = marketplace();
+  const { rows } = openTests(all);
   const record = me ? buildWalletRecord(me) : null;
   const tries = record?.completions ?? 0;
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { marketplace } from "@/lib/campaigns/marketplace";
+import { openTests } from "@/lib/campaigns/open-tests";
 import { short } from "@/lib/format";
 import { sageNumbers } from "@/lib/numbers/sage-numbers";
 import { showableReceipts } from "@/lib/site/live-work";
@@ -31,7 +31,8 @@ export function HomeSignedOut() {
   const test = realTest();
   const numbers = sageNumbers();
   const latest = showableReceipts(1)[0] ?? null;
-  const open = marketplace().totals;
+  // Earn's own count: open places in testing work only (gigs and grants have their own pages).
+  const open = openTests();
   // Sage answers a tag on X only once the founder has switched that on; until then the line is not shown.
   const tagOnX = process.env.X_REPLIES === "on";
 
@@ -142,9 +143,9 @@ export function HomeSignedOut() {
               Get paid to try new products.
             </h2>
             <p className="sg-text">
-              {open.slots > 0 ? (
+              {open.places > 0 ? (
                 <>
-                  <span className="sg-n">{count(open.slots, "place", "places")}</span> open right now across <span className="sg-n">{count(open.missions, "test", "tests")}</span>. Try one, answer honestly, and Sage pays you in USDC once it has checked.
+                  <span className="sg-n">{count(open.places, "place", "places")}</span> open right now across <span className="sg-n">{count(open.tests, "test", "tests")}</span>. Try one, answer honestly, and Sage pays you in USDC once it has checked.
                 </>
               ) : (
                 <>No tests are open right now. Sage can tell you when the next one opens.</>
