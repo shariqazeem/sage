@@ -47,6 +47,7 @@ import { checkMilestones } from "@/lib/numbers/milestones";
 import { collectAdvanceRepayments } from "@/lib/advance/collect";
 import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders } from "@/lib/llm/credit-alert";
 import { lastReopenedAt } from "@/lib/llm/wire";
+import { runXAgent } from "@/lib/x/agent";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,6 +108,8 @@ async function runSweep() {
     llm: { closed: [] as ReturnType<typeof creditStatus>, probed: 0, reopened: 0 },
     /** heuristic receipts waiting for the judge's account to be topped up (no upgrade bought while it is empty). */
     waitingOnModel: 0,
+    /** Sage on X this tick: what was posted, drafted, skipped, and the day's spend. Null while it could not run. */
+    x: null as Awaited<ReturnType<typeof runXAgent>> | null,
   };
 
   // (00) AN EMPTY MODEL ACCOUNT, ASKED AGAIN. Only while one is known to be empty, so a healthy system makes
@@ -347,6 +350,15 @@ async function runSweep() {
   } catch (e) {
     console.error("[sweep] milestones failed:", e instanceof Error ? e.message : e);
   }
+
+  // SAGE ON X (relaunch, 20 Nov 2026): a test's mission and its result when the builder said yes, and a
+  // reply to a post that tagged Sage. Off unless X_AGENT says otherwise; at most three posts a tick,
+  // inside a daily ceiling, each written down before it is sent. Last, and guarded: it only reads what
+  // the steps above settled, and X being slow or down can never cost a payout.
+  summary.x = await runXAgent(nowSeconds(), { schedule: (fn) => after(fn) }).catch((e) => {
+    console.error("[sweep] X agent failed:", e instanceof Error ? e.message : e);
+    return null;
+  });
 
   return summary;
 }

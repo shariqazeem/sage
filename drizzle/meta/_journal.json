@@ -498,6 +498,13 @@
       "when": 1794096000000,
       "tag": "0070_campaign_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1794268800000,
+      "tag": "0072_x_agent",
+      "breakpoints": true
     }
   ]
 }
