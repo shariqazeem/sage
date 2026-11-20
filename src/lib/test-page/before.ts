@@ -7,7 +7,6 @@ import { getCurrentRevision } from "@/lib/db/plan-revisions";
 import { sameFounder } from "@/lib/auth/founder";
 import { jobToView } from "@/lib/launch/job";
 import { deserializePlan } from "@/lib/launch/serde";
-import { sharingAnswered, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { hostOf } from "@/lib/site/when";
 import { xDraftFor } from "@/lib/x/drafts";
@@ -39,8 +38,6 @@ export interface BeforeView {
   facts: TestFact[];
   /** what Sage says it could not see */
   couldNotSee: string[];
-  /** the builder's stored answers, or null when they have not answered (the card shows its defaults) */
-  sharing: Sharing | null;
   inviteOnly: boolean;
   /** a tag on X started this test and nobody has claimed it: who may */
   xDraft: { username: string | null } | null;
@@ -96,9 +93,8 @@ export function factsOf(map: StoredMap | null, steps: number | null): { facts: T
 export function beforeView(job: InspectionJob, viewer: string | null): BeforeView {
   const whose = whoseIs(job, viewer);
   // the owner's first look at a fresh default-budget plan sets it to the default offer, once
-  let fresh = job;
-  if (whose === "yours" && viewer && ensureDefaultOffer(job, viewer)) fresh = { ...job };
-  const view = jobToView(fresh) as unknown as JobView;
+  if (whose === "yours" && viewer) ensureDefaultOffer(job, viewer);
+  const view = jobToView(job) as unknown as JobView;
   const host = hostOf(job.productUrl) ?? job.productUrl;
   const map = ((job.result as { map?: StoredMap } | null)?.map ?? null) as StoredMap | null;
 
@@ -128,7 +124,6 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
     run,
     facts,
     couldNotSee,
-    sharing: sharingAnswered(job.publicCampaignId),
     inviteOnly: plan?.visibility === "unlisted",
     xDraft: draft?.unclaimed ? { username: draft.username } : null,
     offerLocked: job.status === "ready" ? offerLockedWhy(job) : null,

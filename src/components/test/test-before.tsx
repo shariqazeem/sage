@@ -84,6 +84,11 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const shots = useRef<HTMLDivElement>(null);
   const wasRunning = useRef(running);
 
+  // the server drew the page again (the run finished, the default offer was set): take its plan
+  useEffect(() => {
+    setJob((was) => (initial.job.revision >= was.revision && initial.job.updatedAt >= was.updatedAt ? initial.job : was));
+  }, [initial.job]);
+
   useEffect(() => {
     rememberInspection(job.id, job.productUrl);
   }, [job.id, job.productUrl]);
@@ -316,7 +321,6 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
             <OfferCard
               job={job}
               whose={whose}
-              sharing={initial.sharing}
               inviteOnly={initial.inviteOnly}
               xDraft={initial.xDraft}
               locked={initial.offerLocked}

@@ -79,7 +79,8 @@ export async function signEvmEvidenceClaim(walletClient: Pick<WalletClient, "sig
   }
 }
 
-export type PostResult = { ok: true } | { ok: false; error: string; needsVerification: boolean };
+/** `needsVerification`: the World ID step is asked for. `needsSocialSignIn`: a Google or X sign-in is. */
+export type PostResult = { ok: true } | { ok: false; error: string; needsVerification: boolean; needsSocialSignIn: boolean };
 
 export async function postEvidence(input: EvidenceInput, claim: EvidenceClaim, signature: string | string[]): Promise<PostResult> {
   const res = await fetch(`/api/campaigns/${input.campaignId}/submit`, {
@@ -87,7 +88,7 @@ export async function postEvidence(input: EvidenceInput, claim: EvidenceClaim, s
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ missionKey: input.mission.missionKey, evidence: input.evidenceUrl, note: input.note, claim, signature }),
   });
-  const json = (await res.json().catch(() => ({}))) as { error?: string; needsVerification?: boolean };
-  if (!res.ok) return { ok: false, error: json.error ?? "Could not submit.", needsVerification: !!json.needsVerification };
+  const json = (await res.json().catch(() => ({}))) as { error?: string; needsVerification?: boolean; needsSocialSignIn?: boolean };
+  if (!res.ok) return { ok: false, error: json.error ?? "Could not submit.", needsVerification: !!json.needsVerification, needsSocialSignIn: !!json.needsSocialSignIn };
   return { ok: true };
 }

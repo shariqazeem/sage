@@ -291,7 +291,7 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
     setSharing({ ...sharing, ...patch });
     setProblem(null);
     try {
-      const res = await fetch(`/api/t/${view.id}/sharing`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+      const res = await fetch(`/api/campaigns/${view.id}/sharing`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; sharing?: typeof sharing; error?: string };
       if (res.ok && data.ok && data.sharing) setSharing(data.sharing);
       else {
