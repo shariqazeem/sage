@@ -50,6 +50,36 @@ export function operatorCoversGas(env: Readonly<Record<string, string | undefine
   return env.OPERATOR_COVERS_GAS?.trim() === "1";
 }
 
+/**
+ * A launch's four calls in gas units: the fork's measurements (12 Nov 2026: create 1.57M, approve 46k,
+ * fund 66k, activate 55k) with room. A wallet that pays for its own launch and comes back part-way
+ * through is asked only for the steps still to send, never for a whole launch again.
+ */
+export const LAUNCH_STEP_GAS_UNITS = {
+  create: BigInt(2_000_000),
+  approve: BigInt(70_000),
+  fund: BigInt(110_000),
+  activate: BigInt(90_000),
+} as const;
+export type LaunchStep = keyof typeof LAUNCH_STEP_GAS_UNITS;
+
+/** A price or an estimate with the 20% headroom every Metis transaction is sent with (the Privy executor's own). */
+export const withHeadroom = (n: bigint): bigint => (n * BigInt(12)) / BigInt(10);
+
+/**
+ * The gas token a wallet needs for the launch steps it still has to send. A whole launch is the chain's
+ * own floor (`minLaunchGasWei`, what the account launch asks for); a resumed one is its remaining steps
+ * at the network's price with headroom, never more than that floor.
+ */
+export function launchStepsFeeWei(chainId: number, remaining: readonly LaunchStep[], gasPriceWei: bigint | null): bigint {
+  const floor = minLaunchGasWei(chainId);
+  if (remaining.length === 0) return BigInt(0);
+  if (remaining.includes("create") || gasPriceWei === null) return floor;
+  const units = remaining.reduce((a, s) => a + LAUNCH_STEP_GAS_UNITS[s], BigInt(0));
+  const need = units * withHeadroom(gasPriceWei);
+  return need < floor ? need : floor;
+}
+
 /** Gas units, measured: a USDC transfer is ~50-60k, an approve ~46k, a Netswap swap ~130-150k. */
 export const TRANSFER_GAS_UNITS = BigInt(120_000);
 export const SWAP_GAS_UNITS = BigInt(320_000); // approve + swap, with room
@@ -83,10 +113,11 @@ const ACTION_WORDS: Record<FeeAction, string> = {
  * on the Metis network, or any Metis wallet), or swap a little USDC inside the account when the
  * account already holds enough METIS to pay for the swap itself.
  */
-export function needsFeeMessage(input: { chainId: number; action: FeeAction; needWei: bigint; haveWei: bigint; swapFeeWei?: bigint; nativeSymbol: string; network: string }): string {
+export function needsFeeMessage(input: { chainId: number; action: FeeAction; needWei: bigint; haveWei: bigint; swapFeeWei?: bigint; nativeSymbol: string; network: string; holder?: "account" | "wallet" }): string {
   const need = formatNative(input.needWei);
   const have = formatNative(input.haveWei);
-  const head = `Your account needs about ${need} ${input.nativeSymbol} for the network fee to ${ACTION_WORDS[input.action]}, and it holds ${have}.`;
+  // "wallet": the person's own wallet pays (the own-wallet launch); everything else is the Sage account
+  const head = `Your ${input.holder ?? "account"} needs about ${need} ${input.nativeSymbol} for the network fee to ${ACTION_WORDS[input.action]}, and it holds ${have}.`;
   if (input.nativeSymbol === "USDC") return `${head} On ${input.network} USDC is the fee, so add a little more USDC.`;
   const canSwap = input.swapFeeWei != null && input.haveWei >= input.swapFeeWei && input.chainId === METIS_MAINNET_CHAIN_ID;
   const add = `Add ${input.nativeSymbol} to it: withdraw ${input.nativeSymbol} on the ${input.network} network from Binance, OKX or another exchange that supports it, or send it from any ${input.network} wallet.`;
