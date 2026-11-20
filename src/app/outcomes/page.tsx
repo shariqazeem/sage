@@ -53,8 +53,8 @@ export default function OutcomesPage() {
           </div>
           <p>
             The vault pays the exact reward fixed when the job was made, and Sage pays the network fee, so nothing is
-            taken out on the way. The team that funds the work pays no fee per payout either: plans are a flat monthly
-            price, and <Link href="/pricing">Free</Link> costs nothing.
+            taken out on the way. The builder who funds the work pays no fee either: they pay only what people earn
+            (<Link href="/pricing">pricing</Link>).
           </p>
           {corridors.length > 0 && (
             <>
@@ -120,15 +120,12 @@ export default function OutcomesPage() {
             first, which is what makes the record under it worth reading.
           </p>
           <p>
-            Every payout adds to the person&apos;s own <Link href="/record">verified work record</Link>, which a lender
-            can read on the <Link href="/lender">lender&apos;s view</Link>.{" "}
-            {r.advances.total === 0 ? (
-              <>The advance facility is live; no advance has been drawn yet.</>
-            ) : (
+            Every payout adds to the person&apos;s own <Link href="/record">verified work record</Link>.{" "}
+            {r.advances.total > 0 && (
               <>
-                {plural(r.advances.total, "advance has", "advances have")} been drawn against verified income so far,
-                and {r.advances.repaid} repaid from the next verified payouts. The first, on 6 September 2026, was a
-                rehearsal on Sage&apos;s own wallet.
+                Before the relaunch, {plural(r.advances.total, "advance was", "advances were")} drawn against verified
+                income and {r.advances.repaid} repaid from the next verified payouts. The advance was retired on
+                20 November 2026.
               </>
             )}
           </p>

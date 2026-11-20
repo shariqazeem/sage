@@ -171,7 +171,6 @@ export function SettingsPanel({ workspace: ws, account, preselect = null }: Sett
             <ul className="ws-list">
               <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/workspace/autopilot">Autopilot</Link></p><p className="ws-row-meta">Let Sage decide what work to buy, inside your limits. Pro and above.</p></div></li>
               <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/agent">Talk to Sage</Link></p><p className="ws-row-meta">Ask about your jobs, your money and your record, in plain words.</p></div></li>
-              <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/workspace/capital">Working capital</Link></p><p className="ws-row-meta">Advances against verified income, for Programs.</p></div></li>
               <li className="ws-row"><div className="ws-row-main"><p className="ws-row-title"><Link href="/docs">Docs</Link></p><p className="ws-row-meta">How Sage works, its limits, and building on it.</p></div></li>
             </ul>
           </section>

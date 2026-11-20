@@ -75,7 +75,7 @@ export function MemberWorkspace({ view }: { view: MemberView }) {
 
       <section className="ws-card">
         <div className="ws-card-h"><h2><FileText size={15} /> Your record</h2></div>
-        <p className="ws-note" style={{ margin: 0 }}>Every verified payout builds your record — a portable history of work Sage has verified and paid, that you can show a programme or a lender. <Link href={`/record/${view.address}`}>Open your record</Link>.</p>
+        <p className="ws-note" style={{ margin: 0 }}>Every verified payout builds your record — a portable history of work Sage has verified and paid, that you can show anyone. <Link href={`/record/${view.address}`}>Open your record</Link>.</p>
       </section>
     </main>
   );

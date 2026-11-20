@@ -206,7 +206,7 @@ export function PeoplePanel({ workspace: ws, members, memberCount, me, myRole }:
 
       <section className="ws-card">
         <div className="ws-card-h"><h2><ScrollText size={15} /> Records and statements</h2></div>
-        <p className="ws-note pl-quiet">Every payment a member receives lands on their own record of verified work. Open it beside their name, or print their statement for a lender, a programme or an audit. Members choose whether the amounts are public; the counts, dates and transactions always are.</p>
+        <p className="ws-note pl-quiet">Every payment a member receives lands on their own record of verified work. Open it beside their name, or print their statement for a programme or an audit. Members choose whether the amounts are public; the counts, dates and transactions always are.</p>
         <div className="ws-nav pl-pay">
           <Link href="/record" className="sage-btn sage-btn-sm"><ScrollText size={13} /> How records work</Link>
           {canExport ? (

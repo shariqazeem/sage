@@ -1091,7 +1091,7 @@ function PaidShare({ reward, tx, wallet }: { reward: string; tx: string; wallet?
         </a>
         <WhatsAppShare text={shareText} />
         {/* THE ASSET THE PAYOUT LEFT BEHIND. Being paid is the moment; the record is what it
-            builds — the verified history a lender can underwrite. Handing it here, at the delight
+            builds: proof of the person's own paid, checked work. Handing it here, at the delight
             moment, is what turns one payout into a reason to come back. */}
         {wallet && (
           <a className="sage-sub-link" href={`/record/${wallet.toLowerCase()}`}>

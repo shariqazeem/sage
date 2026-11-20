@@ -122,13 +122,13 @@ export default function CaribbeanPage() {
               </Link>
             </li>
             <li>
-              <h3>A lender reads it</h3>
+              <h3>Anyone can check it</h3>
               <p>
-                Borrowing capacity as published arithmetic over verified income. An advance drawn against it is repaid
-                from the next verified payouts, automatically.
+                Every line of the record matches a settled transaction, so a programme or an employer can check it
+                without taking Sage&apos;s word for it. The advance once offered against it was retired on 20 November 2026.
               </p>
-              <Link href="/lender" className="more">
-                The lender&apos;s view
+              <Link href="/record" className="more">
+                How records work
               </Link>
             </li>
           </ol>
@@ -229,13 +229,6 @@ export default function CaribbeanPage() {
                   <td>A printable verified income statement, with a link to the live record and a digest that matches it.</td>
                 </tr>
                 <tr>
-                  <td>Underwriting on verified income</td>
-                  <td>
-                    <Link href="/lender">/lender</Link>
-                  </td>
-                  <td>Borrowing capacity as published arithmetic. The lender sets the multiple.</td>
-                </tr>
-                <tr>
                   <td>Paying your own people</td>
                   <td>Team, in the app</td>
                   <td>
@@ -260,7 +253,7 @@ export default function CaribbeanPage() {
         </section>
 
         <section className="read-sec" id="controls">
-          <h2>The controls a lender asks about first</h2>
+          <h2>The controls that make a record worth reading</h2>
           <div className="read-figs three">
             <div className="read-fig">
               <div className="read-fig-v">{r.refused}</div>
