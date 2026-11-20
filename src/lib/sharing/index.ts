@@ -30,6 +30,12 @@ export function sharingFor(campaignId: string): Sharing {
   return { postMission: row.postMission, postResult: row.postResult, findingsPublic: row.findingsPublic };
 }
 
+/** What the builder actually answered, or null when they never have (an offer card then shows its defaults). */
+export function sharingAnswered(campaignId: string): Sharing | null {
+  const row = db.select().from(campaignSharing).where(eq(campaignSharing.campaignId, campaignId)).get();
+  return row ? { postMission: row.postMission, postResult: row.postResult, findingsPublic: row.findingsPublic } : null;
+}
+
 /**
  * Record the builder's answers. A partial update keeps the answers it doesn't name, so turning one
  * switch never flips another. The caller has already checked that the session owns the campaign.

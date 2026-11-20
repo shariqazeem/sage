@@ -111,3 +111,37 @@ export async function resolvePrivyContacts(token: string): Promise<PrivyContacts
     return { ok: false, reason: "error" };
   }
 }
+
+export type PrivyXIdentity =
+  | { ok: true; wallets: string[]; xUserId: string | null; username: string | null }
+  | { ok: false; reason: "not_configured" | "invalid_token" | "error" };
+
+/**
+ * The X account a person's own sign-in carries, by its USER ID (`twitter.subject`): the number X gives
+ * an account for life. A handle can be renamed and registered again by someone else, so it is returned
+ * for display only and nothing is ever decided by it. Read from Privy for a verified access token;
+ * `wallets` lets the caller check the token belongs to the session it arrived with. Never throws.
+ */
+export async function resolvePrivyX(token: string): Promise<PrivyXIdentity> {
+  const c = client();
+  if (!c) return { ok: false, reason: "not_configured" };
+  let userId: string;
+  try {
+    userId = (await c.verifyAuthToken(token)).userId;
+  } catch {
+    return { ok: false, reason: "invalid_token" };
+  }
+  try {
+    const user = await c.getUserById(userId);
+    const subject = user.twitter?.subject?.trim() ?? "";
+    return {
+      ok: true,
+      wallets: ethereumAddressesOf(user),
+      xUserId: /^[0-9]{1,24}$/.test(subject) ? subject : null,
+      username: user.twitter?.username?.trim().replace(/^@+/, "") || null,
+    };
+  } catch (e) {
+    console.warn("[privy-login] x lookup failed:", e instanceof Error ? e.message : String(e));
+    return { ok: false, reason: "error" };
+  }
+}
