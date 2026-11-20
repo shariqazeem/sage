@@ -245,7 +245,13 @@ export const CHAINS: Record<number, ChainConfig> = {
     key: "metis-andromeda",
     name: "Metis",
     chipLabel: "Metis Mainnet",
-    rpcUrl: process.env.METIS_MAINNET_RPC_URL ?? process.env.METIS_RPC ?? "https://andromeda.metis.io/?owner=1088",
+    // The server reads Metis through its own configured endpoint (METIS_RPC on the VM). A BROWSER cannot call
+    // andromeda.metis.io (measured 20 Nov 2026 from sagepays.xyz: it failed after 31 s, so every wallet read on a
+    // page hung and then gave up), so a page defaults to publicnode, which answered the same block in ~1 s.
+    rpcUrl:
+      process.env.METIS_MAINNET_RPC_URL ??
+      process.env.METIS_RPC ??
+      (typeof window === "undefined" ? "https://andromeda.metis.io/?owner=1088" : "https://metis-rpc.publicnode.com"),
     explorerUrl: "https://andromeda-explorer.metis.io",
     usdcAddress: "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21" as Address,
     nativeSymbol: "METIS",

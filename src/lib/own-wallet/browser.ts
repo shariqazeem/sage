@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbi, parseTransaction, recoverTransactionAddress, type Hex, type TransactionSerialized } from "viem";
+import { createPublicClient, fallback, http, parseAbi, parseTransaction, recoverTransactionAddress, type Hex, type TransactionSerialized } from "viem";
 
 import { viemChainFor } from "@/lib/deputy/networks";
 import { sameChainAddress } from "@/lib/campaigns/chain-address";
@@ -23,11 +23,28 @@ export interface Eip1193 {
 const VAULT_ABI = parseAbi(["function getState() view returns (uint8)"]);
 const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)", "function allowance(address owner, address spender) view returns (uint256)"]);
 
+/**
+ * METIS ENDPOINTS A BROWSER CAN REACH. Measured 20 Nov 2026 from a page on sagepays.xyz: Metis's own
+ * `andromeda.metis.io` refuses a browser (it failed after 31 s, so the pay button sat on "checking your
+ * wallet" and then said it couldn't read Metis), while publicnode and dRPC answered the same block in 1-2 s.
+ * The page reads through those, each with a short timeout and the next as a fallback, and the network's
+ * own endpoint last. `NEXT_PUBLIC_METIS_BROWSER_RPCS` (comma-separated) replaces the list at build time.
+ * Reads only: a wallet sends through its own connection.
+ */
+export const BROWSER_METIS_RPCS: readonly string[] = (process.env.NEXT_PUBLIC_METIS_BROWSER_RPCS ?? "https://metis-rpc.publicnode.com,https://metis.drpc.org")
+  .split(",")
+  .map((u) => u.trim())
+  .filter((u) => /^https:\/\//.test(u));
+const READ_TIMEOUT_MS = 8_000;
+
 type MetisClient = ReturnType<typeof createPublicClient>;
 let client: MetisClient | null = null;
-/** One read client for Metis's public endpoint (the same one a wallet is told about). */
+/** One read client for Metis, over endpoints a browser is allowed to call. */
 export function metisPublicClient(): MetisClient {
-  return (client ??= createPublicClient({ chain: viemChainFor(OWN_WALLET_CHAIN_ID), transport: http() }));
+  return (client ??= createPublicClient({
+    chain: viemChainFor(OWN_WALLET_CHAIN_ID),
+    transport: fallback([...BROWSER_METIS_RPCS.map((url) => http(url, { timeout: READ_TIMEOUT_MS })), http(undefined, { timeout: READ_TIMEOUT_MS })]),
+  }));
 }
 
 /** Everything the next step depends on, read fresh from Metis. */
