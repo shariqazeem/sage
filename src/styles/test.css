@@ -1001,3 +1001,35 @@ a.sg-t-step-state:hover {
   border: 1px solid var(--warn-border);
   border-radius: var(--r-md);
 }
+
+/* the owner's quiet way to say an approved answer wasn't a real try, under its ticket */
+.sg-t-flag {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 2px 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sg-t-flag:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sg-t-flag .sg-mono {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.sg-t-flag-reason {
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+}

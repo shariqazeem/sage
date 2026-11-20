@@ -166,7 +166,8 @@ export function TestLive({ initial }: { initial: LiveView }) {
             <div className="sg-t-tickets">
               {view.tickets.map((t) => (
                 <div key={t.key} data-new={arrived.has(t.key) || undefined} className={t.mine ? "sg-t-mine" : undefined}>
-                  <Ticket handle={t.handle} state={t.state} amount={t.amount} reason={t.reason} href={t.receipt ?? undefined} land={landed.has(t.key)} />
+                  <Ticket handle={t.handle} state={t.state} amount={t.amount} reason={t.reason} href={t.receipt ?? undefined} land={landed.has(t.key)} meta={t.flag ? "Approved. Paid when the 30 minutes are up" : undefined} />
+                  {t.flag ? <FlagAnswer flag={t.flag} handle={t.handle} onDone={read} /> : null}
                 </div>
               ))}
             </div>
@@ -199,7 +200,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
                 <Findings view={view.findings} />
                 {view.findings.notPaid.total > 0 ? (
                   <p className="sg-small">
-                    {count(view.findings.notPaid.total, "answer was", "answers were")} not paid: {view.findings.notPaid.byReason.map((r) => (view.findings!.notPaid.byReason.length > 1 ? `${r.reason.toLowerCase()} (${r.count})` : r.reason.toLowerCase())).join(", ")}.
+                    {count(view.findings.notPaid.total, "answer was", "answers were")} not paid: {view.findings.notPaid.byReason.map((r) => (view.findings!.notPaid.byReason.length > 1 ? `${r.reason.toLowerCase().replace(/\.$/, "")} (${r.count})` : r.reason.toLowerCase().replace(/\.$/, ""))).join(", ")}.
                   </p>
                 ) : null}
               </>
@@ -222,6 +223,79 @@ export function TestLive({ initial }: { initial: LiveView }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+const minutesLeft = (until: number): number => Math.max(0, Math.ceil((until - Date.now() / 1000) / 60));
+
+/**
+ * "NOT A REAL TRY?" The builder knows their product best, so for the 30 minutes between Sage approving
+ * an answer and paying it, they may say it wasn't a real try (POST /api/submissions/<id>/flag). The
+ * payout is revoked, the tester reads the reason exactly as written, and the place reopens. The server
+ * holds the rules: only inside the window, at most one in five places per test, nothing refunded.
+ */
+function FlagAnswer({ flag, handle, onDone }: { flag: { submissionId: string; until: number }; handle: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const left = minutesLeft(flag.until);
+  const text = reason.trim();
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/submissions/${flag.submissionId}/flag`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason: text }) });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && data.ok) {
+        setOpen(false);
+        onDone();
+      } else setError(data.error ?? "That wasn't saved. Try again.");
+    } catch {
+      setError("Sage couldn't be reached. Nothing changed; try again.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <button type="button" className="sg-t-flag" onClick={() => setOpen(true)}>
+        Not a real try? <span className="sg-mono">{left} min left</span>
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Not a real try?" side="center">
+        <form
+          className="sg-stack sg-gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+        >
+          <p className="sg-small">
+            Sage approved <span className="sg-mono sg-ink">{handle}</span>&apos;s answer and pays it in <span className="sg-n">{left} min</span>. If it isn&apos;t a real try of your product, say why in one line. They won&apos;t be paid, they will read your reason exactly as you write it, and the place opens for someone else.
+          </p>
+          <div className="sg-t-q">
+            <label htmlFor={`flag-${flag.submissionId}`}>Why it isn&apos;t a real try</label>
+            <input id={`flag-${flag.submissionId}`} className="sg-field sg-t-flag-reason" maxLength={200} placeholder="For example: this describes a different product" value={reason} disabled={busy} onChange={(e) => setReason(e.target.value)} />
+          </div>
+          <div className="sg-t-notice-actions">
+            <Button type="submit" disabled={busy || text.length < 4 || left === 0}>
+              Don&apos;t pay this answer
+            </Button>
+            <Button variant="quiet" onClick={() => setOpen(false)}>
+              Leave it
+            </Button>
+          </div>
+          {error ? (
+            <p className="sg-small sg-note-problem" role="alert">
+              {error}
+            </p>
+          ) : (
+            <p className="sg-small">You can do this for at most one in five places on a test. Sage&apos;s own checks still run on every answer.</p>
+          )}
+        </form>
+      </Sheet>
+    </>
   );
 }
 

@@ -157,7 +157,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const isTrying = TRYING.has(status);
   const isWriting = WRITING.has(status);
   const ready = status === "ready" && !!plan && plan.missions.length > 0;
-  const mine = whose === "yours" || whose === "nobody";
+  const mine = whose === "yours" || whose === "nobody" || whose === "handover";
   const who = initial.xDraft?.username ? `@${initial.xDraft.username}` : null;
 
   let pill: { label: string; tone: PillTone } = { label: "Trying", tone: "neutral" };

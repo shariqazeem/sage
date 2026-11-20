@@ -11,6 +11,8 @@ import { listHeldSubmissions, ownsCampaign } from "@/lib/campaigns/review-action
 import { v2Economics, type V2MissionView } from "@/lib/campaigns/v2-economics";
 import { isPublicWork } from "@/lib/campaigns/visibility";
 import { chainConfig } from "@/lib/deputy/networks";
+import { finalizationFor } from "@/lib/deputy/finalization-db";
+import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import { seatLinkFor } from "@/lib/people/link-info";
 import { linkFor, seatHolders } from "@/lib/people/seats";
@@ -47,6 +49,11 @@ export interface LiveTicket {
   /** unix seconds of the last thing that happened to it */
   at: number;
   mine: boolean;
+  /**
+   * THE OWNER'S ALONE: Sage approved this answer and it has not settled, so the builder may still say
+   * "not a real try" (POST /api/submissions/<id>/flag). `until` is when the window closes, unix seconds.
+   */
+  flag?: { submissionId: string; until: number };
 }
 
 export type LiveMission = V2MissionView;
@@ -129,16 +136,25 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const amountOf = (s: Submission): number => (s.missionIdHash ? rewardOf.get(s.missionIdHash) : undefined) ?? campaign.rewardAmount;
 
   // oldest first, so "Tester 3" is the third person who answered and stays the third
+  const now = nowSeconds();
+  const builderSaid = (s: Submission): string | null => (s.rejectReason?.startsWith("The builder said:") ? s.rejectReason.slice(0, 240) : null);
   const ordered = [...subs].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   const tickets: LiveTicket[] = ordered.map((s, i) => {
     const state = stateOf(s);
     const mine = !!viewer && sameFounder(s.wallet, viewer);
+    let flag: LiveTicket["flag"];
+    if (owner && s.status === "approved") {
+      const fin = finalizationFor(s, campaign.visibility, now);
+      if (fin.state === "waiting") flag = { submissionId: s.id, until: fin.finalizesAt };
+    }
     return {
+      ...(flag ? { flag } : {}),
       key: s.id,
       handle: owner || state === "paid" ? short(s.wallet) : mine ? "You" : `Tester ${i + 1}`,
       state,
       amount: usd(amountOf(s)),
-      reason: state === "not-paid" ? notPaidReason(s, owner ? "owner" : "public") : null,
+      // the builder's own words about an answer are shown as written, to everyone
+      reason: state === "not-paid" ? (builderSaid(s) ?? notPaidReason(s, owner ? "owner" : "public")) : null,
       receipt: state === "paid" && s.payoutTx ? `/proof/${s.payoutTx}` : null,
       at: s.decidedAt ?? s.createdAt,
       mine,

@@ -9,6 +9,7 @@ import { jobToView } from "@/lib/launch/job";
 import { deserializePlan } from "@/lib/launch/serde";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { hostOf } from "@/lib/site/when";
+import { handedOverOwner } from "@/lib/telegram/handover-claim";
 import { xDraftFor } from "@/lib/x/drafts";
 import type { JobView } from "@/components/launch/types";
 import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
@@ -19,7 +20,8 @@ import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
  * Everything here is a stored row or a file on disk: the job, the frames Sage captured, what it
  * understood, what it could not see. `whose` is relative to the visitor and never an address.
  */
-export type Whose = "yours" | "nobody" | "x" | "other";
+/** `handover`: planned in a Telegram chat; its link's code lets the signed-in person take it. */
+export type Whose = "yours" | "nobody" | "handover" | "x" | "other";
 
 export interface TestFact {
   label: string;
@@ -68,6 +70,7 @@ function onDisk(inspectionId: string, n: number): boolean {
 export function whoseIs(job: Pick<InspectionJob, "id" | "founderWallet">, viewer: string | null): Whose {
   if (viewer && sameFounder(job.founderWallet, viewer)) return "yours";
   if (job.founderWallet === "anonymous") return "nobody";
+  if (handedOverOwner(job.founderWallet)) return "handover";
   if (xDraftFor(job.id)?.unclaimed) return "x";
   return "other";
 }

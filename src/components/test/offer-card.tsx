@@ -59,7 +59,9 @@ export function OfferCard({
 }) {
   const plan = job.plan!;
   const shape = offerOf(plan.missions);
+  // a test handed over from Telegram is priced by its owner once it is theirs
   const mayChange = (whose === "yours" || whose === "nobody") && !locked;
+  const builder = whose === "yours" || whose === "nobody" || whose === "handover";
 
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -241,7 +243,7 @@ export function OfferCard({
         </span>
       </div>
 
-      {whose === "yours" || whose === "nobody" ? (
+      {builder ? (
         <div className="sg-t-offer-switches">
           <Switch
             title="Sage shares it"
@@ -344,7 +346,11 @@ function ClaimArea({ jobId, whose, total, xDraft, onMine }: { jobId: string; who
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(isX ? `/api/launch/${jobId}/claim-x` : `/api/t/${jobId}/claim`, { method: "POST" });
+      // a Telegram handover's link carries its code (`?claim=`): it is sent here, at the money moment
+      const code = new URLSearchParams(window.location.search).get("claim");
+      const res = isX
+        ? await fetch(`/api/launch/${jobId}/claim-x`, { method: "POST" })
+        : await fetch(`/api/t/${jobId}/claim`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(code ? { claim: code } : {}) });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) return "mine";
       // not signed in, or (for an X draft) signed in without that X account: signing in is the next step
