@@ -1606,3 +1606,12 @@ button.sg-acct-row {
 .sg-ticket-meta {
   word-spacing: -0.25em;
 }
+
+/* on paper there is no bar: a printed statement or receipt is the document alone */
+@media print {
+  .sg-bar,
+  .sg-sheet,
+  .sg-sheet-scrim {
+    display: none;
+  }
+}
