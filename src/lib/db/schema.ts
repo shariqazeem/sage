@@ -1812,3 +1812,80 @@ export const keepPosted = sqliteTable(
   (t) => [index("keep_posted_campaign_idx").on(t.campaignId)],
 );
 export type KeepPostedRow = typeof keepPosted.$inferSelect;
+
+/**
+ * SAGE ON X (relaunch, 20 Nov 2026). Sage's own X account is the agent's public hands: it posts a
+ * test's mission and its result when the builder said yes, and replies when someone tags it with a
+ * product link. `src/lib/x/`.
+ *
+ * `x_posts` is written BEFORE anything is sent (`drafted`), so a post is on the record whether X took
+ * it or not, and the unique `subject_key` (`mission:<campaignId>`, `result:<campaignId>`,
+ * `reply:<tweetId>`) is what makes it one post per subject, ever.
+ */
+export type XPostKind = "mission" | "result" | "reply";
+export type XPostStatus = "drafted" | "posted" | "skipped" | "failed";
+export const xPosts = sqliteTable(
+  "x_posts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind").$type<XPostKind>().notNull(),
+    subjectKey: text("subject_key").notNull(),
+    text: text("text").notNull(),
+    /** a post that carries a link is priced differently by X */
+    hasUrl: integer("has_url", { mode: "boolean" }).notNull().default(false),
+    /** the post this one answers (replies only): always a post that tagged Sage */
+    inReplyTo: text("in_reply_to"),
+    status: text("status").$type<XPostStatus>().notNull().default("drafted"),
+    reason: text("reason"),
+    tweetId: text("tweet_id"),
+    /** what X charged for it, in millionths of a dollar */
+    costMicros: integer("cost_micros").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    postedAt: integer("posted_at"),
+  },
+  (t) => [uniqueIndex("x_posts_subject_unq").on(t.subjectKey), index("x_posts_created_idx").on(t.createdAt)],
+);
+export type XPost = typeof xPosts.$inferSelect;
+
+/** A post that tagged Sage. `started_id` is the inspection it started, when it started one. */
+export type XMentionState = "new" | "trying" | "replied" | "ignored";
+export const xMentions = sqliteTable(
+  "x_mentions",
+  {
+    tweetId: text("tweet_id").primaryKey(),
+    authorId: text("author_id").notNull(),
+    authorUsername: text("author_username"),
+    /** when the author's X account was made (epoch seconds); a young account is not answered */
+    authorCreatedAt: integer("author_created_at"),
+    text: text("text").notNull(),
+    /** the product link the post carried */
+    url: text("url"),
+    state: text("state").$type<XMentionState>().notNull().default("new"),
+    reason: text("reason"),
+    /** the inspection job this mention started */
+    startedId: text("started_id"),
+    createdAt: integer("created_at").notNull(),
+    handledAt: integer("handled_at"),
+  },
+  (t) => [
+    index("x_mentions_state_idx").on(t.state),
+    index("x_mentions_author_idx").on(t.authorId, t.createdAt),
+    index("x_mentions_started_idx").on(t.startedId),
+  ],
+);
+export type XMention = typeof xMentions.$inferSelect;
+
+/** Small facts the X agent keeps between ticks: the mentions `since_id`, its own user id, a rate-limit reset. */
+export const xCursor = sqliteTable("x_cursor", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** What X was paid, per UTC day (`YYYY-MM-DD`), reads included. The daily ceiling reads this. */
+export const xSpend = sqliteTable("x_spend", {
+  day: text("day").primaryKey(),
+  costMicros: integer("cost_micros").notNull().default(0),
+  calls: integer("calls").notNull().default(0),
+  updatedAt: integer("updated_at").notNull(),
+});
