@@ -118,7 +118,11 @@ export async function POST(
   const door = checkSubmitDoor(campaign, wallet, { surface: "web" });
   if (!door.ok) {
     return NextResponse.json(
-      { error: door.error, ...(door.needsVerification ? { needsVerification: true, action: door.action ?? null } : {}) },
+      {
+        error: door.error,
+        ...(door.needsVerification ? { needsVerification: true, action: door.action ?? null } : {}),
+        ...(door.needsSocialSignIn ? { needsSocialSignIn: true } : {}),
+      },
       { status: door.status },
     );
   }

@@ -5,6 +5,7 @@ import { meetsTier, openTierCeilingBase, requiredTier, tierRefusal } from "@/lib
 import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
 import { PERSONHOOD_DOOR_COPY, alreadyClaimedCopy, identityDoorArmed } from "@/lib/identity/door";
 import { personWallets } from "@/lib/identity/person";
+import { aboveCeilingCopy, socialDoorArmed, socialDoorNeed, socialSignInCopy } from "@/lib/identity/social-door";
 import { identityFor } from "@/lib/db/identity";
 import { worldIdConfig } from "@/lib/identity/worldid";
 import { isPublicWork } from "@/lib/campaigns/visibility";
@@ -20,7 +21,7 @@ import { isSanctionedWallet, SANCTIONS_LIST_LABEL } from "@/lib/deputy/sanctions
  * The web submit route grew its checks one incident at a time:
  * - the sanctions screen;
  * - the named recipient list;
- * - one person, one slot on public work (World ID);
+ * - one person, one slot on public work (World ID, or a sign-in account under `IDENTITY_DOOR=social`);
  * - a person's payout cap across every wallet that is them;
  * - the reward-tier rule;
  * - members-only work for a team.
@@ -38,6 +39,8 @@ export type DoorRefusal = {
   /** the person needs a one-time personhood proof; the web board opens the widget for it. */
   needsVerification?: boolean;
   action?: string | null;
+  /** the person needs to sign in with Google or X (the tester door); the board opens the sign-in for it. */
+  needsSocialSignIn?: boolean;
 };
 
 export function checkSubmitDoor(campaign: Campaign, wallet: string, opts: { surface: "web" | "telegram" } = { surface: "web" }): { ok: true } | DoorRefusal {
@@ -69,6 +72,18 @@ export function checkSubmitDoor(campaign: Campaign, wallet: string, opts: { surf
       needsVerification: true,
       action: worldIdConfig()?.action ?? null,
     };
+  }
+  // THE TESTER DOOR (`IDENTITY_DOOR=social`, social-door.ts): a sign-in account is the person. Google, X
+  // or the Telegram chat passes, and so does a World ID proof; above the ceiling only World ID does.
+  // Never both doors: `IDENTITY_DOOR` holds one value.
+  if (publicWork && socialDoorArmed()) {
+    const need = socialDoorNeed(campaign, wallet);
+    if (need === "worldid") {
+      return { ok: false, status: 403, error: aboveCeilingCopy(opts.surface), needsVerification: true, action: worldIdConfig()?.action ?? null };
+    }
+    if (need === "social") {
+      return { ok: false, status: 403, error: socialSignInCopy(opts.surface), needsSocialSignIn: true };
+    }
   }
   // One person, paid at most `perWalletPayoutCap` times on this job, across every wallet that is them.
   // Checked at the door so nobody does work the pipeline will only hold; the pipeline re-checks.

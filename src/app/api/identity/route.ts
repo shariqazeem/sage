@@ -5,6 +5,7 @@ import { identityFor, recordIdentityProof } from "@/lib/db/identity";
 import { identityTiersArmed, standingOf } from "@/lib/identity/standing";
 import { meetsTier, requiredTier } from "@/lib/identity/tier";
 import { identityDoorArmed } from "@/lib/identity/door";
+import { personHasSocialIdentity, socialDoorArmed, socialDoorNeed } from "@/lib/identity/social-door";
 import { isPublicWork } from "@/lib/campaigns/visibility";
 import { getCampaign } from "@/lib/db/campaigns";
 import { signalMatches, verifyWorldId, worldIdConfig } from "@/lib/identity/worldid";
@@ -38,7 +39,9 @@ export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get("campaign");
   const campaign = campaignId ? getCampaign(campaignId) : null;
   const doorArmed = identityDoorArmed() && cfg !== null;
-  const requiresPersonhood = doorArmed && campaign !== null && isPublicWork(campaign) && proof === null;
+  // The tester door (`IDENTITY_DOOR=social`) answers from the function the submit door refuses with.
+  const socialNeed = campaign !== null ? socialDoorNeed(campaign, wallet) : null;
+  const requiresPersonhood = (doorArmed && campaign !== null && isPublicWork(campaign) && proof === null) || socialNeed === "worldid";
   return NextResponse.json({
     available: cfg !== null,
     action: cfg?.action ?? null,
@@ -50,6 +53,11 @@ export async function GET(req: NextRequest) {
     armed: identityTiersArmed(),
     doorArmed,
     requiresPersonhood,
+    doorMode: doorArmed ? "worldid" : socialDoorArmed() ? "social" : "off",
+    /** this wallet has no Google, X or Telegram account behind it yet, and this test asks for one. */
+    requiresSocialSignIn: socialNeed === "social",
+    /** a server-verified sign-in account stands behind this wallet (or another wallet of the same person). */
+    socialVerified: personHasSocialIdentity(wallet),
     requiresStanding: !doorArmed && need !== null && need !== "newcomer" && identityTiersArmed(),
     meets: need === null ? true : meetsTier(standing.tier, need),
   });

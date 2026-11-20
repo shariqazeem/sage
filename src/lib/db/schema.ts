@@ -1906,3 +1906,27 @@ export const channelPosts = sqliteTable("channel_posts", {
   postedAt: integer("posted_at"),
 });
 export type ChannelPostRow = typeof channelPosts.$inferSelect;
+
+/**
+ * PERSON IDENTITIES (20 Nov 2026, the tester door). A sign-in account the owner of a wallet proved ON THE
+ * SERVER: Google or X read from Privy's verified user record, or the Telegram chat a chat wallet belongs
+ * to. Never a value the browser sent. One account is one person: `(provider, subject)` is the primary key,
+ * so a subject stays bound to the first wallet that presented it, and a second wallet presenting it is
+ * LINKED to the first (`wallet_links`, origin "personhood"), exactly as a repeated World ID nullifier is.
+ * `display` (an email or @username) is shown to the owner only, never published.
+ */
+export type PersonIdentityProvider = "google" | "x" | "telegram";
+export const personIdentities = sqliteTable(
+  "person_identities",
+  {
+    provider: text("provider").$type<PersonIdentityProvider>().notNull(),
+    subject: text("subject").notNull(),
+    /** the wallet in its minimal form, the same key `identity_proofs` and the roster use. */
+    walletKey: text("wallet_key").notNull(),
+    wallet: text("wallet").notNull(),
+    display: text("display"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.subject] }), index("person_identities_wallet_idx").on(t.walletKey)],
+);
+export type PersonIdentity = typeof personIdentities.$inferSelect;

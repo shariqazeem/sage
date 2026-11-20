@@ -1,5 +1,7 @@
 import "server-only";
 import { PrivyClient, type User } from "@privy-io/server-auth";
+import type { SocialAccount } from "@/lib/db/person-identities";
+import { socialAccountsOf } from "./privy-social";
 
 /**
  * The Privy app that signs people IN (email / passkey / social + an embedded wallet). A separate
@@ -28,7 +30,7 @@ export function ethereumAddressOf(user: User): string | null {
 }
 
 export type PrivyLoginResult =
-  | { ok: true; address: string; userId: string }
+  | { ok: true; address: string; userId: string; social: SocialAccount[] }
   | { ok: false; reason: "not_configured" | "invalid_token" | "no_wallet_yet" | "error"; detail?: string };
 
 /** Verify a Privy access token and resolve the person's Ethereum address. Never throws. */
@@ -61,7 +63,7 @@ export async function resolvePrivyLogin(token: string): Promise<PrivyLoginResult
       console.warn("[privy-login] no ethereum wallet on user", userId, "accounts:", (user.linkedAccounts ?? []).map((a) => (a as { type?: string }).type).join(","));
       return { ok: false, reason: "no_wallet_yet" };
     }
-    return { ok: true, address, userId };
+    return { ok: true, address, userId, social: socialAccountsOf(user) };
   } catch (e) {
     console.warn("[privy-login] lookup failed:", e instanceof Error ? e.message : String(e));
     return { ok: false, reason: "error", detail: e instanceof Error ? e.message : String(e) };
