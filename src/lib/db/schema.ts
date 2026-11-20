@@ -1752,3 +1752,17 @@ export const agentKeys = sqliteTable(
   (t) => [uniqueIndex("agent_keys_hash_idx").on(t.keyHash), index("agent_keys_workspace_idx").on(t.workspaceId)],
 );
 export type AgentKey = typeof agentKeys.$inferSelect;
+
+/**
+ * HOW A TEST IS SHARED (relaunch, 20 Nov 2026). The builder's own answers on the offer card: whether
+ * Sage's X account posts the mission and the result, and whether the findings are public. No row means
+ * nothing is posted and the findings stay private: sharing is opt-in, always. `src/lib/sharing/`.
+ */
+export const campaignSharing = sqliteTable("campaign_sharing", {
+  campaignId: text("campaign_id").primaryKey(),
+  postMission: integer("post_mission", { mode: "boolean" }).notNull().default(false),
+  postResult: integer("post_result", { mode: "boolean" }).notNull().default(false),
+  findingsPublic: integer("findings_public", { mode: "boolean" }).notNull().default(false),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type CampaignSharingRow = typeof campaignSharing.$inferSelect;

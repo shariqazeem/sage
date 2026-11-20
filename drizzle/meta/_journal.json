@@ -491,6 +491,13 @@
       "when": 1794009600000,
       "tag": "0069_milestones",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1794096000000,
+      "tag": "0070_campaign_sharing",
+      "breakpoints": true
     }
   ]
 }
