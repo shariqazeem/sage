@@ -125,7 +125,13 @@ export function TestLive({ initial }: { initial: LiveView }) {
           </Stage>
         ) : null}
 
-        <Stage state="done" title="Sage tried it first" meta={view.run ? [count(view.run.steps, "step", "steps"), view.run.seconds ? howLong(view.run.seconds) : ""].filter(Boolean).join(" · ") : null}>
+        {/* a test Sage never ran in its browser (a job written by hand) has no frames: no empty heading */}
+        {view.frames.length > 0 || owner || done ? (
+        <Stage
+          state="done"
+          title={view.frames.length > 0 ? "Sage tried it first" : "The missions"}
+          meta={view.frames.length > 0 && view.run ? [count(view.run.steps, "step", "steps"), view.run.seconds ? howLong(view.run.seconds) : ""].filter(Boolean).join(" · ") : null}
+        >
           {view.frames.length > 0 ? (
             <div className="sg-shots">
               {view.frames.map((f, i) => (
@@ -145,6 +151,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
             </div>
           ) : null}
         </Stage>
+        ) : null}
 
         <Stage state={done || !owner ? "done" : "now"} title="People" meta={done ? `${places.paid} paid` : null} id="people">
           <div className="sg-t-places">
