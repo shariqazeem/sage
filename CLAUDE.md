@@ -88,6 +88,28 @@
 >   (checked on chain), so nothing can take a worker's fee from their USDC either; the worker's wallet names the
 >   METIS needed and where to get it (`needsFeeMessage`), as every founder door does.
 
+> **20 Nov 2026 (the founder's decisions): Sage restarts as product testing, and relaunches on Tue 1 Dec.**
+> "Consider it as a restart and relaunch."
+> - Product testing is the whole product: paste a link (or tag @sagepaysai on X) → Sage tries it in a real
+>   browser → real people try it → each is paid in m.USDC only for an honest, checked try → the builder gets
+>   the findings (`src/lib/report/`, quotes verbatim). Promise real people and what they found, never "users".
+> - The front is three places: Home (`/`: one paste box; signed in, your tests), a test (`/t/<id>`, one page
+>   for builder, tester and public; being built) and Earn (`/earn`; `/marketplace` and `/missions` redirect).
+>   One top bar on every page, no rail (`src/components/sage/`, `src/styles/sage.css`). Pay-for-work, teams,
+>   programmes, weekly rounds and plan tiers are off the front; every route stays.
+> - The advance is retired (one was ever drawn, and it was repaid); a record is proof of work, not a credit file.
+> - Builders pay only what testers earn: no Sage fee and no tiers on the front until 15 builders come back
+>   (`SAGE_PLAN_LIMITS=off` at relaunch; no workspace ever paid for a plan). They pay from a wallet they control,
+>   because Metis Rise counts only those from 1 Dec; Telegram hands a launch to the web (`TELEGRAM_LAUNCH_ON_WEB`).
+> - Sharing is the builder's opt-in (`campaign_sharing`, `src/lib/sharing/`): Sage's X account (`src/lib/x/`,
+>   `X_AGENT=off|dry|live`) and its Telegram channel (`TELEGRAM_MISSIONS_CHAT_ID`) post a test and its result only
+>   with that yes. On X, Sage replies only when tagged (`X_REPLIES`, after X approves the bot); never DMs.
+> - Testers sign in with X or Google, one place per person per test, World ID only above a ceiling
+>   (`IDENTITY_DOOR=social`, being built). Testers' METIS: the wallet explains; Sage sends nobody network fees.
+> - Model spend goes to `LLM_DAILY_BUDGET_USD=4` at relaunch.
+>
+> Plan, workstreams and dates: `docs/relaunch/plan.md` (internal).
+
 ---
 
 ## 1. Product
