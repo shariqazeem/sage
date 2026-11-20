@@ -28,6 +28,13 @@ function EndPrivySessionOnSignOut() {
   return null;
 }
 
+/**
+ * SIGNING IN WITH X, behind a build-time flag. X has to be switched on in the Privy dashboard first
+ * (the founder's step); until `NEXT_PUBLIC_LOGIN_X=1` is set, X is neither a login method nor a
+ * button anywhere, so no door is offered that would fail.
+ */
+export const LOGIN_WITH_X = process.env.NEXT_PUBLIC_LOGIN_X === "1";
+
 export function SagePrivyProvider({ appId, children }: { appId: string | null; children: React.ReactNode }) {
   if (!appId) return <>{children}</>;
   return (
@@ -36,7 +43,7 @@ export function SagePrivyProvider({ appId, children }: { appId: string | null; c
       config={{
         // The email door is email (or Google), nothing else. A wallet signs in through the MetaMask door
         // (one signature, SIWE), so a wallet never has two ways in that could disagree (26 Oct 2026).
-        loginMethods: ["email", "google"],
+        loginMethods: LOGIN_WITH_X ? ["email", "google", "twitter"] : ["email", "google"],
         appearance: { theme: "light", accentColor: "#c2410c", logo: "https://sagepays.xyz/icon.png", walletChainType: "ethereum-only" },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
         // Metis is the network everything runs on, and where the embedded wallet starts. It signs what a

@@ -7,7 +7,7 @@
  * Scoped under `.site` so nothing here can reach an app surface.
  */
 .site {
-  --site-max: 1120px;
+  --site-max: var(--w-wrap); /* the one bar's frame, so a company page's edges meet the bar's */
   --site-narrow: 760px;
   --site-gutter: clamp(16px, 4vw, 32px);
   --site-ink: var(--ink-warm);
