@@ -68,6 +68,12 @@ export const OWN_WALLETS: readonly string[] = [
   "0xfc6395f1cb3e4c9370d291b1d777df112c77dcc5",
   // the server wallet that submits x402 payments on Metis for Sage's facilitator
   "0x86d73af562b59c89b56f57c469e61c681ae67abb",
+  // the owner of the founder's "sage" workspace (ws_Q7BZ…, 3 Sep 2026), whose member is the founder's own
+  // advance-walkthrough seller above; it was paid once (gig-fhD0wboTcy) by Sage's own work. Strong
+  // evidence, short of proof, so listed: a public count may only under-count
+  "0x04ca1a9d6d6a118cdf9f116087b90d6192c99237",
+  // that wallet's Sage account on Metis (a Privy server wallet reclaimable only to it, opened 26 Oct 2026)
+  "0x2d3b9d162b370abcefc0ae4c368a200888be6c75",
 ];
 
 /** The same wallets as comparison keys (`walletKey`). */
