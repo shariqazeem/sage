@@ -6,6 +6,8 @@
  * The server compiles the same two numbers into the plan (`src/lib/launch/offer.ts`) and refuses
  * anything this file would refuse, so the card and the compiler cannot disagree about what is allowed.
  */
+import { isCoreMission } from "@/lib/core-test/shape";
+
 export const PEOPLE_PRESETS = [5, 10, 20] as const;
 export const EACH_PRESETS_USD = [1, 2, 5] as const;
 /** The default test: 10 people, $2.00 each (the founder's decision, 20 Nov 2026). */
@@ -86,4 +88,25 @@ export function splitPlaces(people: number, missions: number): number[] {
   const base = Math.floor(people / missions);
   const extra = people - base * missions;
   return Array.from({ length: missions }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/**
+ * The same split, for a test that carries the core mission (`src/lib/core-test/shape.ts`).
+ *
+ * The core mission is where "6 of 10 understood it" comes from, and a person takes one place per
+ * test, so its count is only worth reading when most of the people are on it. It takes half the
+ * places, rounded up (never fewer than an even share, never more than one mission holds), and the
+ * rest are split evenly over the other missions, each keeping at least one. A test with no core
+ * mission, or with only one mission, splits exactly as before.
+ */
+export function placesFor(people: number, missionKeys: readonly string[]): number[] {
+  const n = missionKeys.length;
+  const at = missionKeys.findIndex(isCoreMission);
+  if (at < 0 || n <= 1 || people < n) return splitPlaces(people, n);
+  const others = n - 1;
+  const core = Math.min(MAX_PLACES_PER_MISSION, people - others, Math.max(Math.ceil(people / 2), Math.ceil(people / n)));
+  const rest = splitPlaces(people - core, others);
+  // more people than the other missions can hold: the even split is the one that fits
+  if (rest.some((p) => p > MAX_PLACES_PER_MISSION)) return splitPlaces(people, n);
+  return [...rest.slice(0, at), core, ...rest.slice(at)];
 }

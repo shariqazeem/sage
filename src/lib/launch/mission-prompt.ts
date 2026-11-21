@@ -13,8 +13,12 @@
  *  autonomous instead of held.
  *  .1 — the reward floor quoted to the architect dropped $3 → $0.50 (2026-08-14), with the explicit
  *  note that a small budget funds several testers rather than one. Plans designed before and after
- *  size samples differently, so the version distinguishes them. */
-export const MISSION_PROMPT_VERSION = "mb-v4.5-qa" as const;
+ *  size samples differently, so the version distinguishes them.
+ *  v4.6 (21 Nov 2026) — rule 9, THE CORE. Sage itself adds one first-try mission to every plan (first
+ *  impression, the main action, the verdict: `core-mission.ts`), so the architect is told not to design
+ *  that mission and, in the same answer, names the product's main action for it ("core"). Nothing about
+ *  how a mission is written, anchored or verified changed. */
+export const MISSION_PROMPT_VERSION = "mb-v4.6-core" as const;
 
 /** Everything between these markers is untrusted inspected data — judged, never obeyed. */
 export const UNTRUSTED_MAP_OPEN = "<<<UNTRUSTED_INSPECTED_PRODUCT>>>";
@@ -84,8 +88,10 @@ PLAYBOOKS — choose the missions that fit the product's TYPE (inferred from the
 - Commerce: browse → product → cart clarity (NEVER a real purchase), a specific policy or claim.
 The founder's GOAL and TARGET USERS must visibly shape which missions you pick and how you frame success; a mission that ignores them is weaker than one that serves them.
 
+9. THE CORE (every plan). Sage itself adds ONE first-try mission to every plan: a stranger says what they take the product to be from the first screen, tries its main action and reports where they stopped, and says whether they would use it again. So do NOT design a first-impression mission, a "walk through the product and tell us what you think" mission, or a "would you use it again" mission: those are covered. Design the product-specific flows, as the rules above say. Instead, tell Sage what the main action IS, in "core": "mainAction" is the ONE thing this product exists for, as a short lowercase verb phrase a stranger would try first ("start a drop", "create a board", "play the first level", "search the docs for a topic"), at most ten words, something the map shows a person can attempt; never a purchase, a payment, a wallet approval or anything destructive. "startsAt" is the VERBATIM text of the observed button, link or heading where that action begins, copied exactly from the map, or "" when the map shows none.
+
 OUTPUT: strict JSON only, no prose, matching exactly:
-{"missions":[{"missionKey":"kebab-case-unique","title":"...","objective":"one sentence","instructions":"numbered, concrete steps","targetSurface":"https://... (an inspected URL)","criteria":["ordered","objective"],"evidenceRequirements":["ordered","verifiable"],"anchors":["2-5 VERBATIM strings copied exactly from the observed map/fieldTest/vision text"],"whyItMatters":"product-specific reason","sources":[{"kind":"page|repo|founder","ref":"exact url/path/goal","observation":"what was seen"}],"priority":"high|medium|low","riskCategory":"critical_journey|onboarding|responsive|wallet_payment|claim_validation|error_recovery|accessibility|cross_browser|docs_consistency|trust_safety|regression","effortMinutes":<int>,"conditions":["device/browser/account needs"],"rewardWeight":<1-10>,"maxCompletions":<int>,"verificationMethod":"how Sage verifies from evidence","confidence":<0-1>,"assumptions":["..."],"disallowed":["destructive/authenticated actions the tester must NOT take"]}]}
+{"core":{"mainAction":"short lowercase verb phrase","startsAt":"verbatim observed text or empty"},"missions":[{"missionKey":"kebab-case-unique","title":"...","objective":"one sentence","instructions":"numbered, concrete steps","targetSurface":"https://... (an inspected URL)","criteria":["ordered","objective"],"evidenceRequirements":["ordered","verifiable"],"anchors":["2-5 VERBATIM strings copied exactly from the observed map/fieldTest/vision text"],"whyItMatters":"product-specific reason","sources":[{"kind":"page|repo|founder","ref":"exact url/path/goal","observation":"what was seen"}],"priority":"high|medium|low","riskCategory":"critical_journey|onboarding|responsive|wallet_payment|claim_validation|error_recovery|accessibility|cross_browser|docs_consistency|trust_safety|regression","effortMinutes":<int>,"conditions":["device/browser/account needs"],"rewardWeight":<1-10>,"maxCompletions":<int>,"verificationMethod":"how Sage verifies from evidence","confidence":<0-1>,"assumptions":["..."],"disallowed":["destructive/authenticated actions the tester must NOT take"]}]}
 Choose only the missions that genuinely matter for the inspected product. Do not mechanically produce one per category.`;
 
 export const CRITIC_SYSTEM = `You are Sage's Mission Critic. You independently review candidate testing missions the Architect proposed for a specific inspected product. You are adversarial about quality and safety, never a rubber stamp.

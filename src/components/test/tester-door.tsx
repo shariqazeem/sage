@@ -12,7 +12,8 @@ import { SignInSheet } from "@/components/sage/sign-in-sheet";
 import { Ticket, type TicketState } from "@/components/sage/ticket";
 import { useSiwe } from "@/lib/auth/use-siwe";
 import { refreshFounderSession, useFounderSession } from "@/lib/auth/use-founder-session";
-import { composeAccount, evidencePrompts, hasAnyAnswer } from "@/lib/campaigns/evidence-answers";
+import { composeAccount, evidencePrompts, hasAnyAnswer, unansweredPrompts } from "@/lib/campaigns/evidence-answers";
+import { AGAIN, AGAIN_TAP, composeCoreAccount, CORE_PARTS, isCoreMission, REACHED, REACHED_TAP, type Again, type Reached } from "@/lib/core-test/shape";
 import { workerShouldPoll } from "@/lib/campaigns/live-poll";
 import { buildEvidenceClaim, postEvidence, signEvmEvidenceClaim, type EvidenceInput } from "@/lib/campaigns/submit-evidence";
 import { chainConfig } from "@/lib/deputy/networks";
@@ -55,7 +56,8 @@ function ticketState(m: Mine): TicketState {
  */
 export function TesterDoor({ view, onChanged }: { view: LiveView; onChanged: () => void }) {
   const open = view.missions.filter((m) => !m.full);
-  const [key, setKey] = useState<string>((open[0] ?? view.missions[0]).missionKey);
+  // the first-try mission is where a stranger starts, wherever the plan's order put it
+  const [key, setKey] = useState<string>((open.find((m) => isCoreMission(m.missionKey)) ?? open[0] ?? view.missions[0]).missionKey);
   const mission = view.missions.find((m) => m.missionKey === key) ?? view.missions[0];
 
   return (
@@ -70,6 +72,25 @@ export function TesterDoor({ view, onChanged }: { view: LiveView; onChanged: () 
         </div>
       ) : null}
       <MissionDoor key={mission.missionKey} view={view} mission={mission} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/**
+ * ONE TAP among a few: how far the person got, whether they would come back. The choices are the same
+ * for every product and name nothing Sage saw, so they tell a tester nothing about the answer key.
+ */
+function Taps<T extends string>({ label, name, options, value, onChange, disabled, stacked }: { label: string; name: string; options: { value: T; label: string }[]; value: T | null; onChange: (v: T) => void; disabled?: boolean; stacked?: boolean }) {
+  return (
+    <div className="sg-t-taps" role="radiogroup" aria-label={label} data-stacked={stacked ? "" : undefined}>
+      <span className="sg-t-taps-label">{label}</span>
+      <div className="sg-t-taps-row">
+        {options.map((o) => (
+          <button key={o.value} type="button" role="radio" name={name} aria-checked={value === o.value} disabled={disabled} onClick={() => onChange(o.value)}>
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -105,10 +126,17 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
   const [land, setLand] = useState(false);
 
   const prompts = evidencePrompts(mission.evidenceList);
-  const account = prompts.length > 0 ? composeAccount(answers) : note.trim();
+  // The core mission (every test has one) asks four questions and two taps. Each answer is kept to one
+  // paragraph so the builder's report can show a person's first impression apart from the rest; the
+  // taps are counted by the report and are never part of the words Sage judges.
+  const core = isCoreMission(mission.missionKey) && prompts.length === CORE_PARTS.length;
+  const [reached, setReached] = useState<Reached | null>(null);
+  const [again, setAgain] = useState<Again | null>(null);
+  const account = core ? composeCoreAccount(answers) : prompts.length > 0 ? composeAccount(answers) : note.trim();
   const answered = prompts.length > 0 ? hasAnyAnswer(answers) : note.trim().length > 0;
   const needsLink = mission.verifiabilityClass === "url-verifiable";
-  const canSend = needsLink ? link.trim().length > 0 : answered;
+  const coreMissing = core ? unansweredPrompts(prompts, answers).length + (reached ? 0 : 1) + (again ? 0 : 1) : 0;
+  const canSend = core ? coreMissing === 0 : needsLink ? link.trim().length > 0 : answered;
 
   const loadMine = useCallback(async () => {
     if (!signedIn) {
@@ -215,6 +243,10 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
         setError(sent.error);
         return;
       }
+      // what they tapped travels beside the answer, never inside it; a miss here loses a count, not a payout
+      if (core && reached && again && sent.submissionId) {
+        await fetch(`/api/submissions/${sent.submissionId}/core-answer`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reached, again }) }).catch(() => null);
+      }
       setRevising(false);
       wasPaid.current = false;
       await loadMine();
@@ -222,7 +254,7 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
     } finally {
       setBusy(false);
     }
-  }, [address, signerIsEmbedded, signerIsInjected, embedded, wallet, view.id, view.campaignIdHash, view.chainId, mission, link, account, loadMine, onChanged]);
+  }, [address, signerIsEmbedded, signerIsInjected, embedded, wallet, view.id, view.campaignIdHash, view.chainId, mission, link, account, loadMine, onChanged, core, reached, again]);
 
   const each = usd(mission.rewardBase);
   const left = mission.remainingSlots;
@@ -378,6 +410,12 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
                       setAnswers(next);
                     }}
                   />
+                  {core && CORE_PARTS[i] === "action" ? (
+                    <Taps label="How far did you get?" name={`reached-${mission.missionKey}`} options={REACHED.map((v) => ({ value: v, label: REACHED_TAP[v] }))} value={reached} onChange={setReached} disabled={busy} stacked />
+                  ) : null}
+                  {core && CORE_PARTS[i] === "verdict" ? (
+                    <Taps label="Would you use it again?" name={`again-${mission.missionKey}`} options={AGAIN.map((v) => ({ value: v, label: AGAIN_TAP[v] }))} value={again} onChange={setAgain} disabled={busy} />
+                  ) : null}
                 </div>
               ))
             ) : (
@@ -398,6 +436,8 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
               <p className="sg-small sg-note-problem" role="alert">
                 {error}
               </p>
+            ) : core && coreMissing > 0 ? (
+              <p className="sg-small">Answer all four and tap the two choices to send. An honest &ldquo;I got stuck&rdquo; earns the same as &ldquo;I finished&rdquo;.</p>
             ) : (
               <p className="sg-small">You sign once with your wallet to send it. It costs nothing, and nothing moves.</p>
             )}
