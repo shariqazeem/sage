@@ -464,6 +464,25 @@ function parseRetryAfterMs(h: string | null): number | null {
  * limits sit above any budget a call can be given, so the caller's own AbortController is the only clock.
  */
 const CALL_CEILING_MS = 20 * 60_000;
+
+/** A burst 429 is waited out at most this many times per call (see postChat). */
+export const BURST_RETRIES = 3;
+const BURST_WAITS_MS = [4_000, 10_000, 20_000] as const;
+/** a Retry-After above this is a quota block, returned to the caller at once (never slept on) */
+const BURST_RETRY_AFTER_MAX_MS = 10_000;
+/** Sleep that ends early when the call is aborted. */
+function sleepFor(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const t = setTimeout(done, ms);
+    function done() {
+      clearTimeout(t);
+      signal.removeEventListener("abort", done);
+      resolve();
+    }
+    signal.addEventListener("abort", done, { once: true });
+  });
+}
 let longCalls: Agent | null = null;
 function longCallDispatcher(): Agent {
   return (longCalls ??= new Agent({ headersTimeout: CALL_CEILING_MS, bodyTimeout: CALL_CEILING_MS }));
@@ -506,6 +525,8 @@ export async function postChat(
     opts.signal?.addEventListener("abort", onOuterAbort, { once: true });
     if (opts.signal?.aborted) controller.abort();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+    const startedAt = Date.now();
+    let bursts = 0;
     try {
       // At most one re-send per refused parameter: a provider that keeps refusing something we
       // already removed is a real error, and it surfaces as one.
@@ -542,6 +563,23 @@ export async function postChat(
         if (!res.ok && outOfCredit(res.status, text)) {
           noteOutOfCredit(p, text, Date.now());
           return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
+        }
+        // A BURST LIMIT, WAITED OUT (21 Nov 2026). CommonStack answers a short run of quick calls with 429 and
+        // then lets the next one through (measured: six rapid calls tripped it, the seventh a minute later
+        // answered). A caller that took that 429 as a failure dropped a whole mission design. So a plain 429
+        // (not an empty account, not a stated cap) waits and re-sends, at most three times, for the provider's
+        // own short Retry-After when it gives one or 4 s, 10 s, 20 s otherwise, and only while the call's own budget
+        // has room. The slot is held while waiting, which is itself what slows the burst down.
+        // A long Retry-After is a quota, not a burst: that one goes straight back to the caller, who classifies it.
+        const retryAfter = res.status === 429 ? parseRetryAfterMs(headerOf(res, "retry-after")) : null;
+        if (res.status === 429 && bursts < BURST_RETRIES && statedCap(text) === null && (retryAfter === null || retryAfter <= BURST_RETRY_AFTER_MAX_MS)) {
+          const wait = retryAfter ?? BURST_WAITS_MS[bursts]!;
+          if (Date.now() - startedAt + wait < opts.timeoutMs - 5_000 && !controller.signal.aborted) {
+            bursts += 1;
+            heal -= 1; // a burst wait is not a parameter heal: it must not use up the heals (bounded by BURST_RETRIES)
+            await sleepFor(wait, controller.signal);
+            if (!controller.signal.aborted) continue;
+          }
         }
         if (res.ok) {
           noteAnswered(p, Date.now());
