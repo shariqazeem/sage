@@ -15,6 +15,7 @@ import { testPath } from "@/lib/site/test-path";
 import { count, howLong } from "@/lib/site/when";
 import type { BeforeView, Whose } from "@/lib/test-page/before";
 import { baseToUsd, offerOf } from "@/lib/test-page/offer-shape";
+import { FirstLook, lookMeta } from "./first-look";
 import { OfferCard } from "./offer-card";
 import { Facts, MissionItem, Stage, TestHead } from "./parts";
 
@@ -123,6 +124,16 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
     wasRunning.current = running;
   }, [running, router]);
 
+  // Sage's browser just closed: its first look is stored before the missions are written, so ask
+  // the server for it now, and once more after a model has had time to choose its words.
+  const writing = WRITING.has(status);
+  useEffect(() => {
+    if (!writing) return;
+    router.refresh();
+    const t = setTimeout(() => router.refresh(), 25_000);
+    return () => clearTimeout(t);
+  }, [writing, router]);
+
   // a new frame arrived: bring it into view, the way a filmstrip advances
   const framed = trail.filter((s) => s.screenshot);
   useEffect(() => {
@@ -158,6 +169,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const isWriting = WRITING.has(status);
   const ready = status === "ready" && !!plan && plan.missions.length > 0;
   const mine = whose === "yours" || whose === "nobody" || whose === "handover";
+  const look = isTrying ? null : initial.firstLook;
   const who = initial.xDraft?.username ? `@${initial.xDraft.username}` : null;
 
   let pill: { label: string; tone: PillTone } = { label: "Trying", tone: "neutral" };
@@ -267,6 +279,15 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
             </p>
           ) : null}
         </Stage>
+
+        {/* 1b ── what Sage itself noticed: free, and before anyone is paid ──── */}
+        {look ? (
+          <Stage state="done" title="What Sage noticed" meta={lookMeta(look)}>
+            <FirstLook look={look} />
+          </Stage>
+        ) : isTrying ? (
+          <Stage state="next" title="What Sage noticed" />
+        ) : null}
 
         {/* 2 ── the missions ───────────────────────────────────────────────── */}
         {status === "needs_input" ? (

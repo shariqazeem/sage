@@ -4,7 +4,7 @@ import type { Hex } from "viem";
 import { allocateBudget, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { compilePlan } from "./plan";
 import type { CandidateMission, CompiledMission, MissionPlanV1, MissionPriority } from "./schemas";
-import { offerProblem, splitPlaces } from "@/lib/test-page/offer-shape";
+import { offerProblem, placesFor } from "@/lib/test-page/offer-shape";
 
 /**
  * THE OFFER, COMPILED (relaunch, 20 Nov 2026): "10 people, $2.00 each" turned into a plan revision.
@@ -77,7 +77,7 @@ export function offerPlan(
   if (problem) return { ok: false, error: problem };
 
   const order = inCompilerOrder(current.missions);
-  const places = splitPlaces(offer.people, order.length);
+  const places = placesFor(offer.people, order.map((m) => m.missionKey));
   const candidates = order.map((m, i) => asCandidate(m, places[i]));
   const total = BigInt(offer.people) * offer.eachBase;
 

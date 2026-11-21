@@ -12,6 +12,7 @@ import { hostOf } from "@/lib/site/when";
 import { handedOverOwner } from "@/lib/telegram/handover-claim";
 import { xDraftFor } from "@/lib/x/drafts";
 import type { JobView } from "@/components/launch/types";
+import { firstLookView, type FirstLookView } from "./first-look";
 import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
 
 /**
@@ -40,6 +41,8 @@ export interface BeforeView {
   facts: TestFact[];
   /** what Sage says it could not see */
   couldNotSee: string[];
+  /** what Sage itself noticed while trying it: there as soon as its browser closes, before the missions */
+  firstLook: FirstLookView | null;
   inviteOnly: boolean;
   /** a tag on X started this test and nobody has claimed it: who may */
   xDraft: { username: string | null } | null;
@@ -127,6 +130,8 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
     run,
     facts,
     couldNotSee,
+    // a look taken with the builder's own test account shows signed-in screens: the owner's alone
+    firstLook: mayShowFrames ? firstLookView(job) : null,
     inviteOnly: plan?.visibility === "unlisted",
     xDraft: draft?.unclaimed ? { username: draft.username } : null,
     offerLocked: job.status === "ready" ? offerLockedWhy(job) : null,

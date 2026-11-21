@@ -13,7 +13,9 @@ import { Ticket } from "@/components/sage/ticket";
 import { short } from "@/lib/format";
 import { count, howLong } from "@/lib/site/when";
 import type { LiveView } from "@/lib/test-page/live";
-import { Findings, MissionItem, Stage, TestHead } from "./parts";
+import { FirstLook, lookMeta } from "./first-look";
+import { MissionItem, Stage, TestHead } from "./parts";
+import { Report } from "./report";
 import { TesterDoor } from "./tester-door";
 
 const usd = (base: number): string => `$${(base / 1_000_000).toFixed(2)}`;
@@ -153,6 +155,13 @@ export function TestLive({ initial }: { initial: LiveView }) {
         </Stage>
         ) : null}
 
+        {/* Sage's own notes are the builder's: a tester must not read what Sage saw before answering */}
+        {view.firstLook ? (
+          <Stage state="done" title="What Sage noticed" meta={lookMeta(view.firstLook)}>
+            <FirstLook look={view.firstLook} />
+          </Stage>
+        ) : null}
+
         <Stage state={done || !owner ? "done" : "now"} title="People" meta={done ? `${places.paid} paid` : null} id="people">
           <div className="sg-t-places">
             <div className="sg-t-places-row">
@@ -204,7 +213,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
           {view.findings ? (
             view.findings.findings.length > 0 ? (
               <>
-                <Findings view={view.findings} />
+                <Report view={view.findings} />
                 {view.findings.notPaid.total > 0 ? (
                   <p className="sg-small">
                     {count(view.findings.notPaid.total, "answer was", "answers were")} not paid: {view.findings.notPaid.byReason.map((r) => (view.findings!.notPaid.byReason.length > 1 ? `${r.reason.toLowerCase().replace(/\.$/, "")} (${r.count})` : r.reason.toLowerCase().replace(/\.$/, ""))).join(", ")}.

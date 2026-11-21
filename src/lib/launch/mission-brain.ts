@@ -21,6 +21,7 @@ import {
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
+import { addCoreMission, coerceCoreHint, type CoreHint } from "./core-mission";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
@@ -422,7 +423,7 @@ function classifyBrainError(e: unknown): string {
 }
 
 type ArchitectResult =
-  | { ok: true; candidates: CandidateMission[]; model: string; provider: string; latencyMs: number }
+  | { ok: true; candidates: CandidateMission[]; model: string; provider: string; latencyMs: number; /** the whole parsed answer, for the "core" hint it may carry (untrusted; `coerceCoreHint` reads it) */ raw?: unknown }
   | { ok: false; error: string; detail?: string };
 
 async function architect(map: ProductMapV1, founder: FounderLaunchInput, correction?: string): Promise<ArchitectResult> {
@@ -483,7 +484,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
       const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
       if (candidates.length === 0) { lastError = "schema_mismatch"; continue; }
-      return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
+      return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs, raw: r.json };
     } catch (e) {
       lastError = classifyBrainError(e);
       lastThrown = e;
@@ -562,7 +563,7 @@ async function architectOnFallback(
     const arr = extractMissionArray(r.json);
     const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
     if (candidates.length === 0) return null;
-    return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs };
+    return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs, raw: r.json };
   } catch {
     return null;
   }
@@ -773,6 +774,9 @@ export async function runMissionBrain(
 
   narrate("designing missions — drafting from everything Sage saw");
   let arch = await architect(map, founder);
+  // The architect names the product's main action for the core mission in the same answer. The first
+  // usable one is kept across the corrective rounds, which re-ask about missions and may omit it.
+  let coreHint: CoreHint | null = arch.ok ? coerceCoreHint(arch.raw, corpus) : null;
   // The grounded-architect shadow (S2) is INDEPENDENT measurement: it runs whenever mode≠off and the
   // observations are sufficient, EVEN when the legacy architect returns empty / fails / produces zero
   // survivors — so its result is still recorded. It never changes the legacy externally-visible result;
@@ -817,7 +821,7 @@ export async function runMissionBrain(
       : "\nThe reviewer ACCEPTED these missions — they failed only on the listed fields. RE-EMIT each one with EVERY field filled in, and ADD the other distinct flows the product map shows (different screens, tabs, states or controls — never a rephrasing), so the plan no longer rests on a single mission.";
     narrate("first draft rejected by the quality gate — redesigning from the exact reasons");
     const arch2 = await architect(map, founder, issues ? `${issues}${steer}` : "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
-    if (arch2.ok) { arch = arch2; r = await run(arch2); }
+    if (arch2.ok) { arch = arch2; coreHint ??= coerceCoreHint(arch2.raw, corpus); r = await run(arch2); }
   }
 
   // PLAN-SHAPE CORRECTIVE ROUND — ONE bounded round that fixes the two shapes a first pass gets
@@ -874,6 +878,7 @@ export async function runMissionBrain(
       narrate("strengthening the plan — asking for the coverage the shape check found missing");
       const arch3 = await architect(map, founder, asks);
       if (arch3.ok) {
+        coreHint ??= coerceCoreHint(arch3.raw, corpus);
         const r3 = await run(arch3);
         const url3 = r3.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
         const urlOk = !wantUrl || url3 >= 1;
@@ -967,6 +972,25 @@ export async function runMissionBrain(
     }
   } catch {
     /* a synthesized extra is a bonus, never a reason the whole plan fails */
+  }
+
+  // THE CORE. Every test that has a plan also asks a stranger the three things a builder most needs:
+  // what they took the product to be, how far they got with its main action, and whether they would
+  // come back (`core-mission.ts`). Its words are fixed in code and it faces the SAME deterministic gate
+  // as every model-written mission; the model's only part is naming the main action, and when it names
+  // nothing usable the action is read from the missions the gate already accepted. Added only to a
+  // plan that exists: when nothing else survived, the founder is still asked what they want proven.
+  try {
+    if (r.accepted.length > 0) {
+      const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: r.accepted, modelHint: coreHint });
+      if (core) {
+        narrate(`adding the first-try mission every test carries — main action: ${core.hint.mainAction}`);
+        // first, so it is the mission a builder and a tester meet first
+        r = { ...r, accepted: [{ ...core.mission, verifiabilityClass: classifyVerifiability(core.mission) }, ...r.accepted] };
+      }
+    }
+  } catch {
+    /* the core is added to a plan, never a reason one fails */
   }
 
   // WHEN THE PLAN DIED, SAY WHY FIRST. The map's open questions are generic seeds written before any

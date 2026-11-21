@@ -1791,9 +1791,19 @@ export interface StoredFinding {
   submissionIds: string[];
   /** each `text` is an exact substring of that submission's own answer, checked in code. */
   quotes: { submissionId: string; text: string }[];
+  /** one suggested fix, a model's sentence that survived the checks (no link, no instruction, no invented number). */
+  fix?: string;
+  /** the id of the problem in Sage's own first look that this finding matches ("P2"); set only when code confirms shared words. */
+  sageSaw?: string;
 }
 export interface StoredFindings {
   findings: StoredFinding[];
+  /**
+   * For answers to the core mission: whether the person's first impression matches what the product
+   * says it is. A model's label per answer, checked in code (a real answer id, one of three values);
+   * "X of N understood it" is counted from these on every read and never stored as a number.
+   */
+  understood?: { submissionId: string; read: "yes" | "partly" | "no" }[];
 }
 
 /**
@@ -1932,3 +1942,39 @@ export const personIdentities = sqliteTable(
   (t) => [primaryKey({ columns: [t.provider, t.subject] }), index("person_identities_wallet_idx").on(t.walletKey)],
 );
 export type PersonIdentity = typeof personIdentities.$inferSelect;
+
+/**
+ * SAGE'S FIRST LOOK (the core, 21 Nov 2026). One row per inspection: what Sage itself noticed while it
+ * tried the product (the trail, the evidence ledger, each problem with its fix, the comprehension
+ * read). Written the moment the product map exists, so a builder reads it while the missions are still
+ * being written, and again if a model worded it. `engine` is that model's id, or `plain`. The JSON is
+ * `FirstLook` (`src/lib/first-look/core.ts`).
+ */
+export const firstLooks = sqliteTable("first_looks", {
+  inspectionId: text("inspection_id").primaryKey(),
+  json: text("json", { mode: "json" }).$type<unknown>().notNull(),
+  engine: text("engine").notNull(),
+  builtAt: integer("built_at").notNull(),
+});
+export type FirstLookRow = typeof firstLooks.$inferSelect;
+
+/**
+ * WHAT A TESTER TAPPED on a test's core mission: how far they got with the product's main action, and
+ * whether they would use it again. Their own taps, one row per answer, kept apart from the written
+ * answer so the words Sage judges are only ever the tester's own. The report counts these rows; no
+ * model reads or writes them. `src/lib/core-test/`.
+ */
+export const coreAnswers = sqliteTable(
+  "core_answers",
+  {
+    submissionId: text("submission_id").primaryKey(),
+    campaignId: text("campaign_id").notNull(),
+    /** 'first-screen' | 'found-start' | 'started' | 'finished'. */
+    reached: text("reached").$type<"first-screen" | "found-start" | "started" | "finished">().notNull(),
+    /** 'yes' | 'maybe' | 'no'. */
+    again: text("again").$type<"yes" | "maybe" | "no">().notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("core_answers_campaign_idx").on(t.campaignId)],
+);
+export type CoreAnswerRow = typeof coreAnswers.$inferSelect;
