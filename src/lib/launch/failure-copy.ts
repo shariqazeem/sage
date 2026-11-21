@@ -40,6 +40,10 @@ export function friendlyFailure(reason?: string | null): string {
     case "provider_timeout":
     case "provider_transient":
     case "provider_error":
+    // the model answered nothing usable and no second provider had a plan either (mission-brain.ts)
+    case "model_overthinks":
+    case "provider_broken":
+    case "design_deadline":
       return "Sage’s reviewer was briefly unavailable. Please try again.";
     case "no_inspected_pages":
       return "Sage couldn’t read anything at that URL — it may be unreachable or blocking automated visits.";

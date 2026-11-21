@@ -111,7 +111,7 @@ async function grouped(title: string, answers: PaidAnswer[], ctx: ReportContext,
   try {
     const complete: Complete = deps.complete ?? llmCompleteJson;
     // background work: a provider's hiccup is waited out before the plain report is built (steady.ts)
-    const res = await completeSteadily(complete, { system: REPORT_SYSTEM, user: reportUser(title, answers, ctx), maxTokens: 2600, temperature: 0.2, lane: "REPORT" }, { attempts: 3, budgetMs: 90_000, label: "report" });
+    const res = await completeSteadily(complete, { system: REPORT_SYSTEM, user: reportUser(title, answers, ctx), maxTokens: 2600, temperature: 0.2, lane: "REPORT", tag: "report", maxWaitMs: 90_000 }, { attempts: 3, budgetMs: 90_000, label: "report" });
     const out = enforceGroups(res.json, answers, ctx);
     if (out.droppedExtras.length > 0) console.warn("[report] dropped:", out.droppedExtras.slice(0, 6).join(" | "));
     if (out.kept === 0) return null;

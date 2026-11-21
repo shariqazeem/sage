@@ -662,7 +662,7 @@ export async function runGroundedShadow(
   input: FounderLaunchInput,
   scope: ValidationScope,
   corpus: string | undefined,
-  legacyAcceptedCount: number,
+  legacyAcceptedCount: number | Promise<number>,
   deps: ShadowDeps = {},
 ): Promise<GroundingShadowResult> {
   const set = map.observations ?? null;
@@ -1645,6 +1645,9 @@ export async function runGroundedShadow(
         }
       : null;
 
+  // The legacy plan is designed BESIDE this one since 22 Nov 2026 (mission-brain.ts), so its count arrives as a
+  // promise: it is only a label on the comparison below, and nothing above waits for it.
+  const legacyCount = await legacyAcceptedCount;
   return base({
     ran: true,
     // ordered founder-goal coverage (bounded codes + counts; never observed product text)
@@ -1715,9 +1718,9 @@ export async function runGroundedShadow(
       : ((alloc as { reason?: string }).reason ?? "allocation_failed"),
     budgetConsistent: exactBudgetEquality,
     disagreement:
-      accepted.length === legacyAcceptedCount
+      accepted.length === legacyCount
         ? "agree"
-        : accepted.length < legacyAcceptedCount
+        : accepted.length < legacyCount
           ? "v2_fewer"
           : "v2_more",
     observationView: viewMeta,

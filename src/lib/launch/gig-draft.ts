@@ -6,8 +6,9 @@ import { paidStageCount, readStatedTerms } from "./stated-terms";
 import { refusedWork } from "./work-policy";
 import { cutAtBoundary } from "./text-cut";
 import { verifiableChainList } from "@/lib/verify/chains";
-import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
+import { fallbackLlm, laneProvider, llmCompleteJson, llmConfigured, LlmCompletionError, resolveLlm } from "@/lib/llm/complete";
 import { isTransientLlmError, withTransientRetry } from "@/lib/llm/retry";
+import { distinctFallback, hedged, isModelBrokenError, isThinkOnlyError, primaryUnwell } from "@/lib/llm/steady";
 import { UNREADABLE_HOSTS, TEMPORARY_HOSTS } from "@/lib/verify/verifiers";
 
 /**
@@ -312,10 +313,33 @@ export function draftTokenBudget(milestones: number | null): number {
  * reasoning model a real GitHub issue took two rounds of about a minute each (the first answer was not
  * JSON at all) and still failed, and the founder was sent to the form after three minutes.
  */
+/**
+ * WHEN THE DRAFT'S FALLBACK STARTS BESIDE IT (22 Nov 2026). A founder is watching the card. The shared chain
+ * drafts in one to three seconds (GPT-5.4 mini: 1.3 s on a small JSON request, measured 21 Nov 2026) and a
+ * model at its default effort in 13 to 15 s (Claude 5.5, 5 Nov), so a writer still silent at ten seconds is on
+ * its slow tail: the fallback provider is asked the same thing and the first draft wins. One extra call at
+ * most, only when the fallback is a different model. `DRAFT_HEDGE_AFTER_MS` tunes it.
+ */
+export function draftHedgeAfterMs(): number {
+  const raw = Number(process.env.DRAFT_HEDGE_AFTER_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 10_000;
+}
+
 const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
-  const call = (useFallback: boolean) =>
-    llmCompleteJson({ system, user, maxTokens, temperature: 0.3, lane: "DRAFT", parsePolicy: "repair", useFallback });
+  /** the fallback is asked at most once per draft, whichever door reaches it first */
+  let fallbackAsked = false;
+  const call = (useFallback: boolean, signal?: AbortSignal) => {
+    if (useFallback) fallbackAsked = true;
+    return llmCompleteJson({ system, user, maxTokens, temperature: 0.3, lane: "DRAFT", parsePolicy: "repair", useFallback, tag: "draft", ...(signal ? { signal } : {}) });
+  };
+  const other = distinctFallback(resolveLlm(undefined, "DRAFT")) !== null;
   try {
+    // a writer the wire is passing over, or that only thought on a draft within the cooling period, is not
+    // asked first: the founder gets the fallback's draft in seconds instead of the primary's retries
+    if (other && primaryUnwell({ lane: "DRAFT", tag: "draft" })) {
+      const r = await call(true);
+      return { json: r.json, model: r.model ?? null };
+    }
     /**
      * A FOUNDER IS WAITING, SO A HICCUP IS RETRIED AND AN OUTAGE IS ROUTED AROUND.
      *
@@ -324,7 +348,13 @@ const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
      * launch on demo day. Now a transient failure gets one quick retry, inside a budget a waiting person
      * will sit through. Anything waiting can't fix goes to the fallback provider when one is configured.
      */
-    const r = await withTransientRetry(() => call(false), { attempts: 2, budgetMs: 20_000 });
+    const r = await hedged(
+      (signal) => withTransientRetry(() => call(false, signal), { attempts: 2, budgetMs: 20_000 }),
+      other ? (signal) => call(true, signal) : null,
+      draftHedgeAfterMs(),
+      // a failure the same writer cannot fix starts the other one now, not after the mark
+      (e) => isThinkOnlyError(e) || isModelBrokenError(e),
+    );
     return { json: r.json, model: r.model ?? null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -341,7 +371,7 @@ const defaultComplete: Complete = async ({ system, user, maxTokens }) => {
         /* still refused: the fallback, when there is one */
       }
     }
-    if (!fallbackLlm()) throw e;
+    if (!fallbackLlm() || fallbackAsked) throw e;
     console.warn(`[gig-draft] primary ${isTransientLlmError(e) ? "kept failing" : "failed"} (${msg.slice(0, 120)}); drafting on the fallback provider`);
     try {
       const r = await call(true);

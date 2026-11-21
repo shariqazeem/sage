@@ -9,8 +9,10 @@ import "server-only";
  * until it passes the gate.
  */
 
-import { fallbackLlm, llmCompleteJson, llmConfigured, LlmCompletionError } from "@/lib/llm/complete";
+import { fallbackLlm, llmCompleteJson, llmConfigured, LlmCompletionError, resolveLlm, type LlmComplete } from "@/lib/llm/complete";
+import { deadlineWithin, isDeadlineError, withDeadline } from "@/lib/llm/deadline";
 import { backoffMs } from "@/lib/llm/retry";
+import { distinctFallback, fallbackCanHelp, hedged, isModelBrokenError, isThinkOnlyError, primaryUnwell } from "@/lib/llm/steady";
 import { missionModel } from "@/lib/llm/mission-model";
 import {
   ARCHITECT_SYSTEM,
@@ -409,17 +411,26 @@ export function architectFailureDetail(e: unknown): string | undefined {
   return bits.join(" ").slice(0, 200);
 }
 
-/** Did the provider run out of room, as opposed to producing a bad shape? Only this warrants a
- *  bigger budget on the next attempt; everything else is answered by temperature and the nudge. */
-function wasTruncated(e: unknown): boolean {
-  if (e instanceof LlmCompletionError) return e.finishReason === "length" || e.code === "llm_empty";
+/** Was the answer CUT MID-WAY, as opposed to never started or badly shaped? Only this warrants a bigger
+ *  budget on the next attempt. An answer that never started (the model thought its whole budget away, or
+ *  returned nothing) is NOT a truncation: more room buys a longer think. It used to count as one, and the
+ *  ladder then asked the same model five times with a growing budget (measured 21 Nov 2026: 1,500 s). */
+export function wasTruncated(e: unknown): boolean {
+  if (isThinkOnlyError(e)) return false;
+  if (e instanceof LlmCompletionError) return e.finishReason === "length";
   const m = e instanceof Error ? e.message : String(e);
-  return /finish_length|truncat|unparseable|empty/i.test(m);
+  return /finish_length|truncat/i.test(m);
 }
 
 /** Classify an architect failure for durable observability. */
 function classifyBrainError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
+  // the whole design's clock ran out (deadline.ts): not a provider's fault, and nothing to retry
+  if (isDeadlineError(e)) return "design_deadline";
+  // thought its whole budget away and answered nothing: another model fixes it, more room does not
+  if (isThinkOnlyError(e)) return "model_overthinks";
+  // the wire is passing this model over (5xx to every call): no call was made
+  if (isModelBrokenError(e)) return "provider_broken";
   if (/unparseable/.test(m)) return "invalid_json";
   if (/empty/.test(m)) return "truncated_output";
   // the wire answers an account out of credit as 402 (wire.ts, section 4): no retry can help it
@@ -434,6 +445,45 @@ function classifyBrainError(e: unknown): string {
 type ArchitectResult =
   | { ok: true; candidates: CandidateMission[]; model: string; provider: string; latencyMs: number; /** the whole parsed answer, for the "core" hint it may carry (untrusted; `coerceCoreHint` reads it) */ raw?: unknown }
   | { ok: false; error: string; detail?: string };
+
+/** The job names a think-only answer is remembered under (model-health.ts). A new prompt version is a new
+ *  name, so a prompt fix is tried at once instead of waiting out the old version's cooling period. */
+const ARCHITECT_TAG = `architect@${MISSION_PROMPT_VERSION}`;
+const CRITIC_TAG = `critic@${MISSION_PROMPT_VERSION}`;
+
+/**
+ * THE WHOLE DESIGN'S CLOCK (22 Nov 2026). The builder sees a plan in minutes, never 25.
+ *
+ * Sized on the slowest model the mission lane runs on, MiniMax M3 (measured: an architect answer in 63 to
+ * 151 s, 6,583 tokens in 116 s; a critic pass in well under a minute): a first plan lands in about three and
+ * a half minutes, so seven minutes leaves room for ONE more round (the corrective one, or the fallback after
+ * a think-only primary) and not for the five-attempt ladder that held two products for 1,500 s on 21 Nov.
+ * At the deadline every further model call is refused at once (deadline.ts) and the brain returns the best
+ * plan that is actually ready: the gate still judges it, and nothing is made up to fill the gap.
+ * `MISSION_DESIGN_BUDGET_MS` tunes it.
+ */
+export function missionDesignBudgetMs(): number {
+  const raw = Number(process.env.MISSION_DESIGN_BUDGET_MS);
+  return Number.isFinite(raw) && raw >= 30_000 ? raw : 420_000;
+}
+/**
+ * WHEN THE ARCHITECT'S FALLBACK STARTS BESIDE IT. A builder is waiting. MiniMax's architect answers in 63 to
+ * 151 s when it answers; one still silent at 150 s is on its heavy tail or thinking its budget away (about
+ * 250 s to find out, at 57 tokens a second over 14,000). So at that mark the fallback provider is asked the
+ * same question and the first usable plan wins. One extra architect call at most, only on the slow tail, and
+ * only when the fallback is a different model. `MISSION_HEDGE_AFTER_MS` tunes it; 0 turns hedging off.
+ */
+export function missionHedgeAfterMs(): number {
+  const raw = Number(process.env.MISSION_HEDGE_AFTER_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 150_000;
+}
+/** An optional improvement round is started only with this much of the design's clock left: less cannot
+ *  hold an architect answer and its review, so it would only spend tokens on a plan nobody will see. */
+const MIN_ROUND_MS = 150_000;
+/** The longest one critic batch may take on either provider (see criticBatch). */
+const CRITIC_MAX_WAIT_MS = 120_000;
+
+type ArchitectRace = { from: "primary"; r: LlmComplete } | { from: "fallback"; result: Extract<ArchitectResult, { ok: true }> };
 
 async function architect(map: ProductMapV1, founder: FounderLaunchInput, correction?: string): Promise<ArchitectResult> {
   const mapJson = compactMapForLlm(map);
@@ -465,9 +515,37 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
    * hour. Bounded at 2 so a single transient blip still gets its second chance.
    */
   let timeouts = 0;
+  /** provider hiccups (5xx, 429) so far: the second one sends the question to the fallback as well. */
+  let transients = 0;
   /** deliberate empty plans so far: one more look is cheap; a second identical answer is the answer. */
   let empties = 0;
+  /** answers that parsed but held no usable mission (cut mid-way, or an unreadable shape). */
+  let misses = 0;
+  /**
+   * THE FALLBACK IS ASKED AT MOST ONCE per architect round, whichever door reaches it first: a primary known
+   * to be unwell, the hedge, or a failure another model can fix.
+   */
+  let fallbackAsked = false;
+  const onFallback = async (signal?: AbortSignal): Promise<Extract<ArchitectResult, { ok: true }> | null> => {
+    if (fallbackAsked) return null;
+    fallbackAsked = true;
+    return architectOnFallback(mapJson, founder, map, correction, signal);
+  };
+  const primary = resolveLlm(missionModel(), "MISSION");
+  const canHedge = missionHedgeAfterMs() > 0 && distinctFallback(primary) !== null;
+  // A PRIMARY KNOWN TO BE UNWELL IS NOT ASKED FIRST: the wire is passing it over (5xx to every call), or it
+  // thought its whole budget away on this very prompt within the cooling period (model-health.ts). The
+  // fallback answers in seconds; the primary is still tried below if the fallback has nothing.
+  if (primaryUnwell({ model: missionModel(), lane: "MISSION", tag: ARCHITECT_TAG })) {
+    const fb = await onFallback();
+    if (fb) return fb;
+  }
   for (let attempt = 0; attempt < 5; attempt++) {
+    // the design's own clock (deadline.ts): with none left, what is ready is what there is
+    if (deadlineWithin(5_000)) {
+      if (lastError === "architect_failed") lastError = "design_deadline";
+      break;
+    }
     await jitter(attempt, lastThrown);
     try {
       const base = buildArchitectUser(
@@ -482,7 +560,29 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       const user = (correction
         ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly (keep everything in scope, cite only inspectedUrls, no destructive/secret/wallet/fund actions):\n${correction.slice(0, 2000)}`
         : base) + shapeNudge;
-      const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation });
+      const ask = (signal?: AbortSignal) =>
+        llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: attempt === 0 ? 0.3 : attempt === 1 ? 0.15 : 0.45, model: missionModel(), lane: "MISSION", escalation, tag: ARCHITECT_TAG, ...(signal ? { signal } : {}) });
+      let r: LlmComplete;
+      if (attempt === 0 && canHedge && !fallbackAsked) {
+        // THE HEDGE (see missionHedgeAfterMs): the first usable plan wins, and the other call is aborted.
+        // The primary is NOT aborted when the fallback wins: its answer is dropped, but a primary that turns
+        // out to have thought its whole budget away is then remembered (model-health.ts), so the next job goes
+        // straight to the fallback instead of waiting for the hedge mark again. It ends inside the design's
+        // clock either way.
+        const won = await hedged<ArchitectRace>(
+          async () => ({ from: "primary", r: await ask() }),
+          async (signal) => {
+            const result = await onFallback(signal);
+            if (!result) throw new Error("fallback_had_no_plan");
+            return { from: "fallback", result };
+          },
+          missionHedgeAfterMs(),
+        );
+        if (won.from === "fallback") return won.result;
+        r = won.r;
+      } else {
+        r = await ask();
+      }
       const arr = extractMissionArray(r.json);
       if (arr.length === 0 && isExplicitlyEmptyPlan(r.json)) {
         // the model looked and found nothing it can anchor a paid mission on: ask the founder, don't fail
@@ -490,17 +590,36 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
         lastError = "insufficient_observation";
         continue;
       }
-      if (arr.length === 0) { lastError = "schema_mismatch"; continue; }
-      const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
-      if (candidates.length === 0) { lastError = "schema_mismatch"; continue; }
-      return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs, raw: r.json };
+      const candidates = arr.length === 0 ? [] : dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
+      if (candidates.length > 0) return { ok: true, candidates, model: r.model, provider: r.provider, latencyMs: r.latencyMs, raw: r.json };
+      // AN ANSWER WITH NO USABLE MISSION IN IT. Two different deaths, told apart by the provider's own word:
+      //  - CUT MID-ANSWER (finish "length"): the tolerant parser closed the brackets, and what was left held
+      //    no whole mission. That is a truncation, and it used to be filed as a shape miss, so the budget
+      //    never grew and all five attempts were cut at the same place (found by the model zoo, 22 Nov 2026).
+      //    It buys more room once.
+      //  - A SHAPE the reader cannot use. The provider's shape preference is per prompt, so asking again
+      //    mostly returns the same wrapper.
+      // Either way the second miss sends the question to the fallback as well, instead of three more tries.
+      if (r.finishReason === "length") {
+        escalation++;
+        lastError = "truncated_output";
+      } else {
+        lastError = "schema_mismatch";
+      }
+      if (++misses >= 2) {
+        const fb = await onFallback();
+        if (fb) return fb;
+      }
     } catch (e) {
       lastError = classifyBrainError(e);
       lastThrown = e;
-      if (lastError === "llm_not_configured") break;
-      // An empty account will refuse every attempt: the secondary provider gets the one try that can help.
-      if (lastError === "provider_out_of_credit") {
-        const fb = await architectOnFallback(mapJson, founder, map, correction);
+      if (lastError === "llm_not_configured" || lastError === "design_deadline") break;
+      // WHAT ANOTHER MODEL FIXES AND THIS ONE CANNOT: an empty account refuses every attempt, a model that
+      // thought its whole budget away will do it again with more (measured 21 Nov 2026), and a model the wire
+      // is passing over was not even called. The secondary provider gets the one try that can help; the
+      // same model is never asked again in this round.
+      if (lastError === "provider_out_of_credit" || lastError === "model_overthinks" || lastError === "provider_broken") {
+        const fb = await onFallback();
         if (fb) return fb;
         break;
       }
@@ -509,11 +628,16 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       // ...and a TIMEOUT buys nothing: re-issuing the identical request just spends the clock again.
       // After the second one, the PRIMARY is the problem — try the secondary provider once, then stop.
       if (lastError === "provider_timeout" && ++timeouts >= 2) {
-        const fb = await architectOnFallback(mapJson, founder, map, correction);
+        const fb = await onFallback();
         if (fb) return fb;
         break;
       }
-
+      // A second hiccup in a row (5xx, 429): the fallback is asked now rather than after three more waits.
+      // If it has no plan either, the primary keeps its remaining tries (the wire's breaker bounds them).
+      if (lastError === "provider_transient" && ++transients >= 2) {
+        const fb = await onFallback();
+        if (fb) return fb;
+      }
     }
   }
   return { ok: false, error: lastError, detail: architectFailureDetail(lastThrown) };
@@ -547,11 +671,12 @@ export function batchForCritic(candidates: CandidateMission[], maxChars = CRITIC
 }
 
 /**
- * ONE architect attempt on the secondary provider (`LLM_FALLBACK_*`), taken only after the primary
- * timed out twice. Measured (P-GEN 47, motherfuckingwebsite.com): the MiniMax architect crossed a
- * 300s timeout twice on a one-page site while answering a trivial prompt in two seconds; the
- * founder's launch died with a fast second provider configured and idle. The answer is judged by
- * the same critic and the same deterministic gate as any other; `model`/`provider` record which
+ * ONE architect attempt on the secondary provider (`LLM_FALLBACK_*`). Measured (P-GEN 47,
+ * motherfuckingwebsite.com): the MiniMax architect crossed a 300s timeout twice on a one-page site while
+ * answering a trivial prompt in two seconds; the founder's launch died with a fast second provider
+ * configured and idle. Since 22 Nov 2026 it is also where the question goes when the primary thought its
+ * whole budget away, is being passed over by the wire, or is still silent at the hedge mark. The answer is
+ * judged by the same critic and the same deterministic gate as any other; `model`/`provider` record which
  * provider actually answered, so a fallback plan is never mistaken for a primary one.
  */
 async function architectOnFallback(
@@ -559,7 +684,8 @@ async function architectOnFallback(
   founder: FounderLaunchInput,
   map: ProductMapV1,
   correction?: string,
-): Promise<ArchitectResult | null> {
+  signal?: AbortSignal,
+): Promise<Extract<ArchitectResult, { ok: true }> | null> {
   if (!fallbackLlm()) return null;
   try {
     const base = buildArchitectUser(
@@ -568,7 +694,7 @@ async function architectOnFallback(
       { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
     );
     const user = correction ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly: ${correction}` : base;
-    const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: 0.3, useFallback: true });
+    const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: 0.3, useFallback: true, tag: ARCHITECT_TAG, ...(signal ? { signal } : {}) });
     const arr = extractMissionArray(r.json);
     const candidates = dedupeKeys(arr.map((m, i) => coerceMission(m, i)).filter((m): m is CandidateMission => m !== null));
     if (candidates.length === 0) return null;
@@ -578,23 +704,31 @@ async function architectOnFallback(
   }
 }
 
+/**
+ * The batches are independent (each is judged against the full map), so they are reviewed AT THE SAME TIME,
+ * inside the wire's own per-key limit (`LLM_MAX_CONCURRENCY`), and the verdicts are joined in the candidates'
+ * order. A rich plan's two or three batches used to queue behind each other, a minute each on MiniMax.
+ */
 async function critic(candidates: CandidateMission[], map: ProductMapV1): Promise<MissionCritique[]> {
   const mapJson = compactMapForLlm(map);
-  const out: MissionCritique[] = [];
-  for (const batch of batchForCritic(candidates)) {
-    out.push(...(await criticBatch(batch, mapJson)));
-  }
-  return out;
+  const verdicts = await Promise.all(batchForCritic(candidates).map((batch) => criticBatch(batch, mapJson)));
+  return verdicts.flat();
 }
 
 async function criticBatch(candidates: CandidateMission[], mapJson: string, useFallback = false): Promise<MissionCritique[]> {
   const candJson = JSON.stringify({ missions: candidates });
+  // a reviewer known to be unwell (passed over by the wire, or think-only on this prompt) is not asked first
+  if (!useFallback && fallbackLlm() && primaryUnwell({ model: missionModel(), lane: "MISSION", tag: CRITIC_TAG })) return criticBatch(candidates, mapJson, true);
   try {
     const r = await llmCompleteJson({
       system: CRITIC_SYSTEM,
       user: buildCriticUser(candJson, mapJson),
       maxTokens: 3000,
       temperature: 0,
+      tag: CRITIC_TAG,
+      // a review takes well under a minute on the slowest model the lane runs on; one still silent after
+      // two is on a hung connection, and the fallback (or the gate alone) is the better use of the clock
+      maxWaitMs: CRITIC_MAX_WAIT_MS,
       ...(useFallback ? { useFallback: true } : { model: missionModel(), lane: "MISSION" as const }),
     });
     const arr = (r.json as { critiques?: unknown[] })?.critiques;
@@ -614,9 +748,10 @@ async function criticBatch(candidates: CandidateMission[], mapJson: string, useF
       })
       .filter((c) => c.missionKey.length > 0);
   } catch (e) {
-    // The primary's heavy tail again: a timed-out review gets ONE attempt on the secondary provider.
-    // Any other failure stays an empty verdict list — the deterministic gate still judges every mission.
-    if (!useFallback && ["provider_timeout", "provider_out_of_credit"].includes(classifyBrainError(e)) && fallbackLlm()) return criticBatch(candidates, mapJson, true);
+    // A review another model can still give (the primary timed out, hiccuped, thought its budget away, is
+    // being passed over, or its account is empty) gets ONE attempt on the secondary provider. Any other
+    // failure stays an empty verdict list — the deterministic gate still judges every mission.
+    if (!useFallback && fallbackLlm() && (fallbackCanHelp(e) || classifyBrainError(e) === "provider_out_of_credit")) return criticBatch(candidates, mapJson, true);
     return [];
   }
 }
@@ -726,7 +861,7 @@ export function rejectionQuestionsFor(
  */
 const INTERACTION = /\b(click(?:s|ed|ing)?|tap(?:s|ped|ping)?|type[sd]?|typing|enter(?:s|ed|ing)?|submit(?:s|ted|ting)?|select(?:s|ed|ing)?|choose|chooses|connect(?:s|ed|ing)?|creat(?:e|es|ed|ing)|sign\s*up|log\s*in|upload(?:s|ed|ing)?|search(?:es|ed|ing)?|filter(?:s|ed|ing)?|sort(?:s|ed|ing)?|toggle[sd]?|toggling|switch(?:es|ed|ing)?|drag(?:s|ged|ging)?|send[s]?|sending|start(?:s|ed|ing)?|launch(?:es|ed|ing)?|deploy(?:s|ed|ing)?|publish(?:es|ed|ing)?|mint(?:s|ed|ing)?|add(?:s|ed|ing)?|paste[sd]?|pasting)\b/i;
 
-export async function runMissionBrain(
+export function runMissionBrain(
   map: ProductMapV1,
   founder: FounderLaunchInput,
   scope: ValidationScope,
@@ -734,6 +869,18 @@ export async function runMissionBrain(
   /** live-trail narration — the design phase is 2-4 minutes of real model work that used to render
    *  as a frozen screen; each phase announces itself. Best-effort, never affects the result. */
   opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean } = {},
+): Promise<MissionBrainResult> {
+  // ONE CLOCK FOR THE WHOLE DESIGN (missionDesignBudgetMs): every model call below gets at most what is left
+  // of it, and at the deadline the brain returns the best plan that is actually ready.
+  return withDeadline(missionDesignBudgetMs(), () => designMissions(map, founder, scope, corpus, opts));
+}
+
+async function designMissions(
+  map: ProductMapV1,
+  founder: FounderLaunchInput,
+  scope: ValidationScope,
+  corpus: string,
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean },
 ): Promise<MissionBrainResult> {
   // The grounded planner is a 169s add on the founder's clock (measured, clawup -6uszdFt). It is worth
   // that wait only when its output can be SELECTED or we're in pure measurement mode — the pipeline
@@ -781,28 +928,42 @@ export async function runMissionBrain(
     return { critiques, survivors, reports, accepted };
   };
 
-  narrate("designing missions — drafting from everything Sage saw");
-  let arch = await architect(map, founder);
-  // The architect names the product's main action for the core mission in the same answer. The first
-  // usable one is kept across the corrective rounds, which re-ask about missions and may omit it.
-  let coreHint: CoreHint | null = arch.ok ? coerceCoreHint(arch.raw, corpus) : null;
-  // ...and, in the same answer, what this builder most likely came for and where the core stands for them. The
-  // first usable decision is kept the same way; with none, the old rule stands (the core leads).
-  let coreDecision: CoreDecision = arch.ok ? coerceCoreDecision(arch.raw) : DEFAULT_CORE_DECISION;
   // The grounded-architect shadow (S2) is INDEPENDENT measurement: it runs whenever mode≠off and the
   // observations are sufficient, EVEN when the legacy architect returns empty / fails / produces zero
   // survivors — so its result is still recorded. It never changes the legacy externally-visible result;
   // a V2 failure is fully caught. dynamic import breaks the mission-brain ↔ shadow require cycle.
-  const computeShadow = async (legacyCount: number): Promise<GroundingShadowResult | undefined> => {
+  const computeShadow = async (legacyCount: number | Promise<number>): Promise<GroundingShadowResult | undefined> => {
     try {
       if (!runGrounded) return undefined; // it could never be selected here — don't spend the founder's 169s on it
       const s = await import("./mission-grounding-shadow");
       return s.missionGroundingMode() !== "off" ? await s.runGroundedShadow(map, founder, scope, corpus, legacyCount, { replayReproduced: replayReproducedSet(map), replayRan: !!map.replayShadow }) : undefined;
     } catch { return undefined; }
   };
+  // BESIDE THE LEGACY PLAN, NOT AFTER IT (22 Nov 2026). The two planners ask independent questions, and the
+  // grounded one was a measured 169 s added to the builder's wait once the legacy plan was already final. It
+  // starts now, inside the wire's per-key limit; the legacy plan's size, which it only uses to label the
+  // comparison, is handed over when it is known.
+  let tellShadow: (legacyCount: number) => void = () => {};
+  const shadowRun = computeShadow(new Promise<number>((resolve) => { tellShadow = resolve; }));
 
+
+  narrate("designing missions — drafting from everything Sage saw");
+  let arch: ArchitectResult;
+  try {
+    arch = await architect(map, founder);
+  } catch (e) {
+    tellShadow(0); // never leave the grounded run waiting on a count that will not come
+    throw e;
+  }
+  // The architect names the product's main action for the core mission in the same answer. The first
+  // usable one is kept across the corrective rounds, which re-ask about missions and may omit it.
+  let coreHint: CoreHint | null = arch.ok ? coerceCoreHint(arch.raw, corpus) : null;
+  // ...and, in the same answer, what this builder most likely came for and where the core stands for them. The
+  // first usable decision is kept the same way; with none, the old rule stands (the core leads).
+  let coreDecision: CoreDecision = arch.ok ? coerceCoreDecision(arch.raw) : DEFAULT_CORE_DECISION;
   if (!arch.ok) {
-    const gs = await computeShadow(0); // legacy architect failed → V2 shadow still measured
+    tellShadow(0);
+    const gs = await shadowRun; // legacy architect failed → V2 shadow still measured
     // an EMPTY plan is the architect saying the map is too thin: the same specific questions the
     // sufficiency gate asks, so the pipeline's needs_input path (not `failed`) carries it to the founder
     const asked = arch.error === "insufficient_observation" ? sufficiencyQuestions(map, founder.goal) : needsInputQuestions;
@@ -816,7 +977,7 @@ export async function runMissionBrain(
   // 56 production no_missions_passed_validation rows, 31 died at the CRITIC (mostly "presence check /
   // not worth paying for") — and zero survivors meant zero gate reports, so this round fired blind
   // and the architect regenerated the same shape of mission it had just had rejected.
-  if (r.accepted.length === 0) {
+  if (r.accepted.length === 0 && !deadlineWithin(60_000)) {
     const gateIssues = r.reports.flatMap((rep) => rep.issues.map((x) => `${rep.missionKey}: ${x.code} — ${x.detail}`));
     const criticIssues = r.critiques
       .filter((c) => c.decision === "reject" || c.decision === "revise")
@@ -874,7 +1035,9 @@ export async function runMissionBrain(
       INTERACTION.test(`${m.instructions} ${m.criteria.join(" ")}`),
     );
     const wantAction = !hasAction && r.accepted.length > 0;
-    if (wantUrl || wantMore || wantAction) {
+    // An IMPROVEMENT round is taken only while the design's clock can hold an architect answer and its
+    // review (MIN_ROUND_MS). The plan in hand already passed the gate: it ships as it is rather than late.
+    if ((wantUrl || wantMore || wantAction) && !deadlineWithin(MIN_ROUND_MS)) {
       const asks = [
         ...(wantAction
           ? [
@@ -1051,8 +1214,8 @@ export async function runMissionBrain(
     for (const q of sufficiencyQuestions(map, founder.goal)) if (!needsInputQuestions.includes(q)) needsInputQuestions.push(q);
   }
 
-  if (r.accepted.length > 0) narrate("missions final — running the grounded-planner measurement");
-  const groundingShadow = await computeShadow(r.accepted.length);
+  tellShadow(r.accepted.length);
+  const groundingShadow = await shadowRun;
 
   return {
     ok: r.accepted.length > 0,

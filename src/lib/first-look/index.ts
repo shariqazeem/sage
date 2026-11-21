@@ -76,6 +76,9 @@ export async function wordFirstLook(plain: FirstLook, map: MapLike | null, deps:
         maxTokens: 1400,
         temperature: 0.2,
         lane: "DRAFT",
+        tag: "first-look",
+        // a wording is a few seconds of writing; a call still silent after a minute is not coming
+        maxWaitMs: 60_000,
       },
       { attempts: 3, budgetMs: 75_000, label: "first-look" },
     );

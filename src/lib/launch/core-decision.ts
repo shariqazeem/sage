@@ -119,8 +119,12 @@ export async function askCorePlace(
     const complete: Complete = deps.complete ?? llmCompleteJson;
     const res = await completeSteadily(
       complete,
-      { system: CORE_DECISION_SYSTEM, user: coreDecisionUser(input), maxTokens: 400, temperature: 0.2 },
-      { attempts: 2, budgetMs: 45_000, label: "core-place" },
+      // a 400-token question to the fast shared model: thirty seconds is ten times its usual answer, and past
+      // it the fallback (or the defaults) serves the builder better than a reasoning profile's long timeout
+      { system: CORE_DECISION_SYSTEM, user: coreDecisionUser(input), maxTokens: 400, temperature: 0.2, tag: "core-place", maxWaitMs: 30_000 },
+      // the builder is waiting on the plan this belongs to: a shared model still silent at eight seconds (its usual
+      // answer takes one or two) is joined by the fallback, and the first answer wins
+      { attempts: 2, budgetMs: 45_000, label: "core-place", hedgeAfterMs: 8_000 },
     );
     return { hint: startsWhereItSays(coerceCoreHint(res.json, input.corpus)), decision: coerceCoreDecision(res.json) };
   } catch (e) {

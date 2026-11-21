@@ -16,6 +16,7 @@ import "server-only";
  */
 
 import { llmCompleteJson, llmConfigured } from "@/lib/llm/complete";
+import { withTransientRetry } from "@/lib/llm/retry";
 import { detectInjection, UNTRUSTED_NOTE_CLOSE, UNTRUSTED_NOTE_OPEN } from "./brain-core";
 import { findNearDuplicate, type DedupCandidate } from "./dedup";
 import {
@@ -397,7 +398,13 @@ export async function judgeObservationAccount(input: {
   if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [] };
   const user = buildJudgeUserForTest(input);
   try {
-    const r = await llmCompleteJson({ system: OBS_JUDGE_SYSTEM, user, temperature: 0, maxTokens: 900, model: input.model, lane: "OBS_JUDGE" });
+    // One provider hiccup (a 5xx, a dropped connection) is asked again on the SAME model, inside a short
+    // budget: a single 500 used to read as confidence 0 and hold honest work for a later sweep. Never
+    // another model: who judges is unchanged, and any failure still returns the zero that cannot pay.
+    const r = await withTransientRetry(
+      () => llmCompleteJson({ system: OBS_JUDGE_SYSTEM, user, temperature: 0, maxTokens: 900, model: input.model, lane: "OBS_JUDGE", tag: "obs-judge" }),
+      { attempts: 2, budgetMs: 25_000 },
+    );
     const parsed = (r.json ?? {}) as { obsConfidence?: unknown; contradictions?: unknown; corroborations?: unknown };
     return {
       obsConfidence: clamp01(Number(parsed.obsConfidence)),
