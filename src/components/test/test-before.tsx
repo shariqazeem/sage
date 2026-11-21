@@ -270,7 +270,12 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
               ))}
             </div>
           ) : !RUNNING.has(status) && job.pagesInspected > 0 ? (
-            <p className="sg-small">Sage read {count(job.pagesInspected, "page", "pages")} of it. It kept no pictures from this run.</p>
+            whose === "yours" ? (
+              <p className="sg-small">Sage read {count(job.pagesInspected, "page", "pages")} of it. It kept no pictures from this run.</p>
+            ) : (
+              // the frames exist; they are the owner's until the test is done (NO CORPUS ORACLE, before.ts)
+              <p className="sg-small">Sage read {count(job.pagesInspected, "page", "pages")} of it. What it saw stays with the person who started this test until the test is done.</p>
+            )
           ) : null}
           {!running ? <Facts facts={initial.facts} /> : null}
           {!running && initial.couldNotSee.length > 0 ? (
